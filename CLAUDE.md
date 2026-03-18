@@ -12,9 +12,18 @@
 
 Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
 
+## Engineering Standards
+
+Every commit **must** satisfy all of the following:
+
+1. **Documentation**: Update relevant documentation for every commit. New public APIs, changed behavior, and architectural decisions must be reflected in doc comments (`///`), `docs/`, or ADRs as appropriate.
+2. **Tests required**: All new code must have accompanying unit tests. No new function, struct, or module lands without test coverage.
+3. **Coverage threshold**: Maintain test coverage above **90%**. Use `cargo tarpaulin` (or equivalent) to verify. PRs that drop coverage below 90% must not be merged.
+4. **All standards must pass**: `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test` must all succeed. No exceptions, no `#[allow]` without a justifying comment.
+
 ## Architecture
 
-See @DESIGN.md for full design document.
+See [docs/design/overview.md](docs/design/overview.md) for full architecture. See [docs/index.md](docs/index.md) for all documentation.
 
 ```
 src/
@@ -65,3 +74,11 @@ src/
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
 - One logical change per commit
 - Run full test suite before pushing
+
+## Documentation Map
+
+- Architecture & subsystem design: `docs/design/`
+- Architecture decisions: `docs/adr/`
+- Roadmap & status: `docs/requirements/roadmap.md`
+- Implementation plans: `docs/plans/`
+- Original monolithic design: `DESIGN.md` (archival)
