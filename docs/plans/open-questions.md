@@ -2,188 +2,119 @@
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 
-Deferred design decisions that affect multiple phases. Each question includes context, options, trade-offs, and a recommended resolution timeline.
+Deferred design decisions that affect multiple phases. Each question includes context, options, trade-offs, and resolution status.
 
 ---
 
-## 1. Exact Parish Location
+## 1. Exact Parish Location — RESOLVED
 
-**Context**: The starting area must be a real civil parish near Roscommon with interesting geography (lake, river, hills) and enough townlands to support 30-50 location nodes at full density.
+**Decision**: **Kiltoom** (Barony of Athlone South)
 
-**Options**:
+**Rationale**: Best combination of water features (Lough Ree, Shannon), proximity to Athlone for urban contrast, and enough townlands (~25) for dense node mapping. River and lake access provide natural geographic variety for location descriptions and movement constraints.
+
+**Resolved**: Phase 2 prerequisite. Location data authoring in `data/parish.json` should use Kiltoom townlands and geography.
 
 | Parish | Barony | Features | Townlands | Notes |
 |--------|--------|----------|-----------|-------|
-| **Kiltoom** | Athlone South | River Shannon, Lough Ree shore, Hodson Bay | ~25 | Close to Athlone, good water features, accessible |
-| **Kilbride** | Roscommon | Near Roscommon town, some lake access | ~20 | Central, but less dramatic geography |
-| **Rahara** | Athlone South | Near Knockcroghery, Lough Ree | ~18 | Pottery heritage, compact |
-| **Fuerty** | Athlone North | River Suck, inland, rolling farmland | ~30 | Rich agriculture, less water drama |
-
-**Recommendation**: Kiltoom — best combination of water features (Lough Ree, Shannon), proximity to Athlone for urban contrast, and enough townlands for dense node mapping.
-
-**Resolve by**: Phase 2 start (needed for location data file authoring).
-
-**Depends on**: Nothing. This is a creative decision.
+| **Kiltoom** ✓ | Athlone South | River Shannon, Lough Ree shore, Hodson Bay | ~25 | Close to Athlone, good water features, accessible |
+| Kilbride | Roscommon | Near Roscommon town, some lake access | ~20 | Central, but less dramatic geography |
+| Rahara | Athlone South | Near Knockcroghery, Lough Ree | ~18 | Pottery heritage, compact |
+| Fuerty | Athlone North | River Suck, inland, rolling farmland | ~30 | Rich agriculture, less water drama |
 
 ---
 
-## 2. Player Character Model
+## 2. Player Character Model — RESOLVED
 
-**Context**: The player needs some form of in-world presence. The choice affects tutorial design, NPC interaction framing, and future quest potential.
+**Decision**: **(b) Newcomer / "blow-in" arriving fresh**
 
-**Options**:
+**Rationale**: Provides the best balance of narrative justification ("Why am I here?"), natural onboarding (everything is new, NPCs explain things), and player agency. The arrival reason is left vague initially — inherited a cottage, new job, or similar. All relationships start from zero, which aligns with the simulation's relationship-building mechanics.
 
-**(a) Named local with history**
-- Player has a name, family, job, house in the parish
-- NPCs know them; relationships pre-exist
-- Trade-off: rich roleplay but constraining; player can't choose who they are
+**Resolved**: Phase 1. NPC context prompts should frame the player as a recent arrival to Kiltoom whom NPCs don't yet know well.
 
-**(b) Newcomer / "blow-in" arriving fresh**
-- Player just moved to the parish (inherited a cottage, new job, etc.)
-- NPCs don't know them; all relationships start from zero
-- Natural tutorial: everything is new, NPCs explain things
-- Trade-off: slightly slower start, but most flexible
-
-**(c) Abstract observer with no in-world presence**
-- Player is a disembodied presence; NPCs don't acknowledge them unless spoken to
-- Simplest to implement; no player state to manage
-- Trade-off: least immersive; breaks social simulation contract
-
-**Recommendation**: Option (b) — newcomer. Provides the best balance of narrative justification ("Why am I here?"), natural onboarding, and player agency. The arrival reason can be left vague initially.
-
-**Resolve by**: Phase 1 (affects how NPC context prompts frame the player).
-
-**Depends on**: Parish selection (#1) for the arrival story.
+**Implementation impact**:
+- NPC Tier 1 prompts include: "The player is a newcomer to the parish."
+- No pre-existing relationship data needed at game start.
+- Tutorial is organic: NPCs naturally explain local customs, introduce themselves.
 
 ---
 
-## 3. Goal / Quest Structure
+## 3. Goal / Quest Structure — RESOLVED
 
-**Context**: Intentionally deferred. The sandbox must work before layering goals on top. However, the architecture should not preclude future quest systems.
+**Decision**: **(a) Purely emergent** for prototype, with architecture supporting **(d) Hybrid** later.
 
-**Options**:
+**Rationale**: The sandbox must work before layering goals. Starting emergent lets the NPC system prove itself. The event bus (Phase 5) and condition-check architecture will support authored "anchor events" if/when needed, without requiring them upfront.
 
-**(a) Purely emergent** — Goals arise organically from NPC relationships and events. No authored content.
-- Pro: maximizes the living world feel
-- Con: risk of aimlessness; hard to create narrative tension
+**Resolved**: After Phase 3 evaluation. No quest system is implemented initially. The event bus in Phase 5 should support condition-triggered events to enable hybrid quests later.
 
-**(b) Authored quest lines** — Hand-written story arcs triggered by conditions.
-- Pro: guaranteed compelling content
-- Con: conflicts with emergent NPC behavior; expensive to author
-
-**(c) Seasonal/annual objectives** — Soft goals tied to the calendar (prepare for Samhain, help with the harvest, organize the parish fete).
-- Pro: natural pacing; uses existing time system
-- Con: repetitive across years
-
-**(d) Hybrid** — Emergent base with authored "anchor events" that create structure without railroading.
-- Pro: best of both worlds
-- Con: most complex to implement
-
-**Recommendation**: Start with (a) for prototype. Design NPC system to support (d) later by ensuring events can trigger condition checks.
-
-**Resolve by**: After Phase 3 (need working NPC relationships to evaluate what emerges naturally).
-
-**Depends on**: Phase 3 NPC system, Phase 5 event bus.
+**Implementation impact**:
+- No quest/objective module in Phases 1-5.
+- Phase 5 event bus must support registering condition listeners (e.g., "when relationship > threshold, fire event").
+- Revisit after Phase 5 to evaluate whether emergent gameplay is sufficient or authored anchors are needed.
 
 ---
 
-## 4. Story and Lore
+## 4. Story and Lore — RESOLVED
 
-**Context**: What is the narrative frame? Why is the player here? What makes this parish interesting beyond being a simulation?
+**Decision**: **Combination** — mundane surface with hints of deeper strangeness.
 
-**Options**:
+**Rationale**: Start with mundane realism grounded in rural Kiltoom life. The mythology hooks (Phase 6) create space for strangeness to emerge organically without forcing it. A recent parish event (content TBD at Phase 5-6 boundary) gives NPCs something to gossip about and creates natural narrative tension.
 
-- **Mundane realism**: The parish is ordinary. Interest comes from the people, their lives, their secrets.
-- **Underlying tension**: Something happened recently (a death, a scandal, a land dispute) that the player gradually uncovers through NPC gossip.
-- **Mythological undercurrent**: The parish sits on thin ground between the mundane and the otherworld. Subtle strangeness at the margins.
-- **Combination**: Mundane surface with hints of something deeper. The player decides how much to engage with the strange.
+**Resolved**: Phase 5-6 boundary. Content authored when mythology hooks are in place.
 
-**Recommendation**: Combination. Start with mundane realism. The mythology hooks (Phase 6) create space for the strange to emerge without forcing it. A recent parish event (deferred content) gives NPCs something to talk about.
-
-**Resolve by**: Phase 5-6 boundary (mythology hooks create the structural opportunity).
-
-**Depends on**: Parish selection (#1), player character (#2), NPC system maturity (Phase 3).
+**Implementation impact**:
+- Phases 1-5: NPCs discuss mundane parish life, weather, farming, local events.
+- Phase 6: Mythology hooks enable location properties (`mythological_significance`), NPC belief traits, and festival-triggered strangeness.
+- A "recent event" (death, scandal, land dispute) will be authored as NPC gossip seed when the system is mature enough to carry it.
 
 ---
 
-## 5. Command Prefix UX
+## 5. Command Prefix UX — RESOLVED
 
-**Context**: Currently using `/` prefix for system commands. The design doc envisions prefix-free fuzzy matching with inline confirmation.
+**Decision**: **(a) `/` prefix** for Phases 1-5; migrate to **(d) Hybrid** in Phase 6.
 
-**Options**:
+**Rationale**: The `/` prefix is simple, unambiguous, and familiar. It works fine for development and early phases. Prefix-free detection with confirmation is a polish feature that requires mature input parsing and LLM intent classification reliability.
 
-**(a) Keep `/` prefix** — Simple, unambiguous, familiar from games and chat systems.
-- Pro: zero false positives; easy to implement
-- Con: breaks immersion; "gamey"
+**Resolved**: Phase 1 for initial implementation; Phase 6 for prefix-free upgrade.
 
-**(b) Use `~` or another prefix** — Same approach, different character.
-- Pro: less common, feels less like a chat command
-- Con: still a prefix; arbitrary choice
-
-**(c) Prefix-free with confirmation** — Type "quit", system detects it matches a command, shows "Quit the game? y/n".
-- Pro: most immersive; design doc's preferred direction
-- Con: false positives ("Tell him to quit whining" triggers quit detection); more complex input pipeline
-
-**(d) Hybrid** — `/` always works; additionally, bare command words are detected with confirmation.
-- Pro: power users use `/`, casual users get confirmation flow
-- Con: two code paths to maintain
-
-**Recommendation**: Start with (a), migrate to (d) in Phase 6. The `/` prefix works fine for a prototype. Prefix-free detection is a polish feature.
-
-**Resolve by**: Phase 1 for initial implementation; Phase 6 for prefix-free upgrade.
-
-**Depends on**: Input parsing maturity (Phase 1), LLM intent parsing reliability.
+**Implementation impact**:
+- Phase 1: All system commands use `/` prefix (`/quit`, `/save`, `/pause`, etc.).
+- Phase 6: Add bare-word detection with confirmation dialog ("Quit the game? y/n") alongside `/` support.
+- Input parser should be structured to accommodate both paths from the start (command detection as a separate stage).
 
 ---
 
-## 6. Mythology Content and Supernatural Events
+## 6. Mythology Content and Supernatural Events — RESOLVED
 
-**Context**: Phase 6 installs structural hooks (mythological location properties, festival events, NPC beliefs). The question is what content fills those hooks.
+**Decision**: **(b) Moderate / behavioral** for first pass.
 
-**Options**:
+**Rationale**: Use existing NPC cognition to create "strange" behavior by modifying context prompts near mythological locations during festivals and at night. No new entity types needed. This tests whether the NPC system can carry atmospheric strangeness before committing to full supernatural entities (option c).
 
-**(a) Subtle / atmospheric only** — Strange descriptions at night near the fairy fort. NPCs mention old stories. Nothing overt happens.
-- Pro: maintains realism; lets player's imagination do the work
-- Con: hooks exist but deliver nothing tangible
+**Resolved**: After Phase 6 hooks are in place. Evaluate escalation to (c) based on playtesting.
 
-**(b) Moderate / behavioral** — NPCs behave strangely near festival dates. Livestock go missing near the fairy fort. An NPC claims to have seen something.
-- Pro: emergent storytelling through NPC system; testable via Tier 1 prompts
-- Con: must be carefully tuned to avoid feeling scripted
-
-**(c) Overt / supernatural entities** — Fairy folk, pooka, banshee as NPC-like entities with their own cognition tier. Interact with the player.
-- Pro: unique selling point; Irish mythology is underexplored in games
-- Con: huge scope; requires its own NPC type; risks tonal whiplash
-
-**Recommendation**: (b) for first pass. Use existing NPC cognition to create "strange" behavior by modifying context prompts near mythological locations during festivals and at night. No new entity types needed. Evaluate whether to escalate to (c) based on how (b) feels in practice.
-
-**Resolve by**: After Phase 6 hooks are in place.
-
-**Depends on**: Phase 5 seasonal system, Phase 6 mythology hooks, Phase 3 NPC cognition.
+**Implementation impact**:
+- Phase 6: Mythology hooks modify NPC Tier 1/2 context prompts when conditions are met (location + time + festival).
+- NPCs behave strangely near fairy forts at night, mention old stories during festivals, report odd occurrences.
+- No new `SupernaturalEntity` type or cognition tier. All effects flow through existing NPC prompt modification.
+- Escalation to (c) overt supernatural entities is a future decision, not scheduled.
 
 ---
 
-## 7. Player Verb Set
+## 7. Player Verb Set — RESOLVED
 
-**Context**: Beyond movement and conversation, what actions can the player perform? This determines the `IntentKind` enum, the structured output schema, and the world interaction model.
+**Decision**: Phased rollout starting with **(a) Minimal**.
 
-**Options**:
+| Phase | Verbs | Notes |
+|-------|-------|-------|
+| Phase 1 | `Move`, `Talk`, `Look`, `Examine` | Core interaction; conversation is primary mechanic |
+| Phase 3 | + `Take`, `Give`, `Wait` | Physical interaction when NPCs can react to items |
+| Phase 5 | + `Trade`, `Work` | Economic participation with full NPC simulation |
+| Deferred indefinitely | `Steal`, `Fight`, `Romance`, `Craft`, `Build` | Content-heavy; may not suit tone |
 
-**(a) Minimal** — `Move`, `Talk`, `Look`, `Examine`
-- Pro: focused; conversation is the core mechanic; fast to implement
-- Con: limited agency; player is essentially a walking camera
+**Rationale**: Conversation is the core mechanic. Start minimal, add verbs only when the systems exist to support them meaningfully. Each new verb requires NPC response handling, world state effects, and persistence support.
 
-**(b) Moderate** — Above + `Take`, `Give`, `Trade`, `Work`, `Wait`
-- Pro: physical interaction with the world; economic participation
-- Con: needs inventory system, item model, trade logic
+**Resolved**: Phase 1 for initial set; revisit at each phase boundary.
 
-**(c) Expansive** — Above + `Steal`, `Fight`, `Romance`, `Craft`, `Build`
-- Pro: full simulation; maximum player expression
-- Con: massive scope; each verb needs NPC response handling, world state effects, persistence
-
-**Recommendation**: Start with (a) for Phase 1. Add `Take`, `Give`, `Wait` in Phase 3 when NPCs can react to items. Defer `Trade`, `Work` to Phase 5. Defer `Steal`, `Fight`, `Romance` indefinitely — these are content-heavy and may not suit the tone.
-
-**Implementation notes**: The `IntentKind` enum should be non-exhaustive (`#[non_exhaustive]`) to allow future extension. The `NpcAction` structured output schema already includes a flexible `action: String` field that can accommodate new verbs without schema changes.
-
-**Resolve by**: Phase 1 for initial set; revisit at each phase boundary.
-
-**Depends on**: NPC response capabilities, world interaction model, item/inventory system (not yet designed).
+**Implementation impact**:
+- `IntentKind` enum must be `#[non_exhaustive]` to allow future extension without breaking changes.
+- `NpcAction` structured output schema uses flexible `action: String` field — no schema changes needed for new verbs.
+- Inventory/item system designed in Phase 3 when `Take`/`Give` are added.

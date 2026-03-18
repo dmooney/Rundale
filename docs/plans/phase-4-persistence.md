@@ -111,8 +111,8 @@ Implement invisible, continuous persistence using SQLite in WAL mode: real-time 
 - Journal events are appended in real time; crash recovery replays journal tail
 - `cargo test` passes all persistence round-trip and concurrency tests
 
-## Open Issues
+## Resolved Issues
 
-- Whether to use one SQLite file per branch or a single file with branch-tagged rows (current plan: single file)
-- Snapshot compression: `zstd` adds a dependency but reduces disk usage significantly for large NPC counts
-- Maximum journal size before forced compaction (prevent unbounded WAL growth)
+- **SQLite file per branch vs. single file**: Use a **single file with branch-tagged rows** as originally planned. This simplifies file management, enables cross-branch queries (e.g., listing all branches), and avoids filesystem clutter. Branch isolation is achieved via the `branch_id` column on journal and snapshot tables.
+- **Snapshot compression**: **Skip `zstd` for now**. The initial NPC count (8-12 in Phase 3, up to 30-50 in Phase 5) produces snapshots well under 1MB. Adding a native dependency for compression is premature. If snapshot sizes exceed 10MB during Phase 5 scaling, add `zstd` compression behind a feature flag at that point.
+- **Maximum journal size before compaction**: Set a threshold of **1000 journal entries** per branch before triggering automatic snapshot compaction. This balances write performance (append-only is fast) against recovery time (replaying >1000 entries on load is slow). Compaction runs on a background `spawn_blocking` task during autosave. The threshold is a constant that can be tuned via testing.

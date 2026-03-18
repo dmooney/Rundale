@@ -125,8 +125,8 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 - At least 3 NPCs have beliefs that appear in their dialogue context
 - `cargo test` passes all new tests
 
-## Open Issues
+## Resolved Issues
 
-- ASCII map layout algorithm: simple list vs. spatial positioning (would need approximate coordinates per location)
-- How many palette anchor points are needed for smooth 24-hour transitions (24 vs. 7 named times)
-- Mythology content scope: this phase installs hooks only; actual supernatural events are out of scope
+- **ASCII map layout**: Use **spatial positioning** with approximate coordinates per location. Each location in `data/parish.json` gets `x, y` fields (integer grid coordinates, ~20x15 grid). This produces a map that reflects actual geography (lough to the east, village center, farms scattered). A simple list view is available as a fallback for accessibility. The spatial coordinates are authored by hand alongside the location data.
+- **Palette anchor points**: Use **7 named times** matching the `TimeOfDay` enum (Dawn, Morning, Midday, Afternoon, Dusk, Night, Midnight). Each anchor defines RGB values for background, text, and accent colors. Interpolation between anchors produces smooth transitions. 24 anchor points would be overkill — the 7 named transitions already cover the perceptually distinct lighting changes. Fine-tuning individual RGB values is easier with fewer anchors.
+- **Mythology content scope**: Confirmed: **this phase installs hooks only**. The hooks include: `mythological_significance` field on locations, `beliefs` field on NPCs, festival-triggered prompt modifiers, and time-of-day context modifiers for mythological locations. Actual supernatural content (what the NPCs say, what "strange" events occur) is authored after hooks are in place and tested. Content authoring is not a phase — it is ongoing creative work informed by playtesting.

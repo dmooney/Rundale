@@ -44,6 +44,7 @@ Key decisions with rationale and alternatives considered. See [ADR Index](adr/RE
 | [007](adr/007-time-scale-20min-day.md) | 20 real minutes = 1 game day |
 | [008](adr/008-structured-json-llm-output.md) | Structured JSON output from LLM |
 | [009](adr/009-real-geography-fictional-people.md) | Real Irish geography, fictional people |
+| [010](adr/010-prompt-injection-defenses.md) | 5-layer prompt injection defense strategy |
 
 ## Requirements & Status
 

@@ -103,8 +103,8 @@ Populate the parish with 5-10 NPCs that follow daily schedules, maintain relatio
 - NPCs remember recent interactions (short-term memory appears in dialogue context)
 - `cargo test` passes all NPC, schedule, and relationship tests
 
-## Open Issues
+## Resolved Issues
 
-- Whether NPC-NPC Tier 2 dialogue should be fully generated or template-based
-- Memory capacity (20 entries) may need tuning based on context window size
-- How to handle NPC schedule conflicts (two NPCs scheduled to interact but one moved away)
+- **NPC-NPC Tier 2 dialogue**: Use **fully generated** dialogue via Ollama. Template-based dialogue would feel repetitive and undermine the living-world premise. The Tier 2 prompt includes both NPCs' personalities and relationship context, producing natural conversation. If inference throughput is a bottleneck, reduce Tier 2 frequency rather than switching to templates.
+- **Memory capacity**: Start with **20 entries** as designed. This is a soft cap — when full, oldest low-salience memories are evicted. Tune based on testing: if NPCs forget important events too quickly, increase to 30-40. The memory list is included in Tier 1/2 prompts, so capacity is ultimately bounded by the model's context window minus the rest of the prompt (~2K tokens for 20 entries).
+- **NPC schedule conflicts**: Use a **graceful fallback**. When an NPC arrives at a scheduled interaction location but their counterpart is absent, they perform their secondary scheduled activity (or idle at the location). The interaction is silently skipped. No rescheduling or queuing — the simulation is best-effort, and missed encounters are realistic (people don't always meet when planned).

@@ -114,8 +114,8 @@ Get a single-location, single-NPC game loop running end-to-end: player types nat
 - Day/night color palette visibly shifts as game time advances
 - `/quit` cleanly restores the terminal and exits
 
-## Open Issues
+## Resolved Issues
 
-- Exact Ollama model names to use (e.g., `qwen3:14b` vs `qwen3:14b-q4_K_M`)
-- Whether to stream Ollama responses token-by-token or wait for full completion
-- Input cursor positioning and text editing (backspace works; arrow keys deferred)
+- **Ollama model names**: Use the base model tag (e.g., `qwen3:14b`) and let Ollama resolve the default quantization. Specific quantization variants (e.g., `q4_K_M`) can be configured via an environment variable or config field if needed, but the default tag is sufficient for development and testing.
+- **Streaming vs. full completion**: Wait for full completion in Phase 1. Streaming adds UI complexity (partial render, cancellation handling) that is not needed for the prototype. Revisit in Phase 6 polish if response latency feels poor.
+- **Input cursor positioning**: Backspace works; arrow keys and cursor positioning are deferred to Phase 6 polish. The crossterm event loop already captures arrow key events — they are simply ignored for now.

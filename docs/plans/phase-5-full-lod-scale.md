@@ -117,9 +117,9 @@ Complete the cognitive LOD system with Tier 3 batch inference and Tier 4 CPU rul
 - World graph extends beyond the parish with sparser detail at greater distances
 - `cargo test` passes all new tests
 
-## Open Issues
+## Resolved Issues
 
-- Tier 3 batch prompt size limits: how many NPCs can fit in one call (depends on model context window)
-- Gossip distortion mechanics: simple string mutation vs. LLM-based rephrasing
-- Long-term memory: keyword-based retrieval may be insufficient; embedding-based retrieval is more accurate but requires an embedding model
-- Performance budget: Tier 3 + Tier 4 ticks must complete within their tick intervals without starving Tier 1/2
+- **Tier 3 batch prompt size**: Target **8-10 NPCs per batch call** using the 8B model with a 4K context window. Each NPC summary is ~100-150 tokens (name, location, current activity, mood), plus ~500 tokens for the system prompt and output format. This fits comfortably in 4K. If the model supports 8K+, increase to 15-20 NPCs per batch. The batch size should be a configurable constant, tuned during testing.
+- **Gossip distortion**: Use **simple string mutation** for Phase 5. Rules: drop adjectives, swap names with low probability, exaggerate quantities, shift emotional tone. LLM-based rephrasing is more realistic but costs an inference call per gossip transmission, which is prohibitive at scale. Revisit for LLM rephrasing in a future polish pass if the simple mutations feel too mechanical.
+- **Long-term memory**: Use **keyword-based retrieval** for Phase 5. Memories are tagged with keywords (NPC names, locations, event types) at creation time, and retrieval filters by keyword overlap with the current context. Embedding-based retrieval is more accurate but requires running an embedding model alongside the generation models, doubling Ollama throughput requirements. Defer embeddings to a future phase if keyword retrieval proves insufficient.
+- **Performance budget**: Enforce a strict priority queue: **Tier 1 > Tier 2 > Tier 3 > Tier 4**. Tier 1/2 inference requests always preempt Tier 3/4 in the queue. Tier 3 batch ticks run every 5 game-minutes; Tier 4 summary ticks run every 30 game-minutes. If a lower-tier tick cannot complete before the next one is due, it is skipped (not queued). This ensures player-facing responsiveness is never degraded by background simulation.

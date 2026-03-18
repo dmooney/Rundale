@@ -90,8 +90,8 @@ Replace the single test location with a graph of real-world-inspired locations f
 - `cargo test` passes all world graph and movement tests
 - All connections in the graph are bidirectional (validated on load)
 
-## Open Issues
+## Resolved Issues
 
-- Exact parish selection affects location names and geography (see open-questions.md #1)
-- Whether pathfinding should use Dijkstra (weighted by traversal time) or simple BFS
-- How verbose travel narration should be (single line vs. multi-paragraph with LLM enrichment)
+- **Parish selection**: Resolved as **Kiltoom** (see [open-questions.md](./open-questions.md) #1). Location data in `data/parish.json` uses Kiltoom townlands and geography (Lough Ree, Shannon, Hodson Bay).
+- **Pathfinding algorithm**: Use **simple BFS** on the unweighted graph. The parish is small enough (~15-25 nodes) that weighted pathfinding provides negligible benefit. BFS finds shortest-hop paths, and traversal time is summed from edge weights along the path for clock advancement. Revisit only if the graph exceeds 50 nodes.
+- **Travel narration verbosity**: Use a **single line** for movement narration in Phase 2 (e.g., "You walk along the narrow boreen to the crossroads. (8 minutes)"). LLM-enriched multi-paragraph narration is deferred to Phase 6 polish — it requires inference calls for non-NPC text, which competes with NPC cognition for Ollama throughput.

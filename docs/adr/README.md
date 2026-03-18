@@ -17,6 +17,7 @@ This directory contains Architecture Decision Records (ADRs) for the Parish proj
 | [007](007-time-scale-20min-day.md) | Time Scale: 20 Minutes per Day | Accepted | 2026-03-18 |
 | [008](008-structured-json-llm-output.md) | Structured JSON LLM Output | Accepted | 2026-03-18 |
 | [009](009-real-geography-fictional-people.md) | Real Geography, Fictional People | Accepted | 2026-03-18 |
+| [010](010-prompt-injection-defenses.md) | Prompt Injection Defenses | Accepted | 2026-03-18 |
 
 ## ADR Template
 
