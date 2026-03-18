@@ -1,5 +1,5 @@
 use anyhow::Result;
-use parish::inference::client::OllamaClient;
+use parish::inference::client::{OllamaClient, OllamaProcess};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
 use parish::npc::{self, Npc, NpcAction};
@@ -26,6 +26,12 @@ async fn main() -> Result<()> {
     let ollama_url =
         std::env::var("PARISH_OLLAMA_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_URL.to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
+
+    // Ensure Ollama is running (start it if needed)
+    let mut ollama_process = OllamaProcess::ensure_running(&ollama_url).await?;
+    if ollama_process.was_started_by_us() {
+        tracing::info!("Ollama started by Parish — will stop on exit");
+    }
 
     // Initialize inference pipeline
     let client = OllamaClient::new(&ollama_url);
@@ -144,6 +150,10 @@ async fn main() -> Result<()> {
 
     // Restore terminal
     tui::restore_terminal(&mut terminal)?;
+
+    // Stop Ollama if we started it
+    ollama_process.stop();
+
     tracing::info!("Parish exited cleanly.");
 
     Ok(())

@@ -3,6 +3,7 @@
 use crate::error::ParishError;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::process::{Child, Command};
 use std::time::Duration;
 
 /// HTTP client for the Ollama local inference API.
@@ -120,6 +121,92 @@ impl OllamaClient {
     /// Returns the base URL of this client.
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+}
+
+/// Manages an Ollama server process started by Parish.
+///
+/// If Ollama was not already running when the game started, this struct
+/// holds the child process handle. When dropped, it kills the process
+/// to clean up. If Ollama was already running, this is a no-op wrapper.
+pub struct OllamaProcess {
+    child: Option<Child>,
+}
+
+impl OllamaProcess {
+    /// Checks if Ollama is reachable. If not, starts `ollama serve` in the
+    /// background and waits for it to become ready (up to 30 seconds).
+    ///
+    /// Returns an `OllamaProcess` that will stop the server on drop if
+    /// we started it.
+    pub async fn ensure_running(base_url: &str) -> Result<Self, ParishError> {
+        if Self::is_reachable(base_url).await {
+            tracing::info!("Ollama already running at {}", base_url);
+            return Ok(Self { child: None });
+        }
+
+        tracing::info!("Ollama not detected, starting ollama serve...");
+
+        let child = Command::new("ollama")
+            .arg("serve")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| {
+                ParishError::Inference(format!(
+                    "failed to start ollama serve: {}. Is ollama installed?",
+                    e
+                ))
+            })?;
+
+        // Wait for Ollama to become reachable
+        let mut ready = false;
+        for i in 0..60 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if Self::is_reachable(base_url).await {
+                tracing::info!("Ollama ready after ~{}ms", (i + 1) * 500);
+                ready = true;
+                break;
+            }
+        }
+
+        if !ready {
+            return Err(ParishError::Inference(
+                "ollama serve started but did not become reachable within 30s".to_string(),
+            ));
+        }
+
+        Ok(Self { child: Some(child) })
+    }
+
+    /// Returns whether we started the Ollama process (vs. it was already running).
+    pub fn was_started_by_us(&self) -> bool {
+        self.child.is_some()
+    }
+
+    /// Checks if the Ollama API is reachable by hitting the root endpoint.
+    async fn is_reachable(base_url: &str) -> bool {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .unwrap();
+        client.get(base_url).send().await.is_ok()
+    }
+
+    /// Stops the Ollama process if we started it.
+    pub fn stop(&mut self) {
+        if let Some(ref mut child) = self.child {
+            tracing::info!("Stopping Ollama server...");
+            let _ = child.kill();
+            let _ = child.wait();
+            self.child = None;
+        }
+    }
+}
+
+impl Drop for OllamaProcess {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 

@@ -212,9 +212,9 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
 /// Polls for and handles a single keyboard event.
 ///
-/// Returns `true` if an event was handled, `false` if the poll timed out.
-/// Updates the app's input buffer and should_quit flag as needed.
-/// When Enter is pressed, returns the input text via the callback.
+/// Updates the app's input buffer as needed.
+/// When Enter is pressed, returns the submitted input text.
+/// Esc clears the input line.
 pub fn handle_input(app: &mut App, timeout: Duration) -> io::Result<Option<String>> {
     if event::poll(timeout)?
         && let Event::Key(key) = event::read()?
@@ -236,7 +236,7 @@ pub fn handle_input(app: &mut App, timeout: Duration) -> io::Result<Option<Strin
                 }
             }
             KeyCode::Esc => {
-                app.should_quit = true;
+                app.input_buffer.clear();
             }
             _ => {}
         }
