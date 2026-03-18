@@ -1,0 +1,117 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build (Debug)",
+            "type": "cargo",
+            "command": "build",
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Build (Release)",
+            "type": "cargo",
+            "command": "build",
+            "args": ["--release"],
+            "problemMatcher": ["$rustc"],
+            "group": "build"
+        },
+        {
+            "label": "Run",
+            "type": "cargo",
+            "command": "run",
+            "problemMatcher": ["$rustc"],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "Test All",
+            "type": "cargo",
+            "command": "test",
+            "problemMatcher": ["$rustc"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Test (Verbose)",
+            "type": "cargo",
+            "command": "test",
+            "args": ["--", "--nocapture"],
+            "problemMatcher": ["$rustc"],
+            "group": "test"
+        },
+        {
+            "label": "Clippy",
+            "type": "cargo",
+            "command": "clippy",
+            "args": ["--", "-D", "warnings"],
+            "problemMatcher": ["$rustc"],
+            "group": "test"
+        },
+        {
+            "label": "Format Check",
+            "type": "cargo",
+            "command": "fmt",
+            "args": ["--check"],
+            "problemMatcher": [],
+            "group": "test"
+        },
+        {
+            "label": "Format",
+            "type": "cargo",
+            "command": "fmt",
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean",
+            "type": "cargo",
+            "command": "clean",
+            "problemMatcher": []
+        },
+        {
+            "label": "Doc (Generate)",
+            "type": "cargo",
+            "command": "doc",
+            "args": ["--no-deps"],
+            "problemMatcher": []
+        },
+        {
+            "label": "Pre-commit Check",
+            "type": "shell",
+            "command": "cargo fmt --check && cargo clippy -- -D warnings && cargo test",
+            "problemMatcher": ["$rustc"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "Coverage (Tarpaulin)",
+            "type": "shell",
+            "command": "cargo tarpaulin --out html --output-dir target/coverage",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            }
+        },
+        {
+            "label": "Ollama Status",
+            "type": "shell",
+            "command": "curl -sf http://localhost:11434/api/tags > /dev/null && echo 'Ollama is running' || echo 'Ollama is not running'",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            }
+        }
+    ]
+}

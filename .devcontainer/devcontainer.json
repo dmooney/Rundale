@@ -1,0 +1,38 @@
+{
+    "name": "Parish Dev",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "rust-analyzer.check.command": "clippy",
+                "rust-analyzer.check.extraArgs": ["--", "-D", "warnings"],
+                "[rust]": {
+                    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+                    "editor.formatOnSave": true
+                },
+                "terminal.integrated.defaultProfile.linux": "bash"
+            },
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "vadimcn.vscode-lldb",
+                "tamasfe.even-better-toml",
+                "serayuzgur.crates",
+                "skellock.just",
+                "fill-labs.dependi",
+                "usernamehw.errorlens"
+            ]
+        }
+    },
+    "forwardPorts": [11434],
+    "portsAttributes": {
+        "11434": {
+            "label": "Ollama API",
+            "onAutoForward": "silent"
+        }
+    },
+    "postCreateCommand": "cargo build",
+    "remoteUser": "vscode"
+}
