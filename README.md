@@ -24,6 +24,8 @@ The player explores a small parish near Roscommon, County Roscommon, interacting
 - Rust (edition 2024)
 - [Ollama](https://ollama.ai/) running on `localhost:11434`
 
+**Windows users:** See the [Windows Setup Guide](docs/windows-setup.md) for full instructions, terminal recommendations, and troubleshooting.
+
 ## Quick Start
 
 ```sh
