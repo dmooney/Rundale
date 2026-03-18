@@ -27,6 +27,7 @@ High-level architecture and detailed subsystem designs. Extracted from the origi
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip |
 | [Inference Pipeline](design/inference-pipeline.md) | Ollama integration, queue, model selection |
+| [Debug System](design/debug-system.md) | Debug commands, live TUI panel, metrics (feature-gated) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer |
 
 ## Architecture Decision Records (ADRs)

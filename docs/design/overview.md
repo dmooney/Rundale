@@ -73,6 +73,7 @@ src/
 - [Persistence](persistence.md) — Save system, WAL journal, git-like branching
 - [NPC System](npc-system.md) — Entity data model, context construction, gossip propagation
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
+- [Debug System](debug-system.md) — Debug commands, live TUI panel, metrics collection (feature-gated)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
 
 ## Related

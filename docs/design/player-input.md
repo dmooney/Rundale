@@ -35,6 +35,24 @@ System commands use `/` prefix for now (placeholder — may change to a prefix-f
 | `/help`        | Show help reference                                                     |
 | `/map`         | (Future) Simple ASCII parish layout                                     |
 
+## Debug Commands
+
+> Requires `--features debug`. See [Debug System](debug-system.md) for full details.
+
+Debug commands use the same `/` prefix as system commands. All are feature-gated and compile out of release builds.
+
+| Command | Description |
+|---------|-------------|
+| `/debug npcs` | List all NPCs with location, mood, activity, tier |
+| `/debug npc <name\|id>` | Full state dump for a single NPC |
+| `/debug inference` | Queue status, throughput, recent request previews |
+| `/debug tiers` | NPC tier assignments and last tick times |
+| `/debug world` | Game clock, weather, season, player location |
+| `/debug tasks` | Background task health and error counts |
+| `/debug log [subsystem]` | Recent tracing log entries by subsystem |
+| `/debug perf` | Frame time, inference latency percentiles |
+| `/debug panel` | Toggle live debug panel overlay |
+
 ## Related
 
 - [Inference Pipeline](inference-pipeline.md) — Player input parsed via LLM intent detection
