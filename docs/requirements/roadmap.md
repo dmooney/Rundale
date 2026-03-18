@@ -20,18 +20,18 @@
 - [x] Rust project scaffolding (Cargo.toml, module declarations, dependencies)
 - [x] Error type definitions (`ParishError` with thiserror)
 - [x] Tokio runtime + tracing initialization
-- [ ] `GameClock`, `TimeOfDay`, `Season` enums in `world/time.rs`
-- [ ] Basic `Location` struct and `WorldState` in `world/mod.rs`
-- [ ] TUI terminal init/restore with crossterm panic hook
-- [ ] Main render loop: top bar, main text panel, input prompt
-- [ ] Day/night color palette system (dawn → midnight RGB gradients)
-- [ ] `Command` enum and `/` prefix parsing in `input/mod.rs`
-- [ ] `OllamaClient` in `inference/client.rs` (reqwest + timeout)
-- [ ] `InferenceRequest`/`InferenceResponse` types and tokio mpsc queue
-- [ ] Basic `Npc` struct with identity, personality, location
-- [ ] NPC context construction for Tier 1
-- [ ] Player intent parsing via Ollama (natural language → structured JSON)
-- [ ] Main game loop wiring: input → parse → inference → response → render
+- [x] `GameClock`, `TimeOfDay`, `Season` enums in `world/time.rs`
+- [x] Basic `Location` struct and `WorldState` in `world/mod.rs`
+- [x] TUI terminal init/restore with crossterm panic hook
+- [x] Main render loop: top bar, main text panel, input prompt
+- [x] Day/night color palette system (dawn → midnight RGB gradients)
+- [x] `Command` enum and `/` prefix parsing in `input/mod.rs`
+- [x] `OllamaClient` in `inference/client.rs` (reqwest + timeout)
+- [x] `InferenceRequest`/`InferenceResponse` types and tokio mpsc queue
+- [x] Basic `Npc` struct with identity, personality, location
+- [x] NPC context construction for Tier 1
+- [x] Player intent parsing via Ollama (natural language → structured JSON)
+- [x] Main game loop wiring: input → parse → inference → response → render
 
 ## Phase 2 — World Graph
 
