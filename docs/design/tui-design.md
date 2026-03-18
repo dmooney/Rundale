@@ -39,6 +39,33 @@ Weather modifies the base time-of-day palette:
 
 Color transitions should be **gradual**, not stepped. The palette shifts smoothly as time passes and weather changes.
 
+## Debug Panel
+
+> Requires `--features debug`. See [Debug System](debug-system.md) for full details.
+
+When the debug panel is active (toggled via `/debug panel` or `F12`), the layout splits to accommodate a live-updating dashboard:
+
+```
+┌─────────────────────────────────┬──────────────────────┐
+│ Top bar: location | time | wx   │                      │
+├─────────────────────────────────┤   Debug Panel        │
+│                                 │                      │
+│   Main text panel               │   [Overview] [NPCs]  │
+│   (game output)                 │   [Inference] [Tasks] │
+│                                 │                      │
+│                                 │   (tab content)      │
+│                                 │                      │
+├─────────────────────────────────┤                      │
+│ > player input                  │                      │
+└─────────────────────────────────┴──────────────────────┘
+```
+
+- The debug panel takes ~35% of terminal width
+- On narrow terminals (< 120 columns), renders as a bottom split instead
+- Navigate tabs with `Tab`/`Shift+Tab`, scroll with arrow keys
+- Color-coded health indicators: green (healthy), yellow (warning), red (error)
+- The panel is a separate ratatui widget; it does not affect game layout when hidden
+
 ## Terminal Compatibility
 
 Target terminals (all support 24-bit RGB):
