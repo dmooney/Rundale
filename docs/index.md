@@ -67,6 +67,12 @@ Detailed, implementation-ready plans for each development phase.
 | [Phase 6: Polish & Mythology](plans/phase-6-polish-mythology.md) | Commands UI, mythology data hooks | Planned |
 | [Open Questions](plans/open-questions.md) | Deferred decisions with analysis | Ongoing |
 
+## Getting Started
+
+| Document | Description |
+|----------|-------------|
+| [Windows Setup](windows-setup.md) | Native Windows setup, terminal tips, troubleshooting |
+
 ## Reference
 
 | Document | Description |
