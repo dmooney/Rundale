@@ -3,7 +3,7 @@ name = "parish"
 version = "0.1.0"
 edition = "2024"
 description = "An Irish Living World Text Adventure"
-license = "MIT"
+license = "LicenseRef-Proprietary"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }

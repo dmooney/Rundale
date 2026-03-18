@@ -14,7 +14,7 @@ Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
 
 ## Architecture
 
-See @DESIGN.md for full design document.
+See [docs/design/overview.md](docs/design/overview.md) for full architecture. See [docs/index.md](docs/index.md) for all documentation.
 
 ```
 src/
@@ -65,3 +65,11 @@ src/
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
 - One logical change per commit
 - Run full test suite before pushing
+
+## Documentation Map
+
+- Architecture & subsystem design: `docs/design/`
+- Architecture decisions: `docs/adr/`
+- Roadmap & status: `docs/requirements/roadmap.md`
+- Implementation plans: `docs/plans/`
+- Original monolithic design: `DESIGN.md` (archival)
