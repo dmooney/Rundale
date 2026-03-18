@@ -1,0 +1,81 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug (parish)",
+            "cargo": {
+                "args": ["build", "--bin=parish", "--package=parish"],
+                "filter": {
+                    "name": "parish",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "debug"
+            },
+            "terminal": "integrated"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release (parish)",
+            "cargo": {
+                "args": ["build", "--release", "--bin=parish", "--package=parish"],
+                "filter": {
+                    "name": "parish",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "info"
+            },
+            "terminal": "integrated"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Tests",
+            "cargo": {
+                "args": ["test", "--no-run", "--lib", "--package=parish"],
+                "filter": {
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "debug"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Single Test",
+            "cargo": {
+                "args": ["test", "--no-run", "--lib", "--package=parish"],
+                "filter": {
+                    "kind": "lib"
+                }
+            },
+            "args": ["${input:testName}"],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_LOG": "debug"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testName",
+            "description": "Name of the test to debug",
+            "type": "promptString",
+            "default": ""
+        }
+    ]
+}
