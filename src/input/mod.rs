@@ -4,6 +4,10 @@
 //! All other input is natural language sent to the LLM for
 //! intent parsing (move, talk, look, interact, examine).
 
+use crate::error::ParishError;
+use crate::inference::client::OllamaClient;
+use serde::Deserialize;
+
 /// A system command entered by the player.
 ///
 /// System commands use a `/` prefix and control game meta-operations
@@ -33,7 +37,8 @@ pub enum Command {
 }
 
 /// The kind of player action parsed from natural language input.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum IntentKind {
     /// Move to a location.
     Move,
@@ -132,6 +137,63 @@ pub fn classify_input(raw: &str) -> InputResult {
     }
 }
 
+/// Raw JSON response from the LLM intent parser.
+#[derive(Deserialize)]
+struct IntentResponse {
+    #[serde(default)]
+    intent: Option<IntentKind>,
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(default)]
+    dialogue: Option<String>,
+}
+
+/// The system prompt used for intent parsing.
+const INTENT_SYSTEM_PROMPT: &str = "\
+You are a text adventure input parser. Given the player's natural language input, \
+determine their intent. Respond with valid JSON containing:\n\
+- \"intent\": one of \"move\", \"talk\", \"look\", \"interact\", \"examine\", \"unknown\"\n\
+- \"target\": what the action is directed at (string or null)\n\
+- \"dialogue\": what the player is saying, if talking (string or null)\n\
+\n\
+Examples:\n\
+Input: \"go to the pub\" → {\"intent\": \"move\", \"target\": \"the pub\", \"dialogue\": null}\n\
+Input: \"talk to Mary\" → {\"intent\": \"talk\", \"target\": \"Mary\", \"dialogue\": null}\n\
+Input: \"tell Padraig I saw his cow\" → {\"intent\": \"talk\", \"target\": \"Padraig\", \"dialogue\": \"I saw his cow\"}\n\
+Input: \"look around\" → {\"intent\": \"look\", \"target\": null, \"dialogue\": null}\n\
+Input: \"pick up the stone\" → {\"intent\": \"interact\", \"target\": \"the stone\", \"dialogue\": null}\n\
+\n\
+Respond ONLY with valid JSON. No explanation.";
+
+/// Parses natural language input into a structured `PlayerIntent` via LLM.
+///
+/// Sends the player's input to Ollama for intent classification. Falls back
+/// to `IntentKind::Unknown` if the LLM response cannot be parsed.
+pub async fn parse_intent(
+    client: &OllamaClient,
+    raw_input: &str,
+    model: &str,
+) -> Result<PlayerIntent, ParishError> {
+    let result = client
+        .generate_json::<IntentResponse>(model, raw_input, Some(INTENT_SYSTEM_PROMPT))
+        .await;
+
+    match result {
+        Ok(resp) => Ok(PlayerIntent {
+            intent: resp.intent.unwrap_or(IntentKind::Unknown),
+            target: resp.target,
+            dialogue: resp.dialogue,
+            raw: raw_input.to_string(),
+        }),
+        Err(_) => Ok(PlayerIntent {
+            intent: IntentKind::Unknown,
+            target: None,
+            dialogue: None,
+            raw: raw_input.to_string(),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,6 +280,39 @@ mod tests {
             classify_input("/dance"),
             InputResult::GameInput("/dance".to_string())
         );
+    }
+
+    #[test]
+    fn test_intent_kind_deserialize() {
+        let json = r#""move""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Move);
+
+        let json = r#""talk""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Talk);
+
+        let json = r#""unknown""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Unknown);
+    }
+
+    #[test]
+    fn test_intent_response_deserialize() {
+        let json = r#"{"intent": "move", "target": "the pub", "dialogue": null}"#;
+        let resp: IntentResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.intent, Some(IntentKind::Move));
+        assert_eq!(resp.target, Some("the pub".to_string()));
+        assert!(resp.dialogue.is_none());
+    }
+
+    #[test]
+    fn test_intent_response_empty() {
+        let json = r#"{}"#;
+        let resp: IntentResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.intent.is_none());
+        assert!(resp.target.is_none());
+        assert!(resp.dialogue.is_none());
     }
 
     #[test]
