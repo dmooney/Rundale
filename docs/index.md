@@ -73,4 +73,5 @@ Detailed, implementation-ready plans for each development phase.
 |----------|-------------|
 | [DESIGN.md](../DESIGN.md) | Original monolithic design document (archival) |
 | [CLAUDE.md](../CLAUDE.md) | Build commands, code style, gotchas, dependencies |
+| [Development Journal](journal.md) | Cross-session notes, observations, recommendations |
 | [README.md](../README.md) | Project overview, quick start |

@@ -82,3 +82,4 @@ src/
 - Roadmap & status: `docs/requirements/roadmap.md`
 - Implementation plans: `docs/plans/`
 - Original monolithic design: `DESIGN.md` (archival)
+- Development journal: `docs/journal.md` (cross-session notes and recommendations)
