@@ -55,6 +55,7 @@ pub fn format_exits(location_id: LocationId, graph: &WorldGraph) -> String {
     format!("You can go to: {}", exits.join(", "))
 }
 
+
 /// Converts a `TimeOfDay` to a human-friendly lowercase string for templates.
 fn time_display(tod: TimeOfDay) -> String {
     match tod {
