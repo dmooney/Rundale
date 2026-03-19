@@ -1,5 +1,7 @@
 use anyhow::Result;
-use parish::inference::client::{OllamaClient, OllamaProcess};
+use clap::Parser;
+use parish::headless;
+use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
 use parish::npc::{self, Npc, NpcAction};
@@ -8,11 +10,25 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
-/// Default Ollama model for NPC inference.
-const DEFAULT_MODEL: &str = "qwen3:14b";
-
 /// Default Ollama API base URL.
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
+
+/// Parish — An Irish Living World Text Adventure
+#[derive(Parser, Debug)]
+#[command(name = "parish", version, about)]
+struct Cli {
+    /// Run in headless mode (plain stdin/stdout REPL, no TUI)
+    #[arg(long)]
+    headless: bool,
+
+    /// Override the Ollama model (skips auto-detection)
+    #[arg(long, env = "PARISH_MODEL")]
+    model: Option<String>,
+
+    /// Override the Ollama API URL
+    #[arg(long, env = "PARISH_OLLAMA_URL", default_value = DEFAULT_OLLAMA_URL)]
+    ollama_url: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -22,19 +38,22 @@ async fn main() -> Result<()> {
 
     tracing::info!("Starting Parish...");
 
-    // Configuration from environment
-    let ollama_url =
-        std::env::var("PARISH_OLLAMA_URL").unwrap_or_else(|_| DEFAULT_OLLAMA_URL.to_string());
-    let model = std::env::var("PARISH_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string());
+    let cli = Cli::parse();
 
-    // Ensure Ollama is running (start it if needed)
-    let mut ollama_process = OllamaProcess::ensure_running(&ollama_url).await?;
-    if ollama_process.was_started_by_us() {
-        tracing::info!("Ollama started by Parish — will stop on exit");
+    // Run the full Ollama setup sequence
+    let progress = StdoutProgress;
+    let setup = setup::setup_ollama(&cli.ollama_url, cli.model.as_deref(), &progress).await?;
+
+    if cli.headless {
+        return headless::run_headless(setup).await;
     }
 
+    // TUI mode
+    let model = setup.model_name.clone();
+    let client = setup.client.clone();
+    let mut ollama_process = setup.process;
+
     // Initialize inference pipeline
-    let client = OllamaClient::new(&ollama_url);
     let (tx, rx) = mpsc::channel(32);
     let _worker = inference::spawn_inference_worker(client.clone(), rx);
     let queue = InferenceQueue::new(tx);

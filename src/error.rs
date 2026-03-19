@@ -4,6 +4,12 @@ pub enum ParishError {
     #[error("inference error: {0}")]
     Inference(String),
 
+    #[error("setup error: {0}")]
+    Setup(String),
+
+    #[error("model not available: {0}")]
+    ModelNotAvailable(String),
+
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
 

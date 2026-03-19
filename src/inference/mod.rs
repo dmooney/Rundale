@@ -4,6 +4,7 @@
 //! to the Ollama API, and returns responses via oneshot channels.
 
 pub mod client;
+pub mod setup;
 
 use client::OllamaClient;
 use tokio::sync::{mpsc, oneshot};

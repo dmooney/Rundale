@@ -51,15 +51,19 @@ Player Input → Command Detection → [System Command OR Game Input]
 
 ```
 src/
-├── main.rs          # Entry point, tokio runtime init
-├── lib.rs           # Module declarations
-├── error.rs         # ParishError (thiserror)
-├── tui/             # Ratatui terminal UI
-├── world/           # World state, location graph, time system
-├── npc/             # NPC data model, behavior, cognition tiers
-├── inference/       # Ollama HTTP client, inference queue
-├── persistence/     # SQLite save/load, WAL journal
-└── input/           # Player input parsing, command detection
+├── main.rs              # Entry point, CLI args (clap), mode routing
+├── lib.rs               # Module declarations
+├── error.rs             # ParishError (thiserror)
+├── headless.rs          # Headless stdin/stdout REPL for testing
+├── tui/                 # Ratatui terminal UI
+├── world/               # World state, location graph, time system
+├── npc/                 # NPC data model, behavior, cognition tiers
+├── inference/
+│   ├── client.rs        # Ollama HTTP client, process management
+│   ├── setup.rs         # GPU detection, model selection, auto-pull
+│   └── mod.rs           # Inference queue, worker task
+├── persistence/         # SQLite save/load, WAL journal
+└── input/               # Player input parsing, command detection
 ```
 
 ## Subsystem Deep-Dives
@@ -80,14 +84,36 @@ src/
 
 - [ADR Index](../adr/README.md)
 
+## Ollama Bootstrap & GPU Detection
+
+On startup, Parish runs a self-contained setup sequence (see `src/inference/setup.rs`):
+
+1. **Detect Ollama** — checks if the `ollama` binary is on PATH
+2. **Auto-install** — if missing, runs the official install script (`https://ollama.com/install.sh`) which auto-detects GPU vendor (CUDA/ROCm/CPU)
+3. **Start server** — spawns `ollama serve` if not already running; kills on exit
+4. **Detect GPU/VRAM** — queries `nvidia-smi` or `rocm-smi` for VRAM info; falls back to CPU-only
+5. **Select model** — picks the best model for available VRAM:
+   - ≥12GB → `qwen3:14b` (Tier 1)
+   - ≥6GB → `qwen3:8b` (Tier 2)
+   - ≥3GB → `qwen3:3b` (Tier 3)
+   - <3GB/CPU → `qwen3:1.5b` (Tier 4)
+6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local
+
+The `PARISH_MODEL` env var or `--model` CLI flag overrides auto-selection.
+
+## Headless Mode
+
+Run `cargo run -- --headless` for a plain stdin/stdout REPL without the TUI. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
+
 ## Source Modules
 
-- [`src/main.rs`](../../src/main.rs)
+- [`src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
 - [`src/lib.rs`](../../src/lib.rs)
 - [`src/error.rs`](../../src/error.rs)
+- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode
 - [`src/tui/`](../../src/tui/)
 - [`src/world/`](../../src/world/)
 - [`src/npc/`](../../src/npc/)
-- [`src/inference/`](../../src/inference/)
+- [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap
 - [`src/persistence/`](../../src/persistence/)
 - [`src/input/`](../../src/input/)

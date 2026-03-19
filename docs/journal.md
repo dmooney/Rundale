@@ -6,6 +6,29 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-19 — Robust Ollama Integration & Headless Mode
+
+### Changes this session
+
+- **Ollama auto-install**: If `ollama` binary is not found, the game downloads and runs the official install script. Works for AMD (ROCm), NVIDIA (CUDA), and CPU-only.
+- **GPU/VRAM detection**: Queries `nvidia-smi` or `rocm-smi` to detect GPU vendor and available VRAM. Falls back to CPU-only mode gracefully.
+- **Automatic model selection**: Picks the best model for available VRAM (14b → 8b → 3b → 1.5b). Conservative thresholds leave headroom for OS/desktop.
+- **Automatic model pulling**: If the selected model isn't available locally, pulls it via Ollama's `/api/pull` endpoint with progress reporting.
+- **Headless CLI mode**: `--headless` flag starts a plain stdin/stdout REPL for testing without the TUI. Identical game logic.
+- **CLI argument parsing**: Added `clap` for `--headless`, `--model`, and `--ollama-url` flags. Env vars (`PARISH_MODEL`, `PARISH_OLLAMA_URL`) still work as fallbacks.
+- **New module**: `src/inference/setup.rs` — full Ollama lifecycle management (install, GPU detection, model selection, pulling).
+- **New module**: `src/headless.rs` — headless REPL game loop.
+- **New error variants**: `Setup(String)` and `ModelNotAvailable(String)` in `ParishError`.
+- **Test count**: 90 tests passing (up from 52), 1 ignored.
+
+### Technical notes
+
+- Model selection uses free VRAM when available, 80% of total VRAM when free is unknown, or assumes 8GB when a GPU is detected but VRAM can't be queried.
+- The `SetupProgress` trait allows TUI and headless modes to display setup progress differently.
+- AMD ROCm detection falls back to checking `/opt/rocm` existence if `rocm-smi` output can't be parsed.
+
+---
+
 ## 2026-03-18 — Phase 1 Complete
 
 Phase 1 (Core Loop) is fully done. All roadmap items checked off. The game boots, renders a TUI, accepts natural language input, sends it through the Ollama inference pipeline, and renders NPC responses.
