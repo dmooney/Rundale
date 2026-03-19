@@ -1,0 +1,310 @@
+{
+    "npcs": [
+        {
+            "id": 1,
+            "name": "Padraig Darcy",
+            "age": 58,
+            "occupation": "Publican",
+            "personality": "A gregarious and warm-hearted publican who knows everyone's business. Padraig has run Darcy's Pub for thirty years and considers it his sacred duty to keep the parish connected. He speaks with a thick Roscommon accent, peppers his speech with Irish phrases, and has a story for every occasion. Behind the bonhomie, he worries about the village's future.",
+            "mood": "jovial",
+            "home": 2,
+            "workplace": 2,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 6, "end_hour": 8, "location": 2, "activity": "Opening up the pub, cleaning, preparing for the day"},
+                    {"start_hour": 8, "end_hour": 10, "location": 1, "activity": "Walking to the post office, checking in with neighbors"},
+                    {"start_hour": 10, "end_hour": 15, "location": 2, "activity": "Lunchtime service at the pub"},
+                    {"start_hour": 15, "end_hour": 17, "location": 13, "activity": "Buying supplies at Connolly's Shop"},
+                    {"start_hour": 17, "end_hour": 23, "location": 2, "activity": "Evening service at the pub, the busiest hours"}
+                ],
+                "weekend": [
+                    {"start_hour": 8, "end_hour": 10, "location": 2, "activity": "Slow weekend morning at the pub"},
+                    {"start_hour": 10, "end_hour": 12, "location": 3, "activity": "Sunday Mass at St. Brigid's"},
+                    {"start_hour": 12, "end_hour": 23, "location": 2, "activity": "Weekend session at the pub, matches on the radio"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "8": {"target": 8, "kind": "family", "strength": 0.9, "history": []},
+                "4": {"target": 4, "kind": "professional", "strength": 0.5, "history": []},
+                "5": {"target": 5, "kind": "friend", "strength": 0.7, "history": []},
+                "7": {"target": 7, "kind": "friend", "strength": 0.6, "history": []}
+            },
+            "knowledge": [
+                "The GAA county final is coming up next month",
+                "Tommy O'Brien's prize bull won at the Roscommon show last year",
+                "There's talk of a new housing estate being planned near the crossroads",
+                "Fr. Tierney has been looking poorly these past weeks"
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Siobhan Murphy",
+            "age": 45,
+            "occupation": "Farmer",
+            "personality": "A practical, no-nonsense farmer who runs Murphy's Farm single-handedly since her husband passed. Sharp-witted with a dry sense of humor that catches people off guard. She has little patience for gossip but a deep loyalty to those she considers friends. She speaks plainly and values hard work above all.",
+            "mood": "determined",
+            "home": 9,
+            "workplace": 9,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 5, "end_hour": 8, "location": 9, "activity": "Morning milking and feeding livestock"},
+                    {"start_hour": 8, "end_hour": 12, "location": 9, "activity": "Working the fields and mending fences"},
+                    {"start_hour": 12, "end_hour": 13, "location": 13, "activity": "Quick stop at Connolly's for supplies"},
+                    {"start_hour": 13, "end_hour": 17, "location": 9, "activity": "Afternoon farm work"},
+                    {"start_hour": 17, "end_hour": 18, "location": 9, "activity": "Evening milking"},
+                    {"start_hour": 19, "end_hour": 21, "location": 2, "activity": "A quiet pint at Darcy's Pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 5, "end_hour": 10, "location": 9, "activity": "Weekend farm chores"},
+                    {"start_hour": 10, "end_hour": 12, "location": 3, "activity": "Sunday Mass at St. Brigid's"},
+                    {"start_hour": 12, "end_hour": 17, "location": 9, "activity": "Catching up on repairs"},
+                    {"start_hour": 19, "end_hour": 22, "location": 2, "activity": "Weekend social at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "5": {"target": 5, "kind": "neighbor", "strength": 0.4, "history": []},
+                "1": {"target": 1, "kind": "friend", "strength": 0.5, "history": []},
+                "3": {"target": 3, "kind": "friend", "strength": 0.3, "history": []}
+            },
+            "knowledge": [
+                "The lower field floods every spring since they built the new road",
+                "Tommy O'Brien has been grazing his cattle on her boundary again",
+                "The creamery is looking for a new supplier",
+                "There's a fox been at the henhouse three nights running"
+            ]
+        },
+        {
+            "id": 3,
+            "name": "Fr. Declan Tierney",
+            "age": 62,
+            "occupation": "Parish Priest",
+            "personality": "A kind and patient priest who has served the parish for over twenty years. Traditional in his faith but privately wrestling with doubts. He is a good listener, slow to judge, and genuinely cares for his parishioners. He has a fondness for gardening and local history, and speaks with a gentle Westmeath accent that never quite left him.",
+            "mood": "contemplative",
+            "home": 3,
+            "workplace": 3,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 6, "end_hour": 7, "location": 3, "activity": "Morning prayers in the church"},
+                    {"start_hour": 7, "end_hour": 9, "location": 3, "activity": "Tending the church garden"},
+                    {"start_hour": 9, "end_hour": 12, "location": 3, "activity": "Parish administration and visits"},
+                    {"start_hour": 12, "end_hour": 14, "location": 1, "activity": "Walking through the parish, visiting parishioners"},
+                    {"start_hour": 14, "end_hour": 16, "location": 6, "activity": "Visiting the school, teaching religion class"},
+                    {"start_hour": 16, "end_hour": 18, "location": 12, "activity": "Walking the bog road for contemplation"},
+                    {"start_hour": 19, "end_hour": 20, "location": 2, "activity": "A quiet cup of tea at the pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 7, "end_hour": 8, "location": 3, "activity": "Preparing for Mass"},
+                    {"start_hour": 8, "end_hour": 12, "location": 3, "activity": "Saying Mass and greeting parishioners"},
+                    {"start_hour": 12, "end_hour": 15, "location": 3, "activity": "Church grounds and graveyard visits"},
+                    {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "Pastoral visits around the parish"},
+                    {"start_hour": 19, "end_hour": 21, "location": 2, "activity": "Evening at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "1": {"target": 1, "kind": "friend", "strength": 0.6, "history": []},
+                "6": {"target": 6, "kind": "professional", "strength": 0.4, "history": []},
+                "5": {"target": 5, "kind": "friend", "strength": 0.5, "history": []}
+            },
+            "knowledge": [
+                "The old graveyard has headstones dating back to the 1700s",
+                "St. Brigid's was built on the site of a pre-Christian holy well",
+                "Mick Flanagan comes to confession more often than he lets on",
+                "Niamh Darcy hasn't been to Mass in months"
+            ]
+        },
+        {
+            "id": 4,
+            "name": "Roisin Connolly",
+            "age": 38,
+            "occupation": "Shopkeeper",
+            "personality": "An ambitious and forward-thinking shopkeeper who took over Connolly's Shop from her parents. She dreams of modernizing the village — a proper café, maybe even broadband. Some see her as a breath of fresh air; others think she doesn't respect tradition. She is energetic, opinionated, and not afraid of confrontation. Underneath the confidence, she's lonely.",
+            "mood": "restless",
+            "home": 13,
+            "workplace": 13,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 7, "end_hour": 9, "location": 13, "activity": "Opening the shop, sorting deliveries"},
+                    {"start_hour": 9, "end_hour": 13, "location": 13, "activity": "Morning trade at the shop"},
+                    {"start_hour": 13, "end_hour": 14, "location": 1, "activity": "Quick lunch break at the crossroads"},
+                    {"start_hour": 14, "end_hour": 18, "location": 13, "activity": "Afternoon trade"},
+                    {"start_hour": 18, "end_hour": 19, "location": 13, "activity": "Closing up the shop"},
+                    {"start_hour": 20, "end_hour": 22, "location": 2, "activity": "Evening at Darcy's Pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 8, "end_hour": 13, "location": 13, "activity": "Saturday morning at the shop"},
+                    {"start_hour": 13, "end_hour": 15, "location": 1, "activity": "Weekend stroll around the village"},
+                    {"start_hour": 15, "end_hour": 17, "location": 8, "activity": "Walking down to Hodson Bay for air"},
+                    {"start_hour": 19, "end_hour": 22, "location": 2, "activity": "Weekend social at Darcy's"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "1": {"target": 1, "kind": "professional", "strength": 0.5, "history": []},
+                "8": {"target": 8, "kind": "friend", "strength": 0.6, "history": []},
+                "5": {"target": 5, "kind": "rival", "strength": -0.3, "history": []}
+            },
+            "knowledge": [
+                "The nearest proper supermarket is twenty minutes away in Athlone",
+                "She's been looking into getting a coffee machine for the shop",
+                "Planning permission for the crossroads development was turned down twice",
+                "Niamh Darcy applied for a job in Dublin last month"
+            ]
+        },
+        {
+            "id": 5,
+            "name": "Tommy O'Brien",
+            "age": 70,
+            "occupation": "Farmer",
+            "personality": "A stubborn, old-fashioned farmer and legendary storyteller. Tommy has worked O'Brien's Farm his whole life and sees no reason to change anything. He distrusts outsiders and modernity in equal measure, but has a surprisingly tender side when it comes to animals and children. His stories about the old days are half-truth, half-embellishment, and entirely entertaining.",
+            "mood": "gruff",
+            "home": 10,
+            "workplace": 10,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 5, "end_hour": 9, "location": 10, "activity": "Morning farm work, tending cattle"},
+                    {"start_hour": 9, "end_hour": 11, "location": 14, "activity": "Checking in at the creamery"},
+                    {"start_hour": 11, "end_hour": 16, "location": 10, "activity": "Working the farm"},
+                    {"start_hour": 16, "end_hour": 17, "location": 9, "activity": "Walking over to check on Murphy's Farm"},
+                    {"start_hour": 18, "end_hour": 22, "location": 2, "activity": "Holding court at Darcy's Pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 6, "end_hour": 10, "location": 10, "activity": "Weekend farm chores"},
+                    {"start_hour": 10, "end_hour": 12, "location": 3, "activity": "Sunday Mass"},
+                    {"start_hour": 12, "end_hour": 14, "location": 5, "activity": "Watching the lads train at the GAA pitch"},
+                    {"start_hour": 15, "end_hour": 17, "location": 11, "activity": "Walking up to the fairy fort to check the land"},
+                    {"start_hour": 18, "end_hour": 23, "location": 2, "activity": "Long evening session at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "2": {"target": 2, "kind": "neighbor", "strength": 0.3, "history": []},
+                "1": {"target": 1, "kind": "friend", "strength": 0.7, "history": []},
+                "4": {"target": 4, "kind": "rival", "strength": -0.3, "history": []},
+                "7": {"target": 7, "kind": "friend", "strength": 0.6, "history": []}
+            },
+            "knowledge": [
+                "The fairy fort has been there since before anyone can remember — don't disturb it",
+                "His grandfather saw the Lough Ree wurm in 1934",
+                "The new housing estate will ruin the character of the place entirely",
+                "Siobhan Murphy's boundary fence is a good foot onto his land"
+            ]
+        },
+        {
+            "id": 6,
+            "name": "Aoife Brennan",
+            "age": 29,
+            "occupation": "Teacher",
+            "personality": "An idealistic young teacher who recently returned from Dublin to take a position at Kiltoom National School. She is passionate about education and bringing new ideas to the parish, but sometimes her Dublin ways clash with local customs. She is warm, enthusiastic, and perhaps a little naive about rural life. She misses the city more than she admits.",
+            "mood": "hopeful",
+            "home": 4,
+            "workplace": 6,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 7, "end_hour": 8, "location": 4, "activity": "Morning routine, preparing lessons"},
+                    {"start_hour": 8, "end_hour": 9, "location": 13, "activity": "Grabbing something at Connolly's on the way to school"},
+                    {"start_hour": 9, "end_hour": 15, "location": 6, "activity": "Teaching at the National School"},
+                    {"start_hour": 15, "end_hour": 16, "location": 5, "activity": "Watching the children at after-school GAA"},
+                    {"start_hour": 16, "end_hour": 18, "location": 4, "activity": "Marking papers at home"},
+                    {"start_hour": 19, "end_hour": 21, "location": 2, "activity": "Social evening at the pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 9, "end_hour": 11, "location": 4, "activity": "Lazy weekend morning"},
+                    {"start_hour": 11, "end_hour": 13, "location": 7, "activity": "Walking along Lough Ree shore"},
+                    {"start_hour": 14, "end_hour": 16, "location": 1, "activity": "Exploring the village"},
+                    {"start_hour": 19, "end_hour": 22, "location": 2, "activity": "Weekend at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "3": {"target": 3, "kind": "professional", "strength": 0.4, "history": []},
+                "4": {"target": 4, "kind": "friend", "strength": 0.5, "history": []},
+                "8": {"target": 8, "kind": "friend", "strength": 0.4, "history": []}
+            },
+            "knowledge": [
+                "The school needs a new roof before winter",
+                "Three of her students can barely read at grade level",
+                "She's thinking about starting a drama club for the parish",
+                "There's a creative writing competition she wants her students to enter"
+            ]
+        },
+        {
+            "id": 7,
+            "name": "Mick Flanagan",
+            "age": 65,
+            "occupation": "Retired Garda",
+            "personality": "A retired guard with an observational eye that never quite switched off. Mick notices everything and says little, making him both respected and slightly feared. His humor is bone-dry and often arrives a beat too late. He spends his retirement walking the parish, keeping an unofficial eye on things, and nursing pints he makes last two hours. He is fundamentally decent but carries regrets.",
+            "mood": "watchful",
+            "home": 4,
+            "workplace": null,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 7, "end_hour": 9, "location": 4, "activity": "Morning routine at home"},
+                    {"start_hour": 9, "end_hour": 11, "location": 1, "activity": "Morning constitutional around the crossroads"},
+                    {"start_hour": 11, "end_hour": 13, "location": 7, "activity": "Walking down to Lough Ree shore"},
+                    {"start_hour": 13, "end_hour": 15, "location": 8, "activity": "Watching the boats at Hodson Bay"},
+                    {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "Afternoon stroll through the village"},
+                    {"start_hour": 18, "end_hour": 22, "location": 2, "activity": "Evening at Darcy's Pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 8, "end_hour": 10, "location": 4, "activity": "Weekend lie-in"},
+                    {"start_hour": 10, "end_hour": 12, "location": 3, "activity": "Sunday Mass"},
+                    {"start_hour": 12, "end_hour": 14, "location": 5, "activity": "Watching the GAA match"},
+                    {"start_hour": 14, "end_hour": 16, "location": 12, "activity": "Walking the bog road"},
+                    {"start_hour": 17, "end_hour": 22, "location": 2, "activity": "Long weekend evening at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "1": {"target": 1, "kind": "friend", "strength": 0.6, "history": []},
+                "5": {"target": 5, "kind": "friend", "strength": 0.5, "history": []},
+                "3": {"target": 3, "kind": "friend", "strength": 0.4, "history": []}
+            },
+            "knowledge": [
+                "He knows who stole the lead off the church roof in 1998 but never told a soul",
+                "There's been a strange car parked near the fairy fort three nights this week",
+                "The Connolly family used to run a still back in the sixties",
+                "Padraig Darcy waters down the Friday night Guinness — he's sure of it"
+            ]
+        },
+        {
+            "id": 8,
+            "name": "Niamh Darcy",
+            "age": 22,
+            "occupation": "Barmaid",
+            "personality": "Padraig's restless daughter who works behind the bar but dreams of leaving. She is smart, sarcastic, and increasingly frustrated with village life. She loves her father but resents the assumption that she'll take over the pub. She reads constantly, follows Dublin and London culture online, and feels like she's living in the wrong century. Despite her complaints, she has a soft spot for the parish and its characters.",
+            "mood": "bored",
+            "home": 2,
+            "workplace": 2,
+            "schedule": {
+                "weekday": [
+                    {"start_hour": 9, "end_hour": 11, "location": 2, "activity": "Late start, helping with pub prep"},
+                    {"start_hour": 11, "end_hour": 13, "location": 13, "activity": "Browsing at Connolly's, checking her phone"},
+                    {"start_hour": 13, "end_hour": 15, "location": 7, "activity": "Walking by Lough Ree, alone with her thoughts"},
+                    {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "Sitting at the crossroads, reading"},
+                    {"start_hour": 17, "end_hour": 23, "location": 2, "activity": "Working the evening shift at the pub"}
+                ],
+                "weekend": [
+                    {"start_hour": 10, "end_hour": 12, "location": 2, "activity": "Weekend brunch prep at the pub"},
+                    {"start_hour": 12, "end_hour": 15, "location": 8, "activity": "Afternoon at Hodson Bay"},
+                    {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "Wandering the village"},
+                    {"start_hour": 17, "end_hour": 23, "location": 2, "activity": "Weekend evening shift at the pub"}
+                ],
+                "overrides": {}
+            },
+            "relationships": {
+                "1": {"target": 1, "kind": "family", "strength": 0.8, "history": []},
+                "4": {"target": 4, "kind": "friend", "strength": 0.6, "history": []},
+                "6": {"target": 6, "kind": "friend", "strength": 0.5, "history": []}
+            },
+            "knowledge": [
+                "She has a job interview in Dublin next month",
+                "Roisin Connolly offered to help with her CV",
+                "Her father doesn't know she's applied for jobs in the city",
+                "She's been writing short stories and submitting them to literary magazines"
+            ]
+        }
+    ]
+}

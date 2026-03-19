@@ -6,6 +6,42 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-19 — Phase 3: Multiple NPCs & Simulation
+
+### Changes this session
+
+- **NPC module restructured**: Split `src/npc/mod.rs` into 7 submodules: `mod.rs` (core types), `manager.rs` (NpcManager + CogTier), `memory.rs` (ShortTermMemory), `relationship.rs` (Relationship + RelationshipKind), `schedule.rs` (DailySchedule + NpcState), `tier.rs` (Tier 1/2 tick functions), `overhear.rs` (overhear mechanic).
+- **Extended Npc struct**: Added `home`, `workplace`, `state` (NpcState), `schedule` (DailySchedule), `relationships` (HashMap<NpcId, Relationship>), `memory` (ShortTermMemory), and `knowledge` (Vec<String>).
+- **Relationship system**: `Relationship` struct with `RelationshipKind` enum (Family, Friend, Neighbor, Rival, Enemy, Romantic, Professional), strength (-1.0 to 1.0), history, and `adjust()` method. Context strings generated for LLM prompts.
+- **Short-term memory**: Ring buffer (default 20 entries) with `add()`, `recent(n)`, `context_string()`. Auto-evicts oldest on overflow.
+- **Daily schedule system**: `DailySchedule` with weekday/weekend schedules, seasonal overrides. `ScheduleEntry` specifies start_hour, end_hour, location, activity. Supports midnight-wrapping entries.
+- **NpcState**: `Present(LocationId)` or `InTransit { from, to, arrives_at }` for tracking NPC movement.
+- **NpcManager**: Central hub for all NPCs. Owns `HashMap<NpcId, Npc>` and `HashMap<NpcId, CogTier>`. `assign_tiers()` uses BFS distance: same location → Tier1, 1-2 edges → Tier2, 3+ → Tier3, in transit → Tier4. Query methods: `npcs_at()`, `get_mut()`, `npcs_in_tier()`.
+- **Tier 1 tick**: Full LLM inference with extended context (personality + relationships + memory + knowledge + player action). Updates mood and memory after response.
+- **Tier 2 tick**: Lighter group inference for NPCs at the same location. Produces `Tier2Event` with summary text and relationship changes.
+- **Overhear mechanic**: `check_overhear()` surfaces Tier 2 events from locations 1 edge away as atmospheric text.
+- **NPC data file**: `data/npcs.json` with 8 distinct NPCs — Padraig Darcy (publican), Siobhan Murphy (farmer), Fr. Declan Tierney (priest), Roisin Connolly (shopkeeper), Tommy O'Brien (farmer), Aoife Brennan (teacher), Mick Flanagan (retired guard), Niamh Darcy (barmaid). Each with full schedules, 3+ relationships, and knowledge items.
+- **Main loop integration**: `NpcManager` loaded from data file on startup. Tier assignment runs before each player action. Tier 1 NPCs get full context prompts with relationships and memory.
+- **Test count**: 232 tests passing (up from 160). 18 new NPC integration tests in `tests/npc_integration.rs`.
+
+### Technical notes
+
+- NPCs without explicit `state` in JSON default to `Present(LocationId(1))` (crossroads). Game loop should update NPC positions based on schedules at startup.
+- Tier 2 ticks need timer-based invocation (every 5 game-minutes) — currently the framework is in place but not called from the game loop on a timer.
+- The `Npc` struct implements `Serialize`/`Deserialize` for full data round-tripping.
+- Relationship `context_string()` produces warmth labels: "very close" (≥0.7), "friendly" (≥0.3), "neutral" (≥-0.3), "strained" (≥-0.7), "hostile" (<-0.7).
+
+### Recommendations for next session
+
+1. **Wire NPC schedule movement**: At each tick, compare `desired_location()` to current `NpcState` and move NPCs via the world graph. Calculate traversal times and use `NpcState::InTransit`.
+2. **Timer-based Tier 2 ticks**: Add a timer in the game loop that fires Tier 2 ticks every 5 game-minutes for groups of NPCs at the same location.
+3. **Surface overhear in TUI**: Call `check_overhear()` after Tier 2 events and display the results in the text log.
+4. **Apply Tier 2 relationship changes**: After Tier 2 events, update NPC relationships based on the `relationship_changes` in `Tier2Event`.
+5. **Load world from parish file on startup**: `from_parish_file()` is called in main.rs but the legacy `WorldState::new()` fallback could be removed.
+6. **Wire movement into game loop**: `resolve_movement()` still needs to be connected to `IntentKind::Move` handling.
+
+---
+
 ## 2026-03-19 — Phase 2: World Graph Implementation
 
 ### Changes this session

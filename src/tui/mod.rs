@@ -5,6 +5,7 @@
 
 use crate::inference::InferenceQueue;
 use crate::npc::Npc;
+use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 use crate::world::time::TimeOfDay;
 
@@ -157,10 +158,12 @@ pub struct App {
     pub should_quit: bool,
     /// The inference queue for sending LLM requests (None if unavailable).
     pub inference_queue: Option<InferenceQueue>,
-    /// NPCs present in the world.
+    /// NPCs present in the world (legacy, Phase 1 compatibility).
     pub npcs: Vec<Npc>,
     /// Scroll state for the main text panel.
     pub scroll: ScrollState,
+    /// NPC manager — owns all NPCs and assigns cognitive tiers.
+    pub npc_manager: NpcManager,
 }
 
 impl App {
@@ -173,6 +176,7 @@ impl App {
             inference_queue: None,
             npcs: Vec::new(),
             scroll: ScrollState::new(),
+            npc_manager: NpcManager::new(),
         }
     }
 }

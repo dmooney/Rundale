@@ -4,6 +4,15 @@
 //! with other NPCs, and short/long-term memory. Cognition fidelity
 //! scales with distance from the player (4 LOD tiers).
 
+pub mod manager;
+pub mod memory;
+pub mod overhear;
+pub mod relationship;
+pub mod schedule;
+pub mod tier;
+
+use std::collections::HashMap;
+
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
@@ -65,6 +74,10 @@ pub fn find_response_separator(text: &str) -> Option<(usize, usize)> {
     None
 }
 
+use memory::ShortTermMemory;
+use relationship::Relationship;
+use schedule::{DailySchedule, NpcState};
+
 /// Unique identifier for an NPC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -72,9 +85,9 @@ pub struct NpcId(pub u32);
 
 /// A non-player character in the game world.
 ///
-/// Phase 1 includes basic identity fields. Future phases add schedule,
-/// relationships, memory, and full cognitive LOD tiers.
-#[derive(Debug, Clone)]
+/// Each NPC has identity, personality, a daily schedule, relationships
+/// with other NPCs, short-term memory, and location/movement state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Npc {
     /// Unique identifier.
     pub id: NpcId,
@@ -86,14 +99,41 @@ pub struct Npc {
     pub occupation: String,
     /// Personality description used in system prompts.
     pub personality: String,
-    /// Current location.
-    pub location: LocationId,
     /// Current emotional state.
     pub mood: String,
+    /// Home location.
+    pub home: LocationId,
+    /// Workplace location (if any).
+    #[serde(default)]
+    pub workplace: Option<LocationId>,
+    /// Current movement state (present at a location or in transit).
+    #[serde(default = "default_npc_state")]
+    pub state: NpcState,
+    /// Daily schedule determining where the NPC should be.
+    pub schedule: DailySchedule,
+    /// Relationships with other NPCs, keyed by target NPC id.
+    #[serde(default)]
+    pub relationships: HashMap<NpcId, Relationship>,
+    /// Short-term memory of recent events.
+    #[serde(default)]
+    pub memory: ShortTermMemory,
+    /// Knowledge — facts the NPC knows (used in prompt context).
+    #[serde(default)]
+    pub knowledge: Vec<String>,
+}
+
+/// Default NPC state for deserialization (present at location 1).
+fn default_npc_state() -> NpcState {
+    NpcState::Present(LocationId(1))
 }
 
 impl Npc {
-    /// Creates a test NPC for Phase 1 development.
+    /// Returns the NPC's current location, if present (not in transit).
+    pub fn location(&self) -> Option<LocationId> {
+        self.state.location()
+    }
+
+    /// Creates a test NPC for Phase 1 backward compatibility.
     ///
     /// Padraig O'Brien is a 58-year-old publican at The Crossroads,
     /// known for his storytelling and dry wit.
@@ -108,8 +148,18 @@ impl Npc {
                 local history, and tendency to offer unsolicited advice. He speaks with \
                 a thick Roscommon accent and peppers his speech with Irish phrases."
                 .to_string(),
-            location: LocationId(1),
             mood: "content".to_string(),
+            home: LocationId(2),
+            workplace: Some(LocationId(2)),
+            state: NpcState::Present(LocationId(1)),
+            schedule: DailySchedule {
+                weekday: vec![],
+                weekend: vec![],
+                overrides: HashMap::new(),
+            },
+            relationships: HashMap::new(),
+            memory: ShortTermMemory::new(),
+            knowledge: Vec::new(),
         }
     }
 }
@@ -273,7 +323,14 @@ mod tests {
         assert_eq!(npc.name, "Padraig O'Brien");
         assert_eq!(npc.age, 58);
         assert_eq!(npc.occupation, "Publican");
-        assert_eq!(npc.location, LocationId(1));
+        assert!(npc.state.is_at(LocationId(1)));
+        assert_eq!(npc.home, LocationId(2));
+    }
+
+    #[test]
+    fn test_npc_location() {
+        let npc = Npc::new_test_npc();
+        assert_eq!(npc.location(), Some(LocationId(1)));
     }
 
     #[test]
@@ -498,5 +555,21 @@ mod tests {
         set.insert(NpcId(1));
         set.insert(NpcId(2));
         assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_npc_serialize_deserialize() {
+        let npc = Npc::new_test_npc();
+        let json = serde_json::to_string(&npc).unwrap();
+        let deser: Npc = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.name, "Padraig O'Brien");
+        assert_eq!(deser.age, 58);
+        assert!(deser.state.is_at(LocationId(1)));
+    }
+
+    #[test]
+    fn test_default_npc_state() {
+        let state = default_npc_state();
+        assert!(state.is_at(LocationId(1)));
     }
 }

@@ -57,7 +57,20 @@ src/
 ├── headless.rs          # Headless stdin/stdout REPL for testing
 ├── tui/                 # Ratatui terminal UI
 ├── world/               # World state, location graph, time system
+│   ├── mod.rs           # WorldState, Location, LocationId
+│   ├── graph.rs         # WorldGraph, BFS, fuzzy search, validation
+│   ├── movement.rs      # resolve_movement(), narration
+│   ├── encounter.rs     # Probability-based random encounters
+│   ├── description.rs   # Template interpolation for locations
+│   └── time.rs          # GameClock, seasons, festivals
 ├── npc/                 # NPC data model, behavior, cognition tiers
+│   ├── mod.rs           # Npc, NpcId, NpcAction, prompt builders
+│   ├── manager.rs       # NpcManager, CogTier, tier assignment
+│   ├── memory.rs        # ShortTermMemory ring buffer
+│   ├── relationship.rs  # Relationship, RelationshipKind
+│   ├── schedule.rs      # DailySchedule, NpcState, ScheduleEntry
+│   ├── tier.rs          # Tier 1/2 tick functions, Tier2Event
+│   └── overhear.rs      # Overhear mechanic for nearby events
 ├── inference/
 │   ├── client.rs        # Ollama HTTP client, process management
 │   ├── setup.rs         # GPU detection, model selection, auto-pull

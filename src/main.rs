@@ -4,11 +4,14 @@ use parish::headless;
 use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
+use parish::npc::manager::{CogTier, NpcManager};
+use parish::npc::tier;
 use parish::npc::{
     self, Npc, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
     parse_npc_stream_response,
 };
 use parish::tui::{self, App};
+use parish::world::LocationId;
 use parish::world::description::{format_exits, render_description};
 use parish::world::movement::{self, MovementResult};
 use std::path::Path;
@@ -76,10 +79,40 @@ async fn main() -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
-    app.npcs.push(Npc::new_test_npc());
+
+    // Load world from parish data file if available
+    let parish_path = Path::new("data/parish.json");
+    if parish_path.exists() {
+        match parish::world::WorldState::from_parish_file(parish_path, LocationId(1)) {
+            Ok(world) => app.world = world,
+            Err(e) => tracing::warn!("Failed to load parish data: {}, using defaults", e),
+        }
+    }
+
+    // Load NPCs from data file
+    let npcs_path = Path::new("data/npcs.json");
+    if npcs_path.exists() {
+        match NpcManager::load_from_file(npcs_path) {
+            Ok(mgr) => app.npc_manager = mgr,
+            Err(e) => {
+                tracing::warn!("Failed to load NPC data: {}, using test NPC", e);
+                app.npcs.push(Npc::new_test_npc());
+            }
+        }
+    } else {
+        app.npcs.push(Npc::new_test_npc());
+    }
+
+    // Assign initial tiers
+    app.npc_manager
+        .assign_tiers(app.world.player_location, &app.world.graph);
 
     // Show initial location description
     show_location_arrival(&mut app);
+
+    // Show NPC presence (from manager)
+    show_npcs_at_location(&mut app);
+    app.world.log(String::new());
 
     // Initialize terminal
     let mut terminal = tui::init_terminal()?;
@@ -138,169 +171,322 @@ async fn main() -> Result<()> {
                             show_location_description(&mut app);
                         }
                         _ => {
-                            // Route to NPC conversation if one is present
-                            let npc = app
-                                .npcs
-                                .iter()
-                                .find(|n| n.location == app.world.player_location)
-                                .cloned();
+                            // Re-assign tiers based on current player location
+                            app.npc_manager
+                                .assign_tiers(app.world.player_location, &app.world.graph);
 
-                            if let Some(npc) = npc {
-                                let system_prompt = npc::build_tier1_system_prompt(&npc);
-                                let context = npc::build_tier1_context(&npc, &app.world, &text);
+                            // Check for Tier 1 NPCs (at player's location) in NpcManager
+                            let tier1_ids = app.npc_manager.npcs_in_tier(CogTier::Tier1);
 
-                                if let Some(queue) = &app.inference_queue {
-                                    request_id += 1;
+                            if !tier1_ids.is_empty() {
+                                // Interact with the first Tier 1 NPC
+                                let npc_id = tier1_ids[0];
 
-                                    let (token_tx, mut token_rx) =
-                                        mpsc::unbounded_channel::<String>();
+                                // Build name lookup for relationships
+                                let npc_names: std::collections::HashMap<parish::npc::NpcId, String> = app
+                                    .npc_manager
+                                    .iter()
+                                    .map(|(id, npc)| (*id, npc.name.clone()))
+                                    .collect();
 
-                                    app.world.log(format!("{}: ", npc.name));
-                                    *streaming_active.lock().unwrap() = true;
+                                if let Some(npc) = app.npc_manager.get_mut(npc_id) {
+                                    let system_prompt = npc::build_tier1_system_prompt(npc);
+                                    let context = tier::build_tier1_full_context_pub(
+                                        npc, &app.world, &text, &npc_names,
+                                    );
 
-                                    let buf_clone = Arc::clone(&streaming_buf);
-                                    let active_clone = Arc::clone(&streaming_active);
-                                    let stream_handle = tokio::spawn(async move {
-                                        let mut accumulated = String::new();
-                                        let mut displayed_len: usize = 0;
-                                        let mut separator_found = false;
+                                    let npc_name = npc.name.clone();
 
-                                        while let Some(token) = token_rx.recv().await {
-                                            accumulated.push_str(&token);
+                                    if let Some(queue) = &app.inference_queue {
+                                        request_id += 1;
 
-                                            if separator_found {
-                                                continue;
-                                            }
+                                        let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
 
-                                            if let Some((dialogue_end, _meta_start)) =
-                                                find_response_separator(&accumulated)
-                                            {
-                                                if dialogue_end > displayed_len {
-                                                    let new_text = accumulated
-                                                        [displayed_len..dialogue_end]
-                                                        .to_string();
-                                                    buf_clone.lock().unwrap().push_str(&new_text);
+                                        app.world.log(format!("{}: ", npc_name));
+                                        *streaming_active.lock().unwrap() = true;
+
+                                        let buf_clone = Arc::clone(&streaming_buf);
+                                        let active_clone = Arc::clone(&streaming_active);
+                                        let stream_handle = tokio::spawn(async move {
+                                            let mut accumulated = String::new();
+                                            let mut displayed_len: usize = 0;
+                                            let mut separator_found = false;
+
+                                            while let Some(token) = token_rx.recv().await {
+                                                accumulated.push_str(&token);
+
+                                                if separator_found {
+                                                    continue;
                                                 }
-                                                separator_found = true;
-                                                continue;
+
+                                                if let Some((dialogue_end, _meta_start)) =
+                                                    find_response_separator(&accumulated)
+                                                {
+                                                    if dialogue_end > displayed_len {
+                                                        let new_text = accumulated
+                                                            [displayed_len..dialogue_end]
+                                                            .to_string();
+                                                        buf_clone.lock().unwrap().push_str(&new_text);
+                                                    }
+                                                    separator_found = true;
+                                                    continue;
+                                                }
+
+                                                let raw_end =
+                                                    accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
+                                                let safe_end = floor_char_boundary(&accumulated, raw_end);
+                                                if safe_end > displayed_len {
+                                                    let new_text =
+                                                        accumulated[displayed_len..safe_end].to_string();
+                                                    buf_clone.lock().unwrap().push_str(&new_text);
+                                                    displayed_len = safe_end;
+                                                }
                                             }
 
-                                            let raw_end = accumulated
-                                                .len()
-                                                .saturating_sub(SEPARATOR_HOLDBACK);
-                                            let safe_end =
-                                                floor_char_boundary(&accumulated, raw_end);
-                                            if safe_end > displayed_len {
-                                                let new_text = accumulated[displayed_len..safe_end]
-                                                    .to_string();
-                                                buf_clone.lock().unwrap().push_str(&new_text);
-                                                displayed_len = safe_end;
+                                            if !separator_found && displayed_len < accumulated.len() {
+                                                let remaining = accumulated[displayed_len..].to_string();
+                                                buf_clone.lock().unwrap().push_str(&remaining);
                                             }
-                                        }
 
-                                        if !separator_found && displayed_len < accumulated.len() {
-                                            let remaining =
-                                                accumulated[displayed_len..].to_string();
-                                            buf_clone.lock().unwrap().push_str(&remaining);
-                                        }
+                                            *active_clone.lock().unwrap() = false;
+                                        });
 
-                                        *active_clone.lock().unwrap() = false;
-                                    });
+                                        match queue
+                                            .send(
+                                                request_id,
+                                                model.clone(),
+                                                context,
+                                                Some(system_prompt),
+                                                Some(token_tx),
+                                            )
+                                            .await
+                                        {
+                                            Ok(mut rx) => {
+                                                let response = loop {
+                                                    {
+                                                        let mut buf = streaming_buf.lock().unwrap();
+                                                        if !buf.is_empty() {
+                                                            if let Some(last) =
+                                                                app.world.text_log.last_mut()
+                                                            {
+                                                                last.push_str(&buf);
+                                                            }
+                                                            buf.clear();
+                                                        }
+                                                    }
 
-                                    match queue
-                                        .send(
-                                            request_id,
-                                            model.clone(),
-                                            context,
-                                            Some(system_prompt),
-                                            Some(token_tx),
-                                        )
-                                        .await
-                                    {
-                                        Ok(mut rx) => {
-                                            let response = loop {
+                                                    terminal.draw(|frame| tui::draw(frame, &app))?;
+
+                                                    match rx.try_recv() {
+                                                        Ok(resp) => break Some(resp),
+                                                        Err(oneshot::error::TryRecvError::Empty) => {
+                                                            tokio::time::sleep(Duration::from_millis(50))
+                                                                .await;
+                                                            continue;
+                                                        }
+                                                        Err(oneshot::error::TryRecvError::Closed) => {
+                                                            break None;
+                                                        }
+                                                    }
+                                                };
+
+                                                let _ = stream_handle.await;
+
                                                 {
                                                     let mut buf = streaming_buf.lock().unwrap();
                                                     if !buf.is_empty() {
-                                                        if let Some(last) =
-                                                            app.world.text_log.last_mut()
-                                                        {
+                                                        if let Some(last) = app.world.text_log.last_mut() {
                                                             last.push_str(&buf);
                                                         }
                                                         buf.clear();
                                                     }
                                                 }
 
-                                                terminal
-                                                    .draw(|frame| tui::draw(frame, &mut app))?;
-
-                                                match rx.try_recv() {
-                                                    Ok(resp) => break Some(resp),
-                                                    Err(oneshot::error::TryRecvError::Empty) => {
-                                                        tokio::time::sleep(Duration::from_millis(
-                                                            50,
-                                                        ))
-                                                        .await;
-                                                        continue;
-                                                    }
-                                                    Err(oneshot::error::TryRecvError::Closed) => {
-                                                        break None;
-                                                    }
-                                                }
-                                            };
-
-                                            let _ = stream_handle.await;
-
-                                            {
-                                                let mut buf = streaming_buf.lock().unwrap();
-                                                if !buf.is_empty() {
-                                                    if let Some(last) =
-                                                        app.world.text_log.last_mut()
-                                                    {
-                                                        last.push_str(&buf);
-                                                    }
-                                                    buf.clear();
-                                                }
-                                            }
-
-                                            match response {
-                                                Some(resp) => {
-                                                    if let Some(err) = &resp.error {
-                                                        app.world.log(format!(
-                                                            "[Ollama error: {}]",
-                                                            err
-                                                        ));
-                                                    } else {
-                                                        let parsed =
-                                                            parse_npc_stream_response(&resp.text);
-                                                        if let Some(meta) = &parsed.metadata {
-                                                            tracing::debug!(
-                                                                "NPC metadata: action={}, mood={}",
-                                                                meta.action,
-                                                                meta.mood
-                                                            );
+                                                match response {
+                                                    Some(resp) => {
+                                                        if let Some(err) = &resp.error {
+                                                            app.world
+                                                                .log(format!("[Ollama error: {}]", err));
+                                                        } else {
+                                                            let parsed =
+                                                                parse_npc_stream_response(&resp.text);
+                                                            if let Some(meta) = &parsed.metadata {
+                                                                tracing::debug!(
+                                                                    "NPC metadata: action={}, mood={}",
+                                                                    meta.action,
+                                                                    meta.mood
+                                                                );
+                                                            }
                                                         }
                                                     }
-                                                }
-                                                None => {
-                                                    app.world.log(
-                                                        "[Inference channel closed]".to_string(),
-                                                    );
+                                                    None => {
+                                                        app.world
+                                                            .log("[Inference channel closed]".to_string());
+                                                    }
                                                 }
                                             }
+                                            Err(e) => {
+                                                *streaming_active.lock().unwrap() = false;
+                                                let _ = stream_handle.await;
+                                                app.world.log(format!("[Failed to send request: {}]", e));
+                                            }
                                         }
-                                        Err(e) => {
-                                            *streaming_active.lock().unwrap() = false;
-                                            let _ = stream_handle.await;
-                                            app.world
-                                                .log(format!("[Failed to send request: {}]", e));
-                                        }
+                                    } else {
+                                        app.world.log("[No inference engine available]".to_string());
                                     }
-                                } else {
-                                    app.world.log("[No inference engine available]".to_string());
                                 }
                             } else {
-                                app.world.log("Nothing happens.".to_string());
+                                // Check legacy npcs list
+                                let npc = app
+                                    .npcs
+                                    .iter()
+                                    .find(|n| n.location == app.world.player_location)
+                                    .cloned();
+
+                                if let Some(npc) = npc {
+                                    let system_prompt = npc::build_tier1_system_prompt(&npc);
+                                    let context = npc::build_tier1_context(&npc, &app.world, &text);
+
+                                    if let Some(queue) = &app.inference_queue {
+                                        request_id += 1;
+
+                                        let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+
+                                        app.world.log(format!("{}: ", npc.name));
+                                        *streaming_active.lock().unwrap() = true;
+
+                                        let buf_clone = Arc::clone(&streaming_buf);
+                                        let active_clone = Arc::clone(&streaming_active);
+                                        let stream_handle = tokio::spawn(async move {
+                                            let mut accumulated = String::new();
+                                            let mut displayed_len: usize = 0;
+                                            let mut separator_found = false;
+
+                                            while let Some(token) = token_rx.recv().await {
+                                                accumulated.push_str(&token);
+
+                                                if separator_found {
+                                                    continue;
+                                                }
+
+                                                if let Some((dialogue_end, _meta_start)) =
+                                                    find_response_separator(&accumulated)
+                                                {
+                                                    if dialogue_end > displayed_len {
+                                                        let new_text = accumulated
+                                                            [displayed_len..dialogue_end]
+                                                            .to_string();
+                                                        buf_clone.lock().unwrap().push_str(&new_text);
+                                                    }
+                                                    separator_found = true;
+                                                    continue;
+                                                }
+
+                                                let raw_end =
+                                                    accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
+                                                let safe_end = floor_char_boundary(&accumulated, raw_end);
+                                                if safe_end > displayed_len {
+                                                    let new_text =
+                                                        accumulated[displayed_len..safe_end].to_string();
+                                                    buf_clone.lock().unwrap().push_str(&new_text);
+                                                    displayed_len = safe_end;
+                                                }
+                                            }
+
+                                            if !separator_found && displayed_len < accumulated.len() {
+                                                let remaining = accumulated[displayed_len..].to_string();
+                                                buf_clone.lock().unwrap().push_str(&remaining);
+                                            }
+
+                                            *active_clone.lock().unwrap() = false;
+                                        });
+
+                                        match queue
+                                            .send(
+                                                request_id,
+                                                model.clone(),
+                                                context,
+                                                Some(system_prompt),
+                                                Some(token_tx),
+                                            )
+                                            .await
+                                        {
+                                            Ok(mut rx) => {
+                                                let response = loop {
+                                                    {
+                                                        let mut buf = streaming_buf.lock().unwrap();
+                                                        if !buf.is_empty() {
+                                                            if let Some(last) =
+                                                                app.world.text_log.last_mut()
+                                                            {
+                                                                last.push_str(&buf);
+                                                            }
+                                                            buf.clear();
+                                                        }
+                                                    }
+
+                                                    terminal.draw(|frame| tui::draw(frame, &app))?;
+
+                                                    match rx.try_recv() {
+                                                        Ok(resp) => break Some(resp),
+                                                        Err(oneshot::error::TryRecvError::Empty) => {
+                                                            tokio::time::sleep(Duration::from_millis(50))
+                                                                .await;
+                                                            continue;
+                                                        }
+                                                        Err(oneshot::error::TryRecvError::Closed) => {
+                                                            break None;
+                                                        }
+                                                    }
+                                                };
+
+                                                let _ = stream_handle.await;
+
+                                                {
+                                                    let mut buf = streaming_buf.lock().unwrap();
+                                                    if !buf.is_empty() {
+                                                        if let Some(last) = app.world.text_log.last_mut() {
+                                                            last.push_str(&buf);
+                                                        }
+                                                        buf.clear();
+                                                    }
+                                                }
+
+                                                match response {
+                                                    Some(resp) => {
+                                                        if let Some(err) = &resp.error {
+                                                            app.world
+                                                                .log(format!("[Ollama error: {}]", err));
+                                                        } else {
+                                                            let parsed =
+                                                                parse_npc_stream_response(&resp.text);
+                                                            if let Some(meta) = &parsed.metadata {
+                                                                tracing::debug!(
+                                                                    "NPC metadata: action={}, mood={}",
+                                                                    meta.action,
+                                                                    meta.mood
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                    None => {
+                                                        app.world
+                                                            .log("[Inference channel closed]".to_string());
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                *streaming_active.lock().unwrap() = false;
+                                                let _ = stream_handle.await;
+                                                app.world.log(format!("[Failed to send request: {}]", e));
+                                            }
+                                        }
+                                    } else {
+                                        app.world.log("[No inference engine available]".to_string());
+                                    }
+                                } else {
+                                    app.world.log("Nothing happens.".to_string());
+                                }
                             }
                         }
                     }
@@ -319,6 +505,21 @@ async fn main() -> Result<()> {
     tracing::info!("Parish exited cleanly.");
 
     Ok(())
+}
+
+/// Shows which NPCs are at the player's current location.
+fn show_npcs_at_location(app: &mut App) {
+    let player_loc = app.world.player_location;
+    let npcs_here = app.npc_manager.npcs_at(player_loc);
+    for npc in &npcs_here {
+        app.world.log(format!("{} is here.", npc.name));
+    }
+    // Also check legacy npcs
+    for npc in &app.npcs {
+        if npc.state.is_at(player_loc) {
+            app.world.log(format!("{} is here.", npc.name));
+        }
+    }
 }
 
 /// Handles a system command.
