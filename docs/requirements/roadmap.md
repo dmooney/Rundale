@@ -2,8 +2,8 @@
 
 > [Docs Index](../index.md)
 
-> Last updated: 2026-03-18
-> Current phase: **Phase 1 — Core Loop**
+> Last updated: 2026-03-19
+> Current phase: **Phase 2 — World Graph** (in progress)
 
 ## Status Legend
 
@@ -37,14 +37,14 @@
 
 > [Detailed plan](../plans/phase-2-world-graph.md) | [Design: World & Geography](../design/world-geography.md)
 
-- [ ] Full `Location` struct with connections and properties
-- [ ] `WorldGraph` struct (adjacency list)
-- [ ] Hand-authored test parish JSON (~10-15 locations)
-- [ ] OSM data extraction tool
-- [ ] Movement command handling ("go to X", traversal time)
-- [ ] Time advancement during traversal
-- [ ] En-route encounter system
-- [ ] Dynamic location descriptions (LLM-enriched templates)
+- [x] Full `Location` struct with connections and properties
+- [x] `WorldGraph` struct (adjacency list with BFS pathfinding)
+- [x] Hand-authored test parish JSON (14 Kiltoom locations)
+- [ ] OSM data extraction tool (stretch goal)
+- [x] Movement command handling ("go to X", fuzzy matching, traversal time)
+- [x] Time advancement during traversal
+- [x] En-route encounter system (probability-based, time-of-day weighted)
+- [x] Dynamic location descriptions (template interpolation with time/weather/NPCs)
 
 ## Phase 3 — Multiple NPCs & Simulation
 

@@ -5,7 +5,7 @@
 //! scales with distance from the player (4 LOD tiers).
 
 use crate::world::{LocationId, WorldState};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Maximum number of bytes to hold back during streaming to detect
 /// the separator pattern. Must be large enough to catch `  ---\n` with
@@ -53,7 +53,8 @@ pub fn find_response_separator(text: &str) -> Option<(usize, usize)> {
 }
 
 /// Unique identifier for an NPC.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct NpcId(pub u32);
 
 /// A non-player character in the game world.

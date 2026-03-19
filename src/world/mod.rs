@@ -4,13 +4,24 @@
 //! with traversal times. Geography is static; only people and events
 //! within it are dynamic.
 
+pub mod description;
+pub mod encounter;
+pub mod graph;
+pub mod movement;
 pub mod time;
 
 use std::collections::HashMap;
+use std::path::Path;
+
+use serde::{Deserialize, Serialize};
 use time::GameClock;
 
+use crate::error::ParishError;
+use graph::{LocationData, WorldGraph};
+
 /// Unique identifier for a location in the world graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct LocationId(pub u32);
 
 /// A named location in the game world.
@@ -34,15 +45,17 @@ pub struct Location {
 
 /// Central game state container.
 ///
-/// Holds the game clock, player position, all locations, weather,
+/// Holds the game clock, player position, the world graph, weather,
 /// and the scrollback text log displayed in the TUI.
 pub struct WorldState {
     /// The game clock mapping real time to game time.
     pub clock: GameClock,
     /// The player's current location.
     pub player_location: LocationId,
-    /// All locations in the world, keyed by id.
+    /// All locations in the world, keyed by id (legacy, used by NPC context).
     pub locations: HashMap<LocationId, Location>,
+    /// The world graph with full location data and connections.
+    pub graph: WorldGraph,
     /// Current weather description (e.g. "Clear", "Overcast").
     pub weather: String,
     /// Scrollback text log displayed in the main TUI panel.
@@ -78,9 +91,49 @@ impl WorldState {
             clock,
             player_location: crossroads_id,
             locations,
+            graph: WorldGraph::new(),
             weather: "Clear".to_string(),
             text_log: Vec::new(),
         }
+    }
+
+    /// Creates a world state from a parish data file.
+    ///
+    /// Loads the world graph from JSON and sets the player at the
+    /// specified starting location. Also populates the legacy `locations`
+    /// map for backward compatibility with NPC context building.
+    pub fn from_parish_file(path: &Path, start_location: LocationId) -> Result<Self, ParishError> {
+        use chrono::{TimeZone, Utc};
+
+        let graph = WorldGraph::load_from_file(path)?;
+
+        // Build legacy locations map from graph data
+        let mut locations = HashMap::new();
+        for loc_id in graph.location_ids() {
+            if let Some(data) = graph.get(loc_id) {
+                locations.insert(
+                    loc_id,
+                    Location {
+                        id: loc_id,
+                        name: data.name.clone(),
+                        description: data.description_template.clone(),
+                        indoor: data.indoor,
+                        public: data.public,
+                    },
+                );
+            }
+        }
+
+        let clock = GameClock::new(Utc.with_ymd_and_hms(2026, 3, 20, 8, 0, 0).unwrap());
+
+        Ok(Self {
+            clock,
+            player_location: start_location,
+            locations,
+            graph,
+            weather: "Clear".to_string(),
+            text_log: Vec::new(),
+        })
     }
 
     /// Returns a reference to the player's current location.
@@ -92,6 +145,11 @@ impl WorldState {
         self.locations
             .get(&self.player_location)
             .expect("player location must exist in world")
+    }
+
+    /// Returns the current location's data from the world graph, if loaded.
+    pub fn current_location_data(&self) -> Option<&LocationData> {
+        self.graph.get(self.player_location)
     }
 
     /// Appends a line to the text log.
@@ -150,5 +208,28 @@ mod tests {
         set.insert(LocationId(2));
         assert_eq!(set.len(), 2);
         assert!(set.contains(&LocationId(1)));
+    }
+
+    #[test]
+    fn test_from_parish_file() {
+        let path = Path::new("data/parish.json");
+        if path.exists() {
+            let world = WorldState::from_parish_file(path, LocationId(1)).unwrap();
+            assert_eq!(world.player_location, LocationId(1));
+            assert!(world.locations.len() >= 12);
+            assert!(world.graph.location_count() >= 12);
+            assert_eq!(world.current_location().name, "The Crossroads");
+        }
+    }
+
+    #[test]
+    fn test_current_location_data() {
+        let path = Path::new("data/parish.json");
+        if path.exists() {
+            let world = WorldState::from_parish_file(path, LocationId(1)).unwrap();
+            let data = world.current_location_data().unwrap();
+            assert_eq!(data.name, "The Crossroads");
+            assert!(data.description_template.contains("{time}"));
+        }
     }
 }

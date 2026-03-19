@@ -6,6 +6,38 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-19 — Phase 2: World Graph Implementation
+
+### Changes this session
+
+- **World graph system**: New `src/world/graph.rs` module with `WorldGraph`, `Connection`, and `LocationData` types. Graph supports BFS pathfinding, fuzzy name search (with article stripping), neighbor queries, and path travel time calculation.
+- **Parish data file**: `data/parish.json` with 14 hand-authored Kiltoom locations: The Crossroads (hub), Darcy's Pub, St. Brigid's Church, The Post Office, The GAA Pitch, The National School, Lough Ree Shore, Hodson Bay, Murphy's Farm, O'Brien's Farm, The Fairy Fort, The Bog Road, Connolly's Shop, and The Creamery.
+- **Graph validation**: On load, validates all connection targets exist, connections are bidirectional, and no orphan nodes.
+- **Movement system**: New `src/world/movement.rs` with `resolve_movement()` — resolves "go to X" intents to destinations via fuzzy matching, computes shortest path via BFS, and generates travel narration text.
+- **Encounter system**: New `src/world/encounter.rs` — probability-based random encounters during travel. Base ~20% chance, modified by time of day (higher in morning, lower at night/midnight).
+- **Dynamic descriptions**: New `src/world/description.rs` — renders location description templates by interpolating `{time}`, `{weather}`, and `{npcs_present}` placeholders with current game state.
+- **WorldState integration**: `WorldState::from_parish_file()` loads the world graph and populates both the new graph and legacy locations map. New `current_location_data()` accessor.
+- **Serde support**: Added `Serialize`/`Deserialize` to `LocationId` and `NpcId` with `#[serde(transparent)]`.
+- **New error variant**: `WorldGraph(String)` in `ParishError`.
+- **Test count**: 160 tests passing (up from 90), 1 ignored. Added 21 integration tests in `tests/world_graph_integration.rs`.
+- **Mythological significance**: Crossroads, St. Brigid's Church, The Fairy Fort, The Bog Road, and Lough Ree Shore all have mythological flavor text.
+
+### Technical notes
+
+- `find_by_name()` fuzzy matching strips common articles ("the", "a", "an") and checks both directions (query in name, name in query).
+- All 14 locations are reachable from the crossroads. Traversal times range from 2-10 minutes.
+- The encounter system uses an explicit `roll` parameter for deterministic testing.
+- Description templates use simple string replacement; LLM enrichment deferred to Phase 6.
+
+### Recommendations for next session
+
+1. **Wire movement into game loop**: The movement resolution, time advancement, encounter checks, and description rendering are all implemented but not yet connected to the main game loop (`main.rs`, `headless.rs`). Next step is to handle `IntentKind::Move` in the game loop by calling `resolve_movement()`, advancing the clock, checking encounters, and rendering the new location.
+2. **Wire `from_parish_file` into startup**: Replace `WorldState::new()` with `WorldState::from_parish_file()` in `main.rs` so the full parish loads on game start.
+3. **Add `/look` command**: Now that dynamic descriptions exist, wire up `IntentKind::Look` to render the current location description.
+4. **OSM extraction tool**: Deferred — hand-authored data is sufficient for now.
+
+---
+
 ## 2026-03-19 — Robust Ollama Integration & Headless Mode
 
 ### Changes this session

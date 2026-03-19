@@ -1,0 +1,188 @@
+{
+    "locations": [
+        {
+            "id": 1,
+            "name": "The Crossroads",
+            "description_template": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 2, "traversal_minutes": 3, "path_description": "a short lane past a row of cottages"},
+                {"target": 3, "traversal_minutes": 5, "path_description": "a winding boreen lined with hawthorn"},
+                {"target": 4, "traversal_minutes": 2, "path_description": "the road past a hand-painted sign"},
+                {"target": 6, "traversal_minutes": 4, "path_description": "a gravel path along the school wall"},
+                {"target": 9, "traversal_minutes": 8, "path_description": "a narrow road between stone walls"},
+                {"target": 13, "traversal_minutes": 3, "path_description": "a few steps across the road"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin."
+        },
+        {
+            "id": 2,
+            "name": "Darcy's Pub",
+            "description_template": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old photographs of GAA teams line the walls. A fiddle sits propped in the corner. It is {time} and the weather outside is {weather}.",
+            "indoor": true,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 3, "path_description": "the lane back to the crossroads"}
+            ],
+            "associated_npcs": [1],
+            "mythological_significance": null
+        },
+        {
+            "id": 3,
+            "name": "St. Brigid's Church",
+            "description_template": "A small stone church with a slate roof, its stained-glass windows catching the {time} light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is {weather}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 5, "path_description": "the boreen back to the crossroads"},
+                {"target": 12, "traversal_minutes": 6, "path_description": "a muddy track past the graveyard wall"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint."
+        },
+        {
+            "id": 4,
+            "name": "The Post Office",
+            "description_template": "A small stone building with a red An Post sign above the door. Notices flutter on the community board outside. It is {time}. The weather is {weather}.",
+            "indoor": true,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 2, "path_description": "back across to the crossroads"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 5,
+            "name": "The GAA Pitch",
+            "description_template": "A well-kept GAA pitch with white goalposts standing against the {weather} sky. The Kiltoom-Cam clubhouse sits at one end, its green and gold paint peeling slightly. It is {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 6, "traversal_minutes": 3, "path_description": "a tarmac path back past the school"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 6,
+            "name": "The National School",
+            "description_template": "Kiltoom National School — a single-storey building with a playground behind a green railing. Children's artwork fills the windows. It is {time}. The sky is {weather}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 4, "path_description": "the gravel path back to the crossroads"},
+                {"target": 5, "traversal_minutes": 3, "path_description": "a tarmac path down to the pitch"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 7,
+            "name": "Lough Ree Shore",
+            "description_template": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the {weather} sky. Small islands dot the water in the distance. It is {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 8, "traversal_minutes": 6, "path_description": "a lakeside path through reeds and willow"},
+                {"target": 11, "traversal_minutes": 10, "path_description": "a rough track climbing away from the shore"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
+        },
+        {
+            "id": 8,
+            "name": "Hodson Bay",
+            "description_template": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is {time} and the sky is {weather}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 7, "traversal_minutes": 6, "path_description": "the lakeside path back along the shore"},
+                {"target": 9, "traversal_minutes": 7, "path_description": "a lane winding uphill from the bay"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 9,
+            "name": "Murphy's Farm",
+            "description_template": "A working farm with a whitewashed house and rusted corrugated sheds. Cattle graze in the near field. A sheepdog watches from the gate. It is {time}. The sky is {weather}.",
+            "indoor": false,
+            "public": false,
+            "connections": [
+                {"target": 1, "traversal_minutes": 8, "path_description": "the narrow road back between stone walls"},
+                {"target": 8, "traversal_minutes": 7, "path_description": "a lane winding down toward the bay"},
+                {"target": 10, "traversal_minutes": 5, "path_description": "a boreen through a gap in the hedge"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 10,
+            "name": "O'Brien's Farm",
+            "description_template": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A tractor idles by the barn. It is {time}. Weather: {weather}.",
+            "indoor": false,
+            "public": false,
+            "connections": [
+                {"target": 9, "traversal_minutes": 5, "path_description": "a boreen back through the hedge to Murphy's"},
+                {"target": 14, "traversal_minutes": 6, "path_description": "a soggy track across the lower field"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 11,
+            "name": "The Fairy Fort",
+            "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 7, "traversal_minutes": 10, "path_description": "the rough track back down to the shore"},
+                {"target": 12, "traversal_minutes": 8, "path_description": "a barely visible path through gorse and bracken"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
+        },
+        {
+            "id": 12,
+            "name": "The Bog Road",
+            "description_template": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The {weather} sky presses down. Pools of dark water gleam between the heather. It is {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 3, "traversal_minutes": 6, "path_description": "the muddy track back toward the church"},
+                {"target": 11, "traversal_minutes": 8, "path_description": "a barely visible path through gorse to the fort"},
+                {"target": 14, "traversal_minutes": 7, "path_description": "a squelching path along the bog's edge"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
+        },
+        {
+            "id": 13,
+            "name": "Connolly's Shop",
+            "description_template": "A small general shop crammed with everything from Wellington boots to Holy Communion cards. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
+            "indoor": true,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 3, "path_description": "a few steps back across the road to the crossroads"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        },
+        {
+            "id": 14,
+            "name": "The Creamery",
+            "description_template": "The old creamery building, partly converted to a community hall. The original weighbridge still sits outside. It is {time}. The weather is {weather}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 10, "traversal_minutes": 6, "path_description": "the soggy track back up to O'Brien's"},
+                {"target": 12, "traversal_minutes": 7, "path_description": "a path along the bog's edge back to the road"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": null
+        }
+    ]
+}

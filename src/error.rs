@@ -7,6 +7,9 @@ pub enum ParishError {
     #[error("setup error: {0}")]
     Setup(String),
 
+    #[error("world graph error: {0}")]
+    WorldGraph(String),
+
     #[error("model not available: {0}")]
     ModelNotAvailable(String),
 
