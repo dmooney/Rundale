@@ -25,6 +25,9 @@ pub struct InferenceRequest {
     pub system: Option<String>,
     /// Channel to send the response back to the caller.
     pub response_tx: oneshot::Sender<InferenceResponse>,
+    /// Optional channel for streaming tokens. If present, the worker streams
+    /// individual tokens through this before sending the final response.
+    pub token_tx: Option<mpsc::UnboundedSender<String>>,
 }
 
 /// The response from an inference request.
@@ -54,7 +57,9 @@ impl InferenceQueue {
 
     /// Submits an inference request to the queue.
     ///
-    /// Returns a oneshot receiver that will yield the response.
+    /// If `token_tx` is provided, the worker will stream individual tokens
+    /// through it before sending the final complete response. Returns a
+    /// oneshot receiver that will yield the complete response.
     /// Returns an error if the queue channel is closed.
     pub async fn send(
         &self,
@@ -62,6 +67,7 @@ impl InferenceQueue {
         model: String,
         prompt: String,
         system: Option<String>,
+        token_tx: Option<mpsc::UnboundedSender<String>>,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
         let (response_tx, response_rx) = oneshot::channel();
@@ -71,6 +77,7 @@ impl InferenceQueue {
             prompt,
             system,
             response_tx,
+            token_tx,
         };
         self.tx.send(request).await?;
         Ok(response_rx)
@@ -88,9 +95,20 @@ pub fn spawn_inference_worker(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(request) = rx.recv().await {
-            let result = client
-                .generate(&request.model, &request.prompt, request.system.as_deref())
-                .await;
+            let result = if let Some(token_tx) = request.token_tx {
+                client
+                    .generate_stream(
+                        &request.model,
+                        &request.prompt,
+                        request.system.as_deref(),
+                        token_tx,
+                    )
+                    .await
+            } else {
+                client
+                    .generate(&request.model, &request.prompt, request.system.as_deref())
+                    .await
+            };
 
             let response = match result {
                 Ok(text) => InferenceResponse {
@@ -126,6 +144,7 @@ mod tests {
                 "test-model".to_string(),
                 "hello".to_string(),
                 Some("system".to_string()),
+                None,
             )
             .await
             .unwrap();
@@ -158,13 +177,36 @@ mod tests {
         let queue = InferenceQueue::new(tx);
 
         let _response_rx = queue
-            .send(2, "model".to_string(), "prompt".to_string(), None)
+            .send(2, "model".to_string(), "prompt".to_string(), None, None)
             .await
             .unwrap();
 
         let request = rx.recv().await.unwrap();
         assert_eq!(request.id, 2);
         assert!(request.system.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_inference_queue_with_token_tx() {
+        let (tx, mut rx) = mpsc::channel::<InferenceRequest>(10);
+        let queue = InferenceQueue::new(tx);
+
+        let (token_tx, _token_rx) = mpsc::unbounded_channel::<String>();
+
+        let _response_rx = queue
+            .send(
+                3,
+                "model".to_string(),
+                "prompt".to_string(),
+                None,
+                Some(token_tx),
+            )
+            .await
+            .unwrap();
+
+        let request = rx.recv().await.unwrap();
+        assert_eq!(request.id, 3);
+        assert!(request.token_tx.is_some());
     }
 
     #[tokio::test]

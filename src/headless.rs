@@ -8,7 +8,10 @@ use crate::inference::client::OllamaClient;
 use crate::inference::setup::OllamaSetup;
 use crate::inference::{self, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
-use crate::npc::{self, Npc, NpcAction};
+use crate::npc::{
+    self, Npc, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
+    parse_npc_stream_response,
+};
 use crate::tui::App;
 use anyhow::Result;
 use std::io::{BufRead, Write};
@@ -167,25 +170,103 @@ async fn handle_headless_game_input(
 
         if let Some(queue) = &app.inference_queue {
             *request_id += 1;
-            println!("...");
+
+            // Create streaming channel
+            let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+
+            // Print NPC name prefix, then stream tokens inline
+            print!("{}: ", npc.name);
+            std::io::stdout().flush().ok();
 
             match queue
-                .send(*request_id, model.to_string(), context, Some(system_prompt))
+                .send(
+                    *request_id,
+                    model.to_string(),
+                    context,
+                    Some(system_prompt),
+                    Some(token_tx),
+                )
                 .await
             {
-                Ok(rx) => match rx.await {
-                    Ok(response) => {
-                        if let Some(err) = &response.error {
-                            println!("[Ollama error: {}]", err);
-                        } else {
-                            render_headless_npc_response(&npc, &response.text);
+                Ok(rx) => {
+                    // Stream tokens with separator-aware filtering.
+                    // Hold back SEP_LEN chars to detect the separator
+                    // before it reaches the display.
+                    let stream_handle = tokio::spawn(async move {
+                        let mut accumulated = String::new();
+                        let mut displayed_len: usize = 0;
+                        let mut separator_found = false;
+
+                        while let Some(token) = token_rx.recv().await {
+                            accumulated.push_str(&token);
+
+                            if separator_found {
+                                continue;
+                            }
+
+                            // Check for separator (--- on its own line, flexible whitespace)
+                            if let Some((dialogue_end, _meta_start)) =
+                                find_response_separator(&accumulated)
+                            {
+                                // Display any remaining dialogue before separator
+                                if dialogue_end > displayed_len {
+                                    let new_text = &accumulated[displayed_len..dialogue_end];
+                                    print!("{}", new_text);
+                                    std::io::stdout().flush().ok();
+                                }
+                                separator_found = true;
+                                continue;
+                            }
+
+                            // Display tokens, holding back enough to detect separator
+                            let raw_end = accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
+                            let safe_end = floor_char_boundary(&accumulated, raw_end);
+                            if safe_end > displayed_len {
+                                let new_text = &accumulated[displayed_len..safe_end];
+                                print!("{}", new_text);
+                                std::io::stdout().flush().ok();
+                                displayed_len = safe_end;
+                            }
+                        }
+
+                        // Stream ended — flush remaining if no separator found
+                        if !separator_found && displayed_len < accumulated.len() {
+                            let remaining = &accumulated[displayed_len..];
+                            print!("{}", remaining);
+                            std::io::stdout().flush().ok();
+                        }
+
+                        println!();
+                        accumulated
+                    });
+
+                    // Wait for the full response
+                    match rx.await {
+                        Ok(response) => {
+                            let _streamed = stream_handle.await.unwrap_or_default();
+
+                            if let Some(err) = &response.error {
+                                println!("[Ollama error: {}]", err);
+                            } else {
+                                // Parse metadata silently (dialogue already displayed)
+                                let parsed = parse_npc_stream_response(&response.text);
+                                if let Some(meta) = &parsed.metadata {
+                                    tracing::debug!(
+                                        "NPC metadata: action={}, mood={}",
+                                        meta.action,
+                                        meta.mood
+                                    );
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            let _ = stream_handle.await;
+                            println!("[Inference channel closed]");
                         }
                     }
-                    Err(_) => {
-                        println!("[Inference channel closed]");
-                    }
-                },
+                }
                 Err(e) => {
+                    println!();
                     println!("[Failed to send request: {}]", e);
                 }
             }
@@ -207,25 +288,6 @@ async fn handle_headless_game_input(
 
     println!();
     Ok(())
-}
-
-/// Renders an NPC response to stdout, attempting structured JSON first.
-fn render_headless_npc_response(npc: &Npc, response_text: &str) {
-    if let Ok(action) = serde_json::from_str::<NpcAction>(response_text) {
-        if let Some(dialogue) = &action.dialogue {
-            println!("{} says: \"{}\"", npc.name, dialogue);
-        }
-        if !action.action.is_empty() && action.dialogue.is_none() {
-            println!("{} {}.", npc.name, action.action);
-        } else if !action.action.is_empty() {
-            println!("({} {}.)", npc.name, action.action);
-        }
-    } else {
-        let trimmed = response_text.trim();
-        if !trimmed.is_empty() {
-            println!("{}: {}", npc.name, trimmed);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -286,32 +348,5 @@ mod tests {
         ));
         assert!(!handle_headless_command(&mut app, Command::Branches));
         assert!(!handle_headless_command(&mut app, Command::Log));
-    }
-
-    #[test]
-    fn test_render_headless_npc_response_json() {
-        let npc = Npc::new_test_npc();
-        let json = r#"{"action": "speaks", "dialogue": "Hello there!", "mood": "friendly"}"#;
-        // Should not panic
-        render_headless_npc_response(&npc, json);
-    }
-
-    #[test]
-    fn test_render_headless_npc_response_plain() {
-        let npc = Npc::new_test_npc();
-        render_headless_npc_response(&npc, "Well, hello there stranger!");
-    }
-
-    #[test]
-    fn test_render_headless_npc_response_empty() {
-        let npc = Npc::new_test_npc();
-        render_headless_npc_response(&npc, "");
-    }
-
-    #[test]
-    fn test_render_headless_npc_response_action_only() {
-        let npc = Npc::new_test_npc();
-        let json = r#"{"action": "nods slowly", "mood": "thoughtful"}"#;
-        render_headless_npc_response(&npc, json);
     }
 }
