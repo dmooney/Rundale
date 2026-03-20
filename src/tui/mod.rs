@@ -87,9 +87,66 @@ pub fn palette_for_time(tod: &TimeOfDay) -> ColorPalette {
     }
 }
 
+/// Scroll state for the main text panel.
+///
+/// Tracks the scroll offset and whether auto-scroll (follow new output)
+/// is active. When the user scrolls up, auto-scroll is disabled until
+/// they press End or scroll back to the bottom.
+#[derive(Debug, Clone)]
+pub struct ScrollState {
+    /// Current scroll offset in lines from the top.
+    pub offset: u16,
+    /// Whether to auto-scroll to the bottom on new content.
+    pub auto_scroll: bool,
+}
+
+impl ScrollState {
+    /// Creates a new scroll state with auto-scroll enabled.
+    pub fn new() -> Self {
+        Self {
+            offset: 0,
+            auto_scroll: true,
+        }
+    }
+
+    /// Scrolls up by the given number of lines.
+    pub fn scroll_up(&mut self, lines: u16) {
+        self.offset = self.offset.saturating_add(lines);
+        self.auto_scroll = false;
+    }
+
+    /// Scrolls down by the given number of lines.
+    pub fn scroll_down(&mut self, lines: u16, max_offset: u16) {
+        self.offset = self.offset.saturating_sub(lines);
+        if self.offset == 0 {
+            self.auto_scroll = true;
+        }
+        // Clamp — offset is distance from bottom, so 0 = bottom
+        let _ = max_offset; // kept for API clarity; clamping happens in update()
+    }
+
+    /// Scrolls to the top of the text log.
+    pub fn scroll_to_top(&mut self, max_offset: u16) {
+        self.offset = max_offset;
+        self.auto_scroll = false;
+    }
+
+    /// Scrolls to the bottom and re-enables auto-scroll.
+    pub fn scroll_to_bottom(&mut self) {
+        self.offset = 0;
+        self.auto_scroll = true;
+    }
+}
+
+impl Default for ScrollState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Main application state for the TUI.
 ///
-/// Holds the game world state, input buffer, and control flags.
+/// Holds the game world state, input buffer, scroll state, and control flags.
 /// Passed to the `draw` function each frame.
 pub struct App {
     /// The game world state.
@@ -102,6 +159,8 @@ pub struct App {
     pub inference_queue: Option<InferenceQueue>,
     /// NPCs present in the world.
     pub npcs: Vec<Npc>,
+    /// Scroll state for the main text panel.
+    pub scroll: ScrollState,
 }
 
 impl App {
@@ -113,6 +172,7 @@ impl App {
             should_quit: false,
             inference_queue: None,
             npcs: Vec::new(),
+            scroll: ScrollState::new(),
         }
     }
 }
@@ -157,7 +217,7 @@ pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io
 ///
 /// Layout: top bar (3 lines with border), main text panel (fill), input line (3 lines with border).
 /// Colors are driven by the current time-of-day palette.
-pub fn draw(frame: &mut Frame, app: &App) {
+pub fn draw(frame: &mut Frame, app: &mut App) {
     let palette = palette_for_time(&app.world.clock.time_of_day());
     let base_style = Style::default().fg(palette.fg).bg(palette.bg);
     let accent_style = Style::default().fg(palette.accent).bg(palette.bg);
@@ -189,17 +249,57 @@ pub fn draw(frame: &mut Frame, app: &App) {
         .block(Block::default().borders(Borders::BOTTOM).style(base_style));
     frame.render_widget(top_bar, chunks[0]);
 
-    // Main panel: text log with word wrap
+    // Main panel: text log with word wrap and scroll support
+    let panel_height = chunks[1].height;
+    let total_lines = app.world.text_log.len() as u16;
+
+    // Compute scroll position — offset is distance from bottom
+    let scroll_row = if app.scroll.auto_scroll {
+        // Auto-scroll: show the bottom of the log
+        total_lines.saturating_sub(panel_height)
+    } else {
+        // Manual scroll: offset from bottom
+        total_lines
+            .saturating_sub(panel_height)
+            .saturating_sub(app.scroll.offset)
+    };
+
     let log_lines: Vec<Line> = app
         .world
         .text_log
         .iter()
         .map(|s| Line::from(s.as_str()))
         .collect();
+
+    let scroll_indicator = if total_lines > panel_height && !app.scroll.auto_scroll {
+        if scroll_row == 0 {
+            "[TOP]".to_string()
+        } else {
+            let max_scroll = total_lines.saturating_sub(panel_height);
+            let pct = if max_scroll > 0 {
+                (scroll_row as f32 / max_scroll as f32 * 100.0) as u16
+            } else {
+                100
+            };
+            format!("[{}%]", pct.min(100))
+        }
+    } else {
+        String::new()
+    };
+
+    let block_title = if scroll_indicator.is_empty() {
+        Block::default().style(base_style)
+    } else {
+        Block::default()
+            .title_top(Line::from(scroll_indicator).right_aligned())
+            .style(base_style)
+    };
+
     let main_panel = Paragraph::new(Text::from(log_lines))
         .style(base_style)
         .wrap(Wrap { trim: false })
-        .block(Block::default().style(base_style));
+        .scroll((scroll_row, 0))
+        .block(block_title);
     frame.render_widget(main_panel, chunks[1]);
 
     // Input line
@@ -232,11 +332,33 @@ pub fn handle_input(app: &mut App, timeout: Duration) -> io::Result<Option<Strin
             KeyCode::Enter => {
                 if !app.input_buffer.is_empty() {
                     let input = app.input_buffer.drain(..).collect();
+                    app.scroll.scroll_to_bottom();
                     return Ok(Some(input));
                 }
             }
             KeyCode::Esc => {
                 app.input_buffer.clear();
+            }
+            KeyCode::PageUp => {
+                app.scroll.scroll_up(10);
+            }
+            KeyCode::PageDown => {
+                let max = app.world.text_log.len() as u16;
+                app.scroll.scroll_down(10, max);
+            }
+            KeyCode::Up => {
+                app.scroll.scroll_up(1);
+            }
+            KeyCode::Down => {
+                let max = app.world.text_log.len() as u16;
+                app.scroll.scroll_down(1, max);
+            }
+            KeyCode::Home => {
+                let max = app.world.text_log.len() as u16;
+                app.scroll.scroll_to_top(max);
+            }
+            KeyCode::End => {
+                app.scroll.scroll_to_bottom();
             }
             _ => {}
         }
@@ -299,11 +421,74 @@ mod tests {
         assert!(app.input_buffer.is_empty());
         assert!(app.inference_queue.is_none());
         assert!(app.npcs.is_empty());
+        assert!(app.scroll.auto_scroll);
+        assert_eq!(app.scroll.offset, 0);
     }
 
     #[test]
     fn test_app_default() {
         let app = App::default();
         assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn test_scroll_state_new() {
+        let scroll = ScrollState::new();
+        assert_eq!(scroll.offset, 0);
+        assert!(scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_up_disables_auto() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_up(5);
+        assert_eq!(scroll.offset, 5);
+        assert!(!scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_down_reenables_auto_at_bottom() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_up(3);
+        assert!(!scroll.auto_scroll);
+
+        scroll.scroll_down(3, 100);
+        assert_eq!(scroll.offset, 0);
+        assert!(scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_down_partial() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_up(10);
+        scroll.scroll_down(3, 100);
+        assert_eq!(scroll.offset, 7);
+        assert!(!scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_down_clamps_at_zero() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_up(2);
+        scroll.scroll_down(10, 100);
+        assert_eq!(scroll.offset, 0);
+        assert!(scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_to_top() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_to_top(50);
+        assert_eq!(scroll.offset, 50);
+        assert!(!scroll.auto_scroll);
+    }
+
+    #[test]
+    fn test_scroll_to_bottom() {
+        let mut scroll = ScrollState::new();
+        scroll.scroll_up(20);
+        scroll.scroll_to_bottom();
+        assert_eq!(scroll.offset, 0);
+        assert!(scroll.auto_scroll);
     }
 }

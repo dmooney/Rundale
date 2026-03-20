@@ -3,7 +3,8 @@
 //! Interpolates description templates with current game state
 //! (time of day, weather, NPCs present).
 
-use super::graph::LocationData;
+use super::LocationId;
+use super::graph::{LocationData, WorldGraph};
 use super::time::TimeOfDay;
 
 /// Renders a location description by interpolating template placeholders.
@@ -31,6 +32,27 @@ pub fn render_description(
         .replace("{time}", &time_str)
         .replace("{weather}", &weather_str)
         .replace("{npcs_present}", &npcs_str)
+}
+
+/// Formats the list of exits (neighboring locations) from a given location.
+///
+/// Returns a string like "You can go to: Darcy's Pub (3 min), St. Brigid's Church (5 min)"
+pub fn format_exits(location_id: LocationId, graph: &WorldGraph) -> String {
+    let neighbors = graph.neighbors(location_id);
+    if neighbors.is_empty() {
+        return "There is nowhere to go from here.".to_string();
+    }
+
+    let exits: Vec<String> = neighbors
+        .iter()
+        .filter_map(|(target_id, conn)| {
+            graph
+                .get(*target_id)
+                .map(|loc| format!("{} ({} min)", loc.name, conn.traversal_minutes))
+        })
+        .collect();
+
+    format!("You can go to: {}", exits.join(", "))
 }
 
 /// Converts a `TimeOfDay` to a human-friendly lowercase string for templates.
@@ -137,5 +159,43 @@ mod tests {
         };
         let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
         assert_eq!(result, "A plain description with no placeholders.");
+    }
+
+    #[test]
+    fn test_format_exits() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1, "name": "The Crossroads",
+                    "description_template": "X", "indoor": false, "public": true,
+                    "connections": [
+                        {"target": 2, "traversal_minutes": 3, "path_description": "lane"},
+                        {"target": 3, "traversal_minutes": 5, "path_description": "boreen"}
+                    ]
+                },
+                {
+                    "id": 2, "name": "Darcy's Pub",
+                    "description_template": "X", "indoor": true, "public": true,
+                    "connections": [{"target": 1, "traversal_minutes": 3, "path_description": "back"}]
+                },
+                {
+                    "id": 3, "name": "The Church",
+                    "description_template": "X", "indoor": false, "public": true,
+                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "back"}]
+                }
+            ]
+        }"#;
+        let graph = WorldGraph::load_from_str(json).unwrap();
+        let exits = format_exits(LocationId(1), &graph);
+        assert!(exits.starts_with("You can go to: "));
+        assert!(exits.contains("Darcy's Pub (3 min)"));
+        assert!(exits.contains("The Church (5 min)"));
+    }
+
+    #[test]
+    fn test_format_exits_empty_graph() {
+        let graph = WorldGraph::new();
+        let exits = format_exits(LocationId(99), &graph);
+        assert_eq!(exits, "There is nowhere to go from here.");
     }
 }
