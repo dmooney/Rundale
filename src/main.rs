@@ -4,10 +4,14 @@ use parish::headless;
 use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
-use parish::npc::{self, Npc, NpcAction};
+use parish::npc::{
+    self, Npc, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
+    parse_npc_stream_response,
+};
 use parish::tui::{self, App};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing_subscriber::EnvFilter;
 
 /// Default Ollama API base URL.
@@ -82,8 +86,27 @@ async fn main() -> Result<()> {
     let mut terminal = tui::init_terminal()?;
     let mut request_id: u64 = 0;
 
+    // Shared streaming state for the TUI render loop
+    let streaming_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let streaming_active: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+
     // Main game loop
     loop {
+        // Check if streaming tokens have arrived and update the log
+        {
+            let active = *streaming_active.lock().unwrap();
+            if active {
+                let mut buf = streaming_buf.lock().unwrap();
+                if !buf.is_empty() {
+                    // Update the last log line (the streaming line) with new tokens
+                    if let Some(last) = app.world.text_log.last_mut() {
+                        last.push_str(&buf);
+                    }
+                    buf.clear();
+                }
+            }
+        }
+
         // Draw frame
         terminal.draw(|frame| tui::draw(frame, &app))?;
 
@@ -115,33 +138,144 @@ async fn main() -> Result<()> {
 
                         if let Some(queue) = &app.inference_queue {
                             request_id += 1;
-                            app.world.log("...".to_string());
+
+                            // Create streaming channel
+                            let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+
+                            // Start a streaming log line with NPC name prefix
+                            app.world.log(format!("{}: ", npc.name));
+
+                            // Mark streaming as active
+                            *streaming_active.lock().unwrap() = true;
+
+                            // Spawn separator-aware buffering task.
+                            // Only puts dialogue text (before ---) into the shared buffer.
+                            let buf_clone = Arc::clone(&streaming_buf);
+                            let active_clone = Arc::clone(&streaming_active);
+                            let stream_handle = tokio::spawn(async move {
+                                let mut accumulated = String::new();
+                                let mut displayed_len: usize = 0;
+                                let mut separator_found = false;
+
+                                while let Some(token) = token_rx.recv().await {
+                                    accumulated.push_str(&token);
+
+                                    if separator_found {
+                                        continue;
+                                    }
+
+                                    // Check for separator (--- on its own line)
+                                    if let Some((dialogue_end, _meta_start)) =
+                                        find_response_separator(&accumulated)
+                                    {
+                                        if dialogue_end > displayed_len {
+                                            let new_text = accumulated[displayed_len..dialogue_end]
+                                                .to_string();
+                                            buf_clone.lock().unwrap().push_str(&new_text);
+                                        }
+                                        separator_found = true;
+                                        continue;
+                                    }
+
+                                    // Display tokens, holding back enough to detect separator
+                                    let raw_end =
+                                        accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
+                                    let safe_end = floor_char_boundary(&accumulated, raw_end);
+                                    if safe_end > displayed_len {
+                                        let new_text =
+                                            accumulated[displayed_len..safe_end].to_string();
+                                        buf_clone.lock().unwrap().push_str(&new_text);
+                                        displayed_len = safe_end;
+                                    }
+                                }
+
+                                // Flush remaining if no separator found
+                                if !separator_found && displayed_len < accumulated.len() {
+                                    let remaining = accumulated[displayed_len..].to_string();
+                                    buf_clone.lock().unwrap().push_str(&remaining);
+                                }
+
+                                *active_clone.lock().unwrap() = false;
+                            });
 
                             match queue
-                                .send(request_id, model.clone(), context, Some(system_prompt))
+                                .send(
+                                    request_id,
+                                    model.clone(),
+                                    context,
+                                    Some(system_prompt),
+                                    Some(token_tx),
+                                )
                                 .await
                             {
-                                Ok(rx) => match rx.await {
-                                    Ok(response) => {
-                                        // Remove the "..." placeholder
-                                        if app.world.text_log.last() == Some(&"...".to_string()) {
-                                            app.world.text_log.pop();
+                                Ok(mut rx) => {
+                                    // Poll for response while continuing to render
+                                    let response = loop {
+                                        // Flush any buffered tokens to the log
+                                        {
+                                            let mut buf = streaming_buf.lock().unwrap();
+                                            if !buf.is_empty() {
+                                                if let Some(last) = app.world.text_log.last_mut() {
+                                                    last.push_str(&buf);
+                                                }
+                                                buf.clear();
+                                            }
                                         }
 
-                                        if let Some(err) = &response.error {
-                                            app.world.log(format!("[Ollama error: {}]", err));
-                                        } else {
-                                            render_npc_response(&mut app, &npc, &response.text);
+                                        // Draw frame to show streaming progress
+                                        terminal.draw(|frame| tui::draw(frame, &app))?;
+
+                                        // Check if response is ready (non-blocking)
+                                        match rx.try_recv() {
+                                            Ok(resp) => break Some(resp),
+                                            Err(oneshot::error::TryRecvError::Empty) => {
+                                                tokio::time::sleep(Duration::from_millis(50)).await;
+                                                continue;
+                                            }
+                                            Err(oneshot::error::TryRecvError::Closed) => {
+                                                break None;
+                                            }
+                                        }
+                                    };
+
+                                    // Wait for streaming task to finish
+                                    let _ = stream_handle.await;
+
+                                    // Flush any remaining filtered tokens
+                                    {
+                                        let mut buf = streaming_buf.lock().unwrap();
+                                        if !buf.is_empty() {
+                                            if let Some(last) = app.world.text_log.last_mut() {
+                                                last.push_str(&buf);
+                                            }
+                                            buf.clear();
                                         }
                                     }
-                                    Err(_) => {
-                                        if app.world.text_log.last() == Some(&"...".to_string()) {
-                                            app.world.text_log.pop();
+
+                                    match response {
+                                        Some(resp) => {
+                                            if let Some(err) = &resp.error {
+                                                app.world.log(format!("[Ollama error: {}]", err));
+                                            } else {
+                                                // Parse metadata silently
+                                                let parsed = parse_npc_stream_response(&resp.text);
+                                                if let Some(meta) = &parsed.metadata {
+                                                    tracing::debug!(
+                                                        "NPC metadata: action={}, mood={}",
+                                                        meta.action,
+                                                        meta.mood
+                                                    );
+                                                }
+                                            }
                                         }
-                                        app.world.log("[Inference channel closed]".to_string());
+                                        None => {
+                                            app.world.log("[Inference channel closed]".to_string());
+                                        }
                                     }
-                                },
+                                }
                                 Err(e) => {
+                                    *streaming_active.lock().unwrap() = false;
+                                    let _ = stream_handle.await;
                                     app.world.log(format!("[Failed to send request: {}]", e));
                                 }
                             }
@@ -227,26 +361,4 @@ fn handle_system_command(app: &mut App, cmd: Command) {
         }
     }
     app.world.log(String::new());
-}
-
-/// Renders an NPC response, attempting to parse as structured JSON first.
-fn render_npc_response(app: &mut App, npc: &Npc, response_text: &str) {
-    // Try to parse as structured NpcAction
-    if let Ok(action) = serde_json::from_str::<NpcAction>(response_text) {
-        if let Some(dialogue) = &action.dialogue {
-            app.world
-                .log(format!("{} says: \"{}\"", npc.name, dialogue));
-        }
-        if !action.action.is_empty() && action.dialogue.is_none() {
-            app.world.log(format!("{} {}.", npc.name, action.action));
-        } else if !action.action.is_empty() {
-            app.world.log(format!("({} {}.)", npc.name, action.action));
-        }
-    } else {
-        // Fallback: treat the whole response as dialogue
-        let trimmed = response_text.trim();
-        if !trimmed.is_empty() {
-            app.world.log(format!("{}: {}", npc.name, trimmed));
-        }
-    }
 }

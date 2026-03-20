@@ -15,7 +15,7 @@ use std::time::Duration;
 pub enum GpuVendor {
     /// NVIDIA GPU (CUDA).
     Nvidia,
-    /// AMD GPU (ROCm).
+    /// AMD GPU (ROCm on Linux, DirectX/Vulkan on Windows).
     Amd,
     /// No discrete GPU detected; CPU-only inference.
     CpuOnly,
@@ -25,7 +25,7 @@ impl std::fmt::Display for GpuVendor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GpuVendor::Nvidia => write!(f, "NVIDIA (CUDA)"),
-            GpuVendor::Amd => write!(f, "AMD (ROCm)"),
+            GpuVendor::Amd => write!(f, "AMD"),
             GpuVendor::CpuOnly => write!(f, "CPU-only"),
         }
     }
@@ -171,15 +171,24 @@ pub async fn install_ollama(progress: &dyn SetupProgress) -> Result<(), ParishEr
 
 /// Detects the GPU vendor and VRAM on the system.
 ///
-/// Tries NVIDIA first (via `nvidia-smi`), then AMD (via `rocm-smi`),
-/// and falls back to CPU-only if neither is detected.
+/// Tries platform-specific detection first (Windows via PowerShell,
+/// Linux via `nvidia-smi` / `rocm-smi`), then falls back to CPU-only.
 pub async fn detect_gpu_info() -> GpuInfo {
-    // Try NVIDIA first
+    // On Windows, use PowerShell/WMI for GPU detection
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(info) = detect_windows_gpu().await {
+            return info;
+        }
+    }
+
+    // Try NVIDIA (works on both Linux and Windows with CUDA drivers)
     if let Some(info) = detect_nvidia().await {
         return info;
     }
 
-    // Try AMD/ROCm
+    // Try AMD/ROCm (Linux)
+    #[cfg(not(target_os = "windows"))]
     if let Some(info) = detect_amd().await {
         return info;
     }
@@ -227,7 +236,163 @@ async fn detect_nvidia() -> Option<GpuInfo> {
     })
 }
 
-/// Detects AMD GPU VRAM via `rocm-smi`.
+/// Detects GPU on Windows via PowerShell WMI queries.
+///
+/// Uses `Get-CimInstance Win32_VideoController` for the GPU name, and
+/// falls back to the registry `HardwareInformation.qwMemorySize` for
+/// accurate VRAM on cards with >4GB (the WMI `AdapterRAM` field is
+/// a 32-bit integer that overflows for modern GPUs).
+#[cfg(target_os = "windows")]
+async fn detect_windows_gpu() -> Option<GpuInfo> {
+    // Query GPU name and AdapterRAM via PowerShell
+    let output = tokio::task::spawn_blocking(|| {
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name, AdapterRAM | ConvertTo-Json -Compress",
+            ])
+            .output()
+    })
+    .await
+    .ok()?
+    .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let gpu_entries = parse_windows_gpu_json(&stdout)?;
+
+    // Find the first discrete GPU (skip Microsoft Basic Display Adapter, etc.)
+    let (name, adapter_ram_bytes) = gpu_entries
+        .iter()
+        .find(|(name, _)| is_discrete_gpu(name))?
+        .clone();
+
+    let vendor = if name.to_lowercase().contains("nvidia") {
+        GpuVendor::Nvidia
+    } else if name.to_lowercase().contains("amd") || name.to_lowercase().contains("radeon") {
+        GpuVendor::Amd
+    } else {
+        // Unknown discrete GPU — still better than CPU-only
+        GpuVendor::Amd
+    };
+
+    // WMI AdapterRAM is uint32, overflows at 4GB. Try registry for real VRAM.
+    let vram_mb = if adapter_ram_bytes >= 4_000_000_000 || adapter_ram_bytes == 0 {
+        // AdapterRAM overflowed or missing — query registry
+        detect_windows_vram_from_registry().await.unwrap_or(0)
+    } else {
+        adapter_ram_bytes / (1024 * 1024)
+    };
+
+    Some(GpuInfo {
+        vendor,
+        vram_total_mb: vram_mb,
+        vram_free_mb: 0, // Windows WMI doesn't report free VRAM
+    })
+}
+
+/// Parses the JSON output from `Get-CimInstance Win32_VideoController`.
+///
+/// Returns a list of (Name, AdapterRAM) tuples. Handles both single-object
+/// JSON (one GPU) and array JSON (multiple GPUs).
+#[cfg(target_os = "windows")]
+fn parse_windows_gpu_json(json_str: &str) -> Option<Vec<(String, u64)>> {
+    let trimmed = json_str.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    // Try as array first, then single object
+    if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed) {
+        let entries: Vec<(String, u64)> = arr
+            .iter()
+            .filter_map(|v| {
+                let name = v.get("Name")?.as_str()?.to_string();
+                let ram = v.get("AdapterRAM").and_then(|r| r.as_u64()).unwrap_or(0);
+                Some((name, ram))
+            })
+            .collect();
+        if entries.is_empty() {
+            return None;
+        }
+        return Some(entries);
+    }
+
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        let name = v.get("Name")?.as_str()?.to_string();
+        let ram = v.get("AdapterRAM").and_then(|r| r.as_u64()).unwrap_or(0);
+        return Some(vec![(name, ram)]);
+    }
+
+    None
+}
+
+/// Returns true if the GPU name looks like a discrete GPU (not an
+/// integrated or virtual adapter).
+#[cfg(target_os = "windows")]
+fn is_discrete_gpu(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    // Skip known virtual/integrated adapters
+    if lower.contains("microsoft basic")
+        || lower.contains("remote desktop")
+        || lower.contains("virtual")
+    {
+        return false;
+    }
+    // Positive match for known discrete GPU vendors
+    lower.contains("nvidia")
+        || lower.contains("radeon")
+        || lower.contains("amd")
+        || lower.contains("geforce")
+        || lower.contains("quadro")
+        || lower.contains("arc") // Intel Arc
+}
+
+/// Queries the Windows registry for accurate VRAM (64-bit value).
+///
+/// Reads `HardwareInformation.qwMemorySize` from the display adapter
+/// registry keys, which correctly reports VRAM for cards >4GB.
+/// Uses property access instead of `ForEach-Object`/`$_` to avoid
+/// escaping issues when invoked via `std::process::Command`.
+#[cfg(target_os = "windows")]
+async fn detect_windows_vram_from_registry() -> Option<u64> {
+    let output = tokio::task::spawn_blocking(|| {
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                r#"(Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0*' -Name 'HardwareInformation.qwMemorySize' -ErrorAction SilentlyContinue).'HardwareInformation.qwMemorySize'"#,
+            ])
+            .output()
+    })
+    .await
+    .ok()?
+    .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Take the largest value (in case of multiple GPUs, pick the biggest)
+    let max_bytes: u64 = stdout
+        .lines()
+        .filter_map(|line| line.trim().parse::<u64>().ok())
+        .max()?;
+
+    if max_bytes == 0 {
+        return None;
+    }
+
+    Some(max_bytes / (1024 * 1024))
+}
+
+/// Detects AMD GPU VRAM via `rocm-smi` (Linux only).
+#[cfg(not(target_os = "windows"))]
 async fn detect_amd() -> Option<GpuInfo> {
     let output = tokio::task::spawn_blocking(|| {
         Command::new("rocm-smi")
@@ -282,6 +447,7 @@ async fn detect_amd() -> Option<GpuInfo> {
 /// Extracts a byte count from a rocm-smi output line.
 ///
 /// Looks for a large numeric value on the line (the byte count).
+#[cfg(not(target_os = "windows"))]
 fn extract_bytes_from_line(line: &str) -> Option<u64> {
     line.split_whitespace()
         .filter_map(|token| token.parse::<u64>().ok())
@@ -294,8 +460,8 @@ fn extract_bytes_from_line(line: &str) -> Option<u64> {
 /// other GPU workloads:
 /// - 12GB+ VRAM → qwen3:14b (Tier 1, best quality)
 /// - 6GB+ VRAM → qwen3:8b (Tier 2, good quality)
-/// - 3GB+ VRAM → qwen3:3b (reduced quality)
-/// - <3GB or CPU → qwen3:1.5b (minimal, CPU-viable)
+/// - 3GB+ VRAM → qwen3:4b (reduced quality)
+/// - <3GB or CPU → qwen3:1.7b (minimal, CPU-viable)
 ///
 /// If VRAM is 0 (unknown but GPU detected), assumes 8GB as a
 /// conservative default for modern discrete GPUs.
@@ -334,13 +500,13 @@ fn select_model_for_vram(vram_mb: u64) -> ModelConfig {
         }
     } else if vram_mb >= 3_000 {
         ModelConfig {
-            model_name: "qwen3:3b".to_string(),
+            model_name: "qwen3:4b".to_string(),
             tier_label: "Tier 3 — Reduced quality".to_string(),
-            vram_required_mb: 2_500,
+            vram_required_mb: 2_800,
         }
     } else {
         ModelConfig {
-            model_name: "qwen3:1.5b".to_string(),
+            model_name: "qwen3:1.7b".to_string(),
             tier_label: "Tier 4 — Minimal (CPU-viable)".to_string(),
             vram_required_mb: 1_200,
         }
@@ -485,11 +651,29 @@ pub async fn ensure_model_available(
     pull_model(client, model_name, progress).await
 }
 
+/// Builds GPU-specific environment variables for the Ollama process.
+///
+/// On Windows with an AMD GPU, returns `OLLAMA_VULKAN=1` to enable
+/// experimental Vulkan acceleration (required for RDNA 4 / unsupported
+/// AMD GPUs where ROCm is not available). For NVIDIA or Linux AMD,
+/// Ollama auto-detects CUDA/ROCm so no extra env vars are needed.
+pub fn build_gpu_env(gpu_info: &GpuInfo) -> Option<Vec<(String, String)>> {
+    #[cfg(target_os = "windows")]
+    if gpu_info.vendor == GpuVendor::Amd {
+        return Some(vec![("OLLAMA_VULKAN".to_string(), "1".to_string())]);
+    }
+
+    // Suppress unused variable warning on non-Windows
+    let _ = gpu_info;
+
+    None
+}
+
 /// Runs the full Ollama setup sequence.
 ///
 /// 1. Checks if Ollama is installed; installs if not
-/// 2. Starts Ollama server (or connects to existing)
-/// 3. Detects GPU vendor and VRAM
+/// 2. Detects GPU vendor and VRAM — **fails if no discrete GPU found**
+/// 3. Starts Ollama server with GPU env vars (e.g. `OLLAMA_VULKAN=1` for AMD on Windows)
 /// 4. Selects the best model for available hardware
 /// 5. Pulls the model if not already available
 ///
@@ -498,8 +682,9 @@ pub async fn ensure_model_available(
 ///
 /// # Errors
 ///
-/// Returns errors if installation fails, Ollama cannot start,
-/// or the selected model cannot be pulled.
+/// Returns `ParishError::Setup` if no discrete GPU is detected,
+/// installation fails, Ollama cannot start, or the selected model
+/// cannot be pulled.
 pub async fn setup_ollama(
     base_url: &str,
     model_override: Option<&str>,
@@ -519,19 +704,34 @@ pub async fn setup_ollama(
         progress.on_status("Ollama is installed.");
     }
 
-    // Step 2: Start Ollama
+    // Step 2: Detect GPU (before starting Ollama so we can pass GPU env vars)
+    progress.on_status("Detecting GPU hardware...");
+    let gpu_info = detect_gpu_info().await;
+    progress.on_status(&format!("GPU: {}", gpu_info));
+
+    // Require a discrete GPU — refuse to run on CPU-only
+    if gpu_info.vendor == GpuVendor::CpuOnly {
+        return Err(ParishError::Setup(
+            "No discrete GPU detected. Parish requires a dedicated GPU (NVIDIA or AMD) \
+             for local inference. Please ensure your GPU drivers are installed and \
+             the GPU is recognized by your system."
+                .to_string(),
+        ));
+    }
+
+    // Step 3: Build GPU env vars and start Ollama
+    let gpu_env = build_gpu_env(&gpu_info);
+    if gpu_env.is_some() {
+        progress.on_status("Enabling Vulkan GPU acceleration...");
+    }
+
     progress.on_status("Starting Ollama server...");
-    let process = OllamaProcess::ensure_running(base_url).await?;
+    let process = OllamaProcess::ensure_running(base_url, gpu_env.as_deref()).await?;
     if process.was_started_by_us() {
         progress.on_status("Ollama server started by Parish.");
     } else {
         progress.on_status("Connected to existing Ollama server.");
     }
-
-    // Step 3: Detect GPU
-    progress.on_status("Detecting GPU hardware...");
-    let gpu_info = detect_gpu_info().await;
-    progress.on_status(&format!("GPU: {}", gpu_info));
 
     // Step 4: Select model
     let model_config = match model_override {
@@ -554,12 +754,69 @@ pub async fn setup_ollama(
     let client = OllamaClient::new(base_url);
     ensure_model_available(&client, &model_config.model_name, progress).await?;
 
+    // Step 6: Warm up the model (load into VRAM before player gets the prompt)
+    warmup_model(&client, &model_config.model_name, progress).await?;
+
     Ok(OllamaSetup {
         process,
         client,
         model_name: model_config.model_name,
         gpu_info,
     })
+}
+
+/// Sends a trivial generate request to force Ollama to load the model into VRAM.
+///
+/// Without this, Ollama defers model loading until the first real request,
+/// causing a long delay on the player's first interaction. The warmup prompt
+/// is minimal so the response completes quickly once the model is loaded.
+///
+/// Uses a dedicated HTTP client with a 5-minute timeout since the first
+/// model load (moving weights from disk to VRAM) can be slow.
+async fn warmup_model(
+    client: &OllamaClient,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+) -> Result<(), ParishError> {
+    progress.on_status("Loading model into GPU memory (this may take a moment)...");
+
+    // Build a one-off client with a generous timeout for model loading
+    let warmup_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|e| ParishError::Setup(format!("failed to build warmup client: {}", e)))?;
+
+    let url = format!("{}/api/generate", client.base_url());
+    let body = serde_json::json!({
+        "model": model_name,
+        "prompt": "Hi",
+        "stream": false,
+    });
+
+    match warmup_client.post(&url).json(&body).send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                progress.on_status("Model loaded and ready.");
+                Ok(())
+            } else {
+                let status = resp.status();
+                let msg = format!(
+                    "Warmup request returned HTTP {}: model '{}' may not be loaded",
+                    status, model_name
+                );
+                progress.on_error(&msg);
+                Err(ParishError::Setup(msg))
+            }
+        }
+        Err(e) => {
+            let msg = format!(
+                "Failed to load model '{}' into GPU memory: {}",
+                model_name, e
+            );
+            progress.on_error(&msg);
+            Err(ParishError::Setup(msg))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -569,7 +826,7 @@ mod tests {
     #[test]
     fn test_gpu_vendor_display() {
         assert_eq!(GpuVendor::Nvidia.to_string(), "NVIDIA (CUDA)");
-        assert_eq!(GpuVendor::Amd.to_string(), "AMD (ROCm)");
+        assert_eq!(GpuVendor::Amd.to_string(), "AMD");
         assert_eq!(GpuVendor::CpuOnly.to_string(), "CPU-only");
     }
 
@@ -638,27 +895,27 @@ mod tests {
     #[test]
     fn test_select_model_4gb() {
         let config = select_model_for_vram(4_000);
-        assert_eq!(config.model_name, "qwen3:3b");
+        assert_eq!(config.model_name, "qwen3:4b");
         assert!(config.tier_label.contains("Tier 3"));
     }
 
     #[test]
     fn test_select_model_3gb() {
         let config = select_model_for_vram(3_000);
-        assert_eq!(config.model_name, "qwen3:3b");
+        assert_eq!(config.model_name, "qwen3:4b");
     }
 
     #[test]
     fn test_select_model_2gb() {
         let config = select_model_for_vram(2_000);
-        assert_eq!(config.model_name, "qwen3:1.5b");
+        assert_eq!(config.model_name, "qwen3:1.7b");
         assert!(config.tier_label.contains("Tier 4"));
     }
 
     #[test]
     fn test_select_model_zero_vram() {
         let config = select_model_for_vram(0);
-        assert_eq!(config.model_name, "qwen3:1.5b");
+        assert_eq!(config.model_name, "qwen3:1.7b");
     }
 
     #[test]
@@ -669,7 +926,7 @@ mod tests {
             vram_free_mb: 0,
         };
         let config = select_model(&gpu);
-        assert_eq!(config.model_name, "qwen3:1.5b");
+        assert_eq!(config.model_name, "qwen3:1.7b");
     }
 
     #[test]
@@ -705,7 +962,7 @@ mod tests {
         };
         let config = select_model(&gpu);
         // 5000 < 6000, should pick 3b
-        assert_eq!(config.model_name, "qwen3:3b");
+        assert_eq!(config.model_name, "qwen3:4b");
     }
 
     #[test]
@@ -720,6 +977,7 @@ mod tests {
         assert_eq!(config.model_name, "qwen3:8b");
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_extract_bytes_from_line() {
         assert_eq!(
@@ -852,12 +1110,101 @@ mod tests {
         assert_eq!(at_6000.model_name, "qwen3:8b");
 
         let at_5999 = select_model_for_vram(5_999);
-        assert_eq!(at_5999.model_name, "qwen3:3b");
+        assert_eq!(at_5999.model_name, "qwen3:4b");
 
         let at_3000 = select_model_for_vram(3_000);
-        assert_eq!(at_3000.model_name, "qwen3:3b");
+        assert_eq!(at_3000.model_name, "qwen3:4b");
 
         let at_2999 = select_model_for_vram(2_999);
-        assert_eq!(at_2999.model_name, "qwen3:1.5b");
+        assert_eq!(at_2999.model_name, "qwen3:1.7b");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_parse_windows_gpu_json_single_gpu() {
+        let json = r#"{"Name":"AMD Radeon RX 9070","AdapterRAM":4293918720}"#;
+        let result = parse_windows_gpu_json(json).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "AMD Radeon RX 9070");
+        assert_eq!(result[0].1, 4293918720);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_parse_windows_gpu_json_multiple_gpus() {
+        let json = r#"[{"Name":"AMD Radeon RX 9070","AdapterRAM":4293918720},{"Name":"Microsoft Basic Display Adapter","AdapterRAM":0}]"#;
+        let result = parse_windows_gpu_json(json).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0, "AMD Radeon RX 9070");
+        assert_eq!(result[1].0, "Microsoft Basic Display Adapter");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_parse_windows_gpu_json_empty() {
+        assert!(parse_windows_gpu_json("").is_none());
+        assert!(parse_windows_gpu_json("   ").is_none());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_is_discrete_gpu() {
+        assert!(is_discrete_gpu("AMD Radeon RX 9070"));
+        assert!(is_discrete_gpu("NVIDIA GeForce RTX 4090"));
+        assert!(is_discrete_gpu("Intel Arc A770"));
+        assert!(!is_discrete_gpu("Microsoft Basic Display Adapter"));
+        assert!(!is_discrete_gpu("Microsoft Remote Display Adapter"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_build_gpu_env_amd_windows_sets_vulkan() {
+        let gpu = GpuInfo {
+            vendor: GpuVendor::Amd,
+            vram_total_mb: 16384,
+            vram_free_mb: 0,
+        };
+        let env = build_gpu_env(&gpu);
+        assert!(env.is_some());
+        let vars = env.unwrap();
+        assert_eq!(vars.len(), 1);
+        assert_eq!(vars[0].0, "OLLAMA_VULKAN");
+        assert_eq!(vars[0].1, "1");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_build_gpu_env_nvidia_windows_returns_none() {
+        let gpu = GpuInfo {
+            vendor: GpuVendor::Nvidia,
+            vram_total_mb: 8192,
+            vram_free_mb: 7000,
+        };
+        let env = build_gpu_env(&gpu);
+        assert!(env.is_none());
+    }
+
+    #[test]
+    fn test_build_gpu_env_cpu_only_returns_none() {
+        let gpu = GpuInfo {
+            vendor: GpuVendor::CpuOnly,
+            vram_total_mb: 0,
+            vram_free_mb: 0,
+        };
+        let env = build_gpu_env(&gpu);
+        assert!(env.is_none());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_build_gpu_env_amd_linux_returns_none() {
+        // On Linux, Ollama auto-detects ROCm — no extra env needed
+        let gpu = GpuInfo {
+            vendor: GpuVendor::Amd,
+            vram_total_mb: 16384,
+            vram_free_mb: 0,
+        };
+        let env = build_gpu_env(&gpu);
+        assert!(env.is_none());
     }
 }

@@ -7,6 +7,51 @@
 use crate::world::{LocationId, WorldState};
 use serde::Deserialize;
 
+/// Maximum number of bytes to hold back during streaming to detect
+/// the separator pattern. Must be large enough to catch `  ---\n` with
+/// variable whitespace around it.
+pub const SEPARATOR_HOLDBACK: usize = 16;
+
+/// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
+///
+/// If `pos` is already a char boundary, returns it unchanged. Otherwise
+/// scans backwards to the nearest valid boundary. Returns 0 if no valid
+/// boundary is found before `pos`.
+pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
+    if pos >= s.len() {
+        return s.len();
+    }
+    let mut p = pos;
+    while p > 0 && !s.is_char_boundary(p) {
+        p -= 1;
+    }
+    p
+}
+
+/// Finds the separator between dialogue and metadata in an NPC response.
+///
+/// Looks for a line consisting of `---` (with optional surrounding whitespace).
+/// Returns `Some((dialogue_end, metadata_start))` — the byte offset where
+/// dialogue ends and where metadata begins (after the separator line).
+/// Returns `None` if no separator is found.
+pub fn find_response_separator(text: &str) -> Option<(usize, usize)> {
+    for (i, line) in text.split('\n').enumerate() {
+        if line.trim() == "---" {
+            // Calculate byte offset of this line
+            let dialogue_end = text
+                .split('\n')
+                .take(i)
+                .map(|l| l.len() + 1) // +1 for the \n
+                .sum::<usize>();
+            // metadata_start is after this separator line + its newline
+            let metadata_start = dialogue_end + line.len() + 1;
+            let metadata_start = metadata_start.min(text.len());
+            return Some((dialogue_end, metadata_start));
+        }
+    }
+    None
+}
+
 /// Unique identifier for an NPC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NpcId(pub u32);
@@ -55,6 +100,65 @@ impl Npc {
     }
 }
 
+/// Parsed result from a streaming NPC response.
+///
+/// Contains the player-visible dialogue/action text and the optional
+/// metadata parsed from the JSON block after the `---` separator.
+#[derive(Debug, Clone)]
+pub struct NpcStreamResponse {
+    /// The dialogue and action text shown to the player.
+    pub dialogue: String,
+    /// Parsed metadata from the JSON block, if present.
+    pub metadata: Option<NpcMetadata>,
+}
+
+/// Metadata block from an NPC response (parsed from JSON after separator).
+#[derive(Debug, Clone, Deserialize)]
+pub struct NpcMetadata {
+    /// What the NPC physically does.
+    #[serde(default)]
+    pub action: String,
+    /// The NPC's mood after this interaction.
+    #[serde(default)]
+    pub mood: String,
+    /// Internal thought (not shown to player).
+    #[serde(default)]
+    pub internal_thought: Option<String>,
+}
+
+/// Parses a complete NPC response into dialogue and metadata.
+///
+/// Splits on a `---` separator line (with optional surrounding whitespace).
+/// Everything before is player-visible dialogue/actions. Everything after
+/// is parsed as JSON metadata.
+/// If no separator is found, the entire text is treated as dialogue.
+pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
+    // Try the separator format first
+    if let Some((dialogue_end, metadata_start)) = find_response_separator(full_text) {
+        let dialogue = full_text[..dialogue_end].trim().to_string();
+        let meta_text = full_text[metadata_start..].trim();
+        let metadata = serde_json::from_str::<NpcMetadata>(meta_text).ok();
+        return NpcStreamResponse { dialogue, metadata };
+    }
+
+    // Fallback: try parsing entire response as legacy JSON NpcAction
+    if let Ok(action) = serde_json::from_str::<NpcAction>(full_text) {
+        let dialogue = action.dialogue.clone().unwrap_or_default();
+        let metadata = Some(NpcMetadata {
+            action: action.action,
+            mood: action.mood,
+            internal_thought: action.internal_thought,
+        });
+        return NpcStreamResponse { dialogue, metadata };
+    }
+
+    // Plain text fallback
+    NpcStreamResponse {
+        dialogue: full_text.trim().to_string(),
+        metadata: None,
+    }
+}
+
 /// Structured action output from an NPC's LLM response.
 ///
 /// Deserialized from JSON returned by the Ollama inference call.
@@ -83,6 +187,10 @@ pub struct NpcAction {
 ///
 /// Combines the NPC's identity, personality, occupation, and current
 /// mood into a system prompt that establishes character for the LLM.
+///
+/// The prompt instructs the model to output dialogue first (which is
+/// streamed to the player), then a `---` separator, then a JSON metadata
+/// block (which is parsed silently for simulation state).
 pub fn build_tier1_system_prompt(npc: &Npc) -> String {
     format!(
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, Ireland.\n\
@@ -91,12 +199,20 @@ pub fn build_tier1_system_prompt(npc: &Npc) -> String {
         \n\
         Current mood: {mood}\n\
         \n\
-        Respond in character as {name}. Your response must be valid JSON with these fields:\n\
+        Respond in character as {name}. Use this EXACT format:\n\
+        \n\
+        1. First, write what you say or do, in plain text. Stay in character. \
+        Describe actions in parentheses, e.g. (leans on the bar).\n\
+        2. Then on a new line write exactly: ---\n\
+        3. Then on the next line write a JSON metadata block with these fields:\n\
         - \"action\": what you physically do (e.g. \"speaks\", \"nods\", \"sighs\")\n\
-        - \"target\": who or what your action is directed at (optional)\n\
-        - \"dialogue\": what you say out loud (optional)\n\
         - \"mood\": your mood after this interaction\n\
-        - \"internal_thought\": what you're thinking but not saying (optional)",
+        - \"internal_thought\": what you're thinking but not saying (optional)\n\
+        \n\
+        Example response:\n\
+        (Looks up from polishing a glass) Ah, good morning to ye! Fine day for it, so it is.\n\
+        ---\n\
+        {{\"action\": \"speaks warmly\", \"mood\": \"friendly\", \"internal_thought\": \"New face around here\"}}",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -154,7 +270,8 @@ mod tests {
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
         assert!(prompt.contains("content"));
-        assert!(prompt.contains("JSON"));
+        assert!(prompt.contains("---"));
+        assert!(prompt.contains("JSON metadata"));
     }
 
     #[test]
@@ -208,6 +325,124 @@ mod tests {
         assert_eq!(action.action, "");
         assert!(action.target.is_none());
         assert!(action.dialogue.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_with_separator() {
+        let text = "(Looks up) Ah, good morning to ye!\n---\n{\"action\": \"speaks\", \"mood\": \"friendly\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "(Looks up) Ah, good morning to ye!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.mood, "friendly");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_separator_with_spaces() {
+        let text = "Good morning to ye!\n  ---\n {\"action\": \"speaks\", \"mood\": \"friendly\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Good morning to ye!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.mood, "friendly");
+    }
+
+    #[test]
+    fn test_find_response_separator_exact() {
+        let text = "hello\n---\n{\"a\":1}";
+        let (d_end, m_start) = find_response_separator(text).unwrap();
+        assert_eq!(&text[..d_end], "hello\n");
+        assert!(text[m_start..].trim().starts_with('{'));
+    }
+
+    #[test]
+    fn test_find_response_separator_with_spaces() {
+        let text = "hello\n  ---  \n{\"a\":1}";
+        let result = find_response_separator(text);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_find_response_separator_none() {
+        assert!(find_response_separator("no separator here").is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_no_separator() {
+        let text = "Well hello there, stranger!";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Well hello there, stranger!");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_legacy_json() {
+        let text = r#"{"action": "speaks", "dialogue": "Hello!", "mood": "friendly"}"#;
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Hello!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.mood, "friendly");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_separator_no_trailing_newline() {
+        let text = "Good day to ye!\n---\n{\"action\": \"nods\", \"mood\": \"content\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Good day to ye!");
+        assert!(parsed.metadata.is_some());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_bad_json_after_separator() {
+        let text = "Hello there!\n---\nnot json at all";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Hello there!");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_with_internal_thought() {
+        let text = "Top of the mornin!\n---\n{\"action\": \"waves\", \"mood\": \"cheerful\", \"internal_thought\": \"Who's this now?\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Top of the mornin!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.internal_thought, Some("Who's this now?".to_string()));
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_empty() {
+        let parsed = parse_npc_stream_response("");
+        assert_eq!(parsed.dialogue, "");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_floor_char_boundary_ascii() {
+        let s = "hello";
+        assert_eq!(floor_char_boundary(s, 3), 3);
+    }
+
+    #[test]
+    fn test_floor_char_boundary_multibyte() {
+        // em-dash — is 3 bytes (E2 80 94)
+        let s = "ab\u{2014}cd";
+        // bytes: a(0) b(1) E2(2) 80(3) 94(4) c(5) d(6)
+        assert_eq!(floor_char_boundary(s, 3), 2); // snaps back to before —
+        assert_eq!(floor_char_boundary(s, 4), 2); // same
+        assert_eq!(floor_char_boundary(s, 5), 5); // c is at boundary
+    }
+
+    #[test]
+    fn test_floor_char_boundary_at_len() {
+        let s = "hello";
+        assert_eq!(floor_char_boundary(s, 10), 5);
+    }
+
+    #[test]
+    fn test_separator_holdback_sufficient() {
+        // Holdback must be large enough to catch "  ---  \n" with whitespace
+        assert!(SEPARATOR_HOLDBACK >= 10);
     }
 
     #[test]

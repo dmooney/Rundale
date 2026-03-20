@@ -5,6 +5,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::process::{Child, Command};
 use std::time::Duration;
+use tokio::sync::mpsc;
 
 /// HTTP client for the Ollama local inference API.
 ///
@@ -32,10 +33,17 @@ struct GenerateRequest<'a> {
 }
 
 /// Response body from the Ollama `/api/generate` endpoint.
-#[derive(Deserialize)]
-struct GenerateResponse {
+///
+/// Used for both non-streaming (single JSON object) and streaming
+/// (NDJSON, one per token) responses.
+#[derive(Deserialize, Debug)]
+pub(crate) struct GenerateResponse {
+    /// The generated text (full response or single token).
     #[serde(default)]
-    response: String,
+    pub(crate) response: String,
+    /// Whether this is the final chunk in a streaming response.
+    #[serde(default)]
+    pub(crate) done: bool,
 }
 
 impl OllamaClient {
@@ -82,6 +90,85 @@ impl OllamaClient {
 
         let gen_resp: GenerateResponse = resp.json().await?;
         Ok(gen_resp.response)
+    }
+
+    /// Sends a streaming completion request, forwarding tokens as they arrive.
+    ///
+    /// Calls POST `/api/generate` with `stream: true`. Each token is sent
+    /// through `token_tx` as it arrives. Returns the full accumulated text
+    /// after the stream completes. Uses a 5-minute timeout to accommodate
+    /// long generations from large models.
+    pub async fn generate_stream(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+    ) -> Result<String, ParishError> {
+        let url = format!("{}/api/generate", self.base_url);
+        let body = GenerateRequest {
+            model,
+            prompt,
+            system,
+            stream: true,
+            format: None,
+        };
+
+        // Use a longer timeout for streaming — tokens arrive gradually
+        let streaming_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(300))
+            .build()
+            .expect("failed to build streaming reqwest client");
+
+        let resp = streaming_client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| ParishError::Inference(e.to_string()))?;
+
+        let mut accumulated = String::new();
+        let mut line_buf = String::new();
+
+        // Read chunks and split into NDJSON lines
+        let mut response = resp;
+        while let Some(chunk) = response.chunk().await? {
+            let text = String::from_utf8_lossy(&chunk);
+            line_buf.push_str(&text);
+
+            // Process complete lines
+            while let Some(newline_pos) = line_buf.find('\n') {
+                let line: String = line_buf.drain(..=newline_pos).collect();
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+
+                if let Ok(gen_resp) = serde_json::from_str::<GenerateResponse>(line) {
+                    if !gen_resp.response.is_empty() {
+                        // Send token, ignore error if receiver dropped
+                        let _ = token_tx.send(gen_resp.response.clone());
+                        accumulated.push_str(&gen_resp.response);
+                    }
+                    if gen_resp.done {
+                        return Ok(accumulated);
+                    }
+                }
+            }
+        }
+
+        // Process any remaining data in the buffer
+        let remaining = line_buf.trim();
+        if !remaining.is_empty()
+            && let Ok(gen_resp) = serde_json::from_str::<GenerateResponse>(remaining)
+            && !gen_resp.response.is_empty()
+        {
+            let _ = token_tx.send(gen_resp.response.clone());
+            accumulated.push_str(&gen_resp.response);
+        }
+
+        Ok(accumulated)
     }
 
     /// Sends a completion request and deserializes the response as structured JSON.
@@ -137,9 +224,17 @@ impl OllamaProcess {
     /// Checks if Ollama is reachable. If not, starts `ollama serve` in the
     /// background and waits for it to become ready (up to 30 seconds).
     ///
+    /// The optional `gpu_env` parameter allows injecting environment variables
+    /// into the spawned process (e.g. `OLLAMA_VULKAN=1` for AMD GPUs on Windows).
+    /// These are only applied when Parish starts Ollama itself; if Ollama is
+    /// already running, the caller should restart it manually to change env vars.
+    ///
     /// Returns an `OllamaProcess` that will stop the server on drop if
     /// we started it.
-    pub async fn ensure_running(base_url: &str) -> Result<Self, ParishError> {
+    pub async fn ensure_running(
+        base_url: &str,
+        gpu_env: Option<&[(String, String)]>,
+    ) -> Result<Self, ParishError> {
         if Self::is_reachable(base_url).await {
             tracing::info!("Ollama already running at {}", base_url);
             return Ok(Self { child: None });
@@ -147,17 +242,23 @@ impl OllamaProcess {
 
         tracing::info!("Ollama not detected, starting ollama serve...");
 
-        let child = Command::new("ollama")
-            .arg("serve")
+        let mut cmd = Command::new("ollama");
+        cmd.arg("serve")
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .map_err(|e| {
-                ParishError::Inference(format!(
-                    "failed to start ollama serve: {}. Is ollama installed?",
-                    e
-                ))
-            })?;
+            .stderr(std::process::Stdio::null());
+
+        if let Some(env_vars) = gpu_env {
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
+        }
+
+        let child = cmd.spawn().map_err(|e| {
+            ParishError::Inference(format!(
+                "failed to start ollama serve: {}. Is ollama installed?",
+                e
+            ))
+        })?;
 
         // Wait for Ollama to become reachable
         let mut ready = false;
@@ -194,10 +295,30 @@ impl OllamaProcess {
     }
 
     /// Stops the Ollama process if we started it.
+    ///
+    /// On Windows, uses `taskkill /F /T /PID` to kill the entire process
+    /// tree, ensuring GPU worker processes are also terminated and VRAM
+    /// is released. On other platforms, uses the standard `kill()`.
     pub fn stop(&mut self) {
         if let Some(ref mut child) = self.child {
             tracing::info!("Stopping Ollama server...");
-            let _ = child.kill();
+
+            #[cfg(target_os = "windows")]
+            {
+                let pid = child.id();
+                // Kill the entire process tree so GPU workers release VRAM
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = child.kill();
+            }
+
             let _ = child.wait();
             self.child = None;
         }
@@ -238,6 +359,23 @@ mod tests {
         let json = r#"{}"#;
         let resp: GenerateResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.response, "");
+        assert!(!resp.done);
+    }
+
+    #[test]
+    fn test_generate_response_streaming_chunk() {
+        let json = r#"{"model":"qwen3:14b","response":"Hello","done":false}"#;
+        let resp: GenerateResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.response, "Hello");
+        assert!(!resp.done);
+    }
+
+    #[test]
+    fn test_generate_response_streaming_final() {
+        let json = r#"{"model":"qwen3:14b","response":"","done":true}"#;
+        let resp: GenerateResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.response, "");
+        assert!(resp.done);
     }
 
     #[tokio::test]
