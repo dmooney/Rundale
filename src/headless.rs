@@ -13,8 +13,11 @@ use crate::npc::{
     parse_npc_stream_response,
 };
 use crate::tui::App;
+use crate::world::description::{format_exits, render_description};
+use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
 use std::io::{BufRead, Write};
+use std::path::Path;
 use tokio::sync::mpsc;
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
@@ -41,25 +44,20 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
     let _worker = inference::spawn_inference_worker(client.clone(), rx);
     let queue = InferenceQueue::new(tx);
 
-    // Initialize app state
+    // Initialize app state — load parish data if available
     let mut app = App::new();
+    let parish_path = Path::new("data/parish.json");
+    if parish_path.exists() {
+        match crate::world::WorldState::from_parish_file(parish_path, crate::world::LocationId(1)) {
+            Ok(world) => app.world = world,
+            Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
+        }
+    }
     app.inference_queue = Some(queue);
     app.npcs.push(Npc::new_test_npc());
 
     // Show initial location
-    let loc_name = app.world.current_location().name.clone();
-    let loc_desc = app.world.current_location().description.clone();
-    println!("--- {} ---", loc_name);
-    println!("{}", loc_desc);
-    println!();
-
-    // Show NPC presence
-    for npc in &app.npcs {
-        if npc.location == app.world.player_location {
-            println!("{} is here.", npc.name);
-        }
-    }
-    println!();
+    print_location_arrival(&app);
 
     let mut request_id: u64 = 0;
     let stdin = std::io::stdin();
@@ -158,129 +156,129 @@ async fn handle_headless_game_input(
     text: &str,
     request_id: &mut u64,
 ) -> Result<()> {
-    let npc = app
-        .npcs
-        .iter()
-        .find(|n| n.location == app.world.player_location)
-        .cloned();
+    // Always parse intent first so Move/Look work even with NPCs present
+    let intent = parse_intent(client, text, model).await?;
 
-    if let Some(npc) = npc {
-        let system_prompt = npc::build_tier1_system_prompt(&npc);
-        let context = npc::build_tier1_context(&npc, &app.world, text);
+    match intent.intent {
+        crate::input::IntentKind::Move => {
+            if let Some(target) = &intent.target {
+                handle_headless_movement(app, target);
+            } else {
+                println!("Go where?");
+            }
+        }
+        crate::input::IntentKind::Look => {
+            print_location_description(app);
+        }
+        _ => {
+            // Route to NPC conversation if one is present
+            let npc = app
+                .npcs
+                .iter()
+                .find(|n| n.location == app.world.player_location)
+                .cloned();
 
-        if let Some(queue) = &app.inference_queue {
-            *request_id += 1;
+            if let Some(npc) = npc {
+                let system_prompt = npc::build_tier1_system_prompt(&npc);
+                let context = npc::build_tier1_context(&npc, &app.world, text);
 
-            // Create streaming channel
-            let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+                if let Some(queue) = &app.inference_queue {
+                    *request_id += 1;
 
-            // Print NPC name prefix, then stream tokens inline
-            print!("{}: ", npc.name);
-            std::io::stdout().flush().ok();
+                    let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
 
-            match queue
-                .send(
-                    *request_id,
-                    model.to_string(),
-                    context,
-                    Some(system_prompt),
-                    Some(token_tx),
-                )
-                .await
-            {
-                Ok(rx) => {
-                    // Stream tokens with separator-aware filtering.
-                    // Hold back SEP_LEN chars to detect the separator
-                    // before it reaches the display.
-                    let stream_handle = tokio::spawn(async move {
-                        let mut accumulated = String::new();
-                        let mut displayed_len: usize = 0;
-                        let mut separator_found = false;
+                    print!("{}: ", npc.name);
+                    std::io::stdout().flush().ok();
 
-                        while let Some(token) = token_rx.recv().await {
-                            accumulated.push_str(&token);
+                    match queue
+                        .send(
+                            *request_id,
+                            model.to_string(),
+                            context,
+                            Some(system_prompt),
+                            Some(token_tx),
+                        )
+                        .await
+                    {
+                        Ok(rx) => {
+                            let stream_handle = tokio::spawn(async move {
+                                let mut accumulated = String::new();
+                                let mut displayed_len: usize = 0;
+                                let mut separator_found = false;
 
-                            if separator_found {
-                                continue;
-                            }
+                                while let Some(token) = token_rx.recv().await {
+                                    accumulated.push_str(&token);
 
-                            // Check for separator (--- on its own line, flexible whitespace)
-                            if let Some((dialogue_end, _meta_start)) =
-                                find_response_separator(&accumulated)
-                            {
-                                // Display any remaining dialogue before separator
-                                if dialogue_end > displayed_len {
-                                    let new_text = &accumulated[displayed_len..dialogue_end];
-                                    print!("{}", new_text);
+                                    if separator_found {
+                                        continue;
+                                    }
+
+                                    if let Some((dialogue_end, _meta_start)) =
+                                        find_response_separator(&accumulated)
+                                    {
+                                        if dialogue_end > displayed_len {
+                                            let new_text =
+                                                &accumulated[displayed_len..dialogue_end];
+                                            print!("{}", new_text);
+                                            std::io::stdout().flush().ok();
+                                        }
+                                        separator_found = true;
+                                        continue;
+                                    }
+
+                                    let raw_end =
+                                        accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
+                                    let safe_end = floor_char_boundary(&accumulated, raw_end);
+                                    if safe_end > displayed_len {
+                                        let new_text = &accumulated[displayed_len..safe_end];
+                                        print!("{}", new_text);
+                                        std::io::stdout().flush().ok();
+                                        displayed_len = safe_end;
+                                    }
+                                }
+
+                                if !separator_found && displayed_len < accumulated.len() {
+                                    let remaining = &accumulated[displayed_len..];
+                                    print!("{}", remaining);
                                     std::io::stdout().flush().ok();
                                 }
-                                separator_found = true;
-                                continue;
-                            }
 
-                            // Display tokens, holding back enough to detect separator
-                            let raw_end = accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
-                            let safe_end = floor_char_boundary(&accumulated, raw_end);
-                            if safe_end > displayed_len {
-                                let new_text = &accumulated[displayed_len..safe_end];
-                                print!("{}", new_text);
-                                std::io::stdout().flush().ok();
-                                displayed_len = safe_end;
-                            }
-                        }
+                                println!();
+                                accumulated
+                            });
 
-                        // Stream ended — flush remaining if no separator found
-                        if !separator_found && displayed_len < accumulated.len() {
-                            let remaining = &accumulated[displayed_len..];
-                            print!("{}", remaining);
-                            std::io::stdout().flush().ok();
-                        }
+                            match rx.await {
+                                Ok(response) => {
+                                    let _streamed = stream_handle.await.unwrap_or_default();
 
-                        println!();
-                        accumulated
-                    });
-
-                    // Wait for the full response
-                    match rx.await {
-                        Ok(response) => {
-                            let _streamed = stream_handle.await.unwrap_or_default();
-
-                            if let Some(err) = &response.error {
-                                println!("[Ollama error: {}]", err);
-                            } else {
-                                // Parse metadata silently (dialogue already displayed)
-                                let parsed = parse_npc_stream_response(&response.text);
-                                if let Some(meta) = &parsed.metadata {
-                                    tracing::debug!(
-                                        "NPC metadata: action={}, mood={}",
-                                        meta.action,
-                                        meta.mood
-                                    );
+                                    if let Some(err) = &response.error {
+                                        println!("[Ollama error: {}]", err);
+                                    } else {
+                                        let parsed = parse_npc_stream_response(&response.text);
+                                        if let Some(meta) = &parsed.metadata {
+                                            tracing::debug!(
+                                                "NPC metadata: action={}, mood={}",
+                                                meta.action,
+                                                meta.mood
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    let _ = stream_handle.await;
+                                    println!("[Inference channel closed]");
                                 }
                             }
                         }
-                        Err(_) => {
-                            let _ = stream_handle.await;
-                            println!("[Inference channel closed]");
+                        Err(e) => {
+                            println!();
+                            println!("[Failed to send request: {}]", e);
                         }
                     }
+                } else {
+                    println!("[No inference engine available]");
                 }
-                Err(e) => {
-                    println!();
-                    println!("[Failed to send request: {}]", e);
-                }
-            }
-        } else {
-            println!("[No inference engine available]");
-        }
-    } else {
-        let intent = parse_intent(client, text, model).await?;
-        match intent.intent {
-            crate::input::IntentKind::Look => {
-                let loc = app.world.current_location();
-                println!("{}", loc.description);
-            }
-            _ => {
+            } else {
                 println!("Nothing happens.");
             }
         }
@@ -288,6 +286,99 @@ async fn handle_headless_game_input(
 
     println!();
     Ok(())
+}
+
+/// Prints the current location with description, NPCs, and exits (headless).
+fn print_location_arrival(app: &App) {
+    let loc_name = app.world.current_location().name.clone();
+    println!("--- {} ---", loc_name);
+
+    if let Some(loc_data) = app.world.current_location_data() {
+        let tod = app.world.clock.time_of_day();
+        let npc_names: Vec<&str> = app
+            .npcs
+            .iter()
+            .filter(|n| n.location == app.world.player_location)
+            .map(|n| n.name.as_str())
+            .collect();
+        let desc = render_description(loc_data, tod, &app.world.weather, &npc_names);
+        println!("{}", desc);
+    } else {
+        println!("{}", app.world.current_location().description);
+    }
+
+    for npc in &app.npcs {
+        if npc.location == app.world.player_location {
+            println!("{} is here.", npc.name);
+        }
+    }
+
+    let exits = format_exits(app.world.player_location, &app.world.graph);
+    println!("{}", exits);
+    println!();
+}
+
+/// Prints current location description and exits (headless /look).
+fn print_location_description(app: &App) {
+    if let Some(loc_data) = app.world.current_location_data() {
+        let tod = app.world.clock.time_of_day();
+        let npc_names: Vec<&str> = app
+            .npcs
+            .iter()
+            .filter(|n| n.location == app.world.player_location)
+            .map(|n| n.name.as_str())
+            .collect();
+        let desc = render_description(loc_data, tod, &app.world.weather, &npc_names);
+        println!("{}", desc);
+    } else {
+        println!("{}", app.world.current_location().description);
+    }
+
+    let exits = format_exits(app.world.player_location, &app.world.graph);
+    println!("{}", exits);
+}
+
+/// Handles movement in headless mode.
+fn handle_headless_movement(app: &mut App, target: &str) {
+    let result = movement::resolve_movement(target, &app.world.graph, app.world.player_location);
+
+    match result {
+        MovementResult::Arrived {
+            destination,
+            minutes,
+            narration,
+            ..
+        } => {
+            println!("{}", narration);
+            println!();
+
+            app.world.clock.advance(minutes as i64);
+            app.world.player_location = destination;
+
+            if let Some(data) = app.world.graph.get(destination) {
+                app.world
+                    .locations
+                    .entry(destination)
+                    .or_insert_with(|| crate::world::Location {
+                        id: destination,
+                        name: data.name.clone(),
+                        description: data.description_template.clone(),
+                        indoor: data.indoor,
+                        public: data.public,
+                    });
+            }
+
+            print_location_arrival(app);
+        }
+        MovementResult::AlreadyHere => {
+            println!("You are already here.");
+        }
+        MovementResult::NotFound(name) => {
+            println!("You don't know how to get to \"{}\".", name);
+            let exits = format_exits(app.world.player_location, &app.world.graph);
+            println!("{}", exits);
+        }
+    }
 }
 
 #[cfg(test)]

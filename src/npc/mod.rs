@@ -5,12 +5,12 @@
 //! scales with distance from the player (4 LOD tiers).
 
 use crate::world::{LocationId, WorldState};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Maximum number of bytes to hold back during streaming to detect
-/// the separator pattern. Must be large enough to catch `  ---\n` with
-/// variable whitespace around it.
-pub const SEPARATOR_HOLDBACK: usize = 16;
+/// the separator pattern. Must be large enough to catch ` --- ` inline
+/// or `  ---\n` on its own line, even when preceded by text on the same line.
+pub const SEPARATOR_HOLDBACK: usize = 24;
 
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
@@ -30,30 +30,44 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
 
 /// Finds the separator between dialogue and metadata in an NPC response.
 ///
-/// Looks for a line consisting of `---` (with optional surrounding whitespace).
+/// Looks for `---` as a separator. Handles two cases:
+/// 1. `---` on its own line (with optional whitespace)
+/// 2. `---` appearing inline, e.g. `(smiles) --- {"action": ...}`
+///
 /// Returns `Some((dialogue_end, metadata_start))` — the byte offset where
-/// dialogue ends and where metadata begins (after the separator line).
+/// dialogue ends and where metadata begins (after the separator).
 /// Returns `None` if no separator is found.
 pub fn find_response_separator(text: &str) -> Option<(usize, usize)> {
-    for (i, line) in text.split('\n').enumerate() {
+    // First try: --- on its own line
+    let mut byte_offset = 0;
+    for line in text.split('\n') {
         if line.trim() == "---" {
-            // Calculate byte offset of this line
-            let dialogue_end = text
-                .split('\n')
-                .take(i)
-                .map(|l| l.len() + 1) // +1 for the \n
-                .sum::<usize>();
-            // metadata_start is after this separator line + its newline
-            let metadata_start = dialogue_end + line.len() + 1;
-            let metadata_start = metadata_start.min(text.len());
+            let dialogue_end = byte_offset;
+            let metadata_start = (byte_offset + line.len() + 1).min(text.len());
             return Some((dialogue_end, metadata_start));
         }
+        byte_offset += line.len() + 1; // +1 for the \n
     }
+
+    // Second try: --- appearing inline (e.g. "text --- {json}")
+    // Look for " --- " or " ---\n" pattern
+    if let Some(pos) = text.find(" --- ") {
+        let dialogue_end = pos;
+        let metadata_start = pos + 5; // skip " --- "
+        return Some((dialogue_end, metadata_start));
+    }
+    if let Some(pos) = text.find(" ---\n") {
+        let dialogue_end = pos;
+        let metadata_start = (pos + 5).min(text.len());
+        return Some((dialogue_end, metadata_start));
+    }
+
     None
 }
 
 /// Unique identifier for an NPC.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct NpcId(pub u32);
 
 /// A non-player character in the game world.
@@ -368,6 +382,38 @@ mod tests {
     }
 
     #[test]
+    fn test_find_response_separator_inline() {
+        // LLM sometimes puts --- inline with text and JSON
+        let text = "(smiles) --- {\"action\": \"speaks\", \"mood\": \"content\"}";
+        let (d_end, m_start) = find_response_separator(text).unwrap();
+        assert_eq!(&text[..d_end], "(smiles)");
+        assert!(text[m_start..].trim().starts_with('{'));
+    }
+
+    #[test]
+    fn test_find_response_separator_inline_with_newline() {
+        let text = "(smiles) ---\n{\"action\": \"speaks\"}";
+        let (d_end, m_start) = find_response_separator(text).unwrap();
+        assert_eq!(&text[..d_end], "(smiles)");
+        assert!(text[m_start..].trim().starts_with('{'));
+    }
+
+    #[test]
+    fn test_parse_inline_separator_real_example() {
+        let text = "(Leans on the bar) Morning to ye, lad. (smiles) --- {\"action\": \"speaks\", \"mood\": \"content\", \"internal_thought\": \"Hoping they'll stay\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert!(
+            !parsed.dialogue.contains("action"),
+            "metadata should not leak into dialogue: {}",
+            parsed.dialogue
+        );
+        assert!(parsed.dialogue.contains("Morning to ye"));
+        assert!(parsed.metadata.is_some());
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.mood, "content");
+    }
+
+    #[test]
     fn test_parse_npc_stream_response_no_separator() {
         let text = "Well hello there, stranger!";
         let parsed = parse_npc_stream_response(text);
@@ -441,8 +487,8 @@ mod tests {
 
     #[test]
     fn test_separator_holdback_sufficient() {
-        // Holdback must be large enough to catch "  ---  \n" with whitespace
-        assert!(SEPARATOR_HOLDBACK >= 10);
+        // Holdback must be large enough to catch " --- " inline pattern
+        assert!(SEPARATOR_HOLDBACK >= 20);
     }
 
     #[test]
