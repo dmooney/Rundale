@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "An Irish Living World Text Adventure"
 license = "LicenseRef-Proprietary"
+default-run = "parish"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -19,6 +20,14 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
+
+[[bin]]
+name = "parish"
+path = "src/main.rs"
+
+[[bin]]
+name = "geo-tool"
+path = "src/bin/geo_tool/main.rs"
 
 [dev-dependencies]
 tokio-test = "0.4"

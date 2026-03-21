@@ -29,6 +29,7 @@ High-level architecture and detailed subsystem designs. Extracted from the origi
 | [Inference Pipeline](design/inference-pipeline.md) | Ollama integration, queue, model selection |
 | [Debug System](design/debug-system.md) | Debug commands, live TUI panel, metrics (feature-gated) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer |
+| [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool |
 
 ## Architecture Decision Records (ADRs)
 
@@ -46,6 +47,7 @@ Key decisions with rationale and alternatives considered. See [ADR Index](adr/RE
 | [008](adr/008-structured-json-llm-output.md) | Structured JSON output from LLM |
 | [009](adr/009-real-geography-fictional-people.md) | Real Irish geography, fictional people |
 | [010](adr/010-prompt-injection-defenses.md) | 5-layer prompt injection defense strategy |
+| [011](adr/011-geo-tool-osm-pipeline.md) | Geo-tool OSM pipeline for automated world generation |
 
 ## Requirements & Status
 
