@@ -112,7 +112,7 @@ impl SetupProgress for StdoutProgress {
     fn on_pull_progress(&self, completed: u64, total: u64) {
         if total > 0 {
             let pct = (completed as f64 / total as f64) * 100.0;
-            print!("\r[Parish] Downloading model: {:.1}%", pct);
+            print!("\r[Parish] The tale is {:.1}% arrived...", pct);
             if completed >= total {
                 println!();
             }
@@ -145,8 +145,8 @@ pub fn check_ollama_installed() -> bool {
 /// Returns `ParishError::Setup` if the install script fails or
 /// if `curl` is not available.
 pub async fn install_ollama(progress: &dyn SetupProgress) -> Result<(), ParishError> {
-    progress.on_status("Ollama not found. Installing via official script...");
-    progress.on_status("This may take a few minutes and may request sudo access.");
+    progress.on_status("The parish storyteller hasn't arrived yet. Sending word...");
+    progress.on_status("This may take a few minutes. Put the kettle on.");
 
     let status = tokio::task::spawn_blocking(|| {
         Command::new("sh")
@@ -165,7 +165,7 @@ pub async fn install_ollama(progress: &dyn SetupProgress) -> Result<(), ParishEr
         ));
     }
 
-    progress.on_status("Ollama installed successfully.");
+    progress.on_status("Grand — the storyteller has arrived.");
     Ok(())
 }
 
@@ -586,7 +586,10 @@ pub async fn pull_model(
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
-    progress.on_status(&format!("Pulling model '{}'...", model_name));
+    progress.on_status(&format!(
+        "Fetching the storyteller's book of tales ('{}')...",
+        model_name
+    ));
 
     let url = format!("{}/api/pull", client.base_url());
     let http = reqwest::Client::builder()
@@ -630,7 +633,10 @@ pub async fn pull_model(
         }
     }
 
-    progress.on_status(&format!("Model '{}' ready.", model_name));
+    progress.on_status(&format!(
+        "The storyteller has '{}' in hand. Grand so.",
+        model_name
+    ));
     Ok(())
 }
 
@@ -644,7 +650,10 @@ pub async fn ensure_model_available(
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
     if is_model_available(client, model_name).await? {
-        progress.on_status(&format!("Model '{}' is available locally.", model_name));
+        progress.on_status(&format!(
+            "The storyteller already has '{}' in hand.",
+            model_name
+        ));
         return Ok(());
     }
 
@@ -701,13 +710,13 @@ pub async fn setup_ollama(
             ));
         }
     } else {
-        progress.on_status("Ollama is installed.");
+        progress.on_status("The storyteller's tools are at hand.");
     }
 
     // Step 2: Detect GPU (before starting Ollama so we can pass GPU env vars)
-    progress.on_status("Detecting GPU hardware...");
+    progress.on_status("Taking stock of what we have to work with...");
     let gpu_info = detect_gpu_info().await;
-    progress.on_status(&format!("GPU: {}", gpu_info));
+    progress.on_status(&format!("Hardware: {}", gpu_info));
 
     // Require a discrete GPU — refuse to run on CPU-only
     if gpu_info.vendor == GpuVendor::CpuOnly {
@@ -722,21 +731,21 @@ pub async fn setup_ollama(
     // Step 3: Build GPU env vars and start Ollama
     let gpu_env = build_gpu_env(&gpu_info);
     if gpu_env.is_some() {
-        progress.on_status("Enabling Vulkan GPU acceleration...");
+        progress.on_status("Stoking the Vulkan fires...");
     }
 
-    progress.on_status("Starting Ollama server...");
+    progress.on_status("Lighting the fire in the storyteller's cottage...");
     let process = OllamaProcess::ensure_running(base_url, gpu_env.as_deref()).await?;
     if process.was_started_by_us() {
-        progress.on_status("Ollama server started by Parish.");
+        progress.on_status("The hearth is lit. The storyteller is settling in.");
     } else {
-        progress.on_status("Connected to existing Ollama server.");
+        progress.on_status("The storyteller was already here. Grand so.");
     }
 
     // Step 4: Select model
     let model_config = match model_override {
         Some(name) => {
-            progress.on_status(&format!("Using model override: {}", name));
+            progress.on_status(&format!("The storyteller will use '{}' tonight.", name));
             ModelConfig {
                 model_name: name.to_string(),
                 tier_label: "User override".to_string(),
@@ -745,7 +754,7 @@ pub async fn setup_ollama(
         }
         None => {
             let config = select_model(&gpu_info);
-            progress.on_status(&format!("Selected model: {}", config));
+            progress.on_status(&format!("Chosen tale: {}", config));
             config
         }
     };
@@ -778,7 +787,7 @@ async fn warmup_model(
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
-    progress.on_status("Loading model into GPU memory (this may take a moment)...");
+    progress.on_status("The storyteller is gathering their thoughts...");
 
     // Build a one-off client with a generous timeout for model loading
     let warmup_client = reqwest::Client::builder()
@@ -796,7 +805,7 @@ async fn warmup_model(
     match warmup_client.post(&url).json(&body).send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                progress.on_status("Model loaded and ready.");
+                progress.on_status("The storyteller is ready. The parish awaits.");
                 Ok(())
             } else {
                 let status = resp.status();

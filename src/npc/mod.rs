@@ -7,6 +7,21 @@
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
+/// A pronunciation hint for an Irish word used in NPC dialogue.
+///
+/// Extracted from NPC response metadata and displayed in the
+/// pronunciation sidebar to help players with Irish-language words.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct IrishWordHint {
+    /// The Irish word as it appears in text.
+    pub word: String,
+    /// Approximate English phonetic pronunciation.
+    pub pronunciation: String,
+    /// English meaning or gloss.
+    #[serde(default)]
+    pub meaning: Option<String>,
+}
+
 /// Maximum number of bytes to hold back during streaming to detect
 /// the separator pattern. Must be large enough to catch ` --- ` inline
 /// or `  ---\n` on its own line, even when preceded by text on the same line.
@@ -138,6 +153,9 @@ pub struct NpcMetadata {
     /// Internal thought (not shown to player).
     #[serde(default)]
     pub internal_thought: Option<String>,
+    /// Pronunciation hints for any Irish words used in the dialogue.
+    #[serde(default)]
+    pub irish_words: Vec<IrishWordHint>,
 }
 
 /// Parses a complete NPC response into dialogue and metadata.
@@ -162,6 +180,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             action: action.action,
             mood: action.mood,
             internal_thought: action.internal_thought,
+            irish_words: Vec::new(),
         });
         return NpcStreamResponse { dialogue, metadata };
     }
@@ -207,7 +226,21 @@ pub struct NpcAction {
 /// block (which is parsed silently for simulation state).
 pub fn build_tier1_system_prompt(npc: &Npc) -> String {
     format!(
-        "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, Ireland.\n\
+        "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
+        Ireland, in the year 1820.\n\
+        \n\
+        HISTORICAL CONTEXT: Ireland is under British rule following the Acts of Union of 1800. \
+        Catholic Emancipation has not yet been achieved. The landlord class is predominantly \
+        Protestant and English-speaking, while ordinary people speak both Irish and English. \
+        Life is rural and agricultural — there is no electricity, no railways, no photography. \
+        Travel is by foot, horse, or cart. News arrives by mail coach or word of mouth. \
+        Do not reference anything that does not exist in 1820 Ireland.\n\
+        \n\
+        CULTURAL GUIDELINES: Portray Irish characters with dignity, warmth, and complexity. \
+        Never portray Irish characters as excessively drunk, violent as a cultural trait, \
+        foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
+        Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
+        Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
         \n\
         Personality: {personality}\n\
         \n\
@@ -216,17 +249,26 @@ pub fn build_tier1_system_prompt(npc: &Npc) -> String {
         Respond in character as {name}. Use this EXACT format:\n\
         \n\
         1. First, write what you say or do, in plain text. Stay in character. \
+        Pepper your speech naturally with the occasional Irish word or phrase. \
         Describe actions in parentheses, e.g. (leans on the bar).\n\
         2. Then on a new line write exactly: ---\n\
         3. Then on the next line write a JSON metadata block with these fields:\n\
         - \"action\": what you physically do (e.g. \"speaks\", \"nods\", \"sighs\")\n\
         - \"mood\": your mood after this interaction\n\
         - \"internal_thought\": what you're thinking but not saying (optional)\n\
+        - \"irish_words\": array of any Irish words you used, each with:\n\
+          - \"word\": the Irish word as written\n\
+          - \"pronunciation\": phonetic guide in English (e.g. \"SLAWN-cha\" for \"sláinte\")\n\
+          - \"meaning\": English translation\n\
         \n\
         Example response:\n\
-        (Looks up from polishing a glass) Ah, good morning to ye! Fine day for it, so it is.\n\
+        (Looks up from polishing a glass) Ah, good morning to ye! Dia dhuit — fine day for it, \
+        so it is. Will ye have a drop of something to warm the bones?\n\
         ---\n\
-        {{\"action\": \"speaks warmly\", \"mood\": \"friendly\", \"internal_thought\": \"New face around here\"}}",
+        {{\"action\": \"speaks warmly\", \"mood\": \"friendly\", \
+        \"internal_thought\": \"New face around here\", \
+        \"irish_words\": [{{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
+        \"meaning\": \"Hello (lit. God to you)\"}}]}}",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -286,6 +328,22 @@ mod tests {
         assert!(prompt.contains("content"));
         assert!(prompt.contains("---"));
         assert!(prompt.contains("JSON metadata"));
+        assert!(
+            prompt.contains("1820"),
+            "prompt should specify the year 1820"
+        );
+        assert!(
+            prompt.contains("Acts of Union"),
+            "prompt should mention Acts of Union"
+        );
+        assert!(
+            prompt.contains("CULTURAL GUIDELINES"),
+            "prompt should include cultural guidelines"
+        );
+        assert!(
+            prompt.contains("irish_words"),
+            "prompt should instruct about irish_words metadata"
+        );
     }
 
     #[test]
@@ -498,5 +556,105 @@ mod tests {
         set.insert(NpcId(1));
         set.insert(NpcId(2));
         assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_irish_word_hint_deserialize() {
+        let json =
+            r#"{"word": "sláinte", "pronunciation": "SLAWN-cha", "meaning": "Health/cheers"}"#;
+        let hint: IrishWordHint = serde_json::from_str(json).unwrap();
+        assert_eq!(hint.word, "sláinte");
+        assert_eq!(hint.pronunciation, "SLAWN-cha");
+        assert_eq!(hint.meaning, Some("Health/cheers".to_string()));
+    }
+
+    #[test]
+    fn test_irish_word_hint_deserialize_no_meaning() {
+        let json = r#"{"word": "craic", "pronunciation": "crack"}"#;
+        let hint: IrishWordHint = serde_json::from_str(json).unwrap();
+        assert_eq!(hint.word, "craic");
+        assert_eq!(hint.pronunciation, "crack");
+        assert!(hint.meaning.is_none());
+    }
+
+    #[test]
+    fn test_irish_word_hint_serialize() {
+        let hint = IrishWordHint {
+            word: "dia dhuit".to_string(),
+            pronunciation: "DEE-ah gwit".to_string(),
+            meaning: Some("Hello".to_string()),
+        };
+        let json = serde_json::to_string(&hint).unwrap();
+        assert!(json.contains("dia dhuit"));
+        assert!(json.contains("DEE-ah gwit"));
+    }
+
+    #[test]
+    fn test_npc_metadata_with_irish_words() {
+        let json = r#"{
+            "action": "speaks",
+            "mood": "friendly",
+            "irish_words": [
+                {"word": "Dia dhuit", "pronunciation": "DEE-ah gwit", "meaning": "Hello"}
+            ]
+        }"#;
+        let meta: NpcMetadata = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.irish_words.len(), 1);
+        assert_eq!(meta.irish_words[0].word, "Dia dhuit");
+    }
+
+    #[test]
+    fn test_npc_metadata_empty_irish_words() {
+        let json = r#"{"action": "nods", "mood": "content"}"#;
+        let meta: NpcMetadata = serde_json::from_str(json).unwrap();
+        assert!(meta.irish_words.is_empty());
+    }
+
+    #[test]
+    fn test_parse_response_with_irish_words() {
+        let text = "Dia dhuit! How are ye this fine morning?\n---\n\
+            {\"action\": \"speaks\", \"mood\": \"warm\", \
+            \"irish_words\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
+            \"meaning\": \"Hello (lit. God to you)\"}]}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Dia dhuit! How are ye this fine morning?");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.irish_words.len(), 1);
+        assert_eq!(meta.irish_words[0].word, "Dia dhuit");
+        assert_eq!(meta.irish_words[0].pronunciation, "DEE-ah gwit");
+    }
+
+    #[test]
+    fn test_system_prompt_avoids_stereotypes() {
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc);
+        assert!(prompt.contains("dignity"), "prompt should mention dignity");
+        assert!(
+            prompt.contains("Never portray"),
+            "prompt should have anti-stereotype guidance"
+        );
+        assert!(
+            prompt.contains("begorrah"),
+            "prompt should specifically warn against stage-Irish"
+        );
+    }
+
+    #[test]
+    fn test_system_prompt_historical_constraints() {
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc);
+        assert!(
+            prompt.contains("no electricity"),
+            "prompt should exclude modern technology"
+        );
+        assert!(
+            prompt.contains("Catholic Emancipation"),
+            "prompt should reference political context"
+        );
+        assert!(
+            prompt.contains("Do not reference anything that does not exist in 1820"),
+            "prompt should have explicit anachronism guard"
+        );
     }
 }
