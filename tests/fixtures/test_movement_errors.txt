@@ -1,0 +1,12 @@
+# Parish regression test — movement error handling
+# Tests already-here, not-found, and various movement verbs
+
+/status
+go to crossroads
+go to narnia
+go to mordor
+walk to pub
+stroll to crossroads
+head to church
+saunter to crossroads
+/quit

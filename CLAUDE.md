@@ -12,6 +12,15 @@
 
 Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
 
+## Verification Before Pushing
+
+**Always manually verify changes work before pushing.** Running tests alone is not enough — use the `GameTestHarness` to actually exercise your changes:
+
+- Run `cargo run -- --script tests/fixtures/test_walkthrough.txt` and inspect the JSON output
+- Write a quick ad-hoc script file to test the specific feature you changed
+- If you added or changed game mechanics, write a targeted test script and run it through `--script` mode
+- Only push after you've both run the test suite **and** visually confirmed the harness output looks correct
+
 ## Engineering Standards
 
 Every commit **must** satisfy all of the following:
