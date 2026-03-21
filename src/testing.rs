@@ -259,7 +259,8 @@ impl GameTestHarness {
             | Command::Fork(_)
             | Command::Load(_)
             | Command::Branches
-            | Command::Log => {
+            | Command::Log
+            | Command::ToggleSidebar => {
                 self.app
                     .world
                     .log("[Not yet implemented — coming in Phase 4]".to_string());
