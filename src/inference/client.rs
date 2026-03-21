@@ -221,6 +221,11 @@ pub struct OllamaProcess {
 }
 
 impl OllamaProcess {
+    /// Creates a no-op process handle (for non-Ollama providers).
+    pub fn none() -> Self {
+        Self { child: None }
+    }
+
     /// Checks if Ollama is reachable. If not, starts `ollama serve` in the
     /// background and waits for it to become ready (up to 30 seconds).
     ///

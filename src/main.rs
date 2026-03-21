@@ -1,6 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
+use parish::config::{CliOverrides, Provider, ProviderConfig, resolve_config};
 use parish::headless;
+use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
@@ -17,9 +19,6 @@ use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing_subscriber::EnvFilter;
 
-/// Default Ollama API base URL.
-const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
-
 /// Parish — An Irish Living World Text Adventure
 #[derive(Parser, Debug)]
 #[command(name = "parish", version, about)]
@@ -28,17 +27,29 @@ struct Cli {
     #[arg(long)]
     headless: bool,
 
-    /// Run commands from a script file (one per line, JSON output, no Ollama needed)
+    /// Run commands from a script file (one per line, JSON output, no LLM needed)
     #[arg(long, value_name = "FILE")]
     script: Option<String>,
 
-    /// Override the Ollama model (skips auto-detection)
+    /// LLM provider: ollama (default), lmstudio, openrouter, custom
+    #[arg(long, env = "PARISH_PROVIDER")]
+    provider: Option<String>,
+
+    /// Override the model name (required for non-Ollama providers)
     #[arg(long, env = "PARISH_MODEL")]
     model: Option<String>,
 
-    /// Override the Ollama API URL
-    #[arg(long, env = "PARISH_OLLAMA_URL", default_value = DEFAULT_OLLAMA_URL)]
-    ollama_url: String,
+    /// Override the API base URL
+    #[arg(long, env = "PARISH_BASE_URL")]
+    base_url: Option<String>,
+
+    /// API key for cloud providers (e.g. OpenRouter)
+    #[arg(long, env = "PARISH_API_KEY")]
+    api_key: Option<String>,
+
+    /// Path to config file (default: parish.toml)
+    #[arg(long)]
+    config: Option<String>,
 }
 
 #[tokio::main]
@@ -51,23 +62,40 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Script mode — no Ollama needed, synchronous execution
+    // Script mode — no LLM needed, synchronous execution
     if let Some(script_path) = &cli.script {
         return parish::testing::run_script_mode(Path::new(script_path));
     }
 
-    // Run the full Ollama setup sequence
-    let progress = StdoutProgress;
-    let setup = setup::setup_ollama(&cli.ollama_url, cli.model.as_deref(), &progress).await?;
+    // Resolve provider configuration from file + env + CLI
+    let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
+    let overrides = CliOverrides {
+        provider: cli.provider.clone(),
+        base_url: cli.base_url.clone(),
+        api_key: cli.api_key.clone(),
+        model: cli.model.clone(),
+    };
+    let provider_config = resolve_config(config_path, &overrides)?;
+
+    // Set up inference client based on provider
+    let (client, model, mut ollama_process) = setup_provider(&cli, &provider_config).await?;
 
     if cli.headless {
+        // Build OllamaSetup-compatible struct for headless mode
+        let setup = setup::OllamaSetup {
+            process: ollama_process,
+            client,
+            model_name: model,
+            gpu_info: setup::GpuInfo {
+                vendor: setup::GpuVendor::CpuOnly,
+                vram_total_mb: 0,
+                vram_free_mb: 0,
+            },
+        };
         return headless::run_headless(setup).await;
     }
 
     // TUI mode
-    let model = setup.model_name.clone();
-    let client = setup.client.clone();
-    let mut ollama_process = setup.process;
 
     // Initialize inference pipeline
     let (tx, rx) = mpsc::channel(32);
@@ -347,6 +375,51 @@ async fn main() -> Result<()> {
     tracing::info!("Parish exited cleanly.");
 
     Ok(())
+}
+
+/// Sets up the inference client based on the resolved provider configuration.
+///
+/// For Ollama: runs the full setup sequence (GPU detect, auto-start, model pull, warmup).
+/// For other providers: creates an OpenAI-compatible client directly.
+async fn setup_provider(
+    _cli: &Cli,
+    config: &ProviderConfig,
+) -> Result<(
+    OpenAiClient,
+    String,
+    parish::inference::client::OllamaProcess,
+)> {
+    match config.provider {
+        Provider::Ollama => {
+            let progress = StdoutProgress;
+            let setup =
+                setup::setup_ollama(&config.base_url, config.model.as_deref(), &progress).await?;
+            let model = setup.model_name.clone();
+            let client = setup.client.clone();
+            let process = setup.process;
+            Ok((client, model, process))
+        }
+        _ => {
+            // Non-Ollama providers: require model name
+            let model = config.model.clone().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "{:?} provider requires a model name. Set --model or PARISH_MODEL.",
+                    config.provider
+                )
+            })?;
+            let client = OpenAiClient::new(&config.base_url, config.api_key.as_deref());
+            tracing::info!(
+                "Using {:?} provider at {} with model {}",
+                config.provider,
+                config.base_url,
+                model
+            );
+
+            // No OllamaProcess management for non-Ollama providers
+            let dummy_process = parish::inference::client::OllamaProcess::none();
+            Ok((client, model, dummy_process))
+        }
+    }
 }
 
 /// Atmospheric idle messages shown when no NPC is present for conversation.

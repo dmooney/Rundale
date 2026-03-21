@@ -1,12 +1,14 @@
-//! LLM inference pipeline via Ollama.
+//! LLM inference pipeline for OpenAI-compatible providers.
 //!
 //! Manages a request queue (Tokio mpsc channel), routes requests
-//! to the Ollama API, and returns responses via oneshot channels.
+//! to the configured LLM provider (Ollama, LM Studio, OpenRouter, etc.),
+//! and returns responses via oneshot channels.
 
 pub mod client;
+pub mod openai_client;
 pub mod setup;
 
-use client::OllamaClient;
+use openai_client::OpenAiClient;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
@@ -86,11 +88,11 @@ impl InferenceQueue {
 
 /// Spawns the inference worker task.
 ///
-/// The worker pulls requests from the mpsc receiver, calls the Ollama
+/// The worker pulls requests from the mpsc receiver, calls the LLM
 /// client, and sends responses back through each request's oneshot channel.
 /// The task runs until the sender side of the channel is dropped.
 pub fn spawn_inference_worker(
-    client: OllamaClient,
+    client: OpenAiClient,
     mut rx: mpsc::Receiver<InferenceRequest>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {

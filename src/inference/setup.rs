@@ -5,7 +5,8 @@
 //! available hardware, and automatic model pulling.
 
 use crate::error::ParishError;
-use crate::inference::client::{OllamaClient, OllamaProcess};
+use crate::inference::client::OllamaProcess;
+use crate::inference::openai_client::OpenAiClient;
 use serde::Deserialize;
 use std::process::Command;
 use std::time::Duration;
@@ -80,8 +81,8 @@ impl std::fmt::Display for ModelConfig {
 pub struct OllamaSetup {
     /// The managed Ollama server process (stops on drop if we started it).
     pub process: OllamaProcess,
-    /// The configured HTTP client.
-    pub client: OllamaClient,
+    /// The configured OpenAI-compatible HTTP client.
+    pub client: OpenAiClient,
     /// The selected model name.
     pub model_name: String,
     /// Detected GPU information.
@@ -542,11 +543,8 @@ struct PullProgressLine {
 ///
 /// Queries the `/api/tags` endpoint and checks if the model name
 /// appears in the list of locally available models.
-pub async fn is_model_available(
-    client: &OllamaClient,
-    model_name: &str,
-) -> Result<bool, ParishError> {
-    let url = format!("{}/api/tags", client.base_url());
+pub async fn is_model_available(base_url: &str, model_name: &str) -> Result<bool, ParishError> {
+    let url = format!("{}/api/tags", base_url);
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()
@@ -582,7 +580,7 @@ pub async fn is_model_available(
 ///
 /// Returns `ParishError::ModelNotAvailable` if the pull fails.
 pub async fn pull_model(
-    client: &OllamaClient,
+    base_url: &str,
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
@@ -591,7 +589,7 @@ pub async fn pull_model(
         model_name
     ));
 
-    let url = format!("{}/api/pull", client.base_url());
+    let url = format!("{}/api/pull", base_url);
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(3600)) // Model downloads can take a while
         .build()
@@ -645,11 +643,11 @@ pub async fn pull_model(
 /// Returns `Ok(())` if the model is available (either already present
 /// or successfully pulled).
 pub async fn ensure_model_available(
-    client: &OllamaClient,
+    base_url: &str,
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
-    if is_model_available(client, model_name).await? {
+    if is_model_available(base_url, model_name).await? {
         progress.on_status(&format!(
             "The storyteller already has '{}' in hand.",
             model_name
@@ -657,7 +655,7 @@ pub async fn ensure_model_available(
         return Ok(());
     }
 
-    pull_model(client, model_name, progress).await
+    pull_model(base_url, model_name, progress).await
 }
 
 /// Builds GPU-specific environment variables for the Ollama process.
@@ -759,12 +757,14 @@ pub async fn setup_ollama(
         }
     };
 
-    // Step 5: Ensure model is available
-    let client = OllamaClient::new(base_url);
-    ensure_model_available(&client, &model_config.model_name, progress).await?;
+    // Step 5: Ensure model is available (uses Ollama native /api/tags + /api/pull)
+    ensure_model_available(base_url, &model_config.model_name, progress).await?;
 
-    // Step 6: Warm up the model (load into VRAM before player gets the prompt)
-    warmup_model(&client, &model_config.model_name, progress).await?;
+    // Step 6: Warm up the model (uses Ollama native /api/generate)
+    warmup_model(base_url, &model_config.model_name, progress).await?;
+
+    // Create an OpenAI-compatible client pointing at Ollama's /v1/ endpoint
+    let client = OpenAiClient::new(base_url, None);
 
     Ok(OllamaSetup {
         process,
@@ -783,7 +783,7 @@ pub async fn setup_ollama(
 /// Uses a dedicated HTTP client with a 5-minute timeout since the first
 /// model load (moving weights from disk to VRAM) can be slow.
 async fn warmup_model(
-    client: &OllamaClient,
+    base_url: &str,
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
@@ -795,7 +795,7 @@ async fn warmup_model(
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build warmup client: {}", e)))?;
 
-    let url = format!("{}/api/generate", client.base_url());
+    let url = format!("{}/api/generate", base_url);
     let body = serde_json::json!({
         "model": model_name,
         "prompt": "Hi",

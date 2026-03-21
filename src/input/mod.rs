@@ -5,7 +5,7 @@
 //! intent parsing (move, talk, look, interact, examine).
 
 use crate::error::ParishError;
-use crate::inference::client::OllamaClient;
+use crate::inference::openai_client::OpenAiClient;
 use serde::Deserialize;
 
 /// A system command entered by the player.
@@ -295,10 +295,10 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
 /// Parses natural language input into a structured `PlayerIntent`.
 ///
 /// First tries local keyword matching for common commands (movement, look).
-/// Falls back to Ollama LLM for ambiguous input. If the LLM call fails,
+/// Falls back to LLM for ambiguous input. If the LLM call fails,
 /// returns `IntentKind::Unknown`.
 pub async fn parse_intent(
-    client: &OllamaClient,
+    client: &OpenAiClient,
     raw_input: &str,
     model: &str,
 ) -> Result<PlayerIntent, ParishError> {

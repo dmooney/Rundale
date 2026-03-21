@@ -4,7 +4,7 @@
 //! (NPC inference, intent parsing, system commands) as the TUI mode.
 //! Activated with `--headless` on the command line.
 
-use crate::inference::client::OllamaClient;
+use crate::inference::openai_client::OpenAiClient;
 use crate::inference::setup::OllamaSetup;
 use crate::inference::{self, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
@@ -173,7 +173,7 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
 async fn handle_headless_game_input(
     app: &mut App,
-    client: &OllamaClient,
+    client: &OpenAiClient,
     model: &str,
     text: &str,
     request_id: &mut u64,

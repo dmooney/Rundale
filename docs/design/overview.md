@@ -19,8 +19,8 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 | Language      | **Rust**                                 | Core game engine, simulation, TUI                  |
 | Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
 | TUI           | **Ratatui + Crossterm**                  | Terminal UI with 24-bit true color                 |
-| LLM Inference | **Ollama** (local, via REST API)         | NPC cognition, natural language parsing            |
-| HTTP Client   | **Reqwest**                              | Communication with Ollama at `localhost:11434`     |
+| LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing |
+| HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
 | Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
 | Persistence   | **SQLite** (via rusqlite)                | Save system, NPC memory, world events              |
 | Entity System | **Bevy ECS** (standalone) or hand-rolled | World simulation data model                        |
@@ -40,7 +40,7 @@ Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    Inference Queue (Tokio channel)
                                           ↓
-                                   Ollama API (localhost:11434)
+                                   LLM Provider (OpenAI-compatible API)
                                           ↓
                                    Structured JSON Response
                                           ↓
@@ -60,9 +60,11 @@ src/
 ├── tui/                 # Ratatui terminal UI
 ├── world/               # World state, location graph, time system
 ├── npc/                 # NPC data model, behavior, cognition tiers
+├── config.rs            # Provider configuration (TOML + env + CLI)
 ├── inference/
-│   ├── client.rs        # Ollama HTTP client, process management
-│   ├── setup.rs         # GPU detection, model selection, auto-pull
+│   ├── openai_client.rs # OpenAI-compatible HTTP client (all providers)
+│   ├── client.rs        # Ollama process management
+│   ├── setup.rs         # GPU detection, model selection, auto-pull (Ollama)
 │   └── mod.rs           # Inference queue, worker task
 ├── persistence/         # SQLite save/load, WAL journal
 └── input/               # Player input parsing, command detection
@@ -86,14 +88,39 @@ src/
 
 - [ADR Index](../adr/README.md)
 
-## Ollama Bootstrap & GPU Detection
+## Multi-Provider LLM Support
 
-On startup, Parish runs a self-contained setup sequence (see `src/inference/setup.rs`):
+Parish supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
+
+| Provider | Type | Notes |
+|----------|------|-------|
+| **Ollama** (default) | Local | Auto-start, GPU detection, model pulling |
+| **LM Studio** | Local | Bring your own model |
+| **OpenRouter** | Cloud | Access to Claude, GPT-4, Gemini, etc. Requires API key |
+| **Custom** | Any | Any OpenAI-compatible endpoint |
+
+### Configuration
+
+Provider is configured via `parish.toml`, env vars, or CLI flags (later overrides earlier):
+
+```toml
+[provider]
+name = "openrouter"
+api_key = "sk-or-..."
+model = "anthropic/claude-sonnet-4-20250514"
+```
+
+CLI: `--provider`, `--base-url`, `--api-key`, `--model`
+Env: `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`
+
+### Ollama Bootstrap & GPU Detection (Default Path)
+
+When using the Ollama provider (the default), Parish runs a self-contained setup sequence (see `src/inference/setup.rs`):
 
 1. **Detect Ollama** — checks if the `ollama` binary is on PATH
-2. **Auto-install** — if missing, runs the official install script (`https://ollama.com/install.sh`) which auto-detects GPU vendor (CUDA/ROCm/CPU)
+2. **Auto-install** — if missing, runs the official install script
 3. **Start server** — spawns `ollama serve` if not already running; kills on exit
-4. **Detect GPU/VRAM** — queries `nvidia-smi` or `rocm-smi` for VRAM info; falls back to CPU-only
+4. **Detect GPU/VRAM** — queries `nvidia-smi` or `rocm-smi` for VRAM info
 5. **Select model** — picks the best model for available VRAM:
    - ≥12GB → `qwen3:14b` (Tier 1)
    - ≥6GB → `qwen3:8b` (Tier 2)
@@ -102,6 +129,8 @@ On startup, Parish runs a self-contained setup sequence (see `src/inference/setu
 6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local
 
 The `PARISH_MODEL` env var or `--model` CLI flag overrides auto-selection.
+
+For non-Ollama providers, none of these steps run — the user provides the endpoint and model name directly.
 
 ## Headless Mode
 
