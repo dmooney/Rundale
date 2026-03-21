@@ -36,6 +36,8 @@ pub enum Command {
     Help,
     /// Toggle the Irish pronunciation sidebar.
     ToggleSidebar,
+    /// Toggle improv craft mode for NPC dialogue.
+    ToggleImprov,
 }
 
 /// The kind of player action parsed from natural language input.
@@ -123,6 +125,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::Help)
     } else if lower == "/irish" {
         Some(Command::ToggleSidebar)
+    } else if lower == "/improv" {
+        Some(Command::ToggleImprov)
     } else {
         None
     }
@@ -776,5 +780,23 @@ mod tests {
     fn test_classify_irish_command() {
         let result = classify_input("/irish");
         assert_eq!(result, InputResult::SystemCommand(Command::ToggleSidebar));
+    }
+
+    #[test]
+    fn test_parse_improv_command() {
+        let cmd = parse_system_command("/improv");
+        assert_eq!(cmd, Some(Command::ToggleImprov));
+    }
+
+    #[test]
+    fn test_parse_improv_command_case_insensitive() {
+        let cmd = parse_system_command("/IMPROV");
+        assert_eq!(cmd, Some(Command::ToggleImprov));
+    }
+
+    #[test]
+    fn test_classify_improv_command() {
+        let result = classify_input("/improv");
+        assert_eq!(result, InputResult::SystemCommand(Command::ToggleImprov));
     }
 }
