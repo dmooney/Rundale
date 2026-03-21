@@ -6,6 +6,26 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-21 — Historical Setting, Pronunciation Sidebar, and Whimsy
+
+### Changes this session
+
+- **Historical period fixed**: Game now set in 1820. Clock initialization changed from 2026 to 1820. All location data in `data/parish.json` updated to remove anachronisms (GAA → hurling green, An Post → letter office, National School → hedge school, tractors → donkeys, corrugated sheds → thatched stone outbuildings, creamery → lime kiln, modern shop goods → period-appropriate items).
+- **NPC system prompt overhauled**: `build_tier1_system_prompt()` now includes detailed 1820 historical context (Acts of Union, Catholic Emancipation not yet achieved, agricultural economy, no modern technology), cultural guidelines (avoid stereotypes, portray with dignity), and instructions for Irish word pronunciation hints in metadata.
+- **Irish pronunciation sidebar**: New collapsible sidebar in the TUI (toggle via Tab or `/irish`). Displays Irish words used in NPC dialogue with phonetic pronunciation and English translations. New `IrishWordHint` struct and `irish_words` field added to `NpcMetadata`. Sidebar renders in a 70/30 horizontal split with title "Focail — Words".
+- **Whimsical text throughout**: All player-facing messages updated with warm, atmospheric Irish flavor. The LLM/Ollama is framed as "the parish storyteller." Idle messages rotate through atmospheric descriptions. Help text, quit message, error messages, and setup progress all rewritten. Headless mode updated to match.
+- **Cultural sensitivity guardrails**: System prompt explicitly forbids stereotypical portrayals (drunkenness, violence, stage-Irish dialect, "begorrah"). Emphasizes dignity, intelligence, warmth.
+- **Test count**: 226 tests passing (205 unit + 21 integration). Added 14 new tests covering Irish word hints, pronunciation metadata, sidebar state, `/irish` command parsing, historical context in prompts, and anti-stereotype guardrails.
+
+### Technical notes
+
+- Sidebar uses `Layout::horizontal()` with `Constraint::Percentage(70/30)` split when visible.
+- `IrishWordHint` uses `#[serde(default)]` for the optional `meaning` field for robustness.
+- Idle messages use a simple counter (modular index into a const array) — no randomness needed.
+- Headless mode uses `AtomicUsize` for idle counter since it doesn't have the `App` struct's `idle_counter` field available.
+
+---
+
 ## 2026-03-19 — Phase 2: World Graph Implementation
 
 ### Changes this session

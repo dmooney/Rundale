@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
                             if let Some(target) = &intent.target {
                                 handle_movement(&mut app, target);
                             } else {
-                                app.world.log("Go where?".to_string());
+                                app.world.log("And where would ye be off to?".to_string());
                             }
                         }
                         parish::input::IntentKind::Look => {
@@ -276,9 +276,9 @@ async fn main() -> Result<()> {
                                                 Some(resp) => {
                                                     if let Some(err) = &resp.error {
                                                         app.world.log(format!(
-                                                            "[Ollama error: {}]",
-                                                            err
-                                                        ));
+                                            "[The parish storyteller has lost the thread: {}]",
+                                            err
+                                        ));
                                                     } else {
                                                         let parsed =
                                                             parse_npc_stream_response(&resp.text);
@@ -288,28 +288,45 @@ async fn main() -> Result<()> {
                                                                 meta.action,
                                                                 meta.mood
                                                             );
+                                                            if !meta.irish_words.is_empty() {
+                                                                // Prepend new hints, keep recent ones
+                                                                app.pronunciation_hints.splice(
+                                                                    0..0,
+                                                                    meta.irish_words.clone(),
+                                                                );
+                                                                app.pronunciation_hints
+                                                                    .truncate(20);
+                                                            }
                                                         }
                                                     }
                                                 }
                                                 None => {
                                                     app.world.log(
-                                                        "[Inference channel closed]".to_string(),
-                                                    );
+                                                "[The storyteller has wandered off mid-tale.]"
+                                                    .to_string(),
+                                            );
                                                 }
                                             }
                                         }
                                         Err(e) => {
                                             *streaming_active.lock().unwrap() = false;
                                             let _ = stream_handle.await;
-                                            app.world
-                                                .log(format!("[Failed to send request: {}]", e));
+                                            app.world.log(format!(
+                                                "[The storyteller couldn't hear ye: {}]",
+                                                e
+                                            ));
                                         }
                                     }
                                 } else {
-                                    app.world.log("[No inference engine available]".to_string());
+                                    app.world.log(
+                                        "[No storyteller could be found in the parish today.]"
+                                            .to_string(),
+                                    );
                                 }
                             } else {
-                                app.world.log("Nothing happens.".to_string());
+                                let msg = IDLE_MESSAGES[app.idle_counter % IDLE_MESSAGES.len()];
+                                app.world.log(msg.to_string());
+                                app.idle_counter += 1;
                             }
                         }
                     }
@@ -330,20 +347,33 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Atmospheric idle messages shown when no NPC is present for conversation.
+const IDLE_MESSAGES: &[&str] = &[
+    "The wind stirs, but nothing else.",
+    "Only the sound of a distant crow.",
+    "A dog barks somewhere beyond the hill.",
+    "The clouds shift. The parish carries on.",
+    "Somewhere nearby, a door creaks shut.",
+    "A wren hops along the stone wall and vanishes.",
+    "The smell of turf smoke drifts from a cottage chimney.",
+];
+
 /// Handles a system command.
 fn handle_system_command(app: &mut App, cmd: Command) {
     match cmd {
         Command::Quit => {
-            app.world.log("Farewell.".to_string());
+            app.world
+                .log("Safe home to ye. May the road rise to meet you.".to_string());
             app.should_quit = true;
         }
         Command::Pause => {
             app.world.clock.pause();
-            app.world.log("[Time paused]".to_string());
+            app.world
+                .log("The clocks of the parish stand still.".to_string());
         }
         Command::Resume => {
             app.world.clock.resume();
-            app.world.log("[Time resumed]".to_string());
+            app.world.log("Time stirs again in the parish.".to_string());
         }
         Command::Status => {
             let time = app.world.clock.time_of_day();
@@ -360,22 +390,36 @@ fn handle_system_command(app: &mut App, cmd: Command) {
             ));
         }
         Command::Help => {
-            app.world.log("Commands:".to_string());
-            app.world.log("  /quit     — Exit the game".to_string());
-            app.world.log("  /pause    — Pause time".to_string());
-            app.world.log("  /resume   — Resume time".to_string());
-            app.world.log("  /status   — Show game status".to_string());
+            app.world.log("A few things ye might say:".to_string());
+            app.world.log("  /quit     — Take your leave".to_string());
+            app.world.log("  /pause    — Hold time still".to_string());
+            app.world
+                .log("  /resume   — Let time flow again".to_string());
+            app.world.log("  /status   — Where am I?".to_string());
+            app.world
+                .log("  /irish    — Toggle the Irish words sidebar (or press Tab)".to_string());
             app.world.log("  /help     — Show this help".to_string());
             app.world
-                .log("  /save     — Save game (Phase 4)".to_string());
+                .log("  /save     — Save game (not yet arrived)".to_string());
             app.world
-                .log("  /fork <n> — Fork save (Phase 4)".to_string());
+                .log("  /fork <n> — Fork save (not yet arrived)".to_string());
             app.world
-                .log("  /load <n> — Load save (Phase 4)".to_string());
+                .log("  /load <n> — Load save (not yet arrived)".to_string());
+        }
+        Command::ToggleSidebar => {
+            app.sidebar_visible = !app.sidebar_visible;
+            if app.sidebar_visible {
+                app.world
+                    .log("The pronunciation guide opens at your side.".to_string());
+            } else {
+                app.world
+                    .log("The pronunciation guide folds away.".to_string());
+            }
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
-            app.world
-                .log("[Not yet implemented — coming in Phase 4]".to_string());
+            app.world.log(
+                "That particular skill hasn't arrived in the parish yet. Patience now.".to_string(),
+            );
         }
     }
     app.world.log(String::new());
@@ -477,11 +521,14 @@ fn handle_movement(app: &mut App, target: &str) {
             show_location_arrival(app);
         }
         MovementResult::AlreadyHere => {
-            app.world.log("You are already here.".to_string());
+            app.world
+                .log("Sure, you're already standing right here.".to_string());
         }
         MovementResult::NotFound(name) => {
-            app.world
-                .log(format!("You don't know how to get to \"{}\".", name));
+            app.world.log(format!(
+                "You haven't the faintest notion how to reach \"{}\". Try asking about.",
+                name
+            ));
 
             // Show available exits as a hint
             let exits = format_exits(app.world.player_location, &app.world.graph);

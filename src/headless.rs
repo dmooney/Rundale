@@ -96,9 +96,25 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
         std::io::stdout().flush().ok();
     }
 
-    println!("Farewell.");
+    println!("Safe home to ye. May the road rise to meet you.");
     Ok(())
 }
+
+/// Handles a system command in headless mode. Returns true if the game should exit.
+/// Atmospheric idle messages shown when no NPC is present for conversation.
+const HEADLESS_IDLE_MESSAGES: &[&str] = &[
+    "The wind stirs, but nothing else.",
+    "Only the sound of a distant crow.",
+    "A dog barks somewhere beyond the hill.",
+    "The clouds shift. The parish carries on.",
+    "Somewhere nearby, a door creaks shut.",
+    "A wren hops along the stone wall and vanishes.",
+    "The smell of turf smoke drifts from a cottage chimney.",
+];
+
+/// Headless idle message counter.
+static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
 
 /// Handles a system command in headless mode. Returns true if the game should exit.
 fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
@@ -109,12 +125,12 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
         }
         Command::Pause => {
             app.world.clock.pause();
-            println!("[Time paused]");
+            println!("The clocks of the parish stand still.");
             false
         }
         Command::Resume => {
             app.world.clock.resume();
-            println!("[Time resumed]");
+            println!("Time stirs again in the parish.");
             false
         }
         Command::Status => {
@@ -130,19 +146,24 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
             false
         }
         Command::Help => {
-            println!("Commands:");
-            println!("  /quit     - Exit the game");
-            println!("  /pause    - Pause time");
-            println!("  /resume   - Resume time");
-            println!("  /status   - Show game status");
+            println!("A few things ye might say:");
+            println!("  /quit     - Take your leave");
+            println!("  /pause    - Hold time still");
+            println!("  /resume   - Let time flow again");
+            println!("  /status   - Where am I?");
+            println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /help     - Show this help");
-            println!("  /save     - Save game (Phase 4)");
-            println!("  /fork <n> - Fork save (Phase 4)");
-            println!("  /load <n> - Load save (Phase 4)");
+            println!("  /save     - Save game (not yet arrived)");
+            println!("  /fork <n> - Fork save (not yet arrived)");
+            println!("  /load <n> - Load save (not yet arrived)");
+            false
+        }
+        Command::ToggleSidebar => {
+            println!("The pronunciation sidebar is only available in TUI mode.");
             false
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
-            println!("[Not yet implemented — coming in Phase 4]");
+            println!("That particular skill hasn't arrived in the parish yet. Patience now.");
             false
         }
     }
@@ -164,7 +185,7 @@ async fn handle_headless_game_input(
             if let Some(target) = &intent.target {
                 handle_headless_movement(app, target);
             } else {
-                println!("Go where?");
+                println!("And where would ye be off to?");
             }
         }
         crate::input::IntentKind::Look => {
@@ -252,7 +273,10 @@ async fn handle_headless_game_input(
                                     let _streamed = stream_handle.await.unwrap_or_default();
 
                                     if let Some(err) = &response.error {
-                                        println!("[Ollama error: {}]", err);
+                                        println!(
+                                            "[The parish storyteller has lost the thread: {}]",
+                                            err
+                                        );
                                     } else {
                                         let parsed = parse_npc_stream_response(&response.text);
                                         if let Some(meta) = &parsed.metadata {
@@ -266,20 +290,24 @@ async fn handle_headless_game_input(
                                 }
                                 Err(_) => {
                                     let _ = stream_handle.await;
-                                    println!("[Inference channel closed]");
+                                    println!("[The storyteller has wandered off mid-tale.]");
                                 }
                             }
                         }
                         Err(e) => {
                             println!();
-                            println!("[Failed to send request: {}]", e);
+                            println!("[The storyteller couldn't hear ye: {}]", e);
                         }
                     }
                 } else {
-                    println!("[No inference engine available]");
+                    println!("[No storyteller could be found in the parish today.]");
                 }
             } else {
-                println!("Nothing happens.");
+                let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                println!(
+                    "{}",
+                    HEADLESS_IDLE_MESSAGES[idx % HEADLESS_IDLE_MESSAGES.len()]
+                );
             }
         }
     }
@@ -371,10 +399,13 @@ fn handle_headless_movement(app: &mut App, target: &str) {
             print_location_arrival(app);
         }
         MovementResult::AlreadyHere => {
-            println!("You are already here.");
+            println!("Sure, you're already standing right here.");
         }
         MovementResult::NotFound(name) => {
-            println!("You don't know how to get to \"{}\".", name);
+            println!(
+                "You haven't the faintest notion how to reach \"{}\". Try asking about.",
+                name
+            );
             let exits = format_exits(app.world.player_location, &app.world.graph);
             println!("{}", exits);
         }

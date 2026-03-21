@@ -4,7 +4,7 @@
 //! and 24-bit true color palette shifts for time-of-day and weather.
 
 use crate::inference::InferenceQueue;
-use crate::npc::Npc;
+use crate::npc::{IrishWordHint, Npc};
 use crate::world::WorldState;
 use crate::world::time::TimeOfDay;
 
@@ -161,6 +161,12 @@ pub struct App {
     pub npcs: Vec<Npc>,
     /// Scroll state for the main text panel.
     pub scroll: ScrollState,
+    /// Whether the Irish pronunciation sidebar is visible.
+    pub sidebar_visible: bool,
+    /// Pronunciation hints for Irish words from NPC responses.
+    pub pronunciation_hints: Vec<IrishWordHint>,
+    /// Counter for rotating idle messages.
+    pub idle_counter: usize,
 }
 
 impl App {
@@ -173,6 +179,9 @@ impl App {
             inference_queue: None,
             npcs: Vec::new(),
             scroll: ScrollState::new(),
+            sidebar_visible: false,
+            pronunciation_hints: Vec::new(),
+            idle_counter: 0,
         }
     }
 }
@@ -249,9 +258,18 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::BOTTOM).style(base_style));
     frame.render_widget(top_bar, chunks[0]);
 
+    // Split main area horizontally if sidebar is visible
+    let (main_area, sidebar_area) = if app.sidebar_visible {
+        let h_chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(chunks[1]);
+        (h_chunks[0], Some(h_chunks[1]))
+    } else {
+        (chunks[1], None)
+    };
+
     // Main panel: text log with word wrap and scroll support
-    let panel_height = chunks[1].height;
-    let panel_width = chunks[1].width;
+    let panel_height = main_area.height;
+    let panel_width = main_area.width;
 
     let log_lines: Vec<Line> = app
         .world
@@ -315,7 +333,12 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .wrap(Wrap { trim: false })
         .scroll((scroll_row, 0))
         .block(block_title);
-    frame.render_widget(main_panel, chunks[1]);
+    frame.render_widget(main_panel, main_area);
+
+    // Sidebar: Irish pronunciation guide
+    if let Some(sidebar) = sidebar_area {
+        draw_pronunciation_sidebar(frame, app, sidebar, &base_style, &accent_style);
+    }
 
     // Input line
     let input_text = format!("> {}", app.input_buffer);
@@ -375,10 +398,56 @@ pub fn handle_input(app: &mut App, timeout: Duration) -> io::Result<Option<Strin
             KeyCode::End => {
                 app.scroll.scroll_to_bottom();
             }
+            KeyCode::Tab => {
+                app.sidebar_visible = !app.sidebar_visible;
+            }
             _ => {}
         }
     }
     Ok(None)
+}
+
+/// Draws the Irish pronunciation sidebar panel.
+///
+/// Shows recent Irish words from NPC dialogue with phonetic pronunciation
+/// guides and English meanings. Toggled via Tab or `/irish`.
+fn draw_pronunciation_sidebar(
+    frame: &mut Frame,
+    app: &App,
+    area: ratatui::layout::Rect,
+    base_style: &Style,
+    accent_style: &Style,
+) {
+    let mut lines: Vec<Line> = Vec::new();
+
+    if app.pronunciation_hints.is_empty() {
+        lines.push(Line::from("No Irish words yet.").style(*base_style));
+        lines.push(Line::from(""));
+        lines.push(Line::from("Chat with the locals").style(*base_style));
+        lines.push(Line::from("and words will appear").style(*base_style));
+        lines.push(Line::from("here with their").style(*base_style));
+        lines.push(Line::from("pronunciation.").style(*base_style));
+    } else {
+        for hint in &app.pronunciation_hints {
+            lines.push(Line::from(hint.word.as_str()).style(*accent_style));
+            lines.push(Line::from(format!("  {}", hint.pronunciation)).style(*base_style));
+            if let Some(meaning) = &hint.meaning {
+                lines.push(Line::from(format!("  {}", meaning)).style(*base_style));
+            }
+            lines.push(Line::from(""));
+        }
+    }
+
+    let sidebar = Paragraph::new(Text::from(lines))
+        .style(*base_style)
+        .wrap(Wrap { trim: false })
+        .block(
+            Block::default()
+                .borders(Borders::LEFT)
+                .title(" Focail — Words ")
+                .style(*base_style),
+        );
+    frame.render_widget(sidebar, area);
 }
 
 #[cfg(test)]
@@ -438,12 +507,55 @@ mod tests {
         assert!(app.npcs.is_empty());
         assert!(app.scroll.auto_scroll);
         assert_eq!(app.scroll.offset, 0);
+        assert!(!app.sidebar_visible);
+        assert!(app.pronunciation_hints.is_empty());
+        assert_eq!(app.idle_counter, 0);
     }
 
     #[test]
     fn test_app_default() {
         let app = App::default();
         assert!(!app.should_quit);
+        assert!(!app.sidebar_visible);
+    }
+
+    #[test]
+    fn test_sidebar_toggle() {
+        let mut app = App::new();
+        assert!(!app.sidebar_visible);
+        app.sidebar_visible = !app.sidebar_visible;
+        assert!(app.sidebar_visible);
+        app.sidebar_visible = !app.sidebar_visible;
+        assert!(!app.sidebar_visible);
+    }
+
+    #[test]
+    fn test_pronunciation_hints_storage() {
+        use crate::npc::IrishWordHint;
+        let mut app = App::new();
+        let hint = IrishWordHint {
+            word: "sláinte".to_string(),
+            pronunciation: "SLAWN-cha".to_string(),
+            meaning: Some("Health/cheers".to_string()),
+        };
+        app.pronunciation_hints.push(hint.clone());
+        assert_eq!(app.pronunciation_hints.len(), 1);
+        assert_eq!(app.pronunciation_hints[0].word, "sláinte");
+    }
+
+    #[test]
+    fn test_pronunciation_hints_truncation() {
+        use crate::npc::IrishWordHint;
+        let mut app = App::new();
+        for i in 0..25 {
+            app.pronunciation_hints.push(IrishWordHint {
+                word: format!("word_{}", i),
+                pronunciation: format!("pron_{}", i),
+                meaning: None,
+            });
+        }
+        app.pronunciation_hints.truncate(20);
+        assert_eq!(app.pronunciation_hints.len(), 20);
     }
 
     #[test]

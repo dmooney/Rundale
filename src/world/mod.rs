@@ -65,7 +65,7 @@ pub struct WorldState {
 impl WorldState {
     /// Creates a new world state with a single test location ("The Crossroads").
     ///
-    /// The game clock starts at 8:00 AM on March 20, 2026 (spring morning).
+    /// The game clock starts at 8:00 AM on March 20, 1820 (spring morning).
     pub fn new() -> Self {
         use chrono::{TimeZone, Utc};
 
@@ -85,7 +85,7 @@ impl WorldState {
         let mut locations = HashMap::new();
         locations.insert(crossroads_id, crossroads);
 
-        let clock = GameClock::new(Utc.with_ymd_and_hms(2026, 3, 20, 8, 0, 0).unwrap());
+        let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
 
         Self {
             clock,
@@ -124,7 +124,7 @@ impl WorldState {
             }
         }
 
-        let clock = GameClock::new(Utc.with_ymd_and_hms(2026, 3, 20, 8, 0, 0).unwrap());
+        let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
 
         Ok(Self {
             clock,

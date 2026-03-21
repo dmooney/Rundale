@@ -34,6 +34,8 @@ pub enum Command {
     Status,
     /// Show help text.
     Help,
+    /// Toggle the Irish pronunciation sidebar.
+    ToggleSidebar,
 }
 
 /// The kind of player action parsed from natural language input.
@@ -119,6 +121,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::Status)
     } else if lower == "/help" {
         Some(Command::Help)
+    } else if lower == "/irish" {
+        Some(Command::ToggleSidebar)
     } else {
         None
     }
@@ -754,5 +758,23 @@ mod tests {
         assert!(parse_intent_local("amble").is_none());
         assert!(parse_intent_local("run").is_none());
         assert!(parse_intent_local("dash").is_none());
+    }
+
+    #[test]
+    fn test_parse_irish_command() {
+        let cmd = parse_system_command("/irish");
+        assert_eq!(cmd, Some(Command::ToggleSidebar));
+    }
+
+    #[test]
+    fn test_parse_irish_command_case_insensitive() {
+        let cmd = parse_system_command("/IRISH");
+        assert_eq!(cmd, Some(Command::ToggleSidebar));
+    }
+
+    #[test]
+    fn test_classify_irish_command() {
+        let result = classify_input("/irish");
+        assert_eq!(result, InputResult::SystemCommand(Command::ToggleSidebar));
     }
 }

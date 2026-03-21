@@ -4,7 +4,9 @@
 
 ## Project Overview
 
-Parish is a text-based interactive fiction game set in rural Ireland. The player spawns in a small parish near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
+Parish is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in a small parish near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
+
+The game is committed to representing Irish people and culture with accuracy, respect, and sensitivity. Characters are portrayed with dignity and complexity. The historical setting reflects the real political and social landscape of early 19th-century Ireland.
 
 The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the player are driven by full LLM inference for rich, emergent behavior. Distant NPCs are simulated at progressively lower fidelity. The result is a living world where hundreds of NPCs have ongoing lives, relationships, and conversations — whether or not the player is watching.
 
