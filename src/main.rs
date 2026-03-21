@@ -78,8 +78,10 @@ async fn main() -> Result<()> {
     let mut app = App::new();
     let parish_path = Path::new("data/parish.json");
     if parish_path.exists() {
-        match parish::world::WorldState::from_parish_file(parish_path, parish::world::LocationId(1))
-        {
+        match parish::world::WorldState::from_parish_file(
+            parish_path,
+            parish::world::LocationId(15),
+        ) {
             Ok(world) => app.world = world,
             Err(e) => tracing::warn!("Failed to load parish data: {}", e),
         }

@@ -12,9 +12,13 @@ use parish::world::time::{Season, TimeOfDay};
 fn test_full_walkthrough_crossroads_to_pub_and_back() {
     let mut h = GameTestHarness::new();
 
-    // Start at crossroads
+    // Start at Kilteevan Village
+    assert_eq!(h.player_location(), "Kilteevan Village");
+    assert_eq!(h.location_id(), LocationId(15));
+
+    // Move to crossroads first
+    h.execute("go to crossroads");
     assert_eq!(h.player_location(), "The Crossroads");
-    assert_eq!(h.location_id(), LocationId(1));
 
     // Move to pub
     let r = h.execute("go to pub");
@@ -39,7 +43,10 @@ fn test_full_walkthrough_crossroads_to_pub_and_back() {
 fn test_multi_location_circuit() {
     let mut h = GameTestHarness::new();
 
-    // Crossroads → Pub → Crossroads → Church → Crossroads
+    // Kilteevan → Crossroads → Pub → Crossroads → Church → Crossroads
+    h.execute("go to crossroads");
+    assert_eq!(h.player_location(), "The Crossroads");
+
     h.execute("go to pub");
     assert_eq!(h.player_location(), "Darcy's Pub");
 
@@ -58,7 +65,8 @@ fn test_time_advances_with_travel() {
     let mut h = GameTestHarness::new();
     assert_eq!(h.time_of_day(), TimeOfDay::Morning);
 
-    // Make many trips to advance time significantly
+    // Move to crossroads first, then make many trips
+    h.execute("go to crossroads");
     for _ in 0..20 {
         h.execute("go to pub");
         h.execute("go to crossroads");
@@ -79,9 +87,9 @@ fn test_season_is_spring_at_start() {
 #[test]
 fn test_movement_already_here() {
     let mut h = GameTestHarness::new();
-    let r = h.execute("go to crossroads");
+    let r = h.execute("go to kilteevan");
     assert_eq!(r, ActionResult::AlreadyHere);
-    assert_eq!(h.player_location(), "The Crossroads");
+    assert_eq!(h.player_location(), "Kilteevan Village");
 }
 
 #[test]
@@ -92,7 +100,7 @@ fn test_movement_not_found() {
     if let ActionResult::NotFound { target } = r {
         assert_eq!(target, "atlantis");
     }
-    assert_eq!(h.player_location(), "The Crossroads");
+    assert_eq!(h.player_location(), "Kilteevan Village");
 }
 
 #[test]
@@ -109,7 +117,7 @@ fn test_movement_various_verbs_all_work() {
 
     for verb in &verbs {
         let mut h = GameTestHarness::new();
-        let cmd = format!("{} pub", verb);
+        let cmd = format!("{} crossroads", verb);
         let r = h.execute(&cmd);
         assert!(
             matches!(r, ActionResult::Moved { .. }),
@@ -119,8 +127,8 @@ fn test_movement_various_verbs_all_work() {
         );
         assert_eq!(
             h.player_location(),
-            "Darcy's Pub",
-            "Verb '{}' should move to pub",
+            "The Crossroads",
+            "Verb '{}' should move to crossroads",
             verb
         );
     }
@@ -130,7 +138,14 @@ fn test_movement_various_verbs_all_work() {
 fn test_look_at_multiple_locations() {
     let mut h = GameTestHarness::new();
 
-    // Look at crossroads
+    // Look at Kilteevan
+    let r = h.execute("look");
+    if let ActionResult::Looked { description } = &r {
+        assert!(!description.is_empty());
+    }
+
+    // Move to crossroads and look
+    h.execute("go to crossroads");
     let r = h.execute("look");
     if let ActionResult::Looked { description } = &r {
         assert!(!description.is_empty());
@@ -138,13 +153,6 @@ fn test_look_at_multiple_locations() {
 
     // Move to pub and look
     h.execute("go to pub");
-    let r = h.execute("look");
-    if let ActionResult::Looked { description } = &r {
-        assert!(!description.is_empty());
-    }
-
-    // Move to church and look
-    h.execute("go to church");
     let r = h.execute("look around");
     if let ActionResult::Looked { description } = &r {
         assert!(!description.is_empty());
@@ -191,6 +199,9 @@ fn test_npc_canned_response_at_crossroads() {
     let mut h = GameTestHarness::new();
     h.add_canned_response("Padraig O'Brien", "Top of the morning to ye!");
 
+    // NPC is at The Crossroads, navigate there first
+    h.execute("go to crossroads");
+
     let r = h.execute("hello Padraig");
     if let ActionResult::NpcResponse { npc, dialogue } = r {
         assert_eq!(npc, "Padraig O'Brien");
@@ -207,6 +218,7 @@ fn test_npc_canned_responses_consumed_in_order() {
     h.add_canned_response("Padraig O'Brien", "Second line");
     h.add_canned_response("Padraig O'Brien", "Third line");
 
+    h.execute("go to crossroads");
     let r1 = h.execute("hello");
     let r2 = h.execute("how are you");
     let r3 = h.execute("tell me about the town");
@@ -239,6 +251,7 @@ fn test_npc_not_available_after_canned_exhausted() {
     let mut h = GameTestHarness::new();
     h.add_canned_response("Padraig O'Brien", "Only response");
 
+    h.execute("go to crossroads");
     h.execute("hello");
     let r = h.execute("hello again");
     assert_eq!(r, ActionResult::NpcNotAvailable);
@@ -249,21 +262,18 @@ fn test_npc_not_present_after_moving() {
     let mut h = GameTestHarness::new();
     h.add_canned_response("Padraig O'Brien", "Goodbye!");
 
-    // Move away from NPC
-    h.execute("go to church");
-
-    // NPC is at crossroads, not church
+    // Player starts at Kilteevan — NPC is at crossroads, not here
     let r = h.execute("hello");
     assert_eq!(r, ActionResult::UnknownInput);
 }
 
 #[test]
-fn test_exits_at_crossroads() {
+fn test_exits_at_kilteevan() {
     let h = GameTestHarness::new();
     let exits = h.exits();
     assert!(exits.contains("You can go to:"));
-    // Crossroads is the hub, should have multiple exits
-    assert!(exits.contains("Darcy's Pub"));
+    // Kilteevan connects to The Crossroads
+    assert!(exits.contains("The Crossroads"));
 }
 
 #[test]
@@ -304,14 +314,14 @@ fn test_script_fixture_commands() {
 #[test]
 fn test_moved_result_contains_narration() {
     let mut h = GameTestHarness::new();
-    let r = h.execute("go to pub");
+    let r = h.execute("go to crossroads");
     if let ActionResult::Moved {
         to,
         minutes,
         narration,
     } = r
     {
-        assert_eq!(to, "Darcy's Pub");
+        assert_eq!(to, "The Crossroads");
         assert!(minutes > 0, "Travel should take some time");
         assert!(!narration.is_empty(), "Narration should be non-empty");
     } else {
@@ -341,7 +351,7 @@ fn test_multiple_looks_same_location() {
 fn test_long_journey_fairy_fort() {
     let mut h = GameTestHarness::new();
 
-    // Navigate to the Fairy Fort (may be multiple hops from Crossroads)
+    // Navigate to the Fairy Fort (multiple hops from Kilteevan)
     let r = h.execute("go to fairy fort");
     match r {
         ActionResult::Moved { to, minutes, .. } => {

@@ -3,6 +3,8 @@
 
 /status
 go to crossroads
+go to kilteevan
+go to kilteevan
 go to narnia
 go to mordor
 walk to pub
