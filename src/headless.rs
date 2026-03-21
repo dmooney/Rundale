@@ -48,7 +48,8 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
     let mut app = App::new();
     let parish_path = Path::new("data/parish.json");
     if parish_path.exists() {
-        match crate::world::WorldState::from_parish_file(parish_path, crate::world::LocationId(1)) {
+        match crate::world::WorldState::from_parish_file(parish_path, crate::world::LocationId(15))
+        {
             Ok(world) => app.world = world,
             Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
         }

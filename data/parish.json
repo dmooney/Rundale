@@ -12,7 +12,8 @@
                 {"target": 4, "traversal_minutes": 2, "path_description": "the road past a hand-lettered sign"},
                 {"target": 6, "traversal_minutes": 4, "path_description": "a muddy path along the schoolmaster's wall"},
                 {"target": 9, "traversal_minutes": 8, "path_description": "a narrow road between stone walls"},
-                {"target": 13, "traversal_minutes": 3, "path_description": "a few steps across the road"}
+                {"target": 13, "traversal_minutes": 3, "path_description": "a few steps across the road"},
+                {"target": 15, "traversal_minutes": 6, "path_description": "the Kilteevan road heading south past low fields"}
             ],
             "associated_npcs": [],
             "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin."
@@ -183,6 +184,18 @@
             ],
             "associated_npcs": [],
             "mythological_significance": null
+        },
+        {
+            "id": 15,
+            "name": "Kilteevan Village",
+            "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {"target": 1, "traversal_minutes": 6, "path_description": "the road north past low fields to the crossroads"}
+            ],
+            "associated_npcs": [],
+            "mythological_significance": "Kilteevan — Cill Tíobáin, the church of St. Tíobán. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
         }
     ]
 }

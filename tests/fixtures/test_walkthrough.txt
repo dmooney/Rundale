@@ -3,6 +3,7 @@
 
 /status
 look
+go to crossroads
 go to pub
 look
 /status

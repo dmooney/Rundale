@@ -11,9 +11,9 @@
 //! use parish::testing::{GameTestHarness, ActionResult};
 //!
 //! let mut h = GameTestHarness::new();
-//! let result = h.execute("go to pub");
+//! let result = h.execute("go to crossroads");
 //! assert!(matches!(result, ActionResult::Moved { .. }));
-//! assert_eq!(h.player_location(), "Darcy's Pub");
+//! assert_eq!(h.player_location(), "The Crossroads");
 //! ```
 
 use crate::input::{self, Command, InputResult, IntentKind};
@@ -89,9 +89,9 @@ pub enum ActionResult {
 /// use parish::testing::GameTestHarness;
 ///
 /// let mut h = GameTestHarness::new();
+/// assert_eq!(h.player_location(), "Kilteevan Village");
+/// h.execute("go to crossroads");
 /// assert_eq!(h.player_location(), "The Crossroads");
-/// h.execute("go to pub");
-/// assert_eq!(h.player_location(), "Darcy's Pub");
 /// ```
 pub struct GameTestHarness {
     /// The underlying game state.
@@ -104,12 +104,12 @@ impl GameTestHarness {
     /// Creates a new harness with the full parish world loaded.
     ///
     /// Loads `data/parish.json` for the world graph and adds the test NPC
-    /// (Padraig O'Brien at The Crossroads). The player starts at The Crossroads.
+    /// (Padraig O'Brien at The Crossroads). The player starts at Kilteevan Village.
     pub fn new() -> Self {
         let mut app = App::new();
         let parish_path = Path::new("data/parish.json");
         if parish_path.exists() {
-            match crate::world::WorldState::from_parish_file(parish_path, LocationId(1)) {
+            match crate::world::WorldState::from_parish_file(parish_path, LocationId(15)) {
                 Ok(world) => app.world = world,
                 Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
             }
@@ -471,15 +471,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_harness_new_starts_at_crossroads() {
+    fn test_harness_new_starts_at_kilteevan() {
         let h = GameTestHarness::new();
-        assert_eq!(h.player_location(), "The Crossroads");
-        assert_eq!(h.location_id(), LocationId(1));
+        assert_eq!(h.player_location(), "Kilteevan Village");
+        assert_eq!(h.location_id(), LocationId(15));
     }
 
     #[test]
     fn test_harness_has_test_npc() {
-        let h = GameTestHarness::new();
+        let mut h = GameTestHarness::new();
+        // NPC is at The Crossroads, navigate there first
+        h.execute("go to crossroads");
         let npcs = h.npcs_here();
         assert!(npcs.contains(&"Padraig O'Brien"));
     }
@@ -500,6 +502,7 @@ mod tests {
     #[test]
     fn test_move_to_pub() {
         let mut h = GameTestHarness::new();
+        h.execute("go to crossroads");
         let result = h.execute("go to pub");
         assert!(matches!(result, ActionResult::Moved { .. }));
         assert_eq!(h.player_location(), "Darcy's Pub");
@@ -510,7 +513,7 @@ mod tests {
         let mut h = GameTestHarness::new();
         let before = h.time_of_day();
         // Move far enough to potentially change time
-        h.execute("go to pub");
+        h.execute("go to crossroads");
         // Time should still be deterministic — just verify it didn't break
         let _after = h.time_of_day();
         // Clock was Morning, a short trip shouldn't change it
@@ -520,9 +523,9 @@ mod tests {
     #[test]
     fn test_move_already_here() {
         let mut h = GameTestHarness::new();
-        let result = h.execute("go to crossroads");
+        let result = h.execute("go to kilteevan");
         assert_eq!(result, ActionResult::AlreadyHere);
-        assert_eq!(h.player_location(), "The Crossroads");
+        assert_eq!(h.player_location(), "Kilteevan Village");
     }
 
     #[test]
@@ -530,7 +533,7 @@ mod tests {
         let mut h = GameTestHarness::new();
         let result = h.execute("go to narnia");
         assert!(matches!(result, ActionResult::NotFound { .. }));
-        assert_eq!(h.player_location(), "The Crossroads");
+        assert_eq!(h.player_location(), "Kilteevan Village");
     }
 
     #[test]
@@ -572,7 +575,7 @@ mod tests {
         let mut h = GameTestHarness::new();
         let result = h.execute("/status");
         if let ActionResult::SystemCommand { response } = result {
-            assert!(response.contains("The Crossroads"));
+            assert!(response.contains("Kilteevan Village"));
             assert!(response.contains("Morning"));
         } else {
             panic!("Expected SystemCommand");
@@ -598,6 +601,7 @@ mod tests {
     fn test_canned_npc_response() {
         let mut h = GameTestHarness::new();
         h.add_canned_response("Padraig O'Brien", "Ah, good morning to ye!");
+        h.execute("go to crossroads");
         let result = h.execute("hello there");
         assert!(matches!(result, ActionResult::NpcResponse { .. }));
         if let ActionResult::NpcResponse { npc, dialogue } = result {
@@ -612,6 +616,7 @@ mod tests {
         h.add_canned_response("Padraig O'Brien", "First response");
         h.add_canned_response("Padraig O'Brien", "Second response");
 
+        h.execute("go to crossroads");
         let r1 = h.execute("hello");
         let r2 = h.execute("how are you");
 
@@ -628,6 +633,7 @@ mod tests {
         let mut h = GameTestHarness::new();
         h.add_canned_response("Padraig O'Brien", "Only one response");
 
+        h.execute("go to crossroads");
         let r1 = h.execute("hello");
         assert!(matches!(r1, ActionResult::NpcResponse { .. }));
 
@@ -638,8 +644,7 @@ mod tests {
     #[test]
     fn test_npc_not_at_location() {
         let mut h = GameTestHarness::new();
-        h.execute("go to church");
-        // No NPC at church
+        // Player starts at Kilteevan — no NPC here
         let result = h.execute("hello there");
         assert_eq!(result, ActionResult::UnknownInput);
     }
@@ -677,27 +682,27 @@ mod tests {
     #[test]
     fn test_movement_round_trip() {
         let mut h = GameTestHarness::new();
-        assert_eq!(h.player_location(), "The Crossroads");
-
-        h.execute("go to pub");
-        assert_eq!(h.player_location(), "Darcy's Pub");
+        assert_eq!(h.player_location(), "Kilteevan Village");
 
         h.execute("go to crossroads");
         assert_eq!(h.player_location(), "The Crossroads");
+
+        h.execute("go to kilteevan");
+        assert_eq!(h.player_location(), "Kilteevan Village");
     }
 
     #[test]
     fn test_movement_various_verbs() {
         let mut h = GameTestHarness::new();
 
-        h.execute("walk to pub");
-        assert_eq!(h.player_location(), "Darcy's Pub");
-
-        h.execute("stroll to crossroads");
+        h.execute("walk to crossroads");
         assert_eq!(h.player_location(), "The Crossroads");
 
-        h.execute("head to church");
-        assert_eq!(h.player_location(), "St. Brigid's Church");
+        h.execute("stroll to kilteevan");
+        assert_eq!(h.player_location(), "Kilteevan Village");
+
+        h.execute("head to crossroads");
+        assert_eq!(h.player_location(), "The Crossroads");
     }
 
     #[test]
@@ -710,7 +715,7 @@ mod tests {
     #[test]
     fn test_default_trait() {
         let h = GameTestHarness::default();
-        assert_eq!(h.player_location(), "The Crossroads");
+        assert_eq!(h.player_location(), "Kilteevan Village");
     }
 
     #[test]
