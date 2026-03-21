@@ -28,6 +28,10 @@ struct Cli {
     #[arg(long)]
     headless: bool,
 
+    /// Run commands from a script file (one per line, JSON output, no Ollama needed)
+    #[arg(long, value_name = "FILE")]
+    script: Option<String>,
+
     /// Override the Ollama model (skips auto-detection)
     #[arg(long, env = "PARISH_MODEL")]
     model: Option<String>,
@@ -46,6 +50,11 @@ async fn main() -> Result<()> {
     tracing::info!("Starting Parish...");
 
     let cli = Cli::parse();
+
+    // Script mode — no Ollama needed, synchronous execution
+    if let Some(script_path) = &cli.script {
+        return parish::testing::run_script_mode(Path::new(script_path));
+    }
 
     // Run the full Ollama setup sequence
     let progress = StdoutProgress;
