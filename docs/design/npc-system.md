@@ -1,6 +1,6 @@
 # NPC System
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [008](../adr/008-structured-json-llm-output.md)
 
 ## Entity Data Model
 

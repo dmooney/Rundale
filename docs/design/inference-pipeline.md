@@ -1,6 +1,6 @@
 # Inference Pipeline
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [010](../adr/010-prompt-injection-defenses.md)
 
 ## Pipeline Architecture
 

@@ -1,6 +1,8 @@
 # Plan: Phase 5 — Full LOD & Scale
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+>
+> **Status: Planned**
 
 ## Goal
 

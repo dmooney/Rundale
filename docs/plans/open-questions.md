@@ -12,7 +12,7 @@ Deferred design decisions that affect multiple phases. Each question includes co
 
 **Rationale**: Best combination of water features (Lough Ree, Shannon), proximity to Athlone for urban contrast, and enough townlands (~25) for dense node mapping. River and lake access provide natural geographic variety for location descriptions and movement constraints.
 
-**Resolved**: Phase 2 prerequisite. Location data authoring in `data/parish.json` should use Kiltoom townlands and geography.
+**Resolved**: Phase 2 prerequisite. Location data in `data/parish.json` uses Kiltoom townlands and geography. Starting location is **Kilteevan Village** (location ID 15).
 
 | Parish | Barony | Features | Townlands | Notes |
 |--------|--------|----------|-----------|-------|
@@ -29,7 +29,7 @@ Deferred design decisions that affect multiple phases. Each question includes co
 
 **Rationale**: Provides the best balance of narrative justification ("Why am I here?"), natural onboarding (everything is new, NPCs explain things), and player agency. The arrival reason is left vague initially — inherited a cottage, new job, or similar. All relationships start from zero, which aligns with the simulation's relationship-building mechanics.
 
-**Resolved**: Phase 1. NPC context prompts should frame the player as a recent arrival to Kiltoom whom NPCs don't yet know well.
+**Resolved**: Phase 1. NPC context prompts frame the player as a recent arrival to Kilteevan Village whom NPCs don't yet know well.
 
 **Implementation impact**:
 - NPC Tier 1 prompts include: "The player is a newcomer to the parish."

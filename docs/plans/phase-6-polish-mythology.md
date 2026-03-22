@@ -1,6 +1,8 @@
 # Plan: Phase 6 — Polish & Mythology Hooks
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+>
+> **Status: Planned**
 
 ## Goal
 

@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-Parish is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in a small parish near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
+Parish is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in Kilteevan Village, in the parish of Kiltoom near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
 
 The game is committed to representing Irish people and culture with accuracy, respect, and sensitivity. Characters are portrayed with dignity and complexity. The historical setting reflects the real political and social landscape of early 19th-century Ireland.
 
@@ -83,10 +83,14 @@ src/
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
 - [Debug System](debug-system.md) — Debug commands, live TUI panel, metrics collection (feature-gated)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
+- [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
+- [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
 
 ## Related
 
-- [ADR Index](../adr/README.md)
+- [ADR Index](../adr/README.md) — Architecture decision records with rationale
+- [Roadmap](../requirements/roadmap.md) — Phase status tracking
+- [Implementation Plans](../plans/) — Detailed per-phase plans
 
 ## Multi-Provider LLM Support
 

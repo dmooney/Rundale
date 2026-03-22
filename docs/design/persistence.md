@@ -1,6 +1,6 @@
 # Persistence & Save System
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [003](../adr/003-sqlite-wal-persistence.md), [004](../adr/004-git-like-branching-saves.md)
 
 ## Philosophy
 

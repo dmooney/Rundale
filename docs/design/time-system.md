@@ -1,6 +1,6 @@
 # Time System
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [007](../adr/007-time-scale-20min-day.md)
 
 ## Day/Night Cycle
 

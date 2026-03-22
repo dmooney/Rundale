@@ -1,6 +1,8 @@
 # Plan: Phase 2 — World Graph
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+>
+> **Status: In Progress**
 
 ## Goal
 

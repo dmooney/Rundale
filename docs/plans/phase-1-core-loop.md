@@ -1,6 +1,8 @@
 # Plan: Phase 1 — Core Loop
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+>
+> **Status: Complete**
 
 ## Goal
 

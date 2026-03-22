@@ -36,13 +36,16 @@ See [docs/design/overview.md](docs/design/overview.md) for full architecture. Se
 
 ```
 src/
-├── main.rs          # Entry point, tokio runtime init
+├── main.rs          # Entry point, CLI args (clap), mode routing
 ├── lib.rs           # Module declarations
 ├── error.rs         # ParishError (thiserror)
+├── config.rs        # Provider configuration (TOML + env + CLI)
+├── headless.rs      # Headless stdin/stdout REPL mode
+├── testing.rs       # GameTestHarness for automated testing
 ├── tui/             # Ratatui terminal UI
-├── world/           # World state, location graph, time system
+├── world/           # World state, location graph, time, movement, encounters
 ├── npc/             # NPC data model, behavior, cognition tiers
-├── inference/       # Ollama HTTP client, inference queue
+├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
 ├── persistence/     # SQLite save/load, WAL journal
 └── input/           # Player input parsing, command detection
 ```
@@ -86,9 +89,13 @@ src/
 
 ## Documentation Map
 
-- Architecture & subsystem design: `docs/design/`
-- Architecture decisions: `docs/adr/`
-- Roadmap & status: `docs/requirements/roadmap.md`
-- Implementation plans: `docs/plans/`
-- Original monolithic design: `DESIGN.md` (archival)
-- Development journal: `docs/journal.md` (cross-session notes and recommendations)
+Start at [docs/index.md](docs/index.md) for the full hub. Key paths:
+
+- **Architecture & design**: `docs/design/overview.md` → subsystem docs
+- **Architecture decisions**: `docs/adr/README.md` → individual ADRs
+- **Status tracking**: `docs/requirements/roadmap.md` (per-item checkboxes)
+- **Implementation plans**: `docs/plans/` (one per phase)
+- **Testing harness**: `docs/design/testing.md` (GameTestHarness, script mode)
+- **Dev journal**: `docs/journal.md` (cross-session notes)
+- **Known issues**: `docs/known-issues.md`
+- **Archival**: `DESIGN.md` (original monolithic design, superseded by `docs/design/`)

@@ -1,6 +1,6 @@
 # Player Input & Command System
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [006](../adr/006-natural-language-input.md)
 
 ## Natural Language Input
 

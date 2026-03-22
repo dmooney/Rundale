@@ -39,7 +39,7 @@
 
 - [x] Full `Location` struct with connections and properties
 - [x] `WorldGraph` struct (adjacency list with BFS pathfinding)
-- [x] Hand-authored test parish JSON (14 Kiltoom locations)
+- [x] Hand-authored test parish JSON (15 Kiltoom locations, starting at Kilteevan Village)
 - [ ] OSM data extraction tool (stretch goal)
 - [x] Movement command handling ("go to X", fuzzy matching, traversal time)
 - [x] Time advancement during traversal
@@ -100,12 +100,12 @@
 
 ## Open Questions
 
-> [Detailed analysis](../plans/open-questions.md)
+> [Detailed analysis](../plans/open-questions.md) — **All resolved.**
 
-- [ ] Exact parish location near Roscommon
-- [ ] Player character model (named local vs. newcomer vs. observer)
-- [ ] Goal/quest structure
-- [ ] Story and lore
-- [ ] Command prefix UX (keep `/` or go prefix-free)
-- [ ] Mythology content scope
-- [ ] Player verb set (minimal, moderate, or expansive)
+- [x] Exact parish location near Roscommon → **Kiltoom** (Barony of Athlone South)
+- [x] Player character model → **Newcomer / "blow-in"**
+- [x] Goal/quest structure → **Purely emergent** (prototype); hybrid later
+- [x] Story and lore → **Mundane surface** with mythology hooks in Phase 6
+- [x] Command prefix UX → **`/` prefix** through Phase 5; hybrid in Phase 6
+- [x] Mythology content scope → **Moderate / behavioral** via NPC prompt modification
+- [x] Player verb set → **Phased rollout** starting minimal (Move, Talk, Look, Examine)

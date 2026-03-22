@@ -1,6 +1,8 @@
 # Plan: Phase 3 — Multiple NPCs & Simulation
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
+>
+> **Status: Planned**
 
 ## Goal
 
