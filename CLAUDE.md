@@ -43,6 +43,7 @@ src/
 ├── headless.rs      # Headless stdin/stdout REPL mode
 ├── testing.rs       # GameTestHarness for automated testing
 ├── tui/             # Ratatui terminal UI
+├── gui/             # egui windowed GUI (--gui flag)
 ├── world/           # World state, location graph, time, movement, encounters
 ├── npc/             # NPC data model, behavior, cognition tiers
 ├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
@@ -65,6 +66,7 @@ src/
 |-------|---------|
 | tokio | Async runtime (features = "full") |
 | ratatui + crossterm | Terminal UI with 24-bit true color |
+| eframe + egui | Windowed GUI mode (immediate-mode, cross-platform) |
 | reqwest | HTTP client for Ollama API (`localhost:11434`) |
 | serde + serde_json | JSON serialization for LLM structured output |
 | rusqlite | SQLite persistence (features = "bundled") |

@@ -23,6 +23,7 @@ chrono = { version = "0.4", features = ["serde"] }
 toml = "0.8"
 dotenvy = "0.15"
 tracing-appender = "0.2"
+eframe = "0.31"
 
 [[bin]]
 name = "parish"

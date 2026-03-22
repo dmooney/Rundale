@@ -19,6 +19,7 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 | Language      | **Rust**                                 | Core game engine, simulation, TUI                  |
 | Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
 | TUI           | **Ratatui + Crossterm**                  | Terminal UI with 24-bit true color                 |
+| GUI           | **egui + eframe**                        | Windowed GUI with map, chat, and sidebars          |
 | LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing |
 | HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
 | Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
@@ -46,7 +47,7 @@ Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Update
                                           ↓
-                                   Text Rendering → TUI
+                                   Text Rendering → TUI / GUI
 ```
 
 ## Module Tree
@@ -58,6 +59,7 @@ src/
 ├── error.rs             # ParishError (thiserror)
 ├── headless.rs          # Headless stdin/stdout REPL for testing
 ├── tui/                 # Ratatui terminal UI
+├── gui/                 # egui windowed GUI (--gui flag)
 ├── world/               # World state, location graph, time system
 ├── npc/                 # NPC data model, behavior, cognition tiers
 ├── config.rs            # Provider configuration (TOML + env + CLI)

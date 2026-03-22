@@ -57,6 +57,10 @@ struct Cli {
     /// Enable improv craft mode for NPC dialogue
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
+
+    /// Run in GUI mode (windowed egui interface)
+    #[arg(long)]
+    gui: bool,
 }
 
 #[tokio::main]
@@ -113,6 +117,13 @@ async fn main() -> Result<()> {
             },
         };
         return headless::run_headless(setup).await;
+    }
+
+    // GUI mode (windowed egui interface)
+    if cli.gui {
+        let result = parish::gui::run_gui(client, model, &provider_config, cli.improv);
+        ollama_process.stop();
+        return result;
     }
 
     // TUI mode
