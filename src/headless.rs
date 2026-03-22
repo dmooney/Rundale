@@ -8,6 +8,7 @@ use crate::config::{CloudConfig, Provider, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
+use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
 use crate::npc::ticks;
 use crate::npc::{
@@ -19,6 +20,8 @@ use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
 use std::io::{BufRead, Write};
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::mpsc;
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
@@ -404,6 +407,26 @@ async fn handle_headless_game_input(
                     print!("{}: ", npc.name);
                     std::io::stdout().flush().ok();
 
+                    // Spawn a loading animation that prints to stdout
+                    // until the first token arrives.
+                    let cancel_anim = Arc::new(AtomicBool::new(false));
+                    let cancel_for_stream = Arc::clone(&cancel_anim);
+                    let npc_name_for_anim = npc.name.clone();
+                    let anim_handle = tokio::spawn(async move {
+                        let mut anim = LoadingAnimation::new();
+                        while !cancel_anim.load(Ordering::Relaxed) {
+                            let ansi = anim.current_color_ansi();
+                            let text = anim.display_text();
+                            print!("\r{}: {}{}\x1b[0m\x1b[K", npc_name_for_anim, ansi, text);
+                            std::io::stdout().flush().ok();
+                            anim.tick();
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        }
+                        // Clear the animation line and reprint NPC prefix
+                        print!("\r\x1b[K{}: ", npc_name_for_anim);
+                        std::io::stdout().flush().ok();
+                    });
+
                     match queue
                         .send(
                             *request_id,
@@ -419,9 +442,19 @@ async fn handle_headless_game_input(
                                 let mut accumulated = String::new();
                                 let mut displayed_len: usize = 0;
                                 let mut separator_found = false;
+                                let mut anim_cancelled = false;
 
                                 while let Some(token) = token_rx.recv().await {
                                     accumulated.push_str(&token);
+
+                                    // Cancel loading animation on first displayable content
+                                    if !anim_cancelled {
+                                        cancel_for_stream.store(true, Ordering::Relaxed);
+                                        // Brief yield to let the animation task clear itself
+                                        tokio::time::sleep(std::time::Duration::from_millis(20))
+                                            .await;
+                                        anim_cancelled = true;
+                                    }
 
                                     if separator_found {
                                         continue;
@@ -464,6 +497,7 @@ async fn handle_headless_game_input(
                             match rx.await {
                                 Ok(response) => {
                                     let _streamed = stream_handle.await.unwrap_or_default();
+                                    let _ = anim_handle.await;
 
                                     if let Some(err) = &response.error {
                                         println!(
@@ -483,6 +517,7 @@ async fn handle_headless_game_input(
                                 }
                                 Err(_) => {
                                     let _ = stream_handle.await;
+                                    let _ = anim_handle.await;
                                     println!("[The storyteller has wandered off mid-tale.]");
                                 }
                             }

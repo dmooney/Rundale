@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 
 use crate::inference::InferenceQueue;
 use crate::inference::openai_client::OpenAiClient;
+use crate::loading::LoadingAnimation;
 use crate::npc::IrishWordHint;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
@@ -204,6 +205,8 @@ pub struct App {
     pub cloud_base_url: Option<String>,
     /// The model name used by the dialogue inference queue.
     pub dialogue_model: String,
+    /// Loading animation state, active while waiting for LLM inference.
+    pub loading_animation: Option<LoadingAnimation>,
 }
 
 impl App {
@@ -233,6 +236,7 @@ impl App {
             cloud_api_key: None,
             cloud_base_url: None,
             dialogue_model: String::new(),
+            loading_animation: None,
         }
     }
 
@@ -331,12 +335,23 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let panel_height = main_area.height;
     let panel_width = main_area.width;
 
-    let log_lines: Vec<Line> = app
+    let mut log_lines: Vec<Line> = app
         .world
         .text_log
         .iter()
         .map(|s| Line::from(s.as_str()))
         .collect();
+
+    // Append loading animation to the last line while waiting for inference
+    if let Some(anim) = &app.loading_animation {
+        let anim_span = ratatui::text::Span::styled(
+            anim.display_text(),
+            Style::default().fg(anim.current_color()),
+        );
+        if let Some(last) = log_lines.last_mut() {
+            last.spans.push(anim_span);
+        }
+    }
 
     // Count wrapped lines to get accurate scroll math
     let total_lines = if panel_width > 0 {

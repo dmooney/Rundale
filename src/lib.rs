@@ -5,6 +5,7 @@ pub mod gui;
 pub mod headless;
 pub mod inference;
 pub mod input;
+pub mod loading;
 pub mod npc;
 pub mod persistence;
 pub mod testing;
