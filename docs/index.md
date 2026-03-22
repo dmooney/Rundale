@@ -98,11 +98,65 @@ Detailed, implementation-ready plans for each development phase.
 
 ## Research
 
-Background research informing design decisions.
+Background research on 1820s Ireland informing world-building, NPC design, and game mechanics. See [Research Overview](research/README.md) for the full hub, cross-reference matrix, and suggested reading order.
+
+### Core Society & People
 
 | Document | Description |
 |----------|-------------|
-| [Transportation (1820s)](research/transportation.md) | Historical transport options, road conditions, travel radius |
+| [Irish Language](research/irish-language.md) | Bilingual landscape, dialects, code-switching, place-name anglicisation |
+| [Demographics & Social Structure](research/demographics-social-structure.md) | Population, landlord-tenant hierarchy, religious demographics |
+| [Family Life](research/family-life.md) | Household structure, matchmaking, inheritance, kinship networks |
+| [Names & Naming Conventions](research/names-naming-conventions.md) | Gaelic surname system, patronymics, townland name meanings |
+
+### Daily Life & Material Culture
+
+| Document | Description |
+|----------|-------------|
+| [Culture & Daily Life](research/culture-daily-life.md) | Daily routines, hospitality, wakes, fairs, seasonal calendar |
+| [Food & Drink](research/food-drink.md) | Potato dependency, poitín, hearth cooking, the butter trade |
+| [Clothing & Textiles](research/clothing-textiles.md) | Frieze coats, red petticoats, homespun, linen/wool production |
+| [Architecture & Housing](research/architecture-housing.md) | Cabins, farmhouses, Big Houses, building materials, the hearth |
+
+### Economy & Work
+
+| Document | Description |
+|----------|-------------|
+| [Economy & Trade](research/economy-trade.md) | Rent system, market towns, cottage industry, smuggling |
+| [Farming & Agriculture](research/farming-agriculture.md) | Rundale system, spade cultivation, seasonal farming calendar |
+| [Technology & Crafts](research/technology-crafts.md) | Blacksmithing, thatching, turf cutting, spinning, milling |
+| [Transportation](research/transportation.md) | Walking, jaunting cars, stage coaches, canals, road conditions |
+
+### Power & Institutions
+
+| Document | Description |
+|----------|-------------|
+| [Law & Governance](research/law-governance.md) | Grand Jury system, magistrates, tithe system, policing |
+| [Politics & Movements](research/politics-movements.md) | O'Connell, Catholic emancipation, Orange Order, memory of 1798 |
+| [Crime & Secret Societies](research/crime-secret-societies.md) | Whiteboys, Ribbonmen, faction fighting, community vs crown justice |
+
+### Spiritual & Intellectual Life
+
+| Document | Description |
+|----------|-------------|
+| [Religion & Spirituality](research/religion-spirituality.md) | Catholic/Protestant dynamics, holy wells, folk-Catholic syncretism |
+| [Mythology & Folklore](research/mythology-folklore.md) | Fairy faith, sídhe, seasonal festivals, the Otherworld |
+| [Education & Literacy](research/education-literacy.md) | Hedge schools, oral tradition, literacy rates, scribal culture |
+| [Music & Entertainment](research/music-entertainment.md) | Instruments, sean-nós, storytelling, crossroads dances, hurling |
+
+### Health & Environment
+
+| Document | Description |
+|----------|-------------|
+| [Medicine & Health](research/medicine-health.md) | Folk healers, holy well cures, disease, dispensary system |
+| [Flora, Fauna & Landscape](research/flora-fauna-landscape.md) | Bogs, wildlife, seasonal changes, hedgerows, deforestation |
+
+### Historical Context
+
+| Document | Description |
+|----------|-------------|
+| [Recent History (Pre-1820)](research/recent-history-pre1820.md) | 1798 Rebellion, Act of Union, Napoleonic Wars, population explosion |
+| [Forthcoming Decades](research/forthcoming-decades.md) | Catholic Emancipation, Great Famine, mass emigration — for foreshadowing |
 
 ## Reference
 
