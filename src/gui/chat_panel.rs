@@ -8,12 +8,26 @@ use eframe::egui;
 
 use super::theme::GuiPalette;
 
+/// Optional loading animation display data for the chat panel.
+pub struct LoadingDisplay {
+    /// The animation text, e.g. `"✛ Consulting the sheep..."`.
+    pub text: String,
+    /// RGB color for the animation text.
+    pub color: egui::Color32,
+}
+
 /// Draws the chat panel showing the game text log.
 ///
 /// Uses `egui::ScrollArea` with `stick_to_bottom` for auto-scroll behavior.
 /// Each log entry is rendered as a separate paragraph with the palette's
-/// foreground color.
-pub fn draw_chat_panel(ui: &mut egui::Ui, text_log: &[String], palette: &GuiPalette) {
+/// foreground color. When `loading` is `Some`, appends an animated loading
+/// indicator after the last log entry.
+pub fn draw_chat_panel(
+    ui: &mut egui::Ui,
+    text_log: &[String],
+    palette: &GuiPalette,
+    loading: Option<&LoadingDisplay>,
+) {
     let frame = egui::Frame::new()
         .fill(palette.panel_bg)
         .inner_margin(egui::Margin::same(8))
@@ -44,6 +58,11 @@ pub fn draw_chat_panel(ui: &mut egui::Ui, text_log: &[String], palette: &GuiPale
                             ui.label(egui::RichText::new(entry).color(palette.fg).size(14.0));
                             ui.add_space(4.0);
                         }
+                    }
+
+                    // Show loading animation while waiting for inference
+                    if let Some(ld) = loading {
+                        ui.label(egui::RichText::new(&ld.text).color(ld.color).size(14.0));
                     }
                 });
         });
@@ -76,5 +95,15 @@ mod tests {
         ];
         assert_eq!(log.len(), 2);
         assert_ne!(palette.panel_bg, egui::Color32::TRANSPARENT);
+    }
+
+    #[test]
+    fn test_loading_display_struct() {
+        let ld = LoadingDisplay {
+            text: "✛ Pondering the craic...".to_string(),
+            color: egui::Color32::from_rgb(72, 199, 142),
+        };
+        assert!(ld.text.contains("Pondering"));
+        assert_eq!(ld.color, egui::Color32::from_rgb(72, 199, 142));
     }
 }

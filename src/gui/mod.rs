@@ -26,6 +26,7 @@ use crate::config::{CloudConfig, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input};
+use crate::loading::LoadingAnimation;
 use crate::npc::manager::{NpcManager, ScheduleEvent, ScheduleEventKind};
 use crate::npc::ticks;
 use crate::npc::{
@@ -119,6 +120,9 @@ pub struct GuiApp {
     /// Monotonic request counter.
     pub request_id: u64,
 
+    /// Loading animation state, active while waiting for LLM inference.
+    pub loading_animation: Option<LoadingAnimation>,
+
     // --- Timing ---
     /// Instant of last player interaction.
     pub last_interaction: std::time::Instant,
@@ -161,6 +165,7 @@ impl GuiApp {
             streaming_buf: Arc::new(Mutex::new(String::new())),
             streaming_active: Arc::new(Mutex::new(false)),
             pending_hints: Arc::new(Mutex::new(Vec::new())),
+            loading_animation: None,
             request_id: 0,
             last_interaction: std::time::Instant::now(),
             last_idle_tick: std::time::Instant::now(),
@@ -177,16 +182,26 @@ impl GuiApp {
     }
 
     /// Drains the streaming buffer into the text log.
+    ///
+    /// Clears the loading animation once real tokens arrive, or ticks
+    /// the animation while still waiting.
     fn drain_streaming_buffer(&mut self) {
         let active = *self.streaming_active.lock().unwrap();
         if active {
             let mut buf = self.streaming_buf.lock().unwrap();
             if !buf.is_empty() {
+                // Tokens arrived — clear loading animation
+                self.loading_animation = None;
                 if let Some(last) = self.world.text_log.last_mut() {
                     last.push_str(&buf);
                 }
                 buf.clear();
+            } else if let Some(anim) = &mut self.loading_animation {
+                anim.tick();
             }
+        } else {
+            // Streaming finished — ensure animation is cleared
+            self.loading_animation = None;
         }
 
         // Drain any pending Irish word hints from completed responses
@@ -609,6 +624,7 @@ impl GuiApp {
 
                 self.world.log(format!("{}: ", npc.name));
                 *self.streaming_active.lock().unwrap() = true;
+                self.loading_animation = Some(LoadingAnimation::new());
 
                 let buf_clone = Arc::clone(&self.streaming_buf);
                 let active_clone = Arc::clone(&self.streaming_active);
@@ -780,8 +796,20 @@ impl eframe::App for GuiApp {
         }
 
         // Central chat panel (fills remaining space)
+        let loading_display = self.loading_animation.as_ref().map(|anim| {
+            let (r, g, b) = anim.current_color_rgb();
+            chat_panel::LoadingDisplay {
+                text: anim.display_text(),
+                color: egui::Color32::from_rgb(r, g, b),
+            }
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
-            chat_panel::draw_chat_panel(ui, &self.world.text_log, &palette);
+            chat_panel::draw_chat_panel(
+                ui,
+                &self.world.text_log,
+                &palette,
+                loading_display.as_ref(),
+            );
         });
 
         // Process submitted input

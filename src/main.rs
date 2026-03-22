@@ -9,6 +9,7 @@ use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceClients, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
+use parish::loading::LoadingAnimation;
 use parish::npc::manager::NpcManager;
 use parish::npc::ticks;
 use parish::npc::{
@@ -252,6 +253,8 @@ async fn main() -> Result<()> {
             if active {
                 let mut buf = streaming_buf.lock().unwrap();
                 if !buf.is_empty() {
+                    // Tokens arrived — clear the loading animation
+                    app.loading_animation = None;
                     // Update the last log line (the streaming line) with new tokens
                     if let Some(last) = app.world.text_log.last_mut() {
                         last.push_str(&buf);
@@ -259,6 +262,11 @@ async fn main() -> Result<()> {
                     buf.clear();
                 }
             }
+        }
+
+        // Tick loading animation if active
+        if let Some(anim) = &mut app.loading_animation {
+            anim.tick();
         }
 
         // Idle simulation tick: advance world when player is idle
@@ -350,6 +358,7 @@ async fn main() -> Result<()> {
 
                                     app.world.log(format!("{}: ", npc.name));
                                     *streaming_active.lock().unwrap() = true;
+                                    app.loading_animation = Some(LoadingAnimation::new());
 
                                     let buf_clone = Arc::clone(&streaming_buf);
                                     let active_clone = Arc::clone(&streaming_active);
@@ -415,6 +424,8 @@ async fn main() -> Result<()> {
                                                 {
                                                     let mut buf = streaming_buf.lock().unwrap();
                                                     if !buf.is_empty() {
+                                                        // Tokens arrived — clear loading animation
+                                                        app.loading_animation = None;
                                                         if let Some(last) =
                                                             app.world.text_log.last_mut()
                                                         {
@@ -422,6 +433,11 @@ async fn main() -> Result<()> {
                                                         }
                                                         buf.clear();
                                                     }
+                                                }
+
+                                                // Tick loading animation if still waiting
+                                                if let Some(anim) = &mut app.loading_animation {
+                                                    anim.tick();
                                                 }
 
                                                 terminal
@@ -443,6 +459,7 @@ async fn main() -> Result<()> {
                                             };
 
                                             let _ = stream_handle.await;
+                                            app.loading_animation = None;
 
                                             {
                                                 let mut buf = streaming_buf.lock().unwrap();
