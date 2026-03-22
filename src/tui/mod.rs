@@ -192,6 +192,18 @@ pub struct App {
     pub base_url: String,
     /// API key for the current provider.
     pub api_key: Option<String>,
+    /// Cloud provider name for dialogue (None = local only).
+    pub cloud_provider_name: Option<String>,
+    /// Cloud model name for dialogue.
+    pub cloud_model_name: Option<String>,
+    /// Cloud client for dialogue inference.
+    pub cloud_client: Option<OpenAiClient>,
+    /// Cloud API key.
+    pub cloud_api_key: Option<String>,
+    /// Cloud base URL.
+    pub cloud_base_url: Option<String>,
+    /// The model name used by the dialogue inference queue.
+    pub dialogue_model: String,
 }
 
 impl App {
@@ -215,6 +227,12 @@ impl App {
             provider_name: String::from("ollama"),
             base_url: String::new(),
             api_key: None,
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_client: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            dialogue_model: String::new(),
         }
     }
 

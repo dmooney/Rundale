@@ -1,10 +1,13 @@
 use anyhow::Result;
 use clap::Parser;
-use parish::config::{CliOverrides, Provider, ProviderConfig, resolve_config};
+use parish::config::{
+    CliCloudOverrides, CliOverrides, CloudConfig, Provider, ProviderConfig, resolve_cloud_config,
+    resolve_config,
+};
 use parish::headless;
 use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
-use parish::inference::{self, InferenceQueue};
+use parish::inference::{self, InferenceClients, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
 use parish::npc::manager::NpcManager;
 use parish::npc::ticks;
@@ -57,6 +60,22 @@ struct Cli {
     /// Enable improv craft mode for NPC dialogue
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
+
+    /// Cloud LLM provider for player dialogue: openrouter (default), custom
+    #[arg(long, env = "PARISH_CLOUD_PROVIDER")]
+    cloud_provider: Option<String>,
+
+    /// Cloud LLM model name (required when cloud provider is set)
+    #[arg(long, env = "PARISH_CLOUD_MODEL")]
+    cloud_model: Option<String>,
+
+    /// Cloud LLM API base URL override
+    #[arg(long, env = "PARISH_CLOUD_BASE_URL")]
+    cloud_base_url: Option<String>,
+
+    /// Cloud LLM API key
+    #[arg(long, env = "PARISH_CLOUD_API_KEY")]
+    cloud_api_key: Option<String>,
 
     /// Run in GUI mode (windowed egui interface)
     #[arg(long)]
@@ -111,36 +130,59 @@ async fn main() -> Result<()> {
     };
     let provider_config = resolve_config(config_path, &overrides)?;
 
-    // Set up inference client based on provider
+    // Resolve cloud provider configuration (optional, for dialogue)
+    let cloud_overrides = CliCloudOverrides {
+        provider: cli.cloud_provider.clone(),
+        base_url: cli.cloud_base_url.clone(),
+        api_key: cli.cloud_api_key.clone(),
+        model: cli.cloud_model.clone(),
+    };
+    let cloud_config = resolve_cloud_config(config_path, &cloud_overrides)?;
+
+    // Set up local inference client based on provider
     let (client, model, mut ollama_process) = setup_provider(&cli, &provider_config).await?;
 
+    // Build dual-client routing struct
+    let clients = build_inference_clients(&client, &model, &cloud_config);
+
+    if cloud_config.is_some() {
+        tracing::info!(
+            "Cloud dialogue enabled: {:?} with model {}",
+            clients.cloud_model.as_deref().unwrap_or("?"),
+            clients.cloud_model.as_deref().unwrap_or("?")
+        );
+    }
+
     if cli.headless {
-        // Build OllamaSetup-compatible struct for headless mode
-        let setup = setup::OllamaSetup {
-            process: ollama_process,
-            client,
-            model_name: model,
-            gpu_info: setup::GpuInfo {
-                vendor: setup::GpuVendor::CpuOnly,
-                vram_total_mb: 0,
-                vram_free_mb: 0,
-            },
-        };
-        return headless::run_headless(setup).await;
+        let result = headless::run_headless(
+            clients.clone(),
+            &provider_config,
+            cloud_config.as_ref(),
+            cli.improv,
+        )
+        .await;
+        ollama_process.stop();
+        return result;
     }
 
     // GUI mode (windowed egui interface)
     if cli.gui {
-        let result = parish::gui::run_gui(client, model, &provider_config, cli.improv);
+        let result = parish::gui::run_gui(
+            clients.clone(),
+            &provider_config,
+            cloud_config.as_ref(),
+            cli.improv,
+        );
         ollama_process.stop();
         return result;
     }
 
     // TUI mode
 
-    // Initialize inference pipeline
+    // Initialize dialogue inference pipeline (uses cloud if configured, else local)
+    let (dial_client, dial_model) = clients.dialogue_client();
     let (tx, rx) = mpsc::channel(32);
-    let _worker = inference::spawn_inference_worker(client.clone(), rx);
+    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
     let queue = InferenceQueue::new(tx);
 
     // Initialize app — load parish data if available
@@ -156,12 +198,22 @@ async fn main() -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
-    app.client = Some(client);
-    app.model_name = model;
+    app.client = Some(clients.local.clone());
+    app.model_name = clients.local_model.clone();
+    app.dialogue_model = dial_model.to_string();
     app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = cli.improv;
+
+    // Set cloud fields if configured
+    if let Some(ref cc) = cloud_config {
+        app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
+        app.cloud_model_name = Some(cc.model.clone());
+        app.cloud_client = clients.cloud.clone();
+        app.cloud_api_key = cc.api_key.clone();
+        app.cloud_base_url = Some(cc.base_url.clone());
+    }
 
     // Load NPCs from data file
     let npcs_path = Path::new("data/npcs.json");
@@ -242,8 +294,10 @@ async fn main() -> Result<()> {
             match classify_input(&raw_input) {
                 InputResult::SystemCommand(cmd) => {
                     if handle_system_command(&mut app, cmd) {
-                        // Rebuild inference pipeline with new client
-                        if let Some(new_client) = app.client.clone() {
+                        // Rebuild dialogue inference pipeline
+                        // Use cloud client if available, otherwise local
+                        let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
+                        if let Some(new_client) = dial_client {
                             let (tx, rx) = mpsc::channel(32);
                             let _new_worker = inference::spawn_inference_worker(new_client, rx);
                             app.inference_queue = Some(InferenceQueue::new(tx));
@@ -251,10 +305,10 @@ async fn main() -> Result<()> {
                     }
                 }
                 InputResult::GameInput(text) => {
-                    // Always parse intent first so Move/Look work even with NPCs present
-                    let client_ref = app.client.clone().unwrap();
-                    let model_ref = app.model_name.clone();
-                    let intent = parse_intent(&client_ref, &text, &model_ref).await?;
+                    // Always parse intent first (uses local client for low latency)
+                    let (intent_client, intent_model) =
+                        (app.client.clone().unwrap(), app.model_name.clone());
+                    let intent = parse_intent(&intent_client, &text, &intent_model).await?;
 
                     match intent.intent {
                         parish::input::IntentKind::Move => {
@@ -349,7 +403,7 @@ async fn main() -> Result<()> {
                                     match queue
                                         .send(
                                             request_id,
-                                            app.model_name.clone(),
+                                            app.dialogue_model.clone(),
                                             context,
                                             Some(system_prompt),
                                             Some(token_tx),
@@ -530,6 +584,27 @@ async fn setup_provider(
     }
 }
 
+/// Builds the dual-client inference routing struct from local and cloud configs.
+fn build_inference_clients(
+    local_client: &OpenAiClient,
+    local_model: &str,
+    cloud_config: &Option<CloudConfig>,
+) -> InferenceClients {
+    let (cloud_client, cloud_model) = match cloud_config {
+        Some(cc) => {
+            let client = OpenAiClient::new(&cc.base_url, cc.api_key.as_deref());
+            (Some(client), Some(cc.model.clone()))
+        }
+        None => (None, None),
+    };
+    InferenceClients {
+        local: local_client.clone(),
+        local_model: local_model.to_string(),
+        cloud: cloud_client,
+        cloud_model,
+    }
+}
+
 /// Atmospheric idle messages shown when no NPC is present for conversation.
 const IDLE_MESSAGES: &[&str] = &[
     "The wind stirs, but nothing else.",
@@ -594,6 +669,8 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world
                 .log("  /key      — Show or change API key".to_string());
             app.world
+                .log("  /cloud    — Show or change cloud dialogue provider".to_string());
+            app.world
                 .log("  /debug    — Debug commands (try /debug help)".to_string());
             app.world.log("  /help     — Show this help".to_string());
             app.world
@@ -624,7 +701,12 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             }
         }
         Command::ShowProvider => {
-            app.world.log(format!("Provider: {}", app.provider_name));
+            if let Some(ref cloud) = app.cloud_provider_name {
+                app.world
+                    .log(format!("Local: {} | Cloud: {}", app.provider_name, cloud));
+            } else {
+                app.world.log(format!("Provider: {}", app.provider_name));
+            }
         }
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
@@ -690,6 +772,69 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
                     app.world.log(line);
                 }
             }
+        }
+        Command::ShowCloud => {
+            if let Some(ref provider) = app.cloud_provider_name {
+                let model = app.cloud_model_name.as_deref().unwrap_or("(none)");
+                app.world
+                    .log(format!("Cloud: {} | Model: {}", provider, model));
+            } else {
+                app.world.log(
+                    "No cloud provider configured. Use --cloud-provider or parish.toml [cloud]."
+                        .to_string(),
+                );
+            }
+        }
+        Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                let base_url = provider.default_base_url().to_string();
+                app.cloud_provider_name = Some(format!("{:?}", provider).to_lowercase());
+                app.cloud_base_url = Some(base_url.clone());
+                app.cloud_client = Some(OpenAiClient::new(&base_url, app.cloud_api_key.as_deref()));
+                rebuild_inference = true;
+                app.world.log(format!(
+                    "Cloud provider changed to {}.",
+                    app.cloud_provider_name.as_deref().unwrap()
+                ));
+            }
+            Err(e) => {
+                app.world.log(format!("{}", e));
+            }
+        },
+        Command::ShowCloudModel => {
+            if let Some(ref model) = app.cloud_model_name {
+                app.world.log(format!("Cloud model: {}", model));
+            } else {
+                app.world.log("Cloud model: (not set)".to_string());
+            }
+        }
+        Command::SetCloudModel(name) => {
+            app.cloud_model_name = Some(name.clone());
+            app.dialogue_model = name.clone();
+            app.world.log(format!("Cloud model changed to {}.", name));
+        }
+        Command::ShowCloudKey => match &app.cloud_api_key {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                app.world.log(format!("Cloud API key: {}", masked));
+            }
+            Some(_) => {
+                app.world
+                    .log("Cloud API key: (set, too short to mask)".to_string());
+            }
+            None => {
+                app.world.log("Cloud API key: (not set)".to_string());
+            }
+        },
+        Command::SetCloudKey(value) => {
+            app.cloud_api_key = Some(value);
+            let base_url = app
+                .cloud_base_url
+                .as_deref()
+                .unwrap_or("https://openrouter.ai/api");
+            app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
+            rebuild_inference = true;
+            app.world.log("Cloud API key updated.".to_string());
         }
     }
     app.world.log(String::new());

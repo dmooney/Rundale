@@ -52,6 +52,18 @@ pub enum Command {
     SetKey(String),
     /// Debug command with optional subcommand.
     Debug(Option<String>),
+    /// Show cloud provider info.
+    ShowCloud,
+    /// Change cloud provider at runtime.
+    SetCloudProvider(String),
+    /// Show cloud model name.
+    ShowCloudModel,
+    /// Change cloud model at runtime.
+    SetCloudModel(String),
+    /// Show cloud API key (masked).
+    ShowCloudKey,
+    /// Set cloud API key at runtime.
+    SetCloudKey(String),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -176,6 +188,41 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::Debug(None))
         } else {
             Some(Command::Debug(Some(sub)))
+        }
+    } else if lower == "/cloud" {
+        Some(Command::ShowCloud)
+    } else if lower.starts_with("/cloud ") {
+        let rest = trimmed[7..].trim();
+        let rest_lower = rest.to_lowercase();
+        if rest_lower.starts_with("provider ") {
+            let name = rest[9..].trim().to_string();
+            if name.is_empty() {
+                Some(Command::ShowCloud)
+            } else {
+                Some(Command::SetCloudProvider(name))
+            }
+        } else if rest_lower == "provider" {
+            Some(Command::ShowCloud)
+        } else if rest_lower.starts_with("model ") {
+            let name = rest[6..].trim().to_string();
+            if name.is_empty() {
+                Some(Command::ShowCloudModel)
+            } else {
+                Some(Command::SetCloudModel(name))
+            }
+        } else if rest_lower == "model" {
+            Some(Command::ShowCloudModel)
+        } else if rest_lower.starts_with("key ") {
+            let value = rest[4..].trim().to_string();
+            if value.is_empty() {
+                Some(Command::ShowCloudKey)
+            } else {
+                Some(Command::SetCloudKey(value))
+            }
+        } else if rest_lower == "key" {
+            Some(Command::ShowCloudKey)
+        } else {
+            Some(Command::ShowCloud)
         }
     } else {
         None
@@ -909,6 +956,62 @@ mod tests {
         assert_eq!(
             parse_system_command("/Provider OpenRouter"),
             Some(Command::SetProvider("OpenRouter".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_show() {
+        assert_eq!(parse_system_command("/cloud"), Some(Command::ShowCloud));
+    }
+
+    #[test]
+    fn test_parse_cloud_provider_set() {
+        assert_eq!(
+            parse_system_command("/cloud provider openrouter"),
+            Some(Command::SetCloudProvider("openrouter".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_model_show() {
+        assert_eq!(
+            parse_system_command("/cloud model"),
+            Some(Command::ShowCloudModel)
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_model_set() {
+        assert_eq!(
+            parse_system_command("/cloud model anthropic/claude-sonnet-4-20250514"),
+            Some(Command::SetCloudModel(
+                "anthropic/claude-sonnet-4-20250514".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_key_show() {
+        assert_eq!(
+            parse_system_command("/cloud key"),
+            Some(Command::ShowCloudKey)
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_key_set() {
+        assert_eq!(
+            parse_system_command("/cloud key sk-test-key"),
+            Some(Command::SetCloudKey("sk-test-key".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_unknown_subcommand() {
+        // Unknown subcommands show cloud status
+        assert_eq!(
+            parse_system_command("/cloud foobar"),
+            Some(Command::ShowCloud)
         );
     }
 }

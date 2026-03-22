@@ -20,6 +20,7 @@ This directory contains Architecture Decision Records (ADRs) for the Parish proj
 | [010](010-prompt-injection-defenses.md) | Prompt Injection Defenses | Accepted | 2026-03-18 |
 | [011](011-geo-tool-osm-pipeline.md) | Geo-Tool OSM Pipeline | Accepted | 2026-03-18 |
 | [012](012-documentation-hierarchy.md) | Hierarchical Documentation Organization | Accepted | 2026-03-22 |
+| [013](013-cloud-llm-dialogue.md) | Cloud LLM for Player Dialogue | Accepted | 2026-03-22 |
 
 ## ADR Template
 

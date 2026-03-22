@@ -401,6 +401,16 @@ impl GameTestHarness {
                     response: lines.join("\n"),
                 }
             }
+            Command::ShowCloud
+            | Command::SetCloudProvider(_)
+            | Command::ShowCloudModel
+            | Command::SetCloudModel(_)
+            | Command::ShowCloudKey
+            | Command::SetCloudKey(_) => {
+                let msg = "Cloud commands not available in test mode.".to_string();
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
         }
     }
 

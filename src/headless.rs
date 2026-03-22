@@ -4,10 +4,9 @@
 //! (NPC inference, intent parsing, system commands) as the TUI mode.
 //! Activated with `--headless` on the command line.
 
-use crate::config::Provider;
+use crate::config::{CloudConfig, Provider, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
-use crate::inference::setup::OllamaSetup;
-use crate::inference::{self, InferenceQueue};
+use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
 use crate::npc::manager::NpcManager;
 use crate::npc::ticks;
@@ -24,26 +23,35 @@ use tokio::sync::mpsc;
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///
-/// Sets up the inference pipeline, initializes the game world with
-/// the test NPC, and enters a read-eval-print loop. Each line of
-/// input is processed identically to TUI mode.
-pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
-    let OllamaSetup {
-        process: _process,
-        client,
-        model_name,
-        gpu_info,
-    } = setup;
-
+/// Sets up the inference pipeline with dual-client routing: cloud client
+/// for dialogue, local client for intent parsing. Falls back to local
+/// for everything if no cloud provider is configured.
+pub async fn run_headless(
+    clients: InferenceClients,
+    provider_config: &ProviderConfig,
+    cloud_config: Option<&CloudConfig>,
+    improv: bool,
+) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
-    println!("GPU: {}", gpu_info);
-    println!("Model: {}", model_name);
+    println!(
+        "Local: {} ({})",
+        clients.local_model,
+        provider_config.provider_display()
+    );
+    if clients.has_cloud() {
+        println!(
+            "Cloud: {} (dialogue)",
+            clients.cloud_model.as_deref().unwrap_or("?")
+        );
+    }
     println!("Type /help for commands, /quit to exit.");
     println!();
 
-    // Initialize inference pipeline
+    // Initialize dialogue inference pipeline (cloud if configured, else local)
+    let (dial_client, dial_model) = clients.dialogue_client();
+    let dialogue_model = dial_model.to_string();
     let (tx, rx) = mpsc::channel(32);
-    let _worker = inference::spawn_inference_worker(client.clone(), rx);
+    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
     let queue = InferenceQueue::new(tx);
 
     // Initialize app state — load parish data if available
@@ -57,9 +65,22 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
-    app.client = Some(client.clone());
-    app.model_name = model_name.clone();
-    app.base_url = client.base_url().to_string();
+    app.client = Some(clients.local.clone());
+    app.model_name = clients.local_model.clone();
+    app.dialogue_model = dialogue_model;
+    app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
+    app.base_url = provider_config.base_url.clone();
+    app.api_key = provider_config.api_key.clone();
+    app.improv_enabled = improv;
+
+    // Set cloud fields if configured
+    if let Some(cc) = cloud_config {
+        app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
+        app.cloud_model_name = Some(cc.model.clone());
+        app.cloud_client = clients.cloud.clone();
+        app.cloud_api_key = cc.api_key.clone();
+        app.cloud_base_url = Some(cc.base_url.clone());
+    }
 
     // Load NPCs from data file
     let npcs_path = Path::new("data/npcs.json");
@@ -97,19 +118,30 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
                 let (quit, rebuild) = handle_headless_command(&mut app, cmd);
-                if rebuild && let Some(new_client) = app.client.clone() {
-                    let (tx, rx) = mpsc::channel(32);
-                    let _new_worker = inference::spawn_inference_worker(new_client, rx);
-                    app.inference_queue = Some(InferenceQueue::new(tx));
+                if rebuild {
+                    // Rebuild dialogue queue: prefer cloud client, fall back to local
+                    let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
+                    if let Some(new_client) = dial_client {
+                        let (tx, rx) = mpsc::channel(32);
+                        let _new_worker = inference::spawn_inference_worker(new_client, rx);
+                        app.inference_queue = Some(InferenceQueue::new(tx));
+                    }
                 }
                 if quit {
                     break;
                 }
             }
             InputResult::GameInput(text) => {
-                let c = app.client.clone().unwrap();
-                let m = app.model_name.clone();
-                handle_headless_game_input(&mut app, &c, &m, &text, &mut request_id).await?;
+                let intent_client = app.client.clone().unwrap();
+                let intent_model = app.model_name.clone();
+                handle_headless_game_input(
+                    &mut app,
+                    &intent_client,
+                    &intent_model,
+                    &text,
+                    &mut request_id,
+                )
+                .await?;
             }
         }
 
@@ -186,9 +218,10 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
-            println!("  /provider - Show or change LLM provider");
-            println!("  /model    - Show or change model name");
-            println!("  /key      - Show or change API key");
+            println!("  /provider - Show or change local LLM provider");
+            println!("  /model    - Show or change local model name");
+            println!("  /key      - Show or change local API key");
+            println!("  /cloud    - Show or change cloud dialogue provider");
             println!("  /help     - Show this help");
             println!("  /save     - Save game (not yet arrived)");
             println!("  /fork <n> - Fork save (not yet arrived)");
@@ -206,7 +239,11 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             }
         }
         Command::ShowProvider => {
-            println!("Provider: {}", app.provider_name);
+            if let Some(ref cloud) = app.cloud_provider_name {
+                println!("Local: {} | Cloud: {}", app.provider_name, cloud);
+            } else {
+                println!("Provider: {}", app.provider_name);
+            }
         }
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
@@ -257,6 +294,66 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             for line in lines {
                 println!("{}", line);
             }
+        }
+        Command::ShowCloud => {
+            if let Some(ref provider) = app.cloud_provider_name {
+                let model = app.cloud_model_name.as_deref().unwrap_or("(none)");
+                println!("Cloud: {} | Model: {}", provider, model);
+            } else {
+                println!(
+                    "No cloud provider configured. Use --cloud-provider or parish.toml [cloud]."
+                );
+            }
+        }
+        Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                let base_url = provider.default_base_url().to_string();
+                app.cloud_provider_name = Some(format!("{:?}", provider).to_lowercase());
+                app.cloud_base_url = Some(base_url.clone());
+                app.cloud_client = Some(OpenAiClient::new(&base_url, app.cloud_api_key.as_deref()));
+                rebuild = true;
+                println!(
+                    "Cloud provider changed to {}.",
+                    app.cloud_provider_name.as_deref().unwrap()
+                );
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
+        },
+        Command::ShowCloudModel => {
+            if let Some(ref model) = app.cloud_model_name {
+                println!("Cloud model: {}", model);
+            } else {
+                println!("Cloud model: (not set)");
+            }
+        }
+        Command::SetCloudModel(name) => {
+            app.cloud_model_name = Some(name.clone());
+            app.dialogue_model = name.clone();
+            println!("Cloud model changed to {}.", name);
+        }
+        Command::ShowCloudKey => match &app.cloud_api_key {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                println!("Cloud API key: {}", masked);
+            }
+            Some(_) => {
+                println!("Cloud API key: (set, too short to mask)");
+            }
+            None => {
+                println!("Cloud API key: (not set)");
+            }
+        },
+        Command::SetCloudKey(value) => {
+            app.cloud_api_key = Some(value);
+            let base_url = app
+                .cloud_base_url
+                .as_deref()
+                .unwrap_or("https://openrouter.ai/api");
+            app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
+            rebuild = true;
+            println!("Cloud API key updated.");
         }
     }
     (false, rebuild)
@@ -310,7 +407,7 @@ async fn handle_headless_game_input(
                     match queue
                         .send(
                             *request_id,
-                            model.to_string(),
+                            app.dialogue_model.clone(),
                             context,
                             Some(system_prompt),
                             Some(token_tx),

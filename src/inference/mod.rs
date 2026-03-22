@@ -86,6 +86,54 @@ impl InferenceQueue {
     }
 }
 
+/// Holds both local and cloud LLM clients for request routing.
+///
+/// The local client is used for Tier 2 background NPC simulation and intent parsing.
+/// The cloud client (if configured) is used for Tier 1 player-facing dialogue.
+/// Falls back to local if no cloud client is configured.
+#[derive(Clone)]
+pub struct InferenceClients {
+    /// Local client (Ollama/LM Studio) for background tasks and intent parsing.
+    pub local: OpenAiClient,
+    /// Local model name (e.g. "qwen3:14b").
+    pub local_model: String,
+    /// Cloud client for player dialogue (None = use local for everything).
+    pub cloud: Option<OpenAiClient>,
+    /// Cloud model name (e.g. "anthropic/claude-sonnet-4-20250514").
+    pub cloud_model: Option<String>,
+}
+
+impl InferenceClients {
+    /// Returns the client and model to use for player dialogue (Tier 1).
+    ///
+    /// Prefers cloud if configured, falls back to local.
+    pub fn dialogue_client(&self) -> (&OpenAiClient, &str) {
+        match (&self.cloud, &self.cloud_model) {
+            (Some(client), Some(model)) => (client, model),
+            _ => (&self.local, &self.local_model),
+        }
+    }
+
+    /// Returns the client and model to use for background NPC simulation (Tier 2).
+    ///
+    /// Always uses the local client.
+    pub fn simulation_client(&self) -> (&OpenAiClient, &str) {
+        (&self.local, &self.local_model)
+    }
+
+    /// Returns the client and model to use for intent parsing.
+    ///
+    /// Always uses the local client for low-latency structured output.
+    pub fn intent_client(&self) -> (&OpenAiClient, &str) {
+        (&self.local, &self.local_model)
+    }
+
+    /// Whether a cloud provider is configured for dialogue.
+    pub fn has_cloud(&self) -> bool {
+        self.cloud.is_some() && self.cloud_model.is_some()
+    }
+}
+
 /// Spawns the inference worker task.
 ///
 /// The worker pulls requests from the mpsc receiver, calls the LLM
@@ -220,5 +268,62 @@ mod tests {
         };
         let debug = format!("{:?}", response);
         assert!(debug.contains("hello"));
+    }
+
+    #[test]
+    fn test_inference_clients_dialogue_uses_cloud() {
+        let local = OpenAiClient::new("http://localhost:11434", None);
+        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
+        let clients = InferenceClients {
+            local,
+            local_model: "qwen3:14b".to_string(),
+            cloud: Some(cloud),
+            cloud_model: Some("anthropic/claude-sonnet-4-20250514".to_string()),
+        };
+        let (_client, model) = clients.dialogue_client();
+        assert_eq!(model, "anthropic/claude-sonnet-4-20250514");
+        assert!(clients.has_cloud());
+    }
+
+    #[test]
+    fn test_inference_clients_dialogue_falls_back_to_local() {
+        let local = OpenAiClient::new("http://localhost:11434", None);
+        let clients = InferenceClients {
+            local,
+            local_model: "qwen3:14b".to_string(),
+            cloud: None,
+            cloud_model: None,
+        };
+        let (_client, model) = clients.dialogue_client();
+        assert_eq!(model, "qwen3:14b");
+        assert!(!clients.has_cloud());
+    }
+
+    #[test]
+    fn test_inference_clients_simulation_always_local() {
+        let local = OpenAiClient::new("http://localhost:11434", None);
+        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
+        let clients = InferenceClients {
+            local,
+            local_model: "qwen3:14b".to_string(),
+            cloud: Some(cloud),
+            cloud_model: Some("gpt-4".to_string()),
+        };
+        let (_client, model) = clients.simulation_client();
+        assert_eq!(model, "qwen3:14b");
+    }
+
+    #[test]
+    fn test_inference_clients_intent_always_local() {
+        let local = OpenAiClient::new("http://localhost:11434", None);
+        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
+        let clients = InferenceClients {
+            local,
+            local_model: "qwen3:14b".to_string(),
+            cloud: Some(cloud),
+            cloud_model: Some("gpt-4".to_string()),
+        };
+        let (_client, model) = clients.intent_client();
+        assert_eq!(model, "qwen3:14b");
     }
 }

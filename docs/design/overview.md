@@ -160,6 +160,35 @@ model = "anthropic/claude-sonnet-4-20250514"
 CLI: `--provider`, `--base-url`, `--api-key`, `--model`
 Env: `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`
 
+### Dual-Client Architecture: Cloud Dialogue + Local Simulation
+
+Parish supports an optional **cloud LLM provider** for player-facing Tier 1 dialogue while keeping local inference for background NPC simulation and intent parsing (see [ADR-013](../adr/013-cloud-llm-dialogue.md)):
+
+| Inference Type | Client | Default |
+|---|---|---|
+| Tier 1 dialogue (player-facing) | Cloud (if configured) | Local fallback |
+| Tier 2 simulation (NPC background) | Local (always) | Ollama |
+| Intent parsing | Local (always) | Ollama |
+
+Cloud provider is configured independently via `[cloud]` TOML section:
+
+```toml
+[provider]
+name = "ollama"
+
+[cloud]
+name = "openrouter"
+api_key = "sk-or-..."
+model = "anthropic/claude-sonnet-4-20250514"
+```
+
+CLI: `--cloud-provider`, `--cloud-base-url`, `--cloud-api-key`, `--cloud-model`
+Env: `PARISH_CLOUD_PROVIDER`, `PARISH_CLOUD_BASE_URL`, `PARISH_CLOUD_API_KEY`, `PARISH_CLOUD_MODEL`
+
+Runtime commands: `/cloud`, `/cloud model <name>`, `/cloud key <key>`, `/cloud provider <name>`
+
+The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests to the correct client via `dialogue_client()`, `simulation_client()`, and `intent_client()` methods.
+
 ### Ollama Bootstrap & GPU Detection (Default Path)
 
 When using the Ollama provider (the default), Parish runs a self-contained setup sequence (see `src/inference/setup.rs`):

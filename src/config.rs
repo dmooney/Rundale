@@ -84,11 +84,43 @@ pub struct ProviderConfig {
     pub model: Option<String>,
 }
 
+/// Resolved cloud provider configuration for player-facing dialogue.
+///
+/// Present only when a cloud provider has been explicitly configured
+/// via TOML `[cloud]` section, `PARISH_CLOUD_*` env vars, or `--cloud-*` CLI flags.
+/// When absent, all inference (including dialogue) uses the local provider.
+#[derive(Debug, Clone)]
+pub struct CloudConfig {
+    /// The cloud provider backend (typically OpenRouter).
+    pub provider: Provider,
+    /// Base URL for the cloud API.
+    pub base_url: String,
+    /// API key for the cloud provider.
+    pub api_key: Option<String>,
+    /// Model name (required for cloud providers).
+    pub model: String,
+}
+
+/// CLI-provided overrides for cloud provider configuration.
+#[derive(Debug, Default)]
+pub struct CliCloudOverrides {
+    /// `--cloud-provider` flag value.
+    pub provider: Option<String>,
+    /// `--cloud-base-url` flag value.
+    pub base_url: Option<String>,
+    /// `--cloud-api-key` flag value.
+    pub api_key: Option<String>,
+    /// `--cloud-model` flag value.
+    pub model: Option<String>,
+}
+
 /// Raw TOML file structure for `parish.toml`.
 #[derive(Debug, Deserialize, Default)]
 struct TomlConfig {
     #[serde(default)]
     provider: TomlProvider,
+    #[serde(default)]
+    cloud: TomlCloud,
 }
 
 /// The `[provider]` section of the TOML config.
@@ -104,6 +136,19 @@ struct TomlProvider {
     model: Option<String>,
 }
 
+/// The `[cloud]` section of the TOML config for cloud dialogue provider.
+#[derive(Debug, Deserialize, Default)]
+struct TomlCloud {
+    /// Provider name: "openrouter", "custom", etc.
+    name: Option<String>,
+    /// Base URL override.
+    base_url: Option<String>,
+    /// API key for cloud provider.
+    api_key: Option<String>,
+    /// Model name (required for cloud).
+    model: Option<String>,
+}
+
 /// CLI-provided overrides for provider configuration.
 #[derive(Debug, Default)]
 pub struct CliOverrides {
@@ -115,6 +160,13 @@ pub struct CliOverrides {
     pub api_key: Option<String>,
     /// `--model` flag value.
     pub model: Option<String>,
+}
+
+impl ProviderConfig {
+    /// Returns a display-friendly provider name.
+    pub fn provider_display(&self) -> String {
+        format!("{:?}", self.provider).to_lowercase()
+    }
 }
 
 /// Resolves provider configuration from file, env vars, and CLI flags.
@@ -220,6 +272,114 @@ pub fn resolve_config(
     })
 }
 
+/// Resolves cloud provider configuration from file, env vars, and CLI flags.
+///
+/// Returns `None` if no cloud settings are present anywhere (backward compatible).
+/// Returns `Some(CloudConfig)` when at least one cloud setting is configured.
+/// The model name is required for cloud providers.
+///
+/// Resolution order (later overrides earlier):
+/// 1. TOML `[cloud]` section
+/// 2. Environment variables: `PARISH_CLOUD_PROVIDER`, `PARISH_CLOUD_BASE_URL`,
+///    `PARISH_CLOUD_API_KEY`, `PARISH_CLOUD_MODEL`
+/// 3. CLI flags via `CliCloudOverrides`
+pub fn resolve_cloud_config(
+    config_path: Option<&Path>,
+    cli: &CliCloudOverrides,
+) -> Result<Option<CloudConfig>, ParishError> {
+    // Layer 1: Read TOML file (reuse same file as local config)
+    let toml_cfg = if let Some(path) = config_path {
+        read_toml_config(path)?
+    } else {
+        let cwd_path = Path::new("parish.toml");
+        if cwd_path.exists() {
+            read_toml_config(cwd_path)?
+        } else {
+            TomlConfig::default()
+        }
+    };
+
+    // Layer 2: Start with TOML cloud values
+    let mut provider_str = toml_cfg.cloud.name;
+    let mut base_url = toml_cfg.cloud.base_url;
+    let mut api_key = toml_cfg.cloud.api_key;
+    let mut model = toml_cfg.cloud.model;
+
+    // Layer 3: Environment variables override TOML
+    if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") {
+        provider_str = Some(val);
+    }
+    if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
+        base_url = Some(val);
+    }
+    if let Some(val) = env_non_empty("PARISH_CLOUD_API_KEY") {
+        api_key = Some(val);
+    }
+    if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
+        model = Some(val);
+    }
+
+    // Layer 4: CLI flags override everything
+    if let Some(ref val) = cli.provider {
+        provider_str = Some(val.clone());
+    }
+    if let Some(ref val) = cli.base_url {
+        base_url = Some(val.clone());
+    }
+    if let Some(ref val) = cli.api_key {
+        api_key = Some(val.clone());
+    }
+    if let Some(ref val) = cli.model {
+        model = Some(val.clone());
+    }
+
+    // Filter out empty strings
+    let api_key = api_key.filter(|s| !s.is_empty());
+    let model = model.filter(|s| !s.is_empty());
+
+    // If nothing is configured, return None (backward compatible)
+    if provider_str.is_none() && base_url.is_none() && api_key.is_none() && model.is_none() {
+        return Ok(None);
+    }
+
+    // Resolve provider (default to OpenRouter for cloud)
+    let provider = match &provider_str {
+        Some(s) => Provider::from_str_loose(s)?,
+        None => Provider::OpenRouter,
+    };
+
+    // Apply default base URL if none specified
+    let base_url = base_url.unwrap_or_else(|| provider.default_base_url().to_string());
+
+    // Cloud providers require a model name
+    let model = model.ok_or_else(|| {
+        ParishError::Config(
+            "Cloud provider requires a model name. Set PARISH_CLOUD_MODEL or --cloud-model."
+                .to_string(),
+        )
+    })?;
+
+    // Validate
+    if provider.requires_api_key() && api_key.is_none() {
+        return Err(ParishError::Config(format!(
+            "Cloud {:?} provider requires an API key. Set PARISH_CLOUD_API_KEY or --cloud-api-key.",
+            provider
+        )));
+    }
+    if provider == Provider::Custom && base_url.is_empty() {
+        return Err(ParishError::Config(
+            "Cloud custom provider requires a base_url. Set PARISH_CLOUD_BASE_URL or --cloud-base-url.".to_string(),
+        ));
+    }
+
+    Ok(Some(CloudConfig {
+        provider,
+        base_url,
+        api_key,
+        model,
+    }))
+}
+
 /// Returns the value of an environment variable if it exists and is non-empty.
 fn env_non_empty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
@@ -261,6 +421,10 @@ mod tests {
             std::env::remove_var("PARISH_OLLAMA_URL");
             std::env::remove_var("PARISH_API_KEY");
             std::env::remove_var("PARISH_MODEL");
+            std::env::remove_var("PARISH_CLOUD_PROVIDER");
+            std::env::remove_var("PARISH_CLOUD_BASE_URL");
+            std::env::remove_var("PARISH_CLOUD_API_KEY");
+            std::env::remove_var("PARISH_CLOUD_MODEL");
         }
     }
 
@@ -490,5 +654,159 @@ model = "toml-model"
         std::fs::write(&path, "[provider]\nname = \"ollama\"\n").unwrap();
         let config = read_toml_config(&path).unwrap();
         assert_eq!(config.provider.name.as_deref(), Some("ollama"));
+    }
+
+    // --- Cloud config tests ---
+
+    #[test]
+    fn test_resolve_cloud_config_none_when_not_configured() {
+        clear_parish_env();
+        let cli = CliCloudOverrides::default();
+        let result = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_from_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[provider]
+name = "ollama"
+
+[cloud]
+name = "openrouter"
+api_key = "sk-test"
+model = "anthropic/claude-sonnet-4-20250514"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+
+        let cli = CliCloudOverrides::default();
+        let config = resolve_cloud_config(Some(&path), &cli).unwrap().unwrap();
+        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.base_url, "https://openrouter.ai/api");
+        assert_eq!(config.api_key.as_deref(), Some("sk-test"));
+        assert_eq!(config.model, "anthropic/claude-sonnet-4-20250514");
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_from_cli() {
+        clear_parish_env();
+
+        let cli = CliCloudOverrides {
+            provider: Some("openrouter".to_string()),
+            base_url: None,
+            api_key: Some("sk-cli".to_string()),
+            model: Some("gpt-4".to_string()),
+        };
+        let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.api_key.as_deref(), Some("sk-cli"));
+        assert_eq!(config.model, "gpt-4");
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_requires_model() {
+        clear_parish_env();
+
+        let cli = CliCloudOverrides {
+            provider: Some("openrouter".to_string()),
+            base_url: None,
+            api_key: Some("sk-test".to_string()),
+            model: None,
+        };
+        let result = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("model"), "got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_openrouter_requires_api_key() {
+        clear_parish_env();
+
+        let cli = CliCloudOverrides {
+            provider: Some("openrouter".to_string()),
+            base_url: None,
+            api_key: None,
+            model: Some("claude-3".to_string()),
+        };
+        let result = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("API key"), "got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_defaults_to_openrouter() {
+        clear_parish_env();
+
+        // Only model + key, no explicit provider name
+        let cli = CliCloudOverrides {
+            provider: None,
+            base_url: None,
+            api_key: Some("sk-test".to_string()),
+            model: Some("my-model".to_string()),
+        };
+        let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.base_url, "https://openrouter.ai/api");
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_cli_overrides_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[cloud]
+name = "openrouter"
+api_key = "sk-toml"
+model = "toml-model"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+
+        let cli = CliCloudOverrides {
+            provider: None,
+            base_url: None,
+            api_key: None,
+            model: Some("cli-model".to_string()),
+        };
+        let config = resolve_cloud_config(Some(&path), &cli).unwrap().unwrap();
+        assert_eq!(config.model, "cli-model");
+        assert_eq!(config.api_key.as_deref(), Some("sk-toml"));
+    }
+
+    #[test]
+    fn test_resolve_cloud_config_ollama_no_key_needed() {
+        clear_parish_env();
+
+        let cli = CliCloudOverrides {
+            provider: Some("ollama".to_string()),
+            base_url: Some("http://remote-ollama:11434".to_string()),
+            api_key: None,
+            model: Some("llama3".to_string()),
+        };
+        let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
+            .unwrap()
+            .unwrap();
+        assert_eq!(config.provider, Provider::Ollama);
+        assert_eq!(config.base_url, "http://remote-ollama:11434");
+        assert_eq!(config.model, "llama3");
     }
 }
