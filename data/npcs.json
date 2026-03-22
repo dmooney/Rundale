@@ -1,0 +1,248 @@
+{
+    "npcs": [
+        {
+            "id": 1,
+            "name": "Padraig Darcy",
+            "age": 58,
+            "occupation": "Publican",
+            "personality": "A gruff but warm-hearted publican who has run Darcy's Pub for thirty years. Known for his dry wit, encyclopedic knowledge of local history, and tendency to offer unsolicited advice. He speaks with a thick Roscommon accent and peppers his speech with Irish phrases. Fiercely protective of his daughter Niamh, though he struggles to understand her restlessness.",
+            "home": 2,
+            "workplace": 2,
+            "mood": "content",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 6, "location": 2, "activity": "sleeping in the rooms above the pub"},
+                {"start_hour": 7, "end_hour": 8, "location": 1, "activity": "taking a morning walk at the crossroads"},
+                {"start_hour": 9, "end_hour": 22, "location": 2, "activity": "tending bar at the pub"},
+                {"start_hour": 23, "end_hour": 23, "location": 2, "activity": "closing up the pub"}
+            ],
+            "relationships": [
+                {"target_id": 8, "kind": "Family", "strength": 0.9},
+                {"target_id": 5, "kind": "Friend", "strength": 0.7},
+                {"target_id": 4, "kind": "Professional", "strength": 0.5},
+                {"target_id": 7, "kind": "Friend", "strength": 0.4}
+            ],
+            "knowledge": [
+                "Knows every family in the parish and their histories going back three generations.",
+                "Heard that the land agent is planning to raise rents again after the harvest.",
+                "Remembers when the old church roof collapsed in the storm of 1808.",
+                "Knows which roads flood in heavy rain and which paths are safe at night."
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Siobhan Murphy",
+            "age": 45,
+            "occupation": "Farmer",
+            "personality": "A practical, no-nonsense farmer who runs Murphy's Farm with quiet efficiency after her husband's passing three years ago. Respected for her hard work and fair dealing. She has little patience for gossip or idle talk, but shows unexpected tenderness with children and animals. Speaks plainly and directly.",
+            "home": 9,
+            "workplace": 9,
+            "mood": "determined",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 4, "location": 9, "activity": "sleeping at the farmhouse"},
+                {"start_hour": 5, "end_hour": 11, "location": 9, "activity": "working the farm — feeding livestock and tending fields"},
+                {"start_hour": 12, "end_hour": 13, "location": 13, "activity": "buying supplies at Connolly's Shop"},
+                {"start_hour": 14, "end_hour": 18, "location": 9, "activity": "afternoon farm work"},
+                {"start_hour": 19, "end_hour": 20, "location": 2, "activity": "having a quiet drink at Darcy's Pub"},
+                {"start_hour": 21, "end_hour": 23, "location": 9, "activity": "evening chores and rest"}
+            ],
+            "relationships": [
+                {"target_id": 5, "kind": "Neighbor", "strength": 0.6},
+                {"target_id": 4, "kind": "Professional", "strength": 0.4},
+                {"target_id": 6, "kind": "Friend", "strength": 0.5},
+                {"target_id": 3, "kind": "Professional", "strength": 0.3}
+            ],
+            "knowledge": [
+                "Knows the land better than anyone — which fields drain well, which are prone to blight.",
+                "Worried about the potato crop this year; the soil feels wrong.",
+                "Heard from a tinker that there is unrest in Galway over tithes.",
+                "Knows the fairies are said to cross Murphy's lower field on certain nights."
+            ]
+        },
+        {
+            "id": 3,
+            "name": "Fr. Declan Tierney",
+            "age": 62,
+            "occupation": "Parish Priest",
+            "personality": "A kind, thoughtful priest who has served the parish for twenty-five years. Educated at Maynooth, he walks the line between Church doctrine and the practical realities of his flock's lives. Known for his gentle sermons, his fondness for poetry, and his habit of quoting scripture in both Irish and Latin. He turns a diplomatic blind eye to hedge-school teaching and old customs.",
+            "home": 3,
+            "workplace": 3,
+            "mood": "contemplative",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 5, "location": 3, "activity": "sleeping in the parish house beside the church"},
+                {"start_hour": 6, "end_hour": 7, "location": 3, "activity": "saying morning Mass"},
+                {"start_hour": 8, "end_hour": 10, "location": 15, "activity": "visiting parishioners in Kilteevan Village"},
+                {"start_hour": 11, "end_hour": 13, "location": 3, "activity": "reading and parish correspondence"},
+                {"start_hour": 14, "end_hour": 16, "location": 1, "activity": "walking the parish roads, checking on the elderly"},
+                {"start_hour": 17, "end_hour": 18, "location": 3, "activity": "evening prayers"},
+                {"start_hour": 19, "end_hour": 21, "location": 2, "activity": "a quiet evening at Darcy's Pub"},
+                {"start_hour": 22, "end_hour": 23, "location": 3, "activity": "reading by candlelight"}
+            ],
+            "relationships": [
+                {"target_id": 1, "kind": "Friend", "strength": 0.6},
+                {"target_id": 6, "kind": "Professional", "strength": 0.5},
+                {"target_id": 7, "kind": "Friend", "strength": 0.3},
+                {"target_id": 2, "kind": "Professional", "strength": 0.4}
+            ],
+            "knowledge": [
+                "Receives letters from other parishes about the political situation in Dublin.",
+                "Knows that Daniel O'Connell is gaining support for Catholic Emancipation.",
+                "Aware that some parishioners still visit the fairy fort despite his gentle discouragement.",
+                "Has heard confessions that weigh on him — secrets he can never share."
+            ]
+        },
+        {
+            "id": 4,
+            "name": "Roisin Connolly",
+            "age": 38,
+            "occupation": "Shopkeeper",
+            "personality": "An ambitious and sharp-minded shopkeeper who runs Connolly's Shop with her mother. She dreams of expanding the business and establishing a proper trading post. Roisin has a talent for negotiation, a keen eye for opportunity, and a warm smile that masks a calculating mind. She collects news and gossip as currency.",
+            "home": 13,
+            "workplace": 13,
+            "mood": "alert",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 6, "location": 13, "activity": "sleeping above the shop"},
+                {"start_hour": 7, "end_hour": 8, "location": 13, "activity": "opening up and arranging stock"},
+                {"start_hour": 9, "end_hour": 17, "location": 13, "activity": "minding the shop"},
+                {"start_hour": 18, "end_hour": 19, "location": 1, "activity": "taking the evening air at the crossroads"},
+                {"start_hour": 20, "end_hour": 21, "location": 2, "activity": "socialising at Darcy's Pub"},
+                {"start_hour": 22, "end_hour": 23, "location": 13, "activity": "doing the accounts"}
+            ],
+            "relationships": [
+                {"target_id": 1, "kind": "Professional", "strength": 0.5},
+                {"target_id": 2, "kind": "Professional", "strength": 0.4},
+                {"target_id": 8, "kind": "Friend", "strength": 0.6},
+                {"target_id": 6, "kind": "Neighbor", "strength": 0.3}
+            ],
+            "knowledge": [
+                "Keeps track of every debt owed in the parish — knows who can pay and who cannot.",
+                "Has connections with merchants in Athlone who bring goods by barge.",
+                "Heard from a travelling salesman that linen prices are rising in Belfast.",
+                "Suspects the land agent is skimming from the rents he collects."
+            ]
+        },
+        {
+            "id": 5,
+            "name": "Tommy O'Brien",
+            "age": 70,
+            "occupation": "Retired Farmer",
+            "personality": "A legendary storyteller and the oldest man in the parish. Tommy has farmed O'Brien's land his whole life, now largely leaving the work to his sons. He holds the oral history of the parish in his memory — every ghost story, fairy tale, and family scandal. His mind is sharp even as his body slows. He speaks in long, winding stories that always have a point, eventually.",
+            "home": 10,
+            "workplace": null,
+            "mood": "reflective",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 6, "location": 10, "activity": "sleeping at the farmhouse"},
+                {"start_hour": 7, "end_hour": 9, "location": 10, "activity": "a slow breakfast and morning pipe"},
+                {"start_hour": 10, "end_hour": 12, "location": 1, "activity": "sitting at the crossroads watching the world go by"},
+                {"start_hour": 13, "end_hour": 14, "location": 2, "activity": "a midday pint and conversation at the pub"},
+                {"start_hour": 15, "end_hour": 17, "location": 11, "activity": "walking to the fairy fort, as he has done since boyhood"},
+                {"start_hour": 18, "end_hour": 20, "location": 2, "activity": "evening storytelling at Darcy's Pub"},
+                {"start_hour": 21, "end_hour": 23, "location": 10, "activity": "settling in for the night"}
+            ],
+            "relationships": [
+                {"target_id": 1, "kind": "Friend", "strength": 0.7},
+                {"target_id": 2, "kind": "Neighbor", "strength": 0.6},
+                {"target_id": 7, "kind": "Friend", "strength": 0.5},
+                {"target_id": 3, "kind": "Friend", "strength": 0.4}
+            ],
+            "knowledge": [
+                "Knows every fairy story and ghost tale in the parish — where the banshee was last heard, where the pooka runs.",
+                "Remembers the great frost of 1795 and the famine that followed.",
+                "Claims to have seen the each-uisce at Lough Ree when he was a boy.",
+                "Knows the old Irish names for every field, hill, and stream in the parish."
+            ]
+        },
+        {
+            "id": 6,
+            "name": "Aoife Brennan",
+            "age": 29,
+            "occupation": "Hedge School Teacher",
+            "personality": "An idealistic young teacher who runs the hedge school with fierce dedication. Educated by her father (a schoolmaster before her), she teaches reading, writing, arithmetic, and Irish to the children of the parish — all technically illegal under the Penal Laws. She is passionate about preserving Irish language and culture, brave to the point of recklessness, and carries a quiet anger about the injustices she sees.",
+            "home": 15,
+            "workplace": 6,
+            "mood": "passionate",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 5, "location": 15, "activity": "sleeping at her lodgings in Kilteevan"},
+                {"start_hour": 6, "end_hour": 7, "location": 15, "activity": "preparing lessons"},
+                {"start_hour": 8, "end_hour": 14, "location": 6, "activity": "teaching at the hedge school"},
+                {"start_hour": 15, "end_hour": 16, "location": 7, "activity": "walking by Lough Ree to clear her head"},
+                {"start_hour": 17, "end_hour": 18, "location": 15, "activity": "marking work and preparing for tomorrow"},
+                {"start_hour": 19, "end_hour": 20, "location": 2, "activity": "an evening at Darcy's Pub"},
+                {"start_hour": 21, "end_hour": 23, "location": 15, "activity": "reading by the fire"}
+            ],
+            "relationships": [
+                {"target_id": 8, "kind": "Friend", "strength": 0.7},
+                {"target_id": 3, "kind": "Professional", "strength": 0.5},
+                {"target_id": 2, "kind": "Friend", "strength": 0.5},
+                {"target_id": 4, "kind": "Neighbor", "strength": 0.3}
+            ],
+            "knowledge": [
+                "Knows the hedge school could be shut down at any time by the authorities.",
+                "Has been teaching children to read and write in Irish despite the law.",
+                "Heard that a new school inspector has been appointed for County Roscommon.",
+                "Corresponds secretly with other hedge school teachers across the county."
+            ]
+        },
+        {
+            "id": 7,
+            "name": "Mick Flanagan",
+            "age": 65,
+            "occupation": "Retired Constable",
+            "personality": "A retired constable who served in the local barracks for thirty years. Mick walks a careful line — he was a Catholic man enforcing Protestant law, and not everyone has forgiven him for it. He is deeply observant, notices everything, and keeps his own counsel. Despite his past role, he is fundamentally decent and now spends his days watching, walking, and occasionally offering cryptic warnings to those he trusts.",
+            "home": 15,
+            "workplace": null,
+            "mood": "watchful",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 6, "location": 15, "activity": "sleeping at his cottage in Kilteevan"},
+                {"start_hour": 7, "end_hour": 9, "location": 15, "activity": "morning routine and breakfast"},
+                {"start_hour": 10, "end_hour": 12, "location": 12, "activity": "walking the Bog Road, old patrol habit"},
+                {"start_hour": 13, "end_hour": 14, "location": 14, "activity": "sitting by the lime kiln, thinking"},
+                {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "watching the crossroads from the wall"},
+                {"start_hour": 18, "end_hour": 20, "location": 2, "activity": "nursing a pint at Darcy's Pub"},
+                {"start_hour": 21, "end_hour": 23, "location": 15, "activity": "home for the evening"}
+            ],
+            "relationships": [
+                {"target_id": 1, "kind": "Friend", "strength": 0.4},
+                {"target_id": 5, "kind": "Friend", "strength": 0.5},
+                {"target_id": 3, "kind": "Friend", "strength": 0.3},
+                {"target_id": 4, "kind": "Rival", "strength": -0.2}
+            ],
+            "knowledge": [
+                "Knows every smuggling route, poteen still, and hidden meeting place in the parish.",
+                "Has contacts in the barracks in Roscommon town who tell him things.",
+                "Noticed strangers passing through last month — men who asked too many questions.",
+                "Knows which families have Whiteboy connections, though he would never say."
+            ]
+        },
+        {
+            "id": 8,
+            "name": "Niamh Darcy",
+            "age": 22,
+            "occupation": "Publican's Daughter",
+            "personality": "Padraig's daughter, restless and bright, torn between duty to her father and a longing for the wider world. She helps at the pub but dreams of Dublin, or even America. She reads everything she can get her hands on, asks too many questions, and chafes at the limitations of parish life. Beneath her frustration is a deep love for the land and its people that she has not yet recognised in herself.",
+            "home": 2,
+            "workplace": 2,
+            "mood": "restless",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 6, "location": 2, "activity": "sleeping at the pub"},
+                {"start_hour": 7, "end_hour": 8, "location": 8, "activity": "walking by Hodson Bay, watching the boats"},
+                {"start_hour": 9, "end_hour": 12, "location": 2, "activity": "helping her father at the pub"},
+                {"start_hour": 13, "end_hour": 15, "location": 6, "activity": "visiting the hedge school to borrow books"},
+                {"start_hour": 16, "end_hour": 17, "location": 7, "activity": "reading by Lough Ree"},
+                {"start_hour": 18, "end_hour": 21, "location": 2, "activity": "serving at the pub in the evening"},
+                {"start_hour": 22, "end_hour": 23, "location": 2, "activity": "reading upstairs after closing"}
+            ],
+            "relationships": [
+                {"target_id": 1, "kind": "Family", "strength": 0.9},
+                {"target_id": 6, "kind": "Friend", "strength": 0.7},
+                {"target_id": 4, "kind": "Friend", "strength": 0.6},
+                {"target_id": 5, "kind": "Friend", "strength": 0.3}
+            ],
+            "knowledge": [
+                "Has read pamphlets about Catholic Emancipation smuggled in from Dublin.",
+                "Dreams of crossing the Atlantic to America like her uncle did.",
+                "Knows the pub's accounts better than her father does.",
+                "Has been secretly corresponding with a cousin in Galway about opportunities."
+            ]
+        }
+    ]
+}

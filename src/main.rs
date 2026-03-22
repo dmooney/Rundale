@@ -6,9 +6,10 @@ use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
 use parish::inference::{self, InferenceQueue};
 use parish::input::{Command, InputResult, classify_input, parse_intent};
+use parish::npc::manager::NpcManager;
+use parish::npc::ticks;
 use parish::npc::{
-    self, Npc, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
-    parse_npc_stream_response,
+    SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary, parse_npc_stream_response,
 };
 use parish::tui::{self, App};
 use parish::world::description::{format_exits, render_description};
@@ -18,6 +19,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 /// Parish — An Irish Living World Text Adventure
 #[derive(Parser, Debug)]
@@ -61,8 +64,18 @@ async fn main() -> Result<()> {
     // Load .env file if present (before anything reads env vars)
     dotenvy::dotenv().ok();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+    // Set up logging: file appender (always) + stderr (for non-TUI debugging)
+    std::fs::create_dir_all("logs").ok();
+    let file_appender = tracing_appender::rolling::daily("logs", "parish.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(non_blocking)
+                .with_ansi(false),
+        )
         .init();
 
     tracing::info!("Starting Parish...");
@@ -128,7 +141,19 @@ async fn main() -> Result<()> {
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = cli.improv;
-    app.npcs.push(Npc::new_test_npc());
+
+    // Load NPCs from data file
+    let npcs_path = Path::new("data/npcs.json");
+    if npcs_path.exists() {
+        match NpcManager::load_from_file(npcs_path) {
+            Ok(mgr) => app.npc_manager = mgr,
+            Err(e) => tracing::warn!("Failed to load NPC data: {}", e),
+        }
+    }
+
+    // Initial tier assignment
+    app.npc_manager
+        .assign_tiers(app.world.player_location, &app.world.graph);
 
     // Show initial location description
     show_location_arrival(&mut app);
@@ -140,6 +165,11 @@ async fn main() -> Result<()> {
     // Shared streaming state for the TUI render loop
     let streaming_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
     let streaming_active: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+
+    // Idle simulation: tick NPC schedules if no input for 20 seconds
+    let mut last_interaction = std::time::Instant::now();
+    let idle_tick_interval = Duration::from_secs(20);
+    let mut last_idle_tick = std::time::Instant::now();
 
     // Main game loop
     loop {
@@ -158,6 +188,23 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Idle simulation tick: advance world when player is idle
+        {
+            let is_streaming = *streaming_active.lock().unwrap();
+            let idle_elapsed = last_interaction.elapsed() >= idle_tick_interval;
+            let tick_due = last_idle_tick.elapsed() >= idle_tick_interval;
+
+            if !is_streaming && idle_elapsed && tick_due && !app.world.clock.is_paused() {
+                app.npc_manager
+                    .assign_tiers(app.world.player_location, &app.world.graph);
+                let events = app
+                    .npc_manager
+                    .tick_schedules(&app.world.clock, &app.world.graph);
+                process_schedule_events(&mut app, &events);
+                last_idle_tick = std::time::Instant::now();
+            }
+        }
+
         // Draw frame
         terminal.draw(|frame| tui::draw(frame, &mut app))?;
 
@@ -168,6 +215,7 @@ async fn main() -> Result<()> {
 
         // Handle input
         if let Some(raw_input) = tui::handle_input(&mut app, Duration::from_millis(100))? {
+            last_interaction = std::time::Instant::now();
             app.world.log(format!("> {}", raw_input));
 
             match classify_input(&raw_input) {
@@ -200,16 +248,24 @@ async fn main() -> Result<()> {
                         }
                         _ => {
                             // Route to NPC conversation if one is present
-                            let npc = app
-                                .npcs
-                                .iter()
-                                .find(|n| n.location == app.world.player_location)
-                                .cloned();
+                            let npcs_here = app.npc_manager.npcs_at(app.world.player_location);
+                            let npc = npcs_here.first().cloned().cloned();
 
                             if let Some(npc) = npc {
+                                let other_npcs: Vec<_> = app
+                                    .npc_manager
+                                    .npcs_at(app.world.player_location)
+                                    .into_iter()
+                                    .filter(|n| n.id != npc.id)
+                                    .collect();
                                 let system_prompt =
-                                    npc::build_tier1_system_prompt(&npc, app.improv_enabled);
-                                let context = npc::build_tier1_context(&npc, &app.world, &text);
+                                    ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
+                                let context = ticks::build_enhanced_context(
+                                    &npc,
+                                    &app.world,
+                                    &text,
+                                    &other_npcs,
+                                );
 
                                 if let Some(queue) = &app.inference_queue {
                                     request_id += 1;
@@ -386,6 +442,14 @@ async fn main() -> Result<()> {
                     app.world.log(String::new());
                 }
             }
+
+            // --- Simulation tick after each player action ---
+            app.npc_manager
+                .assign_tiers(app.world.player_location, &app.world.graph);
+            let schedule_events = app
+                .npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph);
+            process_schedule_events(&mut app, &schedule_events);
         }
     }
 
@@ -508,6 +572,8 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
                 .log("  /model    — Show or change model name".to_string());
             app.world
                 .log("  /key      — Show or change API key".to_string());
+            app.world
+                .log("  /debug    — Debug commands (try /debug help)".to_string());
             app.world.log("  /help     — Show this help".to_string());
             app.world
                 .log("  /save     — Save game (not yet arrived)".to_string());
@@ -587,6 +653,23 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
                 "That particular skill hasn't arrived in the parish yet. Patience now.".to_string(),
             );
         }
+        Command::Debug(sub) => {
+            // Handle panel toggle specially
+            if sub.as_deref() == Some("panel") {
+                app.debug_sidebar_visible = !app.debug_sidebar_visible;
+                let state = if app.debug_sidebar_visible {
+                    "visible"
+                } else {
+                    "hidden"
+                };
+                app.world.log(format!("Debug panel {}.", state));
+            } else {
+                let lines = parish::debug::handle_debug(sub.as_deref(), app);
+                for line in lines {
+                    app.world.log(line);
+                }
+            }
+        }
     }
     app.world.log(String::new());
     rebuild_inference
@@ -602,9 +685,9 @@ fn show_location_arrival(app: &mut App) {
         let tod = app.world.clock.time_of_day();
         let weather = app.world.weather.clone();
         let npc_names: Vec<&str> = app
-            .npcs
+            .npc_manager
+            .npcs_at(app.world.player_location)
             .iter()
-            .filter(|n| n.location == app.world.player_location)
             .map(|n| n.name.as_str())
             .collect();
         let desc = render_description(loc_data, tod, &weather, &npc_names);
@@ -615,10 +698,8 @@ fn show_location_arrival(app: &mut App) {
     }
 
     // Show NPCs present
-    for npc in &app.npcs {
-        if npc.location == app.world.player_location {
-            app.world.log(format!("{} is here.", npc.name));
-        }
+    for npc in app.npc_manager.npcs_at(app.world.player_location) {
+        app.world.log(format!("{} is here.", npc.name));
     }
 
     // Show exits
@@ -633,9 +714,9 @@ fn show_location_description(app: &mut App) {
         let tod = app.world.clock.time_of_day();
         let weather = app.world.weather.clone();
         let npc_names: Vec<&str> = app
-            .npcs
+            .npc_manager
+            .npcs_at(app.world.player_location)
             .iter()
-            .filter(|n| n.location == app.world.player_location)
             .map(|n| n.name.as_str())
             .collect();
         let desc = render_description(loc_data, tod, &weather, &npc_names);
@@ -700,6 +781,31 @@ fn handle_movement(app: &mut App, target: &str) {
             // Show available exits as a hint
             let exits = format_exits(app.world.player_location, &app.world.graph);
             app.world.log(exits);
+        }
+    }
+}
+
+/// Processes schedule events: logs to debug panel and shows player-visible
+/// messages for arrivals/departures at the player's current location.
+fn process_schedule_events(app: &mut App, events: &[parish::npc::manager::ScheduleEvent]) {
+    use parish::npc::manager::ScheduleEventKind;
+
+    let player_loc = app.world.player_location;
+
+    for event in events {
+        // Always feed to debug log
+        app.debug_event(event.debug_string());
+
+        // Show player-visible messages for events at their location
+        match &event.kind {
+            ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
+                app.world
+                    .log(format!("{} heads off down the road.", event.npc_name));
+            }
+            ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
+                app.world.log(format!("{} arrives.", event.npc_name));
+            }
+            _ => {}
         }
     }
 }

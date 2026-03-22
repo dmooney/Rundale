@@ -6,6 +6,26 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-21 — Phase 3: Multiple NPCs & Simulation
+
+Implemented Phase 3 in 6 batches:
+
+1. **Data structures**: `types.rs` (Relationship, DailySchedule, NpcState, CogTier, Tier2Event), `memory.rs` (ShortTermMemory ring buffer). Extended `Npc` struct with home, workplace, schedule, relationships, memory, knowledge, state.
+
+2. **NPC data**: `data/npcs.json` with 8 NPCs (Padraig Darcy, Siobhan Murphy, Fr. Declan Tierney, Roisin Connolly, Tommy O'Brien, Aoife Brennan, Mick Flanagan, Niamh Darcy). Loader hydrates bidirectional relationships.
+
+3. **NpcManager** (`manager.rs`): Central coordinator with BFS-based tier assignment, schedule-driven NPC movement (InTransit state), `npcs_at()` queries, Tier 2 grouping.
+
+4. **Tier ticks** (`ticks.rs`): Enhanced system prompts with relationship/knowledge context, enhanced context with memory and co-present NPCs. Tier 2 inference via `generate_json`. Snapshot-and-apply pattern for background Tier 2.
+
+5. **Overhear** (`overhear.rs`): Atmospheric messages for Tier 2 events 1 edge from player. Integrated NpcManager into App (replaced `Vec<Npc>`), updated main.rs, headless.rs, testing.rs.
+
+6. **Polish**: Updated all tests for new NPC names/locations, docs, roadmap.
+
+Key decisions: NpcManager owned by App (no Arc), Tier 2 uses non-streaming `generate_json`, overhear surfaces via text_log.
+
+---
+
 ## 2026-03-21 — Historical Setting, Pronunciation Sidebar, and Whimsy
 
 ### Changes this session

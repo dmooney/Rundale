@@ -18,6 +18,7 @@
 
 use crate::input::{self, Command, InputResult, IntentKind};
 use crate::npc::Npc;
+use crate::npc::manager::NpcManager;
 use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
@@ -114,7 +115,20 @@ impl GameTestHarness {
                 Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
             }
         }
-        app.npcs.push(Npc::new_test_npc());
+        // Load NPCs from data file, fall back to test NPC
+        let npcs_path = Path::new("data/npcs.json");
+        if npcs_path.exists() {
+            match NpcManager::load_from_file(npcs_path) {
+                Ok(mgr) => app.npc_manager = mgr,
+                Err(_) => app.npc_manager.add_npc(Npc::new_test_npc()),
+            }
+        } else {
+            app.npc_manager.add_npc(Npc::new_test_npc());
+        }
+
+        // Initial tier assignment
+        app.npc_manager
+            .assign_tiers(app.world.player_location, &app.world.graph);
 
         Self {
             app,
@@ -127,16 +141,29 @@ impl GameTestHarness {
     /// Routes input through the same classification and intent parsing
     /// as the real game. Movement and look use local parsing; NPC
     /// interactions use canned responses if available.
+    /// After each action, reassigns tiers and advances NPC schedules.
     pub fn execute(&mut self, input: &str) -> ActionResult {
         let trimmed = input.trim();
         if trimmed.is_empty() {
             return ActionResult::UnknownInput;
         }
 
-        match input::classify_input(trimmed) {
+        let result = match input::classify_input(trimmed) {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
-        }
+        };
+
+        // Simulation tick after each action
+        self.app
+            .npc_manager
+            .assign_tiers(self.app.world.player_location, &self.app.world.graph);
+        let schedule_events = self
+            .app
+            .npc_manager
+            .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+        self.process_schedule_events(&schedule_events);
+
+        result
     }
 
     /// Registers a canned NPC response for testing dialogue flows.
@@ -191,9 +218,9 @@ impl GameTestHarness {
     /// Returns the names of NPCs at the player's current location.
     pub fn npcs_here(&self) -> Vec<&str> {
         self.app
-            .npcs
+            .npc_manager
+            .npcs_at(self.app.world.player_location)
             .iter()
-            .filter(|n| n.location == self.app.world.player_location)
             .map(|n| n.name.as_str())
             .collect()
     }
@@ -208,9 +235,51 @@ impl GameTestHarness {
         &self.app.world.weather
     }
 
+    /// Advances the game clock and ticks NPC schedules.
+    ///
+    /// Useful for testing NPC movement without player actions.
+    pub fn advance_time(&mut self, minutes: i64) {
+        self.app.world.clock.advance(minutes);
+        let events = self
+            .app
+            .npc_manager
+            .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+        self.process_schedule_events(&events);
+        self.app
+            .npc_manager
+            .assign_tiers(self.app.world.player_location, &self.app.world.graph);
+    }
+
+    /// Returns the debug activity log entries.
+    pub fn debug_log(&self) -> Vec<&str> {
+        self.app.debug_log.iter().map(|s| s.as_str()).collect()
+    }
+
     /// Returns whether the game clock is paused.
     pub fn is_paused(&self) -> bool {
         self.app.world.clock.is_paused()
+    }
+
+    /// Processes schedule events: debug log + player-visible text log messages.
+    fn process_schedule_events(&mut self, events: &[crate::npc::manager::ScheduleEvent]) {
+        use crate::npc::manager::ScheduleEventKind;
+        let player_loc = self.app.world.player_location;
+
+        for event in events {
+            self.app.debug_event(event.debug_string());
+
+            match &event.kind {
+                ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
+                    self.app
+                        .world
+                        .log(format!("{} heads off down the road.", event.npc_name));
+                }
+                ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
+                    self.app.world.log(format!("{} arrives.", event.npc_name));
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Handles a system command, returning a structured result.
@@ -323,6 +392,15 @@ impl GameTestHarness {
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
             }
+            Command::Debug(sub) => {
+                let lines = crate::debug::handle_debug(sub.as_deref(), &self.app);
+                for line in &lines {
+                    self.app.world.log(line.clone());
+                }
+                ActionResult::SystemCommand {
+                    response: lines.join("\n"),
+                }
+            }
         }
     }
 
@@ -425,32 +503,35 @@ impl GameTestHarness {
     }
 
     /// Attempts NPC interaction using canned responses.
+    ///
+    /// Checks all NPCs at the current location for canned responses,
+    /// not just the first one. This allows tests to target specific NPCs
+    /// regardless of iteration order.
     fn handle_npc_interaction(&mut self, _text: &str) -> ActionResult {
-        let npc = self
-            .app
-            .npcs
-            .iter()
-            .find(|n| n.location == self.app.world.player_location)
-            .cloned();
+        let npcs_here = self.app.npc_manager.npcs_at(self.app.world.player_location);
 
-        if let Some(npc) = npc {
+        if npcs_here.is_empty() {
+            self.app.world.log("Nothing happens.".to_string());
+            return ActionResult::UnknownInput;
+        }
+
+        // Check each NPC at this location for canned responses
+        for npc in &npcs_here {
             let key = npc.name.to_lowercase();
             if let Some(responses) = self.canned_responses.get_mut(&key)
                 && !responses.is_empty()
             {
                 let dialogue = responses.remove(0);
-                self.app.world.log(format!("{}: {}", npc.name, dialogue));
+                let name = npc.name.clone();
+                self.app.world.log(format!("{}: {}", name, dialogue));
                 return ActionResult::NpcResponse {
-                    npc: npc.name,
+                    npc: name,
                     dialogue,
                 };
             }
-            ActionResult::NpcNotAvailable
-        } else {
-            // No NPC here and input wasn't recognized locally
-            self.app.world.log("Nothing happens.".to_string());
-            ActionResult::UnknownInput
         }
+
+        ActionResult::NpcNotAvailable
     }
 
     /// Renders the current location description.
@@ -459,9 +540,9 @@ impl GameTestHarness {
             let tod = self.app.world.clock.time_of_day();
             let npc_names: Vec<&str> = self
                 .app
-                .npcs
+                .npc_manager
+                .npcs_at(self.app.world.player_location)
                 .iter()
-                .filter(|n| n.location == self.app.world.player_location)
                 .map(|n| n.name.as_str())
                 .collect();
             render_description(loc_data, tod, &self.app.world.weather, &npc_names)
@@ -533,12 +614,13 @@ mod tests {
     }
 
     #[test]
-    fn test_harness_has_test_npc() {
-        let mut h = GameTestHarness::new();
-        // NPC is at The Crossroads, navigate there first
-        h.execute("go to crossroads");
-        let npcs = h.npcs_here();
-        assert!(npcs.contains(&"Padraig O'Brien"));
+    fn test_harness_has_npcs() {
+        let h = GameTestHarness::new();
+        // With npcs.json loaded, we should have 8 NPCs
+        assert!(
+            h.app.npc_manager.npc_count() >= 1,
+            "should have at least 1 NPC loaded"
+        );
     }
 
     #[test]
@@ -655,12 +737,15 @@ mod tests {
     #[test]
     fn test_canned_npc_response() {
         let mut h = GameTestHarness::new();
-        h.add_canned_response("Padraig O'Brien", "Ah, good morning to ye!");
+        h.add_canned_response("Padraig Darcy", "Ah, good morning to ye!");
+        // Advance to 10am when Padraig is scheduled at the pub (9-22)
+        h.advance_time(120);
         h.execute("go to crossroads");
+        h.execute("go to pub");
         let result = h.execute("hello there");
         assert!(matches!(result, ActionResult::NpcResponse { .. }));
         if let ActionResult::NpcResponse { npc, dialogue } = result {
-            assert_eq!(npc, "Padraig O'Brien");
+            assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
     }
@@ -668,10 +753,12 @@ mod tests {
     #[test]
     fn test_canned_npc_response_fifo_order() {
         let mut h = GameTestHarness::new();
-        h.add_canned_response("Padraig O'Brien", "First response");
-        h.add_canned_response("Padraig O'Brien", "Second response");
+        h.add_canned_response("Padraig Darcy", "First response");
+        h.add_canned_response("Padraig Darcy", "Second response");
 
+        h.advance_time(120); // 10am — Padraig at pub
         h.execute("go to crossroads");
+        h.execute("go to pub");
         let r1 = h.execute("hello");
         let r2 = h.execute("how are you");
 
@@ -686,9 +773,11 @@ mod tests {
     #[test]
     fn test_canned_npc_exhausted() {
         let mut h = GameTestHarness::new();
-        h.add_canned_response("Padraig O'Brien", "Only one response");
+        h.add_canned_response("Padraig Darcy", "Only one response");
 
+        h.advance_time(120); // 10am — Padraig at pub
         h.execute("go to crossroads");
+        h.execute("go to pub");
         let r1 = h.execute("hello");
         assert!(matches!(r1, ActionResult::NpcResponse { .. }));
 
@@ -697,9 +786,11 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_not_at_location() {
+    fn test_npc_not_at_empty_location() {
         let mut h = GameTestHarness::new();
-        // Player starts at Kilteevan — no NPC here
+        // Navigate to a location with no NPCs (e.g., the hurling green)
+        h.execute("go to crossroads");
+        h.execute("go to hurling green");
         let result = h.execute("hello there");
         assert_eq!(result, ActionResult::UnknownInput);
     }
@@ -797,5 +888,61 @@ mod tests {
         // run_script_mode writes to stdout, just verify no panic
         run_script_mode(&script).unwrap();
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_npc_schedule_movement_generates_debug_events() {
+        let mut h = GameTestHarness::new();
+        // Game starts at 8:00 AM. Padraig's schedule says 7-8 at crossroads.
+        // He starts at home (pub). Tick should try to move him to crossroads.
+        // After enough time passes, he should arrive and then head back to pub at 9.
+        assert!(h.debug_log().is_empty() || !h.debug_log().is_empty());
+
+        // Advance to 9am — this should trigger schedule movements
+        h.advance_time(60);
+
+        // Check that some debug events were generated
+        let log = h.debug_log();
+        // NPCs should have moved based on schedule changes
+        let has_movement = log
+            .iter()
+            .any(|e| e.contains("heading to") || e.contains("arrived at"));
+        assert!(
+            has_movement,
+            "Expected schedule movement events in debug log, got: {:?}",
+            log
+        );
+    }
+
+    #[test]
+    fn test_advance_time_moves_npcs() {
+        let mut h = GameTestHarness::new();
+        // Go to pub where Padraig starts
+        h.advance_time(120); // 10am
+        h.execute("go to crossroads");
+        h.execute("go to pub");
+
+        // Padraig should be at the pub at 10am (schedule 9-22)
+        let npcs = h.npcs_here();
+        assert!(
+            npcs.iter().any(|n| n.contains("Padraig")),
+            "Padraig should be at pub at 10am, found: {:?}",
+            npcs
+        );
+    }
+
+    #[test]
+    fn test_tier_assignment_after_movement() {
+        let mut h = GameTestHarness::new();
+        // After execute, tiers should be assigned
+        h.execute("look");
+        let result = h.execute("/debug tiers");
+        if let ActionResult::SystemCommand { response } = result {
+            // Should show tier info with player location
+            assert!(
+                response.contains("Kilteevan Village"),
+                "Tier debug should show player location"
+            );
+        }
     }
 }

@@ -3,11 +3,19 @@
 //! Handles terminal setup/teardown, the main render loop,
 //! and 24-bit true color palette shifts for time-of-day and weather.
 
+pub mod debug_panel;
+
+use std::collections::VecDeque;
+
 use crate::inference::InferenceQueue;
 use crate::inference::openai_client::OpenAiClient;
-use crate::npc::{IrishWordHint, Npc};
+use crate::npc::IrishWordHint;
+use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 use crate::world::time::TimeOfDay;
+
+/// Maximum number of entries in the debug activity log.
+pub const DEBUG_LOG_CAPACITY: usize = 50;
 
 use crossterm::ExecutableCommand;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -158,8 +166,8 @@ pub struct App {
     pub should_quit: bool,
     /// The inference queue for sending LLM requests (None if unavailable).
     pub inference_queue: Option<InferenceQueue>,
-    /// NPCs present in the world.
-    pub npcs: Vec<Npc>,
+    /// Central NPC manager — owns all NPCs and handles tier assignment.
+    pub npc_manager: NpcManager,
     /// Scroll state for the main text panel.
     pub scroll: ScrollState,
     /// Whether the Irish pronunciation sidebar is visible.
@@ -168,6 +176,10 @@ pub struct App {
     pub pronunciation_hints: Vec<IrishWordHint>,
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
+    /// Whether the debug sidebar panel is visible.
+    pub debug_sidebar_visible: bool,
+    /// Rolling activity log for the debug panel.
+    pub debug_log: VecDeque<String>,
     /// Counter for rotating idle messages.
     pub idle_counter: usize,
     /// The LLM client for inference requests.
@@ -190,11 +202,13 @@ impl App {
             input_buffer: String::new(),
             should_quit: false,
             inference_queue: None,
-            npcs: Vec::new(),
+            npc_manager: NpcManager::new(),
             scroll: ScrollState::new(),
             sidebar_visible: false,
             pronunciation_hints: Vec::new(),
             improv_enabled: false,
+            debug_sidebar_visible: false,
+            debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
             idle_counter: 0,
             client: None,
             model_name: String::new(),
@@ -202,6 +216,14 @@ impl App {
             base_url: String::new(),
             api_key: None,
         }
+    }
+
+    /// Pushes an entry to the debug activity log (ring buffer).
+    pub fn debug_event(&mut self, msg: String) {
+        if self.debug_log.len() >= DEBUG_LOG_CAPACITY {
+            self.debug_log.pop_front();
+        }
+        self.debug_log.push_back(msg);
     }
 }
 
@@ -277,8 +299,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .block(Block::default().borders(Borders::BOTTOM).style(base_style));
     frame.render_widget(top_bar, chunks[0]);
 
-    // Split main area horizontally if sidebar is visible
-    let (main_area, sidebar_area) = if app.sidebar_visible {
+    // Split main area horizontally if any sidebar is visible
+    let show_sidebar = app.sidebar_visible || app.debug_sidebar_visible;
+    let (main_area, sidebar_area) = if show_sidebar {
         let h_chunks = Layout::horizontal([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(chunks[1]);
         (h_chunks[0], Some(h_chunks[1]))
@@ -354,9 +377,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .block(block_title);
     frame.render_widget(main_panel, main_area);
 
-    // Sidebar: Irish pronunciation guide
+    // Sidebar: debug panel takes priority, then Irish pronunciation
     if let Some(sidebar) = sidebar_area {
-        draw_pronunciation_sidebar(frame, app, sidebar, &base_style, &accent_style);
+        if app.debug_sidebar_visible {
+            draw_debug_sidebar(frame, app, sidebar, &base_style, &accent_style);
+        } else {
+            draw_pronunciation_sidebar(frame, app, sidebar, &base_style, &accent_style);
+        }
     }
 
     // Input line
@@ -420,6 +447,9 @@ pub fn handle_input(app: &mut App, timeout: Duration) -> io::Result<Option<Strin
             KeyCode::Tab => {
                 app.sidebar_visible = !app.sidebar_visible;
             }
+            KeyCode::F(12) => {
+                app.debug_sidebar_visible = !app.debug_sidebar_visible;
+            }
             _ => {}
         }
     }
@@ -464,6 +494,31 @@ fn draw_pronunciation_sidebar(
             Block::default()
                 .borders(Borders::LEFT)
                 .title(" Focail — Words ")
+                .style(*base_style),
+        );
+    frame.render_widget(sidebar, area);
+}
+
+/// Draws the debug sidebar panel.
+///
+/// Shows live NPC state grouped by cognitive tier, with the game clock
+/// at the top. Toggled via F12 or `/debug panel`.
+fn draw_debug_sidebar(
+    frame: &mut Frame,
+    app: &App,
+    area: ratatui::layout::Rect,
+    base_style: &Style,
+    accent_style: &Style,
+) {
+    let lines = debug_panel::build_debug_lines(app, *accent_style, *base_style);
+
+    let sidebar = Paragraph::new(Text::from(lines))
+        .style(*base_style)
+        .wrap(Wrap { trim: false })
+        .block(
+            Block::default()
+                .borders(Borders::LEFT)
+                .title(" Debug ")
                 .style(*base_style),
         );
     frame.render_widget(sidebar, area);
@@ -523,7 +578,7 @@ mod tests {
         assert!(!app.should_quit);
         assert!(app.input_buffer.is_empty());
         assert!(app.inference_queue.is_none());
-        assert!(app.npcs.is_empty());
+        assert_eq!(app.npc_manager.npc_count(), 0);
         assert!(app.scroll.auto_scroll);
         assert_eq!(app.scroll.offset, 0);
         assert!(!app.sidebar_visible);
