@@ -79,6 +79,7 @@ src/
 - [Time System](time-system.md) — Day/night cycle, seasons, Irish calendar festivals
 - [Weather System](weather-system.md) — Weather as simulation driver, effects on NPCs and atmosphere
 - [TUI Design](tui-design.md) — Terminal UI layout, 24-bit true color palettes, time/weather visuals
+- [GUI Design](gui-design.md) — Windowed egui GUI with map, chat panel, sidebars, and color theming
 - [Player Input](player-input.md) — Natural language parsing, system commands
 - [Persistence](persistence.md) — Save system, WAL journal, git-like branching
 - [NPC System](npc-system.md) — Entity data model, context construction, gossip propagation
