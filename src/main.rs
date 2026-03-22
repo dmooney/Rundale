@@ -58,6 +58,9 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env file if present (before anything reads env vars)
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .init();
@@ -119,6 +122,11 @@ async fn main() -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
+    app.client = Some(client);
+    app.model_name = model;
+    app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
+    app.base_url = provider_config.base_url.clone();
+    app.api_key = provider_config.api_key.clone();
     app.improv_enabled = cli.improv;
     app.npcs.push(Npc::new_test_npc());
 
@@ -164,11 +172,20 @@ async fn main() -> Result<()> {
 
             match classify_input(&raw_input) {
                 InputResult::SystemCommand(cmd) => {
-                    handle_system_command(&mut app, cmd);
+                    if handle_system_command(&mut app, cmd) {
+                        // Rebuild inference pipeline with new client
+                        if let Some(new_client) = app.client.clone() {
+                            let (tx, rx) = mpsc::channel(32);
+                            let _new_worker = inference::spawn_inference_worker(new_client, rx);
+                            app.inference_queue = Some(InferenceQueue::new(tx));
+                        }
+                    }
                 }
                 InputResult::GameInput(text) => {
                     // Always parse intent first so Move/Look work even with NPCs present
-                    let intent = parse_intent(&client, &text, &model).await?;
+                    let client_ref = app.client.clone().unwrap();
+                    let model_ref = app.model_name.clone();
+                    let intent = parse_intent(&client_ref, &text, &model_ref).await?;
 
                     match intent.intent {
                         parish::input::IntentKind::Move => {
@@ -255,7 +272,7 @@ async fn main() -> Result<()> {
                                     match queue
                                         .send(
                                             request_id,
-                                            model.clone(),
+                                            app.model_name.clone(),
                                             context,
                                             Some(system_prompt),
                                             Some(token_tx),
@@ -440,7 +457,11 @@ const IDLE_MESSAGES: &[&str] = &[
 ];
 
 /// Handles a system command.
-fn handle_system_command(app: &mut App, cmd: Command) {
+///
+/// Returns `true` if the LLM provider config changed and the inference
+/// pipeline needs to be rebuilt.
+fn handle_system_command(app: &mut App, cmd: Command) -> bool {
+    let mut rebuild_inference = false;
     match cmd {
         Command::Quit => {
             app.world
@@ -481,6 +502,12 @@ fn handle_system_command(app: &mut App, cmd: Command) {
                 .log("  /irish    — Toggle the Irish words sidebar (or press Tab)".to_string());
             app.world
                 .log("  /improv   — Toggle improv craft for NPC dialogue".to_string());
+            app.world
+                .log("  /provider — Show or change LLM provider".to_string());
+            app.world
+                .log("  /model    — Show or change model name".to_string());
+            app.world
+                .log("  /key      — Show or change API key".to_string());
             app.world.log("  /help     — Show this help".to_string());
             app.world
                 .log("  /save     — Save game (not yet arrived)".to_string());
@@ -509,6 +536,52 @@ fn handle_system_command(app: &mut App, cmd: Command) {
                     .log("The characters settle back to their usual selves.".to_string());
             }
         }
+        Command::ShowProvider => {
+            app.world.log(format!("Provider: {}", app.provider_name));
+        }
+        Command::SetProvider(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                app.base_url = provider.default_base_url().to_string();
+                app.provider_name = format!("{:?}", provider).to_lowercase();
+                app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+                rebuild_inference = true;
+                app.world
+                    .log(format!("Provider changed to {}.", app.provider_name));
+            }
+            Err(e) => {
+                app.world.log(format!("{}", e));
+            }
+        },
+        Command::ShowModel => {
+            if app.model_name.is_empty() {
+                app.world.log("Model: (auto-detect)".to_string());
+            } else {
+                app.world.log(format!("Model: {}", app.model_name));
+            }
+        }
+        Command::SetModel(name) => {
+            app.model_name = name.clone();
+            app.world.log(format!("Model changed to {}.", name));
+        }
+        Command::ShowKey => match &app.api_key {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                app.world.log(format!("API key: {}", masked));
+            }
+            Some(_) => {
+                app.world
+                    .log("API key: (set, too short to mask)".to_string());
+            }
+            None => {
+                app.world.log("API key: (not set)".to_string());
+            }
+        },
+        Command::SetKey(value) => {
+            app.api_key = Some(value);
+            app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+            rebuild_inference = true;
+            app.world.log("API key updated.".to_string());
+        }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
             app.world.log(
                 "That particular skill hasn't arrived in the parish yet. Patience now.".to_string(),
@@ -516,6 +589,7 @@ fn handle_system_command(app: &mut App, cmd: Command) {
         }
     }
     app.world.log(String::new());
+    rebuild_inference
 }
 
 /// Shows the current location with description, NPCs, and exits.

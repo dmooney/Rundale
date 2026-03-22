@@ -269,6 +269,60 @@ impl GameTestHarness {
                     response: "Not yet implemented".to_string(),
                 }
             }
+            Command::ShowProvider => {
+                let msg = format!("Provider: {}", self.app.provider_name);
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::SetProvider(name) => {
+                use crate::config::Provider;
+                match Provider::from_str_loose(&name) {
+                    Ok(provider) => {
+                        self.app.base_url = provider.default_base_url().to_string();
+                        self.app.provider_name = format!("{:?}", provider).to_lowercase();
+                        let msg = format!("Provider changed to {}.", self.app.provider_name);
+                        self.app.world.log(msg.clone());
+                        ActionResult::SystemCommand { response: msg }
+                    }
+                    Err(e) => {
+                        let msg = format!("{}", e);
+                        self.app.world.log(msg.clone());
+                        ActionResult::SystemCommand { response: msg }
+                    }
+                }
+            }
+            Command::ShowModel => {
+                let msg = if self.app.model_name.is_empty() {
+                    "Model: (auto-detect)".to_string()
+                } else {
+                    format!("Model: {}", self.app.model_name)
+                };
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::SetModel(name) => {
+                self.app.model_name = name.clone();
+                let msg = format!("Model changed to {}.", name);
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::ShowKey => {
+                let msg = match &self.app.api_key {
+                    Some(key) if key.len() > 8 => {
+                        format!("API key: {}...{}", &key[..4], &key[key.len() - 4..])
+                    }
+                    Some(_) => "API key: (set, too short to mask)".to_string(),
+                    None => "API key: (not set)".to_string(),
+                };
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::SetKey(value) => {
+                self.app.api_key = Some(value);
+                let msg = "API key updated.".to_string();
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
         }
     }
 

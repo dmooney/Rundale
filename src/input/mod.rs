@@ -38,6 +38,18 @@ pub enum Command {
     ToggleSidebar,
     /// Toggle improv craft mode for NPC dialogue.
     ToggleImprov,
+    /// Show current LLM provider.
+    ShowProvider,
+    /// Change LLM provider at runtime.
+    SetProvider(String),
+    /// Show current model name.
+    ShowModel,
+    /// Change model name at runtime.
+    SetModel(String),
+    /// Show current API key (masked).
+    ShowKey,
+    /// Set API key at runtime.
+    SetKey(String),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -127,6 +139,33 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::ToggleSidebar)
     } else if lower == "/improv" {
         Some(Command::ToggleImprov)
+    } else if lower == "/provider" {
+        Some(Command::ShowProvider)
+    } else if lower.starts_with("/provider ") {
+        let name = trimmed[10..].trim().to_string();
+        if name.is_empty() {
+            Some(Command::ShowProvider)
+        } else {
+            Some(Command::SetProvider(name))
+        }
+    } else if lower == "/model" {
+        Some(Command::ShowModel)
+    } else if lower.starts_with("/model ") {
+        let name = trimmed[7..].trim().to_string();
+        if name.is_empty() {
+            Some(Command::ShowModel)
+        } else {
+            Some(Command::SetModel(name))
+        }
+    } else if lower == "/key" {
+        Some(Command::ShowKey)
+    } else if lower.starts_with("/key ") {
+        let value = trimmed[5..].trim().to_string();
+        if value.is_empty() {
+            Some(Command::ShowKey)
+        } else {
+            Some(Command::SetKey(value))
+        }
     } else {
         None
     }
@@ -798,5 +837,67 @@ mod tests {
     fn test_classify_improv_command() {
         let result = classify_input("/improv");
         assert_eq!(result, InputResult::SystemCommand(Command::ToggleImprov));
+    }
+
+    #[test]
+    fn test_parse_provider_show() {
+        assert_eq!(
+            parse_system_command("/provider"),
+            Some(Command::ShowProvider)
+        );
+        assert_eq!(
+            parse_system_command("/provider   "),
+            Some(Command::ShowProvider)
+        );
+    }
+
+    #[test]
+    fn test_parse_provider_set() {
+        assert_eq!(
+            parse_system_command("/provider openrouter"),
+            Some(Command::SetProvider("openrouter".to_string()))
+        );
+        assert_eq!(
+            parse_system_command("/provider  ollama "),
+            Some(Command::SetProvider("ollama".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_model_show() {
+        assert_eq!(parse_system_command("/model"), Some(Command::ShowModel));
+    }
+
+    #[test]
+    fn test_parse_model_set() {
+        assert_eq!(
+            parse_system_command("/model google/gemma-3-1b-it:free"),
+            Some(Command::SetModel("google/gemma-3-1b-it:free".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_key_show() {
+        assert_eq!(parse_system_command("/key"), Some(Command::ShowKey));
+    }
+
+    #[test]
+    fn test_parse_key_set() {
+        assert_eq!(
+            parse_system_command("/key sk-or-v1-abc123"),
+            Some(Command::SetKey("sk-or-v1-abc123".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_provider_case_insensitive() {
+        assert_eq!(
+            parse_system_command("/PROVIDER"),
+            Some(Command::ShowProvider)
+        );
+        assert_eq!(
+            parse_system_command("/Provider OpenRouter"),
+            Some(Command::SetProvider("OpenRouter".to_string()))
+        );
     }
 }

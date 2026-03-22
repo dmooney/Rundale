@@ -4,6 +4,7 @@
 //! and 24-bit true color palette shifts for time-of-day and weather.
 
 use crate::inference::InferenceQueue;
+use crate::inference::openai_client::OpenAiClient;
 use crate::npc::{IrishWordHint, Npc};
 use crate::world::WorldState;
 use crate::world::time::TimeOfDay;
@@ -169,6 +170,16 @@ pub struct App {
     pub improv_enabled: bool,
     /// Counter for rotating idle messages.
     pub idle_counter: usize,
+    /// The LLM client for inference requests.
+    pub client: Option<OpenAiClient>,
+    /// Current model name.
+    pub model_name: String,
+    /// Display name of the current provider.
+    pub provider_name: String,
+    /// Base URL for the current provider.
+    pub base_url: String,
+    /// API key for the current provider.
+    pub api_key: Option<String>,
 }
 
 impl App {
@@ -185,6 +196,11 @@ impl App {
             pronunciation_hints: Vec::new(),
             improv_enabled: false,
             idle_counter: 0,
+            client: None,
+            model_name: String::new(),
+            provider_name: String::from("ollama"),
+            base_url: String::new(),
+            api_key: None,
         }
     }
 }

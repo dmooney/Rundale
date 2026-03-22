@@ -4,6 +4,7 @@
 //! (NPC inference, intent parsing, system commands) as the TUI mode.
 //! Activated with `--headless` on the command line.
 
+use crate::config::Provider;
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::setup::OllamaSetup;
 use crate::inference::{self, InferenceQueue};
@@ -55,6 +56,9 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
+    app.client = Some(client.clone());
+    app.model_name = model_name.clone();
+    app.base_url = client.base_url().to_string();
     app.npcs.push(Npc::new_test_npc());
 
     // Show initial location
@@ -79,13 +83,20 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
 
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
-                if handle_headless_command(&mut app, cmd) {
+                let (quit, rebuild) = handle_headless_command(&mut app, cmd);
+                if rebuild && let Some(new_client) = app.client.clone() {
+                    let (tx, rx) = mpsc::channel(32);
+                    let _new_worker = inference::spawn_inference_worker(new_client, rx);
+                    app.inference_queue = Some(InferenceQueue::new(tx));
+                }
+                if quit {
                     break;
                 }
             }
             InputResult::GameInput(text) => {
-                handle_headless_game_input(&mut app, &client, &model_name, &text, &mut request_id)
-                    .await?;
+                let c = app.client.clone().unwrap();
+                let m = app.model_name.clone();
+                handle_headless_game_input(&mut app, &c, &m, &text, &mut request_id).await?;
             }
         }
 
@@ -117,22 +128,23 @@ const HEADLESS_IDLE_MESSAGES: &[&str] = &[
 static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-/// Handles a system command in headless mode. Returns true if the game should exit.
-fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
+/// Handles a system command in headless mode.
+///
+/// Returns `(should_quit, rebuild_inference)`.
+fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
+    let mut rebuild = false;
     match cmd {
         Command::Quit => {
             app.should_quit = true;
-            true
+            return (true, false);
         }
         Command::Pause => {
             app.world.clock.pause();
             println!("The clocks of the parish stand still.");
-            false
         }
         Command::Resume => {
             app.world.clock.resume();
             println!("Time stirs again in the parish.");
-            false
         }
         Command::Status => {
             let time = app.world.clock.time_of_day();
@@ -144,7 +156,6 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
                 ""
             };
             println!("Location: {} | {} | {}{}", loc, time, season, paused);
-            false
         }
         Command::Help => {
             println!("A few things ye might say:");
@@ -154,15 +165,16 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
+            println!("  /provider - Show or change LLM provider");
+            println!("  /model    - Show or change model name");
+            println!("  /key      - Show or change API key");
             println!("  /help     - Show this help");
             println!("  /save     - Save game (not yet arrived)");
             println!("  /fork <n> - Fork save (not yet arrived)");
             println!("  /load <n> - Load save (not yet arrived)");
-            false
         }
         Command::ToggleSidebar => {
             println!("The pronunciation sidebar is only available in TUI mode.");
-            false
         }
         Command::ToggleImprov => {
             app.improv_enabled = !app.improv_enabled;
@@ -171,13 +183,56 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
             } else {
                 println!("The characters settle back to their usual selves.");
             }
-            false
+        }
+        Command::ShowProvider => {
+            println!("Provider: {}", app.provider_name);
+        }
+        Command::SetProvider(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                app.base_url = provider.default_base_url().to_string();
+                app.provider_name = format!("{:?}", provider).to_lowercase();
+                app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+                rebuild = true;
+                println!("Provider changed to {}.", app.provider_name);
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
+        },
+        Command::ShowModel => {
+            if app.model_name.is_empty() {
+                println!("Model: (auto-detect)");
+            } else {
+                println!("Model: {}", app.model_name);
+            }
+        }
+        Command::SetModel(name) => {
+            app.model_name = name.clone();
+            println!("Model changed to {}.", name);
+        }
+        Command::ShowKey => match &app.api_key {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                println!("API key: {}", masked);
+            }
+            Some(_) => {
+                println!("API key: (set, too short to mask)");
+            }
+            None => {
+                println!("API key: (not set)");
+            }
+        },
+        Command::SetKey(value) => {
+            app.api_key = Some(value);
+            app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+            rebuild = true;
+            println!("API key updated.");
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
             println!("That particular skill hasn't arrived in the parish yet. Patience now.");
-            false
         }
     }
+    (false, rebuild)
 }
 
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
@@ -431,16 +486,16 @@ mod tests {
     #[test]
     fn test_handle_headless_command_quit() {
         let mut app = App::new();
-        let result = handle_headless_command(&mut app, Command::Quit);
-        assert!(result);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit);
+        assert!(quit);
         assert!(app.should_quit);
     }
 
     #[test]
     fn test_handle_headless_command_pause() {
         let mut app = App::new();
-        let result = handle_headless_command(&mut app, Command::Pause);
-        assert!(!result);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause);
+        assert!(!quit);
         assert!(app.world.clock.is_paused());
     }
 
@@ -448,38 +503,124 @@ mod tests {
     fn test_handle_headless_command_resume() {
         let mut app = App::new();
         app.world.clock.pause();
-        let result = handle_headless_command(&mut app, Command::Resume);
-        assert!(!result);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume);
+        assert!(!quit);
         assert!(!app.world.clock.is_paused());
     }
 
     #[test]
     fn test_handle_headless_command_help() {
         let mut app = App::new();
-        let result = handle_headless_command(&mut app, Command::Help);
-        assert!(!result);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help);
+        assert!(!quit);
     }
 
     #[test]
     fn test_handle_headless_command_status() {
         let mut app = App::new();
-        let result = handle_headless_command(&mut app, Command::Status);
-        assert!(!result);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status);
+        assert!(!quit);
     }
 
     #[test]
     fn test_handle_headless_command_unimplemented() {
         let mut app = App::new();
-        assert!(!handle_headless_command(&mut app, Command::Save));
-        assert!(!handle_headless_command(
-            &mut app,
-            Command::Fork("test".to_string())
-        ));
-        assert!(!handle_headless_command(
-            &mut app,
-            Command::Load("test".to_string())
-        ));
-        assert!(!handle_headless_command(&mut app, Command::Branches));
-        assert!(!handle_headless_command(&mut app, Command::Log));
+        assert_eq!(
+            handle_headless_command(&mut app, Command::Save),
+            (false, false)
+        );
+        assert_eq!(
+            handle_headless_command(&mut app, Command::Fork("test".to_string())),
+            (false, false)
+        );
+        assert_eq!(
+            handle_headless_command(&mut app, Command::Load("test".to_string())),
+            (false, false)
+        );
+        assert_eq!(
+            handle_headless_command(&mut app, Command::Branches),
+            (false, false)
+        );
+        assert_eq!(
+            handle_headless_command(&mut app, Command::Log),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn test_handle_headless_command_show_provider() {
+        let mut app = App::new();
+        app.provider_name = "openrouter".to_string();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider);
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_set_provider() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string()));
+        assert!(!quit);
+        assert!(rebuild);
+        assert_eq!(app.provider_name, "openrouter");
+        assert!(app.client.is_some());
+    }
+
+    #[test]
+    fn test_handle_headless_command_set_provider_invalid() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string()));
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_show_model() {
+        let mut app = App::new();
+        app.model_name = "test-model".to_string();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel);
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_set_model() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetModel("new-model".to_string()));
+        assert!(!quit);
+        assert!(!rebuild);
+        assert_eq!(app.model_name, "new-model");
+    }
+
+    #[test]
+    fn test_handle_headless_command_show_key_none() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey);
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_show_key_masked() {
+        let mut app = App::new();
+        app.api_key = Some("sk-or-v1-abcdef1234".to_string());
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey);
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_set_key() {
+        let mut app = App::new();
+        app.base_url = "https://openrouter.ai/api".to_string();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetKey("sk-new-key-12345678".to_string()));
+        assert!(!quit);
+        assert!(rebuild);
+        assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
+        assert!(app.client.is_some());
     }
 }
