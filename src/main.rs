@@ -61,6 +61,10 @@ struct Cli {
     /// Run in GUI mode (windowed egui interface)
     #[arg(long)]
     gui: bool,
+
+    /// Capture GUI screenshots to the given directory (default: docs/screenshots)
+    #[arg(long, value_name = "DIR")]
+    screenshot: Option<Option<String>>,
 }
 
 #[tokio::main]
@@ -89,6 +93,12 @@ async fn main() -> Result<()> {
     // Script mode — no LLM needed, synchronous execution
     if let Some(script_path) = &cli.script {
         return parish::testing::run_script_mode(Path::new(script_path));
+    }
+
+    // Screenshot mode — capture GUI screenshots, no LLM needed
+    if let Some(dir_opt) = &cli.screenshot {
+        let dir = dir_opt.as_deref().unwrap_or("docs/screenshots");
+        return parish::gui::screenshot::run_screenshots(Path::new(dir));
     }
 
     // Resolve provider configuration from file + env + CLI

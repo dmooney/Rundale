@@ -2951,6 +2951,7 @@ dependencies = [
  "crossterm",
  "dotenvy",
  "eframe",
+ "image",
  "ratatui",
  "reqwest",
  "rusqlite",

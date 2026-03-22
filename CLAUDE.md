@@ -89,6 +89,20 @@ src/
 - One logical change per commit
 - Run full test suite before pushing
 
+## GUI Screenshots
+
+Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
+
+**Always regenerate screenshots when you change anything in `src/gui/`.** Run:
+
+```sh
+xvfb-run -a cargo run -- --screenshot docs/screenshots
+```
+
+This captures the GUI at 4 times of day (morning, midday, dusk, night) and saves PNGs. Requires `xvfb-run` for headless rendering (installed on most Linux systems; use `apt install xvfb` if missing).
+
+Commit the updated screenshots alongside your UI changes.
+
 ## Documentation Map
 
 Start at [docs/index.md](docs/index.md) for the full hub. Key paths:

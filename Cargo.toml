@@ -24,6 +24,7 @@ toml = "0.8"
 dotenvy = "0.15"
 tracing-appender = "0.2"
 eframe = "0.31"
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [[bin]]
 name = "parish"

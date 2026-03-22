@@ -12,6 +12,8 @@ pub mod sidebar;
 pub mod status_bar;
 pub mod theme;
 
+pub mod screenshot;
+
 use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -105,6 +107,10 @@ pub struct GuiApp {
     pub last_interaction: std::time::Instant,
     /// Instant of last idle simulation tick.
     pub last_idle_tick: std::time::Instant,
+
+    // --- Screenshot mode ---
+    /// When set, captures screenshots and exits.
+    pub screenshot_config: Option<screenshot::ScreenshotConfig>,
 }
 
 impl GuiApp {
@@ -134,6 +140,7 @@ impl GuiApp {
             request_id: 0,
             last_interaction: std::time::Instant::now(),
             last_idle_tick: std::time::Instant::now(),
+            screenshot_config: None,
         }
     }
 
@@ -668,6 +675,16 @@ impl eframe::App for GuiApp {
         // Process submitted input
         if let Some(text) = submitted {
             self.process_input(text);
+        }
+
+        // Screenshot mode: request capture or handle result
+        if let Some(config) = &mut self.screenshot_config {
+            screenshot::handle_screenshot_frame(
+                ctx,
+                config,
+                &mut self.world,
+                &mut self.should_quit,
+            );
         }
     }
 }

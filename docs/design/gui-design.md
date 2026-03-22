@@ -185,6 +185,27 @@ The `run_gui()` function in `src/gui/mod.rs`:
 | Right panel width | 250–320px |
 | Map height | 55% of right panel |
 
+## Screenshots
+
+Automated screenshot capture is built into the GUI via `--screenshot`:
+
+```sh
+xvfb-run -a cargo run -- --screenshot docs/screenshots
+```
+
+This opens the GUI in a virtual framebuffer, renders at 4 times of day (morning, midday, dusk, night), captures each as a 1200x800 PNG, and exits. Screenshots are saved to `docs/screenshots/`:
+
+| File | Time of Day |
+|------|-------------|
+| `gui-morning.png` | 08:00 — warm gold palette |
+| `gui-midday.png` | 12:00 — bright warm palette |
+| `gui-dusk.png` | 17:00 — deep blue/amber palette |
+| `gui-night.png` | 21:00 — near-black palette |
+
+The capture uses egui's `ViewportCommand::Screenshot` API with `image` crate for PNG encoding. Sample game content (location descriptions, NPC dialogue, Irish word hints) is populated automatically so screenshots look representative.
+
+**Screenshots must be regenerated any time `src/gui/` changes.** See `CLAUDE.md` for the command.
+
 ## Related
 
 - [TUI Design](tui-design.md) — Terminal UI layout and color system (parallel implementation)
@@ -201,3 +222,4 @@ The `run_gui()` function in `src/gui/mod.rs`:
 - [`src/gui/status_bar.rs`](../../src/gui/status_bar.rs) — Top status bar
 - [`src/gui/sidebar.rs`](../../src/gui/sidebar.rs) — Irish words + NPC info
 - [`src/gui/input_field.rs`](../../src/gui/input_field.rs) — Text input widget
+- [`src/gui/screenshot.rs`](../../src/gui/screenshot.rs) — Automated screenshot capture
