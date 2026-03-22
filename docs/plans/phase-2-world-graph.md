@@ -2,7 +2,7 @@
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: In Progress**
+> **Status: Complete** (OSM extraction deferred as stretch goal)
 
 ## Goal
 

@@ -42,13 +42,31 @@ src/
 ├── config.rs        # Provider configuration (TOML + env + CLI)
 ├── headless.rs      # Headless stdin/stdout REPL mode
 ├── testing.rs       # GameTestHarness for automated testing
-├── tui/             # Ratatui terminal UI
-├── gui/             # egui windowed GUI (--gui flag)
+├── debug.rs         # Debug commands and metrics (feature-gated)
+├── input/           # Player input parsing, command detection
 ├── world/           # World state, location graph, time, movement, encounters
+│   ├── graph.rs     #   WorldGraph, BFS pathfinding, fuzzy name search
+│   ├── time.rs      #   GameClock, TimeOfDay, Season
+│   ├── movement.rs  #   Movement resolution and travel narration
+│   ├── encounter.rs #   En-route encounter system
+│   └── description.rs # Dynamic location description templates
 ├── npc/             # NPC data model, behavior, cognition tiers
+│   ├── types.rs     #   Relationship, DailySchedule, NpcState, CogTier
+│   ├── manager.rs   #   NpcManager (tier assignment, tick dispatch)
+│   ├── ticks.rs     #   Tier 1 & 2 inference ticks
+│   ├── memory.rs    #   ShortTermMemory (ring buffer)
+│   ├── overhear.rs  #   Atmospheric overhear for nearby Tier 2
+│   └── data.rs      #   NPC data loader (JSON)
 ├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
-├── persistence/     # SQLite save/load, WAL journal
-└── input/           # Player input parsing, command detection
+├── persistence/     # SQLite save/load, WAL journal (Phase 4)
+├── tui/             # Ratatui terminal UI + debug panel
+├── gui/             # egui windowed GUI (--gui flag)
+│   ├── theme.rs     #   Time-of-day color theming
+│   ├── chat_panel.rs #  Chat/dialogue display
+│   ├── map_panel.rs #   Interactive parish map
+│   ├── sidebar.rs   #   Irish word pronunciation sidebar
+│   └── screenshot.rs #  Automated screenshot capture
+└── bin/geo_tool/    # OSM geographic data extraction tool
 ```
 
 ## Code Style

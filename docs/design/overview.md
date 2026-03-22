@@ -24,7 +24,7 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 | HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
 | Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
 | Persistence   | **SQLite** (via rusqlite)                | Save system, NPC memory, world events              |
-| Entity System | **Bevy ECS** (standalone) or hand-rolled | World simulation data model                        |
+| Entity System | Hand-rolled structs + manager pattern   | World simulation data model                        |
 
 ## Hardware Assumptions
 
@@ -57,19 +57,59 @@ src/
 ├── main.rs              # Entry point, CLI args (clap), mode routing
 ├── lib.rs               # Module declarations
 ├── error.rs             # ParishError (thiserror)
-├── headless.rs          # Headless stdin/stdout REPL for testing
-├── tui/                 # Ratatui terminal UI
-├── gui/                 # egui windowed GUI (--gui flag)
-├── world/               # World state, location graph, time system
-├── npc/                 # NPC data model, behavior, cognition tiers
 ├── config.rs            # Provider configuration (TOML + env + CLI)
+├── headless.rs          # Headless stdin/stdout REPL for testing
+├── testing.rs           # GameTestHarness for automated script-based testing
+├── debug.rs             # Debug commands and metrics (feature-gated)
+├── input/
+│   └── mod.rs           # Player input parsing, command detection
+├── world/
+│   ├── mod.rs           # WorldState, location types
+│   ├── graph.rs         # WorldGraph (adjacency list, BFS pathfinding)
+│   ├── time.rs          # GameClock, TimeOfDay, Season
+│   ├── movement.rs      # Movement resolution, fuzzy destination matching
+│   ├── encounter.rs     # En-route encounter system
+│   └── description.rs   # Dynamic location description templates
+├── npc/
+│   ├── mod.rs           # Npc struct, NpcId
+│   ├── types.rs         # Relationship, DailySchedule, NpcState, CogTier
+│   ├── manager.rs       # NpcManager (tier assignment, tick dispatch)
+│   ├── ticks.rs         # Tier 1 & 2 inference ticks
+│   ├── memory.rs        # ShortTermMemory (ring buffer)
+│   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
+│   └── data.rs          # NPC data loader (JSON)
 ├── inference/
+│   ├── mod.rs           # Inference queue, worker task
 │   ├── openai_client.rs # OpenAI-compatible HTTP client (all providers)
 │   ├── client.rs        # Ollama process management
-│   ├── setup.rs         # GPU detection, model selection, auto-pull (Ollama)
-│   └── mod.rs           # Inference queue, worker task
-├── persistence/         # SQLite save/load, WAL journal
-└── input/               # Player input parsing, command detection
+│   └── setup.rs         # GPU detection, model selection, auto-pull (Ollama)
+├── persistence/
+│   └── mod.rs           # SQLite save/load, WAL journal (Phase 4)
+├── tui/
+│   ├── mod.rs           # App struct, main render loop, event handling
+│   └── debug_panel.rs   # Debug overlay panel
+├── gui/
+│   ├── mod.rs           # ParishGui, eframe integration
+│   ├── theme.rs         # Time-of-day color theming
+│   ├── chat_panel.rs    # Chat/dialogue display
+│   ├── map_panel.rs     # Interactive parish map
+│   ├── sidebar.rs       # Irish word pronunciation sidebar
+│   ├── status_bar.rs    # Time, location, weather status
+│   ├── input_field.rs   # Text input widget
+│   └── screenshot.rs    # Automated screenshot capture
+└── bin/
+    └── geo_tool/        # OSM geographic data extraction tool
+        ├── main.rs      # CLI entry point
+        ├── pipeline.rs  # End-to-end extraction pipeline
+        ├── overpass.rs   # Overpass API queries
+        ├── extract.rs   # OSM data extraction logic
+        ├── osm_model.rs # OSM data types
+        ├── connections.rs # Connection generation
+        ├── descriptions.rs # Location description generation
+        ├── lod.rs       # Level-of-detail assignment
+        ├── merge.rs     # Data merging
+        ├── cache.rs     # Query result caching
+        └── output.rs    # JSON output formatting
 ```
 
 ## Subsystem Deep-Dives
