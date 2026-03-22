@@ -199,7 +199,8 @@ fn test_npc_canned_response_at_pub() {
     let mut h = GameTestHarness::new();
     h.add_canned_response("Padraig Darcy", "Top of the morning to ye!");
 
-    // Padraig Darcy starts at Darcy's Pub — navigate there
+    // Advance to 10am when Padraig is scheduled at the pub (9-22)
+    h.advance_time(120);
     h.execute("go to crossroads");
     h.execute("go to pub");
 
@@ -219,6 +220,7 @@ fn test_npc_canned_responses_consumed_in_order() {
     h.add_canned_response("Padraig Darcy", "Second line");
     h.add_canned_response("Padraig Darcy", "Third line");
 
+    h.advance_time(120);
     h.execute("go to crossroads");
     h.execute("go to pub");
     let r1 = h.execute("hello");
@@ -253,6 +255,7 @@ fn test_npc_not_available_after_canned_exhausted() {
     let mut h = GameTestHarness::new();
     h.add_canned_response("Padraig Darcy", "Only response");
 
+    h.advance_time(120);
     h.execute("go to crossroads");
     h.execute("go to pub");
     h.execute("hello");

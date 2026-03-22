@@ -50,6 +50,8 @@ pub enum Command {
     ShowKey,
     /// Set API key at runtime.
     SetKey(String),
+    /// Debug command with optional subcommand.
+    Debug(Option<String>),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -165,6 +167,15 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::ShowKey)
         } else {
             Some(Command::SetKey(value))
+        }
+    } else if lower == "/debug" {
+        Some(Command::Debug(None))
+    } else if lower.starts_with("/debug ") {
+        let sub = trimmed[7..].trim().to_string();
+        if sub.is_empty() {
+            Some(Command::Debug(None))
+        } else {
+            Some(Command::Debug(Some(sub)))
         }
     } else {
         None

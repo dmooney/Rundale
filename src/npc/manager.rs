@@ -17,6 +17,54 @@ use crate::world::LocationId;
 use crate::world::graph::WorldGraph;
 use crate::world::time::GameClock;
 
+/// An event produced by NPC schedule ticking.
+#[derive(Debug, Clone)]
+pub struct ScheduleEvent {
+    /// Name of the NPC.
+    pub npc_name: String,
+    /// What happened.
+    pub kind: ScheduleEventKind,
+}
+
+/// The kind of schedule event.
+#[derive(Debug, Clone)]
+pub enum ScheduleEventKind {
+    /// NPC departed from a location.
+    Departed {
+        /// Location they left.
+        from: LocationId,
+        /// Location they're heading to.
+        to: LocationId,
+        /// Name of the destination.
+        to_name: String,
+        /// Travel time in minutes.
+        minutes: u16,
+    },
+    /// NPC arrived at a location.
+    Arrived {
+        /// Location they arrived at.
+        location: LocationId,
+        /// Name of the location.
+        location_name: String,
+    },
+}
+
+impl ScheduleEvent {
+    /// Formats this event as a short debug log string.
+    pub fn debug_string(&self) -> String {
+        match &self.kind {
+            ScheduleEventKind::Departed {
+                to_name, minutes, ..
+            } => {
+                format!("{} heading to {} ({}min)", self.npc_name, to_name, minutes)
+            }
+            ScheduleEventKind::Arrived { location_name, .. } => {
+                format!("{} arrived at {}", self.npc_name, location_name)
+            }
+        }
+    }
+}
+
 /// Central coordinator for all NPC state and behavior.
 ///
 /// Owns all NPCs, assigns cognitive tiers based on distance from the
@@ -128,6 +176,13 @@ impl NpcManager {
 
             self.tier_assignments.insert(npc.id, tier);
         }
+
+        tracing::debug!(
+            player_location = player_location.0,
+            tier1 = self.tier1_npcs().len(),
+            tier2 = self.tier2_npcs().len(),
+            "Tier assignment complete"
+        );
     }
 
     /// Returns the current cognitive tier for an NPC.
@@ -158,9 +213,12 @@ impl NpcManager {
     /// For each NPC that is `Present` and whose schedule says they should
     /// be somewhere else, starts transit. For NPCs that are `InTransit`
     /// and whose arrival time has passed, completes the move.
-    pub fn tick_schedules(&mut self, clock: &GameClock, graph: &WorldGraph) {
+    ///
+    /// Returns a list of structured schedule events describing what happened.
+    pub fn tick_schedules(&mut self, clock: &GameClock, graph: &WorldGraph) -> Vec<ScheduleEvent> {
         let now = clock.now();
         let current_hour = now.hour() as u8;
+        let mut events = Vec::new();
 
         let npc_ids: Vec<NpcId> = self.npcs.keys().copied().collect();
 
@@ -176,6 +234,27 @@ impl NpcManager {
                         let travel_minutes = graph.path_travel_time(&path);
                         let arrives_at = now + Duration::minutes(travel_minutes as i64);
                         let from = npc.location;
+                        let npc_name = npc.name.clone();
+                        let dest_name = graph
+                            .get(desired)
+                            .map(|d| d.name.clone())
+                            .unwrap_or_else(|| "?".to_string());
+                        events.push(ScheduleEvent {
+                            npc_name: npc_name.clone(),
+                            kind: ScheduleEventKind::Departed {
+                                from,
+                                to: desired,
+                                to_name: dest_name,
+                                minutes: travel_minutes,
+                            },
+                        });
+                        tracing::debug!(
+                            npc = %npc_name,
+                            from = from.0,
+                            to = desired.0,
+                            minutes = travel_minutes,
+                            "NPC starting transit"
+                        );
                         let npc = self.npcs.get_mut(&id).unwrap();
                         npc.state = NpcState::InTransit {
                             from,
@@ -187,6 +266,23 @@ impl NpcManager {
                 NpcState::InTransit { to, arrives_at, .. } => {
                     if now >= *arrives_at {
                         let destination = *to;
+                        let npc_name = npc.name.clone();
+                        let dest_name = graph
+                            .get(destination)
+                            .map(|d| d.name.clone())
+                            .unwrap_or_else(|| "?".to_string());
+                        events.push(ScheduleEvent {
+                            npc_name: npc_name.clone(),
+                            kind: ScheduleEventKind::Arrived {
+                                location: destination,
+                                location_name: dest_name,
+                            },
+                        });
+                        tracing::debug!(
+                            npc = %npc_name,
+                            location = destination.0,
+                            "NPC arrived"
+                        );
                         let npc = self.npcs.get_mut(&id).unwrap();
                         npc.location = destination;
                         npc.state = NpcState::Present;
@@ -194,6 +290,8 @@ impl NpcManager {
                 }
             }
         }
+
+        events
     }
 
     /// Returns whether enough game time has elapsed for a Tier 2 tick.

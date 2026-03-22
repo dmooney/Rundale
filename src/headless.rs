@@ -70,6 +70,10 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
         }
     }
 
+    // Initial tier assignment
+    app.npc_manager
+        .assign_tiers(app.world.player_location, &app.world.graph);
+
     // Show initial location
     print_location_arrival(&app);
 
@@ -108,6 +112,14 @@ pub async fn run_headless(setup: OllamaSetup) -> Result<()> {
                 handle_headless_game_input(&mut app, &c, &m, &text, &mut request_id).await?;
             }
         }
+
+        // Simulation tick after each player action
+        app.npc_manager
+            .assign_tiers(app.world.player_location, &app.world.graph);
+        let schedule_events = app
+            .npc_manager
+            .tick_schedules(&app.world.clock, &app.world.graph);
+        process_headless_schedule_events(&mut app, &schedule_events);
 
         if app.should_quit {
             break;
@@ -239,6 +251,12 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
             println!("That particular skill hasn't arrived in the parish yet. Patience now.");
+        }
+        Command::Debug(sub) => {
+            let lines = crate::debug::handle_debug(sub.as_deref(), app);
+            for line in lines {
+                println!("{}", line);
+            }
         }
     }
     (false, rebuild)
@@ -484,6 +502,27 @@ fn handle_headless_movement(app: &mut App, target: &str) {
             );
             let exits = format_exits(app.world.player_location, &app.world.graph);
             println!("{}", exits);
+        }
+    }
+}
+
+/// Processes schedule events in headless mode: debug log + player-visible println.
+fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager::ScheduleEvent]) {
+    use crate::npc::manager::ScheduleEventKind;
+
+    let player_loc = app.world.player_location;
+
+    for event in events {
+        app.debug_event(event.debug_string());
+
+        match &event.kind {
+            ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
+                println!("{} heads off down the road.", event.npc_name);
+            }
+            ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
+                println!("{} arrives.", event.npc_name);
+            }
+            _ => {}
         }
     }
 }

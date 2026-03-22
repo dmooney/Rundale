@@ -115,16 +115,22 @@ pub fn build_enhanced_context(
 /// Call this after receiving and parsing the LLM response for a Tier 1
 /// interaction. Updates the NPC's mood from metadata and adds a memory
 /// entry recording the interaction.
+///
+/// Returns a list of debug event strings (e.g. mood changes, memory commits).
 pub fn apply_tier1_response(
     npc: &mut Npc,
     response: &NpcStreamResponse,
     player_input: &str,
     game_time: chrono::DateTime<Utc>,
-) {
+) -> Vec<String> {
+    let mut events = Vec::new();
+
     // Update mood from metadata
     if let Some(ref meta) = response.metadata
         && !meta.mood.is_empty()
+        && meta.mood != npc.mood
     {
+        events.push(format!("{} mood: {} -> {}", npc.name, npc.mood, meta.mood));
         npc.mood = meta.mood.clone();
     }
 
@@ -134,12 +140,19 @@ pub fn apply_tier1_response(
         player_input,
         truncate_for_memory(&response.dialogue, 80)
     );
+    events.push(format!(
+        "{} remembers: {}",
+        npc.name,
+        truncate_for_memory(&content, 60)
+    ));
     npc.memory.add(MemoryEntry {
         timestamp: game_time,
         content,
         participants: vec![npc.id],
         location: npc.location,
     });
+
+    events
 }
 
 /// Builds the system prompt for a Tier 2 interaction between NPCs at a location.
@@ -225,14 +238,24 @@ pub async fn run_tier2_for_group(
 ///
 /// Updates moods, adjusts relationship strengths, and records memories
 /// for all participating NPCs.
+///
+/// Returns debug event strings describing what happened.
 pub fn apply_tier2_event(
     event: &Tier2Event,
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
-) {
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
     // Apply mood changes
     for mc in &event.mood_changes {
         if let Some(npc) = npcs.get_mut(&mc.npc_id) {
+            if npc.mood != mc.new_mood {
+                debug_events.push(format!(
+                    "{} mood: {} -> {}",
+                    npc.name, npc.mood, mc.new_mood
+                ));
+            }
             npc.mood = mc.new_mood.clone();
         }
     }
@@ -248,6 +271,16 @@ pub fn apply_tier2_event(
 
     // Record memory for all participants
     let memory_content = truncate_for_memory(&event.summary, 100);
+    // Log the memory commit for all participants
+    for &pid in &event.participants {
+        if let Some(npc) = npcs.get(&pid) {
+            debug_events.push(format!(
+                "{} remembers: {}",
+                npc.name,
+                truncate_for_memory(&event.summary, 50)
+            ));
+        }
+    }
     for &participant_id in &event.participants {
         if let Some(npc) = npcs.get_mut(&participant_id) {
             npc.memory.add(MemoryEntry {
@@ -258,6 +291,8 @@ pub fn apply_tier2_event(
             });
         }
     }
+
+    debug_events
 }
 
 /// Truncates a string to a maximum length, adding "..." if truncated.
