@@ -33,6 +33,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Time System](design/time-system.md) | Day/night cycle, seasons, Irish festivals | [ADR-007](adr/007-time-scale-20min-day.md) |
 | [Weather System](design/weather-system.md) | Weather states and simulation effects | — |
 | [TUI Design](design/tui-design.md) | Layout, color palettes, terminal compatibility | — |
+| [GUI Design](design/gui-design.md) | Windowed egui GUI with map, chat, and sidebars | — |
 | [Player Input](design/player-input.md) | Natural language input, system commands | [ADR-006](adr/006-natural-language-input.md) |
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |

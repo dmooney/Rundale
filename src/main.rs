@@ -57,6 +57,14 @@ struct Cli {
     /// Enable improv craft mode for NPC dialogue
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
+
+    /// Run in GUI mode (windowed egui interface)
+    #[arg(long)]
+    gui: bool,
+
+    /// Capture GUI screenshots to the given directory (default: docs/screenshots)
+    #[arg(long, value_name = "DIR")]
+    screenshot: Option<Option<String>>,
 }
 
 #[tokio::main]
@@ -87,6 +95,12 @@ async fn main() -> Result<()> {
         return parish::testing::run_script_mode(Path::new(script_path));
     }
 
+    // Screenshot mode — capture GUI screenshots, no LLM needed
+    if let Some(dir_opt) = &cli.screenshot {
+        let dir = dir_opt.as_deref().unwrap_or("docs/screenshots");
+        return parish::gui::screenshot::run_screenshots(Path::new(dir));
+    }
+
     // Resolve provider configuration from file + env + CLI
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
@@ -113,6 +127,13 @@ async fn main() -> Result<()> {
             },
         };
         return headless::run_headless(setup).await;
+    }
+
+    // GUI mode (windowed egui interface)
+    if cli.gui {
+        let result = parish::gui::run_gui(client, model, &provider_config, cli.improv);
+        ollama_process.stop();
+        return result;
     }
 
     // TUI mode

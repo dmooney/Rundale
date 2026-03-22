@@ -1,6 +1,7 @@
 pub mod config;
 pub mod debug;
 pub mod error;
+pub mod gui;
 pub mod headless;
 pub mod inference;
 pub mod input;

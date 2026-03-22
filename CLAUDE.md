@@ -43,6 +43,7 @@ src/
 ├── headless.rs      # Headless stdin/stdout REPL mode
 ├── testing.rs       # GameTestHarness for automated testing
 ├── tui/             # Ratatui terminal UI
+├── gui/             # egui windowed GUI (--gui flag)
 ├── world/           # World state, location graph, time, movement, encounters
 ├── npc/             # NPC data model, behavior, cognition tiers
 ├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
@@ -65,6 +66,7 @@ src/
 |-------|---------|
 | tokio | Async runtime (features = "full") |
 | ratatui + crossterm | Terminal UI with 24-bit true color |
+| eframe + egui | Windowed GUI mode (immediate-mode, cross-platform) |
 | reqwest | HTTP client for Ollama API (`localhost:11434`) |
 | serde + serde_json | JSON serialization for LLM structured output |
 | rusqlite | SQLite persistence (features = "bundled") |
@@ -86,6 +88,20 @@ src/
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
 - One logical change per commit
 - Run full test suite before pushing
+
+## GUI Screenshots
+
+Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
+
+**Always regenerate screenshots when you change anything in `src/gui/`.** Run:
+
+```sh
+xvfb-run -a cargo run -- --screenshot docs/screenshots
+```
+
+This captures the GUI at 4 times of day (morning, midday, dusk, night) and saves PNGs. Requires `xvfb-run` for headless rendering (installed on most Linux systems; use `apt install xvfb` if missing).
+
+Commit the updated screenshots alongside your UI changes.
 
 ## Documentation Map
 

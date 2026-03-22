@@ -6,6 +6,10 @@ The player arrives as a newcomer to **Kilteevan Village** in the parish of Kilto
 
 > Any resemblance to real persons, living or dead, or actual businesses is purely coincidental. All characters and commercial establishments in this game are fictional.
 
+![Parish GUI — Morning](docs/screenshots/gui-morning.png)
+
+*GUI mode showing the chat panel, interactive map, Irish word sidebar, and time-of-day color theming (morning palette). Run with `cargo run -- --gui`.*
+
 ## Current Status
 
 **Phase 2 — World Graph** (in progress). Phase 1 (Core Loop) is complete.
