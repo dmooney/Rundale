@@ -50,6 +50,10 @@ struct Cli {
     /// Path to config file (default: parish.toml)
     #[arg(long)]
     config: Option<String>,
+
+    /// Enable improv craft mode for NPC dialogue
+    #[arg(long, env = "PARISH_IMPROV")]
+    improv: bool,
 }
 
 #[tokio::main]
@@ -115,6 +119,7 @@ async fn main() -> Result<()> {
         }
     }
     app.inference_queue = Some(queue);
+    app.improv_enabled = cli.improv;
     app.npcs.push(Npc::new_test_npc());
 
     // Show initial location description
@@ -185,7 +190,8 @@ async fn main() -> Result<()> {
                                 .cloned();
 
                             if let Some(npc) = npc {
-                                let system_prompt = npc::build_tier1_system_prompt(&npc);
+                                let system_prompt =
+                                    npc::build_tier1_system_prompt(&npc, app.improv_enabled);
                                 let context = npc::build_tier1_context(&npc, &app.world, &text);
 
                                 if let Some(queue) = &app.inference_queue {
@@ -473,6 +479,8 @@ fn handle_system_command(app: &mut App, cmd: Command) {
             app.world.log("  /status   — Where am I?".to_string());
             app.world
                 .log("  /irish    — Toggle the Irish words sidebar (or press Tab)".to_string());
+            app.world
+                .log("  /improv   — Toggle improv craft for NPC dialogue".to_string());
             app.world.log("  /help     — Show this help".to_string());
             app.world
                 .log("  /save     — Save game (not yet arrived)".to_string());
@@ -489,6 +497,16 @@ fn handle_system_command(app: &mut App, cmd: Command) {
             } else {
                 app.world
                     .log("The pronunciation guide folds away.".to_string());
+            }
+        }
+        Command::ToggleImprov => {
+            app.improv_enabled = !app.improv_enabled;
+            if app.improv_enabled {
+                app.world
+                    .log("The characters loosen up — improv craft engaged.".to_string());
+            } else {
+                app.world
+                    .log("The characters settle back to their usual selves.".to_string());
             }
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {

@@ -216,15 +216,68 @@ pub struct NpcAction {
     pub internal_thought: Option<String>,
 }
 
+/// The improv craft guidelines injected into the system prompt when improv mode is enabled.
+///
+/// Distilled from professional long-form improv principles: Yes-And, specificity,
+/// emotional truth, physical grounding, active listening, heightening, and
+/// making the scene partner shine.
+const IMPROV_CRAFT_SECTION: &str = "\n\
+    \n\
+    IMPROV CRAFT: You are a scene partner, not a chatbot. Follow these principles:\n\
+    \n\
+    - YES, AND: Accept everything the player establishes as true and build on it. \
+    Add new information that enriches the scene rather than redirecting it. \
+    Your character can disagree with the player's character, but never negate \
+    the reality they have established. If the player says they saw a ghost on the \
+    hill, there was something on the hill — even if your character is skeptical.\n\
+    \n\
+    - SPECIFICITY: Choose the specific over the general. Real place names, exact \
+    amounts, particular objects. \"A cracked jug of buttermilk left over from Tuesday\" \
+    not \"a drink.\" \"The third stone from the left in Brennan's wall\" not \"a rock.\" \
+    Specific emotions, not vague moods.\n\
+    \n\
+    - EMOTIONAL TRUTH: Scenes are about relationships and honest reactions, not \
+    clever lines. The comedy and drama emerge from truthful characters responding to \
+    circumstances. If the moment calls for vulnerability, go there. Do not reach \
+    for jokes — let humor arise from specificity and human nature.\n\
+    \n\
+    - PHYSICAL GROUNDING: Use object work. Touch things, reference the environment. \
+    Ground every exchange in the physical space — the creak of a chair, the smell of \
+    turf smoke, rain on the windowpane. Your character inhabits a body in a place.\n\
+    \n\
+    - LISTEN AND REACT: Respond to what was actually said, not what you expected. \
+    If the player says something surprising, let it surprise your character too. \
+    If they make what seems like a mistake, treat it as intentional and justify it \
+    within the scene.\n\
+    \n\
+    - HEIGHTEN: Notice the first unusual thing and explore its implications. \
+    \"If this is true, what else is true?\" Same pattern, higher stakes. If the \
+    player mentions they owe money to the landlord, build on that — who else knows? \
+    What are the consequences? What does your character know about it?\n\
+    \n\
+    - RAISE EMOTIONAL STAKES: When a conversation feels stuck, go deeper emotionally, \
+    not wider logistically. Do not introduce new plot elements — have your character \
+    admit something vulnerable, recall a memory, or reveal a deeper feeling about \
+    what is already happening.\n\
+    \n\
+    - MAKE THE PLAYER SHINE: Set the player up for interesting moments. Endow them \
+    with characteristics (\"You always were the sharp one, so\"). Create openings \
+    for them to react rather than steamrolling with your own ideas. Mirror their \
+    energy and commitment level.\n";
+
 /// Builds the Tier 1 system prompt for an NPC.
 ///
 /// Combines the NPC's identity, personality, occupation, and current
 /// mood into a system prompt that establishes character for the LLM.
+/// When `improv` is true, includes the improv craft guidelines section
+/// to improve improvisational quality of NPC responses.
 ///
 /// The prompt instructs the model to output dialogue first (which is
 /// streamed to the player), then a `---` separator, then a JSON metadata
 /// block (which is parsed silently for simulation state).
-pub fn build_tier1_system_prompt(npc: &Npc) -> String {
+pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
+    let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
+
     format!(
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
         Ireland, in the year 1820.\n\
@@ -240,7 +293,8 @@ pub fn build_tier1_system_prompt(npc: &Npc) -> String {
         Never portray Irish characters as excessively drunk, violent as a cultural trait, \
         foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
         Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
-        Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
+        Show the wit, intelligence, resilience, and warmth of rural Irish people.\
+        {improv_section}\n\
         \n\
         Personality: {personality}\n\
         \n\
@@ -274,6 +328,7 @@ pub fn build_tier1_system_prompt(npc: &Npc) -> String {
         occupation = npc.occupation,
         personality = npc.personality,
         mood = npc.mood,
+        improv_section = improv_section,
     )
 }
 
@@ -321,7 +376,7 @@ mod tests {
     #[test]
     fn test_build_system_prompt() {
         let npc = Npc::new_test_npc();
-        let prompt = build_tier1_system_prompt(&npc);
+        let prompt = build_tier1_system_prompt(&npc, false);
         assert!(prompt.contains("Padraig O'Brien"));
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
@@ -628,7 +683,7 @@ mod tests {
     #[test]
     fn test_system_prompt_avoids_stereotypes() {
         let npc = Npc::new_test_npc();
-        let prompt = build_tier1_system_prompt(&npc);
+        let prompt = build_tier1_system_prompt(&npc, false);
         assert!(prompt.contains("dignity"), "prompt should mention dignity");
         assert!(
             prompt.contains("Never portray"),
@@ -643,7 +698,7 @@ mod tests {
     #[test]
     fn test_system_prompt_historical_constraints() {
         let npc = Npc::new_test_npc();
-        let prompt = build_tier1_system_prompt(&npc);
+        let prompt = build_tier1_system_prompt(&npc, false);
         assert!(
             prompt.contains("no electricity"),
             "prompt should exclude modern technology"
@@ -656,5 +711,75 @@ mod tests {
             prompt.contains("Do not reference anything that does not exist in 1820"),
             "prompt should have explicit anachronism guard"
         );
+    }
+
+    #[test]
+    fn test_system_prompt_improv_enabled() {
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc, true);
+        assert!(
+            prompt.contains("IMPROV CRAFT"),
+            "improv prompt should contain IMPROV CRAFT section"
+        );
+        assert!(
+            prompt.contains("YES, AND"),
+            "improv prompt should contain Yes-And principle"
+        );
+        assert!(
+            prompt.contains("SPECIFICITY"),
+            "improv prompt should contain specificity principle"
+        );
+        assert!(
+            prompt.contains("EMOTIONAL TRUTH"),
+            "improv prompt should contain emotional truth principle"
+        );
+        assert!(
+            prompt.contains("PHYSICAL GROUNDING"),
+            "improv prompt should contain physical grounding principle"
+        );
+        assert!(
+            prompt.contains("LISTEN AND REACT"),
+            "improv prompt should contain listen-and-react principle"
+        );
+        assert!(
+            prompt.contains("HEIGHTEN"),
+            "improv prompt should contain heighten principle"
+        );
+        assert!(
+            prompt.contains("RAISE EMOTIONAL STAKES"),
+            "improv prompt should contain raise-emotional-stakes principle"
+        );
+        assert!(
+            prompt.contains("MAKE THE PLAYER SHINE"),
+            "improv prompt should contain make-player-shine principle"
+        );
+    }
+
+    #[test]
+    fn test_system_prompt_improv_disabled() {
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc, false);
+        assert!(
+            !prompt.contains("IMPROV CRAFT"),
+            "non-improv prompt should NOT contain IMPROV CRAFT section"
+        );
+        assert!(
+            !prompt.contains("YES, AND"),
+            "non-improv prompt should NOT contain improv principles"
+        );
+    }
+
+    #[test]
+    fn test_system_prompt_improv_preserves_identity() {
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc, true);
+        // Improv mode should still contain all the standard sections
+        assert!(prompt.contains("Padraig O'Brien"));
+        assert!(prompt.contains("58-year-old"));
+        assert!(prompt.contains("Publican"));
+        assert!(prompt.contains("1820"));
+        assert!(prompt.contains("CULTURAL GUIDELINES"));
+        assert!(prompt.contains("irish_words"));
+        assert!(prompt.contains("---"));
     }
 }

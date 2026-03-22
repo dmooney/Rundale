@@ -153,6 +153,7 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
             println!("  /resume   - Let time flow again");
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
+            println!("  /improv   - Toggle improv craft for NPC dialogue");
             println!("  /help     - Show this help");
             println!("  /save     - Save game (not yet arrived)");
             println!("  /fork <n> - Fork save (not yet arrived)");
@@ -161,6 +162,15 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> bool {
         }
         Command::ToggleSidebar => {
             println!("The pronunciation sidebar is only available in TUI mode.");
+            false
+        }
+        Command::ToggleImprov => {
+            app.improv_enabled = !app.improv_enabled;
+            if app.improv_enabled {
+                println!("The characters loosen up — improv craft engaged.");
+            } else {
+                println!("The characters settle back to their usual selves.");
+            }
             false
         }
         Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
@@ -201,7 +211,7 @@ async fn handle_headless_game_input(
                 .cloned();
 
             if let Some(npc) = npc {
-                let system_prompt = npc::build_tier1_system_prompt(&npc);
+                let system_prompt = npc::build_tier1_system_prompt(&npc, app.improv_enabled);
                 let context = npc::build_tier1_context(&npc, &app.world, text);
 
                 if let Some(queue) = &app.inference_queue {

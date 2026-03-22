@@ -165,6 +165,8 @@ pub struct App {
     pub sidebar_visible: bool,
     /// Pronunciation hints for Irish words from NPC responses.
     pub pronunciation_hints: Vec<IrishWordHint>,
+    /// Whether improv craft mode is enabled for NPC dialogue.
+    pub improv_enabled: bool,
     /// Counter for rotating idle messages.
     pub idle_counter: usize,
 }
@@ -181,6 +183,7 @@ impl App {
             scroll: ScrollState::new(),
             sidebar_visible: false,
             pronunciation_hints: Vec::new(),
+            improv_enabled: false,
             idle_counter: 0,
         }
     }
@@ -508,6 +511,7 @@ mod tests {
         assert!(app.scroll.auto_scroll);
         assert_eq!(app.scroll.offset, 0);
         assert!(!app.sidebar_visible);
+        assert!(!app.improv_enabled);
         assert!(app.pronunciation_hints.is_empty());
         assert_eq!(app.idle_counter, 0);
     }
@@ -527,6 +531,16 @@ mod tests {
         assert!(app.sidebar_visible);
         app.sidebar_visible = !app.sidebar_visible;
         assert!(!app.sidebar_visible);
+    }
+
+    #[test]
+    fn test_improv_toggle() {
+        let mut app = App::new();
+        assert!(!app.improv_enabled);
+        app.improv_enabled = !app.improv_enabled;
+        assert!(app.improv_enabled);
+        app.improv_enabled = !app.improv_enabled;
+        assert!(!app.improv_enabled);
     }
 
     #[test]
