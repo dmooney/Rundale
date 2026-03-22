@@ -195,16 +195,18 @@ fn test_quit() {
 }
 
 #[test]
-fn test_npc_canned_response_at_crossroads() {
+fn test_npc_canned_response_at_pub() {
     let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig O'Brien", "Top of the morning to ye!");
+    h.add_canned_response("Padraig Darcy", "Top of the morning to ye!");
 
-    // NPC is at The Crossroads, navigate there first
+    // Advance to 10am when Padraig is scheduled at the pub (9-22)
+    h.advance_time(120);
     h.execute("go to crossroads");
+    h.execute("go to pub");
 
     let r = h.execute("hello Padraig");
     if let ActionResult::NpcResponse { npc, dialogue } = r {
-        assert_eq!(npc, "Padraig O'Brien");
+        assert_eq!(npc, "Padraig Darcy");
         assert_eq!(dialogue, "Top of the morning to ye!");
     } else {
         panic!("Expected NpcResponse, got {:?}", r);
@@ -214,11 +216,13 @@ fn test_npc_canned_response_at_crossroads() {
 #[test]
 fn test_npc_canned_responses_consumed_in_order() {
     let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig O'Brien", "First line");
-    h.add_canned_response("Padraig O'Brien", "Second line");
-    h.add_canned_response("Padraig O'Brien", "Third line");
+    h.add_canned_response("Padraig Darcy", "First line");
+    h.add_canned_response("Padraig Darcy", "Second line");
+    h.add_canned_response("Padraig Darcy", "Third line");
 
+    h.advance_time(120);
     h.execute("go to crossroads");
+    h.execute("go to pub");
     let r1 = h.execute("hello");
     let r2 = h.execute("how are you");
     let r3 = h.execute("tell me about the town");
@@ -226,21 +230,21 @@ fn test_npc_canned_responses_consumed_in_order() {
     assert_eq!(
         r1,
         ActionResult::NpcResponse {
-            npc: "Padraig O'Brien".to_string(),
+            npc: "Padraig Darcy".to_string(),
             dialogue: "First line".to_string(),
         }
     );
     assert_eq!(
         r2,
         ActionResult::NpcResponse {
-            npc: "Padraig O'Brien".to_string(),
+            npc: "Padraig Darcy".to_string(),
             dialogue: "Second line".to_string(),
         }
     );
     assert_eq!(
         r3,
         ActionResult::NpcResponse {
-            npc: "Padraig O'Brien".to_string(),
+            npc: "Padraig Darcy".to_string(),
             dialogue: "Third line".to_string(),
         }
     );
@@ -249,20 +253,23 @@ fn test_npc_canned_responses_consumed_in_order() {
 #[test]
 fn test_npc_not_available_after_canned_exhausted() {
     let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig O'Brien", "Only response");
+    h.add_canned_response("Padraig Darcy", "Only response");
 
+    h.advance_time(120);
     h.execute("go to crossroads");
+    h.execute("go to pub");
     h.execute("hello");
     let r = h.execute("hello again");
     assert_eq!(r, ActionResult::NpcNotAvailable);
 }
 
 #[test]
-fn test_npc_not_present_after_moving() {
+fn test_npc_not_present_at_empty_location() {
     let mut h = GameTestHarness::new();
-    h.add_canned_response("Padraig O'Brien", "Goodbye!");
 
-    // Player starts at Kilteevan — NPC is at crossroads, not here
+    // Navigate to hurling green — no NPCs start there
+    h.execute("go to crossroads");
+    h.execute("go to hurling green");
     let r = h.execute("hello");
     assert_eq!(r, ActionResult::UnknownInput);
 }

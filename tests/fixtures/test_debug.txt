@@ -1,0 +1,15 @@
+# Test debug commands
+/debug
+/debug clock
+/debug npcs
+/debug tiers
+/debug here
+go to crossroads
+/debug here
+/debug tiers
+go to pub
+/debug schedule Padraig
+/debug memory Padraig
+/debug rels Padraig
+/debug help
+/quit

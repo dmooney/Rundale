@@ -2,8 +2,8 @@
 
 > [Docs Index](../index.md)
 
-> Last updated: 2026-03-19
-> Current phase: **Phase 2 — World Graph** (in progress)
+> Last updated: 2026-03-21
+> Current phase: **Phase 4 — Persistence** (next up)
 
 ## Status Legend
 
@@ -50,14 +50,14 @@
 
 > [Detailed plan](../plans/phase-3-npcs-simulation.md) | [Design: NPC System](../design/npc-system.md), [Cognitive LOD](../design/cognitive-lod.md)
 
-- [ ] Full NPC entity model (schedule, relationships, memory)
-- [ ] `NpcManager` with tier assignment and tick dispatch
-- [ ] Tier 1 full inference tick
-- [ ] Tier 2 lighter inference tick
-- [ ] NPC schedule-driven movement
-- [ ] Short-term memory system
-- [ ] Initial NPC data (5-10 NPCs for test parish)
-- [ ] "Overhear" mechanic for Tier 2 interactions
+- [x] Full NPC entity model (schedule, relationships, memory)
+- [x] `NpcManager` with tier assignment and tick dispatch
+- [x] Tier 1 enhanced inference with memory/relationships
+- [x] Tier 2 lighter inference tick
+- [x] NPC schedule-driven movement
+- [x] Short-term memory system (20-entry ring buffer)
+- [x] Initial NPC data (8 NPCs for test parish)
+- [x] "Overhear" mechanic for Tier 2 interactions
 
 ## Phase 4 — Persistence
 

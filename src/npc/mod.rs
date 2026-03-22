@@ -4,8 +4,20 @@
 //! with other NPCs, and short/long-term memory. Cognition fidelity
 //! scales with distance from the player (4 LOD tiers).
 
+pub mod data;
+pub mod manager;
+pub mod memory;
+pub mod overhear;
+pub mod ticks;
+pub mod types;
+
+use std::collections::HashMap;
+
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
+
+use memory::ShortTermMemory;
+use types::{DailySchedule, NpcState, Relationship};
 
 /// A pronunciation hint for an Irish word used in NPC dialogue.
 ///
@@ -87,8 +99,9 @@ pub struct NpcId(pub u32);
 
 /// A non-player character in the game world.
 ///
-/// Phase 1 includes basic identity fields. Future phases add schedule,
-/// relationships, memory, and full cognitive LOD tiers.
+/// Contains identity, personality, location, schedule, relationships,
+/// and short-term memory. Cognition fidelity is determined by the
+/// NpcManager based on distance from the player.
 #[derive(Debug, Clone)]
 pub struct Npc {
     /// Unique identifier.
@@ -105,6 +118,20 @@ pub struct Npc {
     pub location: LocationId,
     /// Current emotional state.
     pub mood: String,
+    /// Home location (where the NPC sleeps).
+    pub home: Option<LocationId>,
+    /// Workplace location (where the NPC works).
+    pub workplace: Option<LocationId>,
+    /// Daily schedule defining where the NPC goes at what time.
+    pub schedule: Option<DailySchedule>,
+    /// Relationships to other NPCs, keyed by their id.
+    pub relationships: HashMap<NpcId, Relationship>,
+    /// Ring buffer of recent memories.
+    pub memory: ShortTermMemory,
+    /// Things this NPC knows (local gossip, history, etc.).
+    pub knowledge: Vec<String>,
+    /// Whether the NPC is present at their location or in transit.
+    pub state: NpcState,
 }
 
 impl Npc {
@@ -125,7 +152,21 @@ impl Npc {
                 .to_string(),
             location: LocationId(1),
             mood: "content".to_string(),
+            home: None,
+            workplace: None,
+            schedule: None,
+            relationships: HashMap::new(),
+            memory: ShortTermMemory::new(),
+            knowledge: Vec::new(),
+            state: NpcState::default(),
         }
+    }
+
+    /// Returns the NPC's desired location based on their schedule and the current hour.
+    ///
+    /// Returns `None` if the NPC has no schedule or no entry covers the hour.
+    pub fn desired_location(&self, hour: u8) -> Option<LocationId> {
+        self.schedule.as_ref()?.location_at(hour)
     }
 }
 
