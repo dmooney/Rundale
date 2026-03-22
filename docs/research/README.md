@@ -152,6 +152,61 @@ Several threads run through multiple documents, connecting them into a coherent 
 
 ---
 
+## Fact-Check Status
+
+Each document should be independently verified against primary and secondary historical sources before being relied upon for game content. Status key:
+
+- [ ] = Not yet fact-checked
+- [x] = Independently fact-checked
+
+### Core Society & People
+
+- [ ] [Irish Language](irish-language.md)
+- [ ] [Demographics & Social Structure](demographics-social-structure.md)
+- [ ] [Family Life](family-life.md)
+- [ ] [Names & Naming Conventions](names-naming-conventions.md)
+
+### Daily Life & Material Culture
+
+- [ ] [Culture & Daily Life](culture-daily-life.md)
+- [ ] [Food & Drink](food-drink.md)
+- [ ] [Clothing & Textiles](clothing-textiles.md)
+- [ ] [Architecture & Housing](architecture-housing.md)
+
+### Economy & Work
+
+- [ ] [Economy & Trade](economy-trade.md)
+- [ ] [Farming & Agriculture](farming-agriculture.md)
+- [ ] [Technology & Crafts](technology-crafts.md)
+- [ ] [Transportation](transportation.md)
+
+### Power & Institutions
+
+- [ ] [Law & Governance](law-governance.md)
+- [ ] [Politics & Movements](politics-movements.md)
+- [ ] [Crime & Secret Societies](crime-secret-societies.md)
+
+### Spiritual & Intellectual Life
+
+- [ ] [Religion & Spirituality](religion-spirituality.md)
+- [ ] [Mythology & Folklore](mythology-folklore.md)
+- [ ] [Education & Literacy](education-literacy.md)
+- [ ] [Music & Entertainment](music-entertainment.md)
+
+### Health & Environment
+
+- [ ] [Medicine & Health](medicine-health.md)
+- [ ] [Flora, Fauna & Landscape](flora-fauna-landscape.md)
+
+### Historical Context
+
+- [ ] [Recent History (Pre-1820)](recent-history-pre1820.md)
+- [ ] [Forthcoming Decades](forthcoming-decades.md)
+
+**Checked: 0 / 23**
+
+---
+
 ## Suggested Reading Order
 
 For someone new to the project, this path moves from the big picture to the specific:
