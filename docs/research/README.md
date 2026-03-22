@@ -161,49 +161,49 @@ Each document should be independently verified against primary and secondary his
 
 ### Core Society & People
 
-- [ ] [Irish Language](irish-language.md)
-- [ ] [Demographics & Social Structure](demographics-social-structure.md)
-- [ ] [Family Life](family-life.md)
-- [ ] [Names & Naming Conventions](names-naming-conventions.md)
+- [x] [Irish Language](irish-language.md)
+- [x] [Demographics & Social Structure](demographics-social-structure.md)
+- [x] [Family Life](family-life.md)
+- [x] [Names & Naming Conventions](names-naming-conventions.md)
 
 ### Daily Life & Material Culture
 
-- [ ] [Culture & Daily Life](culture-daily-life.md)
-- [ ] [Food & Drink](food-drink.md)
-- [ ] [Clothing & Textiles](clothing-textiles.md)
-- [ ] [Architecture & Housing](architecture-housing.md)
+- [x] [Culture & Daily Life](culture-daily-life.md)
+- [x] [Food & Drink](food-drink.md)
+- [x] [Clothing & Textiles](clothing-textiles.md)
+- [x] [Architecture & Housing](architecture-housing.md)
 
 ### Economy & Work
 
-- [ ] [Economy & Trade](economy-trade.md)
-- [ ] [Farming & Agriculture](farming-agriculture.md)
-- [ ] [Technology & Crafts](technology-crafts.md)
-- [ ] [Transportation](transportation.md)
+- [x] [Economy & Trade](economy-trade.md)
+- [x] [Farming & Agriculture](farming-agriculture.md)
+- [x] [Technology & Crafts](technology-crafts.md)
+- [x] [Transportation](transportation.md)
 
 ### Power & Institutions
 
-- [ ] [Law & Governance](law-governance.md)
-- [ ] [Politics & Movements](politics-movements.md)
-- [ ] [Crime & Secret Societies](crime-secret-societies.md)
+- [x] [Law & Governance](law-governance.md)
+- [x] [Politics & Movements](politics-movements.md)
+- [x] [Crime & Secret Societies](crime-secret-societies.md)
 
 ### Spiritual & Intellectual Life
 
-- [ ] [Religion & Spirituality](religion-spirituality.md)
-- [ ] [Mythology & Folklore](mythology-folklore.md)
-- [ ] [Education & Literacy](education-literacy.md)
-- [ ] [Music & Entertainment](music-entertainment.md)
+- [x] [Religion & Spirituality](religion-spirituality.md)
+- [x] [Mythology & Folklore](mythology-folklore.md)
+- [x] [Education & Literacy](education-literacy.md)
+- [x] [Music & Entertainment](music-entertainment.md)
 
 ### Health & Environment
 
-- [ ] [Medicine & Health](medicine-health.md)
-- [ ] [Flora, Fauna & Landscape](flora-fauna-landscape.md)
+- [x] [Medicine & Health](medicine-health.md)
+- [x] [Flora, Fauna & Landscape](flora-fauna-landscape.md)
 
 ### Historical Context
 
-- [ ] [Recent History (Pre-1820)](recent-history-pre1820.md)
-- [ ] [Forthcoming Decades](forthcoming-decades.md)
+- [x] [Recent History (Pre-1820)](recent-history-pre1820.md)
+- [x] [Forthcoming Decades](forthcoming-decades.md)
 
-**Checked: 0 / 23**
+**Checked: 23 / 23**
 
 ---
 
