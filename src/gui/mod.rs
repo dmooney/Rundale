@@ -28,7 +28,10 @@ use crate::inference::{self, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input};
 use crate::npc::manager::{NpcManager, ScheduleEvent, ScheduleEventKind};
 use crate::npc::ticks;
-use crate::npc::{IrishWordHint, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary};
+use crate::npc::{
+    IrishWordHint, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
+    parse_npc_stream_response,
+};
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::{LocationId, WorldState};
@@ -99,6 +102,8 @@ pub struct GuiApp {
     pub streaming_buf: Arc<Mutex<String>>,
     /// Whether streaming is currently active.
     pub streaming_active: Arc<Mutex<bool>>,
+    /// Pending Irish word hints from the latest streamed response.
+    pub pending_hints: Arc<Mutex<Vec<IrishWordHint>>>,
     /// Monotonic request counter.
     pub request_id: u64,
 
@@ -137,6 +142,7 @@ impl GuiApp {
             tokio_handle,
             streaming_buf: Arc::new(Mutex::new(String::new())),
             streaming_active: Arc::new(Mutex::new(false)),
+            pending_hints: Arc::new(Mutex::new(Vec::new())),
             request_id: 0,
             last_interaction: std::time::Instant::now(),
             last_idle_tick: std::time::Instant::now(),
@@ -163,6 +169,13 @@ impl GuiApp {
                 }
                 buf.clear();
             }
+        }
+
+        // Drain any pending Irish word hints from completed responses
+        let mut pending = self.pending_hints.lock().unwrap();
+        if !pending.is_empty() {
+            self.pronunciation_hints.splice(0..0, pending.drain(..));
+            self.pronunciation_hints.truncate(20);
         }
     }
 
@@ -510,6 +523,7 @@ impl GuiApp {
 
                 let buf_clone = Arc::clone(&self.streaming_buf);
                 let active_clone = Arc::clone(&self.streaming_active);
+                let hints_clone = Arc::clone(&self.pending_hints);
 
                 // Spawn the token accumulator task
                 self.tokio_handle.spawn(async move {
@@ -547,6 +561,15 @@ impl GuiApp {
                     if !separator_found && displayed_len < accumulated.len() {
                         let remaining = accumulated[displayed_len..].to_string();
                         buf_clone.lock().unwrap().push_str(&remaining);
+                    }
+
+                    // Parse metadata for Irish word hints
+                    let parsed = parse_npc_stream_response(&accumulated);
+                    if let Some(meta) = &parsed.metadata
+                        && !meta.irish_words.is_empty()
+                    {
+                        let mut hints = hints_clone.lock().unwrap();
+                        hints.extend(meta.irish_words.clone());
                     }
 
                     *active_clone.lock().unwrap() = false;
@@ -816,6 +839,26 @@ mod tests {
         app.streaming_buf.lock().unwrap().push_str("hello there");
         app.drain_streaming_buffer();
         assert_eq!(app.world.text_log.last().unwrap(), "NPC: hello there");
+    }
+
+    #[test]
+    fn test_drain_streaming_buffer_drains_pending_hints() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut app = GuiApp::new(rt.handle().clone());
+        assert!(app.pronunciation_hints.is_empty());
+
+        // Simulate hints arriving from the token accumulator task
+        app.pending_hints.lock().unwrap().push(IrishWordHint {
+            word: "Dia dhuit".to_string(),
+            pronunciation: "DEE-ah gwit".to_string(),
+            meaning: Some("Hello".to_string()),
+        });
+
+        app.drain_streaming_buffer();
+        assert_eq!(app.pronunciation_hints.len(), 1);
+        assert_eq!(app.pronunciation_hints[0].word, "Dia dhuit");
+        // Pending should be drained
+        assert!(app.pending_hints.lock().unwrap().is_empty());
     }
 
     #[test]
