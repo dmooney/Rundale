@@ -4,10 +4,10 @@
 
 ## Active
 
-### 4. NPCs have no conversation memory
+### 4. NPC conversation memory not wired into LLM prompts
 **Severity:** Medium
-**Description:** Each NPC interaction is stateless — Padraig has no context about what has already been said in the conversation. Previous exchanges are not included in the LLM prompt.
-**Expected:** NPCs should remember at least the current session's dialogue. Planned for Phase 3 (short-term memory system).
+**Description:** Phase 3 added `ShortTermMemory` (20-entry ring buffer) to each NPC, but the memory entries are not yet included in `build_tier1_context()`. Each LLM interaction is effectively stateless — the NPC has no context about prior exchanges.
+**Expected:** `build_tier1_context()` should inject recent memory entries into the prompt so NPCs recall earlier conversation.
 
 ## Resolved
 

@@ -12,7 +12,7 @@ The player arrives as a newcomer to **Kilteevan Village** in the parish of Kilto
 
 ## Current Status
 
-**Phase 2 — World Graph** (in progress). Phase 1 (Core Loop) is complete.
+**Phases 1–3 complete** (Core Loop, World Graph, NPCs & Simulation). **Phase 4 — Persistence** is next.
 
 See the [Roadmap](docs/requirements/roadmap.md) for per-item status tracking.
 
@@ -29,28 +29,31 @@ cargo run
 
 ## Documentation
 
-Start at [docs/index.md](docs/index.md) for the full documentation hub. Key entry points:
+The documentation is organized hierarchically — start at a summary level and drill down as needed.
 
-| Document | What you'll find |
-|----------|-----------------|
-| [Documentation Index](docs/index.md) | Master hub — start here to find anything |
-| [Architecture Overview](docs/design/overview.md) | Tech stack, core loop, module tree, LLM provider support |
-| [Roadmap](docs/requirements/roadmap.md) | 6-phase plan with per-item status checkboxes |
-| [ADR Index](docs/adr/README.md) | 11 architecture decision records with rationale |
-| [Implementation Plans](docs/plans/) | Detailed phase-by-phase implementation plans |
-| [Development Journal](docs/journal.md) | Cross-session notes, observations, recommendations |
+```
+README.md (you are here — project overview, quick start)
+├── CLAUDE.md                  — Agent quick-ref: build, test, style, standards
+└── docs/index.md              — Full documentation hub (start here for everything)
+    ├── docs/requirements/
+    │   └── roadmap.md         — Per-item status tracking across all 6 phases
+    ├── docs/design/
+    │   └── overview.md        — Architecture overview → links to 14 subsystem docs
+    ├── docs/adr/
+    │   └── README.md          — 12 architecture decision records with rationale
+    ├── docs/plans/            — Detailed implementation plan per phase
+    ├── docs/research/         — Historical research informing design
+    ├── docs/journal.md        — Cross-session development notes
+    └── docs/known-issues.md   — Active bugs and UX issues
+```
+
+| Start here | What you'll find |
+|------------|-----------------|
+| [docs/index.md](docs/index.md) | **Master hub** — phase status, links to everything |
+| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item checkboxes for all 6 phases |
+| [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
+| [docs/adr/README.md](docs/adr/README.md) | Architecture decision records (ADRs) |
 
 ## For AI Agents
 
-See [CLAUDE.md](CLAUDE.md) for build commands, code style, engineering standards, and gotchas. It links to deeper documentation as needed. The documentation hierarchy is:
-
-```
-README.md (you are here)
-├── CLAUDE.md              — Build, test, style, standards (agent quick-ref)
-└── docs/index.md          — Full documentation hub
-    ├── docs/design/       — Architecture & subsystem design
-    │   └── overview.md    — Start here, links to all subsystem docs
-    ├── docs/adr/          — Architecture decision records
-    ├── docs/requirements/ — Roadmap with status tracking
-    └── docs/plans/        — Phase-by-phase implementation plans
-```
+See [CLAUDE.md](CLAUDE.md) for build commands, code style, engineering standards, and gotchas. For deeper context, follow links to [docs/index.md](docs/index.md) and the specific subsystem design docs.

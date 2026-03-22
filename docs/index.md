@@ -6,18 +6,18 @@ This is the documentation hub for Parish, an Irish Living World Text Adventure s
 
 ## Project Status
 
-**Current phase: Phase 2 — World Graph** (in progress). Phase 1 (Core Loop) is complete.
+**Phases 1–3 complete.** Next up: **Phase 4 — Persistence.**
 
 See [Roadmap](requirements/roadmap.md) for detailed per-item status tracking.
 
-| Phase | Name | Status |
-|-------|------|--------|
-| 1 | [Core Loop](plans/phase-1-core-loop.md) | **Complete** |
-| 2 | [World Graph](plans/phase-2-world-graph.md) | **In Progress** |
-| 3 | [NPCs & Simulation](plans/phase-3-npcs-simulation.md) | Planned |
-| 4 | [Persistence](plans/phase-4-persistence.md) | Planned |
-| 5 | [Full LOD & Scale](plans/phase-5-full-lod-scale.md) | Planned |
-| 6 | [Polish & Mythology](plans/phase-6-polish-mythology.md) | Planned |
+| Phase | Name | Status | Key Design Docs |
+|-------|------|--------|-----------------|
+| 1 | [Core Loop](plans/phase-1-core-loop.md) | **Complete** | [Architecture](design/overview.md) |
+| 2 | [World Graph](plans/phase-2-world-graph.md) | **Complete** | [Geography](design/world-geography.md), [Time](design/time-system.md) |
+| 3 | [NPCs & Simulation](plans/phase-3-npcs-simulation.md) | **Complete** | [NPC System](design/npc-system.md), [Cognitive LOD](design/cognitive-lod.md) |
+| 4 | [Persistence](plans/phase-4-persistence.md) | **Next** | [Persistence](design/persistence.md) |
+| 5 | [Full LOD & Scale](plans/phase-5-full-lod-scale.md) | Planned | [Cognitive LOD](design/cognitive-lod.md), [Weather](design/weather-system.md) |
+| 6 | [Polish & Mythology](plans/phase-6-polish-mythology.md) | Planned | [Mythology Hooks](design/mythology-hooks.md) |
 
 ---
 
@@ -60,6 +60,7 @@ Key decisions with rationale and alternatives considered. See [ADR Index](adr/RE
 | [009](adr/009-real-geography-fictional-people.md) | Real Irish geography, fictional people | Accepted |
 | [010](adr/010-prompt-injection-defenses.md) | 5-layer prompt injection defense strategy | Accepted |
 | [011](adr/011-geo-tool-osm-pipeline.md) | Geo-tool OSM pipeline for automated world generation | Accepted |
+| [012](adr/012-documentation-hierarchy.md) | Hierarchical documentation organization | Accepted |
 
 ## Requirements & Status
 
@@ -75,9 +76,9 @@ Detailed, implementation-ready plans for each development phase.
 | Plan | Phase | Status |
 |------|-------|--------|
 | [Phase 1: Core Loop](plans/phase-1-core-loop.md) | Core game loop, TUI, single NPC | **Complete** |
-| [Phase 2: World Graph](plans/phase-2-world-graph.md) | Location graph, movement, OSM data | **In Progress** |
-| [Phase 3: NPCs & Simulation](plans/phase-3-npcs-simulation.md) | Multiple NPCs, schedules, tiers 1-2 | Planned |
-| [Phase 4: Persistence](plans/phase-4-persistence.md) | SQLite, journal, snapshots, branching | Planned |
+| [Phase 2: World Graph](plans/phase-2-world-graph.md) | Location graph, movement, encounters | **Complete** |
+| [Phase 3: NPCs & Simulation](plans/phase-3-npcs-simulation.md) | Multiple NPCs, schedules, tiers 1-2 | **Complete** |
+| [Phase 4: Persistence](plans/phase-4-persistence.md) | SQLite, journal, snapshots, branching | **Next** |
 | [Phase 5: Full LOD & Scale](plans/phase-5-full-lod-scale.md) | Tiers 3-4, weather, gossip, memory | Planned |
 | [Phase 6: Polish & Mythology](plans/phase-6-polish-mythology.md) | Commands UI, mythology data hooks | Planned |
 
@@ -94,6 +95,14 @@ Detailed, implementation-ready plans for each development phase.
 | [Development Journal](journal.md) | Cross-session notes, observations, recommendations |
 | [Known Issues](known-issues.md) | Active bugs and UX issues |
 | [Maybe Bad Ideas](maybe-bad-ideas.md) | Ideas under consideration — may or may not be worth pursuing |
+
+## Research
+
+Background research informing design decisions.
+
+| Document | Description |
+|----------|-------------|
+| [Transportation (1820s)](research/transportation.md) | Historical transport options, road conditions, travel radius |
 
 ## Reference
 
