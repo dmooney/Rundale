@@ -1,0 +1,35 @@
+# Test NPC presence at expected locations.
+# Uses /debug here to check who is present.
+
+# Check starting location
+/debug here
+
+# Go to Pub — Padraig Darcy should be here (his workplace)
+go to crossroads
+go to pub
+/debug here
+
+# Go to Church — Fr. Declan may be here
+go to crossroads
+go to church
+/debug here
+
+# Go to Connolly's Shop — Roisin Connolly may be here
+go to crossroads
+go to connolly's shop
+/debug here
+
+# Go to Murphy's Farm
+go to crossroads
+go to murphy's farm
+/debug here
+
+# Go to O'Brien's Farm
+go to o'brien's farm
+/debug here
+
+# Check overall NPC state
+/debug npcs
+/debug tiers
+
+/quit

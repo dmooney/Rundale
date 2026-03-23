@@ -1,0 +1,36 @@
+# Test multi-hop pathfinding — go directly to non-adjacent locations.
+# The harness should find paths through intermediate locations.
+
+# Kilteevan to Fairy Fort (Kilteevan→Crossroads→Church→Bog Road→Fairy Fort)
+go to fairy fort
+/status
+
+# Fairy Fort to Pub (Fairy Fort→Lough Ree→... or Fairy Fort→Bog Road→Church→Crossroads→Pub)
+go to pub
+/status
+
+# Pub to Lime Kiln (multi-hop)
+go to lime kiln
+/status
+
+# Lime Kiln to Kilteevan (multi-hop back)
+go to kilteevan
+/status
+
+# Kilteevan to Hodson Bay (multi-hop)
+go to hodson bay
+/status
+
+# Hodson Bay to Hedge School (multi-hop)
+go to hedge school
+/status
+
+# Hedge School to Hurling Green (single hop)
+go to hurling green
+/status
+
+# Hurling Green back to Kilteevan (multi-hop)
+go to kilteevan
+/status
+
+/quit

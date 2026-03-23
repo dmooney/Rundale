@@ -1,0 +1,78 @@
+# Verify every location in the parish is reachable and lookable.
+# Starts at Kilteevan Village (id=15).
+
+# 1. Kilteevan Village (start)
+look
+
+# 2. The Crossroads (via Kilteevan)
+go to crossroads
+look
+
+# 3. Darcy's Pub (via Crossroads)
+go to pub
+look
+
+# 4. Back to Crossroads
+go to crossroads
+
+# 5. St. Brigid's Church
+go to church
+look
+
+# 6. The Bog Road (via Church)
+go to bog road
+look
+
+# 7. The Fairy Fort (via Bog Road)
+go to fairy fort
+look
+
+# 8. Lough Ree Shore (via Fairy Fort)
+go to lough ree
+look
+
+# 9. Hodson Bay (via Lough Ree Shore)
+go to hodson bay
+look
+
+# 10. Murphy's Farm (via Hodson Bay)
+go to murphy's farm
+look
+
+# 11. O'Brien's Farm (via Murphy's Farm)
+go to o'brien's farm
+look
+
+# 12. The Lime Kiln (via O'Brien's Farm)
+go to lime kiln
+look
+
+# 13. Back via Bog Road to Church to Crossroads
+go to lime kiln
+go to o'brien's farm
+go to murphy's farm
+go to crossroads
+
+# 14. The Letter Office (via Crossroads)
+go to letter office
+look
+
+# 15. Back to Crossroads
+go to crossroads
+
+# 16. Connolly's Shop (via Crossroads)
+go to connolly's shop
+look
+
+# 17. Back to Crossroads
+go to crossroads
+
+# 18. The Hedge School (via Crossroads)
+go to hedge school
+look
+
+# 19. The Hurling Green (via Hedge School)
+go to hurling green
+look
+
+/quit

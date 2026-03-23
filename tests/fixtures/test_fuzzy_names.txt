@@ -1,0 +1,49 @@
+# Test fuzzy location name matching.
+# Each command should resolve to the expected location.
+
+# Pub variants
+go to crossroads
+go to pub
+go to crossroads
+go to the pub
+go to crossroads
+go to darcy's pub
+go to crossroads
+
+# Church variants
+go to church
+go to crossroads
+go to st. brigid's church
+go to crossroads
+
+# Crossroads from Kilteevan with different phrasings
+go to kilteevan
+go to the crossroads
+go to kilteevan
+go to cross
+
+# Farm variants
+go to crossroads
+go to murphy's farm
+go to crossroads
+go to murphy
+go to crossroads
+
+# Other locations with fuzzy names
+go to fairy fort
+go to lough ree
+go to hodson
+go to murphy
+go to o'brien
+go to lime kiln
+go to bog road
+go to church
+go to crossroads
+go to letter office
+go to crossroads
+go to connolly
+go to crossroads
+go to hedge school
+go to hurling green
+
+/quit

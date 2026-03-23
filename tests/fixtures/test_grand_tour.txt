@@ -1,0 +1,100 @@
+# Grand tour regression test — visit every location via optimal routes,
+# look at each, and check status at each. The definitive regression script.
+
+# === Kilteevan Village (start) ===
+/status
+look
+
+# === The Crossroads ===
+go to crossroads
+/status
+look
+
+# === Darcy's Pub ===
+go to pub
+/status
+look
+
+# === Back to Crossroads (hub) ===
+go to crossroads
+
+# === St. Brigid's Church ===
+go to church
+/status
+look
+
+# === The Bog Road (via Church) ===
+go to bog road
+/status
+look
+
+# === The Fairy Fort (via Bog Road) ===
+go to fairy fort
+/status
+look
+
+# === Lough Ree Shore (via Fairy Fort) ===
+go to lough ree
+/status
+look
+
+# === Hodson Bay (via Lough Ree) ===
+go to hodson bay
+/status
+look
+
+# === Murphy's Farm (via Hodson Bay) ===
+go to murphy's farm
+/status
+look
+
+# === O'Brien's Farm (via Murphy's) ===
+go to o'brien's farm
+/status
+look
+
+# === The Lime Kiln (via O'Brien's) ===
+go to lime kiln
+/status
+look
+
+# === Back to Crossroads via long route ===
+go to o'brien's farm
+go to murphy's farm
+go to crossroads
+
+# === The Letter Office ===
+go to letter office
+/status
+look
+
+# === Back to Crossroads ===
+go to crossroads
+
+# === Connolly's Shop ===
+go to connolly's shop
+/status
+look
+
+# === Back to Crossroads ===
+go to crossroads
+
+# === The Hedge School ===
+go to hedge school
+/status
+look
+
+# === The Hurling Green (via Hedge School) ===
+go to hurling green
+/status
+look
+
+# === Final: Back to start ===
+go to kilteevan
+/status
+
+# Debug overview at end
+/debug
+/debug tiers
+
+/quit

@@ -1,0 +1,21 @@
+# Test all 8 movement verb forms to the same destination.
+# Each should produce a Moved result.
+
+go to crossroads
+go to kilteevan
+walk to crossroads
+walk to kilteevan
+head to crossroads
+head to kilteevan
+stroll to crossroads
+stroll to kilteevan
+saunter to crossroads
+saunter to kilteevan
+mosey to crossroads
+mosey to kilteevan
+run to crossroads
+run to kilteevan
+dash to crossroads
+dash to kilteevan
+
+/quit

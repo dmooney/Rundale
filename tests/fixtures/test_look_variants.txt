@@ -1,0 +1,34 @@
+# Test all look command variants at multiple locations.
+
+# Look at Kilteevan Village
+look
+l
+look around
+
+# Move to Crossroads and look
+go to crossroads
+look
+l
+look around
+
+# Move to Pub and look
+go to pub
+look
+l
+look around
+
+# Move to Church
+go to crossroads
+go to church
+look
+l
+look around
+
+# Move to Hedge School
+go to crossroads
+go to hedge school
+look
+l
+look around
+
+/quit

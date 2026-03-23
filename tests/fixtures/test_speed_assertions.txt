@@ -1,0 +1,19 @@
+# Test speed presets with status checks for assertion.
+
+/status
+/speed
+/speed slow
+/status
+/speed fast
+/status
+/speed normal
+/status
+/speed fastest
+/status
+/speed bogus
+/status
+/speed slow
+/speed normal
+/status
+
+/quit
