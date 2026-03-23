@@ -6,6 +6,7 @@
 
 use crate::error::ParishError;
 use crate::inference::openai_client::OpenAiClient;
+use crate::world::time::GameSpeed;
 use serde::Deserialize;
 
 /// A system command entered by the player.
@@ -64,6 +65,10 @@ pub enum Command {
     ShowCloudKey,
     /// Set cloud API key at runtime.
     SetCloudKey(String),
+    /// Show current game speed.
+    ShowSpeed,
+    /// Set game speed to a named preset.
+    SetSpeed(GameSpeed),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -188,6 +193,14 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::Debug(None))
         } else {
             Some(Command::Debug(Some(sub)))
+        }
+    } else if lower == "/speed" {
+        Some(Command::ShowSpeed)
+    } else if lower.starts_with("/speed ") {
+        let arg = trimmed[7..].trim();
+        match GameSpeed::from_name(arg) {
+            Some(speed) => Some(Command::SetSpeed(speed)),
+            None => Some(Command::ShowSpeed),
         }
     } else if lower == "/cloud" {
         Some(Command::ShowCloud)
@@ -1013,5 +1026,55 @@ mod tests {
             parse_system_command("/cloud foobar"),
             Some(Command::ShowCloud)
         );
+    }
+
+    #[test]
+    fn test_parse_speed_show() {
+        assert_eq!(parse_system_command("/speed"), Some(Command::ShowSpeed));
+    }
+
+    #[test]
+    fn test_parse_speed_set_variants() {
+        assert_eq!(
+            parse_system_command("/speed slow"),
+            Some(Command::SetSpeed(GameSpeed::Slow))
+        );
+        assert_eq!(
+            parse_system_command("/speed normal"),
+            Some(Command::SetSpeed(GameSpeed::Normal))
+        );
+        assert_eq!(
+            parse_system_command("/speed fast"),
+            Some(Command::SetSpeed(GameSpeed::Fast))
+        );
+        assert_eq!(
+            parse_system_command("/speed fastest"),
+            Some(Command::SetSpeed(GameSpeed::Fastest))
+        );
+    }
+
+    #[test]
+    fn test_parse_speed_case_insensitive() {
+        assert_eq!(
+            parse_system_command("/speed FAST"),
+            Some(Command::SetSpeed(GameSpeed::Fast))
+        );
+        assert_eq!(
+            parse_system_command("/speed Slow"),
+            Some(Command::SetSpeed(GameSpeed::Slow))
+        );
+        assert_eq!(
+            parse_system_command("/SPEED normal"),
+            Some(Command::SetSpeed(GameSpeed::Normal))
+        );
+    }
+
+    #[test]
+    fn test_parse_speed_invalid_fallback() {
+        assert_eq!(
+            parse_system_command("/speed bogus"),
+            Some(Command::ShowSpeed)
+        );
+        assert_eq!(parse_system_command("/speed   "), Some(Command::ShowSpeed));
     }
 }

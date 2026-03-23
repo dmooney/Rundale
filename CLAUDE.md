@@ -25,7 +25,7 @@ Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
 
 Every commit **must** satisfy all of the following:
 
-1. **Documentation**: Update relevant documentation for every commit. New public APIs, changed behavior, and architectural decisions must be reflected in doc comments (`///`), `docs/`, or ADRs as appropriate.
+1. **Documentation**: **Every commit must leave docs current.** Update `README.md`, `CLAUDE.md`, `docs/design/`, `docs/adr/`, and doc comments (`///`) to reflect all changes. New public APIs, changed behavior, renamed or removed items, and architectural decisions must be documented before pushing. If you change code, you change the docs — no exceptions.
 2. **Tests required**: All new code must have accompanying unit tests. No new function, struct, or module lands without test coverage.
 3. **Coverage threshold**: Maintain test coverage above **90%**. Use `cargo tarpaulin` (or equivalent) to verify. PRs that drop coverage below 90% must not be merged.
 4. **All standards must pass**: `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test` must all succeed. No exceptions, no `#[allow]` without a justifying comment.
@@ -46,7 +46,7 @@ src/
 ├── input/           # Player input parsing, command detection
 ├── world/           # World state, location graph, time, movement, encounters
 │   ├── graph.rs     #   WorldGraph, BFS pathfinding, fuzzy name search
-│   ├── time.rs      #   GameClock, TimeOfDay, Season
+│   ├── time.rs      #   GameClock, GameSpeed, TimeOfDay, Season
 │   ├── movement.rs  #   Movement resolution and travel narration
 │   ├── encounter.rs #   En-route encounter system
 │   └── description.rs # Dynamic location description templates

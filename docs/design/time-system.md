@@ -4,14 +4,28 @@
 
 ## Day/Night Cycle
 
-- **20 real-world minutes = 1 in-game day** (matches Minecraft pacing)
-- Night portion: ~7-8 real minutes
+- **40 real-world minutes = 1 in-game day** at Normal speed (factor 36.0)
+- Night portion: ~14-16 real minutes
+
+## Game Speed Presets
+
+Speed is adjustable at runtime via the `/speed` command, inspired by SimCity:
+
+| Command | Preset | Factor | Real time per game day |
+|---------|--------|--------|----------------------|
+| `/speed slow` | Slow | 18.0 | 80 minutes |
+| `/speed normal` | Normal (default) | 36.0 | 40 minutes |
+| `/speed fast` | Fast | 72.0 | 20 minutes |
+| `/speed fastest` | Fastest | 144.0 | 10 minutes |
+
+`/speed` alone shows the current pace. Speed changes recalibrate the clock
+seamlessly — current game time is preserved, only the rate of passage changes.
 
 ## Seasons & Years
 
-- **Target: 2-3 real-world hours = 1 in-game year**
+- **Target: 4-6 real-world hours = 1 in-game year** at Normal speed
 - ~6-9 in-game days per season
-- Each season lasts ~30-45 real-world minutes
+- Each season lasts ~60-90 real-world minutes at Normal speed
 - A full year is experienced in a single play session
 - Multiple years of play show parish evolution: relationships deepen, people age, things change
 
