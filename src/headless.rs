@@ -23,6 +23,9 @@ use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{Notify, mpsc};
 
+/// Interval between autosaves in seconds.
+const AUTOSAVE_INTERVAL_SECS: u64 = 45;
+
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///
 /// Sets up the inference pipeline with dual-client routing: cloud client
@@ -97,6 +100,53 @@ pub async fn run_headless(
     app.npc_manager
         .assign_tiers(app.world.player_location, &app.world.graph);
 
+    // Initialize persistence
+    let db_path = std::path::Path::new("parish_saves.db");
+    match crate::persistence::Database::open(db_path) {
+        Ok(db) => {
+            let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+
+            // Find the main branch
+            if let Ok(Some(branch)) = async_db.find_branch("main").await {
+                app.active_branch_id = branch.id;
+
+                // Try to load latest snapshot
+                if let Ok(Some((snap_id, snapshot))) =
+                    async_db.load_latest_snapshot(branch.id).await
+                {
+                    // Replay journal events
+                    let events = async_db
+                        .events_since_snapshot(branch.id, snap_id)
+                        .await
+                        .unwrap_or_default();
+                    snapshot.restore(&mut app.world, &mut app.npc_manager);
+                    crate::persistence::replay_journal(
+                        &mut app.world,
+                        &mut app.npc_manager,
+                        &events,
+                    );
+                    app.latest_snapshot_id = snap_id;
+                    app.npc_manager
+                        .assign_tiers(app.world.player_location, &app.world.graph);
+                    println!("Restored from save.");
+                } else {
+                    // First run — save initial snapshot
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    if let Ok(snap_id) = async_db.save_snapshot(branch.id, &snapshot).await {
+                        app.latest_snapshot_id = snap_id;
+                    }
+                }
+            }
+
+            app.db = Some(async_db);
+            app.last_autosave = Some(std::time::Instant::now());
+        }
+        Err(e) => {
+            eprintln!("Warning: Persistence unavailable: {}", e);
+        }
+    }
+
     // Show initial location
     print_location_arrival(&app);
 
@@ -119,7 +169,7 @@ pub async fn run_headless(
 
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
-                let (quit, rebuild) = handle_headless_command(&mut app, cmd);
+                let (quit, rebuild) = handle_headless_command(&mut app, cmd).await;
                 if rebuild {
                     // Rebuild dialogue queue: prefer cloud client, fall back to local
                     let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
@@ -155,6 +205,26 @@ pub async fn run_headless(
             .tick_schedules(&app.world.clock, &app.world.graph);
         process_headless_schedule_events(&mut app, &schedule_events);
 
+        // Periodic autosave
+        if let Some(ref db) = app.db {
+            let should_autosave = app
+                .last_autosave
+                .map(|t| t.elapsed().as_secs() >= AUTOSAVE_INTERVAL_SECS)
+                .unwrap_or(true);
+            if should_autosave {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                if let Ok(snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
+                    let _ = db
+                        .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                        .await;
+                    app.latest_snapshot_id = snap_id;
+                    app.last_autosave = Some(std::time::Instant::now());
+                    tracing::debug!("Autosave complete");
+                }
+            }
+        }
+
         if app.should_quit {
             break;
         }
@@ -186,10 +256,22 @@ static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
 /// Handles a system command in headless mode.
 ///
 /// Returns `(should_quit, rebuild_inference)`.
-fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
+async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
     let mut rebuild = false;
     match cmd {
         Command::Quit => {
+            // Autosave before quitting
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                match db.save_snapshot(app.active_branch_id, &snapshot).await {
+                    Ok(snap_id) => {
+                        app.latest_snapshot_id = snap_id;
+                        println!("Saved and farewell.");
+                    }
+                    Err(e) => eprintln!("Warning: Failed to save on quit: {}", e),
+                }
+            }
             app.should_quit = true;
             return (true, false);
         }
@@ -247,9 +329,11 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /key      - Show or change local API key");
             println!("  /cloud    - Show or change cloud dialogue provider");
             println!("  /help     - Show this help");
-            println!("  /save     - Save game (not yet arrived)");
-            println!("  /fork <n> - Fork save (not yet arrived)");
-            println!("  /load <n> - Load save (not yet arrived)");
+            println!("  /save     - Save game");
+            println!("  /fork <n> - Fork a new timeline branch");
+            println!("  /load <n> - Load a saved branch");
+            println!("  /branches - List save branches");
+            println!("  /log      - Show snapshot history");
         }
         Command::ToggleSidebar => {
             println!("The pronunciation sidebar is only available in TUI mode.");
@@ -310,8 +394,143 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             rebuild = true;
             println!("API key updated.");
         }
-        Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
-            println!("That particular skill hasn't arrived in the parish yet. Patience now.");
+        Command::Save => {
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                match db.save_snapshot(app.active_branch_id, &snapshot).await {
+                    Ok(snap_id) => {
+                        // Clear old journal and start fresh from this snapshot
+                        let _ = db
+                            .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                            .await;
+                        app.latest_snapshot_id = snap_id;
+                        app.last_autosave = Some(std::time::Instant::now());
+                        println!("Game saved.");
+                    }
+                    Err(e) => eprintln!("Failed to save: {}", e),
+                }
+            } else {
+                println!("Persistence not available.");
+            }
+        }
+        Command::Fork(name) => {
+            if let Some(ref db) = app.db {
+                // Save current branch first
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+
+                // Create new branch
+                match db.create_branch(&name, Some(app.active_branch_id)).await {
+                    Ok(new_branch_id) => {
+                        // Save snapshot under new branch
+                        match db.save_snapshot(new_branch_id, &snapshot).await {
+                            Ok(snap_id) => {
+                                app.active_branch_id = new_branch_id;
+                                app.latest_snapshot_id = snap_id;
+                                app.last_autosave = Some(std::time::Instant::now());
+                                println!("Forked to branch '{}'.", name);
+                            }
+                            Err(e) => eprintln!("Failed to save fork snapshot: {}", e),
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to create branch '{}': {}", name, e),
+                }
+            } else {
+                println!("Persistence not available.");
+            }
+        }
+        Command::Load(name) => {
+            if let Some(ref db) = app.db {
+                match db.find_branch(&name).await {
+                    Ok(Some(branch)) => {
+                        // Auto-save current branch only when switching branches
+                        if branch.id != app.active_branch_id {
+                            let snapshot = crate::persistence::GameSnapshot::capture(
+                                &app.world,
+                                &app.npc_manager,
+                            );
+                            let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                        }
+                        match db.load_latest_snapshot(branch.id).await {
+                            Ok(Some((snap_id, loaded_snapshot))) => {
+                                // Replay journal events
+                                let events = db
+                                    .events_since_snapshot(branch.id, snap_id)
+                                    .await
+                                    .unwrap_or_default();
+                                loaded_snapshot.restore(&mut app.world, &mut app.npc_manager);
+                                crate::persistence::replay_journal(
+                                    &mut app.world,
+                                    &mut app.npc_manager,
+                                    &events,
+                                );
+
+                                app.active_branch_id = branch.id;
+                                app.latest_snapshot_id = snap_id;
+                                app.last_autosave = Some(std::time::Instant::now());
+
+                                // Reassign tiers after loading
+                                app.npc_manager
+                                    .assign_tiers(app.world.player_location, &app.world.graph);
+
+                                let time = app.world.clock.time_of_day();
+                                let season = app.world.clock.season();
+                                println!("Loaded branch '{}'. {}, {}.", name, season, time);
+                            }
+                            Ok(None) => println!("Branch '{}' has no saves yet.", name),
+                            Err(e) => eprintln!("Failed to load branch '{}': {}", name, e),
+                        }
+                    }
+                    Ok(None) => println!("No branch named '{}' found.", name),
+                    Err(e) => eprintln!("Failed to find branch '{}': {}", name, e),
+                }
+            } else {
+                println!("Persistence not available.");
+            }
+        }
+        Command::Branches => {
+            if let Some(ref db) = app.db {
+                match db.list_branches().await {
+                    Ok(branches) => {
+                        println!("Save branches:");
+                        for b in &branches {
+                            let marker = if b.id == app.active_branch_id {
+                                " *"
+                            } else {
+                                ""
+                            };
+                            println!("  {}{} (created {})", b.name, marker, b.created_at);
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to list branches: {}", e),
+                }
+            } else {
+                println!("Persistence not available.");
+            }
+        }
+        Command::Log => {
+            if let Some(ref db) = app.db {
+                match db.branch_log(app.active_branch_id).await {
+                    Ok(snapshots) => {
+                        if snapshots.is_empty() {
+                            println!("No snapshots on this branch yet.");
+                        } else {
+                            println!("Snapshot history (most recent first):");
+                            for s in &snapshots {
+                                println!(
+                                    "  #{} — game: {} | saved: {}",
+                                    s.id, s.game_time, s.real_time
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Failed to get branch log: {}", e),
+                }
+            } else {
+                println!("Persistence not available.");
+            }
         }
         Command::Debug(sub) => {
             let lines = crate::debug::handle_debug(sub.as_deref(), app);
@@ -687,159 +906,211 @@ mod tests {
     use crate::tui::App;
     use crate::world::time::GameSpeed;
 
-    #[test]
-    fn test_handle_headless_command_quit() {
+    #[tokio::test]
+    async fn test_handle_headless_command_quit() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit).await;
         assert!(quit);
         assert!(app.should_quit);
     }
 
-    #[test]
-    fn test_handle_headless_command_pause() {
+    #[tokio::test]
+    async fn test_handle_headless_command_pause() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause).await;
         assert!(!quit);
         assert!(app.world.clock.is_paused());
     }
 
-    #[test]
-    fn test_handle_headless_command_resume() {
+    #[tokio::test]
+    async fn test_handle_headless_command_resume() {
         let mut app = App::new();
         app.world.clock.pause();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume).await;
         assert!(!quit);
         assert!(!app.world.clock.is_paused());
     }
 
-    #[test]
-    fn test_handle_headless_command_help() {
+    #[tokio::test]
+    async fn test_handle_headless_command_help() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help).await;
         assert!(!quit);
     }
 
-    #[test]
-    fn test_handle_headless_command_status() {
+    #[tokio::test]
+    async fn test_handle_headless_command_status() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status);
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status).await;
         assert!(!quit);
     }
 
-    #[test]
-    fn test_handle_headless_command_unimplemented() {
+    #[tokio::test]
+    async fn test_handle_headless_command_save_no_db() {
         let mut app = App::new();
-        assert_eq!(
-            handle_headless_command(&mut app, Command::Save),
-            (false, false)
-        );
-        assert_eq!(
-            handle_headless_command(&mut app, Command::Fork("test".to_string())),
-            (false, false)
-        );
-        assert_eq!(
-            handle_headless_command(&mut app, Command::Load("test".to_string())),
-            (false, false)
-        );
-        assert_eq!(
-            handle_headless_command(&mut app, Command::Branches),
-            (false, false)
-        );
-        assert_eq!(
-            handle_headless_command(&mut app, Command::Log),
-            (false, false)
-        );
-    }
-
-    #[test]
-    fn test_handle_headless_command_show_provider() {
-        let mut app = App::new();
-        app.provider_name = "openrouter".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider);
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_set_provider() {
+    #[tokio::test]
+    async fn test_handle_headless_command_save_with_db() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        let snap_id = async_db.save_snapshot(branch.id, &snapshot).await.unwrap();
+        app.db = Some(async_db);
+        app.active_branch_id = branch.id;
+        app.latest_snapshot_id = snap_id;
+
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save).await;
+        assert!(!quit);
+        assert!(!rebuild);
+        assert!(app.latest_snapshot_id > snap_id);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_fork_and_branches() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        let snap_id = async_db.save_snapshot(branch.id, &snapshot).await.unwrap();
+        app.db = Some(async_db.clone());
+        app.active_branch_id = branch.id;
+        app.latest_snapshot_id = snap_id;
+
+        // Fork
+        let (quit, _) = handle_headless_command(&mut app, Command::Fork("test".to_string())).await;
+        assert!(!quit);
+        assert_ne!(app.active_branch_id, branch.id);
+
+        // Branches should show both
+        let branches = async_db.list_branches().await.unwrap();
+        assert_eq!(branches.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_load() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        let snap_id = async_db.save_snapshot(branch.id, &snapshot).await.unwrap();
+        app.db = Some(async_db);
+        app.active_branch_id = branch.id;
+        app.latest_snapshot_id = snap_id;
+
+        // Load main
+        let (quit, _) = handle_headless_command(&mut app, Command::Load("main".to_string())).await;
+        assert!(!quit);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_load_nonexistent() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+        app.db = Some(async_db);
+        let (quit, _) = handle_headless_command(&mut app, Command::Load("bogus".to_string())).await;
+        assert!(!quit);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_provider() {
+        let mut app = App::new();
+        app.provider_name = "openrouter".to_string();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_set_provider() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string()));
+            handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string())).await;
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.provider_name, "openrouter");
         assert!(app.client.is_some());
     }
 
-    #[test]
-    fn test_handle_headless_command_set_provider_invalid() {
+    #[tokio::test]
+    async fn test_handle_headless_command_set_provider_invalid() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string()));
+            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string())).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_show_model() {
+    #[tokio::test]
+    async fn test_handle_headless_command_show_model() {
         let mut app = App::new();
         app.model_name = "test-model".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel);
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_set_model() {
+    #[tokio::test]
+    async fn test_handle_headless_command_set_model() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetModel("new-model".to_string()));
+            handle_headless_command(&mut app, Command::SetModel("new-model".to_string())).await;
         assert!(!quit);
         assert!(!rebuild);
         assert_eq!(app.model_name, "new-model");
     }
 
-    #[test]
-    fn test_handle_headless_command_show_key_none() {
+    #[tokio::test]
+    async fn test_handle_headless_command_show_key_none() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey);
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_show_key_masked() {
+    #[tokio::test]
+    async fn test_handle_headless_command_show_key_masked() {
         let mut app = App::new();
         app.api_key = Some("sk-or-v1-abcdef1234".to_string());
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey);
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_set_key() {
+    #[tokio::test]
+    async fn test_handle_headless_command_set_key() {
         let mut app = App::new();
         app.base_url = "https://openrouter.ai/api".to_string();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetKey("sk-new-key-12345678".to_string()));
+            handle_headless_command(&mut app, Command::SetKey("sk-new-key-12345678".to_string()))
+                .await;
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
         assert!(app.client.is_some());
     }
 
-    #[test]
-    fn test_handle_headless_command_show_speed() {
+    #[tokio::test]
+    async fn test_handle_headless_command_show_speed() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed);
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed).await;
         assert!(!quit);
         assert!(!rebuild);
     }
 
-    #[test]
-    fn test_handle_headless_command_set_speed() {
+    #[tokio::test]
+    async fn test_handle_headless_command_set_speed() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast));
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast)).await;
         assert!(!quit);
         assert!(!rebuild);
         assert!(

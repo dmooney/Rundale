@@ -61,7 +61,10 @@ src/
 │   ├── overhear.rs  #   Atmospheric overhear for nearby Tier 2
 │   └── data.rs      #   NPC data loader (JSON)
 ├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
-├── persistence/     # SQLite save/load, WAL journal (Phase 4)
+├── persistence/     # SQLite save/load, WAL journal, branching saves
+│   ├── database.rs  #   Database + AsyncDatabase (schema, CRUD)
+│   ├── snapshot.rs  #   GameSnapshot, ClockSnapshot, NpcSnapshot
+│   └── journal.rs   #   WorldEvent enum, replay logic
 ├── tui/             # Ratatui terminal UI + debug panel
 ├── gui/             # egui windowed GUI (default mode)
 │   ├── theme.rs     #   Time-of-day color theming

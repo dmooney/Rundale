@@ -15,7 +15,7 @@ use crate::world::LocationId;
 pub const MEMORY_CAPACITY: usize = 20;
 
 /// A single memory entry recording something an NPC experienced.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryEntry {
     /// When this happened in game time.
     pub timestamp: DateTime<Utc>,
@@ -31,7 +31,7 @@ pub struct MemoryEntry {
 ///
 /// Holds the last [`MEMORY_CAPACITY`] entries. When full, the oldest
 /// entry is evicted to make room for new ones.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShortTermMemory {
     /// The entries, ordered oldest to newest.
     entries: VecDeque<MemoryEntry>,
