@@ -86,6 +86,8 @@ Detailed, implementation-ready plans for each development phase.
 
 | Document | Description |
 |----------|-------------|
+| [macOS Setup](macos-setup.md) | Native macOS setup, Apple Silicon GPU, terminal tips |
+| [Linux Setup](linux-setup.md) | Native Linux setup, NVIDIA/AMD GPU, headless screenshots |
 | [Windows Setup](windows-setup.md) | Native Windows setup, terminal tips, troubleshooting |
 
 ## Development

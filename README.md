@@ -25,7 +25,7 @@ cargo run
 
 **Requirements:** Rust (edition 2024), [Ollama](https://ollama.ai/) on `localhost:11434` (auto-installed if missing).
 
-**Windows users:** See the [Windows Setup Guide](docs/windows-setup.md).
+**Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)
 
 ## Documentation
 
