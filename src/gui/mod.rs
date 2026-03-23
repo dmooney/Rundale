@@ -6,6 +6,7 @@
 //! inference streaming).
 
 pub mod chat_panel;
+pub mod debug_panel;
 pub mod input_field;
 pub mod map_panel;
 pub mod sidebar;
@@ -21,6 +22,7 @@ use std::sync::{Arc, Mutex};
 use chrono::Timelike;
 
 use anyhow::Result;
+use chrono::Timelike;
 use eframe::egui;
 use tokio::sync::mpsc;
 
@@ -31,18 +33,17 @@ use crate::input::{Command, InputResult, classify_input};
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::{NpcManager, ScheduleEvent, ScheduleEventKind};
 use crate::npc::ticks;
+use crate::npc::types::CogTier;
 use crate::npc::{
-    IrishWordHint, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
+    IrishWordHint, NpcId, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
     parse_npc_stream_response,
 };
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::{LocationId, WorldState};
 
+use debug_panel::{DEBUG_EVENT_CAPACITY, DebugEvent, DebugEventCategory, DebugUiState};
 use theme::{apply_palette, gui_palette_smooth};
-
-/// Maximum number of debug log entries.
-const DEBUG_LOG_CAPACITY: usize = 50;
 
 /// Idle messages shown when no NPC is present.
 const IDLE_MESSAGES: &[&str] = &[
@@ -93,8 +94,10 @@ pub struct GuiApp {
     pub improv_enabled: bool,
     /// Irish pronunciation hints from NPC responses.
     pub pronunciation_hints: Vec<IrishWordHint>,
-    /// Debug activity log (ring buffer).
-    pub debug_log: VecDeque<String>,
+    /// Structured debug event log (ring buffer).
+    pub debug_events: VecDeque<DebugEvent>,
+    /// Persistent UI state for the debug inspector panel.
+    pub debug_ui_state: DebugUiState,
     /// Idle message rotation counter.
     pub idle_counter: usize,
 
@@ -156,7 +159,8 @@ impl GuiApp {
             dialogue_model: String::new(),
             improv_enabled: false,
             pronunciation_hints: Vec::new(),
-            debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
+            debug_events: VecDeque::with_capacity(DEBUG_EVENT_CAPACITY),
+            debug_ui_state: DebugUiState::default(),
             idle_counter: 0,
             input_buffer: String::new(),
             show_map: true,
@@ -175,12 +179,39 @@ impl GuiApp {
         }
     }
 
-    /// Pushes an entry to the debug activity log (ring buffer).
-    pub fn debug_event(&mut self, msg: String) {
-        if self.debug_log.len() >= DEBUG_LOG_CAPACITY {
-            self.debug_log.pop_front();
+    /// Pushes a structured debug event to the event log.
+    ///
+    /// Automatically timestamps the event from the game clock.
+    /// Evicts the oldest event when the log reaches capacity.
+    pub fn push_debug_event(&mut self, category: DebugEventCategory, message: String) {
+        let now = self.world.clock.now();
+        let timestamp = format!("{:02}:{:02}", now.hour(), now.minute());
+        if self.debug_events.len() >= DEBUG_EVENT_CAPACITY {
+            self.debug_events.pop_front();
         }
-        self.debug_log.push_back(msg);
+        self.debug_events.push_back(DebugEvent {
+            timestamp,
+            category,
+            message,
+        });
+    }
+
+    /// Logs tier changes from `assign_tiers` as debug events.
+    fn log_tier_changes(&mut self, changes: &[(NpcId, Option<CogTier>, CogTier)]) {
+        for (npc_id, old, new) in changes {
+            let npc_name = self
+                .npc_manager
+                .get(*npc_id)
+                .map(|n| n.name.clone())
+                .unwrap_or_else(|| format!("NPC({})", npc_id.0));
+            let old_str = old
+                .map(|t| format!("{:?}", t))
+                .unwrap_or_else(|| "None".to_string());
+            self.push_debug_event(
+                DebugEventCategory::TierChange,
+                format!("{}: {} -> {:?}", npc_name, old_str, new),
+            );
+        }
     }
 
     /// Drains the streaming buffer into the text log.
@@ -222,8 +253,10 @@ impl GuiApp {
         let tick_due = self.last_idle_tick.elapsed() >= idle_interval;
 
         if !is_streaming && idle_elapsed && tick_due && !self.world.clock.is_paused() {
-            self.npc_manager
+            let tier_changes = self
+                .npc_manager
                 .assign_tiers(self.world.player_location, &self.world.graph);
+            self.log_tier_changes(&tier_changes);
             let events = self
                 .npc_manager
                 .tick_schedules(&self.world.clock, &self.world.graph);
@@ -236,7 +269,7 @@ impl GuiApp {
     fn process_schedule_events(&mut self, events: &[ScheduleEvent]) {
         let player_loc = self.world.player_location;
         for event in events {
-            self.debug_event(event.debug_string());
+            self.push_debug_event(DebugEventCategory::Schedule, event.debug_string());
             match &event.kind {
                 ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
                     self.world
@@ -312,6 +345,22 @@ impl GuiApp {
                 narration,
                 ..
             } => {
+                let from_name = self
+                    .world
+                    .graph
+                    .get(self.world.player_location)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_else(|| "?".to_string());
+                let to_name = self
+                    .world
+                    .graph
+                    .get(destination)
+                    .map(|l| l.name.clone())
+                    .unwrap_or_else(|| "?".to_string());
+                self.push_debug_event(
+                    DebugEventCategory::Movement,
+                    format!("Player: {} -> {} ({}min)", from_name, to_name, minutes),
+                );
                 self.world.log(narration);
                 self.world.log(String::new());
                 self.world.clock.advance(minutes as i64);
@@ -594,8 +643,10 @@ impl GuiApp {
         }
 
         // Simulation tick after each action
-        self.npc_manager
+        let tier_changes = self
+            .npc_manager
             .assign_tiers(self.world.player_location, &self.world.graph);
+        self.log_tier_changes(&tier_changes);
         let events = self
             .npc_manager
             .tick_schedules(&self.world.clock, &self.world.graph);
@@ -633,6 +684,10 @@ impl GuiApp {
         let npc = npcs_here.first().cloned().cloned();
 
         if let Some(npc) = npc {
+            self.push_debug_event(
+                DebugEventCategory::Conversation,
+                format!("Player spoke with {}", npc.name),
+            );
             let other_npcs: Vec<_> = self
                 .npc_manager
                 .npcs_at(self.world.player_location)
@@ -777,6 +832,11 @@ impl eframe::App for GuiApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
 
+        // F12 toggles debug panel
+        if ctx.input(|i| i.key_pressed(egui::Key::F12)) {
+            self.show_debug = !self.show_debug;
+        }
+
         // Check quit
         if self.should_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -853,6 +913,21 @@ impl eframe::App for GuiApp {
                 loading_display.as_ref(),
             );
         });
+
+        // Debug inspector window
+        if self.show_debug {
+            let closed = debug_panel::draw_debug_window(
+                ctx,
+                &mut self.debug_ui_state,
+                &self.world,
+                &self.npc_manager,
+                &self.debug_events,
+                &palette,
+            );
+            if closed {
+                self.show_debug = false;
+            }
+        }
 
         // Process submitted input
         if let Some(text) = submitted {
@@ -1006,22 +1081,23 @@ mod tests {
     }
 
     #[test]
-    fn test_gui_app_debug_event() {
+    fn test_gui_app_push_debug_event() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let mut app = GuiApp::new(rt.handle().clone());
-        app.debug_event("test event".to_string());
-        assert_eq!(app.debug_log.len(), 1);
-        assert_eq!(app.debug_log[0], "test event");
+        app.push_debug_event(DebugEventCategory::System, "test event".to_string());
+        assert_eq!(app.debug_events.len(), 1);
+        assert_eq!(app.debug_events[0].message, "test event");
+        assert_eq!(app.debug_events[0].category, DebugEventCategory::System);
     }
 
     #[test]
-    fn test_gui_app_debug_log_capacity() {
+    fn test_gui_app_debug_event_capacity() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let mut app = GuiApp::new(rt.handle().clone());
-        for i in 0..DEBUG_LOG_CAPACITY + 10 {
-            app.debug_event(format!("event {}", i));
+        for i in 0..DEBUG_EVENT_CAPACITY + 10 {
+            app.push_debug_event(DebugEventCategory::System, format!("event {}", i));
         }
-        assert_eq!(app.debug_log.len(), DEBUG_LOG_CAPACITY);
+        assert_eq!(app.debug_events.len(), DEBUG_EVENT_CAPACITY);
     }
 
     #[test]

@@ -148,9 +148,16 @@ impl NpcManager {
     /// - Distance 0 (same location): Tier 1
     /// - Distance 1-2: Tier 2
     /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+    ///
+    /// Returns a list of `(NpcId, old_tier, new_tier)` for NPCs whose tier changed.
+    pub fn assign_tiers(
+        &mut self,
+        player_location: LocationId,
+        graph: &WorldGraph,
+    ) -> Vec<(NpcId, Option<CogTier>, CogTier)> {
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
+        let mut changes = Vec::new();
 
         for npc in self.npcs.values() {
             let distance = match npc.state {
@@ -174,6 +181,11 @@ impl NpcManager {
                 _ => CogTier::Tier3,
             };
 
+            let old_tier = self.tier_assignments.get(&npc.id).copied();
+            if old_tier != Some(tier) {
+                changes.push((npc.id, old_tier, tier));
+            }
+
             self.tier_assignments.insert(npc.id, tier);
         }
 
@@ -183,6 +195,8 @@ impl NpcManager {
             tier2 = self.tier2_npcs().len(),
             "Tier assignment complete"
         );
+
+        changes
     }
 
     /// Returns the current cognitive tier for an NPC.

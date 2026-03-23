@@ -234,6 +234,87 @@ A custom tracing subscriber layer captures log entries into a ring buffer:
 - **Compile-time elimination**: Every debug struct, channel, and render path is behind `#[cfg(feature = "debug")]` — zero cost in release builds
 - **Existing integration**: Debug commands are parsed in the same `parse_system_command` path as `/save`, `/quit`, etc. — just additional match arms behind `#[cfg(feature = "debug")]`
 
+## GUI Debug Inspector Panel
+
+The GUI mode (egui/eframe) includes a floating debug inspector window with tabbed views for deep inspection of all game state. Toggled via `F12` or `/debug panel`.
+
+### Layout
+
+A resizable, moveable `egui::Window` overlaid on the game UI:
+
+```
+┌──────────────────────────────────────────────────────┐
+│ Debug Inspector                               [X]    │
+├───────┬───────────┬───────┬─────────┬───────────────┤
+│ World │ Locations │ NPCs  │ Events  │ Relationships │
+├───────┴───────────┴───────┴─────────┴───────────────┤
+│                                                      │
+│  [Tab content]                                       │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+### Tabs
+
+**World** — At-a-glance dashboard:
+- Game time, date, season, festival
+- Weather, game speed, pause state
+- Player location
+- NPC tier distribution (Tier 1/2/3+ counts)
+
+**Locations** — Two-pane location browser:
+- Left: filterable list of all locations (player location marked with `*`)
+- Right: selected location detail — name, indoor/public flags, description template, connections with travel times, associated NPCs, NPCs currently present, mythological significance
+
+**NPCs** — Two-pane NPC browser:
+- Left: filterable list showing name, mood, location, tier, transit state
+- Right: full NPC detail with collapsible sections:
+  - Identity (ID, age, occupation, mood, location, tier, state, home, workplace)
+  - Personality (full prompt text)
+  - Schedule (table of time slots with activity and location)
+  - Memory (timestamped entries with location)
+  - Relationships (grid with kind, strength, and visual strength bar)
+  - Knowledge (list of known facts)
+
+**Events** — Scrollable event log:
+- Structured events with game-time timestamps and color-coded categories
+- Categories: MOVE, SCHED, CHAT, TIER, MOOD, REL, HEAR, SYS
+- Auto-scroll toggle
+- 500-event ring buffer
+
+**Relationships** — All NPC-to-NPC relationships:
+- Filterable by NPC name
+- Grid: From, To, Kind, Strength, visual strength bar (-1.0 to +1.0)
+
+### Event Instrumentation
+
+The debug event log captures:
+- **Movement**: Player travel between locations (origin, destination, travel time)
+- **Schedule**: NPC departures and arrivals from schedule ticking
+- **Conversation**: Player-NPC dialogue initiation
+- **Tier changes**: NPC cognitive tier reassignments
+- Future phases will add: mood changes, relationship changes, overheard events
+
+### Data Types
+
+```rust
+pub struct DebugEvent {
+    pub timestamp: String,           // Game time HH:MM
+    pub category: DebugEventCategory,
+    pub message: String,
+}
+
+pub struct DebugUiState {
+    pub active_tab: DebugTab,
+    pub selected_location: Option<LocationId>,
+    pub selected_npc: Option<NpcId>,
+    pub npc_filter: String,
+    pub location_filter: String,
+    pub event_log_auto_scroll: bool,
+    pub relationship_filter: String,
+}
+```
+
 ## Related
 
 - [Player Input](player-input.md) — Debug commands extend the `/` command system
@@ -244,6 +325,7 @@ A custom tracing subscriber layer captures log entries into a ring buffer:
 
 ## Source Modules
 
+- [`src/gui/debug_panel.rs`](../../src/gui/debug_panel.rs) — GUI debug inspector window
 - [`src/tui/`](../../src/tui/) — Debug panel widget, panel layout split
 - [`src/input/`](../../src/input/) — Debug command parsing
 - [`src/npc/`](../../src/npc/) — NPC state access for debug views
