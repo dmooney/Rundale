@@ -24,6 +24,7 @@ This directory contains Architecture Decision Records (ADRs) for the Parish proj
 | [014](014-web-mobile-architecture.md) | Web & Mobile Architecture | Accepted | 2026-03-23 |
 | [015](015-ambient-sound-system.md) | Ambient Sound System | Accepted | 2026-03-24 |
 | [016](016-tauri-svelte-gui.md) | Replace egui with Tauri 2 + Svelte GUI | Accepted | 2026-03-24 |
+| [017](017-per-category-inference-providers.md) | Per-Category Inference Providers | Accepted | 2026-03-23 |
 
 ## ADR Template
 

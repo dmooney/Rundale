@@ -242,6 +242,10 @@ pub struct App {
     pub latest_snapshot_id: i64,
     /// Wall-clock time of the last autosave.
     pub last_autosave: Option<Instant>,
+    /// The LLM client for intent parsing (may differ from base client).
+    pub intent_client: Option<OpenAiClient>,
+    /// The model name for intent parsing.
+    pub intent_model: String,
 }
 
 impl App {
@@ -276,6 +280,8 @@ impl App {
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,
+            intent_client: None,
+            intent_model: String::new(),
         }
     }
 

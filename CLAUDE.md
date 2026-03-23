@@ -41,7 +41,7 @@ src/
 ├── main.rs          # Entry point, CLI args (clap), mode routing
 ├── lib.rs           # Module declarations
 ├── error.rs         # ParishError (thiserror)
-├── config.rs        # Provider configuration (TOML + env + CLI)
+├── config.rs        # Provider configuration (TOML + env + CLI, per-category overrides)
 ├── headless.rs      # Headless stdin/stdout REPL mode
 ├── testing.rs       # GameTestHarness for automated testing
 ├── debug.rs         # Debug commands and metrics (feature-gated)
@@ -60,7 +60,7 @@ src/
 │   ├── memory.rs    #   ShortTermMemory (ring buffer)
 │   ├── overhear.rs  #   Atmospheric overhear for nearby Tier 2
 │   └── data.rs      #   NPC data loader (JSON)
-├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
+├── inference/       # LLM client (OpenAI-compatible), queue, per-category routing, Ollama bootstrap
 ├── persistence/     # SQLite save/load, WAL journal, branching saves
 │   ├── database.rs  #   Database + AsyncDatabase (schema, CRUD)
 │   ├── snapshot.rs  #   GameSnapshot, ClockSnapshot, NpcSnapshot

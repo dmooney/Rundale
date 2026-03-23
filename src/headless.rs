@@ -39,15 +39,13 @@ pub async fn run_headless(
 ) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
     println!(
-        "Local: {} ({})",
-        clients.local_model,
+        "Base: {} ({})",
+        clients.base_model,
         provider_config.provider_display()
     );
-    if clients.has_cloud() {
-        println!(
-            "Cloud: {} (dialogue)",
-            clients.cloud_model.as_deref().unwrap_or("?")
-        );
+    if clients.has_custom_dialogue() {
+        let (_, dial_model) = clients.dialogue_client();
+        println!("Dialogue: {} (override)", dial_model);
     }
     println!("Type /help for commands, /quit to exit.");
     println!();
@@ -70,19 +68,29 @@ pub async fn run_headless(
         }
     }
     app.inference_queue = Some(queue);
-    app.client = Some(clients.local.clone());
-    app.model_name = clients.local_model.clone();
+    app.client = Some(clients.base.clone());
+    app.model_name = clients.base_model.clone();
     app.dialogue_model = dialogue_model;
     app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = improv;
 
-    // Set cloud fields if configured
-    if let Some(cc) = cloud_config {
+    // Set intent client/model
+    let (intent_cl, intent_mdl) = clients.intent_client();
+    app.intent_client = Some(intent_cl.clone());
+    app.intent_model = intent_mdl.to_string();
+
+    // Set cloud/dialogue fields if configured
+    if clients.has_custom_dialogue() {
+        let (dial_cl, dial_mdl) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
+        app.cloud_model_name = Some(dial_mdl.to_string());
+    } else if let Some(cc) = cloud_config {
         app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
         app.cloud_model_name = Some(cc.model.clone());
-        app.cloud_client = clients.cloud.clone();
+        let (dial_cl, _) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
         app.cloud_api_key = cc.api_key.clone();
         app.cloud_base_url = Some(cc.base_url.clone());
     }
@@ -184,8 +192,8 @@ pub async fn run_headless(
                 }
             }
             InputResult::GameInput(text) => {
-                let intent_client = app.client.clone().unwrap();
-                let intent_model = app.model_name.clone();
+                let intent_client = app.intent_client.clone().unwrap();
+                let intent_model = app.intent_model.clone();
                 handle_headless_game_input(
                     &mut app,
                     &intent_client,

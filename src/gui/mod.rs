@@ -89,6 +89,10 @@ pub struct GuiApp {
     pub cloud_base_url: Option<String>,
     /// The model name used by the dialogue inference queue.
     pub dialogue_model: String,
+    /// The LLM client for intent parsing (may differ from base client).
+    pub intent_client: Option<OpenAiClient>,
+    /// The model name for intent parsing.
+    pub intent_model: String,
     /// Whether improv craft mode is enabled.
     pub improv_enabled: bool,
     /// Irish pronunciation hints from NPC responses.
@@ -166,6 +170,8 @@ impl GuiApp {
             cloud_api_key: None,
             cloud_base_url: None,
             dialogue_model: String::new(),
+            intent_client: None,
+            intent_model: String::new(),
             improv_enabled: false,
             pronunciation_hints: Vec::new(),
             debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
@@ -1139,19 +1145,29 @@ pub fn run_gui(
     }
 
     app.inference_queue = Some(queue);
-    app.client = Some(clients.local.clone());
-    app.model_name = clients.local_model.clone();
+    app.client = Some(clients.base.clone());
+    app.model_name = clients.base_model.clone();
     app.dialogue_model = dialogue_model;
     app.provider_name = format!("{:?}", config.provider).to_lowercase();
     app.base_url = config.base_url.clone();
     app.api_key = config.api_key.clone();
     app.improv_enabled = improv;
 
-    // Set cloud fields if configured
-    if let Some(cc) = cloud_config {
+    // Set intent client/model
+    let (intent_cl, intent_mdl) = clients.intent_client();
+    app.intent_client = Some(intent_cl.clone());
+    app.intent_model = intent_mdl.to_string();
+
+    // Set cloud/dialogue fields if configured
+    if clients.has_custom_dialogue() {
+        let (dial_cl, dial_mdl) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
+        app.cloud_model_name = Some(dial_mdl.to_string());
+    } else if let Some(cc) = cloud_config {
         app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
         app.cloud_model_name = Some(cc.model.clone());
-        app.cloud_client = clients.cloud.clone();
+        let (dial_cl, _) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
         app.cloud_api_key = cc.api_key.clone();
         app.cloud_base_url = Some(cc.base_url.clone());
     }

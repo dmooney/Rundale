@@ -38,7 +38,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Player Input](design/player-input.md) | Natural language input, system commands | [ADR-006](adr/006-natural-language-input.md) |
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
-| [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md) |
+| [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |
 | [Debug System](design/debug-system.md) | Debug commands, live TUI panel, metrics (feature-gated) | — |
 | [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
 | [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
@@ -66,6 +66,8 @@ Key decisions with rationale and alternatives considered. See [ADR Index](adr/RE
 | [013](adr/013-cloud-llm-dialogue.md) | Cloud LLM for player dialogue | Accepted |
 | [014](adr/014-web-mobile-architecture.md) | Web & mobile thin-client architecture | Accepted |
 | [015](adr/015-ambient-sound-system.md) | Ambient sound system via rodio (GUI-only) | Accepted |
+| [016](adr/016-tauri-svelte-gui.md) | Replace egui with Tauri 2 + Svelte GUI | Accepted |
+| [017](adr/017-per-category-inference-providers.md) | Per-category inference providers | Accepted |
 
 ## Requirements & Status
 
