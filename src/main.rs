@@ -18,6 +18,7 @@ use parish::npc::{
 use parish::tui::{self, App};
 use parish::world::description::{format_exits, render_description};
 use parish::world::movement::{self, MovementResult};
+use parish::world::time::GameSpeed;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -654,6 +655,26 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world.clock.resume();
             app.world.log("Time stirs again in the parish.".to_string());
         }
+        Command::ShowSpeed => {
+            let speed_name = app
+                .world
+                .clock
+                .current_speed()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("Custom ({}x)", app.world.clock.speed_factor()));
+            app.world
+                .log(format!("The parish moves at {} pace.", speed_name));
+        }
+        Command::SetSpeed(speed) => {
+            app.world.clock.set_speed(speed);
+            let msg = match speed {
+                GameSpeed::Slow => "The parish slows to a gentle amble.",
+                GameSpeed::Normal => "The parish settles into its natural stride.",
+                GameSpeed::Fast => "The parish quickens its step.",
+                GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+            };
+            app.world.log(msg.to_string());
+        }
         Command::Status => {
             let time = app.world.clock.time_of_day();
             let season = app.world.clock.season();
@@ -674,6 +695,9 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world.log("  /pause    — Hold time still".to_string());
             app.world
                 .log("  /resume   — Let time flow again".to_string());
+            app.world.log(
+                "  /speed    — Show or change game speed (slow/normal/fast/fastest)".to_string(),
+            );
             app.world.log("  /status   — Where am I?".to_string());
             app.world
                 .log("  /irish    — Toggle the Irish words sidebar (or press Tab)".to_string());

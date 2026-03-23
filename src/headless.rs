@@ -17,6 +17,7 @@ use crate::npc::{
 use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
+use crate::world::time::GameSpeed;
 use anyhow::Result;
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -202,6 +203,25 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             app.world.clock.resume();
             println!("Time stirs again in the parish.");
         }
+        Command::ShowSpeed => {
+            let speed_name = app
+                .world
+                .clock
+                .current_speed()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("Custom ({}x)", app.world.clock.speed_factor()));
+            println!("The parish moves at {} pace.", speed_name);
+        }
+        Command::SetSpeed(speed) => {
+            app.world.clock.set_speed(speed);
+            let msg = match speed {
+                GameSpeed::Slow => "The parish slows to a gentle amble.",
+                GameSpeed::Normal => "The parish settles into its natural stride.",
+                GameSpeed::Fast => "The parish quickens its step.",
+                GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+            };
+            println!("{}", msg);
+        }
         Command::Status => {
             let time = app.world.clock.time_of_day();
             let season = app.world.clock.season();
@@ -218,6 +238,7 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /quit     - Take your leave");
             println!("  /pause    - Hold time still");
             println!("  /resume   - Let time flow again");
+            println!("  /speed    - Show or change game speed (slow/normal/fast/fastest)");
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
@@ -803,5 +824,25 @@ mod tests {
         assert!(rebuild);
         assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
         assert!(app.client.is_some());
+    }
+
+    #[test]
+    fn test_handle_headless_command_show_speed() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed);
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_handle_headless_command_set_speed() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast));
+        assert!(!quit);
+        assert!(!rebuild);
+        assert!(
+            (app.world.clock.speed_factor() - 72.0).abs() < f64::EPSILON,
+            "Speed should be 72.0 after setting Fast"
+        );
     }
 }

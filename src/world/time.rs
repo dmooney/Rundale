@@ -1,6 +1,7 @@
 //! Game time system.
 //!
-//! 20 real-world minutes = 1 in-game day (speed factor 72.0).
+//! 40 real-world minutes = 1 in-game day (speed factor 36.0, "Normal").
+//! Adjustable at runtime via [`GameSpeed`] presets (Slow/Normal/Fast/Fastest).
 //! Tracks time of day, season, and Irish calendar festivals
 //! (Imbolc, Bealtaine, Lughnasa, Samhain).
 
@@ -125,11 +126,62 @@ impl fmt::Display for Festival {
     }
 }
 
+/// Named speed presets for the game clock, inspired by SimCity.
+///
+/// Each variant maps to a speed factor (game-time seconds per real-time second).
+/// The default is `Normal` (36.0 = 40 real minutes per game day).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameSpeed {
+    /// Slowest pace — 18.0 factor (80 real minutes per game day).
+    Slow,
+    /// Default pace — 36.0 factor (40 real minutes per game day).
+    Normal,
+    /// Fast pace — 72.0 factor (20 real minutes per game day).
+    Fast,
+    /// Fastest pace — 144.0 factor (10 real minutes per game day).
+    Fastest,
+}
+
+impl GameSpeed {
+    /// Returns the speed factor for this preset.
+    pub fn factor(self) -> f64 {
+        match self {
+            GameSpeed::Slow => 18.0,
+            GameSpeed::Normal => 36.0,
+            GameSpeed::Fast => 72.0,
+            GameSpeed::Fastest => 144.0,
+        }
+    }
+
+    /// Parses a speed preset from a string (case-insensitive).
+    pub fn from_name(s: &str) -> Option<GameSpeed> {
+        match s.to_lowercase().as_str() {
+            "slow" => Some(GameSpeed::Slow),
+            "normal" => Some(GameSpeed::Normal),
+            "fast" => Some(GameSpeed::Fast),
+            "fastest" => Some(GameSpeed::Fastest),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for GameSpeed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GameSpeed::Slow => write!(f, "Slow"),
+            GameSpeed::Normal => write!(f, "Normal"),
+            GameSpeed::Fast => write!(f, "Fast"),
+            GameSpeed::Fastest => write!(f, "Fastest"),
+        }
+    }
+}
+
 /// Maps real-world elapsed time to accelerated game time.
 ///
-/// The default speed factor of 72.0 means 20 real-world minutes
+/// The default speed factor of 36.0 means 40 real-world minutes
 /// equals 1 in-game day (24 hours). The clock can be paused,
-/// resumed, and manually advanced (e.g. during travel).
+/// resumed, manually advanced (e.g. during travel), and its speed
+/// changed at runtime via [`GameSpeed`] presets.
 pub struct GameClock {
     /// Wall-clock instant when the clock was created or last resumed.
     start_real: Instant,
@@ -137,7 +189,7 @@ pub struct GameClock {
     start_game: DateTime<Utc>,
     /// Whether the clock is paused.
     paused: bool,
-    /// Game-time seconds per real-time second (default 72.0).
+    /// Game-time seconds per real-time second (default 36.0).
     speed_factor: f64,
     /// Game time when the clock was paused (only valid when `paused` is true).
     paused_game_time: DateTime<Utc>,
@@ -146,13 +198,13 @@ pub struct GameClock {
 impl GameClock {
     /// Creates a new game clock starting at the given game time.
     ///
-    /// The default speed factor is 72.0 (20 real minutes = 1 game day).
+    /// The default speed factor is 36.0 (40 real minutes = 1 game day).
     pub fn new(start_game: DateTime<Utc>) -> Self {
         Self {
             start_real: Instant::now(),
             start_game,
             paused: false,
-            speed_factor: 72.0,
+            speed_factor: 36.0,
             paused_game_time: start_game,
         }
     }
@@ -227,6 +279,43 @@ impl GameClock {
     /// Returns whether the clock is paused.
     pub fn is_paused(&self) -> bool {
         self.paused
+    }
+
+    /// Returns the current speed factor.
+    pub fn speed_factor(&self) -> f64 {
+        self.speed_factor
+    }
+
+    /// Changes the speed factor at runtime, recalibrating the clock.
+    ///
+    /// Captures the current game time, resets the real-time anchor to now,
+    /// and applies the new speed factor going forward. Works correctly
+    /// whether the clock is paused or running.
+    pub fn set_speed(&mut self, speed: GameSpeed) {
+        if self.paused {
+            self.speed_factor = speed.factor();
+        } else {
+            let current = self.now();
+            self.start_game = current;
+            self.start_real = Instant::now();
+            self.speed_factor = speed.factor();
+        }
+    }
+
+    /// Returns the named speed preset matching the current factor, if any.
+    pub fn current_speed(&self) -> Option<GameSpeed> {
+        const EPSILON: f64 = 0.01;
+        if (self.speed_factor - 18.0).abs() < EPSILON {
+            Some(GameSpeed::Slow)
+        } else if (self.speed_factor - 36.0).abs() < EPSILON {
+            Some(GameSpeed::Normal)
+        } else if (self.speed_factor - 72.0).abs() < EPSILON {
+            Some(GameSpeed::Fast)
+        } else if (self.speed_factor - 144.0).abs() < EPSILON {
+            Some(GameSpeed::Fastest)
+        } else {
+            None
+        }
     }
 }
 
@@ -365,5 +454,83 @@ mod tests {
 
         let clock = GameClock::new(game_time(2026, 5, 2, 12));
         assert_eq!(clock.check_festival(), None);
+    }
+
+    #[test]
+    fn test_game_speed_factor() {
+        assert!((GameSpeed::Slow.factor() - 18.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Normal.factor() - 36.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Fast.factor() - 72.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Fastest.factor() - 144.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_game_speed_from_name() {
+        assert_eq!(GameSpeed::from_name("slow"), Some(GameSpeed::Slow));
+        assert_eq!(GameSpeed::from_name("NORMAL"), Some(GameSpeed::Normal));
+        assert_eq!(GameSpeed::from_name("Fast"), Some(GameSpeed::Fast));
+        assert_eq!(GameSpeed::from_name("fastest"), Some(GameSpeed::Fastest));
+        assert_eq!(GameSpeed::from_name("bogus"), None);
+        assert_eq!(GameSpeed::from_name(""), None);
+    }
+
+    #[test]
+    fn test_game_speed_display() {
+        assert_eq!(GameSpeed::Slow.to_string(), "Slow");
+        assert_eq!(GameSpeed::Normal.to_string(), "Normal");
+        assert_eq!(GameSpeed::Fast.to_string(), "Fast");
+        assert_eq!(GameSpeed::Fastest.to_string(), "Fastest");
+    }
+
+    #[test]
+    fn test_default_speed_is_normal() {
+        let clock = GameClock::new(game_time(2026, 6, 15, 12));
+        assert!((clock.speed_factor() - 36.0).abs() < f64::EPSILON);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Normal));
+    }
+
+    #[test]
+    fn test_set_speed_while_running() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        let time_before = clock.now();
+        clock.set_speed(GameSpeed::Fast);
+        assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
+        // Time should be continuous (not jump)
+        let time_after = clock.now();
+        let diff = (time_after - time_before).num_seconds().abs();
+        assert!(
+            diff < 2,
+            "Time should be nearly continuous after speed change"
+        );
+    }
+
+    #[test]
+    fn test_set_speed_while_paused() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.pause();
+        let paused_time = clock.now();
+        clock.set_speed(GameSpeed::Fastest);
+        assert!((clock.speed_factor() - 144.0).abs() < f64::EPSILON);
+        // Paused time should not change
+        assert_eq!(clock.now(), paused_time);
+    }
+
+    #[test]
+    fn test_current_speed() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Normal));
+
+        clock.set_speed(GameSpeed::Slow);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Slow));
+
+        clock.set_speed(GameSpeed::Fast);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Fast));
+
+        clock.set_speed(GameSpeed::Fastest);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Fastest));
+
+        // Custom speed returns None
+        let clock = GameClock::with_speed(game_time(2026, 6, 15, 12), 50.0);
+        assert_eq!(clock.current_speed(), None);
     }
 }

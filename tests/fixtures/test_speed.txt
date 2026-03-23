@@ -1,0 +1,12 @@
+# Test speed commands
+/speed
+/speed slow
+/speed
+/speed fast
+/speed
+/speed normal
+/speed
+/speed fastest
+/speed
+/speed bogus
+/quit

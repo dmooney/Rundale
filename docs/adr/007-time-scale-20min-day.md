@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted (2026-03-18)
+Superseded (2026-03-23) — Default changed to 40 minutes per day (speed factor 36.0). The original 20-minute pace felt too fast in practice. Runtime-adjustable speed presets now let players choose: Slow (80 min/day), Normal (40 min/day), Fast (20 min/day, the original), or Fastest (10 min/day). See [Time System](../design/time-system.md) for details.
 
 ## Context
 

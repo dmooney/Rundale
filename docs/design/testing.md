@@ -54,7 +54,7 @@ API for driving the game without a TUI or LLM. It enables:
 | `Looked { description }` | Player looked around |
 | `AlreadyHere` | Tried to move to current location |
 | `NotFound { target }` | Destination not in world graph |
-| `SystemCommand { response }` | `/pause`, `/status`, `/help`, etc. |
+| `SystemCommand { response }` | `/pause`, `/status`, `/speed`, `/help`, etc. |
 | `NpcResponse { npc, dialogue }` | Canned NPC response consumed |
 | `NpcNotAvailable` | NPC present but no canned response |
 | `UnknownInput` | Input not recognized locally |
@@ -85,6 +85,7 @@ Test scripts live in `tests/fixtures/`:
 | `test_walkthrough.txt` | Full navigation across multiple locations |
 | `test_movement_errors.txt` | Already-here, not-found, various verbs |
 | `test_commands.txt` | All system commands |
+| `test_speed.txt` | Game speed preset commands |
 
 ## Usage in Tests
 

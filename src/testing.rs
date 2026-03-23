@@ -303,6 +303,26 @@ impl GameTestHarness {
                     response: "Time resumed".to_string(),
                 }
             }
+            Command::ShowSpeed => {
+                let speed_name = self
+                    .app
+                    .world
+                    .clock
+                    .current_speed()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| {
+                        format!("Custom ({}x)", self.app.world.clock.speed_factor())
+                    });
+                let msg = format!("Speed: {}", speed_name);
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::SetSpeed(speed) => {
+                self.app.world.clock.set_speed(speed);
+                let msg = format!("Speed changed to {}.", speed);
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
             Command::Status => {
                 let time = self.app.world.clock.time_of_day();
                 let season = self.app.world.clock.season();
@@ -954,5 +974,46 @@ mod tests {
                 "Tier debug should show player location"
             );
         }
+    }
+
+    #[test]
+    fn test_system_command_show_speed() {
+        let mut h = GameTestHarness::new();
+        let result = h.execute("/speed");
+        if let ActionResult::SystemCommand { response } = result {
+            assert!(
+                response.contains("Normal"),
+                "Default speed should be Normal, got: {}",
+                response
+            );
+        } else {
+            panic!("Expected SystemCommand");
+        }
+    }
+
+    #[test]
+    fn test_system_command_set_speed() {
+        let mut h = GameTestHarness::new();
+        let result = h.execute("/speed fast");
+        if let ActionResult::SystemCommand { response } = result {
+            assert!(
+                response.contains("Fast"),
+                "Should confirm speed change, got: {}",
+                response
+            );
+        } else {
+            panic!("Expected SystemCommand");
+        }
+        assert!(
+            (h.app.world.clock.speed_factor() - 72.0).abs() < f64::EPSILON,
+            "Speed should be 72.0 after /speed fast"
+        );
+
+        // Change again and verify
+        h.execute("/speed slow");
+        assert!(
+            (h.app.world.clock.speed_factor() - 18.0).abs() < f64::EPSILON,
+            "Speed should be 18.0 after /speed slow"
+        );
     }
 }

@@ -362,6 +362,27 @@ impl GuiApp {
                 self.world
                     .log("Time stirs again in the parish.".to_string());
             }
+            Command::ShowSpeed => {
+                let speed_name = self
+                    .world
+                    .clock
+                    .current_speed()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("Custom ({}x)", self.world.clock.speed_factor()));
+                self.world
+                    .log(format!("The parish moves at {} pace.", speed_name));
+            }
+            Command::SetSpeed(speed) => {
+                use crate::world::time::GameSpeed;
+                self.world.clock.set_speed(speed);
+                let msg = match speed {
+                    GameSpeed::Slow => "The parish slows to a gentle amble.",
+                    GameSpeed::Normal => "The parish settles into its natural stride.",
+                    GameSpeed::Fast => "The parish quickens its step.",
+                    GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                };
+                self.world.log(msg.to_string());
+            }
             Command::Status => {
                 let time = self.world.clock.time_of_day();
                 let season = self.world.clock.season();
@@ -382,6 +403,10 @@ impl GuiApp {
                 self.world.log("  /pause    — Hold time still".to_string());
                 self.world
                     .log("  /resume   — Let time flow again".to_string());
+                self.world.log(
+                    "  /speed    — Show or change game speed (slow/normal/fast/fastest)"
+                        .to_string(),
+                );
                 self.world.log("  /status   — Where am I?".to_string());
                 self.world
                     .log("  /improv   — Toggle improv craft mode".to_string());
