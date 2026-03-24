@@ -98,6 +98,23 @@
 - [ ] Night-time atmosphere differentiation
 - [ ] NPC belief/superstition knowledge fields
 
+## Phase 7 — Web & Mobile Apps
+
+> [Detailed plan](../plans/phase-7-web-mobile.md)
+
+- [ ] Client-server protocol definition (`ClientMessage` / `ServerMessage`)
+- [ ] `GameSession` extraction (decouple game engine from UI)
+- [ ] Shared `parish-ui` crate (egui panels reusable across all frontends)
+- [ ] axum game server with WebSocket support
+- [ ] Session management (create, resume, idle timeout)
+- [ ] Web client: egui compiled to WASM via `trunk`
+- [ ] Web client: WebSocket networking layer
+- [ ] Mobile client: Tauri v2 project (iOS + Android)
+- [ ] Mobile-specific adaptations (touch input, responsive layout)
+- [ ] Authentication (session tokens)
+- [ ] Server deployment (Docker, health checks)
+- [ ] Monitoring and rate limiting
+
 ## Open Questions
 
 > [Detailed analysis](../plans/open-questions.md) — **All resolved.**
