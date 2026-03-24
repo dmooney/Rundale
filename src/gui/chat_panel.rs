@@ -10,8 +10,10 @@ use super::theme::GuiPalette;
 
 /// Optional loading animation display data for the chat panel.
 pub struct LoadingDisplay {
-    /// The animation text, e.g. `"✛ Consulting the sheep..."`.
-    pub text: String,
+    /// The spinner character, e.g. `"✛"`.
+    pub spinner: String,
+    /// The loading phrase, e.g. `"Consulting the sheep..."`.
+    pub phrase: String,
     /// RGB color for the animation text.
     pub color: egui::Color32,
 }
@@ -60,9 +62,20 @@ pub fn draw_chat_panel(
                         }
                     }
 
-                    // Show loading animation while waiting for inference
+                    // Show loading animation while waiting for inference.
+                    // Render spinner in a fixed-width area so differently-sized
+                    // glyphs don't cause the phrase text to shift horizontally.
                     if let Some(ld) = loading {
-                        ui.label(egui::RichText::new(&ld.text).color(ld.color).size(14.0));
+                        ui.horizontal(|ui| {
+                            ui.allocate_ui(egui::vec2(20.0, 18.0), |ui| {
+                                ui.centered_and_justified(|ui| {
+                                    ui.label(
+                                        egui::RichText::new(&ld.spinner).color(ld.color).size(14.0),
+                                    );
+                                });
+                            });
+                            ui.label(egui::RichText::new(&ld.phrase).color(ld.color).size(14.0));
+                        });
                     }
                 });
         });
@@ -100,10 +113,11 @@ mod tests {
     #[test]
     fn test_loading_display_struct() {
         let ld = LoadingDisplay {
-            text: "✛ Pondering the craic...".to_string(),
+            spinner: "✛".to_string(),
+            phrase: "Pondering the craic...".to_string(),
             color: egui::Color32::from_rgb(72, 199, 142),
         };
-        assert!(ld.text.contains("Pondering"));
+        assert!(ld.phrase.contains("Pondering"));
         assert_eq!(ld.color, egui::Color32::from_rgb(72, 199, 142));
     }
 }

@@ -753,9 +753,18 @@ impl eframe::App for GuiApp {
         let palette = gui_palette_for_time(&self.world.clock.time_of_day());
         apply_palette(ctx, &palette);
 
-        // Request continuous repaint while streaming
+        // Request repaint at appropriate intervals
         if *self.streaming_active.lock().unwrap() {
-            ctx.request_repaint();
+            if self.loading_animation.is_some() {
+                // Loading animation is time-based; repaint at animation rate
+                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            } else {
+                // Tokens are flowing — repaint continuously for smooth text
+                ctx.request_repaint();
+            }
+        } else if self.loading_animation.is_some() {
+            // Animation still visible briefly after streaming ends
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         } else {
             // Repaint every 500ms for clock updates
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
@@ -824,7 +833,8 @@ impl eframe::App for GuiApp {
         let loading_display = self.loading_animation.as_ref().map(|anim| {
             let (r, g, b) = anim.current_color_rgb();
             chat_panel::LoadingDisplay {
-                text: anim.display_text(),
+                spinner: anim.spinner_char().to_owned(),
+                phrase: anim.phrase().to_owned(),
                 color: egui::Color32::from_rgb(r, g, b),
             }
         });
@@ -933,8 +943,36 @@ pub fn run_gui(
         ..Default::default()
     };
 
-    eframe::run_native("Parish", options, Box::new(|_cc| Ok(Box::new(app))))
-        .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
+    eframe::run_native(
+        "Parish",
+        options,
+        Box::new(|cc| {
+            // Add Noto Sans Symbols 2 as a fallback font for Celtic cross
+            // spinner characters (✢✙✛✜✚) used in the loading animation.
+            let mut fonts = egui::FontDefinitions::default();
+            fonts.font_data.insert(
+                "noto_symbols2".to_owned(),
+                std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                    "../../assets/fonts/NotoSansSymbols2-Regular.ttf"
+                ))),
+            );
+            // Append as fallback to both proportional and monospace families
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .push("noto_symbols2".to_owned());
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .push("noto_symbols2".to_owned());
+            cc.egui_ctx.set_fonts(fonts);
+
+            Ok(Box::new(app))
+        }),
+    )
+    .map_err(|e| anyhow::anyhow!("eframe error: {}", e))?;
 
     Ok(())
 }

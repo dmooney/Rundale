@@ -4,10 +4,18 @@
 //! "verbing" phrases and color animation, so the player knows the game
 //! is working while an NPC thinks.
 
+use std::time::{Duration, Instant};
+
 use ratatui::style::Color;
 
 /// Celtic cross geometric variants — thin → hollow → bold → back.
-const SPINNER_FRAMES: &[&str] = &["⁜", "✙", "✛", "✜", "✚", "✜", "✛", "✙"];
+const SPINNER_FRAMES: &[&str] = &["✢", "✙", "✛", "✜", "✚", "✜", "✛", "✙"];
+
+/// How long each spinner frame is displayed before advancing.
+const SPINNER_FRAME_DURATION: Duration = Duration::from_millis(300);
+
+/// How long each loading phrase is displayed before cycling.
+const PHRASE_DURATION: Duration = Duration::from_millis(3000);
 
 /// Humorous Irish-themed phrases shown while waiting for inference.
 const LOADING_PHRASES: &[&str] = &[
@@ -47,13 +55,10 @@ const SPINNER_COLORS: &[Color] = &[
     Color::Rgb(120, 220, 180), // mint
 ];
 
-/// How many ticks before the phrase and color cycle to the next one.
-/// At ~100ms per tick this is roughly 1.5 seconds.
-const PHRASE_CHANGE_INTERVAL: usize = 15;
-
 /// Animated loading indicator for LLM inference waits.
 ///
-/// Call [`tick`](LoadingAnimation::tick) once per render frame (~50–100ms)
+/// Uses wall-clock time so the animation speed is consistent regardless
+/// of render frame rate. Call [`tick`](LoadingAnimation::tick) each frame
 /// and read the current display state via [`display_text`](LoadingAnimation::display_text)
 /// and [`current_color`](LoadingAnimation::current_color).
 pub struct LoadingAnimation {
@@ -61,10 +66,12 @@ pub struct LoadingAnimation {
     frame_index: usize,
     /// Index into [`LOADING_PHRASES`].
     phrase_index: usize,
-    /// Ticks elapsed since the last phrase change.
-    ticks_since_phrase_change: usize,
     /// Index into [`SPINNER_COLORS`].
     color_index: usize,
+    /// When the current spinner frame started.
+    last_frame_change: Instant,
+    /// When the current phrase started.
+    last_phrase_change: Instant,
 }
 
 impl LoadingAnimation {
@@ -77,27 +84,33 @@ impl LoadingAnimation {
             .map(|d| d.as_millis() as usize)
             .unwrap_or(0);
         let phrase_index = seed % LOADING_PHRASES.len();
+        let now = Instant::now();
 
         Self {
             frame_index: 0,
             phrase_index,
-            ticks_since_phrase_change: 0,
             color_index: 0,
+            last_frame_change: now,
+            last_phrase_change: now,
         }
     }
 
-    /// Advances the animation by one frame.
+    /// Advances the animation based on elapsed wall-clock time.
     ///
-    /// The spinner character advances every tick. The phrase and color
-    /// advance every [`PHRASE_CHANGE_INTERVAL`] ticks.
+    /// The spinner character advances every [`SPINNER_FRAME_DURATION`].
+    /// The phrase and color advance every [`PHRASE_DURATION`].
     pub fn tick(&mut self) {
-        self.frame_index = (self.frame_index + 1) % SPINNER_FRAMES.len();
-        self.ticks_since_phrase_change += 1;
+        let now = Instant::now();
 
-        if self.ticks_since_phrase_change >= PHRASE_CHANGE_INTERVAL {
-            self.ticks_since_phrase_change = 0;
+        if now.duration_since(self.last_frame_change) >= SPINNER_FRAME_DURATION {
+            self.frame_index = (self.frame_index + 1) % SPINNER_FRAMES.len();
+            self.last_frame_change = now;
+        }
+
+        if now.duration_since(self.last_phrase_change) >= PHRASE_DURATION {
             self.phrase_index = (self.phrase_index + 1) % LOADING_PHRASES.len();
             self.color_index = (self.color_index + 1) % SPINNER_COLORS.len();
+            self.last_phrase_change = now;
         }
     }
 
@@ -107,6 +120,16 @@ impl LoadingAnimation {
             "{} {}",
             SPINNER_FRAMES[self.frame_index], LOADING_PHRASES[self.phrase_index]
         )
+    }
+
+    /// Returns the current spinner character, e.g. `"✛"`.
+    pub fn spinner_char(&self) -> &'static str {
+        SPINNER_FRAMES[self.frame_index]
+    }
+
+    /// Returns the current loading phrase, e.g. `"Consulting the sheep..."`.
+    pub fn phrase(&self) -> &'static str {
+        LOADING_PHRASES[self.phrase_index]
     }
 
     /// Returns the current cycling color as a [`ratatui::style::Color`] for TUI rendering.
@@ -151,68 +174,75 @@ mod tests {
         let anim = LoadingAnimation::new();
         assert!(anim.frame_index < SPINNER_FRAMES.len());
         assert!(anim.phrase_index < LOADING_PHRASES.len());
-        assert_eq!(anim.ticks_since_phrase_change, 0);
         assert_eq!(anim.color_index, 0);
     }
 
     #[test]
-    fn test_tick_advances_frame() {
+    fn test_tick_no_change_when_called_immediately() {
         let mut anim = LoadingAnimation::new();
-        let initial = anim.frame_index;
+        let initial_frame = anim.frame_index;
+        let initial_phrase = anim.phrase_index;
+        // Tick immediately — not enough time has passed
         anim.tick();
-        assert_eq!(anim.frame_index, (initial + 1) % SPINNER_FRAMES.len());
+        assert_eq!(anim.frame_index, initial_frame);
+        assert_eq!(anim.phrase_index, initial_phrase);
     }
 
     #[test]
-    fn test_frame_wraps_around() {
+    fn test_frame_advances_after_duration() {
         let mut anim = LoadingAnimation::new();
-        for _ in 0..SPINNER_FRAMES.len() {
-            anim.tick();
-        }
-        // After exactly len ticks the frame should have wrapped
-        // (phrase may or may not have changed depending on interval)
-        assert!(anim.frame_index < SPINNER_FRAMES.len());
+        let initial_frame = anim.frame_index;
+        // Simulate time passing by backdating the last change
+        anim.last_frame_change = Instant::now() - SPINNER_FRAME_DURATION;
+        anim.tick();
+        assert_eq!(anim.frame_index, (initial_frame + 1) % SPINNER_FRAMES.len());
     }
 
     #[test]
-    fn test_phrase_changes_after_interval() {
+    fn test_phrase_advances_after_duration() {
         let mut anim = LoadingAnimation::new();
         let initial_phrase = anim.phrase_index;
-        for _ in 0..PHRASE_CHANGE_INTERVAL {
-            anim.tick();
-        }
+        // Simulate time passing
+        anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
+        anim.tick();
         let expected = (initial_phrase + 1) % LOADING_PHRASES.len();
         assert_eq!(anim.phrase_index, expected);
-    }
-
-    #[test]
-    fn test_phrase_wraps_around() {
-        let mut anim = LoadingAnimation::new();
-        let total_ticks = PHRASE_CHANGE_INTERVAL * LOADING_PHRASES.len();
-        for _ in 0..total_ticks {
-            anim.tick();
-        }
-        // After cycling through all phrases, we should be back to the start
-        assert!(anim.phrase_index < LOADING_PHRASES.len());
     }
 
     #[test]
     fn test_color_changes_with_phrase() {
         let mut anim = LoadingAnimation::new();
         assert_eq!(anim.color_index, 0);
-        for _ in 0..PHRASE_CHANGE_INTERVAL {
+        anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
+        anim.tick();
+        assert_eq!(anim.color_index, 1);
+    }
+
+    #[test]
+    fn test_frame_wraps_around() {
+        let mut anim = LoadingAnimation::new();
+        for _ in 0..SPINNER_FRAMES.len() {
+            anim.last_frame_change = Instant::now() - SPINNER_FRAME_DURATION;
             anim.tick();
         }
-        assert_eq!(anim.color_index, 1);
+        assert!(anim.frame_index < SPINNER_FRAMES.len());
+    }
+
+    #[test]
+    fn test_phrase_wraps_around() {
+        let mut anim = LoadingAnimation::new();
+        for _ in 0..LOADING_PHRASES.len() {
+            anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
+            anim.tick();
+        }
+        assert!(anim.phrase_index < LOADING_PHRASES.len());
     }
 
     #[test]
     fn test_display_text_contains_spinner_and_phrase() {
         let anim = LoadingAnimation::new();
         let text = anim.display_text();
-        // Should contain a spinner frame character
         assert!(SPINNER_FRAMES.iter().any(|f| text.contains(f)));
-        // Should contain the current phrase
         assert!(text.contains(LOADING_PHRASES[anim.phrase_index]));
     }
 
@@ -220,7 +250,6 @@ mod tests {
     fn test_display_text_format() {
         let anim = LoadingAnimation::new();
         let text = anim.display_text();
-        // Format is "SPINNER PHRASE" with a space separator
         assert!(text.contains(' '));
         assert!(text.ends_with("..."));
     }
@@ -236,7 +265,6 @@ mod tests {
     fn test_current_color_rgb_returns_tuple() {
         let anim = LoadingAnimation::new();
         let (r, g, b) = anim.current_color_rgb();
-        // First color is soft green (72, 199, 142)
         assert_eq!((r, g, b), (72, 199, 142));
     }
 
@@ -252,9 +280,7 @@ mod tests {
     fn test_default_matches_new() {
         let a = LoadingAnimation::new();
         let b = LoadingAnimation::default();
-        // Both should have valid initial state (phrase_index may differ due to time seed)
         assert_eq!(a.frame_index, b.frame_index);
         assert_eq!(a.color_index, b.color_index);
-        assert_eq!(a.ticks_since_phrase_change, b.ticks_since_phrase_change);
     }
 }
