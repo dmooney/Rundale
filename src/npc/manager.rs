@@ -312,6 +312,11 @@ impl NpcManager {
         self.last_tier2_game_time = Some(time);
     }
 
+    /// Returns the game time of the last Tier 2 tick, if any.
+    pub fn last_tier2_game_time(&self) -> Option<DateTime<Utc>> {
+        self.last_tier2_game_time
+    }
+
     /// Groups Tier 2 NPCs by their current location.
     ///
     /// Returns a map of location id to the NPC ids at that location.

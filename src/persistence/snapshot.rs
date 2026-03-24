@@ -1,0 +1,348 @@
+//! Snapshot serialization — captures and restores dynamic game state.
+//!
+//! The [`GameSnapshot`] struct is a fully serializable representation of
+//! all dynamic game state. Static data (world graph, location map) is
+//! excluded because it's loaded from data files on startup.
+
+use std::collections::HashMap;
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+use crate::npc::memory::ShortTermMemory;
+use crate::npc::types::{DailySchedule, NpcState, Relationship};
+use crate::npc::{Npc, NpcId};
+use crate::world::LocationId;
+
+/// Snapshot of the game clock's logical state.
+///
+/// Captures the current game time, speed factor, and paused flag.
+/// On restore, a new [`GameClock`](crate::world::time::GameClock) is
+/// constructed from these values (the real-time anchor is reset).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ClockSnapshot {
+    /// The current game time.
+    pub game_time: DateTime<Utc>,
+    /// Game-time seconds per real-time second.
+    pub speed_factor: f64,
+    /// Whether the clock is paused.
+    pub paused: bool,
+}
+
+/// Snapshot of a single NPC's dynamic state.
+///
+/// Mirrors the fields of [`Npc`] so the struct can be serialized
+/// without requiring `Serialize` on `Npc` itself.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NpcSnapshot {
+    /// Unique identifier.
+    pub id: NpcId,
+    /// Full name.
+    pub name: String,
+    /// Age in years.
+    pub age: u8,
+    /// Occupation or role.
+    pub occupation: String,
+    /// Personality description.
+    pub personality: String,
+    /// Current location.
+    pub location: LocationId,
+    /// Current emotional state.
+    pub mood: String,
+    /// Home location.
+    pub home: Option<LocationId>,
+    /// Workplace location.
+    pub workplace: Option<LocationId>,
+    /// Daily schedule.
+    pub schedule: Option<DailySchedule>,
+    /// Relationships to other NPCs.
+    pub relationships: HashMap<NpcId, Relationship>,
+    /// Short-term memory ring buffer.
+    pub memory: ShortTermMemory,
+    /// Knowledge entries.
+    pub knowledge: Vec<String>,
+    /// Present or in-transit state.
+    pub state: NpcState,
+}
+
+impl NpcSnapshot {
+    /// Captures a snapshot from a live NPC.
+    pub fn from_npc(npc: &Npc) -> Self {
+        Self {
+            id: npc.id,
+            name: npc.name.clone(),
+            age: npc.age,
+            occupation: npc.occupation.clone(),
+            personality: npc.personality.clone(),
+            location: npc.location,
+            mood: npc.mood.clone(),
+            home: npc.home,
+            workplace: npc.workplace,
+            schedule: npc.schedule.clone(),
+            relationships: npc.relationships.clone(),
+            memory: npc.memory.clone(),
+            knowledge: npc.knowledge.clone(),
+            state: npc.state.clone(),
+        }
+    }
+
+    /// Restores the snapshot into a live NPC.
+    pub fn into_npc(self) -> Npc {
+        Npc {
+            id: self.id,
+            name: self.name,
+            age: self.age,
+            occupation: self.occupation,
+            personality: self.personality,
+            location: self.location,
+            mood: self.mood,
+            home: self.home,
+            workplace: self.workplace,
+            schedule: self.schedule,
+            relationships: self.relationships,
+            memory: self.memory,
+            knowledge: self.knowledge,
+            state: self.state,
+        }
+    }
+}
+
+/// A complete snapshot of dynamic game state.
+///
+/// This is the unit of persistence: serialized to JSON and stored in
+/// the `snapshots` table. Static data (world graph, locations) is
+/// loaded from data files and not included here.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GameSnapshot {
+    /// Player's current location.
+    pub player_location: LocationId,
+    /// Current weather description.
+    pub weather: String,
+    /// Scrollback text log.
+    pub text_log: Vec<String>,
+    /// Clock state.
+    pub clock: ClockSnapshot,
+    /// All NPC states.
+    pub npcs: Vec<NpcSnapshot>,
+    /// Game time of the last Tier 2 tick.
+    pub last_tier2_game_time: Option<DateTime<Utc>>,
+}
+
+impl GameSnapshot {
+    /// Captures a snapshot from live game state.
+    pub fn capture(
+        world: &crate::world::WorldState,
+        npc_manager: &crate::npc::manager::NpcManager,
+    ) -> Self {
+        let clock = ClockSnapshot {
+            game_time: world.clock.now(),
+            speed_factor: world.clock.speed_factor(),
+            paused: world.clock.is_paused(),
+        };
+
+        let npcs: Vec<NpcSnapshot> = npc_manager.all_npcs().map(NpcSnapshot::from_npc).collect();
+
+        Self {
+            player_location: world.player_location,
+            weather: world.weather.to_string(),
+            text_log: world.text_log.clone(),
+            clock,
+            npcs,
+            last_tier2_game_time: npc_manager.last_tier2_game_time(),
+        }
+    }
+
+    /// Restores this snapshot into live game state.
+    ///
+    /// Replaces the dynamic fields of `world` and rebuilds the `npc_manager`
+    /// from the snapshot. The world graph and location map are left untouched
+    /// (they are static data loaded from files).
+    pub fn restore(
+        self,
+        world: &mut crate::world::WorldState,
+        npc_manager: &mut crate::npc::manager::NpcManager,
+    ) {
+        use crate::world::time::GameClock;
+
+        // Restore clock
+        let mut clock = GameClock::new(self.clock.game_time);
+        if self.clock.paused {
+            clock.pause();
+        }
+        // Set speed by finding the matching preset, or use custom factor
+        let factor = self.clock.speed_factor;
+        use crate::world::time::GameSpeed;
+        let speed = [
+            GameSpeed::Slow,
+            GameSpeed::Normal,
+            GameSpeed::Fast,
+            GameSpeed::Fastest,
+        ]
+        .into_iter()
+        .find(|s| (s.factor() - factor).abs() < 0.01);
+        if let Some(s) = speed {
+            clock.set_speed(s);
+        }
+        // For custom speeds, we need to set it directly — handled by with_speed constructor
+        if speed.is_none() {
+            clock = GameClock::with_speed(self.clock.game_time, factor);
+            if self.clock.paused {
+                clock.pause();
+            }
+        }
+
+        world.clock = clock;
+        world.player_location = self.player_location;
+        world.weather = self.weather.parse().unwrap_or(crate::world::Weather::Clear);
+        world.text_log = self.text_log;
+
+        // Restore NPCs
+        *npc_manager = crate::npc::manager::NpcManager::new();
+        for npc_snap in self.npcs {
+            npc_manager.add_npc(npc_snap.into_npc());
+        }
+        if let Some(t) = self.last_tier2_game_time {
+            npc_manager.record_tier2_tick(t);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::npc::Npc;
+    use crate::npc::manager::NpcManager;
+    use crate::npc::memory::ShortTermMemory;
+    use crate::npc::types::NpcState;
+    use crate::world::WorldState;
+    use chrono::{TimeZone, Utc};
+
+    fn make_test_npc(id: u32, location: u32) -> Npc {
+        Npc {
+            id: NpcId(id),
+            name: format!("NPC {}", id),
+            age: 30,
+            occupation: "Test".to_string(),
+            personality: "Test personality".to_string(),
+            location: LocationId(location),
+            mood: "calm".to_string(),
+            home: Some(LocationId(location)),
+            workplace: None,
+            schedule: None,
+            relationships: HashMap::new(),
+            memory: ShortTermMemory::new(),
+            knowledge: Vec::new(),
+            state: NpcState::Present,
+        }
+    }
+
+    #[test]
+    fn test_npc_snapshot_roundtrip() {
+        let npc = make_test_npc(1, 2);
+        let snap = NpcSnapshot::from_npc(&npc);
+        let restored = snap.into_npc();
+        assert_eq!(restored.id, NpcId(1));
+        assert_eq!(restored.name, "NPC 1");
+        assert_eq!(restored.location, LocationId(2));
+        assert_eq!(restored.mood, "calm");
+    }
+
+    #[test]
+    fn test_clock_snapshot_serialize_roundtrip() {
+        let clock = ClockSnapshot {
+            game_time: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            speed_factor: 36.0,
+            paused: false,
+        };
+        let json = serde_json::to_string(&clock).unwrap();
+        let restored: ClockSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(clock, restored);
+    }
+
+    #[test]
+    fn test_game_snapshot_capture_and_serialize() {
+        let world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        npc_manager.add_npc(make_test_npc(1, 1));
+        npc_manager.add_npc(make_test_npc(2, 2));
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(snapshot.player_location, restored.player_location);
+        assert_eq!(snapshot.weather, restored.weather);
+        assert_eq!(snapshot.npcs.len(), restored.npcs.len());
+    }
+
+    #[test]
+    fn test_game_snapshot_restore() {
+        let mut world = WorldState::new();
+        world.weather = crate::world::Weather::Rain;
+        world.log("Test entry".to_string());
+        let mut npc_manager = NpcManager::new();
+        npc_manager.add_npc(make_test_npc(1, 1));
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+
+        // Create a fresh world and restore
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        assert_eq!(new_world.weather, crate::world::Weather::Rain);
+        assert_eq!(new_world.text_log.len(), 1);
+        assert_eq!(new_world.text_log[0], "Test entry");
+        assert_eq!(new_npcs.npc_count(), 1);
+        assert!(new_npcs.get(NpcId(1)).is_some());
+    }
+
+    #[test]
+    fn test_game_snapshot_paused_clock() {
+        let mut world = WorldState::new();
+        world.clock.pause();
+        world.clock.advance(120); // advance 2 hours while paused
+        let npc_manager = NpcManager::new();
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+        assert!(snapshot.clock.paused);
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        assert!(new_world.clock.is_paused());
+    }
+
+    #[test]
+    fn test_game_snapshot_preserves_tier2_time() {
+        let world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let t = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        npc_manager.record_tier2_tick(t);
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+        assert_eq!(snapshot.last_tier2_game_time, Some(t));
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+        assert!(new_npcs.needs_tier2_tick(t) == false);
+    }
+
+    #[test]
+    fn test_npc_snapshot_with_relationships() {
+        let mut npc = make_test_npc(1, 1);
+        use crate::npc::types::{Relationship, RelationshipKind};
+        npc.relationships
+            .insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.7));
+
+        let snap = NpcSnapshot::from_npc(&npc);
+        let json = serde_json::to_string(&snap).unwrap();
+        let restored: NpcSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.relationships.len(), 1);
+        let rel = restored.relationships.get(&NpcId(2)).unwrap();
+        assert!((rel.strength - 0.7).abs() < f64::EPSILON);
+    }
+}

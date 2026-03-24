@@ -134,17 +134,17 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::Quit)
     } else if lower == "/save" {
         Some(Command::Save)
-    } else if lower.starts_with("/fork ") {
-        let name = trimmed[6..].trim().to_string();
+    } else if lower == "/fork" || lower.starts_with("/fork ") {
+        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
         if name.is_empty() {
-            None
+            Some(Command::Help) // bare /fork → show help
         } else {
             Some(Command::Fork(name))
         }
-    } else if lower.starts_with("/load ") {
-        let name = trimmed[6..].trim().to_string();
+    } else if lower == "/load" || lower.starts_with("/load ") {
+        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
         if name.is_empty() {
-            None
+            Some(Command::Help) // bare /load → show help
         } else {
             Some(Command::Load(name))
         }
@@ -495,8 +495,10 @@ mod tests {
 
     #[test]
     fn test_parse_fork_empty_name() {
-        assert_eq!(parse_system_command("/fork "), None);
-        assert_eq!(parse_system_command("/fork   "), None);
+        // Bare /fork shows help instead of falling through to game input
+        assert_eq!(parse_system_command("/fork "), Some(Command::Help));
+        assert_eq!(parse_system_command("/fork   "), Some(Command::Help));
+        assert_eq!(parse_system_command("/fork"), Some(Command::Help));
     }
 
     #[test]

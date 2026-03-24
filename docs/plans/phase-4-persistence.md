@@ -2,7 +2,7 @@
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: Complete** (2026-03-23)
 
 ## Goal
 

@@ -217,6 +217,40 @@ async fn main() -> Result<()> {
         app.npc_manager
             .assign_tiers(app.world.player_location, &app.world.graph);
 
+        // Initialize persistence
+        let db_path = std::path::Path::new("parish_saves.db");
+        if let Ok(db) = parish::persistence::Database::open(db_path) {
+            let async_db = Arc::new(parish::persistence::AsyncDatabase::new(db));
+            if let Ok(Some(branch)) = async_db.find_branch("main").await {
+                app.active_branch_id = branch.id;
+                if let Ok(Some((snap_id, snapshot))) =
+                    async_db.load_latest_snapshot(branch.id).await
+                {
+                    let events = async_db
+                        .events_since_snapshot(branch.id, snap_id)
+                        .await
+                        .unwrap_or_default();
+                    snapshot.restore(&mut app.world, &mut app.npc_manager);
+                    parish::persistence::replay_journal(
+                        &mut app.world,
+                        &mut app.npc_manager,
+                        &events,
+                    );
+                    app.latest_snapshot_id = snap_id;
+                    app.npc_manager
+                        .assign_tiers(app.world.player_location, &app.world.graph);
+                } else {
+                    let snapshot =
+                        parish::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    if let Ok(snap_id) = async_db.save_snapshot(branch.id, &snapshot).await {
+                        app.latest_snapshot_id = snap_id;
+                    }
+                }
+            }
+            app.db = Some(async_db);
+            app.last_autosave = Some(std::time::Instant::now());
+        }
+
         // Show initial location description
         show_location_arrival(&mut app);
 
@@ -274,6 +308,26 @@ async fn main() -> Result<()> {
                 }
             }
 
+            // Periodic autosave
+            if let Some(ref db) = app.db {
+                let should_autosave = app
+                    .last_autosave
+                    .map(|t| t.elapsed().as_secs() >= 45)
+                    .unwrap_or(true);
+                if should_autosave {
+                    let snapshot =
+                        parish::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    if let Ok(snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
+                        let _ = db
+                            .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                            .await;
+                        app.latest_snapshot_id = snap_id;
+                        app.last_autosave = Some(std::time::Instant::now());
+                        app.debug_event("Autosave complete".to_string());
+                    }
+                }
+            }
+
             // Draw frame
             terminal.draw(|frame| tui::draw(frame, &mut app))?;
 
@@ -289,7 +343,7 @@ async fn main() -> Result<()> {
 
                 match classify_input(&raw_input) {
                     InputResult::SystemCommand(cmd) => {
-                        if handle_system_command(&mut app, cmd) {
+                        if handle_system_command(&mut app, cmd).await {
                             // Rebuild dialogue inference pipeline
                             // Use cloud client if available, otherwise local
                             let dial_client =
@@ -649,10 +703,17 @@ const IDLE_MESSAGES: &[&str] = &[
 ///
 /// Returns `true` if the LLM provider config changed and the inference
 /// pipeline needs to be rebuilt.
-fn handle_system_command(app: &mut App, cmd: Command) -> bool {
+async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
     let mut rebuild_inference = false;
     match cmd {
         Command::Quit => {
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    parish::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                if let Ok(_snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
+                    app.world.log("Saved.".to_string());
+                }
+            }
             app.world
                 .log("Safe home to ye. May the road rise to meet you.".to_string());
             app.should_quit = true;
@@ -726,12 +787,15 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world
                 .log("  /debug    — Debug commands (try /debug help)".to_string());
             app.world.log("  /help     — Show this help".to_string());
+            app.world.log("  /save     — Save game".to_string());
             app.world
-                .log("  /save     — Save game (not yet arrived)".to_string());
+                .log("  /fork <n> — Fork a new timeline branch".to_string());
             app.world
-                .log("  /fork <n> — Fork save (not yet arrived)".to_string());
+                .log("  /load <n> — Load a saved branch".to_string());
             app.world
-                .log("  /load <n> — Load save (not yet arrived)".to_string());
+                .log("  /branches — List save branches".to_string());
+            app.world
+                .log("  /log      — Show snapshot history".to_string());
         }
         Command::ToggleSidebar => {
             app.sidebar_visible = !app.sidebar_visible;
@@ -804,10 +868,156 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             rebuild_inference = true;
             app.world.log("API key updated.".to_string());
         }
-        Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
-            app.world.log(
-                "That particular skill hasn't arrived in the parish yet. Patience now.".to_string(),
-            );
+        Command::Save => {
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    parish::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                match db.save_snapshot(app.active_branch_id, &snapshot).await {
+                    Ok(snap_id) => {
+                        let _ = db
+                            .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                            .await;
+                        app.latest_snapshot_id = snap_id;
+                        app.last_autosave = Some(std::time::Instant::now());
+                        app.world.log("Game saved.".to_string());
+                    }
+                    Err(e) => app.world.log(format!("Failed to save: {}", e)),
+                }
+            } else {
+                app.world.log("Persistence not available.".to_string());
+            }
+        }
+        Command::Fork(name) => {
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    parish::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                match db.create_branch(&name, Some(app.active_branch_id)).await {
+                    Ok(new_branch_id) => match db.save_snapshot(new_branch_id, &snapshot).await {
+                        Ok(snap_id) => {
+                            app.active_branch_id = new_branch_id;
+                            app.latest_snapshot_id = snap_id;
+                            app.last_autosave = Some(std::time::Instant::now());
+                            app.world.log(format!("Forked to branch '{}'.", name));
+                        }
+                        Err(e) => app
+                            .world
+                            .log(format!("Failed to save fork snapshot: {}", e)),
+                    },
+                    Err(e) => app
+                        .world
+                        .log(format!("Failed to create branch '{}': {}", name, e)),
+                }
+            } else {
+                app.world.log("Persistence not available.".to_string());
+            }
+        }
+        Command::Load(name) => {
+            if let Some(ref db) = app.db {
+                match db.find_branch(&name).await {
+                    Ok(Some(branch)) => {
+                        if branch.id != app.active_branch_id {
+                            let snapshot = parish::persistence::GameSnapshot::capture(
+                                &app.world,
+                                &app.npc_manager,
+                            );
+                            let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                        }
+                        match db.load_latest_snapshot(branch.id).await {
+                            Ok(Some((snap_id, loaded_snapshot))) => {
+                                let events = db
+                                    .events_since_snapshot(branch.id, snap_id)
+                                    .await
+                                    .unwrap_or_default();
+                                loaded_snapshot.restore(&mut app.world, &mut app.npc_manager);
+                                parish::persistence::replay_journal(
+                                    &mut app.world,
+                                    &mut app.npc_manager,
+                                    &events,
+                                );
+                                app.active_branch_id = branch.id;
+                                app.latest_snapshot_id = snap_id;
+                                app.last_autosave = Some(std::time::Instant::now());
+                                app.npc_manager
+                                    .assign_tiers(app.world.player_location, &app.world.graph);
+                                let time = app.world.clock.time_of_day();
+                                let season = app.world.clock.season();
+                                let loc = app.world.current_location().name.clone();
+                                app.world.log(format!(
+                                    "Loaded branch '{}'. {} — {}, {}.",
+                                    name, loc, season, time
+                                ));
+                            }
+                            Ok(None) => {
+                                app.world
+                                    .log(format!("Branch '{}' has no saves yet.", name));
+                            }
+                            Err(e) => app
+                                .world
+                                .log(format!("Failed to load branch '{}': {}", name, e)),
+                        }
+                    }
+                    Ok(None) => {
+                        app.world.log(format!("No branch named '{}' found.", name));
+                    }
+                    Err(e) => app
+                        .world
+                        .log(format!("Failed to find branch '{}': {}", name, e)),
+                }
+            } else {
+                app.world.log("Persistence not available.".to_string());
+            }
+        }
+        Command::Branches => {
+            if let Some(ref db) = app.db {
+                match db.list_branches().await {
+                    Ok(branches) => {
+                        app.world.log("Save branches:".to_string());
+                        for b in &branches {
+                            let marker = if b.id == app.active_branch_id {
+                                " *"
+                            } else {
+                                ""
+                            };
+                            app.world.log(format!(
+                                "  {}{} (created {})",
+                                b.name,
+                                marker,
+                                parish::persistence::format_timestamp(&b.created_at)
+                            ));
+                        }
+                    }
+                    Err(e) => app.world.log(format!("Failed to list branches: {}", e)),
+                }
+            } else {
+                app.world.log("Persistence not available.".to_string());
+            }
+        }
+        Command::Log => {
+            if let Some(ref db) = app.db {
+                match db.branch_log(app.active_branch_id).await {
+                    Ok(snapshots) => {
+                        if snapshots.is_empty() {
+                            app.world
+                                .log("No snapshots on this branch yet.".to_string());
+                        } else {
+                            app.world
+                                .log("Snapshot history (most recent first):".to_string());
+                            for s in &snapshots {
+                                app.world.log(format!(
+                                    "  #{} — game: {} | saved: {}",
+                                    s.id,
+                                    s.game_time,
+                                    parish::persistence::format_timestamp(&s.real_time)
+                                ));
+                            }
+                        }
+                    }
+                    Err(e) => app.world.log(format!("Failed to read log: {}", e)),
+                }
+            } else {
+                app.world.log("Persistence not available.".to_string());
+            }
         }
         Command::Debug(sub) => {
             // Handle panel toggle specially

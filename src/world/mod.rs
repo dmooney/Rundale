@@ -51,6 +51,23 @@ impl fmt::Display for Weather {
     }
 }
 
+impl std::str::FromStr for Weather {
+    type Err = crate::error::ParishError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Clear" => Ok(Weather::Clear),
+            "Overcast" => Ok(Weather::Overcast),
+            "Rain" => Ok(Weather::Rain),
+            "Fog" => Ok(Weather::Fog),
+            "Storm" => Ok(Weather::Storm),
+            _ => Err(crate::error::ParishError::Config(format!(
+                "unknown weather: {s}"
+            ))),
+        }
+    }
+}
+
 /// Unique identifier for a location in the world graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

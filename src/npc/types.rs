@@ -44,7 +44,7 @@ impl fmt::Display for RelationshipKind {
 }
 
 /// A recorded event in a relationship's history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RelationshipEvent {
     /// When the event occurred in game time.
     pub timestamp: DateTime<Utc>,
@@ -56,7 +56,7 @@ pub struct RelationshipEvent {
 ///
 /// Tracks the kind of relationship, its strength on a -1.0 to 1.0 scale,
 /// and an append-only history of significant events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Relationship {
     /// The type of relationship.
     pub kind: RelationshipKind,
@@ -95,7 +95,7 @@ impl Relationship {
 /// A single entry in an NPC's daily schedule.
 ///
 /// Defines where the NPC should be and what they do during a time range.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduleEntry {
     /// Start hour (0-23, inclusive).
     pub start_hour: u8,
@@ -111,7 +111,7 @@ pub struct ScheduleEntry {
 ///
 /// Contains a list of time-slot entries defining where the NPC goes
 /// throughout the day. Entries should cover all 24 hours without gaps.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DailySchedule {
     /// Schedule entries sorted by start_hour.
     pub entries: Vec<ScheduleEntry>,
@@ -134,7 +134,7 @@ impl DailySchedule {
 }
 
 /// Whether an NPC is stationary or moving between locations.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub enum NpcState {
     /// NPC is at their current location.
     #[default]

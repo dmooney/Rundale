@@ -2,8 +2,8 @@
 
 > [Docs Index](../index.md)
 
-> Last updated: 2026-03-21
-> Current phase: **Phase 4 — Persistence** (next up)
+> Last updated: 2026-03-23
+> Current phase: **Phase 4 — Persistence** (complete)
 
 ## Status Legend
 
@@ -63,14 +63,14 @@
 
 > [Detailed plan](../plans/phase-4-persistence.md) | [Design: Persistence](../design/persistence.md)
 
-- [ ] SQLite schema design and migrations
-- [ ] Journal system (append-only event log)
-- [ ] Periodic snapshot compaction (background task)
-- [ ] `/save` command
-- [ ] `/quit` with autosave and clean shutdown
-- [ ] `/load <name>` — load branch head
-- [ ] `/fork <name>` — create new branch
-- [ ] `/branches` and `/log` commands
+- [x] SQLite schema design and migrations
+- [x] Journal system (append-only event log)
+- [x] Periodic snapshot compaction (autosave every 45s)
+- [x] `/save` command
+- [x] `/quit` with autosave and clean shutdown
+- [x] `/load <name>` — load branch head
+- [x] `/fork <name>` — create new branch
+- [x] `/branches` and `/log` commands
 
 ## Phase 5 — Full LOD & Scale
 

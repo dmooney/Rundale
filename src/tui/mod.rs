@@ -6,12 +6,15 @@
 pub mod debug_panel;
 
 use std::collections::VecDeque;
+use std::sync::Arc;
+use std::time::Instant;
 
 use crate::inference::InferenceQueue;
 use crate::inference::openai_client::OpenAiClient;
 use crate::loading::LoadingAnimation;
 use crate::npc::IrishWordHint;
 use crate::npc::manager::NpcManager;
+use crate::persistence::AsyncDatabase;
 use crate::world::WorldState;
 use crate::world::palette::{RawPalette, compute_palette};
 use crate::world::time::TimeOfDay;
@@ -231,6 +234,14 @@ pub struct App {
     pub dialogue_model: String,
     /// Loading animation state, active while waiting for LLM inference.
     pub loading_animation: Option<LoadingAnimation>,
+    /// Async database handle for persistence (None if persistence is disabled).
+    pub db: Option<Arc<AsyncDatabase>>,
+    /// Active save branch id.
+    pub active_branch_id: i64,
+    /// Most recent snapshot id on the active branch.
+    pub latest_snapshot_id: i64,
+    /// Wall-clock time of the last autosave.
+    pub last_autosave: Option<Instant>,
 }
 
 impl App {
@@ -261,6 +272,10 @@ impl App {
             cloud_base_url: None,
             dialogue_model: String::new(),
             loading_animation: None,
+            db: None,
+            active_branch_id: 1,
+            latest_snapshot_id: 0,
+            last_autosave: None,
         }
     }
 

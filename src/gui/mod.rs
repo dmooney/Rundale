@@ -134,6 +134,18 @@ pub struct GuiApp {
     // --- Screenshot mode ---
     /// When set, captures screenshots and exits.
     pub screenshot_config: Option<screenshot::ScreenshotConfig>,
+
+    // --- Persistence ---
+    /// Sync database handle for persistence (None if persistence is disabled).
+    /// Uses sync Database directly since eframe runs on the main/tokio thread
+    /// where block_on would panic.
+    pub db: Option<Arc<std::sync::Mutex<crate::persistence::Database>>>,
+    /// Active save branch id.
+    pub active_branch_id: i64,
+    /// Most recent snapshot id on the active branch.
+    pub latest_snapshot_id: i64,
+    /// Wall-clock time of the last autosave.
+    pub last_autosave: Option<std::time::Instant>,
 }
 
 impl GuiApp {
@@ -172,6 +184,10 @@ impl GuiApp {
             last_interaction: std::time::Instant::now(),
             last_idle_tick: std::time::Instant::now(),
             screenshot_config: None,
+            db: None,
+            active_branch_id: 1,
+            latest_snapshot_id: 0,
+            last_autosave: None,
         }
     }
 
@@ -229,6 +245,34 @@ impl GuiApp {
                 .tick_schedules(&self.world.clock, &self.world.graph);
             self.process_schedule_events(&events);
             self.last_idle_tick = std::time::Instant::now();
+        }
+    }
+
+    /// Saves a snapshot if 45 seconds have elapsed since the last autosave.
+    fn maybe_autosave(&mut self) {
+        if let Some(ref db) = self.db {
+            let should_autosave = self
+                .last_autosave
+                .map(|t| t.elapsed().as_secs() >= 45)
+                .unwrap_or(true);
+            if should_autosave {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+                let new_snap_id = {
+                    let db = db.lock().expect("database lock poisoned");
+                    if let Ok(snap_id) = db.save_snapshot(self.active_branch_id, &snapshot) {
+                        let _ = db.clear_journal(self.active_branch_id, self.latest_snapshot_id);
+                        Some(snap_id)
+                    } else {
+                        None
+                    }
+                };
+                if let Some(snap_id) = new_snap_id {
+                    self.latest_snapshot_id = snap_id;
+                    self.last_autosave = Some(std::time::Instant::now());
+                    self.debug_event("Autosave complete".to_string());
+                }
+            }
         }
     }
 
@@ -350,6 +394,14 @@ impl GuiApp {
         let mut rebuild = false;
         match cmd {
             Command::Quit => {
+                if let Some(ref db) = self.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+                    let db = db.lock().expect("database lock poisoned");
+                    if db.save_snapshot(self.active_branch_id, &snapshot).is_ok() {
+                        self.world.log("Saved.".to_string());
+                    }
+                }
                 self.world
                     .log("Safe home to ye. May the road rise to meet you.".to_string());
                 self.should_quit = true;
@@ -417,6 +469,15 @@ impl GuiApp {
                     .log("  /model    — Show or change model name".to_string());
                 self.world
                     .log("  /key      — Show or change API key".to_string());
+                self.world.log("  /save     — Save game".to_string());
+                self.world
+                    .log("  /fork <n> — Fork a new timeline branch".to_string());
+                self.world
+                    .log("  /load <n> — Load a saved branch".to_string());
+                self.world
+                    .log("  /branches — List save branches".to_string());
+                self.world
+                    .log("  /log      — Show snapshot history".to_string());
                 self.world.log("  /help     — Show this help".to_string());
             }
             Command::ToggleSidebar => {
@@ -478,15 +539,165 @@ impl GuiApp {
                 rebuild = true;
                 self.world.log("API key updated.".to_string());
             }
-            Command::Save
-            | Command::Fork(_)
-            | Command::Load(_)
-            | Command::Branches
-            | Command::Log => {
-                self.world.log(
-                    "That particular skill hasn't arrived in the parish yet. Patience now."
-                        .to_string(),
-                );
+            Command::Save => {
+                if let Some(ref db) = self.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+                    let db = db.lock().expect("database lock poisoned");
+                    match db.save_snapshot(self.active_branch_id, &snapshot) {
+                        Ok(snap_id) => {
+                            let _ =
+                                db.clear_journal(self.active_branch_id, self.latest_snapshot_id);
+                            self.latest_snapshot_id = snap_id;
+                            self.last_autosave = Some(std::time::Instant::now());
+                            self.world.log("Game saved.".to_string());
+                        }
+                        Err(e) => self.world.log(format!("Failed to save: {}", e)),
+                    }
+                } else {
+                    self.world.log("Persistence not available.".to_string());
+                }
+            }
+            Command::Fork(name) => {
+                if let Some(ref db) = self.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
+                    let db = db.lock().expect("database lock poisoned");
+                    let _ = db.save_snapshot(self.active_branch_id, &snapshot);
+                    match db.create_branch(&name, Some(self.active_branch_id)) {
+                        Ok(new_branch_id) => match db.save_snapshot(new_branch_id, &snapshot) {
+                            Ok(snap_id) => {
+                                self.active_branch_id = new_branch_id;
+                                self.latest_snapshot_id = snap_id;
+                                self.last_autosave = Some(std::time::Instant::now());
+                                self.world.log(format!("Forked to branch '{}'.", name));
+                            }
+                            Err(e) => self
+                                .world
+                                .log(format!("Failed to save fork snapshot: {}", e)),
+                        },
+                        Err(e) => self
+                            .world
+                            .log(format!("Failed to create branch '{}': {}", name, e)),
+                    }
+                } else {
+                    self.world.log("Persistence not available.".to_string());
+                }
+            }
+            Command::Load(name) => {
+                if let Some(ref db) = self.db {
+                    let db = db.lock().expect("database lock poisoned");
+                    match db.find_branch(&name) {
+                        Ok(Some(branch)) => {
+                            if branch.id != self.active_branch_id {
+                                let snapshot = crate::persistence::GameSnapshot::capture(
+                                    &self.world,
+                                    &self.npc_manager,
+                                );
+                                let _ = db.save_snapshot(self.active_branch_id, &snapshot);
+                            }
+                            match db.load_latest_snapshot(branch.id) {
+                                Ok(Some((snap_id, loaded_snapshot))) => {
+                                    let events = db
+                                        .events_since_snapshot(branch.id, snap_id)
+                                        .unwrap_or_default();
+                                    loaded_snapshot.restore(&mut self.world, &mut self.npc_manager);
+                                    crate::persistence::replay_journal(
+                                        &mut self.world,
+                                        &mut self.npc_manager,
+                                        &events,
+                                    );
+                                    self.active_branch_id = branch.id;
+                                    self.latest_snapshot_id = snap_id;
+                                    self.last_autosave = Some(std::time::Instant::now());
+                                    self.npc_manager.assign_tiers(
+                                        self.world.player_location,
+                                        &self.world.graph,
+                                    );
+                                    let time = self.world.clock.time_of_day();
+                                    let season = self.world.clock.season();
+                                    let loc = self.world.current_location().name.clone();
+                                    self.world.log(format!(
+                                        "Loaded branch '{}'. {} — {}, {}.",
+                                        name, loc, season, time
+                                    ));
+                                    // Reset idle timer so load doesn't immediately
+                                    // trigger NPC activity
+                                    self.last_interaction = std::time::Instant::now();
+                                    self.last_idle_tick = std::time::Instant::now();
+                                }
+                                Ok(None) => {
+                                    self.world
+                                        .log(format!("Branch '{}' has no saves yet.", name));
+                                }
+                                Err(e) => self
+                                    .world
+                                    .log(format!("Failed to load branch '{}': {}", name, e)),
+                            }
+                        }
+                        Ok(None) => {
+                            self.world.log(format!("No branch named '{}' found.", name));
+                        }
+                        Err(e) => self
+                            .world
+                            .log(format!("Failed to find branch '{}': {}", name, e)),
+                    }
+                } else {
+                    self.world.log("Persistence not available.".to_string());
+                }
+            }
+            Command::Branches => {
+                if let Some(ref db) = self.db {
+                    let db = db.lock().expect("database lock poisoned");
+                    match db.list_branches() {
+                        Ok(branches) => {
+                            self.world.log("Save branches:".to_string());
+                            for b in &branches {
+                                let marker = if b.id == self.active_branch_id {
+                                    " *"
+                                } else {
+                                    ""
+                                };
+                                self.world.log(format!(
+                                    "  {}{} (created {})",
+                                    b.name,
+                                    marker,
+                                    crate::persistence::format_timestamp(&b.created_at)
+                                ));
+                            }
+                        }
+                        Err(e) => self.world.log(format!("Failed to list branches: {}", e)),
+                    }
+                } else {
+                    self.world.log("Persistence not available.".to_string());
+                }
+            }
+            Command::Log => {
+                if let Some(ref db) = self.db {
+                    let db = db.lock().expect("database lock poisoned");
+                    match db.branch_log(self.active_branch_id) {
+                        Ok(snapshots) => {
+                            if snapshots.is_empty() {
+                                self.world
+                                    .log("No snapshots on this branch yet.".to_string());
+                            } else {
+                                self.world
+                                    .log("Snapshot history (most recent first):".to_string());
+                                for s in &snapshots {
+                                    self.world.log(format!(
+                                        "  #{} — game: {} | saved: {}",
+                                        s.id,
+                                        s.game_time,
+                                        crate::persistence::format_timestamp(&s.real_time)
+                                    ));
+                                }
+                            }
+                        }
+                        Err(e) => self.world.log(format!("Failed to read log: {}", e)),
+                    }
+                } else {
+                    self.world.log("Persistence not available.".to_string());
+                }
             }
             Command::Debug(sub) => {
                 if sub.as_deref() == Some("panel") {
@@ -575,6 +786,7 @@ impl GuiApp {
         self.last_interaction = std::time::Instant::now();
         self.world.log(format!("> {}", raw_input));
 
+        let is_system_cmd = matches!(classify_input(&raw_input), InputResult::SystemCommand(_));
         match classify_input(&raw_input) {
             InputResult::SystemCommand(cmd) => {
                 let rebuild = self.handle_system_command(cmd);
@@ -593,17 +805,30 @@ impl GuiApp {
             }
         }
 
-        // Simulation tick after each action
-        self.npc_manager
-            .assign_tiers(self.world.player_location, &self.world.graph);
-        let events = self
-            .npc_manager
-            .tick_schedules(&self.world.clock, &self.world.graph);
-        self.process_schedule_events(&events);
+        // Simulation tick after game actions (not system commands, which
+        // may have loaded/restored state and already reassigned tiers).
+        if !is_system_cmd {
+            self.npc_manager
+                .assign_tiers(self.world.player_location, &self.world.graph);
+            let events = self
+                .npc_manager
+                .tick_schedules(&self.world.clock, &self.world.graph);
+            self.process_schedule_events(&events);
+        }
     }
 
     /// Processes a game input (non-system-command).
     fn process_game_input(&mut self, text: String) {
+        // Guard: anything starting with "/" that wasn't caught by
+        // parse_system_command is an unknown command, not NPC dialogue.
+        if text.starts_with('/') {
+            self.world.log(format!(
+                "Unknown command '{}'. Type /help for options.",
+                text
+            ));
+            return;
+        }
+
         // Try local intent parsing first (synchronous for move/look)
         let lower = text.to_lowercase();
         let trimmed = lower.trim();
@@ -749,6 +974,9 @@ impl eframe::App for GuiApp {
 
         // Idle tick
         self.maybe_idle_tick();
+
+        // Periodic autosave
+        self.maybe_autosave();
 
         // Apply smoothly interpolated time-of-day palette with season/weather tinting
         let now = self.world.clock.now();
@@ -937,9 +1165,38 @@ pub fn run_gui(
         }
     }
 
-    // Initial tier assignment and location description
+    // Initial tier assignment
     app.npc_manager
         .assign_tiers(app.world.player_location, &app.world.graph);
+
+    // Initialize persistence using sync Database directly.
+    // The GUI runs on the main/tokio thread where block_on would panic,
+    // so we avoid AsyncDatabase entirely.
+    let db_path = std::path::Path::new("parish_saves.db");
+    if let Ok(db) = crate::persistence::Database::open(db_path) {
+        if let Ok(Some(branch)) = db.find_branch("main") {
+            app.active_branch_id = branch.id;
+            if let Ok(Some((snap_id, snapshot))) = db.load_latest_snapshot(branch.id) {
+                let events = db
+                    .events_since_snapshot(branch.id, snap_id)
+                    .unwrap_or_default();
+                snapshot.restore(&mut app.world, &mut app.npc_manager);
+                crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
+                app.latest_snapshot_id = snap_id;
+                app.npc_manager
+                    .assign_tiers(app.world.player_location, &app.world.graph);
+            } else {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                if let Ok(snap_id) = db.save_snapshot(branch.id, &snapshot) {
+                    app.latest_snapshot_id = snap_id;
+                }
+            }
+        }
+        app.db = Some(Arc::new(std::sync::Mutex::new(db)));
+        app.last_autosave = Some(std::time::Instant::now());
+    }
+
     app.show_location_arrival();
 
     let options = eframe::NativeOptions {

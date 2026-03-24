@@ -85,7 +85,10 @@ src/
 │   ├── client.rs        # Ollama process management
 │   └── setup.rs         # GPU detection, model selection, auto-pull (Ollama)
 ├── persistence/
-│   └── mod.rs           # SQLite save/load, WAL journal (Phase 4)
+│   ├── mod.rs           # Module root, re-exports
+│   ├── database.rs      # Database + AsyncDatabase (SQLite WAL, schema, CRUD)
+│   ├── snapshot.rs      # GameSnapshot, ClockSnapshot, NpcSnapshot
+│   └── journal.rs       # WorldEvent enum, replay logic
 ├── tui/
 │   ├── mod.rs           # App struct, main render loop, event handling
 │   └── debug_panel.rs   # Debug overlay panel

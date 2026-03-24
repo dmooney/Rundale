@@ -1,0 +1,24 @@
+# Persistence feature test script
+# Tests /save, /fork, /load, /branches, /log, and /quit with autosave
+
+/status
+look
+go to crossroads
+/save
+/branches
+/log
+go to pub
+look
+/fork alternate
+/branches
+go to church
+/save
+/load main
+/status
+look
+/load alternate
+/status
+look
+/log
+/branches
+/quit

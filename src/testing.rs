@@ -99,6 +99,8 @@ pub struct GameTestHarness {
     pub app: App,
     /// Queued canned NPC responses, keyed by lowercase NPC name.
     canned_responses: HashMap<String, Vec<String>>,
+    /// Synchronous database handle for persistence in tests.
+    db_sync: Option<crate::persistence::Database>,
 }
 
 impl GameTestHarness {
@@ -130,9 +132,26 @@ impl GameTestHarness {
         app.npc_manager
             .assign_tiers(app.world.player_location, &app.world.graph);
 
+        // Initialize in-memory persistence for test harness
+        let db_sync = crate::persistence::Database::open_memory().ok();
+        let mut active_branch_id = 1;
+        let mut latest_snapshot_id = 0;
+        if let Some(ref db) = db_sync
+            && let Ok(Some(branch)) = db.find_branch("main")
+        {
+            active_branch_id = branch.id;
+            let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+            if let Ok(snap_id) = db.save_snapshot(branch.id, &snapshot) {
+                latest_snapshot_id = snap_id;
+            }
+        }
+        app.active_branch_id = active_branch_id;
+        app.latest_snapshot_id = latest_snapshot_id;
+
         Self {
             app,
             canned_responses: HashMap::new(),
+            db_sync,
         }
     }
 
@@ -347,23 +366,224 @@ impl GameTestHarness {
             Command::Help => {
                 self.app
                     .world
-                    .log("Commands: /quit, /pause, /resume, /status, /help".to_string());
+                    .log("Commands: /quit, /pause, /resume, /status, /save, /fork, /load, /branches, /log, /help".to_string());
                 ActionResult::SystemCommand {
                     response: "Help displayed".to_string(),
                 }
             }
-            Command::Save
-            | Command::Fork(_)
-            | Command::Load(_)
-            | Command::Branches
-            | Command::Log
-            | Command::ToggleSidebar
-            | Command::ToggleImprov => {
+            Command::Save => {
+                if let Some(ref db_sync) = self.db_sync {
+                    let snapshot = crate::persistence::GameSnapshot::capture(
+                        &self.app.world,
+                        &self.app.npc_manager,
+                    );
+                    match db_sync.save_snapshot(self.app.active_branch_id, &snapshot) {
+                        Ok(snap_id) => {
+                            let _ = db_sync.clear_journal(
+                                self.app.active_branch_id,
+                                self.app.latest_snapshot_id,
+                            );
+                            self.app.latest_snapshot_id = snap_id;
+                            self.app.world.log("Game saved.".to_string());
+                            ActionResult::SystemCommand {
+                                response: "Game saved.".to_string(),
+                            }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to save: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                } else {
+                    self.app.world.log("Persistence not available.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Persistence not available.".to_string(),
+                    }
+                }
+            }
+            Command::Fork(name) => {
+                if let Some(ref db_sync) = self.db_sync {
+                    // Save current branch
+                    let snapshot = crate::persistence::GameSnapshot::capture(
+                        &self.app.world,
+                        &self.app.npc_manager,
+                    );
+                    let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
+
+                    match db_sync.create_branch(&name, Some(self.app.active_branch_id)) {
+                        Ok(new_branch_id) => {
+                            match db_sync.save_snapshot(new_branch_id, &snapshot) {
+                                Ok(snap_id) => {
+                                    self.app.active_branch_id = new_branch_id;
+                                    self.app.latest_snapshot_id = snap_id;
+                                    let msg = format!("Forked to branch '{}'.", name);
+                                    self.app.world.log(msg.clone());
+                                    ActionResult::SystemCommand { response: msg }
+                                }
+                                Err(e) => {
+                                    let msg = format!("Failed to save fork: {}", e);
+                                    self.app.world.log(msg.clone());
+                                    ActionResult::SystemCommand { response: msg }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to fork: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                } else {
+                    self.app.world.log("Persistence not available.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Persistence not available.".to_string(),
+                    }
+                }
+            }
+            Command::Load(name) => {
+                if let Some(ref db_sync) = self.db_sync {
+                    match db_sync.find_branch(&name) {
+                        Ok(Some(branch)) => {
+                            // Auto-save current branch only when switching branches
+                            if branch.id != self.app.active_branch_id {
+                                let snapshot = crate::persistence::GameSnapshot::capture(
+                                    &self.app.world,
+                                    &self.app.npc_manager,
+                                );
+                                let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
+                            }
+                            match db_sync.load_latest_snapshot(branch.id) {
+                                Ok(Some((snap_id, loaded_snapshot))) => {
+                                    let events = db_sync
+                                        .events_since_snapshot(branch.id, snap_id)
+                                        .unwrap_or_default();
+                                    loaded_snapshot
+                                        .restore(&mut self.app.world, &mut self.app.npc_manager);
+                                    crate::persistence::replay_journal(
+                                        &mut self.app.world,
+                                        &mut self.app.npc_manager,
+                                        &events,
+                                    );
+                                    self.app.active_branch_id = branch.id;
+                                    self.app.latest_snapshot_id = snap_id;
+                                    self.app.npc_manager.assign_tiers(
+                                        self.app.world.player_location,
+                                        &self.app.world.graph,
+                                    );
+                                    let time = self.app.world.clock.time_of_day();
+                                    let season = self.app.world.clock.season();
+                                    let msg =
+                                        format!("Loaded branch '{}'. {}, {}.", name, season, time);
+                                    self.app.world.log(msg.clone());
+                                    ActionResult::SystemCommand { response: msg }
+                                }
+                                Ok(None) => {
+                                    let msg = format!("Branch '{}' has no saves.", name);
+                                    self.app.world.log(msg.clone());
+                                    ActionResult::SystemCommand { response: msg }
+                                }
+                                Err(e) => {
+                                    let msg = format!("Failed to load: {}", e);
+                                    self.app.world.log(msg.clone());
+                                    ActionResult::SystemCommand { response: msg }
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            let msg = format!("No branch named '{}'.", name);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to find branch: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                } else {
+                    self.app.world.log("Persistence not available.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Persistence not available.".to_string(),
+                    }
+                }
+            }
+            Command::Branches => {
+                if let Some(ref db_sync) = self.db_sync {
+                    match db_sync.list_branches() {
+                        Ok(branches) => {
+                            let mut lines = vec!["Save branches:".to_string()];
+                            for b in &branches {
+                                let marker = if b.id == self.app.active_branch_id {
+                                    " *"
+                                } else {
+                                    ""
+                                };
+                                lines.push(format!(
+                                    "  {}{} (created {})",
+                                    b.name,
+                                    marker,
+                                    crate::persistence::format_timestamp(&b.created_at)
+                                ));
+                            }
+                            let msg = lines.join("\n");
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to list branches: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                } else {
+                    self.app.world.log("Persistence not available.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Persistence not available.".to_string(),
+                    }
+                }
+            }
+            Command::Log => {
+                if let Some(ref db_sync) = self.db_sync {
+                    match db_sync.branch_log(self.app.active_branch_id) {
+                        Ok(snapshots) => {
+                            let msg = if snapshots.is_empty() {
+                                "No snapshots on this branch yet.".to_string()
+                            } else {
+                                let mut lines =
+                                    vec!["Snapshot history (most recent first):".to_string()];
+                                for s in &snapshots {
+                                    lines.push(format!(
+                                        "  #{} — game: {} | saved: {}",
+                                        s.id,
+                                        s.game_time,
+                                        crate::persistence::format_timestamp(&s.real_time)
+                                    ));
+                                }
+                                lines.join("\n")
+                            };
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to get branch log: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                } else {
+                    self.app.world.log("Persistence not available.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Persistence not available.".to_string(),
+                    }
+                }
+            }
+            Command::ToggleSidebar | Command::ToggleImprov => {
                 self.app
                     .world
-                    .log("[Not yet implemented — coming in Phase 4]".to_string());
+                    .log("[Not available in test mode]".to_string());
                 ActionResult::SystemCommand {
-                    response: "Not yet implemented".to_string(),
+                    response: "Not available in test mode".to_string(),
                 }
             }
             Command::ShowProvider => {
@@ -963,11 +1183,23 @@ mod tests {
     }
 
     #[test]
-    fn test_unimplemented_commands() {
+    fn test_persistence_commands() {
         let mut h = GameTestHarness::new();
+
+        // Save should work with in-memory DB
         let result = h.execute("/save");
         if let ActionResult::SystemCommand { response } = result {
-            assert!(response.contains("Not yet implemented"));
+            assert!(
+                response.contains("Game saved"),
+                "expected save confirmation, got: {}",
+                response
+            );
+        }
+
+        // Branches should list main
+        let result = h.execute("/branches");
+        if let ActionResult::SystemCommand { response } = result {
+            assert!(response.contains("main"), "branches should list main");
         }
     }
 
