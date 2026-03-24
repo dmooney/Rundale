@@ -140,6 +140,8 @@ pub enum GameSpeed {
     Fast,
     /// Fastest pace — 144.0 factor (10 real minutes per game day).
     Fastest,
+    /// Ludicrous pace for testing — 864.0 factor (100 real seconds per game day).
+    Ludicrous,
 }
 
 impl GameSpeed {
@@ -150,6 +152,7 @@ impl GameSpeed {
             GameSpeed::Normal => 36.0,
             GameSpeed::Fast => 72.0,
             GameSpeed::Fastest => 144.0,
+            GameSpeed::Ludicrous => 864.0,
         }
     }
 
@@ -160,6 +163,7 @@ impl GameSpeed {
             "normal" => Some(GameSpeed::Normal),
             "fast" => Some(GameSpeed::Fast),
             "fastest" => Some(GameSpeed::Fastest),
+            "ludicrous" => Some(GameSpeed::Ludicrous),
             _ => None,
         }
     }
@@ -172,6 +176,7 @@ impl fmt::Display for GameSpeed {
             GameSpeed::Normal => write!(f, "Normal"),
             GameSpeed::Fast => write!(f, "Fast"),
             GameSpeed::Fastest => write!(f, "Fastest"),
+            GameSpeed::Ludicrous => write!(f, "Ludicrous"),
         }
     }
 }
@@ -313,6 +318,8 @@ impl GameClock {
             Some(GameSpeed::Fast)
         } else if (self.speed_factor - 144.0).abs() < EPSILON {
             Some(GameSpeed::Fastest)
+        } else if (self.speed_factor - 864.0).abs() < EPSILON {
+            Some(GameSpeed::Ludicrous)
         } else {
             None
         }
@@ -462,6 +469,7 @@ mod tests {
         assert!((GameSpeed::Normal.factor() - 36.0).abs() < f64::EPSILON);
         assert!((GameSpeed::Fast.factor() - 72.0).abs() < f64::EPSILON);
         assert!((GameSpeed::Fastest.factor() - 144.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Ludicrous.factor() - 864.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -470,6 +478,14 @@ mod tests {
         assert_eq!(GameSpeed::from_name("NORMAL"), Some(GameSpeed::Normal));
         assert_eq!(GameSpeed::from_name("Fast"), Some(GameSpeed::Fast));
         assert_eq!(GameSpeed::from_name("fastest"), Some(GameSpeed::Fastest));
+        assert_eq!(
+            GameSpeed::from_name("ludicrous"),
+            Some(GameSpeed::Ludicrous)
+        );
+        assert_eq!(
+            GameSpeed::from_name("LUDICROUS"),
+            Some(GameSpeed::Ludicrous)
+        );
         assert_eq!(GameSpeed::from_name("bogus"), None);
         assert_eq!(GameSpeed::from_name(""), None);
     }
@@ -480,6 +496,7 @@ mod tests {
         assert_eq!(GameSpeed::Normal.to_string(), "Normal");
         assert_eq!(GameSpeed::Fast.to_string(), "Fast");
         assert_eq!(GameSpeed::Fastest.to_string(), "Fastest");
+        assert_eq!(GameSpeed::Ludicrous.to_string(), "Ludicrous");
     }
 
     #[test]

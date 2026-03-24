@@ -45,7 +45,7 @@ pub fn draw_status_bar(ui: &mut egui::Ui, world: &WorldState, palette: &GuiPalet
 
             // Weather
             ui.label(
-                egui::RichText::new(&world.weather)
+                egui::RichText::new(world.weather.to_string())
                     .color(palette.fg)
                     .size(13.0),
             );
@@ -101,7 +101,7 @@ mod tests {
     fn test_world_state_for_status_bar() {
         let world = WorldState::new();
         assert_eq!(world.current_location().name, "The Crossroads");
-        assert_eq!(world.weather, "Clear");
+        assert_eq!(world.weather, crate::world::Weather::Clear);
         assert!(!world.clock.is_paused());
     }
 }

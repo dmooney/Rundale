@@ -8,9 +8,11 @@ pub mod description;
 pub mod encounter;
 pub mod graph;
 pub mod movement;
+pub mod palette;
 pub mod time;
 
 use std::collections::HashMap;
+use std::fmt;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -18,6 +20,36 @@ use time::GameClock;
 
 use crate::error::ParishError;
 use graph::{LocationData, WorldGraph};
+
+/// Current weather conditions in the game world.
+///
+/// Affects color palette tinting (desaturation, brightness, color temperature)
+/// and location description templates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Weather {
+    /// Clear skies — no palette modification.
+    Clear,
+    /// Overcast — slightly darker and desaturated.
+    Overcast,
+    /// Rain — darker with a blue-gray tint.
+    Rain,
+    /// Fog — washed out, low contrast.
+    Fog,
+    /// Storm — much darker and heavily desaturated.
+    Storm,
+}
+
+impl fmt::Display for Weather {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Weather::Clear => write!(f, "Clear"),
+            Weather::Overcast => write!(f, "Overcast"),
+            Weather::Rain => write!(f, "Rain"),
+            Weather::Fog => write!(f, "Fog"),
+            Weather::Storm => write!(f, "Storm"),
+        }
+    }
+}
 
 /// Unique identifier for a location in the world graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -56,8 +88,8 @@ pub struct WorldState {
     pub locations: HashMap<LocationId, Location>,
     /// The world graph with full location data and connections.
     pub graph: WorldGraph,
-    /// Current weather description (e.g. "Clear", "Overcast").
-    pub weather: String,
+    /// Current weather conditions affecting palette and descriptions.
+    pub weather: Weather,
     /// Scrollback text log displayed in the main TUI panel.
     pub text_log: Vec<String>,
 }
@@ -92,7 +124,7 @@ impl WorldState {
             player_location: crossroads_id,
             locations,
             graph: WorldGraph::new(),
-            weather: "Clear".to_string(),
+            weather: Weather::Clear,
             text_log: Vec::new(),
         }
     }
@@ -131,7 +163,7 @@ impl WorldState {
             player_location: start_location,
             locations,
             graph,
-            weather: "Clear".to_string(),
+            weather: Weather::Clear,
             text_log: Vec::new(),
         })
     }
@@ -172,9 +204,18 @@ mod tests {
     fn test_world_state_new() {
         let world = WorldState::new();
         assert_eq!(world.player_location, LocationId(1));
-        assert_eq!(world.weather, "Clear");
+        assert_eq!(world.weather, Weather::Clear);
         assert!(world.text_log.is_empty());
         assert_eq!(world.locations.len(), 1);
+    }
+
+    #[test]
+    fn test_weather_display() {
+        assert_eq!(Weather::Clear.to_string(), "Clear");
+        assert_eq!(Weather::Overcast.to_string(), "Overcast");
+        assert_eq!(Weather::Rain.to_string(), "Rain");
+        assert_eq!(Weather::Fog.to_string(), "Fog");
+        assert_eq!(Weather::Storm.to_string(), "Storm");
     }
 
     #[test]

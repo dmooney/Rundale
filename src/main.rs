@@ -684,6 +684,7 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
                 GameSpeed::Normal => "The parish settles into its natural stride.",
                 GameSpeed::Fast => "The parish quickens its step.",
                 GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
             };
             app.world.log(msg.to_string());
         }
@@ -708,7 +709,8 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world
                 .log("  /resume   — Let time flow again".to_string());
             app.world.log(
-                "  /speed    — Show or change game speed (slow/normal/fast/fastest)".to_string(),
+                "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)"
+                    .to_string(),
             );
             app.world.log("  /status   — Where am I?".to_string());
             app.world
@@ -902,7 +904,7 @@ fn show_location_arrival(app: &mut App) {
     // Render dynamic description if graph is loaded, else use static description
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
-        let weather = app.world.weather.clone();
+        let weather = app.world.weather.to_string();
         let npc_names: Vec<&str> = app
             .npc_manager
             .npcs_at(app.world.player_location)
@@ -931,7 +933,7 @@ fn show_location_arrival(app: &mut App) {
 fn show_location_description(app: &mut App) {
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
-        let weather = app.world.weather.clone();
+        let weather = app.world.weather.to_string();
         let npc_names: Vec<&str> = app
             .npc_manager
             .npcs_at(app.world.player_location)

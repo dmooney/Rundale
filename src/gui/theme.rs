@@ -6,7 +6,9 @@
 
 use eframe::egui;
 
-use crate::world::time::TimeOfDay;
+use crate::world::Weather;
+use crate::world::palette::{RawPalette, compute_palette};
+use crate::world::time::{Season, TimeOfDay};
 
 /// A color palette for the GUI based on time of day.
 ///
@@ -28,6 +30,28 @@ pub struct GuiPalette {
     pub border: egui::Color32,
     /// Muted text color for secondary information.
     pub muted: egui::Color32,
+}
+
+impl From<RawPalette> for GuiPalette {
+    fn from(raw: RawPalette) -> Self {
+        GuiPalette {
+            bg: egui::Color32::from_rgb(raw.bg.r, raw.bg.g, raw.bg.b),
+            fg: egui::Color32::from_rgb(raw.fg.r, raw.fg.g, raw.fg.b),
+            accent: egui::Color32::from_rgb(raw.accent.r, raw.accent.g, raw.accent.b),
+            panel_bg: egui::Color32::from_rgb(raw.panel_bg.r, raw.panel_bg.g, raw.panel_bg.b),
+            input_bg: egui::Color32::from_rgb(raw.input_bg.r, raw.input_bg.g, raw.input_bg.b),
+            border: egui::Color32::from_rgb(raw.border.r, raw.border.g, raw.border.b),
+            muted: egui::Color32::from_rgb(raw.muted.r, raw.muted.g, raw.muted.b),
+        }
+    }
+}
+
+/// Returns a smoothly interpolated GUI palette for the given time, season, and weather.
+///
+/// Uses linear interpolation between time-of-day keyframes and applies
+/// seasonal and weather color tinting for gradual transitions.
+pub fn gui_palette_smooth(hour: u32, minute: u32, season: Season, weather: Weather) -> GuiPalette {
+    compute_palette(hour, minute, season, weather).into()
 }
 
 /// Returns the GUI palette for the given time of day.
@@ -196,6 +220,30 @@ mod tests {
             let [r, g, _b, _] = p.bg.to_array();
             assert!(r > 200 && g > 200, "Day palette bg should be light: {tod}");
         }
+    }
+
+    #[test]
+    fn test_gui_palette_smooth_returns_valid() {
+        use crate::world::Weather;
+        use crate::world::time::Season;
+
+        let p = gui_palette_smooth(12, 0, Season::Summer, Weather::Clear);
+        assert_ne!(p.bg, egui::Color32::TRANSPARENT);
+        assert_ne!(p.fg, egui::Color32::TRANSPARENT);
+    }
+
+    #[test]
+    fn test_gui_palette_smooth_storm_darkens() {
+        use crate::world::Weather;
+        use crate::world::time::Season;
+
+        let clear = gui_palette_smooth(12, 0, Season::Summer, Weather::Clear);
+        let storm = gui_palette_smooth(12, 0, Season::Summer, Weather::Storm);
+        let [cr, cg, cb, _] = clear.bg.to_array();
+        let [sr, sg, sb, _] = storm.bg.to_array();
+        let clear_lum = cr as f32 * 0.299 + cg as f32 * 0.587 + cb as f32 * 0.114;
+        let storm_lum = sr as f32 * 0.299 + sg as f32 * 0.587 + sb as f32 * 0.114;
+        assert!(storm_lum < clear_lum, "Storm should darken the palette");
     }
 
     #[test]

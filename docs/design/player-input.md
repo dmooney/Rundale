@@ -25,7 +25,7 @@ System commands use `/` prefix for now (placeholder — may change to a prefix-f
 |----------------|-------------------------------------------------------------------------|
 | `/pause`       | Freeze all simulation ticks, TUI stays up                              |
 | `/resume`      | Unfreeze simulation                                                     |
-| `/speed [preset]` | Show or set game speed (`slow`/`normal`/`fast`/`fastest`)           |
+| `/speed [preset]` | Show or set game speed (`slow`/`normal`/`fast`/`fastest`/`ludicrous`) |
 | `/quit`        | Persist current state, clean shutdown                                   |
 | `/save`        | Manual snapshot to current branch                                       |
 | `/fork <name>` | Snapshot current state, create new named branch, continue on new branch |

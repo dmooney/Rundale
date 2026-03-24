@@ -2,7 +2,19 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
-Weather is a simulation driver, not just visual dressing. Weather state is part of world state and affects NPC context prompts.
+Weather is a simulation driver, not just visual dressing. Weather state is part of world state and affects NPC context prompts, location descriptions, and color palettes.
+
+## Weather Enum
+
+The `Weather` enum in `src/world/mod.rs` defines five conditions:
+
+| Variant      | Description                               |
+|--------------|-------------------------------------------|
+| `Clear`      | Default — no palette modification         |
+| `Overcast`   | Slightly darker and desaturated           |
+| `Rain`       | Darker with a blue-gray tint              |
+| `Fog`        | Washed out, low contrast                  |
+| `Storm`      | Much darker and heavily desaturated       |
 
 ## Effects on Simulation
 
@@ -15,27 +27,46 @@ Weather is a simulation driver, not just visual dressing. Weather state is part 
 | **Overcast**      | Muted mood, reduced outdoor activity                          |
 | **Storms**        | Disruptive, affects travel and NPC schedules                  |
 
-## TUI Color Palette Modifiers
+## Palette Tinting
 
-Weather modifies the base time-of-day color palette in the TUI:
+Weather modifies the base time-of-day color palette via multiplicative tinting in `src/world/palette.rs`. The tinting system applies three layers:
 
-| Weather   | Palette Effect              |
-|-----------|-----------------------------|
-| Overcast  | Muted/desaturated           |
-| Rain      | Cooler tones, grey cast     |
-| Fog       | Heavily desaturated         |
-| Clear     | Full saturation             |
+1. **Time-of-day interpolation** — smooth linear interpolation between 7 keyframe palettes based on exact hour and minute
+2. **Season tinting** — subtle color shifts (Winter: cooler/bluer, Summer: warmer, Autumn: amber, Spring: greener)
+3. **Weather tinting** — brightness, desaturation, and color temperature adjustments
 
-See [TUI Design](tui-design.md) for the full color system.
+### Weather Tint Parameters
+
+| Weather   | RGB Multiplier         | Desaturation | Brightness | Contrast Reduction |
+|-----------|------------------------|-------------|------------|-------------------|
+| Clear     | (1.0, 1.0, 1.0)       | 0%          | 100%       | 0%                |
+| Overcast  | (0.95, 0.95, 0.97)    | 15%         | 92%        | 0%                |
+| Rain      | (0.88, 0.90, 0.95)    | 20%         | 85%        | 0%                |
+| Fog       | (0.97, 0.97, 0.98)    | 35%         | 95%        | 15%               |
+| Storm     | (0.80, 0.82, 0.85)    | 30%         | 75%        | 0%                |
+
+### Season Tint Parameters
+
+| Season  | RGB Multiplier         | Desaturation |
+|---------|------------------------|-------------|
+| Spring  | (0.98, 1.02, 0.98)    | 0%          |
+| Summer  | (1.03, 1.01, 0.97)    | 0%          |
+| Autumn  | (1.06, 1.00, 0.92)    | 0%          |
+| Winter  | (0.94, 0.96, 1.04)    | 8%          |
+
+Both the GUI (`src/gui/theme.rs`) and TUI (`src/tui/mod.rs`) consume the same `RawPalette` from the interpolation engine.
 
 ## Related
 
 - [TUI Design](tui-design.md) — Weather palette modifiers and visual atmosphere
+- [GUI Design](gui-design.md) — GUI color theming with smooth transitions
 - [Time System](time-system.md) — Seasons drive weather patterns
 - [NPC System](npc-system.md) — Weather affects NPC schedules, behavior, and dialogue
 
 ## Source Modules
 
-- [`src/world/`](../../src/world/) — World state, weather state
-- [`src/tui/`](../../src/tui/) — Weather-driven palette modifiers
+- [`src/world/mod.rs`](../../src/world/mod.rs) — `Weather` enum definition
+- [`src/world/palette.rs`](../../src/world/palette.rs) — Smooth interpolation engine, season/weather tinting
+- [`src/gui/theme.rs`](../../src/gui/theme.rs) — GUI palette conversion and application
+- [`src/tui/mod.rs`](../../src/tui/mod.rs) — TUI palette conversion
 - [`src/npc/`](../../src/npc/) — Weather-aware NPC behavior
