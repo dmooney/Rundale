@@ -96,12 +96,11 @@
 <style>
 	.map-panel {
 		background: var(--color-panel-bg);
+		border-left: 1px solid var(--color-border);
 		border-bottom: 1px solid var(--color-border);
 		padding: 0.5rem;
 		position: relative;
 		flex-shrink: 0;
-		max-height: 45vh;
-		overflow: hidden;
 	}
 
 	.map-title {

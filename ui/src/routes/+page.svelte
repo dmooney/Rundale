@@ -108,14 +108,14 @@
 <div class="app-shell">
 	<StatusBar />
 	<div class="main-area">
-		<div class="left-col">
-			<MapPanel />
-			<div class="chat-area">
-				<ChatPanel />
-				<InputField />
-			</div>
+		<div class="chat-col">
+			<ChatPanel />
+			<InputField />
 		</div>
-		<Sidebar />
+		<div class="right-col">
+			<MapPanel />
+			<Sidebar />
+		</div>
 	</div>
 </div>
 
@@ -134,14 +134,13 @@
 		overflow: hidden;
 	}
 
-	.left-col {
+	.chat-col {
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
 	}
 
-	.chat-area {
-		flex: 1;
+	.right-col {
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
