@@ -382,6 +382,9 @@ impl GuiApp {
                     GameSpeed::Normal => "The parish settles into its natural stride.",
                     GameSpeed::Fast => "The parish quickens its step.",
                     GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                    GameSpeed::Ludicrous => {
+                        "The world is a blur — days pass in the blink of an eye!"
+                    }
                 };
                 self.world.log(msg.to_string());
             }
@@ -406,7 +409,7 @@ impl GuiApp {
                 self.world
                     .log("  /resume   — Let time flow again".to_string());
                 self.world.log(
-                    "  /speed    — Show or change game speed (slow/normal/fast/fastest)"
+                    "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)"
                         .to_string(),
                 );
                 self.world.log("  /status   — Where am I?".to_string());

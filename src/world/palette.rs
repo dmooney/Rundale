@@ -308,16 +308,69 @@ fn apply_weather_tint(palette: &mut RawPalette, weather: Weather) {
     }
 }
 
+/// Minimum luminance difference between fg and bg to ensure readability.
+///
+/// During transitions between light-bg/dark-fg and dark-bg/light-fg palettes
+/// (e.g. Afternoon→Dusk around 16:00–17:00), linear interpolation causes both
+/// fg and bg to converge to similar medium tones. This floor prevents that
+/// contrast collapse.
+const MIN_FG_BG_CONTRAST: f32 = 80.0;
+
+/// Minimum luminance difference between muted text and bg.
+const MIN_MUTED_BG_CONTRAST: f32 = 45.0;
+
+/// Pushes a foreground color away from a background color to meet a minimum
+/// luminance contrast. Preserves the hue by scaling all channels proportionally.
+fn ensure_color_contrast(fg: RawColor, bg: RawColor, min_contrast: f32) -> RawColor {
+    let fg_lum = luminance(fg);
+    let bg_lum = luminance(bg);
+    let contrast = (fg_lum - bg_lum).abs();
+
+    if contrast >= min_contrast {
+        return fg;
+    }
+
+    // Determine direction: fg should go lighter if bg is dark, darker if bg is light.
+    let bg_is_dark = bg_lum < 128.0;
+    let target_lum = if bg_is_dark {
+        bg_lum + min_contrast
+    } else {
+        bg_lum - min_contrast
+    };
+
+    // Scale fg channels to hit target luminance, preserving relative proportions.
+    if fg_lum < 1.0 {
+        // fg is near-black; just return a gray at target luminance
+        let v = target_lum.round().clamp(0.0, 255.0) as u8;
+        return RawColor::new(v, v, v);
+    }
+
+    let scale = target_lum / fg_lum;
+    let r = (fg.r as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let g = (fg.g as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let b = (fg.b as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    RawColor::new(r, g, b)
+}
+
+/// Ensures all text colors in the palette have sufficient contrast against backgrounds.
+fn ensure_contrast(palette: &mut RawPalette) {
+    palette.fg = ensure_color_contrast(palette.fg, palette.bg, MIN_FG_BG_CONTRAST);
+    palette.muted = ensure_color_contrast(palette.muted, palette.bg, MIN_MUTED_BG_CONTRAST);
+    palette.accent = ensure_color_contrast(palette.accent, palette.bg, MIN_MUTED_BG_CONTRAST);
+}
+
 /// Computes the fully interpolated and tinted palette for the given time, season, and weather.
 ///
 /// This is the main entry point for both GUI and TUI renderers.
 /// 1. Smoothly interpolates between time-of-day keyframe palettes
 /// 2. Applies seasonal color tinting
 /// 3. Applies weather color tinting
+/// 4. Enforces minimum contrast between text and background
 pub fn compute_palette(hour: u32, minute: u32, season: Season, weather: Weather) -> RawPalette {
     let mut palette = interpolated_palette(hour, minute);
     apply_season_tint(&mut palette, season);
     apply_weather_tint(&mut palette, weather);
+    ensure_contrast(&mut palette);
     palette
 }
 
@@ -519,6 +572,66 @@ mod tests {
                 prev = curr;
             }
         }
+    }
+
+    #[test]
+    fn test_contrast_floor_afternoon_dusk_transition() {
+        // The Afternoon→Dusk transition (15.5→18.0) crosses light-bg/dark-fg
+        // to dark-bg/light-fg. Verify contrast never drops below the floor.
+        for minute_offset in 0..150 {
+            // Walk from 15:30 to 18:00 in 1-minute increments
+            let total_minutes = 15 * 60 + 30 + minute_offset;
+            let hour = total_minutes / 60;
+            let minute = total_minutes % 60;
+            let p = interpolated_palette(hour, minute);
+            let mut adjusted = p;
+            ensure_contrast(&mut adjusted);
+            let contrast = (luminance(adjusted.fg) - luminance(adjusted.bg)).abs();
+            assert!(
+                contrast >= MIN_FG_BG_CONTRAST - 1.0,
+                "Contrast too low at {hour}:{minute:02}: {contrast:.1} (bg={:?}, fg={:?})",
+                adjusted.bg,
+                adjusted.fg
+            );
+        }
+    }
+
+    #[test]
+    fn test_contrast_floor_all_hours() {
+        // Verify contrast floor holds for every 15-minute slot across the full day
+        for hour in 0..24 {
+            for minute in [0, 15, 30, 45] {
+                let p = compute_palette(hour, minute, Season::Spring, Weather::Clear);
+                let contrast = (luminance(p.fg) - luminance(p.bg)).abs();
+                assert!(
+                    contrast >= MIN_FG_BG_CONTRAST - 1.0,
+                    "Contrast too low at {hour}:{minute:02}: {contrast:.1}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_ensure_color_contrast_noop_when_sufficient() {
+        let fg = RawColor::new(255, 255, 255);
+        let bg = RawColor::new(0, 0, 0);
+        let result = ensure_color_contrast(fg, bg, 80.0);
+        assert_eq!(
+            result, fg,
+            "Should not modify fg when contrast is sufficient"
+        );
+    }
+
+    #[test]
+    fn test_ensure_color_contrast_adjusts_when_needed() {
+        let fg = RawColor::new(130, 130, 130); // luminance ~130
+        let bg = RawColor::new(140, 140, 140); // luminance ~140
+        let result = ensure_color_contrast(fg, bg, 80.0);
+        let contrast = (luminance(result) - luminance(bg)).abs();
+        assert!(
+            contrast >= 79.0,
+            "Should push fg away from bg, got contrast {contrast:.1}"
+        );
     }
 
     #[test]

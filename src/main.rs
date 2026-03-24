@@ -672,6 +672,7 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
                 GameSpeed::Normal => "The parish settles into its natural stride.",
                 GameSpeed::Fast => "The parish quickens its step.",
                 GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
             };
             app.world.log(msg.to_string());
         }
@@ -696,7 +697,8 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.world
                 .log("  /resume   — Let time flow again".to_string());
             app.world.log(
-                "  /speed    — Show or change game speed (slow/normal/fast/fastest)".to_string(),
+                "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)"
+                    .to_string(),
             );
             app.world.log("  /status   — Where am I?".to_string());
             app.world
