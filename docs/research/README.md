@@ -51,6 +51,7 @@ These documents provide the historical, cultural, and material foundations for N
 | [Mythology & Folklore](mythology-folklore.md) | The living fairy faith, Tuatha De Danann and the Otherworld, fairy forts and landscape taboos, changelings, banshees, the puca, fairy doctors and pisheogs, liminal spaces, the four seasonal festivals (Samhain, Imbolc, Bealtaine, Lughnasa), and the seanchai tradition |
 | [Education & Literacy](education-literacy.md) | Hedge schools and the schoolmaster, classical learning in mud cabins, literacy rates and regional variation, the oral tradition and seanchai, the dying scribal tradition, Kildare Place Society, print culture, and news propagation |
 | [Music & Entertainment](music-entertainment.md) | Fiddle, uilleann pipes, and the harp's decline, sean-nos singing, the seanchai as performer, crossroads dances, set dancing, pattern days, hurling, blood sports, card games, keening at wakes, and travelling musicians |
+| [Ambient Sound Sources](ambient-sound-sources.md) | Royalty-free audio sources for period-correct ambient sounds: church bells, fiddle music, farm animals, water, wind, pub ambience, and weather |
 
 ### Health & Environment
 
