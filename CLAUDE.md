@@ -60,7 +60,7 @@ src/
 ├── inference/       # LLM client (OpenAI-compatible), queue, Ollama bootstrap
 ├── persistence/     # SQLite save/load, WAL journal (Phase 4)
 ├── tui/             # Ratatui terminal UI + debug panel
-├── gui/             # egui windowed GUI (--gui flag)
+├── gui/             # egui windowed GUI (default mode)
 │   ├── theme.rs     #   Time-of-day color theming
 │   ├── chat_panel.rs #  Chat/dialogue display
 │   ├── map_panel.rs #   Interactive parish map

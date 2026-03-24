@@ -8,7 +8,7 @@ The player arrives as a newcomer to **Kilteevan Village** in the parish of Kilto
 
 ![Parish GUI — Morning](docs/screenshots/gui-morning.png)
 
-*GUI mode showing the chat panel, interactive map, Irish word sidebar, and time-of-day color theming (morning palette). Run with `cargo run -- --gui`.*
+*GUI mode showing the chat panel, interactive map, Irish word sidebar, and time-of-day color theming (morning palette). GUI is the default mode — just run `cargo run`.*
 
 ## Current Status
 
