@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 use tokio::sync::Mutex;
 
 use parish_core::inference::openai_client::OpenAiClient;
@@ -219,6 +219,24 @@ fn capture_gdk_screenshot(_path: &std::path::Path) -> anyhow::Result<()> {
     anyhow::bail!("screenshot capture is only implemented on Linux")
 }
 
+/// Dispatches a screenshot to the GTK main thread (Linux) and waits for completion.
+///
+/// GDK/GTK APIs must be called from the main thread. We post the capture work
+/// via `glib::idle_add_once` and block a spawn_blocking thread on the result.
+#[cfg(target_os = "linux")]
+async fn dispatch_screenshot(path: std::path::PathBuf) -> anyhow::Result<()> {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
+    glib::idle_add_once(move || {
+        let _ = tx.send(capture_gdk_screenshot(&path));
+    });
+    tokio::task::spawn_blocking(move || rx.recv().unwrap_or_else(|_| anyhow::bail!("channel closed"))).await?
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn dispatch_screenshot(_path: std::path::PathBuf) -> anyhow::Result<()> {
+    anyhow::bail!("screenshot capture is only implemented on Linux")
+}
+
 // ── Tauri entry point ─────────────────────────────────────────────────────────
 
 /// Called from `main.rs`. Initialises game state and launches the Tauri app.
@@ -322,10 +340,10 @@ pub fn run() {
                         // Wait for Svelte to re-render the new palette
                         tokio::time::sleep(Duration::from_millis(1500)).await;
 
-                        // Capture the root window via GDK (works in Xvfb)
+                        // GDK must be called from the GTK main thread; dispatch and await.
                         let path = dir.join(format!("gui-{}.png", name));
-                        if let Err(e) = capture_gdk_screenshot(&path) {
-                            eprintln!("screenshot: capture failed for {name}: {e}");
+                        if let Err(e) = dispatch_screenshot(path).await {
+                            eprintln!("screenshot: failed for {name}: {e}");
                         }
                     }
 
