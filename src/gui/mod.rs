@@ -24,6 +24,8 @@ use anyhow::Result;
 use eframe::egui;
 use tokio::sync::mpsc;
 
+#[cfg(feature = "audio")]
+use crate::audio::{AudioManager, GameState as AudioGameState, ambient::AmbientEngine};
 use crate::config::{CloudConfig, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
@@ -146,6 +148,14 @@ pub struct GuiApp {
     pub latest_snapshot_id: i64,
     /// Wall-clock time of the last autosave.
     pub last_autosave: Option<std::time::Instant>,
+
+    // --- Audio (feature-gated) ---
+    /// Audio output manager (None if audio device unavailable).
+    #[cfg(feature = "audio")]
+    pub audio_manager: Option<AudioManager>,
+    /// Ambient sound engine (None if audio unavailable).
+    #[cfg(feature = "audio")]
+    pub ambient_engine: Option<AmbientEngine>,
 }
 
 impl GuiApp {
@@ -188,6 +198,10 @@ impl GuiApp {
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,
+            #[cfg(feature = "audio")]
+            audio_manager: AudioManager::new(),
+            #[cfg(feature = "audio")]
+            ambient_engine: Some(AmbientEngine::new()),
         }
     }
 
@@ -977,6 +991,21 @@ impl eframe::App for GuiApp {
 
         // Periodic autosave
         self.maybe_autosave();
+
+        // Ambient sound tick
+        #[cfg(feature = "audio")]
+        if let (Some(engine), Some(audio)) = (&mut self.ambient_engine, &self.audio_manager) {
+            let loc_data = self.world.graph.get(self.world.player_location);
+            let audio_state = AudioGameState {
+                player_location: self.world.player_location,
+                location_kind: loc_data.map(|d| d.location_kind).unwrap_or_default(),
+                time_of_day: self.world.clock.time_of_day(),
+                season: self.world.clock.season(),
+                weather: self.world.weather,
+                indoor: loc_data.map(|d| d.indoor).unwrap_or(false),
+            };
+            engine.tick(&audio_state, &self.world.graph, audio);
+        }
 
         // Apply smoothly interpolated time-of-day palette with season/weather tinting
         let now = self.world.clock.now();

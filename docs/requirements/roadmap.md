@@ -96,6 +96,7 @@
 - [ ] `mythological_significance` location property
 - [ ] Festival event hooks in time system
 - [ ] Night-time atmosphere differentiation
+- [x] Ambient sound system (rodio, feature-gated, GUI-only)
 - [ ] NPC belief/superstition knowledge fields
 
 ## Phase 7 — Web & Mobile Apps

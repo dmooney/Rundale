@@ -45,6 +45,11 @@ src/
 ├── headless.rs      # Headless stdin/stdout REPL mode
 ├── testing.rs       # GameTestHarness for automated testing
 ├── debug.rs         # Debug commands and metrics (feature-gated)
+├── audio/           # Ambient sound system (feature-gated, GUI-only)
+│   ├── mod.rs       #   AudioManager, rodio output, channel mixing
+│   ├── catalog.rs   #   SoundCatalog, sound entries, time/season/weather filters
+│   ├── ambient.rs   #   AmbientEngine, sound selection and scheduling
+│   └── propagation.rs # Graph-based sound propagation and volume attenuation
 ├── input/           # Player input parsing, command detection
 ├── world/           # World state, location graph, time, movement, encounters
 │   ├── graph.rs     #   WorldGraph, BFS pathfinding, fuzzy name search
@@ -97,6 +102,7 @@ src/
 | anyhow / thiserror | Error handling |
 | tracing | Structured logging |
 | chrono | Time representation |
+| rodio | Audio playback (optional, feature = "audio") |
 
 ## Gotchas
 

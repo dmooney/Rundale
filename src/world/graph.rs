@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::ParishError;
 use crate::npc::NpcId;
 
-use super::LocationId;
+use super::{LocationId, LocationKind};
 
 /// A connection (edge) between two locations in the world graph.
 ///
@@ -44,6 +44,9 @@ pub struct LocationData {
     pub indoor: bool,
     /// Whether this location is publicly accessible.
     pub public: bool,
+    /// Classification for ambient sound purposes.
+    #[serde(default)]
+    pub location_kind: LocationKind,
     /// Connections to neighboring locations.
     pub connections: Vec<Connection>,
     /// NPCs who live or work at this location.

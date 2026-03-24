@@ -61,6 +61,11 @@ src/
 ├── headless.rs          # Headless stdin/stdout REPL for testing
 ├── testing.rs           # GameTestHarness for automated script-based testing
 ├── debug.rs             # Debug commands and metrics (feature-gated)
+├── audio/
+│   ├── mod.rs           # AudioManager, rodio output, channel mixing
+│   ├── catalog.rs       # SoundCatalog, sound entries, time/season/weather filters
+│   ├── ambient.rs       # AmbientEngine, sound selection and scheduling
+│   └── propagation.rs   # Graph-based sound propagation and volume attenuation
 ├── input/
 │   └── mod.rs           # Player input parsing, command detection
 ├── world/
@@ -132,6 +137,7 @@ src/
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
 - [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
+- [Ambient Sound](ambient-sound.md) — Location-aware ambient audio via rodio (feature-gated, GUI-only)
 
 ## Related
 
@@ -227,4 +233,5 @@ Run `cargo run -- --headless` for a plain stdin/stdout REPL without the TUI. Use
 - [`src/npc/`](../../src/npc/)
 - [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap
 - [`src/persistence/`](../../src/persistence/)
+- [`src/audio/`](../../src/audio/) — Ambient sound system (feature-gated, GUI-only)
 - [`src/input/`](../../src/input/)

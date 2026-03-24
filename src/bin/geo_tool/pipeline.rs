@@ -230,6 +230,7 @@ fn build_locations(
                     description_template,
                     indoor: feature.location_type.is_indoor(),
                     public: feature.location_type.is_public(),
+                    location_kind: Default::default(),
                     connections,
                     associated_npcs: vec![],
                     mythological_significance,

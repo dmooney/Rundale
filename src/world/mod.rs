@@ -21,6 +21,65 @@ use time::GameClock;
 use crate::error::ParishError;
 use graph::{LocationData, WorldGraph};
 
+/// Classifies a location for ambient sound purposes.
+///
+/// Each location in the world graph has a `LocationKind` that determines
+/// which ambient sounds play there and how sounds propagate from it.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LocationKind {
+    /// A public house — fiddle music, crowd murmur, hearth sounds.
+    Pub,
+    /// A church — bell tolls, hymns, stone echo silence.
+    Church,
+    /// A working farm — animals, roosters, dogs.
+    Farm,
+    /// A crossroads — wind, summer dance music.
+    Crossroads,
+    /// Lakeshore or river — water lapping, reeds, waterfowl.
+    Waterside,
+    /// Bogland — wind, curlew calls, eerie silence.
+    Bog,
+    /// A village cluster — domestic sounds, children, roosters.
+    Village,
+    /// A shop — indoor, bell, conversation.
+    Shop,
+    /// A school — children reciting, silence.
+    School,
+    /// A sports field — hurling, cheering.
+    SportField,
+    /// A fairy fort — hawthorn wind, uncanny silence.
+    FairyFort,
+    /// A lime kiln — fire crackle, wind.
+    LimeKiln,
+    /// A post or letter office — indoor, quiet.
+    PostOffice,
+    /// A road or path — wind, footsteps, default fallback.
+    #[default]
+    Road,
+}
+
+impl fmt::Display for LocationKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LocationKind::Pub => write!(f, "Pub"),
+            LocationKind::Church => write!(f, "Church"),
+            LocationKind::Farm => write!(f, "Farm"),
+            LocationKind::Crossroads => write!(f, "Crossroads"),
+            LocationKind::Waterside => write!(f, "Waterside"),
+            LocationKind::Bog => write!(f, "Bog"),
+            LocationKind::Village => write!(f, "Village"),
+            LocationKind::Shop => write!(f, "Shop"),
+            LocationKind::School => write!(f, "School"),
+            LocationKind::SportField => write!(f, "Sport Field"),
+            LocationKind::FairyFort => write!(f, "Fairy Fort"),
+            LocationKind::LimeKiln => write!(f, "Lime Kiln"),
+            LocationKind::PostOffice => write!(f, "Post Office"),
+            LocationKind::Road => write!(f, "Road"),
+        }
+    }
+}
+
 /// Current weather conditions in the game world.
 ///
 /// Affects color palette tinting (desaturation, brightness, color temperature)
@@ -288,6 +347,63 @@ mod tests {
             let data = world.current_location_data().unwrap();
             assert_eq!(data.name, "Kilteevan Village");
             assert!(data.description_template.contains("{time}"));
+        }
+    }
+
+    #[test]
+    fn test_location_kind_default() {
+        assert_eq!(LocationKind::default(), LocationKind::Road);
+    }
+
+    #[test]
+    fn test_location_kind_display() {
+        assert_eq!(LocationKind::Pub.to_string(), "Pub");
+        assert_eq!(LocationKind::Church.to_string(), "Church");
+        assert_eq!(LocationKind::FairyFort.to_string(), "Fairy Fort");
+        assert_eq!(LocationKind::LimeKiln.to_string(), "Lime Kiln");
+        assert_eq!(LocationKind::PostOffice.to_string(), "Post Office");
+        assert_eq!(LocationKind::SportField.to_string(), "Sport Field");
+        assert_eq!(LocationKind::Road.to_string(), "Road");
+    }
+
+    #[test]
+    fn test_location_kind_serde_roundtrip() {
+        let kinds = vec![
+            LocationKind::Pub,
+            LocationKind::Church,
+            LocationKind::Farm,
+            LocationKind::FairyFort,
+            LocationKind::LimeKiln,
+            LocationKind::PostOffice,
+        ];
+        for kind in kinds {
+            let json = serde_json::to_string(&kind).unwrap();
+            let parsed: LocationKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(kind, parsed);
+        }
+    }
+
+    #[test]
+    fn test_location_kind_snake_case_deserialization() {
+        let parsed: LocationKind = serde_json::from_str("\"fairy_fort\"").unwrap();
+        assert_eq!(parsed, LocationKind::FairyFort);
+        let parsed: LocationKind = serde_json::from_str("\"post_office\"").unwrap();
+        assert_eq!(parsed, LocationKind::PostOffice);
+        let parsed: LocationKind = serde_json::from_str("\"sport_field\"").unwrap();
+        assert_eq!(parsed, LocationKind::SportField);
+    }
+
+    #[test]
+    fn test_location_kind_in_parish_file() {
+        let path = Path::new("data/parish.json");
+        if path.exists() {
+            let world = WorldState::from_parish_file(path, LocationId(2)).unwrap();
+            let data = world.graph.get(LocationId(2)).unwrap();
+            assert_eq!(data.location_kind, LocationKind::Pub);
+            let church = world.graph.get(LocationId(3)).unwrap();
+            assert_eq!(church.location_kind, LocationKind::Church);
+            let village = world.graph.get(LocationId(15)).unwrap();
+            assert_eq!(village.location_kind, LocationKind::Village);
         }
     }
 }

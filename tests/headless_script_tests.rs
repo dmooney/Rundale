@@ -937,17 +937,17 @@ fn test_harness_all_exits_nonempty() {
 #[test]
 fn test_harness_weather_consistent_at_all_locations() {
     let mut h = GameTestHarness::new();
-    let weather = h.weather().to_string();
+    let weather = *h.weather();
 
     h.execute("go to crossroads");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 
     h.execute("go to pub");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 
     h.execute("go to crossroads");
     h.execute("go to church");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 }
 
 #[test]

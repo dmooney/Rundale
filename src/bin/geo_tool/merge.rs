@@ -248,6 +248,7 @@ mod tests {
                 connections: Vec::new(),
                 associated_npcs: Vec::<NpcId>::new(),
                 mythological_significance: None,
+                location_kind: Default::default(),
             },
             description_source: source,
             osm_id: None,

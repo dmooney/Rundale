@@ -6,6 +6,7 @@
             "description_template": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.",
             "indoor": false,
             "public": true,
+            "location_kind": "crossroads",
             "connections": [
                 {"target": 2, "traversal_minutes": 3, "path_description": "a short lane past a row of cottages"},
                 {"target": 3, "traversal_minutes": 5, "path_description": "a winding boreen lined with hawthorn"},
@@ -24,6 +25,7 @@
             "description_template": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is {time} and the weather outside is {weather}.",
             "indoor": true,
             "public": true,
+            "location_kind": "pub",
             "connections": [
                 {"target": 1, "traversal_minutes": 3, "path_description": "the lane back to the crossroads"}
             ],
@@ -36,6 +38,7 @@
             "description_template": "A small stone church with a slate roof, its stained-glass windows catching the {time} light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is {weather}.",
             "indoor": false,
             "public": true,
+            "location_kind": "church",
             "connections": [
                 {"target": 1, "traversal_minutes": 5, "path_description": "the boreen back to the crossroads"},
                 {"target": 12, "traversal_minutes": 6, "path_description": "a muddy track past the graveyard wall"}
@@ -49,6 +52,7 @@
             "description_template": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is {time}. The weather is {weather}.",
             "indoor": true,
             "public": true,
+            "location_kind": "post_office",
             "connections": [
                 {"target": 1, "traversal_minutes": 2, "path_description": "back across to the crossroads"}
             ],
@@ -61,6 +65,7 @@
             "description_template": "An open field where men play hurling on fair days. Goalposts of ash wood stand at each end. Stone ditches mark the boundary, and a few spectators' stools sit along the edge. The {weather} sky hangs over the flat green. It is {time}.",
             "indoor": false,
             "public": true,
+            "location_kind": "sport_field",
             "connections": [
                 {"target": 6, "traversal_minutes": 3, "path_description": "a beaten path back past the schoolmaster's cabin"}
             ],
@@ -73,6 +78,7 @@
             "description_template": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
+            "location_kind": "school",
             "connections": [
                 {"target": 1, "traversal_minutes": 4, "path_description": "the muddy path back to the crossroads"},
                 {"target": 5, "traversal_minutes": 3, "path_description": "a beaten path down to the hurling green"}
@@ -86,6 +92,7 @@
             "description_template": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the {weather} sky. Small islands dot the water in the distance. It is {time}.",
             "indoor": false,
             "public": true,
+            "location_kind": "waterside",
             "connections": [
                 {"target": 8, "traversal_minutes": 6, "path_description": "a lakeside path through reeds and willow"},
                 {"target": 11, "traversal_minutes": 10, "path_description": "a rough track climbing away from the shore"}
@@ -99,6 +106,7 @@
             "description_template": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is {time} and the sky is {weather}.",
             "indoor": false,
             "public": true,
+            "location_kind": "waterside",
             "connections": [
                 {"target": 7, "traversal_minutes": 6, "path_description": "the lakeside path back along the shore"},
                 {"target": 9, "traversal_minutes": 7, "path_description": "a lane winding uphill from the bay"}
@@ -112,6 +120,7 @@
             "description_template": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": false,
+            "location_kind": "farm",
             "connections": [
                 {"target": 1, "traversal_minutes": 8, "path_description": "the narrow road back between stone walls"},
                 {"target": 8, "traversal_minutes": 7, "path_description": "a lane winding down toward the bay"},
@@ -126,6 +135,7 @@
             "description_template": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is {time}. Weather: {weather}.",
             "indoor": false,
             "public": false,
+            "location_kind": "farm",
             "connections": [
                 {"target": 9, "traversal_minutes": 5, "path_description": "a boreen back through the hedge to Murphy's"},
                 {"target": 14, "traversal_minutes": 6, "path_description": "a soggy track across the lower field"}
@@ -139,6 +149,7 @@
             "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
+            "location_kind": "fairy_fort",
             "connections": [
                 {"target": 7, "traversal_minutes": 10, "path_description": "the rough track back down to the shore"},
                 {"target": 12, "traversal_minutes": 8, "path_description": "a barely visible path through gorse and bracken"}
@@ -152,6 +163,7 @@
             "description_template": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The {weather} sky presses down. Pools of dark water gleam between the heather. It is {time}.",
             "indoor": false,
             "public": true,
+            "location_kind": "bog",
             "connections": [
                 {"target": 3, "traversal_minutes": 6, "path_description": "the muddy track back toward the church"},
                 {"target": 11, "traversal_minutes": 8, "path_description": "a barely visible path through gorse to the fort"},
@@ -166,6 +178,7 @@
             "description_template": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
             "indoor": true,
             "public": true,
+            "location_kind": "shop",
             "connections": [
                 {"target": 1, "traversal_minutes": 3, "path_description": "a few steps back across the road to the crossroads"}
             ],
@@ -178,6 +191,7 @@
             "description_template": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is {time}. The weather is {weather}.",
             "indoor": false,
             "public": true,
+            "location_kind": "lime_kiln",
             "connections": [
                 {"target": 10, "traversal_minutes": 6, "path_description": "the soggy track back up to O'Brien's"},
                 {"target": 12, "traversal_minutes": 7, "path_description": "a path along the bog's edge back to the road"}
@@ -191,6 +205,7 @@
             "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
             "indoor": false,
             "public": true,
+            "location_kind": "village",
             "connections": [
                 {"target": 1, "traversal_minutes": 6, "path_description": "the road north past low fields to the crossroads"}
             ],
