@@ -17,13 +17,11 @@ use crate::npc::{
 use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
-use crate::world::time::GameSpeed;
 use anyhow::Result;
 use std::io::{BufRead, Write};
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tokio::sync::mpsc;
+use tokio::sync::{Notify, mpsc};
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///
@@ -214,14 +212,13 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         }
         Command::SetSpeed(speed) => {
             app.world.clock.set_speed(speed);
-            let msg = match speed {
-                GameSpeed::Slow => "The parish slows to a gentle amble.",
-                GameSpeed::Normal => "The parish settles into its natural stride.",
-                GameSpeed::Fast => "The parish quickens its step.",
-                GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
-                GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
-            };
-            println!("{}", msg);
+            println!("{}", speed.activation_message());
+        }
+        Command::InvalidSpeed(name) => {
+            println!(
+                "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
+                name
+            );
         }
         Command::Status => {
             let time = app.world.clock.time_of_day();
@@ -432,19 +429,23 @@ async fn handle_headless_game_input(
                     std::io::stdout().flush().ok();
 
                     // Spawn a loading animation that prints to stdout
-                    // until the first token arrives.
-                    let cancel_anim = Arc::new(AtomicBool::new(false));
-                    let cancel_for_stream = Arc::clone(&cancel_anim);
+                    // until the first token arrives. Uses Notify for
+                    // deterministic cancellation instead of a timed sleep.
+                    let cancel_notify = Arc::new(Notify::new());
+                    let cancel_for_stream = Arc::clone(&cancel_notify);
                     let npc_name_for_anim = npc.name.clone();
                     let anim_handle = tokio::spawn(async move {
                         let mut anim = LoadingAnimation::new();
-                        while !cancel_anim.load(Ordering::Relaxed) {
+                        loop {
                             let ansi = anim.current_color_ansi();
                             let text = anim.display_text();
                             print!("\r{}: {}{}\x1b[0m\x1b[K", npc_name_for_anim, ansi, text);
                             std::io::stdout().flush().ok();
                             anim.tick();
-                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                            tokio::select! {
+                                () = cancel_notify.notified() => break,
+                                () = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+                            }
                         }
                         // Clear the animation line and reprint NPC prefix
                         print!("\r\x1b[K{}: ", npc_name_for_anim);
@@ -473,10 +474,7 @@ async fn handle_headless_game_input(
 
                                     // Cancel loading animation on first displayable content
                                     if !anim_cancelled {
-                                        cancel_for_stream.store(true, Ordering::Relaxed);
-                                        // Brief yield to let the animation task clear itself
-                                        tokio::time::sleep(std::time::Duration::from_millis(20))
-                                            .await;
+                                        cancel_for_stream.notify_one();
                                         anim_cancelled = true;
                                     }
 
@@ -687,6 +685,7 @@ fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager
 mod tests {
     use super::*;
     use crate::tui::App;
+    use crate::world::time::GameSpeed;
 
     #[test]
     fn test_handle_headless_command_quit() {

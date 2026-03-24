@@ -9,6 +9,7 @@ use eframe::egui;
 use super::theme::GuiPalette;
 
 /// Optional loading animation display data for the chat panel.
+#[derive(Debug)]
 pub struct LoadingDisplay {
     /// The spinner character, e.g. `"✛"`.
     pub spinner: String,

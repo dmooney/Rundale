@@ -134,6 +134,8 @@ impl LoadingAnimation {
 
     /// Returns the current cycling color as a [`ratatui::style::Color`] for TUI rendering.
     pub fn current_color(&self) -> Color {
+        // Defensive modulo — `tick()` already wraps color_index, but guard against
+        // direct field manipulation or future changes.
         SPINNER_COLORS[self.color_index % SPINNER_COLORS.len()]
     }
 

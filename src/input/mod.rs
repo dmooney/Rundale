@@ -69,6 +69,8 @@ pub enum Command {
     ShowSpeed,
     /// Set game speed to a named preset.
     SetSpeed(GameSpeed),
+    /// Invalid speed preset was requested.
+    InvalidSpeed(String),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -200,7 +202,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         let arg = trimmed[7..].trim();
         match GameSpeed::from_name(arg) {
             Some(speed) => Some(Command::SetSpeed(speed)),
-            None => Some(Command::ShowSpeed),
+            None if arg.is_empty() => Some(Command::ShowSpeed),
+            None => Some(Command::InvalidSpeed(arg.to_string())),
         }
     } else if lower == "/cloud" {
         Some(Command::ShowCloud)
@@ -1070,11 +1073,15 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_speed_invalid_fallback() {
+    fn test_parse_speed_invalid_shows_error() {
         assert_eq!(
             parse_system_command("/speed bogus"),
-            Some(Command::ShowSpeed)
+            Some(Command::InvalidSpeed("bogus".to_string()))
         );
+    }
+
+    #[test]
+    fn test_parse_speed_whitespace_shows_current() {
         assert_eq!(parse_system_command("/speed   "), Some(Command::ShowSpeed));
     }
 }

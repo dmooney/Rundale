@@ -323,6 +323,14 @@ impl GameTestHarness {
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
             }
+            Command::InvalidSpeed(name) => {
+                let msg = format!(
+                    "Unknown speed '{}'. Try: slow, normal, fast, fastest.",
+                    name
+                );
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
             Command::Status => {
                 let time = self.app.world.clock.time_of_day();
                 let season = self.app.world.clock.season();
@@ -1020,5 +1028,25 @@ mod tests {
             (h.app.world.clock.speed_factor() - 18.0).abs() < f64::EPSILON,
             "Speed should be 18.0 after /speed slow"
         );
+    }
+
+    #[test]
+    fn test_system_command_invalid_speed() {
+        let mut h = GameTestHarness::new();
+        let result = h.execute("/speed bogus");
+        if let ActionResult::SystemCommand { response } = result {
+            assert!(
+                response.contains("Unknown speed"),
+                "Should report unknown speed, got: {}",
+                response
+            );
+            assert!(
+                response.contains("bogus"),
+                "Should echo the invalid name, got: {}",
+                response
+            );
+        } else {
+            panic!("Expected SystemCommand");
+        }
     }
 }

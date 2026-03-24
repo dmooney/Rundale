@@ -18,7 +18,6 @@ use parish::npc::{
 use parish::tui::{self, App};
 use parish::world::description::{format_exits, render_description};
 use parish::world::movement::{self, MovementResult};
-use parish::world::time::GameSpeed;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -679,14 +678,13 @@ fn handle_system_command(app: &mut App, cmd: Command) -> bool {
         }
         Command::SetSpeed(speed) => {
             app.world.clock.set_speed(speed);
-            let msg = match speed {
-                GameSpeed::Slow => "The parish slows to a gentle amble.",
-                GameSpeed::Normal => "The parish settles into its natural stride.",
-                GameSpeed::Fast => "The parish quickens its step.",
-                GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
-                GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
-            };
-            app.world.log(msg.to_string());
+            app.world.log(speed.activation_message().to_string());
+        }
+        Command::InvalidSpeed(name) => {
+            app.world.log(format!(
+                "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
+                name
+            ));
         }
         Command::Status => {
             let time = app.world.clock.time_of_day();

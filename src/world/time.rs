@@ -145,6 +145,15 @@ pub enum GameSpeed {
 }
 
 impl GameSpeed {
+    /// All speed presets in order from slowest to fastest.
+    pub const ALL: &[GameSpeed] = &[
+        GameSpeed::Slow,
+        GameSpeed::Normal,
+        GameSpeed::Fast,
+        GameSpeed::Fastest,
+        GameSpeed::Ludicrous,
+    ];
+
     /// Returns the speed factor for this preset.
     pub fn factor(self) -> f64 {
         match self {
@@ -165,6 +174,17 @@ impl GameSpeed {
             "fastest" => Some(GameSpeed::Fastest),
             "ludicrous" => Some(GameSpeed::Ludicrous),
             _ => None,
+        }
+    }
+
+    /// Returns a thematic message for when this speed is activated.
+    pub fn activation_message(self) -> &'static str {
+        match self {
+            GameSpeed::Slow => "The parish slows to a gentle amble.",
+            GameSpeed::Normal => "The parish settles into its natural stride.",
+            GameSpeed::Fast => "The parish quickens its step.",
+            GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+            GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
         }
     }
 }
@@ -310,19 +330,10 @@ impl GameClock {
     /// Returns the named speed preset matching the current factor, if any.
     pub fn current_speed(&self) -> Option<GameSpeed> {
         const EPSILON: f64 = 0.01;
-        if (self.speed_factor - 18.0).abs() < EPSILON {
-            Some(GameSpeed::Slow)
-        } else if (self.speed_factor - 36.0).abs() < EPSILON {
-            Some(GameSpeed::Normal)
-        } else if (self.speed_factor - 72.0).abs() < EPSILON {
-            Some(GameSpeed::Fast)
-        } else if (self.speed_factor - 144.0).abs() < EPSILON {
-            Some(GameSpeed::Fastest)
-        } else if (self.speed_factor - 864.0).abs() < EPSILON {
-            Some(GameSpeed::Ludicrous)
-        } else {
-            None
-        }
+        GameSpeed::ALL
+            .iter()
+            .find(|s| (self.speed_factor - s.factor()).abs() < EPSILON)
+            .copied()
     }
 }
 
@@ -497,6 +508,23 @@ mod tests {
         assert_eq!(GameSpeed::Fast.to_string(), "Fast");
         assert_eq!(GameSpeed::Fastest.to_string(), "Fastest");
         assert_eq!(GameSpeed::Ludicrous.to_string(), "Ludicrous");
+    }
+
+    #[test]
+    fn test_game_speed_all_variants() {
+        assert_eq!(GameSpeed::ALL.len(), 5);
+        assert_eq!(GameSpeed::ALL[0], GameSpeed::Slow);
+        assert_eq!(GameSpeed::ALL[3], GameSpeed::Fastest);
+        assert_eq!(GameSpeed::ALL[4], GameSpeed::Ludicrous);
+    }
+
+    #[test]
+    fn test_game_speed_activation_message() {
+        for speed in GameSpeed::ALL {
+            let msg = speed.activation_message();
+            assert!(!msg.is_empty());
+            assert!(msg.ends_with('.') || msg.ends_with('!'));
+        }
     }
 
     #[test]
