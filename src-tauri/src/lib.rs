@@ -181,6 +181,13 @@ fn save_png(
 fn capture_gdk_screenshot(path: &std::path::Path) -> anyhow::Result<()> {
     use gdk::prelude::*;
 
+    // Flush and synchronize with the X server before capturing.
+    // WebKit renders via X11 SHM and copies to the window asynchronously;
+    // sync() ensures those XCopyArea operations are complete before GetImage.
+    if let Some(display) = gdk::Display::default() {
+        display.sync();
+    }
+
     let screen = gdk::Screen::default()
         .ok_or_else(|| anyhow::anyhow!("no GDK default screen"))?;
     let root = screen
@@ -320,6 +327,23 @@ pub fn run() {
                     // Give the WebView time to fully load the frontend.
                     // Xvfb + WebKit2 software rendering can be slow to paint.
                     tokio::time::sleep(Duration::from_secs(12)).await;
+
+                    // Emit an initial theme so the frontend has a palette painted
+                    // before the first capture (screenshot mode skips the normal
+                    // 500ms theme tick, leaving the WebView on its default white).
+                    {
+                        use chrono::Timelike;
+                        let world = state_ss.world.lock().await;
+                        let now = world.clock.now();
+                        let raw = compute_palette(
+                            now.hour(),
+                            now.minute(),
+                            world.clock.season(),
+                            world.weather,
+                        );
+                        let _ = handle_ss.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
+                    }
+                    tokio::time::sleep(Duration::from_secs(3)).await;
 
                     let times: &[(&str, u32)] = &[
                         ("morning", 7),
