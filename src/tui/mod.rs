@@ -13,6 +13,7 @@ use crate::loading::LoadingAnimation;
 use crate::npc::IrishWordHint;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
+use crate::world::palette::{RawPalette, compute_palette};
 use crate::world::time::TimeOfDay;
 
 /// Maximum number of entries in the debug activity log.
@@ -95,6 +96,29 @@ pub fn palette_for_time(tod: &TimeOfDay) -> ColorPalette {
             accent: Color::Rgb(70, 75, 100),
         },
     }
+}
+
+impl From<RawPalette> for ColorPalette {
+    fn from(raw: RawPalette) -> Self {
+        ColorPalette {
+            bg: Color::Rgb(raw.bg.r, raw.bg.g, raw.bg.b),
+            fg: Color::Rgb(raw.fg.r, raw.fg.g, raw.fg.b),
+            accent: Color::Rgb(raw.accent.r, raw.accent.g, raw.accent.b),
+        }
+    }
+}
+
+/// Returns a smoothly interpolated TUI palette for the given time, season, and weather.
+///
+/// Uses linear interpolation between time-of-day keyframes and applies
+/// seasonal and weather color tinting.
+pub fn palette_smooth(
+    hour: u32,
+    minute: u32,
+    season: crate::world::time::Season,
+    weather: crate::world::Weather,
+) -> ColorPalette {
+    compute_palette(hour, minute, season, weather).into()
 }
 
 /// Scroll state for the main text panel.
@@ -288,9 +312,15 @@ pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io
 /// Draws one frame of the TUI.
 ///
 /// Layout: top bar (3 lines with border), main text panel (fill), input line (3 lines with border).
-/// Colors are driven by the current time-of-day palette.
+/// Colors are driven by the smoothly interpolated time-of-day palette.
 pub fn draw(frame: &mut Frame, app: &mut App) {
-    let palette = palette_for_time(&app.world.clock.time_of_day());
+    let now = app.world.clock.now();
+    let palette = palette_smooth(
+        chrono::Timelike::hour(&now),
+        chrono::Timelike::minute(&now),
+        app.world.clock.season(),
+        app.world.weather,
+    );
     let base_style = Style::default().fg(palette.fg).bg(palette.bg);
     let accent_style = Style::default().fg(palette.accent).bg(palette.bg);
 

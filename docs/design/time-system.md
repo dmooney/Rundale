@@ -17,6 +17,7 @@ Speed is adjustable at runtime via the `/speed` command, inspired by SimCity:
 | `/speed normal` | Normal (default) | 36.0 | 40 minutes |
 | `/speed fast` | Fast | 72.0 | 20 minutes |
 | `/speed fastest` | Fastest | 144.0 | 10 minutes |
+| `/speed ludicrous` | Ludicrous | 864.0 | 100 seconds |
 
 `/speed` alone shows the current pace. Speed changes recalibrate the clock
 seamlessly — current game time is preserved, only the rate of passage changes.

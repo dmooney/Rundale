@@ -91,7 +91,7 @@ Two collapsible sections (`CollapsingHeader`):
 
 ## Color System
 
-The GUI uses the same 7 time-of-day palettes as the TUI, converted to `egui::Color32`:
+The GUI uses smoothly interpolated time-of-day palettes with season and weather tinting, computed by the shared `src/world/palette.rs` engine and converted to `egui::Color32`. The 7 base keyframe palettes define colors at anchor hours, with linear interpolation between them for gradual transitions:
 
 | Time | Background | Text | Accent |
 |------|-----------|------|--------|
@@ -103,7 +103,7 @@ The GUI uses the same 7 time-of-day palettes as the TUI, converted to `egui::Col
 | Night | `(20,25,40)` near-black | `(180,180,190)` silver | `(100,110,140)` blue-grey |
 | Midnight | `(10,12,20)` darkest | `(150,150,165)` muted | `(70,75,100)` dark blue |
 
-The `GuiPalette` struct extends the TUI's 3-color palette to 7 colors, adding derived values for panels, inputs, borders, and muted text. Palettes are applied each frame via `ctx.set_visuals()`.
+The `GuiPalette` struct extends the TUI's 3-color palette to 7 colors, adding derived values for panels, inputs, borders, and muted text. Palettes are computed each frame by `compute_palette()` (from `src/world/palette.rs`), which smoothly interpolates between keyframes and applies season/weather tinting, then applied via `ctx.set_visuals()`. See [Weather System](weather-system.md) for tint parameters.
 
 ## GuiApp Struct
 
@@ -135,7 +135,7 @@ The `eframe::App::update()` method runs each frame:
 
 1. Drain streaming buffer → append to `world.text_log`
 2. Check idle tick (20-second interval for NPC schedule simulation)
-3. Apply time-of-day palette to `ctx.set_visuals()`
+3. Compute smoothly interpolated palette (time + season + weather) and apply to `ctx.set_visuals()`
 4. Render all panels
 5. Process submitted input through `classify_input()` / game logic
 6. Request repaint if streaming or after 500ms for clock updates
@@ -216,7 +216,8 @@ The capture uses egui's `ViewportCommand::Screenshot` API with `image` crate for
 ## Source Modules
 
 - [`src/gui/mod.rs`](../../src/gui/mod.rs) — `GuiApp` struct, `eframe::App` impl, game loop
-- [`src/gui/theme.rs`](../../src/gui/theme.rs) — Time-of-day color palettes for egui
+- [`src/gui/theme.rs`](../../src/gui/theme.rs) — Smooth time-of-day color palettes for egui
+- [`src/world/palette.rs`](../../src/world/palette.rs) — Shared color interpolation engine
 - [`src/gui/chat_panel.rs`](../../src/gui/chat_panel.rs) — Scrollable text log
 - [`src/gui/map_panel.rs`](../../src/gui/map_panel.rs) — Interactive location graph
 - [`src/gui/status_bar.rs`](../../src/gui/status_bar.rs) — Top status bar

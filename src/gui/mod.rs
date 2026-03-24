@@ -18,6 +18,8 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use chrono::Timelike;
+
 use anyhow::Result;
 use eframe::egui;
 use tokio::sync::mpsc;
@@ -37,7 +39,7 @@ use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::{LocationId, WorldState};
 
-use theme::{apply_palette, gui_palette_for_time};
+use theme::{apply_palette, gui_palette_smooth};
 
 /// Maximum number of debug log entries.
 const DEBUG_LOG_CAPACITY: usize = 50;
@@ -255,7 +257,7 @@ impl GuiApp {
 
         if let Some(loc_data) = self.world.current_location_data() {
             let tod = self.world.clock.time_of_day();
-            let weather = self.world.weather.clone();
+            let weather = self.world.weather.to_string();
             let npc_names: Vec<&str> = self
                 .npc_manager
                 .npcs_at(self.world.player_location)
@@ -282,7 +284,7 @@ impl GuiApp {
     fn show_location_description(&mut self) {
         if let Some(loc_data) = self.world.current_location_data() {
             let tod = self.world.clock.time_of_day();
-            let weather = self.world.weather.clone();
+            let weather = self.world.weather.to_string();
             let npc_names: Vec<&str> = self
                 .npc_manager
                 .npcs_at(self.world.player_location)
@@ -380,6 +382,9 @@ impl GuiApp {
                     GameSpeed::Normal => "The parish settles into its natural stride.",
                     GameSpeed::Fast => "The parish quickens its step.",
                     GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                    GameSpeed::Ludicrous => {
+                        "The world is a blur — days pass in the blink of an eye!"
+                    }
                 };
                 self.world.log(msg.to_string());
             }
@@ -404,7 +409,7 @@ impl GuiApp {
                 self.world
                     .log("  /resume   — Let time flow again".to_string());
                 self.world.log(
-                    "  /speed    — Show or change game speed (slow/normal/fast/fastest)"
+                    "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)"
                         .to_string(),
                 );
                 self.world.log("  /status   — Where am I?".to_string());
@@ -749,8 +754,14 @@ impl eframe::App for GuiApp {
         // Idle tick
         self.maybe_idle_tick();
 
-        // Apply time-of-day palette
-        let palette = gui_palette_for_time(&self.world.clock.time_of_day());
+        // Apply smoothly interpolated time-of-day palette with season/weather tinting
+        let now = self.world.clock.now();
+        let palette = gui_palette_smooth(
+            now.hour(),
+            now.minute(),
+            self.world.clock.season(),
+            self.world.weather,
+        );
         apply_palette(ctx, &palette);
 
         // Request repaint at appropriate intervals

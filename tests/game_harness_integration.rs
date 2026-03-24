@@ -339,7 +339,7 @@ fn test_moved_result_contains_narration() {
 #[test]
 fn test_weather_accessible() {
     let h = GameTestHarness::new();
-    assert_eq!(h.weather(), "Clear");
+    assert_eq!(*h.weather(), parish::world::Weather::Clear);
 }
 
 #[test]

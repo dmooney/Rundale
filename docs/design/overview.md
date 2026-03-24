@@ -64,9 +64,10 @@ src/
 ├── input/
 │   └── mod.rs           # Player input parsing, command detection
 ├── world/
-│   ├── mod.rs           # WorldState, location types
+│   ├── mod.rs           # WorldState, Weather enum, location types
 │   ├── graph.rs         # WorldGraph (adjacency list, BFS pathfinding)
 │   ├── time.rs          # GameClock, TimeOfDay, Season
+│   ├── palette.rs       # Smooth color interpolation engine (time/season/weather)
 │   ├── movement.rs      # Movement resolution, fuzzy destination matching
 │   ├── encounter.rs     # En-route encounter system
 │   └── description.rs   # Dynamic location description templates
@@ -90,7 +91,7 @@ src/
 │   └── debug_panel.rs   # Debug overlay panel
 ├── gui/
 │   ├── mod.rs           # ParishGui, eframe integration
-│   ├── theme.rs         # Time-of-day color theming
+│   ├── theme.rs         # Time-of-day color theming (smooth interpolation)
 │   ├── chat_panel.rs    # Chat/dialogue display
 │   ├── map_panel.rs     # Interactive parish map
 │   ├── sidebar.rs       # Irish word pronunciation sidebar

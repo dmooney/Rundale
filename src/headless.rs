@@ -219,6 +219,7 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 GameSpeed::Normal => "The parish settles into its natural stride.",
                 GameSpeed::Fast => "The parish quickens its step.",
                 GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
+                GameSpeed::Ludicrous => "The world is a blur — days pass in the blink of an eye!",
             };
             println!("{}", msg);
         }
@@ -238,7 +239,9 @@ fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /quit     - Take your leave");
             println!("  /pause    - Hold time still");
             println!("  /resume   - Let time flow again");
-            println!("  /speed    - Show or change game speed (slow/normal/fast/fastest)");
+            println!(
+                "  /speed    - Show or change game speed (slow/normal/fast/fastest/ludicrous)"
+            );
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
@@ -578,7 +581,7 @@ fn print_location_arrival(app: &App) {
             .iter()
             .map(|n| n.name.as_str())
             .collect();
-        let desc = render_description(loc_data, tod, &app.world.weather, &npc_names);
+        let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
         println!("{}", desc);
     } else {
         println!("{}", app.world.current_location().description);
@@ -603,7 +606,7 @@ fn print_location_description(app: &App) {
             .iter()
             .map(|n| n.name.as_str())
             .collect();
-        let desc = render_description(loc_data, tod, &app.world.weather, &npc_names);
+        let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
         println!("{}", desc);
     } else {
         println!("{}", app.world.current_location().description);

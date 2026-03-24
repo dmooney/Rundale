@@ -230,8 +230,8 @@ impl GameTestHarness {
         format_exits(self.app.world.player_location, &self.app.world.graph)
     }
 
-    /// Returns the current weather string.
-    pub fn weather(&self) -> &str {
+    /// Returns the current weather.
+    pub fn weather(&self) -> &crate::world::Weather {
         &self.app.world.weather
     }
 
@@ -575,7 +575,12 @@ impl GameTestHarness {
                 .iter()
                 .map(|n| n.name.as_str())
                 .collect();
-            render_description(loc_data, tod, &self.app.world.weather, &npc_names)
+            render_description(
+                loc_data,
+                tod,
+                &self.app.world.weather.to_string(),
+                &npc_names,
+            )
         } else {
             self.app.world.current_location().description.clone()
         }
@@ -663,7 +668,7 @@ mod tests {
     #[test]
     fn test_harness_initial_weather() {
         let h = GameTestHarness::new();
-        assert_eq!(h.weather(), "Clear");
+        assert_eq!(*h.weather(), crate::world::Weather::Clear);
     }
 
     #[test]

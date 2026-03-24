@@ -47,6 +47,7 @@ src/
 ├── world/           # World state, location graph, time, movement, encounters
 │   ├── graph.rs     #   WorldGraph, BFS pathfinding, fuzzy name search
 │   ├── time.rs      #   GameClock, GameSpeed, TimeOfDay, Season
+│   ├── palette.rs   #   Smooth color interpolation (time/season/weather tinting)
 │   ├── movement.rs  #   Movement resolution and travel narration
 │   ├── encounter.rs #   En-route encounter system
 │   └── description.rs # Dynamic location description templates
