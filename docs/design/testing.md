@@ -86,6 +86,63 @@ Test scripts live in `tests/fixtures/`:
 | `test_movement_errors.txt` | Already-here, not-found, various verbs |
 | `test_commands.txt` | All system commands |
 | `test_speed.txt` | Game speed preset commands |
+| `test_debug.txt` | Debug subsystem commands |
+| `test_all_locations.txt` | Navigate to and look at all 15 parish locations |
+| `test_fuzzy_names.txt` | Fuzzy location name matching (partial, apostrophes, articles) |
+| `test_multi_hop.txt` | Multi-hop pathfinding to non-adjacent locations |
+| `test_movement_verbs.txt` | All 8 movement verbs (go/walk/head/stroll/saunter/mosey/run/dash) |
+| `test_time_progression.txt` | Time-of-day advancement through many round trips |
+| `test_pause_resume_cycle.txt` | Pause/resume state machine and idempotency |
+| `test_debug_all_npcs.txt` | `/debug schedule/memory/rels` for all 8 NPCs |
+| `test_debug_at_locations.txt` | `/debug here/tiers/clock` at multiple locations |
+| `test_npc_locations.txt` | NPC presence verification at expected locations |
+| `test_edge_cases.txt` | Already-here, not-found, repeated commands, unknown inputs |
+| `test_look_variants.txt` | `look`, `l`, `look around` at multiple locations |
+| `test_grand_tour.txt` | Visit all 15 locations with look + status at each |
+| `test_speed_assertions.txt` | Speed preset changes with status verification |
+
+## Captured Script Mode (`run_script_captured`)
+
+For tests that need to assert on script output (not just "no crash"),
+use `run_script_captured()` which returns a `Vec<ScriptResult>`:
+
+```rust
+use parish::testing::{run_script_captured, ActionResult, ScriptResult};
+use std::path::Path;
+
+#[test]
+fn test_example_with_assertions() {
+    let results = run_script_captured(Path::new("tests/fixtures/test_grand_tour.txt")).unwrap();
+
+    // Assert every movement succeeded
+    for r in &results {
+        if let ActionResult::Moved { to, minutes, .. } = &r.result {
+            assert!(!to.is_empty());
+            assert!(*minutes > 0);
+        }
+    }
+
+    // Verify location tracking
+    for r in &results {
+        if let ActionResult::Moved { to, .. } = &r.result {
+            assert_eq!(r.location, *to);
+        }
+    }
+}
+```
+
+The `ScriptResult` struct captures command, result, location, time, and season
+for each executed line:
+
+```rust
+pub struct ScriptResult {
+    pub command: String,
+    pub result: ActionResult,
+    pub location: String,
+    pub time: String,
+    pub season: String,
+}
+```
 
 ## Usage in Tests
 
@@ -105,6 +162,18 @@ fn test_example() {
     assert!(matches!(r, ActionResult::NpcResponse { .. }));
 }
 ```
+
+## Integration Test Files
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `tests/game_harness_integration.rs` | 23 | Multi-step harness scenarios, NPC responses, script fixture smoke tests |
+| `tests/world_graph_integration.rs` | 21 | World graph validation, pathfinding, descriptions |
+| `tests/headless_script_tests.rs` | 68 | Comprehensive fixture-driven tests with assertions on every ActionResult |
+
+The `headless_script_tests.rs` file uses `run_script_captured()` to exercise
+all 18 fixture scripts with real assertions on game state — verifying locations,
+time progression, NPC data, debug output, error handling, and more.
 
 ## Query APIs
 

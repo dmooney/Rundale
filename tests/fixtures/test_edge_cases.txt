@@ -1,0 +1,42 @@
+# Test edge cases and error handling.
+
+# Movement to current location (already here)
+go to kilteevan
+
+# Movement to nonexistent locations
+go to atlantis
+go to mordor
+go to narnia
+go to hogwarts
+go to springfield
+
+# Movement back to where we are after failing
+go to kilteevan
+
+# Movement to valid location then back to same
+go to crossroads
+go to crossroads
+
+# Look commands in succession
+look
+look
+look
+
+# System commands that should all succeed
+/status
+/help
+/speed
+/debug
+
+# Unknown debug subcommand
+/debug nonexistent
+
+# Speed with invalid value
+/speed invalid
+/speed turbo
+
+# Multiple status checks
+/status
+/status
+
+/quit

@@ -1,0 +1,36 @@
+# Test /debug here and /debug tiers at multiple locations.
+
+# Kilteevan Village (start)
+/debug here
+/debug tiers
+
+# The Crossroads
+go to crossroads
+/debug here
+/debug tiers
+
+# Darcy's Pub
+go to pub
+/debug here
+/debug tiers
+
+# St. Brigid's Church
+go to crossroads
+go to church
+/debug here
+/debug tiers
+
+# Murphy's Farm
+go to crossroads
+go to murphy's farm
+/debug here
+/debug tiers
+
+# The Fairy Fort
+go to fairy fort
+/debug here
+/debug tiers
+
+/debug clock
+
+/quit

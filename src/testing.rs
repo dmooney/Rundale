@@ -24,7 +24,7 @@ use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::time::{Season, TimeOfDay};
 use crate::world::{Location, LocationId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -33,7 +33,7 @@ use std::path::Path;
 /// Each variant captures the structured outcome of a player action,
 /// allowing tests to assert on game state changes without parsing
 /// prose output.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "snake_case")]
 pub enum ActionResult {
     /// Player moved to a new location.
@@ -612,6 +612,24 @@ struct ScriptOutputLine {
     season: String,
 }
 
+/// Captured result of executing one script command (for test assertions).
+///
+/// Unlike [`ScriptOutputLine`] (internal, stdout-only), this struct is public
+/// and returned by [`run_script_captured`] so tests can assert on every field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptResult {
+    /// The command that was executed.
+    pub command: String,
+    /// The structured outcome.
+    pub result: ActionResult,
+    /// Player location after the command.
+    pub location: String,
+    /// Time of day after the command.
+    pub time: String,
+    /// Season after the command.
+    pub season: String,
+}
+
 /// Runs the game in script mode, reading commands from a file.
 ///
 /// Each command is executed through [`GameTestHarness`] and produces
@@ -643,6 +661,43 @@ pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+/// Executes a script file and returns captured results for assertion in tests.
+///
+/// Same logic as [`run_script_mode`] but collects [`ScriptResult`] values
+/// into a `Vec` instead of printing JSON to stdout. This allows integration
+/// tests to assert on every command's outcome, location, time, and season.
+///
+/// # Errors
+///
+/// Returns an error if the script file cannot be read.
+pub fn run_script_captured(script_path: &Path) -> anyhow::Result<Vec<ScriptResult>> {
+    let contents = std::fs::read_to_string(script_path)?;
+    let mut harness = GameTestHarness::new();
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        let result = harness.execute(trimmed);
+        results.push(ScriptResult {
+            command: trimmed.to_string(),
+            result,
+            location: harness.player_location().to_string(),
+            time: harness.time_of_day().to_string(),
+            season: harness.season().to_string(),
+        });
+
+        if harness.app.should_quit {
+            break;
+        }
+    }
+
+    Ok(results)
 }
 
 #[cfg(test)]

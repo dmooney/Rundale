@@ -1,0 +1,37 @@
+# Test pause/resume state machine.
+# Verify time freezes when paused and resumes correctly.
+
+/status
+/pause
+/status
+
+# Travel while paused — movement still works but time should still advance
+# (movement explicitly advances clock even when paused)
+go to crossroads
+/status
+
+# Resume and travel more
+/resume
+/status
+go to pub
+/status
+
+# Pause again
+/pause
+/status
+
+# Resume again
+/resume
+/status
+
+# Double pause should be idempotent
+/pause
+/pause
+/status
+
+# Double resume should be idempotent
+/resume
+/resume
+/status
+
+/quit

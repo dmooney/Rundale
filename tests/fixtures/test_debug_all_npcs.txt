@@ -1,0 +1,46 @@
+# Test debug commands for every NPC.
+# Each NPC should have a schedule, memory, and relationships entry.
+
+/debug npcs
+
+# Padraig Darcy
+/debug schedule Padraig
+/debug memory Padraig
+/debug rels Padraig
+
+# Siobhan Murphy
+/debug schedule Siobhan
+/debug memory Siobhan
+/debug rels Siobhan
+
+# Fr. Declan Tierney
+/debug schedule Declan
+/debug memory Declan
+/debug rels Declan
+
+# Roisin Connolly
+/debug schedule Roisin
+/debug memory Roisin
+/debug rels Roisin
+
+# Tommy O'Brien
+/debug schedule Tommy
+/debug memory Tommy
+/debug rels Tommy
+
+# Aoife Brennan
+/debug schedule Aoife
+/debug memory Aoife
+/debug rels Aoife
+
+# Mick Flanagan
+/debug schedule Mick
+/debug memory Mick
+/debug rels Mick
+
+# Niamh Darcy
+/debug schedule Niamh
+/debug memory Niamh
+/debug rels Niamh
+
+/quit

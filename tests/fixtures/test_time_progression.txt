@@ -1,0 +1,86 @@
+# Test that time advances through different phases during travel.
+# Starts at Morning. Many round-trips should advance through
+# Midday, Afternoon, Dusk, Night, Midnight, Dawn, and back.
+
+/status
+
+# Round-trip Kilteevan <-> Crossroads <-> Pub (many times)
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+
+/status
+
+# Even more trips to push through more phases
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+go to crossroads
+go to pub
+go to crossroads
+go to kilteevan
+
+/status
+/quit
