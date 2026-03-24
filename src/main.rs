@@ -79,9 +79,9 @@ struct Cli {
     #[arg(long, env = "PARISH_CLOUD_API_KEY")]
     cloud_api_key: Option<String>,
 
-    /// Run in GUI mode (windowed egui interface)
+    /// Run in TUI mode (terminal interface) instead of default GUI
     #[arg(long)]
-    gui: bool,
+    tui: bool,
 
     /// Capture GUI screenshots to the given directory (default: docs/screenshots)
     #[arg(long, value_name = "DIR")]
@@ -167,266 +167,304 @@ async fn main() -> Result<()> {
         return result;
     }
 
-    // GUI mode (windowed egui interface)
-    if cli.gui {
-        let result = parish::gui::run_gui(
-            clients.clone(),
-            &provider_config,
-            cloud_config.as_ref(),
-            cli.improv,
-        );
-        ollama_process.stop();
-        return result;
-    }
+    // TUI mode (opt-in with --tui)
+    if cli.tui {
+        // Initialize dialogue inference pipeline (uses cloud if configured, else local)
+        let (dial_client, dial_model) = clients.dialogue_client();
+        let (tx, rx) = mpsc::channel(32);
+        let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
+        let queue = InferenceQueue::new(tx);
 
-    // TUI mode
-
-    // Initialize dialogue inference pipeline (uses cloud if configured, else local)
-    let (dial_client, dial_model) = clients.dialogue_client();
-    let (tx, rx) = mpsc::channel(32);
-    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
-    let queue = InferenceQueue::new(tx);
-
-    // Initialize app — load parish data if available
-    let mut app = App::new();
-    let parish_path = Path::new("data/parish.json");
-    if parish_path.exists() {
-        match parish::world::WorldState::from_parish_file(
-            parish_path,
-            parish::world::LocationId(15),
-        ) {
-            Ok(world) => app.world = world,
-            Err(e) => tracing::warn!("Failed to load parish data: {}", e),
+        // Initialize app — load parish data if available
+        let mut app = App::new();
+        let parish_path = Path::new("data/parish.json");
+        if parish_path.exists() {
+            match parish::world::WorldState::from_parish_file(
+                parish_path,
+                parish::world::LocationId(15),
+            ) {
+                Ok(world) => app.world = world,
+                Err(e) => tracing::warn!("Failed to load parish data: {}", e),
+            }
         }
-    }
-    app.inference_queue = Some(queue);
-    app.client = Some(clients.local.clone());
-    app.model_name = clients.local_model.clone();
-    app.dialogue_model = dial_model.to_string();
-    app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
-    app.base_url = provider_config.base_url.clone();
-    app.api_key = provider_config.api_key.clone();
-    app.improv_enabled = cli.improv;
+        app.inference_queue = Some(queue);
+        app.client = Some(clients.local.clone());
+        app.model_name = clients.local_model.clone();
+        app.dialogue_model = dial_model.to_string();
+        app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
+        app.base_url = provider_config.base_url.clone();
+        app.api_key = provider_config.api_key.clone();
+        app.improv_enabled = cli.improv;
 
-    // Set cloud fields if configured
-    if let Some(ref cc) = cloud_config {
-        app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
-        app.cloud_model_name = Some(cc.model.clone());
-        app.cloud_client = clients.cloud.clone();
-        app.cloud_api_key = cc.api_key.clone();
-        app.cloud_base_url = Some(cc.base_url.clone());
-    }
-
-    // Load NPCs from data file
-    let npcs_path = Path::new("data/npcs.json");
-    if npcs_path.exists() {
-        match NpcManager::load_from_file(npcs_path) {
-            Ok(mgr) => app.npc_manager = mgr,
-            Err(e) => tracing::warn!("Failed to load NPC data: {}", e),
+        // Set cloud fields if configured
+        if let Some(ref cc) = cloud_config {
+            app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
+            app.cloud_model_name = Some(cc.model.clone());
+            app.cloud_client = clients.cloud.clone();
+            app.cloud_api_key = cc.api_key.clone();
+            app.cloud_base_url = Some(cc.base_url.clone());
         }
-    }
 
-    // Initial tier assignment
-    app.npc_manager
-        .assign_tiers(app.world.player_location, &app.world.graph);
-
-    // Show initial location description
-    show_location_arrival(&mut app);
-
-    // Initialize terminal
-    let mut terminal = tui::init_terminal()?;
-    let mut request_id: u64 = 0;
-
-    // Shared streaming state for the TUI render loop
-    let streaming_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let streaming_active: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
-
-    // Idle simulation: tick NPC schedules if no input for 20 seconds
-    let mut last_interaction = std::time::Instant::now();
-    let idle_tick_interval = Duration::from_secs(20);
-    let mut last_idle_tick = std::time::Instant::now();
-
-    // Main game loop
-    loop {
-        // Check if streaming tokens have arrived and update the log
-        {
-            let active = *streaming_active.lock().unwrap();
-            if active {
-                let mut buf = streaming_buf.lock().unwrap();
-                if !buf.is_empty() {
-                    // Tokens arrived — clear the loading animation
-                    app.loading_animation = None;
-                    // Update the last log line (the streaming line) with new tokens
-                    if let Some(last) = app.world.text_log.last_mut() {
-                        last.push_str(&buf);
-                    }
-                    buf.clear();
-                }
+        // Load NPCs from data file
+        let npcs_path = Path::new("data/npcs.json");
+        if npcs_path.exists() {
+            match NpcManager::load_from_file(npcs_path) {
+                Ok(mgr) => app.npc_manager = mgr,
+                Err(e) => tracing::warn!("Failed to load NPC data: {}", e),
             }
         }
 
-        // Tick loading animation if active
-        if let Some(anim) = &mut app.loading_animation {
-            anim.tick();
-        }
+        // Initial tier assignment
+        app.npc_manager
+            .assign_tiers(app.world.player_location, &app.world.graph);
 
-        // Idle simulation tick: advance world when player is idle
-        {
-            let is_streaming = *streaming_active.lock().unwrap();
-            let idle_elapsed = last_interaction.elapsed() >= idle_tick_interval;
-            let tick_due = last_idle_tick.elapsed() >= idle_tick_interval;
+        // Show initial location description
+        show_location_arrival(&mut app);
 
-            if !is_streaming && idle_elapsed && tick_due && !app.world.clock.is_paused() {
-                app.npc_manager
-                    .assign_tiers(app.world.player_location, &app.world.graph);
-                let events = app
-                    .npc_manager
-                    .tick_schedules(&app.world.clock, &app.world.graph);
-                process_schedule_events(&mut app, &events);
-                last_idle_tick = std::time::Instant::now();
-            }
-        }
+        // Initialize terminal
+        let mut terminal = tui::init_terminal()?;
+        let mut request_id: u64 = 0;
 
-        // Draw frame
-        terminal.draw(|frame| tui::draw(frame, &mut app))?;
+        // Shared streaming state for the TUI render loop
+        let streaming_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        let streaming_active: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
 
-        // Check for quit
-        if app.should_quit {
-            break;
-        }
+        // Idle simulation: tick NPC schedules if no input for 20 seconds
+        let mut last_interaction = std::time::Instant::now();
+        let idle_tick_interval = Duration::from_secs(20);
+        let mut last_idle_tick = std::time::Instant::now();
 
-        // Handle input
-        if let Some(raw_input) = tui::handle_input(&mut app, Duration::from_millis(100))? {
-            last_interaction = std::time::Instant::now();
-            app.world.log(format!("> {}", raw_input));
-
-            match classify_input(&raw_input) {
-                InputResult::SystemCommand(cmd) => {
-                    if handle_system_command(&mut app, cmd) {
-                        // Rebuild dialogue inference pipeline
-                        // Use cloud client if available, otherwise local
-                        let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
-                        if let Some(new_client) = dial_client {
-                            let (tx, rx) = mpsc::channel(32);
-                            let _new_worker = inference::spawn_inference_worker(new_client, rx);
-                            app.inference_queue = Some(InferenceQueue::new(tx));
+        // Main game loop
+        loop {
+            // Check if streaming tokens have arrived and update the log
+            {
+                let active = *streaming_active.lock().unwrap();
+                if active {
+                    let mut buf = streaming_buf.lock().unwrap();
+                    if !buf.is_empty() {
+                        // Tokens arrived — clear the loading animation
+                        app.loading_animation = None;
+                        // Update the last log line (the streaming line) with new tokens
+                        if let Some(last) = app.world.text_log.last_mut() {
+                            last.push_str(&buf);
                         }
+                        buf.clear();
                     }
                 }
-                InputResult::GameInput(text) => {
-                    // Always parse intent first (uses local client for low latency)
-                    let (intent_client, intent_model) =
-                        (app.client.clone().unwrap(), app.model_name.clone());
-                    let intent = parse_intent(&intent_client, &text, &intent_model).await?;
+            }
 
-                    match intent.intent {
-                        parish::input::IntentKind::Move => {
-                            if let Some(target) = &intent.target {
-                                handle_movement(&mut app, target);
-                            } else {
-                                app.world.log("And where would ye be off to?".to_string());
+            // Tick loading animation if active
+            if let Some(anim) = &mut app.loading_animation {
+                anim.tick();
+            }
+
+            // Idle simulation tick: advance world when player is idle
+            {
+                let is_streaming = *streaming_active.lock().unwrap();
+                let idle_elapsed = last_interaction.elapsed() >= idle_tick_interval;
+                let tick_due = last_idle_tick.elapsed() >= idle_tick_interval;
+
+                if !is_streaming && idle_elapsed && tick_due && !app.world.clock.is_paused() {
+                    app.npc_manager
+                        .assign_tiers(app.world.player_location, &app.world.graph);
+                    let events = app
+                        .npc_manager
+                        .tick_schedules(&app.world.clock, &app.world.graph);
+                    process_schedule_events(&mut app, &events);
+                    last_idle_tick = std::time::Instant::now();
+                }
+            }
+
+            // Draw frame
+            terminal.draw(|frame| tui::draw(frame, &mut app))?;
+
+            // Check for quit
+            if app.should_quit {
+                break;
+            }
+
+            // Handle input
+            if let Some(raw_input) = tui::handle_input(&mut app, Duration::from_millis(100))? {
+                last_interaction = std::time::Instant::now();
+                app.world.log(format!("> {}", raw_input));
+
+                match classify_input(&raw_input) {
+                    InputResult::SystemCommand(cmd) => {
+                        if handle_system_command(&mut app, cmd) {
+                            // Rebuild dialogue inference pipeline
+                            // Use cloud client if available, otherwise local
+                            let dial_client =
+                                app.cloud_client.clone().or_else(|| app.client.clone());
+                            if let Some(new_client) = dial_client {
+                                let (tx, rx) = mpsc::channel(32);
+                                let _new_worker = inference::spawn_inference_worker(new_client, rx);
+                                app.inference_queue = Some(InferenceQueue::new(tx));
                             }
                         }
-                        parish::input::IntentKind::Look => {
-                            show_location_description(&mut app);
-                        }
-                        _ => {
-                            // Route to NPC conversation if one is present
-                            let npcs_here = app.npc_manager.npcs_at(app.world.player_location);
-                            let npc = npcs_here.first().cloned().cloned();
+                    }
+                    InputResult::GameInput(text) => {
+                        // Always parse intent first (uses local client for low latency)
+                        let (intent_client, intent_model) =
+                            (app.client.clone().unwrap(), app.model_name.clone());
+                        let intent = parse_intent(&intent_client, &text, &intent_model).await?;
 
-                            if let Some(npc) = npc {
-                                let other_npcs: Vec<_> = app
-                                    .npc_manager
-                                    .npcs_at(app.world.player_location)
-                                    .into_iter()
-                                    .filter(|n| n.id != npc.id)
-                                    .collect();
-                                let system_prompt =
-                                    ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
-                                let context = ticks::build_enhanced_context(
-                                    &npc,
-                                    &app.world,
-                                    &text,
-                                    &other_npcs,
-                                );
+                        match intent.intent {
+                            parish::input::IntentKind::Move => {
+                                if let Some(target) = &intent.target {
+                                    handle_movement(&mut app, target);
+                                } else {
+                                    app.world.log("And where would ye be off to?".to_string());
+                                }
+                            }
+                            parish::input::IntentKind::Look => {
+                                show_location_description(&mut app);
+                            }
+                            _ => {
+                                // Route to NPC conversation if one is present
+                                let npcs_here = app.npc_manager.npcs_at(app.world.player_location);
+                                let npc = npcs_here.first().cloned().cloned();
 
-                                if let Some(queue) = &app.inference_queue {
-                                    request_id += 1;
+                                if let Some(npc) = npc {
+                                    let other_npcs: Vec<_> = app
+                                        .npc_manager
+                                        .npcs_at(app.world.player_location)
+                                        .into_iter()
+                                        .filter(|n| n.id != npc.id)
+                                        .collect();
+                                    let system_prompt = ticks::build_enhanced_system_prompt(
+                                        &npc,
+                                        app.improv_enabled,
+                                    );
+                                    let context = ticks::build_enhanced_context(
+                                        &npc,
+                                        &app.world,
+                                        &text,
+                                        &other_npcs,
+                                    );
 
-                                    let (token_tx, mut token_rx) =
-                                        mpsc::unbounded_channel::<String>();
+                                    if let Some(queue) = &app.inference_queue {
+                                        request_id += 1;
 
-                                    app.world.log(format!("{}: ", npc.name));
-                                    *streaming_active.lock().unwrap() = true;
-                                    app.loading_animation = Some(LoadingAnimation::new());
+                                        let (token_tx, mut token_rx) =
+                                            mpsc::unbounded_channel::<String>();
 
-                                    let buf_clone = Arc::clone(&streaming_buf);
-                                    let active_clone = Arc::clone(&streaming_active);
-                                    let stream_handle = tokio::spawn(async move {
-                                        let mut accumulated = String::new();
-                                        let mut displayed_len: usize = 0;
-                                        let mut separator_found = false;
+                                        app.world.log(format!("{}: ", npc.name));
+                                        *streaming_active.lock().unwrap() = true;
+                                        app.loading_animation = Some(LoadingAnimation::new());
 
-                                        while let Some(token) = token_rx.recv().await {
-                                            accumulated.push_str(&token);
+                                        let buf_clone = Arc::clone(&streaming_buf);
+                                        let active_clone = Arc::clone(&streaming_active);
+                                        let stream_handle = tokio::spawn(async move {
+                                            let mut accumulated = String::new();
+                                            let mut displayed_len: usize = 0;
+                                            let mut separator_found = false;
 
-                                            if separator_found {
-                                                continue;
-                                            }
+                                            while let Some(token) = token_rx.recv().await {
+                                                accumulated.push_str(&token);
 
-                                            if let Some((dialogue_end, _meta_start)) =
-                                                find_response_separator(&accumulated)
-                                            {
-                                                if dialogue_end > displayed_len {
+                                                if separator_found {
+                                                    continue;
+                                                }
+
+                                                if let Some((dialogue_end, _meta_start)) =
+                                                    find_response_separator(&accumulated)
+                                                {
+                                                    if dialogue_end > displayed_len {
+                                                        let new_text = accumulated
+                                                            [displayed_len..dialogue_end]
+                                                            .to_string();
+                                                        buf_clone
+                                                            .lock()
+                                                            .unwrap()
+                                                            .push_str(&new_text);
+                                                    }
+                                                    separator_found = true;
+                                                    continue;
+                                                }
+
+                                                let raw_end = accumulated
+                                                    .len()
+                                                    .saturating_sub(SEPARATOR_HOLDBACK);
+                                                let safe_end =
+                                                    floor_char_boundary(&accumulated, raw_end);
+                                                if safe_end > displayed_len {
                                                     let new_text = accumulated
-                                                        [displayed_len..dialogue_end]
+                                                        [displayed_len..safe_end]
                                                         .to_string();
                                                     buf_clone.lock().unwrap().push_str(&new_text);
+                                                    displayed_len = safe_end;
                                                 }
-                                                separator_found = true;
-                                                continue;
                                             }
 
-                                            let raw_end = accumulated
-                                                .len()
-                                                .saturating_sub(SEPARATOR_HOLDBACK);
-                                            let safe_end =
-                                                floor_char_boundary(&accumulated, raw_end);
-                                            if safe_end > displayed_len {
-                                                let new_text = accumulated[displayed_len..safe_end]
-                                                    .to_string();
-                                                buf_clone.lock().unwrap().push_str(&new_text);
-                                                displayed_len = safe_end;
+                                            if !separator_found && displayed_len < accumulated.len()
+                                            {
+                                                let remaining =
+                                                    accumulated[displayed_len..].to_string();
+                                                buf_clone.lock().unwrap().push_str(&remaining);
                                             }
-                                        }
 
-                                        if !separator_found && displayed_len < accumulated.len() {
-                                            let remaining =
-                                                accumulated[displayed_len..].to_string();
-                                            buf_clone.lock().unwrap().push_str(&remaining);
-                                        }
+                                            *active_clone.lock().unwrap() = false;
+                                        });
 
-                                        *active_clone.lock().unwrap() = false;
-                                    });
+                                        match queue
+                                            .send(
+                                                request_id,
+                                                app.dialogue_model.clone(),
+                                                context,
+                                                Some(system_prompt),
+                                                Some(token_tx),
+                                            )
+                                            .await
+                                        {
+                                            Ok(mut rx) => {
+                                                let response = loop {
+                                                    {
+                                                        let mut buf = streaming_buf.lock().unwrap();
+                                                        if !buf.is_empty() {
+                                                            // Tokens arrived — clear loading animation
+                                                            app.loading_animation = None;
+                                                            if let Some(last) =
+                                                                app.world.text_log.last_mut()
+                                                            {
+                                                                last.push_str(&buf);
+                                                            }
+                                                            buf.clear();
+                                                        }
+                                                    }
 
-                                    match queue
-                                        .send(
-                                            request_id,
-                                            app.dialogue_model.clone(),
-                                            context,
-                                            Some(system_prompt),
-                                            Some(token_tx),
-                                        )
-                                        .await
-                                    {
-                                        Ok(mut rx) => {
-                                            let response = loop {
+                                                    // Tick loading animation if still waiting
+                                                    if let Some(anim) = &mut app.loading_animation {
+                                                        anim.tick();
+                                                    }
+
+                                                    terminal
+                                                        .draw(|frame| tui::draw(frame, &mut app))?;
+
+                                                    match rx.try_recv() {
+                                                        Ok(resp) => break Some(resp),
+                                                        Err(
+                                                            oneshot::error::TryRecvError::Empty,
+                                                        ) => {
+                                                            tokio::time::sleep(
+                                                                Duration::from_millis(50),
+                                                            )
+                                                            .await;
+                                                            continue;
+                                                        }
+                                                        Err(
+                                                            oneshot::error::TryRecvError::Closed,
+                                                        ) => {
+                                                            break None;
+                                                        }
+                                                    }
+                                                };
+
+                                                let _ = stream_handle.await;
+                                                app.loading_animation = None;
+
                                                 {
                                                     let mut buf = streaming_buf.lock().unwrap();
                                                     if !buf.is_empty() {
-                                                        // Tokens arrived — clear loading animation
-                                                        app.loading_animation = None;
                                                         if let Some(last) =
                                                             app.world.text_log.last_mut()
                                                         {
@@ -436,125 +474,99 @@ async fn main() -> Result<()> {
                                                     }
                                                 }
 
-                                                // Tick loading animation if still waiting
-                                                if let Some(anim) = &mut app.loading_animation {
-                                                    anim.tick();
-                                                }
-
-                                                terminal
-                                                    .draw(|frame| tui::draw(frame, &mut app))?;
-
-                                                match rx.try_recv() {
-                                                    Ok(resp) => break Some(resp),
-                                                    Err(oneshot::error::TryRecvError::Empty) => {
-                                                        tokio::time::sleep(Duration::from_millis(
-                                                            50,
-                                                        ))
-                                                        .await;
-                                                        continue;
-                                                    }
-                                                    Err(oneshot::error::TryRecvError::Closed) => {
-                                                        break None;
-                                                    }
-                                                }
-                                            };
-
-                                            let _ = stream_handle.await;
-                                            app.loading_animation = None;
-
-                                            {
-                                                let mut buf = streaming_buf.lock().unwrap();
-                                                if !buf.is_empty() {
-                                                    if let Some(last) =
-                                                        app.world.text_log.last_mut()
-                                                    {
-                                                        last.push_str(&buf);
-                                                    }
-                                                    buf.clear();
-                                                }
-                                            }
-
-                                            match response {
-                                                Some(resp) => {
-                                                    if let Some(err) = &resp.error {
-                                                        app.world.log(format!(
+                                                match response {
+                                                    Some(resp) => {
+                                                        if let Some(err) = &resp.error {
+                                                            app.world.log(format!(
                                             "[The parish storyteller has lost the thread: {}]",
                                             err
                                         ));
-                                                    } else {
-                                                        let parsed =
-                                                            parse_npc_stream_response(&resp.text);
-                                                        if let Some(meta) = &parsed.metadata {
-                                                            tracing::debug!(
-                                                                "NPC metadata: action={}, mood={}",
-                                                                meta.action,
-                                                                meta.mood
+                                                        } else {
+                                                            let parsed = parse_npc_stream_response(
+                                                                &resp.text,
                                                             );
-                                                            if !meta.irish_words.is_empty() {
-                                                                // Prepend new hints, keep recent ones
-                                                                app.pronunciation_hints.splice(
-                                                                    0..0,
-                                                                    meta.irish_words.clone(),
+                                                            if let Some(meta) = &parsed.metadata {
+                                                                tracing::debug!(
+                                                                    "NPC metadata: action={}, mood={}",
+                                                                    meta.action,
+                                                                    meta.mood
                                                                 );
-                                                                app.pronunciation_hints
-                                                                    .truncate(20);
+                                                                if !meta.irish_words.is_empty() {
+                                                                    // Prepend new hints, keep recent ones
+                                                                    app.pronunciation_hints.splice(
+                                                                        0..0,
+                                                                        meta.irish_words.clone(),
+                                                                    );
+                                                                    app.pronunciation_hints
+                                                                        .truncate(20);
+                                                                }
                                                             }
                                                         }
                                                     }
-                                                }
-                                                None => {
-                                                    app.world.log(
+                                                    None => {
+                                                        app.world.log(
                                                 "[The storyteller has wandered off mid-tale.]"
                                                     .to_string(),
                                             );
+                                                    }
                                                 }
                                             }
+                                            Err(e) => {
+                                                *streaming_active.lock().unwrap() = false;
+                                                let _ = stream_handle.await;
+                                                app.world.log(format!(
+                                                    "[The storyteller couldn't hear ye: {}]",
+                                                    e
+                                                ));
+                                            }
                                         }
-                                        Err(e) => {
-                                            *streaming_active.lock().unwrap() = false;
-                                            let _ = stream_handle.await;
-                                            app.world.log(format!(
-                                                "[The storyteller couldn't hear ye: {}]",
-                                                e
-                                            ));
-                                        }
+                                    } else {
+                                        app.world.log(
+                                            "[No storyteller could be found in the parish today.]"
+                                                .to_string(),
+                                        );
                                     }
                                 } else {
-                                    app.world.log(
-                                        "[No storyteller could be found in the parish today.]"
-                                            .to_string(),
-                                    );
+                                    let msg = IDLE_MESSAGES[app.idle_counter % IDLE_MESSAGES.len()];
+                                    app.world.log(msg.to_string());
+                                    app.idle_counter += 1;
                                 }
-                            } else {
-                                let msg = IDLE_MESSAGES[app.idle_counter % IDLE_MESSAGES.len()];
-                                app.world.log(msg.to_string());
-                                app.idle_counter += 1;
                             }
                         }
+                        app.world.log(String::new());
                     }
-                    app.world.log(String::new());
                 }
-            }
 
-            // --- Simulation tick after each player action ---
-            app.npc_manager
-                .assign_tiers(app.world.player_location, &app.world.graph);
-            let schedule_events = app
-                .npc_manager
-                .tick_schedules(&app.world.clock, &app.world.graph);
-            process_schedule_events(&mut app, &schedule_events);
+                // --- Simulation tick after each player action ---
+                app.npc_manager
+                    .assign_tiers(app.world.player_location, &app.world.graph);
+                let schedule_events = app
+                    .npc_manager
+                    .tick_schedules(&app.world.clock, &app.world.graph);
+                process_schedule_events(&mut app, &schedule_events);
+            }
         }
+
+        // Restore terminal
+        tui::restore_terminal(&mut terminal)?;
+
+        // Stop Ollama if we started it
+        ollama_process.stop();
+
+        tracing::info!("Parish exited cleanly.");
+
+        return Ok(());
     }
 
-    // Restore terminal
-    tui::restore_terminal(&mut terminal)?;
-
-    // Stop Ollama if we started it
+    // GUI mode (default)
+    let result = parish::gui::run_gui(
+        clients.clone(),
+        &provider_config,
+        cloud_config.as_ref(),
+        cli.improv,
+    );
     ollama_process.stop();
-
-    tracing::info!("Parish exited cleanly.");
-
-    Ok(())
+    result
 }
 
 /// Sets up the inference client based on the resolved provider configuration.

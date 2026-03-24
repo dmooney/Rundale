@@ -8,8 +8,8 @@ Parish has three UI modes, selectable via CLI flags:
 
 | Mode | Flag | Framework | Description |
 |------|------|-----------|-------------|
-| **TUI** | *(default)* | Ratatui + Crossterm | Terminal UI with 24-bit true color |
-| **GUI** | `--gui` | egui + eframe | Windowed GUI with map, chat, and sidebars |
+| **GUI** | *(default)* | egui + eframe | Windowed GUI with map, chat, and sidebars |
+| **TUI** | `--tui` | Ratatui + Crossterm | Terminal UI with 24-bit true color |
 | **Headless** | `--headless` | stdin/stdout | Plain REPL for testing and scripting |
 
 The GUI mode provides an enhanced visual experience beyond what the terminal allows: an interactive location map, collapsible sidebars, and a proper windowed interface — while reusing all shared game logic.
@@ -165,7 +165,7 @@ All `/commands` work in GUI mode. The `/irish` and `/debug panel` commands toggl
 ## Entry Point
 
 ```
-cargo run -- --gui
+cargo run
 ```
 
 The `run_gui()` function in `src/gui/mod.rs`:
