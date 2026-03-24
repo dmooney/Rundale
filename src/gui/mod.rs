@@ -375,18 +375,14 @@ impl GuiApp {
                     .log(format!("The parish moves at {} pace.", speed_name));
             }
             Command::SetSpeed(speed) => {
-                use crate::world::time::GameSpeed;
                 self.world.clock.set_speed(speed);
-                let msg = match speed {
-                    GameSpeed::Slow => "The parish slows to a gentle amble.",
-                    GameSpeed::Normal => "The parish settles into its natural stride.",
-                    GameSpeed::Fast => "The parish quickens its step.",
-                    GameSpeed::Fastest => "The parish fair flies — hold onto your hat!",
-                    GameSpeed::Ludicrous => {
-                        "The world is a blur — days pass in the blink of an eye!"
-                    }
-                };
-                self.world.log(msg.to_string());
+                self.world.log(speed.activation_message().to_string());
+            }
+            Command::InvalidSpeed(name) => {
+                self.world.log(format!(
+                    "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
+                    name
+                ));
             }
             Command::Status => {
                 let time = self.world.clock.time_of_day();
