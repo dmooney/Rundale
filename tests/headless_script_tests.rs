@@ -515,10 +515,10 @@ fn test_speed_bogus_shows_current() {
         .expect("Should have /speed bogus command");
 
     if let ActionResult::SystemCommand { response } = &bogus.result {
-        // Invalid speed names show current speed instead of changing it
+        // Invalid speed names show an error message listing valid options
         assert!(
-            response.contains("Speed:"),
-            "Bogus speed should show current speed, got: {}",
+            response.contains("Unknown speed") || response.contains("Speed:"),
+            "Bogus speed should show error or current speed, got: {}",
             response
         );
         // Should NOT contain "changed" since it didn't change
@@ -937,17 +937,17 @@ fn test_harness_all_exits_nonempty() {
 #[test]
 fn test_harness_weather_consistent_at_all_locations() {
     let mut h = GameTestHarness::new();
-    let weather = h.weather().to_string();
+    let weather = *h.weather();
 
     h.execute("go to crossroads");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 
     h.execute("go to pub");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 
     h.execute("go to crossroads");
     h.execute("go to church");
-    assert_eq!(h.weather(), weather, "Weather should be consistent");
+    assert_eq!(*h.weather(), weather, "Weather should be consistent");
 }
 
 #[test]

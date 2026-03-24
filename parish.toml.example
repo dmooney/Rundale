@@ -1,0 +1,56 @@
+# Parish — Configuration File
+#
+# Copy this file to parish.toml and edit as needed.
+# CLI flags and environment variables override values set here.
+# See docs/design/configuration.md for full reference.
+
+# =============================================================
+# Base provider — used for all inference unless overridden
+# =============================================================
+[provider]
+# Provider backend: "ollama" (default), "lmstudio", "openrouter", "custom"
+name = "ollama"
+
+# Model name (required for non-Ollama providers; Ollama auto-selects)
+# model = "qwen3:14b"
+
+# Base URL override (defaults: Ollama=localhost:11434, LM Studio=localhost:1234)
+# base_url = "http://localhost:11434"
+
+# API key (required for OpenRouter and some custom endpoints)
+# api_key = "sk-or-..."
+
+# =============================================================
+# Per-category overrides (optional)
+#
+# Each category inherits from [provider] above unless overridden.
+# Categories: dialogue (player NPC chat), simulation (background
+# NPC ticks), intent (player input parsing).
+# =============================================================
+
+# Use a cloud model for player dialogue (higher quality)
+# [provider.dialogue]
+# name = "openrouter"
+# model = "anthropic/claude-sonnet-4"
+# api_key = "sk-or-..."
+
+# Use a smaller/faster model for background simulation
+# [provider.simulation]
+# name = "ollama"
+# model = "qwen3:4b"
+
+# Use a tiny model for intent parsing (low latency)
+# [provider.intent]
+# name = "ollama"
+# model = "qwen3:1.7b"
+
+# =============================================================
+# Legacy cloud provider (still works, maps to [provider.dialogue])
+#
+# Prefer [provider.dialogue] for new setups. If both are set,
+# [provider.dialogue] takes precedence.
+# =============================================================
+# [cloud]
+# name = "openrouter"
+# model = "anthropic/claude-sonnet-4"
+# api_key = "sk-or-..."

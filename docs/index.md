@@ -29,6 +29,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | Document | Description | Related ADRs |
 |----------|-------------|-------------|
 | [Architecture Overview](design/overview.md) | Tech stack, core loop, module tree, LLM provider support | — |
+| [Configuration Guide](design/configuration.md) | Providers, TOML config, env vars, CLI flags, per-category routing | [ADR-005](adr/005-ollama-local-inference.md), [ADR-016](adr/016-per-category-inference-providers.md) |
 | [Cognitive LOD](design/cognitive-lod.md) | 4-tier NPC simulation fidelity system | [ADR-002](adr/002-cognitive-lod-tiers.md) |
 | [World & Geography](design/world-geography.md) | Location graph, real Irish geography, map data | [ADR-001](adr/001-graph-based-world.md), [ADR-009](adr/009-real-geography-fictional-people.md) |
 | [Time System](design/time-system.md) | Day/night cycle, seasons, Irish festivals | [ADR-007](adr/007-time-scale-20min-day.md) |
