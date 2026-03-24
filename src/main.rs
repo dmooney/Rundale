@@ -486,7 +486,14 @@ async fn main() -> Result<()> {
                                         let (token_tx, mut token_rx) =
                                             mpsc::unbounded_channel::<String>();
 
-                                        app.world.log(format!("{}: ", npc.name));
+                                        let npc_display_name =
+                                            app.npc_manager.display_name(&npc).to_string();
+                                        app.world.log(format!(
+                                            "{}: ",
+                                            capitalize_first(&npc_display_name)
+                                        ));
+                                        // Mark introduced after first interaction (display name already captured)
+                                        app.npc_manager.mark_introduced(npc.id);
                                         *streaming_active.lock().unwrap() = true;
                                         app.loading_animation = Some(LoadingAnimation::new());
 
@@ -1308,6 +1315,15 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
     rebuild_inference
 }
 
+/// Capitalizes the first character of a string slice.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
 /// Shows the current location with description, NPCs, and exits.
 fn show_location_arrival(app: &mut App) {
     let loc_name = app.world.current_location().name.clone();
@@ -1317,12 +1333,13 @@ fn show_location_arrival(app: &mut App) {
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
         let weather = app.world.weather.to_string();
-        let npc_names: Vec<&str> = app
+        let npc_display: Vec<String> = app
             .npc_manager
             .npcs_at(app.world.player_location)
             .iter()
-            .map(|n| n.name.as_str())
+            .map(|n| app.npc_manager.display_name(n).to_string())
             .collect();
+        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
         let desc = render_description(loc_data, tod, &weather, &npc_names);
         app.world.log(desc);
     } else {
@@ -1332,7 +1349,9 @@ fn show_location_arrival(app: &mut App) {
 
     // Show NPCs present
     for npc in app.npc_manager.npcs_at(app.world.player_location) {
-        app.world.log(format!("{} is here.", npc.name));
+        let display = app.npc_manager.display_name(npc);
+        app.world
+            .log(format!("{} is here.", capitalize_first(display)));
     }
 
     // Show exits
@@ -1346,12 +1365,13 @@ fn show_location_description(app: &mut App) {
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
         let weather = app.world.weather.to_string();
-        let npc_names: Vec<&str> = app
+        let npc_display: Vec<String> = app
             .npc_manager
             .npcs_at(app.world.player_location)
             .iter()
-            .map(|n| n.name.as_str())
+            .map(|n| app.npc_manager.display_name(n).to_string())
             .collect();
+        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
         let desc = render_description(loc_data, tod, &weather, &npc_names);
         app.world.log(desc);
     } else {
@@ -1431,14 +1451,24 @@ fn process_schedule_events(app: &mut App, events: &[parish::npc::manager::Schedu
         // Always feed to debug log
         app.debug_event(event.debug_string());
 
+        // Use display name (brief description if not yet introduced)
+        let display = app
+            .npc_manager
+            .get(event.npc_id)
+            .map(|n| app.npc_manager.display_name(n).to_string())
+            .unwrap_or_else(|| event.npc_name.clone());
+
         // Show player-visible messages for events at their location
         match &event.kind {
             ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                app.world
-                    .log(format!("{} heads off down the road.", event.npc_name));
+                app.world.log(format!(
+                    "{} heads off down the road.",
+                    capitalize_first(&display)
+                ));
             }
             ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                app.world.log(format!("{} arrives.", event.npc_name));
+                app.world
+                    .log(format!("{} arrives.", capitalize_first(&display)));
             }
             _ => {}
         }

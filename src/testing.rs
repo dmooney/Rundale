@@ -28,6 +28,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+/// Capitalizes the first character of a string slice.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
 /// The result of executing a command through the test harness.
 ///
 /// Each variant captures the structured outcome of a player action,
@@ -290,14 +299,24 @@ impl GameTestHarness {
         for event in events {
             self.app.debug_event(event.debug_string());
 
+            let display = self
+                .app
+                .npc_manager
+                .get(event.npc_id)
+                .map(|n| self.app.npc_manager.display_name(n).to_string())
+                .unwrap_or_else(|| event.npc_name.clone());
+
             match &event.kind {
                 ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                    self.app
-                        .world
-                        .log(format!("{} heads off down the road.", event.npc_name));
+                    self.app.world.log(format!(
+                        "{} heads off down the road.",
+                        capitalize_first(&display)
+                    ));
                 }
                 ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                    self.app.world.log(format!("{} arrives.", event.npc_name));
+                    self.app
+                        .world
+                        .log(format!("{} arrives.", capitalize_first(&display)));
                 }
                 _ => {}
             }
@@ -813,13 +832,14 @@ impl GameTestHarness {
     fn render_current_location(&self) -> String {
         if let Some(loc_data) = self.app.world.current_location_data() {
             let tod = self.app.world.clock.time_of_day();
-            let npc_names: Vec<&str> = self
+            let npc_display: Vec<String> = self
                 .app
                 .npc_manager
                 .npcs_at(self.app.world.player_location)
                 .iter()
-                .map(|n| n.name.as_str())
+                .map(|n| self.app.npc_manager.display_name(n).to_string())
                 .collect();
+            let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
             render_description(
                 loc_data,
                 tod,

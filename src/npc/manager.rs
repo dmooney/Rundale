@@ -4,7 +4,7 @@
 //! proximity to the player, advances NPC schedules, and provides
 //! queries for NPCs at specific locations.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
 use chrono::{DateTime, Duration, Timelike, Utc};
@@ -20,6 +20,8 @@ use crate::world::time::GameClock;
 /// An event produced by NPC schedule ticking.
 #[derive(Debug, Clone)]
 pub struct ScheduleEvent {
+    /// Id of the NPC this event concerns.
+    pub npc_id: NpcId,
     /// Name of the NPC.
     pub npc_name: String,
     /// What happened.
@@ -70,6 +72,10 @@ impl ScheduleEvent {
 /// Owns all NPCs, assigns cognitive tiers based on distance from the
 /// player, and advances NPC schedules so they move between locations
 /// according to their daily routines.
+///
+/// Also tracks which NPCs have been introduced to the player. Before
+/// introduction, NPCs are referred to by a brief anonymous description
+/// (e.g., "a priest") rather than by name.
 pub struct NpcManager {
     /// All NPCs keyed by their unique id.
     npcs: HashMap<NpcId, Npc>,
@@ -77,6 +83,8 @@ pub struct NpcManager {
     tier_assignments: HashMap<NpcId, CogTier>,
     /// Game time of the last Tier 2 tick (None if never ticked).
     last_tier2_game_time: Option<DateTime<Utc>>,
+    /// Set of NPC ids that have introduced themselves to the player.
+    introduced_npcs: HashSet<NpcId>,
 }
 
 impl NpcManager {
@@ -86,7 +94,24 @@ impl NpcManager {
             npcs: HashMap::new(),
             tier_assignments: HashMap::new(),
             last_tier2_game_time: None,
+            introduced_npcs: HashSet::new(),
         }
+    }
+
+    /// Marks an NPC as having introduced themselves to the player.
+    pub fn mark_introduced(&mut self, id: NpcId) {
+        self.introduced_npcs.insert(id);
+    }
+
+    /// Returns whether the player has been introduced to the given NPC.
+    pub fn is_introduced(&self, id: NpcId) -> bool {
+        self.introduced_npcs.contains(&id)
+    }
+
+    /// Returns the display name for an NPC: their name if introduced,
+    /// or their brief description if not yet met.
+    pub fn display_name<'a>(&self, npc: &'a Npc) -> &'a str {
+        npc.display_name(self.is_introduced(npc.id))
     }
 
     /// Loads NPCs from a JSON data file.
@@ -240,6 +265,7 @@ impl NpcManager {
                             .map(|d| d.name.clone())
                             .unwrap_or_else(|| "?".to_string());
                         events.push(ScheduleEvent {
+                            npc_id: id,
                             npc_name: npc_name.clone(),
                             kind: ScheduleEventKind::Departed {
                                 from,
@@ -272,6 +298,7 @@ impl NpcManager {
                             .map(|d| d.name.clone())
                             .unwrap_or_else(|| "?".to_string());
                         events.push(ScheduleEvent {
+                            npc_id: id,
                             npc_name: npc_name.clone(),
                             kind: ScheduleEventKind::Arrived {
                                 location: destination,
@@ -373,6 +400,7 @@ mod tests {
         Npc {
             id: NpcId(id),
             name: format!("NPC {}", id),
+            brief_description: "a person".to_string(),
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),
@@ -429,6 +457,29 @@ mod tests {
     fn test_manager_new_empty() {
         let mgr = NpcManager::new();
         assert_eq!(mgr.npc_count(), 0);
+    }
+
+    #[test]
+    fn test_introduction_tracking() {
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 2));
+
+        assert!(!mgr.is_introduced(NpcId(1)));
+        mgr.mark_introduced(NpcId(1));
+        assert!(mgr.is_introduced(NpcId(1)));
+        assert!(!mgr.is_introduced(NpcId(2))); // unrelated NPC
+    }
+
+    #[test]
+    fn test_display_name_uses_introduction_state() {
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 2));
+        let npc = mgr.get(NpcId(1)).unwrap().clone();
+
+        assert_eq!(mgr.display_name(&npc), "a person");
+        mgr.mark_introduced(NpcId(1));
+        let npc = mgr.get(NpcId(1)).unwrap().clone();
+        assert_eq!(mgr.display_name(&npc), "NPC 1");
     }
 
     #[test]

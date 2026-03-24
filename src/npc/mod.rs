@@ -109,6 +109,10 @@ pub struct Npc {
     pub id: NpcId,
     /// Full name.
     pub name: String,
+    /// Brief anonymous description shown before the player is introduced.
+    ///
+    /// E.g., "a priest", "a middle-aged woman", "an older man".
+    pub brief_description: String,
     /// Age in years.
     pub age: u8,
     /// Occupation or role in the parish.
@@ -144,6 +148,7 @@ impl Npc {
         Self {
             id: NpcId(1),
             name: "Padraig O'Brien".to_string(),
+            brief_description: "an older man behind the bar".to_string(),
             age: 58,
             occupation: "Publican".to_string(),
             personality: "A gruff but warm-hearted publican who has run the crossroads \
@@ -160,6 +165,18 @@ impl Npc {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::default(),
+        }
+    }
+
+    /// Returns the name to display to the player.
+    ///
+    /// Before the NPC is introduced, returns the brief anonymous description
+    /// (e.g., "a priest"). After introduction, returns the full name.
+    pub fn display_name(&self, introduced: bool) -> &str {
+        if introduced {
+            &self.name
+        } else {
+            &self.brief_description
         }
     }
 
@@ -413,6 +430,18 @@ mod tests {
         assert_eq!(npc.age, 58);
         assert_eq!(npc.occupation, "Publican");
         assert_eq!(npc.location, LocationId(1));
+    }
+
+    #[test]
+    fn test_display_name_before_introduction() {
+        let npc = Npc::new_test_npc();
+        assert_eq!(npc.display_name(false), "an older man behind the bar");
+    }
+
+    #[test]
+    fn test_display_name_after_introduction() {
+        let npc = Npc::new_test_npc();
+        assert_eq!(npc.display_name(true), "Padraig O'Brien");
     }
 
     #[test]
