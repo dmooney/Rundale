@@ -160,6 +160,20 @@ Background research on 1820s Ireland informing world-building, NPC design, and g
 | [Recent History (Pre-1820)](research/recent-history-pre1820.md) | 1798 Rebellion, Act of Union, Napoleonic Wars, population explosion |
 | [Forthcoming Decades](research/forthcoming-decades.md) | Catholic Emancipation, Great Famine, mass emigration — for foreshadowing |
 
+## Claude Code Skills
+
+Custom slash commands for common development workflows. Run these from any Claude Code session.
+
+| Skill | Description |
+|-------|-------------|
+| `/check` | Run the full cargo quality gate — fmt, clippy, and tests |
+| `/game-test [script]` | Run the GameTestHarness to verify game behavior |
+| `/verify` | Full pre-push checklist (fmt + clippy + tests + harness) |
+| `/screenshot` | Regenerate GUI screenshots after UI changes |
+| `/fix-issue <number>` | Work through a GitHub issue end-to-end |
+
+Skill definitions live in `.claude/skills/`.
+
 ## Reference
 
 | Document | Description |

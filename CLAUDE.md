@@ -12,6 +12,8 @@
 
 Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
 
+**Skills shortcut**: Run `/check` to execute all three quality gates, or `/verify` for the full pre-push checklist including the game harness.
+
 ## Verification Before Pushing
 
 **Always manually verify changes work before pushing.** Running tests alone is not enough — use the `GameTestHarness` to actually exercise your changes:
@@ -134,3 +136,15 @@ Start at [docs/index.md](docs/index.md) for the full hub. Key paths:
 - **Dev journal**: `docs/journal.md` (cross-session notes)
 - **Known issues**: `docs/known-issues.md`
 - **Archival**: `DESIGN.md` (original monolithic design, superseded by `docs/design/`)
+
+## Claude Code Skills
+
+Custom slash commands defined in `.claude/skills/`:
+
+| Skill | Description |
+|-------|-------------|
+| `/check` | Run fmt + clippy + tests (quality gate) |
+| `/game-test [script]` | Run GameTestHarness to verify game behavior |
+| `/verify` | Full pre-push checklist (quality gate + harness) |
+| `/screenshot` | Regenerate GUI screenshots via xvfb |
+| `/fix-issue <N>` | End-to-end GitHub issue workflow |
