@@ -170,7 +170,23 @@ impl WorldState {
     pub fn from_parish_file(path: &Path, start_location: LocationId) -> Result<Self, ParishError> {
         use chrono::{TimeZone, Utc};
 
-        let graph = WorldGraph::load_from_file(path)?;
+        // Load base file without validation, merge expansion files, then validate
+        let contents = std::fs::read_to_string(path)?;
+        let mut graph = WorldGraph::new();
+        graph.merge_from_str(&contents)?;
+
+        // Auto-discover expansion files in the same directory
+        if let Some(dir) = path.parent() {
+            let expansion_files = ["roscommon.json", "athlone.json", "dublin.json"];
+            for filename in &expansion_files {
+                let expansion_path = dir.join(filename);
+                if expansion_path.exists() {
+                    graph.merge_from_file(&expansion_path)?;
+                }
+            }
+        }
+
+        graph.validate()?;
 
         // Build legacy locations map from graph data
         let mut locations = HashMap::new();
