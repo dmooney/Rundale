@@ -2,8 +2,8 @@
 
 > [Docs Index](../index.md)
 
-> Last updated: 2026-03-23
-> Current phase: **Phase 4 — Persistence** (complete)
+> Last updated: 2026-03-25
+> Current phase: **Phase 5 — Full LOD & Scale** (complete)
 
 ## Status Legend
 
@@ -76,15 +76,15 @@
 
 > [Detailed plan](../plans/phase-5-full-lod-scale.md) | [Design: Cognitive LOD](../design/cognitive-lod.md), [Weather](../design/weather-system.md)
 
-- [ ] Tier 3 batch inference
-- [ ] Tier 4 CPU-only rules engine
-- [ ] Tier transition: inflate/deflate NPC state
-- [ ] Event bus across tier boundaries
-- [ ] Expand world graph beyond starting parish
-- [ ] Weather state machine
-- [ ] Seasonal cycle effects on NPCs
-- [ ] Gossip/information propagation
-- [ ] NPC long-term memory with retrieval
+- [x] Tier 3 batch inference
+- [x] Tier 4 CPU-only rules engine
+- [x] Tier transition: inflate/deflate NPC state
+- [x] Event bus across tier boundaries
+- [x] Expand world graph beyond starting parish
+- [x] Weather state machine
+- [x] Seasonal cycle effects on NPCs
+- [x] Gossip/information propagation
+- [x] NPC long-term memory with retrieval
 
 ## Phase 6 — Polish & Mythology Hooks
 

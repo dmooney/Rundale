@@ -6,14 +6,28 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
-## 2026-03-25 — TUI Removal
+## 2026-03-25 — Phase 5: Full LOD & Scale (Complete)
 
-Removed the ratatui terminal UI (`src/tui/`) from the project. Parish now has two modes:
+Phase 5 implemented in full. All 9 roadmap items checked off.
 
-- **Headless REPL** (default): plain stdin/stdout, launched via `cargo run`
-- **Tauri GUI** (desktop app): launched via `cargo tauri dev`
+### New subsystems
 
-The `App` struct (core application state, `ScrollState`) moved from `src/tui/mod.rs` to `src/app.rs`. All ratatui and crossterm dependencies have been dropped. Updated all documentation to reflect the change.
+- **Event bus** (`world/events.rs`): `tokio::sync::broadcast` channel (capacity 256) for cross-tier communication. Weather changes, gossip events, and mood shifts propagate to all subscribers.
+- **Weather engine** (`world/weather.rs`): Markov chain state machine with season-weighted transition probabilities. Drives NPC schedule overrides and location changes.
+- **Long-term memory** (`npc/memory.rs`): Keyword-based recall system with 100-entry capacity. Complements the existing 20-entry short-term ring buffer for cross-session continuity.
+- **Gossip propagation** (`npc/gossip.rs`): Probabilistic spread between co-located NPCs. Information distorts as it travels — details may be exaggerated or altered.
+- **Tier 3 batch inference** (`npc/tier3.rs`): Daily batch processing for NPCs at distance 3-4. Processes 8 NPCs per LLM call, returning updated states and summary events.
+- **Tier 4 rules engine** (`npc/tier4.rs`): Seasonal CPU-only rules for NPCs at distance 5+. Deterministic state transitions (births, deaths, trade, seasonal activities) with no LLM calls.
+- **Tier transitions** (`npc/ticks.rs`): Inflate/deflate when NPCs change tiers. Inflate reconstructs rich context from sparse state; deflate compresses to summaries.
+- **Seasonal effects** (`npc/ticks.rs`): Schedule overrides (e.g., harvest in autumn) and weather-driven location changes (seek shelter in storms).
+
+### World expansion
+
+- **Roscommon** (10 locations), **Athlone** (5 locations), **Dublin** (5 locations) added beyond the original 15 Kiltoom locations = **35 total locations**.
+
+### Test count
+
+- **754+ tests passing** across the workspace.
 
 ---
 

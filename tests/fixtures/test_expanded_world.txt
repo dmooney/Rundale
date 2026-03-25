@@ -1,0 +1,12 @@
+look
+go to roscommon
+look
+go to athlone
+look
+go to shannon bridge
+look
+/status
+go to athlone
+go to roscommon
+go to crossroads
+/quit

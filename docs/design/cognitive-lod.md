@@ -6,6 +6,7 @@ The simulation runs at four fidelity levels based on distance from the player. T
 
 ## Tier 1 — Immediate (GPU, 14B model)
 
+- **Distance**: 0 (same location as player)
 - Full LLM inference per NPC interaction
 - Rich dialogue, nuanced decisions, emotional responses, awareness of player actions
 - Real-time, per-interaction inference
@@ -24,22 +25,26 @@ The simulation runs at four fidelity levels based on distance from the player. T
 
 ## Tier 2 — Nearby (GPU, 8B or 3B model)
 
+- **Distance**: 1-2 edges from player
 - Lighter inference, shorter prompts, summary-level reasoning
 - NPCs interact with each other at reduced depth
 - The player may overhear or learn about these interactions
 - **Capacity**: ~10-20 NPCs
-- **Tick rate**: every few game-minutes
+- **Tick rate**: every 5 game-minutes
 
 ## Tier 3 — Distant (GPU, batch inference)
 
-- Bulk tick: one LLM call covers many NPCs
-- Prompt: "Here are 50 NPCs and their current states. Simulate N hours of activity. Return updated states."
+- **Distance**: 3-4 edges from player
+- **Implementation** (`npc/tier3.rs`): Processes 8 NPCs per LLM batch call once per game-day
+- Prompt sends current states of the batch and requests updated states, relationship changes, and summary events
 - Broad strokes: relationships shift, resources change, major events occur
-- **Tick rate**: every in-game day or two (~every few real-world minutes)
+- **Tick rate**: every in-game day (~every few real-world minutes)
 
 ## Tier 4 — Far Away (CPU only, no LLM)
 
-- Pure rules engine, deterministic or lightly randomized state transitions
+- **Distance**: 5+ edges from player
+- **Implementation** (`npc/tier4.rs`): Pure rules engine with seasonal tick, no LLM calls
+- Deterministic or lightly randomized state transitions
 - Births, deaths, trade, seasonal changes, national-level events
 - Runs on 13900KS E-cores — low priority, high parallelism
 - **Tick rate**: once per in-game season (~every 30-45 real-world minutes)
@@ -47,11 +52,12 @@ The simulation runs at four fidelity levels based on distance from the player. T
 
 ## Tier Transitions
 
-When a player moves toward a distant NPC, that NPC's sparse state must be "inflated" into a rich context for real-time interaction. This is a prompt engineering problem:
+**Implementation** (`npc/ticks.rs`): When a player moves toward a distant NPC, that NPC's tier changes and its state is inflated or deflated accordingly.
 
-> "You are [name]. Here's your personality. Here's what you've been up to lately: [summary from distant tick]. The player just arrived. Continue naturally."
+- **Inflate** (e.g., Tier 4 -> Tier 1): Reconstructs rich context from sparse state. Long-term memory entries, recent gossip, and seasonal summary are composed into a system prompt preamble so the NPC can continue naturally.
+- **Deflate** (e.g., Tier 1 -> Tier 3): Compresses detailed short-term memory and recent interactions into summary entries for long-term memory. Active conversation state is discarded.
 
-An event bus must propagate state changes across tier boundaries to maintain coherence (e.g., if a nearby NPC decides to betray a distant one).
+The **event bus** (`world/events.rs`) propagates state changes across tier boundaries using `tokio::sync::broadcast` (capacity 256) to maintain coherence (e.g., weather changes affect all tiers, gossip spreads between co-located NPCs regardless of tier). See [ADR 018](../adr/018-tokio-broadcast-event-bus.md).
 
 ## Related
 

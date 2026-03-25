@@ -10,15 +10,16 @@ The game is committed to representing Irish people and culture with accuracy, re
 
 The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the player are driven by full LLM inference for rich, emergent behavior. Distant NPCs are simulated at progressively lower fidelity. The result is a living world where hundreds of NPCs have ongoing lives, relationships, and conversations — whether or not the player is watching.
 
-**This is a prototype. No story or quest system yet. The goal is to get the simulation loop, movement, NPC interaction, and persistence working end-to-end.**
+**This is a prototype. No story or quest system yet. The goal is to get the simulation loop, TUI, movement, NPC interaction, and persistence working end-to-end.**
 
 ## Tech Stack
 
 | Component     | Technology                               | Purpose                                            |
 |---------------|------------------------------------------|----------------------------------------------------|
-| Language      | **Rust**                                 | Core game engine, simulation                       |
+| Language      | **Rust**                                 | Core game engine, simulation, TUI                  |
 | Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
-| GUI           | **Tauri 2 + Svelte 5**                   | Desktop app with map, chat, and sidebars           |
+| TUI           | **Ratatui + Crossterm**                  | Terminal UI with 24-bit true color                 |
+| GUI           | **egui + eframe**                        | Windowed GUI with map, chat, and sidebars          |
 | LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing |
 | HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
 | Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
@@ -28,7 +29,7 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 ## Hardware Assumptions
 
 - **GPU**: RX 9070 16GB — dedicated to LLM inference via Ollama/ROCm
-- **CPU**: Intel i9-13900KS — handles game logic, background simulation on E-cores
+- **CPU**: Intel i9-13900KS — handles game logic, TUI rendering, background simulation on E-cores
 - **Models**: Qwen3 14B for close-proximity NPCs, smaller model (8B/3B) for nearby tier
 
 ## Core Loop
@@ -46,7 +47,7 @@ Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Update
                                           ↓
-                                   Text Rendering → Headless REPL / GUI
+                                   Text Rendering → TUI / GUI
 ```
 
 ## Module Tree
@@ -55,10 +56,9 @@ Player Input → Command Detection → [System Command OR Game Input]
 src/
 ├── main.rs              # Entry point, CLI args (clap), mode routing
 ├── lib.rs               # Module declarations
-├── app.rs               # Core application state (App, ScrollState)
 ├── error.rs             # ParishError (thiserror)
 ├── config.rs            # Provider configuration (TOML + env + CLI)
-├── headless.rs          # Headless stdin/stdout REPL (default mode)
+├── headless.rs          # Headless stdin/stdout REPL for testing
 ├── testing.rs           # GameTestHarness for automated script-based testing
 ├── debug.rs             # Debug commands and metrics (feature-gated)
 ├── input/
@@ -70,15 +70,19 @@ src/
 │   ├── palette.rs       # Smooth color interpolation engine (time/season/weather)
 │   ├── movement.rs      # Movement resolution, fuzzy destination matching
 │   ├── encounter.rs     # En-route encounter system
+│   ├── events.rs        # Cross-tier event bus (tokio broadcast)
+│   ├── weather.rs       # Markov chain weather engine
 │   └── description.rs   # Dynamic location description templates
 ├── npc/
 │   ├── mod.rs           # Npc struct, NpcId
 │   ├── types.rs         # Relationship, DailySchedule, NpcState, CogTier
 │   ├── manager.rs       # NpcManager (tier assignment, tick dispatch)
-│   ├── ticks.rs         # Tier 1 & 2 inference ticks
-│   ├── memory.rs        # ShortTermMemory (ring buffer)
+│   ├── ticks.rs         # Tier 1–4 inference ticks, inflate/deflate, seasonal effects
+│   ├── memory.rs        # Short-term (ring buffer) + long-term (keyword recall, 100 entries)
 │   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
-│   ├── anachronism.rs   # Anachronism detection for player input (1820 period)
+│   ├── gossip.rs        # Gossip propagation with distortion
+│   ├── tier3.rs         # Tier 3 batch inference (daily, 8 NPCs/batch)
+│   ├── tier4.rs         # Tier 4 rules engine (seasonal, CPU-only)
 │   └── data.rs          # NPC data loader (JSON)
 ├── inference/
 │   ├── mod.rs           # Inference queue, worker task
@@ -90,6 +94,9 @@ src/
 │   ├── database.rs      # Database + AsyncDatabase (SQLite WAL, schema, CRUD)
 │   ├── snapshot.rs      # GameSnapshot, ClockSnapshot, NpcSnapshot
 │   └── journal.rs       # WorldEvent enum, replay logic
+├── tui/
+│   ├── mod.rs           # App struct, main render loop, event handling
+│   └── debug_panel.rs   # Debug overlay panel
 ├── gui/
 │   ├── mod.rs           # ParishGui, eframe integration
 │   ├── theme.rs         # Time-of-day color theming (smooth interpolation)
@@ -120,16 +127,27 @@ src/
 - [World & Geography](world-geography.md) — Location graph, real Irish geography, map data sources
 - [Time System](time-system.md) — Day/night cycle, seasons, Irish calendar festivals
 - [Weather System](weather-system.md) — Weather as simulation driver, effects on NPCs and atmosphere
-- [GUI Design](gui-design.md) — Tauri 2 + Svelte 5 desktop GUI with map, chat panel, sidebars, and color theming
+- [TUI Design](tui-design.md) — Terminal UI layout, 24-bit true color palettes, time/weather visuals
+- [GUI Design](gui-design.md) — Windowed egui GUI with map, chat panel, sidebars, and color theming
 - [Player Input](player-input.md) — Natural language parsing, system commands
 - [Persistence](persistence.md) — Save system, WAL journal, git-like branching
 - [NPC System](npc-system.md) — Entity data model, context construction, gossip propagation
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
-- [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
-- [Debug UI](debug-ui.md) — Tabbed debug panel for Tauri GUI (full game state inspector)
+- [Debug System](debug-system.md) — Debug commands, live TUI panel, metrics collection (feature-gated)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
 - [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
+
+## Phase 5 Subsystems
+
+- **Event Bus** (`world/events.rs`) — Cross-tier communication channel using `tokio::sync::broadcast` (capacity 256). Propagates weather changes, gossip, mood shifts, and other events across all NPC tiers.
+- **Weather Engine** (`world/weather.rs`) — Markov chain state machine that transitions between weather states based on season-weighted probabilities. Weather affects NPC schedules, location choices, and atmosphere.
+- **Long-Term Memory** (`npc/memory.rs`) — Keyword-based recall system with a 100-entry capacity. NPCs store and retrieve memories by topic relevance, enabling continuity across interactions.
+- **Gossip Propagation** (`npc/gossip.rs`) — Probabilistic gossip spread where information passes between co-located NPCs with distortion. Details may be exaggerated, minimized, or altered as gossip chains lengthen.
+- **Tier 3 Batch Inference** (`npc/tier3.rs`) — Daily batch processing of distant NPCs (distance 3-4 from player). Processes 8 NPCs per LLM call, updating states, relationships, and generating summary events.
+- **Tier 4 Rules Engine** (`npc/tier4.rs`) — Seasonal CPU-only rules for far-away NPCs (distance 5+). Deterministic state transitions for births, deaths, trade, and seasonal activities with no LLM calls.
+- **Tier Transitions** (`npc/ticks.rs`) — Inflate/deflate logic when NPCs change tiers. Inflating reconstructs rich context from sparse state; deflating compresses detailed state into summaries.
+- **Seasonal Effects** (`npc/ticks.rs`) — Schedule overrides and weather-driven location changes. NPCs adjust daily routines based on season (e.g., harvest in autumn) and seek shelter in bad weather.
 
 ## Related
 
@@ -222,15 +240,15 @@ For non-Ollama providers, none of these steps run — the user provides the endp
 
 ## Headless Mode
 
-Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
+Run `cargo run -- --headless` for a plain stdin/stdout REPL without the TUI. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
 
 ## Source Modules
 
 - [`src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
 - [`src/lib.rs`](../../src/lib.rs)
 - [`src/error.rs`](../../src/error.rs)
-- [`src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
-- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
+- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode
+- [`src/tui/`](../../src/tui/)
 - [`src/world/`](../../src/world/)
 - [`src/npc/`](../../src/npc/)
 - [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap
