@@ -2582,6 +2582,7 @@ dependencies = [
  "parish-core",
  "ratatui",
  "reqwest 0.12.28",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

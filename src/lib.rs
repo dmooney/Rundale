@@ -1,6 +1,12 @@
+pub mod config;
 pub mod debug;
+pub mod error;
 pub mod headless;
+pub mod inference;
+pub mod input;
+pub mod loading;
+pub mod npc;
+pub mod persistence;
 pub mod testing;
 pub mod tui;
-// Re-export all parish-core modules for backward compatibility
-pub use parish_core::{config, error, inference, input, loading, npc, persistence, world};
+pub mod world;

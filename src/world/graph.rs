@@ -46,6 +46,12 @@ pub struct LocationData {
     pub public: bool,
     /// Connections to neighboring locations.
     pub connections: Vec<Connection>,
+    /// WGS-84 latitude (from OSM data; 0.0 if not geocoded).
+    #[serde(default)]
+    pub lat: f64,
+    /// WGS-84 longitude (from OSM data; 0.0 if not geocoded).
+    #[serde(default)]
+    pub lon: f64,
     /// NPCs who live or work at this location.
     #[serde(default)]
     pub associated_npcs: Vec<NpcId>,
