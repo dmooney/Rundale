@@ -84,6 +84,8 @@ mod tests {
             indoor: false,
             public: true,
             connections: vec![],
+            lat: 0.0,
+            lon: 0.0,
             associated_npcs: vec![NpcId(1)],
             mythological_significance: None,
         }
@@ -154,6 +156,8 @@ mod tests {
             indoor: false,
             public: true,
             connections: vec![],
+            lat: 0.0,
+            lon: 0.0,
             associated_npcs: vec![],
             mythological_significance: None,
         };

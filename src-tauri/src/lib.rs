@@ -121,6 +121,51 @@ impl From<RawPalette> for ThemePalette {
 
 // ── Application state ────────────────────────────────────────────────────────
 
+/// Mutable runtime configuration for provider, model, and cloud settings.
+///
+/// Wrapped in a `Mutex` on [`AppState`] so `/provider`, `/model`, `/key`,
+/// `/cloud`, and `/improv` commands can update it at runtime.
+pub struct GameConfig {
+    /// Display name of the current base provider (e.g. "ollama", "openrouter").
+    pub provider_name: String,
+    /// Base URL for the current provider API.
+    pub base_url: String,
+    /// API key for the current provider (None for keyless providers like Ollama).
+    pub api_key: Option<String>,
+    /// Model name for NPC dialogue inference.
+    pub model_name: String,
+    /// Cloud provider name for dialogue (None = local only).
+    pub cloud_provider_name: Option<String>,
+    /// Cloud model name for dialogue.
+    pub cloud_model_name: Option<String>,
+    /// Cloud API key.
+    pub cloud_api_key: Option<String>,
+    /// Cloud base URL.
+    pub cloud_base_url: Option<String>,
+    /// Whether improv craft mode is enabled for NPC dialogue.
+    pub improv_enabled: bool,
+    /// Per-category provider name overrides (None = inherits base).
+    pub category_provider: [Option<String>; 3],
+    /// Per-category model name overrides (None = inherits base).
+    pub category_model: [Option<String>; 3],
+    /// Per-category API key overrides (None = inherits base).
+    pub category_api_key: [Option<String>; 3],
+    /// Per-category base URL overrides (None = inherits base).
+    pub category_base_url: [Option<String>; 3],
+}
+
+impl GameConfig {
+    /// Returns the array index for a category (Dialogue=0, Simulation=1, Intent=2).
+    fn cat_idx(cat: parish_core::config::InferenceCategory) -> usize {
+        use parish_core::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => 0,
+            InferenceCategory::Simulation => 1,
+            InferenceCategory::Intent => 2,
+        }
+    }
+}
+
 /// Shared mutable game state managed by Tauri.
 ///
 /// Wrapped in `Arc` so background tasks can hold references without
@@ -133,11 +178,11 @@ pub struct AppState {
     /// Inference request queue (None until the Tauri runtime is ready).
     pub inference_queue: Mutex<Option<InferenceQueue>>,
     /// Local LLM client (None if no provider is configured).
-    pub client: Option<OpenAiClient>,
+    pub client: Mutex<Option<OpenAiClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
-    pub cloud_client: Option<OpenAiClient>,
-    /// Model name for NPC dialogue inference.
-    pub model_name: String,
+    pub cloud_client: Mutex<Option<OpenAiClient>>,
+    /// Mutable runtime configuration (provider, model, cloud, improv).
+    pub config: Mutex<GameConfig>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -223,6 +268,7 @@ fn capture_gdk_screenshot(path: &std::path::Path) -> anyhow::Result<()> {
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)] // Used only on Linux; this stub exists for cross-compilation.
 fn capture_gdk_screenshot(_path: &std::path::Path) -> anyhow::Result<()> {
     anyhow::bail!("screenshot capture is only implemented on Linux")
 }
@@ -298,16 +344,30 @@ pub fn run() {
     npc_manager.assign_tiers(world.player_location, &world.graph);
 
     // Read provider config from env vars (optional)
-    let (client, model_name) = build_client_from_env();
-    let cloud_client = build_cloud_client_from_env();
+    let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
+    let cloud_env = build_cloud_client_from_env();
 
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
-        client: client.clone(),
-        cloud_client,
-        model_name,
+        client: Mutex::new(client.clone()),
+        cloud_client: Mutex::new(cloud_env.client),
+        config: Mutex::new(GameConfig {
+            provider_name,
+            base_url,
+            api_key,
+            model_name,
+            cloud_provider_name: cloud_env.provider_name,
+            cloud_model_name: cloud_env.model_name,
+            cloud_api_key: cloud_env.api_key,
+            cloud_base_url: cloud_env.base_url,
+            improv_enabled: false,
+            category_provider: [None, None, None],
+            category_model: [None, None, None],
+            category_api_key: [None, None, None],
+            category_base_url: [None, None, None],
+        }),
     });
 
     tauri::Builder::default()
@@ -401,12 +461,15 @@ pub fn run() {
             let state_setup = Arc::clone(&state);
             tauri::async_runtime::spawn(async move {
                 // Initialise inference queue now that the tokio runtime is running
-                if let Some(ref client) = state_setup.client {
-                    let (tx, rx) = tokio::sync::mpsc::channel(32);
-                    let _worker = spawn_inference_worker(client.clone(), rx);
-                    let queue = InferenceQueue::new(tx);
-                    let mut iq = state_setup.inference_queue.lock().await;
-                    *iq = Some(queue);
+                {
+                    let client_guard = state_setup.client.lock().await;
+                    if let Some(ref client) = *client_guard {
+                        let (tx, rx) = tokio::sync::mpsc::channel(32);
+                        let _worker = spawn_inference_worker(client.clone(), rx);
+                        let queue = InferenceQueue::new(tx);
+                        let mut iq = state_setup.inference_queue.lock().await;
+                        *iq = Some(queue);
+                    }
                 }
 
                 // ── Background ticks ─────────────────────────────────────────
@@ -463,7 +526,8 @@ pub fn run() {
 
 // ── Client initialisation from env ───────────────────────────────────────────
 
-fn build_client_from_env() -> (Option<OpenAiClient>, String) {
+/// Returns `(client, model_name, provider_name, base_url, api_key)`.
+fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Option<String>) {
     let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "ollama".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| match provider.as_str() {
@@ -472,10 +536,12 @@ fn build_client_from_env() -> (Option<OpenAiClient>, String) {
         "openrouter" => "https://openrouter.ai/api/v1".to_string(),
         _ => "http://localhost:11434".to_string(),
     });
-    let api_key = std::env::var("PARISH_API_KEY").ok();
+    let api_key = std::env::var("PARISH_API_KEY")
+        .ok()
+        .filter(|s| !s.is_empty());
 
     if model.is_empty() && provider != "ollama" {
-        return (None, String::new());
+        return (None, String::new(), provider, base_url, api_key);
     }
 
     let client = OpenAiClient::new(&base_url, api_key.as_deref());
@@ -485,12 +551,49 @@ fn build_client_from_env() -> (Option<OpenAiClient>, String) {
         model
     };
 
-    (Some(client), model_name)
+    (
+        Some(client),
+        model_name,
+        provider,
+        base_url.clone(),
+        api_key,
+    )
 }
 
-fn build_cloud_client_from_env() -> Option<OpenAiClient> {
+/// Resolved cloud provider configuration from environment variables.
+struct CloudEnvConfig {
+    /// The constructed OpenAI-compatible client (None if no API key).
+    client: Option<OpenAiClient>,
+    /// Provider name (e.g. "openrouter").
+    provider_name: Option<String>,
+    /// Model name for cloud dialogue.
+    model_name: Option<String>,
+    /// API key.
+    api_key: Option<String>,
+    /// Base URL for the cloud API.
+    base_url: Option<String>,
+}
+
+fn build_cloud_client_from_env() -> CloudEnvConfig {
+    let provider = std::env::var("PARISH_CLOUD_PROVIDER").ok();
     let base_url = std::env::var("PARISH_CLOUD_BASE_URL")
         .unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string());
-    let api_key = std::env::var("PARISH_CLOUD_API_KEY").ok()?;
-    Some(OpenAiClient::new(&base_url, Some(&api_key)))
+    let api_key = std::env::var("PARISH_CLOUD_API_KEY")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let model = std::env::var("PARISH_CLOUD_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty());
+
+    let client = api_key
+        .as_deref()
+        .map(|key| OpenAiClient::new(&base_url, Some(key)));
+
+    CloudEnvConfig {
+        client,
+        provider_name: provider.or_else(|| api_key.as_ref().map(|_| "openrouter".to_string())),
+        model_name: model,
+        api_key,
+        base_url: Some(base_url),
+    }
 }

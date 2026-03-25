@@ -34,8 +34,9 @@ clean:
 
 # ─── Run ─────────────────────────────────────────────────────────────────────
 
-# Run the game (Tauri desktop GUI)
+# Run the game (Tauri desktop GUI) — installs frontend deps if missing
 run:
+    @test -d ui/node_modules || (echo "Installing frontend dependencies..." && cd ui && npm install)
     cargo tauri dev
 
 # Run the game in TUI mode (terminal interface)

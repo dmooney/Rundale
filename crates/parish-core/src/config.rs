@@ -68,6 +68,58 @@ impl Provider {
     }
 }
 
+/// Inference categories that can each have independent provider/model/key settings.
+///
+/// Each category can override the base `[provider]` config with its own
+/// provider, model, base URL, and API key. Unconfigured categories fall
+/// back to the base provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InferenceCategory {
+    /// Player-facing NPC dialogue (Tier 1, streaming).
+    Dialogue,
+    /// Background NPC simulation (Tier 2, JSON).
+    Simulation,
+    /// Player input intent parsing (JSON, low-latency).
+    Intent,
+}
+
+impl InferenceCategory {
+    /// All defined inference categories.
+    pub const ALL: [InferenceCategory; 3] = [
+        InferenceCategory::Dialogue,
+        InferenceCategory::Simulation,
+        InferenceCategory::Intent,
+    ];
+
+    /// Returns the lowercase name used in TOML keys, env var prefixes, and CLI flags.
+    pub fn name(&self) -> &'static str {
+        match self {
+            InferenceCategory::Dialogue => "dialogue",
+            InferenceCategory::Simulation => "simulation",
+            InferenceCategory::Intent => "intent",
+        }
+    }
+
+    /// Parses a category name (case-insensitive).
+    pub fn from_name(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "dialogue" => Some(InferenceCategory::Dialogue),
+            "simulation" => Some(InferenceCategory::Simulation),
+            "intent" => Some(InferenceCategory::Intent),
+            _ => None,
+        }
+    }
+
+    /// Returns the SCREAMING_CASE prefix used in environment variables.
+    pub fn env_prefix(&self) -> &'static str {
+        match self {
+            InferenceCategory::Dialogue => "PARISH_DIALOGUE",
+            InferenceCategory::Simulation => "PARISH_SIMULATION",
+            InferenceCategory::Intent => "PARISH_INTENT",
+        }
+    }
+}
+
 /// Resolved provider configuration ready for use.
 ///
 /// Built from the TOML config file, environment variables, and CLI

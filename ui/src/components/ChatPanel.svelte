@@ -52,6 +52,7 @@
 	.entry {
 		line-height: 1.6;
 		font-size: 1.15rem;
+		white-space: pre-wrap;
 	}
 
 	.source {

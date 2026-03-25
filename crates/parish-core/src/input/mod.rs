@@ -4,6 +4,7 @@
 //! All other input is natural language sent to the LLM for
 //! intent parsing (move, talk, look, interact, examine).
 
+use crate::config::InferenceCategory;
 use crate::error::ParishError;
 use crate::inference::openai_client::OpenAiClient;
 use crate::world::time::GameSpeed;
@@ -71,6 +72,18 @@ pub enum Command {
     SetSpeed(GameSpeed),
     /// Invalid speed preset was requested.
     InvalidSpeed(String),
+    /// Show provider for a specific inference category.
+    ShowCategoryProvider(InferenceCategory),
+    /// Set provider for a specific inference category.
+    SetCategoryProvider(InferenceCategory, String),
+    /// Show model for a specific inference category.
+    ShowCategoryModel(InferenceCategory),
+    /// Set model for a specific inference category.
+    SetCategoryModel(InferenceCategory, String),
+    /// Show API key for a specific inference category (masked).
+    ShowCategoryKey(InferenceCategory),
+    /// Set API key for a specific inference category.
+    SetCategoryKey(InferenceCategory, String),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -160,6 +173,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::ToggleSidebar)
     } else if lower == "/improv" {
         Some(Command::ToggleImprov)
+    } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
+        Some(cmd)
     } else if lower == "/provider" {
         Some(Command::ShowProvider)
     } else if lower.starts_with("/provider ") {
@@ -243,6 +258,45 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else {
         None
     }
+}
+
+/// Parses dot-notation per-category commands like `/model.dialogue`, `/provider.intent`.
+///
+/// Returns `Some(Command)` if the input matches a `/<base>.<category>` pattern
+/// where base is `model`, `provider`, or `key`, and category is `dialogue`,
+/// `simulation`, or `intent`.
+fn parse_category_command(trimmed: &str, lower: &str) -> Option<Command> {
+    for (prefix, show_fn, set_fn) in &[
+        (
+            "/model.",
+            Command::ShowCategoryModel as fn(InferenceCategory) -> Command,
+            Command::SetCategoryModel as fn(InferenceCategory, String) -> Command,
+        ),
+        (
+            "/provider.",
+            Command::ShowCategoryProvider as fn(InferenceCategory) -> Command,
+            Command::SetCategoryProvider as fn(InferenceCategory, String) -> Command,
+        ),
+        (
+            "/key.",
+            Command::ShowCategoryKey as fn(InferenceCategory) -> Command,
+            Command::SetCategoryKey as fn(InferenceCategory, String) -> Command,
+        ),
+    ] {
+        if let Some(rest) = lower.strip_prefix(prefix) {
+            let (cat_str, arg) = match rest.find(' ') {
+                Some(pos) => (&rest[..pos], trimmed[prefix.len() + pos..].trim()),
+                None => (rest, ""),
+            };
+            let category = InferenceCategory::from_name(cat_str)?;
+            if arg.is_empty() {
+                return Some(show_fn(category));
+            } else {
+                return Some(set_fn(category, arg.to_string()));
+            }
+        }
+    }
+    None
 }
 
 /// Classifies raw input as either a system command or game input.
