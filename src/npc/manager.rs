@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 
 use crate::error::ParishError;
 use crate::npc::data::load_npcs_from_file;
-use crate::npc::types::{CogTier, NpcState};
+use crate::npc::types::{CogTier, NpcState, TierChange};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
 use crate::world::graph::WorldGraph;
@@ -179,7 +179,13 @@ impl NpcManager {
     /// - Distance 0 (same location): Tier 1
     /// - Distance 1-2: Tier 2
     /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+    pub fn assign_tiers(
+        &mut self,
+        player_location: LocationId,
+        graph: &WorldGraph,
+    ) -> Vec<TierChange> {
+        let old_assignments = self.tier_assignments.clone();
+
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
 
@@ -217,11 +223,30 @@ impl NpcManager {
             tier4 = self.tier4_npcs().len(),
             "Tier assignment complete"
         );
+
+        let mut changes = Vec::new();
+        for (id, &new_tier) in &self.tier_assignments {
+            if let Some(&old_tier) = old_assignments.get(id)
+                && old_tier != new_tier
+            {
+                changes.push(TierChange {
+                    npc_id: *id,
+                    old_tier,
+                    new_tier,
+                });
+            }
+        }
+        changes
     }
 
     /// Returns the current cognitive tier for an NPC.
     pub fn tier_of(&self, id: NpcId) -> Option<CogTier> {
         self.tier_assignments.get(&id).copied()
+    }
+
+    /// Returns a reference to the current tier assignments map.
+    pub fn tier_assignments(&self) -> &HashMap<NpcId, CogTier> {
+        &self.tier_assignments
     }
 
     /// Returns the ids of all NPCs assigned to Tier 1.

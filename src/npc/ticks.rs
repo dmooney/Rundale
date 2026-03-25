@@ -7,9 +7,12 @@ use chrono::Utc;
 
 use crate::inference::openai_client::OpenAiClient;
 use crate::npc::memory::MemoryEntry;
-use crate::npc::types::{Tier2Event, Tier2Response};
+use crate::npc::tier3::Tier3Update;
+use crate::npc::tier4::Tier4Event;
+use crate::npc::types::{NpcSummary, ScheduleEntry, Tier2Event, Tier2Response};
 use crate::npc::{Npc, NpcId, NpcStreamResponse, build_tier1_context, build_tier1_system_prompt};
-use crate::world::{LocationId, WorldState};
+use crate::world::time::Season;
+use crate::world::{LocationId, Weather, WorldState};
 
 /// A lightweight snapshot of an NPC's state for Tier 2 inference.
 ///
@@ -302,6 +305,214 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
     } else {
         let boundary = crate::npc::floor_char_boundary(s, max_len.saturating_sub(3));
         format!("{}...", &s[..boundary])
+    }
+}
+
+/// Builds a narrative context string when an NPC is inflated from Tier 3/4 to Tier 1/2.
+///
+/// Combines any available Tier 3 update summaries and Tier 4 event descriptions
+/// into a synthetic memory entry, so the NPC has continuity when the player approaches.
+pub fn inflate_npc_context(
+    npc: &Npc,
+    tier3_updates: &[Tier3Update],
+    tier4_events: &[Tier4Event],
+) -> String {
+    let mut parts = Vec::new();
+
+    // Include relevant Tier 3 summaries
+    for update in tier3_updates {
+        if update.npc_id == npc.id && !update.summary.is_empty() {
+            parts.push(format!("Recently: {}", update.summary));
+        }
+    }
+
+    // Include relevant Tier 4 events
+    for event in tier4_events {
+        match event {
+            Tier4Event::Illness { npc_id } if *npc_id == npc.id => {
+                parts.push("Was recently ill.".to_string());
+            }
+            Tier4Event::Recovery { npc_id } if *npc_id == npc.id => {
+                parts.push("Recently recovered from illness.".to_string());
+            }
+            Tier4Event::SeasonalShift { npc_id, new_mood } if *npc_id == npc.id => {
+                parts.push(format!("Mood shifted to {} with the season.", new_mood));
+            }
+            Tier4Event::RelationshipFormed { from, to } if *from == npc.id || *to == npc.id => {
+                let other = if *from == npc.id { to } else { from };
+                parts.push(format!("Formed a new connection with NPC #{}.", other.0));
+            }
+            Tier4Event::MoodShift { npc_id, new_mood } if *npc_id == npc.id => {
+                parts.push(format!("Has been feeling {}.", new_mood));
+            }
+            _ => {}
+        }
+    }
+
+    if parts.is_empty() {
+        format!(
+            "{} has been going about their usual routine as a {}.",
+            npc.name, npc.occupation
+        )
+    } else {
+        parts.join(" ")
+    }
+}
+
+/// Deflates an NPC's state into a compact summary for Tier 3/4 processing.
+///
+/// Compacts short-term memory into a single activity string and extracts
+/// key relationship information.
+pub fn deflate_npc_state(npc: &Npc) -> NpcSummary {
+    // Compact recent memories into activity summary
+    let recent = npc.memory.recent(5);
+    let recent_activity = if recent.is_empty() {
+        format!("{} has been quiet.", npc.name)
+    } else {
+        recent
+            .iter()
+            .map(|m| m.content.as_str())
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+
+    // Extract key relationship descriptors
+    let key_relationships: Vec<String> = npc
+        .relationships
+        .iter()
+        .filter(|(_, rel)| rel.strength.abs() > 0.3)
+        .map(|(id, rel)| {
+            let strength_desc = if rel.strength > 0.5 {
+                "close"
+            } else if rel.strength > 0.0 {
+                "friendly"
+            } else if rel.strength > -0.5 {
+                "strained"
+            } else {
+                "hostile"
+            };
+            format!("NPC #{}: {} ({})", id.0, rel.kind, strength_desc)
+        })
+        .collect();
+
+    NpcSummary {
+        npc_id: npc.id,
+        location: npc.location,
+        mood: npc.mood.clone(),
+        recent_activity,
+        key_relationships,
+    }
+}
+
+/// Returns seasonal schedule overrides for an NPC.
+///
+/// Adjusts NPC schedules based on the season:
+/// - Farmers: longer hours in summer (5am-9pm), shorter in winter (7am-4pm)
+/// - Publicans: busier winter evenings (pub open from 4pm instead of 6pm)
+/// - Teachers: school closed in summer (stays home)
+///
+/// Returns `None` if no override applies for this NPC/season combination.
+pub fn seasonal_schedule_overrides(npc: &Npc, season: Season) -> Option<Vec<ScheduleEntry>> {
+    let occupation = npc.occupation.to_lowercase();
+    let home = npc.home.unwrap_or(npc.location);
+    let workplace = npc.workplace.unwrap_or(npc.location);
+
+    if occupation.contains("farmer") {
+        let (work_start, work_end): (u8, u8) = match season {
+            Season::Summer => (5, 21),
+            Season::Spring | Season::Autumn => (6, 18),
+            Season::Winter => (7, 16),
+        };
+        return Some(vec![
+            ScheduleEntry {
+                start_hour: 0,
+                end_hour: work_start.saturating_sub(1),
+                location: home,
+                activity: "sleeping".to_string(),
+            },
+            ScheduleEntry {
+                start_hour: work_start,
+                end_hour: work_end,
+                location: workplace,
+                activity: crate::npc::tier4::seasonal_activity(season).to_string(),
+            },
+            ScheduleEntry {
+                start_hour: work_end + 1,
+                end_hour: 23,
+                location: home,
+                activity: "evening rest".to_string(),
+            },
+        ]);
+    }
+
+    if occupation.contains("publican") || occupation.contains("pub") {
+        let open_hour: u8 = match season {
+            Season::Winter => 16,
+            Season::Autumn => 17,
+            _ => 18,
+        };
+        return Some(vec![
+            ScheduleEntry {
+                start_hour: 0,
+                end_hour: 7,
+                location: home,
+                activity: "sleeping".to_string(),
+            },
+            ScheduleEntry {
+                start_hour: 8,
+                end_hour: open_hour.saturating_sub(1),
+                location: home,
+                activity: "resting before opening".to_string(),
+            },
+            ScheduleEntry {
+                start_hour: open_hour,
+                end_hour: 23,
+                location: workplace,
+                activity: "tending bar".to_string(),
+            },
+        ]);
+    }
+
+    if (occupation.contains("teacher") || occupation.contains("school")) && season == Season::Summer
+    {
+        return Some(vec![
+            ScheduleEntry {
+                start_hour: 0,
+                end_hour: 7,
+                location: home,
+                activity: "sleeping".to_string(),
+            },
+            ScheduleEntry {
+                start_hour: 8,
+                end_hour: 23,
+                location: home,
+                activity: "summer rest".to_string(),
+            },
+        ]);
+    }
+
+    None
+}
+
+/// Returns a weather-adjusted location for an NPC.
+///
+/// If the NPC is scheduled to be outdoors but the weather is bad (Rain or Storm),
+/// overrides to the NPC's home or current location (nearest indoor location).
+///
+/// Returns `None` if no override is needed (weather is fine or location is indoor).
+pub fn weather_location_override(
+    npc: &Npc,
+    _scheduled_location: LocationId,
+    weather: Weather,
+    is_indoor: bool,
+) -> Option<LocationId> {
+    let dominated_by_weather = matches!(weather, Weather::Rain | Weather::Storm);
+
+    if dominated_by_weather && !is_indoor {
+        // Prefer home, fall back to current location
+        Some(npc.home.unwrap_or(npc.location))
+    } else {
+        None
     }
 }
 

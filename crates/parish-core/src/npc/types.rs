@@ -223,6 +223,38 @@ pub struct Tier2Response {
     pub relationship_changes: Vec<RelationshipChange>,
 }
 
+/// Represents a change in an NPC's cognitive tier assignment.
+///
+/// Produced by `assign_tiers()` when an NPC moves between tiers,
+/// triggering inflate (distant -> close) or deflate (close -> distant).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TierChange {
+    /// The affected NPC.
+    pub npc_id: NpcId,
+    /// Previous tier assignment.
+    pub old_tier: CogTier,
+    /// New tier assignment.
+    pub new_tier: CogTier,
+}
+
+/// Compact summary of an NPC's state, used when deflating from Tier 1/2 to Tier 3/4.
+///
+/// Captures the essential state so that Tier 3 batch inference and Tier 4 rules
+/// can operate without the full NPC context.
+#[derive(Debug, Clone)]
+pub struct NpcSummary {
+    /// The NPC's unique id.
+    pub npc_id: NpcId,
+    /// Current location.
+    pub location: LocationId,
+    /// Current mood.
+    pub mood: String,
+    /// Summary of recent activity (compacted from short-term memory).
+    pub recent_activity: String,
+    /// Key relationship changes since last deflation.
+    pub key_relationships: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -371,5 +403,35 @@ mod tests {
         assert_eq!(resp.summary, "");
         assert!(resp.mood_changes.is_empty());
         assert!(resp.relationship_changes.is_empty());
+    }
+
+    #[test]
+    fn test_tier_change_equality() {
+        let tc1 = TierChange {
+            npc_id: NpcId(1),
+            old_tier: CogTier::Tier3,
+            new_tier: CogTier::Tier1,
+        };
+        let tc2 = TierChange {
+            npc_id: NpcId(1),
+            old_tier: CogTier::Tier3,
+            new_tier: CogTier::Tier1,
+        };
+        assert_eq!(tc1, tc2);
+    }
+
+    #[test]
+    fn test_npc_summary_creation() {
+        let summary = NpcSummary {
+            npc_id: NpcId(1),
+            location: LocationId(5),
+            mood: "content".to_string(),
+            recent_activity: "Worked the pub all day".to_string(),
+            key_relationships: vec!["Grew closer to Tommy".to_string()],
+        };
+        assert_eq!(summary.npc_id, NpcId(1));
+        assert_eq!(summary.location, LocationId(5));
+        assert_eq!(summary.mood, "content");
+        assert_eq!(summary.key_relationships.len(), 1);
     }
 }

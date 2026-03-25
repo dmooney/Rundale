@@ -11,7 +11,7 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 
 use crate::error::ParishError;
 use crate::npc::data::load_npcs_from_file;
-use crate::npc::types::{CogTier, NpcState};
+use crate::npc::types::{CogTier, NpcState, TierChange};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
 use crate::world::graph::WorldGraph;
@@ -179,7 +179,13 @@ impl NpcManager {
     /// - Distance 0 (same location): Tier 1
     /// - Distance 1-2: Tier 2
     /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+    pub fn assign_tiers(
+        &mut self,
+        player_location: LocationId,
+        graph: &WorldGraph,
+    ) -> Vec<TierChange> {
+        let old_assignments = self.tier_assignments.clone();
+
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
 
@@ -217,11 +223,30 @@ impl NpcManager {
             tier4 = self.tier4_npcs().len(),
             "Tier assignment complete"
         );
+
+        let mut changes = Vec::new();
+        for (id, &new_tier) in &self.tier_assignments {
+            if let Some(&old_tier) = old_assignments.get(id)
+                && old_tier != new_tier
+            {
+                changes.push(TierChange {
+                    npc_id: *id,
+                    old_tier,
+                    new_tier,
+                });
+            }
+        }
+        changes
     }
 
     /// Returns the current cognitive tier for an NPC.
     pub fn tier_of(&self, id: NpcId) -> Option<CogTier> {
         self.tier_assignments.get(&id).copied()
+    }
+
+    /// Returns a reference to the current tier assignments map.
+    pub fn tier_assignments(&self) -> &HashMap<NpcId, CogTier> {
+        &self.tier_assignments
     }
 
     /// Returns the ids of all NPCs assigned to Tier 1.
@@ -869,5 +894,37 @@ mod tests {
 
         assert_eq!(mgr.get(NpcId(1)).unwrap().mood, "happy");
         assert_eq!(mgr.get(NpcId(2)).unwrap().mood, "happy");
+    }
+
+    #[test]
+    fn test_assign_tiers_returns_changes() {
+        let graph = match load_test_graph() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 1)); // crossroads with player
+        mgr.add_npc(make_test_npc(2, 2)); // pub
+
+        // First assignment: all new, no changes (NPCs weren't tracked before)
+        let changes = mgr.assign_tiers(LocationId(1), &graph);
+        assert!(
+            changes.is_empty(),
+            "first assignment has no old tiers to compare"
+        );
+
+        // Move player to pub (location 2) — NPC 1 was Tier1, now should shift
+        let changes = mgr.assign_tiers(LocationId(2), &graph);
+        // NPC 1 was at crossroads (Tier1 when player was there), now player moved
+        // NPC 2 was at pub (Tier2), now should be Tier1
+        let npc1_change = changes.iter().find(|c| c.npc_id == NpcId(1));
+        let npc2_change = changes.iter().find(|c| c.npc_id == NpcId(2));
+
+        // NPC 2 should have changed from Tier2 to Tier1
+        assert!(npc2_change.is_some(), "NPC 2 should have changed tier");
+        let tc = npc2_change.unwrap();
+        assert_eq!(tc.old_tier, CogTier::Tier2);
+        assert_eq!(tc.new_tier, CogTier::Tier1);
     }
 }
