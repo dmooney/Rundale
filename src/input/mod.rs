@@ -4,6 +4,7 @@
 //! All other input is natural language sent to the LLM for
 //! intent parsing (move, talk, look, interact, examine).
 
+use crate::config::InferenceCategory;
 use crate::error::ParishError;
 use crate::inference::openai_client::OpenAiClient;
 use crate::world::time::GameSpeed;
@@ -71,6 +72,18 @@ pub enum Command {
     SetSpeed(GameSpeed),
     /// Invalid speed preset was requested.
     InvalidSpeed(String),
+    /// Show provider for a specific inference category.
+    ShowCategoryProvider(InferenceCategory),
+    /// Set provider for a specific inference category.
+    SetCategoryProvider(InferenceCategory, String),
+    /// Show model for a specific inference category.
+    ShowCategoryModel(InferenceCategory),
+    /// Set model for a specific inference category.
+    SetCategoryModel(InferenceCategory, String),
+    /// Show API key for a specific inference category (masked).
+    ShowCategoryKey(InferenceCategory),
+    /// Set API key for a specific inference category.
+    SetCategoryKey(InferenceCategory, String),
 }
 
 /// The kind of player action parsed from natural language input.
@@ -160,6 +173,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::ToggleSidebar)
     } else if lower == "/improv" {
         Some(Command::ToggleImprov)
+    } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
+        Some(cmd)
     } else if lower == "/provider" {
         Some(Command::ShowProvider)
     } else if lower.starts_with("/provider ") {
@@ -243,6 +258,52 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else {
         None
     }
+}
+
+/// Parses dot-notation per-category commands like `/model.dialogue`, `/provider.intent`.
+///
+/// Returns `Some(Command)` if the input matches a `/<base>.<category>` pattern
+/// where base is `model`, `provider`, or `key`, and category is `dialogue`,
+/// `simulation`, or `intent`.
+fn parse_category_command(trimmed: &str, lower: &str) -> Option<Command> {
+    // Try each base command with dot-notation
+    for (prefix, show_fn, set_fn) in &[
+        (
+            "/model.",
+            Command::ShowCategoryModel as fn(InferenceCategory) -> Command,
+            Command::SetCategoryModel as fn(InferenceCategory, String) -> Command,
+        ),
+        (
+            "/provider.",
+            Command::ShowCategoryProvider as fn(InferenceCategory) -> Command,
+            Command::SetCategoryProvider as fn(InferenceCategory, String) -> Command,
+        ),
+        (
+            "/key.",
+            Command::ShowCategoryKey as fn(InferenceCategory) -> Command,
+            Command::SetCategoryKey as fn(InferenceCategory, String) -> Command,
+        ),
+    ] {
+        if let Some(rest) = lower.strip_prefix(prefix) {
+            // Split on first space: "dialogue foo" → ("dialogue", "foo")
+            let (cat_str, arg) = match rest.find(' ') {
+                Some(pos) => (&rest[..pos], trimmed[prefix.len() + pos..].trim()),
+                None => (rest, ""),
+            };
+            let category = match cat_str {
+                "dialogue" => InferenceCategory::Dialogue,
+                "simulation" => InferenceCategory::Simulation,
+                "intent" => InferenceCategory::Intent,
+                _ => return None,
+            };
+            if arg.is_empty() {
+                return Some(show_fn(category));
+            } else {
+                return Some(set_fn(category, arg.to_string()));
+            }
+        }
+    }
+    None
 }
 
 /// Classifies raw input as either a system command or game input.
@@ -1085,5 +1146,100 @@ mod tests {
     #[test]
     fn test_parse_speed_whitespace_shows_current() {
         assert_eq!(parse_system_command("/speed   "), Some(Command::ShowSpeed));
+    }
+
+    #[test]
+    fn test_parse_category_model_show() {
+        assert_eq!(
+            parse_system_command("/model.dialogue"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Dialogue))
+        );
+        assert_eq!(
+            parse_system_command("/model.simulation"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Simulation))
+        );
+        assert_eq!(
+            parse_system_command("/model.intent"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Intent))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_model_set() {
+        assert_eq!(
+            parse_system_command("/model.dialogue openrouter/free"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Dialogue,
+                "openrouter/free".to_string()
+            ))
+        );
+        assert_eq!(
+            parse_system_command("/model.intent qwen3:1.5b"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Intent,
+                "qwen3:1.5b".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_model_case_insensitive() {
+        assert_eq!(
+            parse_system_command("/MODEL.DIALOGUE SomeModel"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Dialogue,
+                "SomeModel".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_provider_show_and_set() {
+        assert_eq!(
+            parse_system_command("/provider.dialogue"),
+            Some(Command::ShowCategoryProvider(InferenceCategory::Dialogue))
+        );
+        assert_eq!(
+            parse_system_command("/provider.simulation openrouter"),
+            Some(Command::SetCategoryProvider(
+                InferenceCategory::Simulation,
+                "openrouter".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_key_show_and_set() {
+        assert_eq!(
+            parse_system_command("/key.intent"),
+            Some(Command::ShowCategoryKey(InferenceCategory::Intent))
+        );
+        assert_eq!(
+            parse_system_command("/key.dialogue sk-test-1234"),
+            Some(Command::SetCategoryKey(
+                InferenceCategory::Dialogue,
+                "sk-test-1234".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_unknown_category() {
+        // Unknown category should fall through to None
+        assert_eq!(parse_system_command("/model.unknown"), None);
+        assert_eq!(parse_system_command("/provider.foo"), None);
+        assert_eq!(parse_system_command("/key.bar"), None);
+    }
+
+    #[test]
+    fn test_parse_category_preserves_arg_case() {
+        // Model names should preserve original case
+        assert_eq!(
+            parse_system_command("/model.dialogue Anthropic/Claude-Sonnet"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Dialogue,
+                "Anthropic/Claude-Sonnet".to_string()
+            ))
+        );
     }
 }

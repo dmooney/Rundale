@@ -212,6 +212,7 @@ async fn main() -> Result<()> {
             clients.clone(),
             &provider_config,
             cloud_config.as_ref(),
+            &category_configs,
             cli.improv,
         )
         .await;
@@ -269,6 +270,23 @@ async fn main() -> Result<()> {
         let (intent_cl, intent_mdl) = clients.intent_client();
         app.intent_client = Some(intent_cl.clone());
         app.intent_model = intent_mdl.to_string();
+
+        // Set simulation client/model (may differ from base)
+        let (sim_cl, sim_mdl) = clients.simulation_client();
+        app.simulation_client = Some(sim_cl.clone());
+        app.simulation_model = sim_mdl.to_string();
+
+        // Initialize per-category provider metadata from config
+        if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
+            app.intent_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+            app.intent_api_key = cat_cfg.api_key.clone();
+            app.intent_base_url = Some(cat_cfg.base_url.clone());
+        }
+        if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Simulation) {
+            app.simulation_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+            app.simulation_api_key = cat_cfg.api_key.clone();
+            app.simulation_base_url = Some(cat_cfg.base_url.clone());
+        }
 
         // Load NPCs from data file
         let npcs_path = Path::new("data/npcs.json");
@@ -927,11 +945,11 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             }
         }
         Command::ShowProvider => {
-            if let Some(ref cloud) = app.cloud_provider_name {
-                app.world
-                    .log(format!("Local: {} | Cloud: {}", app.provider_name, cloud));
-            } else {
-                app.world.log(format!("Provider: {}", app.provider_name));
+            app.world.log(format!("Base: {}", app.provider_name));
+            for cat in InferenceCategory::ALL {
+                if let Some(provider) = app.category_provider_name(cat) {
+                    app.world.log(format!("  {}: {}", cat.name(), provider));
+                }
             }
         }
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
@@ -949,9 +967,15 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
         },
         Command::ShowModel => {
             if app.model_name.is_empty() {
-                app.world.log("Model: (auto-detect)".to_string());
+                app.world.log("Base model: (auto-detect)".to_string());
             } else {
-                app.world.log(format!("Model: {}", app.model_name));
+                app.world.log(format!("Base model: {}", app.model_name));
+            }
+            for cat in InferenceCategory::ALL {
+                let model = app.category_model(cat);
+                if !model.is_empty() {
+                    app.world.log(format!("  {}: {}", cat.name(), model));
+                }
             }
         }
         Command::SetModel(name) => {
@@ -1207,6 +1231,80 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
             rebuild_inference = true;
             app.world.log("Cloud API key updated.".to_string());
+        }
+        Command::ShowCategoryProvider(cat) => {
+            if let Some(provider) = app.category_provider_name(cat) {
+                app.world
+                    .log(format!("{} provider: {}", cat.name(), provider));
+            } else {
+                app.world.log(format!(
+                    "{} provider: (inherits base: {})",
+                    cat.name(),
+                    app.provider_name
+                ));
+            }
+        }
+        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                let base_url = provider.default_base_url().to_string();
+                let provider_name = format!("{:?}", provider).to_lowercase();
+                let api_key = app.category_api_key(cat).map(|s| s.to_string());
+                app.set_category_provider_name(cat, provider_name.clone());
+                app.set_category_base_url(cat, base_url.clone());
+                app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+                rebuild_inference = true;
+                app.world.log(format!(
+                    "{} provider changed to {}.",
+                    cat.name(),
+                    provider_name
+                ));
+            }
+            Err(e) => {
+                app.world.log(format!("{}", e));
+            }
+        },
+        Command::ShowCategoryModel(cat) => {
+            let model = app.category_model(cat);
+            if model.is_empty() {
+                app.world.log(format!(
+                    "{} model: (inherits base: {})",
+                    cat.name(),
+                    app.model_name
+                ));
+            } else {
+                app.world.log(format!("{} model: {}", cat.name(), model));
+            }
+        }
+        Command::SetCategoryModel(cat, name) => {
+            let cat_name = cat.name();
+            app.set_category_model(cat, name.clone());
+            app.world
+                .log(format!("{} model changed to {}.", cat_name, name));
+        }
+        Command::ShowCategoryKey(cat) => match app.category_api_key(cat) {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                app.world.log(format!("{} API key: {}", cat.name(), masked));
+            }
+            Some(_) => {
+                app.world
+                    .log(format!("{} API key: (set, too short to mask)", cat.name()));
+            }
+            None => {
+                app.world.log(format!("{} API key: (not set)", cat.name()));
+            }
+        },
+        Command::SetCategoryKey(cat, value) => {
+            let cat_name = cat.name();
+            app.set_category_api_key(cat, value);
+            let base_url = app
+                .category_base_url(cat)
+                .unwrap_or(&app.base_url)
+                .to_string();
+            let api_key = app.category_api_key(cat).map(|s| s.to_string());
+            app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+            rebuild_inference = true;
+            app.world.log(format!("{} API key updated.", cat_name));
         }
     }
     app.world.log(String::new());

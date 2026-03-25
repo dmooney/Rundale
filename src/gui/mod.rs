@@ -93,6 +93,22 @@ pub struct GuiApp {
     pub intent_client: Option<OpenAiClient>,
     /// The model name for intent parsing.
     pub intent_model: String,
+    /// Provider name for intent category (None = inherits base).
+    pub intent_provider_name: Option<String>,
+    /// API key for intent category.
+    pub intent_api_key: Option<String>,
+    /// Base URL for intent category.
+    pub intent_base_url: Option<String>,
+    /// The LLM client for simulation (may differ from base client).
+    pub simulation_client: Option<OpenAiClient>,
+    /// The model name for simulation.
+    pub simulation_model: String,
+    /// Provider name for simulation category (None = inherits base).
+    pub simulation_provider_name: Option<String>,
+    /// API key for simulation category.
+    pub simulation_api_key: Option<String>,
+    /// Base URL for simulation category.
+    pub simulation_base_url: Option<String>,
     /// Whether improv craft mode is enabled.
     pub improv_enabled: bool,
     /// Irish pronunciation hints from NPC responses.
@@ -172,6 +188,14 @@ impl GuiApp {
             dialogue_model: String::new(),
             intent_client: None,
             intent_model: String::new(),
+            intent_provider_name: None,
+            intent_api_key: None,
+            intent_base_url: None,
+            simulation_client: None,
+            simulation_model: String::new(),
+            simulation_provider_name: None,
+            simulation_api_key: None,
+            simulation_base_url: None,
             improv_enabled: false,
             pronunciation_hints: Vec::new(),
             debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
@@ -194,6 +218,107 @@ impl GuiApp {
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,
+        }
+    }
+
+    /// Returns the provider name for a given inference category (or None if inheriting base).
+    pub fn category_provider_name(&self, cat: crate::config::InferenceCategory) -> Option<&str> {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
+            InferenceCategory::Simulation => self.simulation_provider_name.as_deref(),
+            InferenceCategory::Intent => self.intent_provider_name.as_deref(),
+        }
+    }
+
+    /// Returns the model name for a given inference category.
+    pub fn category_model(&self, cat: crate::config::InferenceCategory) -> &str {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
+            InferenceCategory::Simulation => &self.simulation_model,
+            InferenceCategory::Intent => &self.intent_model,
+        }
+    }
+
+    /// Returns the API key for a given inference category.
+    pub fn category_api_key(&self, cat: crate::config::InferenceCategory) -> Option<&str> {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
+            InferenceCategory::Simulation => self.simulation_api_key.as_deref(),
+            InferenceCategory::Intent => self.intent_api_key.as_deref(),
+        }
+    }
+
+    /// Returns the base URL for a given inference category.
+    pub fn category_base_url(&self, cat: crate::config::InferenceCategory) -> Option<&str> {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
+            InferenceCategory::Simulation => self.simulation_base_url.as_deref(),
+            InferenceCategory::Intent => self.intent_base_url.as_deref(),
+        }
+    }
+
+    /// Sets the provider name for a given inference category.
+    pub fn set_category_provider_name(
+        &mut self,
+        cat: crate::config::InferenceCategory,
+        name: String,
+    ) {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
+            InferenceCategory::Simulation => self.simulation_provider_name = Some(name),
+            InferenceCategory::Intent => self.intent_provider_name = Some(name),
+        }
+    }
+
+    /// Sets the model name for a given inference category.
+    pub fn set_category_model(&mut self, cat: crate::config::InferenceCategory, model: String) {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => {
+                self.cloud_model_name = Some(model.clone());
+                self.dialogue_model = model;
+            }
+            InferenceCategory::Simulation => self.simulation_model = model,
+            InferenceCategory::Intent => self.intent_model = model,
+        }
+    }
+
+    /// Sets the API key for a given inference category.
+    pub fn set_category_api_key(&mut self, cat: crate::config::InferenceCategory, key: String) {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
+            InferenceCategory::Simulation => self.simulation_api_key = Some(key),
+            InferenceCategory::Intent => self.intent_api_key = Some(key),
+        }
+    }
+
+    /// Sets the base URL for a given inference category.
+    pub fn set_category_base_url(&mut self, cat: crate::config::InferenceCategory, url: String) {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
+            InferenceCategory::Simulation => self.simulation_base_url = Some(url),
+            InferenceCategory::Intent => self.intent_base_url = Some(url),
+        }
+    }
+
+    /// Sets the client for a given inference category.
+    pub fn set_category_client(
+        &mut self,
+        cat: crate::config::InferenceCategory,
+        client: OpenAiClient,
+    ) {
+        use crate::config::InferenceCategory;
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_client = Some(client),
+            InferenceCategory::Simulation => self.simulation_client = Some(client),
+            InferenceCategory::Intent => self.intent_client = Some(client),
         }
     }
 
@@ -781,6 +906,86 @@ impl GuiApp {
                     Some(OpenAiClient::new(base_url, self.cloud_api_key.as_deref()));
                 rebuild = true;
                 self.world.log("Cloud API key updated.".to_string());
+            }
+            Command::ShowCategoryProvider(cat) => {
+                if let Some(provider) = self.category_provider_name(cat) {
+                    self.world
+                        .log(format!("{} provider: {}", cat.name(), provider));
+                } else {
+                    self.world.log(format!(
+                        "{} provider: (inherits base: {})",
+                        cat.name(),
+                        self.provider_name
+                    ));
+                }
+            }
+            Command::SetCategoryProvider(cat, name) => {
+                match crate::config::Provider::from_str_loose(&name) {
+                    Ok(provider) => {
+                        let base_url = provider.default_base_url().to_string();
+                        let provider_name = format!("{:?}", provider).to_lowercase();
+                        let api_key = self.category_api_key(cat).map(|s| s.to_string());
+                        self.set_category_provider_name(cat, provider_name.clone());
+                        self.set_category_base_url(cat, base_url.clone());
+                        self.set_category_client(
+                            cat,
+                            OpenAiClient::new(&base_url, api_key.as_deref()),
+                        );
+                        rebuild = true;
+                        self.world.log(format!(
+                            "{} provider changed to {}.",
+                            cat.name(),
+                            provider_name
+                        ));
+                    }
+                    Err(e) => {
+                        self.world.log(format!("{}", e));
+                    }
+                }
+            }
+            Command::ShowCategoryModel(cat) => {
+                let model = self.category_model(cat);
+                if model.is_empty() {
+                    self.world.log(format!(
+                        "{} model: (inherits base: {})",
+                        cat.name(),
+                        self.model_name
+                    ));
+                } else {
+                    self.world.log(format!("{} model: {}", cat.name(), model));
+                }
+            }
+            Command::SetCategoryModel(cat, name) => {
+                let cat_name = cat.name();
+                self.set_category_model(cat, name.clone());
+                self.world
+                    .log(format!("{} model changed to {}.", cat_name, name));
+            }
+            Command::ShowCategoryKey(cat) => match self.category_api_key(cat) {
+                Some(key) if key.len() > 8 => {
+                    let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                    self.world
+                        .log(format!("{} API key: {}", cat.name(), masked));
+                }
+                Some(_) => {
+                    self.world
+                        .log(format!("{} API key: (set, too short to mask)", cat.name()));
+                }
+                None => {
+                    self.world.log(format!("{} API key: (not set)", cat.name()));
+                }
+            },
+            Command::SetCategoryKey(cat, value) => {
+                let cat_name = cat.name();
+                self.set_category_api_key(cat, value);
+                let base_url = self
+                    .category_base_url(cat)
+                    .unwrap_or(&self.base_url)
+                    .to_string();
+                let api_key = self.category_api_key(cat).map(|s| s.to_string());
+                self.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+                rebuild = true;
+                self.world.log(format!("{} API key updated.", cat_name));
             }
         }
         self.world.log(String::new());

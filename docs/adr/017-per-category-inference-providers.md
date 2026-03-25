@@ -30,6 +30,14 @@ Each inference category can independently configure its own provider, model, bas
 4. `--<category>-*` CLI flags
 5. Legacy `[cloud]` / `PARISH_CLOUD_*` / `--cloud-*` (dialogue only, lowest priority override)
 
+### Runtime slash commands (all modes):
+
+- `/model.<category> [name]` — Show or set model for a category
+- `/provider.<category> [name]` — Show or set provider for a category
+- `/key.<category> [value]` — Show or set API key for a category
+
+Where `<category>` is `dialogue`, `simulation`, or `intent`. The base `/model`, `/provider`, `/key` commands also display per-category overrides.
+
 ### New types:
 
 - `InferenceCategory` enum: `Dialogue`, `Simulation`, `Intent`
