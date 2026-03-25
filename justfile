@@ -220,6 +220,32 @@ ollama-status:
 ollama-models:
     ollama list
 
+# ─── Agency Agents ─────────────────────────────────────────────────────
+
+# Update Claude Code agents from github.com/msitarzewski/agency-agents
+update-agents:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    TMPDIR="$(mktemp -d)"
+    trap 'rm -rf "$TMPDIR"' EXIT
+    echo "Cloning agency-agents..."
+    git clone --depth 1 https://github.com/msitarzewski/agency-agents.git "$TMPDIR/agency-agents" 2>&1 | tail -1
+    DEST=".claude/agents"
+    rm -rf "$DEST"
+    mkdir -p "$DEST"
+    count=0
+    for dir in academic design engineering game-development marketing paid-media \
+               product project-management sales spatial-computing specialized \
+               strategy support testing; do
+        srcdir="$TMPDIR/agency-agents/$dir"
+        [ -d "$srcdir" ] || continue
+        for f in "$srcdir"/*.md; do
+            [ -f "$f" ] || continue
+            head -1 "$f" | grep -q '^---$' && cp "$f" "$DEST/" && count=$((count + 1))
+        done
+    done
+    echo "Installed $count agents to $DEST"
+
 # ─── Utilities ───────────────────────────────────────────────────────────────
 
 # Count lines of Rust source code
