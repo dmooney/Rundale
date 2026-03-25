@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on Windows — no WSL or Docker required. All dependencies (crossterm, bundled SQLite, tokio, reqwest) are fully cross-platform.
+Parish runs natively on Windows — no WSL or Docker required.
 
 ## Prerequisites
 
@@ -20,7 +20,28 @@ cargo --version
 
 **Minimum Rust edition:** 2024. Run `rustup update` if you have an older toolchain.
 
-### 2. Install Ollama
+### 2. Install Node.js
+
+Required for the Tauri GUI frontend. Download from [nodejs.org](https://nodejs.org/) (v20+ LTS recommended).
+
+Verify:
+
+```powershell
+node --version
+npm --version
+```
+
+### 3. Install Tauri CLI
+
+```powershell
+cargo install tauri-cli
+```
+
+### 4. Install WebView2
+
+Tauri uses Microsoft Edge WebView2 for rendering. It ships with Windows 11 by default. On Windows 10, download the [Evergreen Bootstrapper](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) if not already installed.
+
+### 5. Install Ollama
 
 Download the Windows installer from [ollama.com/download/windows](https://ollama.com/download/windows).
 
@@ -30,14 +51,10 @@ After installation, Ollama runs as a background service on `localhost:11434`. Ve
 curl http://localhost:11434/api/tags
 ```
 
-Or open `http://localhost:11434` in a browser — you should see "Ollama is running".
-
-### 3. Pull a Model
-
-Parish uses Ollama for NPC inference. Pull a model before running:
+### 6. Pull a Model
 
 ```powershell
-ollama pull llama3.2
+ollama pull qwen3:14b
 ```
 
 See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
@@ -47,26 +64,59 @@ See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
 ```powershell
 git clone <repo-url> parish
 cd parish
-cargo build
+```
+
+### GUI Mode (Tauri Desktop App)
+
+```powershell
+# Install frontend dependencies (one-time)
+cd ui
+npm install
+cd ..
+
+# Launch the desktop app (Vite hot-reload + Rust backend)
+cargo tauri dev
+```
+
+For a production bundle:
+
+```powershell
+cargo tauri build
+```
+
+### TUI Mode (Terminal)
+
+```powershell
 cargo run
 ```
 
-For an optimized build:
+### Headless Mode
+
+For piping input/output or running without a terminal UI:
 
 ```powershell
-cargo build --release
-cargo run --release
+cargo run -- --headless
 ```
 
-## Terminal Recommendations
+## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI (terminal user interface) with 24-bit true color. For the best experience:
+Parish uses a TUI with 24-bit true color. For the best experience:
 
 - **Windows Terminal** (default on Windows 11, available from the Microsoft Store on Windows 10) — full true-color and Unicode support.
 - **PowerShell 7+** in Windows Terminal works well.
-- **Older terminals** (cmd.exe, legacy conhost) may have limited color support. The TUI will still function but colors may be degraded.
+- **Older terminals** (cmd.exe, legacy conhost) may have limited color support.
 
 Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
+
+## Configuration (Optional)
+
+Parish works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
+
+```powershell
+copy .env.example .env
+```
+
+Edit `.env` to set your provider, API key, and model. See [Architecture Overview](design/overview.md) for details.
 
 ## Troubleshooting
 
@@ -87,14 +137,11 @@ You need the MSVC C++ Build Tools. Install them via:
 - Switch to Windows Terminal if you are using cmd.exe or legacy conhost.
 - Ensure your terminal font supports Unicode (e.g., Cascadia Code, Consolas).
 
-### SQLite errors
+### Model runs slowly
 
-Parish bundles SQLite via `rusqlite` with `features = ["bundled"]`, so no system SQLite installation is needed. If you see SQLite-related build errors, ensure your MSVC toolchain is properly installed (see linker errors above).
+- Check GPU utilization while the model is running.
+- Try a smaller model (`qwen3:4b` or `qwen3:1.7b`) for CPU-only systems.
 
 ## Alternative: WSL
 
-If you prefer a Linux environment, WSL 2 works fine. Install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install), then follow the standard Linux setup (install Rust via rustup, install Ollama for Linux). This is only necessary if you have a specific preference for Linux tooling — there is no technical advantage for this project.
-
-## Alternative: Docker
-
-Not recommended. The TUI requires direct terminal access, which is awkward through Docker. There is no Dockerfile provided.
+If you prefer a Linux environment, WSL 2 works fine. Install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install), then follow the [Linux setup guide](linux-setup.md). This is only necessary if you have a specific preference for Linux tooling.

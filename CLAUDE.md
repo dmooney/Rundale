@@ -36,43 +36,54 @@ Every commit **must** satisfy all of the following:
 
 See [docs/design/overview.md](docs/design/overview.md) for full architecture. See [docs/index.md](docs/index.md) for all documentation.
 
+This is a **Cargo workspace** with three members:
+
 ```
-src/
-├── main.rs          # Entry point, CLI args (clap), mode routing
-├── lib.rs           # Module declarations
-├── error.rs         # ParishError (thiserror)
-├── config.rs        # Provider configuration (TOML + env + CLI, per-category overrides)
-├── headless.rs      # Headless stdin/stdout REPL mode
-├── testing.rs       # GameTestHarness for automated testing
-├── debug.rs         # Debug commands and metrics (feature-gated)
-├── input/           # Player input parsing, command detection
-├── world/           # World state, location graph, time, movement, encounters
-│   ├── graph.rs     #   WorldGraph, BFS pathfinding, fuzzy name search
-│   ├── time.rs      #   GameClock, GameSpeed, TimeOfDay, Season
-│   ├── palette.rs   #   Smooth color interpolation (time/season/weather tinting)
-│   ├── movement.rs  #   Movement resolution and travel narration
-│   ├── encounter.rs #   En-route encounter system
-│   └── description.rs # Dynamic location description templates
-├── npc/             # NPC data model, behavior, cognition tiers
-│   ├── types.rs     #   Relationship, DailySchedule, NpcState, CogTier
-│   ├── manager.rs   #   NpcManager (tier assignment, tick dispatch)
-│   ├── ticks.rs     #   Tier 1 & 2 inference ticks
-│   ├── memory.rs    #   ShortTermMemory (ring buffer)
-│   ├── overhear.rs  #   Atmospheric overhear for nearby Tier 2
-│   └── data.rs      #   NPC data loader (JSON)
-├── inference/       # LLM client (OpenAI-compatible), queue, per-category routing, Ollama bootstrap
-├── persistence/     # SQLite save/load, WAL journal, branching saves
-│   ├── database.rs  #   Database + AsyncDatabase (schema, CRUD)
-│   ├── snapshot.rs  #   GameSnapshot, ClockSnapshot, NpcSnapshot
-│   └── journal.rs   #   WorldEvent enum, replay logic
-├── tui/             # Ratatui terminal UI + debug panel
-├── gui/             # egui windowed GUI (default mode)
-│   ├── theme.rs     #   Time-of-day color theming
-│   ├── chat_panel.rs #  Chat/dialogue display
-│   ├── map_panel.rs #   Interactive parish map
-│   ├── sidebar.rs   #   Irish word pronunciation sidebar
-│   └── screenshot.rs #  Automated screenshot capture
-└── bin/geo_tool/    # OSM geographic data extraction tool
+Parish/
+├── src/                 # Root crate: TUI, headless, testing, CLI entry point
+│   ├── main.rs          #   Entry point, CLI args (clap), mode routing
+│   ├── lib.rs           #   Module declarations + re-exports from parish-core
+│   ├── headless.rs      #   Headless stdin/stdout REPL mode
+│   ├── testing.rs       #   GameTestHarness for automated testing
+│   ├── debug.rs         #   Debug commands and metrics (feature-gated)
+│   ├── tui/             #   Ratatui terminal UI + debug panel
+│   └── bin/geo_tool/    #   OSM geographic data extraction tool
+├── crates/parish-core/  # Pure game logic library (no UI dependencies)
+│   └── src/
+│       ├── error.rs     #   ParishError (thiserror)
+│       ├── config.rs    #   Provider configuration (TOML + env + CLI)
+│       ├── loading.rs   #   LoadingAnimation (RGB-based, no ratatui)
+│       ├── input/       #   Player input parsing, command detection
+│       ├── world/       #   World state, location graph, time, movement, encounters
+│       │   ├── graph.rs #     WorldGraph, BFS pathfinding, fuzzy name search
+│       │   ├── time.rs  #     GameClock, GameSpeed, TimeOfDay, Season
+│       │   ├── palette.rs #   Smooth color interpolation (time/season/weather tinting)
+│       │   ├── movement.rs #  Movement resolution and travel narration
+│       │   ├── encounter.rs # En-route encounter system
+│       │   └── description.rs # Dynamic location description templates
+│       ├── npc/         #   NPC data model, behavior, cognition tiers
+│       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
+│       └── persistence/ #   SQLite save/load, WAL journal
+├── src-tauri/           # Tauri 2 desktop backend (Rust)
+│   └── src/
+│       ├── lib.rs       #   AppState, IPC types, Tauri run() entry point
+│       ├── main.rs      #   Tauri binary entry point
+│       ├── commands.rs  #   Tauri IPC commands (get_world_snapshot, submit_input, etc.)
+│       └── events.rs    #   Event constants, streaming bridge (NPC token streaming)
+└── ui/                  # Svelte 5 + TypeScript frontend (SvelteKit + static adapter)
+    └── src/
+        ├── lib/
+        │   ├── types.ts #   TypeScript IPC types (snake_case, matching Rust serde)
+        │   └── ipc.ts   #   Typed wrappers for all Tauri commands and events
+        ├── stores/
+        │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive
+        │   └── theme.ts #   palette store (applies CSS vars to :root)
+        └── components/
+            ├── StatusBar.svelte  # Location | time | weather | season bar
+            ├── ChatPanel.svelte  # Scrolling chat log with streaming cursor
+            ├── MapPanel.svelte   # SVG equirectangular map with click-to-travel
+            ├── Sidebar.svelte    # NPCs Here + Focail (Irish words) panels
+            └── InputField.svelte # Player input (disabled during streaming)
 ```
 
 ## Code Style
@@ -86,17 +97,20 @@ src/
 
 ## Key Dependencies
 
-| Crate | Purpose |
-|-------|---------|
+| Crate / Package | Purpose |
+|-----------------|---------|
 | tokio | Async runtime (features = "full") |
 | ratatui + crossterm | Terminal UI with 24-bit true color |
-| eframe + egui | Windowed GUI mode (immediate-mode, cross-platform) |
-| reqwest | HTTP client for Ollama API (`localhost:11434`) |
+| tauri 2 | Desktop GUI framework (Rust backend + WebView frontend) |
+| @tauri-apps/api v2 | TypeScript IPC bindings |
+| svelte 5 + sveltekit | Frontend framework (static adapter for Tauri) |
+| reqwest | HTTP client for Ollama/LLM API |
 | serde + serde_json | JSON serialization for LLM structured output |
 | rusqlite | SQLite persistence (features = "bundled") |
 | anyhow / thiserror | Error handling |
 | tracing | Structured logging |
 | chrono | Time representation |
+| vitest + @testing-library/svelte | Frontend component tests |
 
 ## Gotchas
 
@@ -117,15 +131,37 @@ src/
 
 Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
 
-**Always regenerate screenshots when you change anything in `src/gui/`.** Run:
+**Always regenerate screenshots when you change anything in `ui/` or `src-tauri/`.** Run:
 
 ```sh
-xvfb-run -a cargo run -- --screenshot docs/screenshots
+cargo tauri dev -- -- --screenshot docs/screenshots
 ```
 
-This captures the GUI at 4 times of day (morning, midday, dusk, night) and saves PNGs. Requires `xvfb-run` for headless rendering (installed on most Linux systems; use `apt install xvfb` if missing).
+This captures the Tauri WebView at 4 times of day (morning, midday, dusk, night) via `WebviewWindow::capture_image()` and saves PNGs.
 
 Commit the updated screenshots alongside your UI changes.
+
+## Tauri Development
+
+**To run the full Tauri desktop app:**
+```sh
+cargo tauri dev
+```
+This starts the Vite dev server (`ui/`) and the Tauri backend (`src-tauri/`) together.
+
+**To build a production bundle:**
+```sh
+cargo tauri build
+```
+
+**Frontend tests** (Svelte components):
+```sh
+cd ui && npm test
+```
+
+**IPC types**: All Rust → TypeScript types use `snake_case` (Rust serde defaults). TypeScript types in `ui/src/lib/types.ts` must match exactly.
+
+**System requirements** (Linux): `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
 ## Documentation Map
 

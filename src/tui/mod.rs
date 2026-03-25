@@ -513,9 +513,10 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
     // Append loading animation to the last line while waiting for inference
     if let Some(anim) = &app.loading_animation {
+        let (r, g, b) = anim.current_color_rgb();
         let anim_span = ratatui::text::Span::styled(
             anim.display_text(),
-            Style::default().fg(anim.current_color()),
+            Style::default().fg(Color::Rgb(r, g, b)),
         );
         if let Some(last) = log_lines.last_mut() {
             last.spans.push(anim_span);

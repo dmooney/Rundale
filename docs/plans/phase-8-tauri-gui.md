@@ -14,7 +14,7 @@ modes are preserved unchanged. This phase lays the foundation for Phase 7's mobi
 ## Prerequisites
 
 - Phase 3 complete (NPC system, world graph) ✓
-- ADR-016 accepted ✓
+- ADR-015 accepted ✓
 - `xvfb-run`, Node.js ≥ 20, `npm` or `pnpm`, and the Tauri CLI (`cargo install tauri-cli`) available in the dev environment
 
 ## Workspace Structure (after migration)
@@ -396,7 +396,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Add note that the CSS variable theme system replaces the Rust palette application in egui
 
 25. **Update `docs/adr/README.md`**
-    - Add ADR-016 row to the index table
+    - Add ADR-015 row to the index table
 
 26. **Update `docs/requirements/roadmap.md`**
     - Add Phase 8 section with checkboxes for each task above

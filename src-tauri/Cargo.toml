@@ -1,0 +1,27 @@
+[package]
+name = "parish-tauri"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "parish_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+png = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+parish-core = { path = "../crates/parish-core" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gdk = "0.18"
+glib = "0.18"

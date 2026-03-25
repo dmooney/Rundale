@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on macOS — Intel and Apple Silicon (M1/M2/M3/M4) are both supported. All dependencies (crossterm, bundled SQLite, tokio, reqwest) are fully cross-platform.
+Parish runs natively on macOS — Intel and Apple Silicon (M1/M2/M3/M4) are both supported.
 
 ## Prerequisites
 
@@ -28,16 +28,25 @@ Follow the on-screen prompts (the defaults are fine). Then reload your shell:
 source "$HOME/.cargo/env"
 ```
 
-Verify the installation:
-
-```sh
-rustc --version
-cargo --version
-```
-
 **Minimum Rust edition:** 2024. Run `rustup update` if you have an older toolchain.
 
-### 3. Install Ollama
+### 3. Install Node.js
+
+Required for the Tauri GUI frontend. Install via Homebrew:
+
+```sh
+brew install node
+```
+
+Or download from [nodejs.org](https://nodejs.org/) (v20+ recommended).
+
+### 4. Install Tauri CLI
+
+```sh
+cargo install tauri-cli
+```
+
+### 5. Install Ollama
 
 Download the macOS app from [ollama.com/download/mac](https://ollama.com/download/mac), or install via Homebrew:
 
@@ -51,11 +60,9 @@ After installation, launch Ollama — it runs as a menu bar app and serves on `l
 curl http://localhost:11434/api/tags
 ```
 
-Or open `http://localhost:11434` in a browser — you should see "Ollama is running".
-
 > **Note:** On Apple Silicon, Ollama uses Metal for GPU acceleration automatically — no extra drivers needed.
 
-### 4. Pull a Model
+### 6. Pull a Model
 
 Parish auto-detects your hardware and selects a model when you first run the game, but you can pre-pull one:
 
@@ -77,40 +84,45 @@ See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
 ```sh
 git clone <repo-url> parish
 cd parish
-cargo build
+```
+
+### GUI Mode (Tauri Desktop App)
+
+```sh
+# Install frontend dependencies (one-time)
+cd ui && npm install && cd ..
+
+# Launch the desktop app (Vite hot-reload + Rust backend)
+cargo tauri dev
+```
+
+For a production bundle:
+
+```sh
+cargo tauri build
+```
+
+### TUI Mode (Terminal)
+
+```sh
 cargo run
-```
-
-For an optimized build:
-
-```sh
-cargo build --release
-cargo run --release
-```
-
-### GUI Mode
-
-Parish includes a windowed GUI mode using egui:
-
-```sh
-cargo run -- --gui
 ```
 
 ### Headless Mode
 
-For piping input/output or running without a terminal UI:
+For piping input/output or running without a UI:
 
 ```sh
 cargo run -- --headless
 ```
 
-## Terminal Recommendations
+## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI (terminal user interface) with 24-bit true color. For the best experience:
+Parish uses a TUI with 24-bit true color. For the best experience:
 
 - **iTerm2** — full true-color and Unicode support, highly recommended.
 - **kitty** — fast GPU-accelerated terminal with excellent color support.
-- **Terminal.app** — works, but verify 24-bit color is enabled (Preferences → Profiles → check "Use bright colors for bold text" is unchecked; ensure a modern color profile).
+- **Terminal.app** — works, but verify 24-bit color is enabled.
 
 Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
 
@@ -146,11 +158,7 @@ sudo xcode-select --reset
 
 - Switch to iTerm2 or kitty if using Terminal.app.
 - Ensure your terminal supports 24-bit true color. Test with: `printf "\x1b[38;2;255;100;0mTRUECOLOR\x1b[0m\n"` — you should see orange text.
-- Resize your terminal to at least 120×40.
-
-### SQLite errors
-
-Parish bundles SQLite via `rusqlite` with `features = ["bundled"]`, so no system SQLite installation is needed. Build errors related to SQLite typically indicate a missing C compiler — ensure Xcode Command Line Tools are installed (see above).
+- Resize your terminal to at least 120x40.
 
 ### Model runs slowly
 

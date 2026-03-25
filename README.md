@@ -8,7 +8,7 @@ The player arrives as a newcomer to **Kilteevan Village** in the parish of Kilto
 
 ![Parish GUI — Morning](docs/screenshots/gui-morning.png)
 
-*GUI mode showing the chat panel, interactive map, Irish word sidebar, and time-of-day color theming (morning palette). GUI is the default mode — just run `cargo run`.*
+*Tauri GUI showing the chat panel, interactive map, NPC sidebar, and time-of-day color theming (morning palette).*
 
 ## Current Status
 
@@ -18,12 +18,36 @@ See the [Roadmap](docs/requirements/roadmap.md) for per-item status tracking.
 
 ## Quick Start
 
+### GUI Mode (Tauri Desktop App)
+
+The default experience is a Tauri 2 desktop app with a Svelte 5 frontend.
+
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [Ollama](https://ollama.ai/) on `localhost:11434`
+
 ```sh
-cargo build
+# Install the Tauri CLI (one-time)
+cargo install tauri-cli
+
+# Install frontend dependencies (one-time)
+cd ui && npm install && cd ..
+
+# Launch the desktop app
+cargo tauri dev
+```
+
+### TUI Mode (Terminal)
+
+```sh
 cargo run
 ```
 
-**Requirements:** Rust (edition 2024), [Ollama](https://ollama.ai/) on `localhost:11434` (auto-installed if missing).
+### Headless Mode
+
+For piping input/output or running without a UI:
+
+```sh
+cargo run -- --headless
+```
 
 **Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)
 
@@ -36,11 +60,11 @@ README.md (you are here — project overview, quick start)
 ├── CLAUDE.md                  — Agent quick-ref: build, test, style, standards
 └── docs/index.md              — Full documentation hub (start here for everything)
     ├── docs/requirements/
-    │   └── roadmap.md         — Per-item status tracking across all 6 phases
+    │   └── roadmap.md         — Per-item status tracking across all phases
     ├── docs/design/
-    │   └── overview.md        — Architecture overview → links to 14 subsystem docs
+    │   └── overview.md        — Architecture overview → links to subsystem docs
     ├── docs/adr/
-    │   └── README.md          — 12 architecture decision records with rationale
+    │   └── README.md          — Architecture decision records with rationale
     ├── docs/plans/            — Detailed implementation plan per phase
     ├── docs/research/         — Historical research informing design
     ├── docs/journal.md        — Cross-session development notes
@@ -50,7 +74,7 @@ README.md (you are here — project overview, quick start)
 | Start here | What you'll find |
 |------------|-----------------|
 | [docs/index.md](docs/index.md) | **Master hub** — phase status, links to everything |
-| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item checkboxes for all 6 phases |
+| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item checkboxes for all phases |
 | [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
 | [docs/adr/README.md](docs/adr/README.md) | Architecture decision records (ADRs) |
 

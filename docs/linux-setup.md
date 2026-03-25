@@ -2,32 +2,35 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on Linux. All dependencies (crossterm, bundled SQLite, tokio, reqwest) are fully cross-platform. GPU acceleration is supported via NVIDIA (CUDA) and AMD (ROCm) but is optional — CPU-only works fine with smaller models.
+Parish runs natively on Linux. GPU acceleration is supported via NVIDIA (CUDA) and AMD (ROCm) but is optional — CPU-only works fine with smaller models.
 
 ## Prerequisites
 
 ### 1. Install Build Essentials
 
-Rust requires a C linker and basic build tools. Install them for your distribution:
+Rust and Tauri require a C linker, basic build tools, and WebKit2GTK libraries.
 
 **Ubuntu / Debian:**
 
 ```sh
 sudo apt update
-sudo apt install build-essential pkg-config
+sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev \
+    libappindicator3-dev librsvg2-dev patchelf
 ```
 
 **Fedora / RHEL:**
 
 ```sh
 sudo dnf groupinstall "Development Tools"
-sudo dnf install pkg-config
+sudo dnf install pkg-config gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel \
+    librsvg2-devel patchelf
 ```
 
 **Arch Linux:**
 
 ```sh
-sudo pacman -S base-devel pkg-config
+sudo pacman -S base-devel pkg-config gtk3 webkit2gtk-4.1 libappindicator-gtk3 \
+    librsvg patchelf
 ```
 
 ### 2. Install Rust
@@ -44,16 +47,33 @@ Follow the on-screen prompts (the defaults are fine). Then reload your shell:
 source "$HOME/.cargo/env"
 ```
 
-Verify the installation:
-
-```sh
-rustc --version
-cargo --version
-```
-
 **Minimum Rust edition:** 2024. Run `rustup update` if you have an older toolchain.
 
-### 3. Install Ollama
+### 3. Install Node.js
+
+Required for the Tauri GUI frontend. Install via your package manager:
+
+```sh
+# Ubuntu/Debian (via NodeSource)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install nodejs
+
+# Fedora
+sudo dnf install nodejs
+
+# Arch
+sudo pacman -S nodejs npm
+```
+
+Or use [nvm](https://github.com/nvm-sh/nvm) for version management. Node.js v20+ recommended.
+
+### 4. Install Tauri CLI
+
+```sh
+cargo install tauri-cli
+```
+
+### 5. Install Ollama
 
 Install via the official script (auto-detects GPU):
 
@@ -77,37 +97,17 @@ Verify it is running:
 curl http://localhost:11434/api/tags
 ```
 
-Or open `http://localhost:11434` in a browser — you should see "Ollama is running".
-
-> **Note:** Parish can also auto-install Ollama on Linux if it is not found. On first run, it will prompt to download and install it for you.
-
-### 4. GPU Setup (Optional)
+### 6. GPU Setup (Optional)
 
 GPU acceleration is optional but strongly recommended for larger models.
 
-**NVIDIA (CUDA):**
+**NVIDIA (CUDA):** Install the proprietary NVIDIA drivers for your distribution. Ollama detects CUDA automatically. Verify with `nvidia-smi`.
 
-Install the proprietary NVIDIA drivers for your distribution. Ollama detects CUDA automatically. Verify with:
+**AMD (ROCm):** Install ROCm following the [official guide](https://rocm.docs.amd.com/). Verify with `rocm-smi`.
 
-```sh
-nvidia-smi
-```
+**CPU-only:** No extra setup needed. Use a smaller model (`qwen3:4b` or `qwen3:1.7b`).
 
-**AMD (ROCm):**
-
-Install ROCm following the [official guide](https://rocm.docs.amd.com/). Verify with:
-
-```sh
-rocm-smi
-```
-
-**CPU-only:**
-
-No extra setup needed. Use a smaller model (`qwen3:4b` or `qwen3:1.7b`) for reasonable performance.
-
-### 5. Pull a Model
-
-Parish auto-detects your hardware and selects a model when you first run the game, but you can pre-pull one:
+### 7. Pull a Model
 
 ```sh
 # 12 GB+ VRAM — full quality
@@ -118,9 +118,6 @@ ollama pull qwen3:8b
 
 # 3 GB+ VRAM or CPU — lighter model
 ollama pull qwen3:4b
-
-# CPU-only / low memory — minimal
-ollama pull qwen3:1.7b
 ```
 
 See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
@@ -130,28 +127,33 @@ See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
 ```sh
 git clone <repo-url> parish
 cd parish
-cargo build
+```
+
+### GUI Mode (Tauri Desktop App)
+
+```sh
+# Install frontend dependencies (one-time)
+cd ui && npm install && cd ..
+
+# Launch the desktop app (Vite hot-reload + Rust backend)
+cargo tauri dev
+```
+
+For a production bundle:
+
+```sh
+cargo tauri build
+```
+
+### TUI Mode (Terminal)
+
+```sh
 cargo run
-```
-
-For an optimized build:
-
-```sh
-cargo build --release
-cargo run --release
-```
-
-### GUI Mode
-
-Parish includes a windowed GUI mode using egui. This requires a display server (X11 or Wayland):
-
-```sh
-cargo run -- --gui
 ```
 
 ### Headless Mode
 
-For piping input/output or running without a terminal UI:
+For piping input/output or running without a UI:
 
 ```sh
 cargo run -- --headless
@@ -166,13 +168,13 @@ To capture GUI screenshots on a headless server (e.g., CI):
 sudo apt install xvfb    # Ubuntu/Debian
 sudo dnf install xorg-x11-server-Xvfb  # Fedora
 
-# Capture screenshots
-xvfb-run -a cargo run -- --screenshot docs/screenshots
+# Capture screenshots at 4 times of day
+xvfb-run -a cargo tauri dev -- -- --screenshot docs/screenshots
 ```
 
-## Terminal Recommendations
+## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI (terminal user interface) with 24-bit true color. For the best experience:
+Parish uses a TUI with 24-bit true color. For the best experience:
 
 - **GNOME Terminal** — full true-color support, default on many distros.
 - **Konsole** — KDE's terminal, excellent color and Unicode support.
@@ -180,14 +182,6 @@ Parish uses a TUI (terminal user interface) with 24-bit true color. For the best
 - **Alacritty** — GPU-accelerated, minimal, full true-color support.
 
 Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
-
-Test 24-bit color support with:
-
-```sh
-printf "\x1b[38;2;255;100;0mTRUECOLOR\x1b[0m\n"
-```
-
-You should see orange text. If not, upgrade your terminal or set `COLORTERM=truecolor` in your shell profile.
 
 ## Configuration (Optional)
 
@@ -197,55 +191,27 @@ Parish works out of the box with Ollama defaults. To use an alternative LLM prov
 cp .env.example .env
 ```
 
-Edit `.env` to set your provider, API key, and model. See the comments in `.env.example` for options. You can also configure via `parish.toml` or CLI flags — see [Architecture Overview](design/overview.md) for details.
+Edit `.env` to set your provider, API key, and model. See [Architecture Overview](design/overview.md) for details.
 
 ## Troubleshooting
 
 ### `cargo build` fails with linker errors
 
-Build tools are missing. Install them:
-
-```sh
-# Ubuntu/Debian
-sudo apt install build-essential pkg-config
-
-# Fedora
-sudo dnf groupinstall "Development Tools"
-```
+Build tools or WebKit2GTK dev headers are missing. See step 1 above.
 
 ### Ollama not responding
 
 - Check the service status: `systemctl status ollama`.
 - Start it if stopped: `sudo systemctl start ollama` or run `ollama serve` manually.
 - Verify the port: `curl http://localhost:11434/api/tags`.
-- Check for port conflicts: `ss -tlnp | grep 11434`.
-
-### GPU not detected by Ollama
-
-- **NVIDIA:** Ensure `nvidia-smi` works and shows your GPU. Install drivers via your distro's package manager or the NVIDIA `.run` installer.
-- **AMD:** Ensure `rocm-smi` works. ROCm requires specific kernel versions — check the [compatibility matrix](https://rocm.docs.amd.com/).
-- After installing drivers, restart Ollama: `sudo systemctl restart ollama`.
-
-### TUI looks garbled or has no color
-
-- Upgrade to a modern terminal (GNOME Terminal, kitty, Alacritty).
-- Set `COLORTERM=truecolor` in your `.bashrc` or `.zshrc`.
-- Ensure your `TERM` variable is set to a value supporting 256+ colors (e.g., `xterm-256color`).
-- Resize your terminal to at least 120×40.
 
 ### GUI mode fails to start
 
+- Ensure WebKit2GTK 4.1 dev headers are installed (see step 1).
 - Ensure a display server is running (X11 or Wayland).
-- On Wayland, you may need to set `WAYLAND_DISPLAY` or `DISPLAY` environment variables.
 - On a headless server, use `xvfb-run` (see screenshot capture section above).
-
-### SQLite errors
-
-Parish bundles SQLite via `rusqlite` with `features = ["bundled"]`, so no system SQLite installation is needed. Build errors related to SQLite typically indicate a missing C compiler — ensure build-essential or equivalent is installed.
 
 ### Model runs slowly
 
-- Check GPU utilization with `nvidia-smi` (NVIDIA) or `rocm-smi` (AMD) while the model is running.
-- If the model falls back to CPU, ensure Ollama has GPU access (check `ollama ps`).
+- Check GPU utilization with `nvidia-smi` (NVIDIA) or `rocm-smi` (AMD).
 - Try a smaller model (`qwen3:4b` or `qwen3:1.7b`) for CPU-only systems.
-- Ensure no other processes are consuming GPU memory.

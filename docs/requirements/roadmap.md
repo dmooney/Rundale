@@ -104,16 +104,31 @@
 
 - [ ] Client-server protocol definition (`ClientMessage` / `ServerMessage`)
 - [ ] `GameSession` extraction (decouple game engine from UI)
-- [ ] Shared `parish-ui` crate (egui panels reusable across all frontends)
 - [ ] axum game server with WebSocket support
 - [ ] Session management (create, resume, idle timeout)
-- [ ] Web client: egui compiled to WASM via `trunk`
+- [ ] Web client: Svelte SPA deployed to static hosting
 - [ ] Web client: WebSocket networking layer
 - [ ] Mobile client: Tauri v2 project (iOS + Android)
 - [ ] Mobile-specific adaptations (touch input, responsive layout)
 - [ ] Authentication (session tokens)
 - [ ] Server deployment (Docker, health checks)
 - [ ] Monitoring and rate limiting
+
+## Phase 8 — Tauri GUI Rewrite
+
+> [Detailed plan](../plans/phase-8-tauri-gui.md) | [ADR-015](../adr/015-tauri-svelte-gui.md)
+
+- [x] Convert Cargo.toml to workspace (root + crates/parish-core + src-tauri)
+- [x] Extract pure game logic to `crates/parish-core` library crate
+- [x] Delete `src/gui/` (egui); clean root `lib.rs` and `main.rs`
+- [x] Scaffold `src-tauri/` Tauri 2 backend with `AppState`, IPC commands, streaming events
+- [x] Scaffold `ui/` Svelte 5 + SvelteKit frontend (static adapter)
+- [x] IPC types (`ui/src/lib/types.ts`), command wrappers (`ipc.ts`), Svelte stores
+- [x] Svelte components: StatusBar, ChatPanel, MapPanel, Sidebar, InputField
+- [x] CSS theme via CSS custom properties (`var(--color-*)`) driven by Rust theme-tick events
+- [x] Add `lat`/`lon` to `LocationData` for SVG map projection
+- [x] Frontend component tests (Vitest + @testing-library/svelte, 22 tests)
+- [ ] Screenshot replacement via `WebviewWindow::capture_image()`
 
 ## Open Questions
 
