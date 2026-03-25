@@ -4,7 +4,7 @@
 //! (NPC inference, intent parsing, system commands) as the TUI mode.
 //! Activated with `--headless` on the command line.
 
-use crate::config::{CloudConfig, Provider, ProviderConfig};
+use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, Provider, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
@@ -18,6 +18,7 @@ use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
+use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::Path;
 use std::sync::Arc;
@@ -35,19 +36,18 @@ pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,
     cloud_config: Option<&CloudConfig>,
+    category_configs: &HashMap<InferenceCategory, CategoryConfig>,
     improv: bool,
 ) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
     println!(
-        "Local: {} ({})",
-        clients.local_model,
+        "Base: {} ({})",
+        clients.base_model,
         provider_config.provider_display()
     );
-    if clients.has_cloud() {
-        println!(
-            "Cloud: {} (dialogue)",
-            clients.cloud_model.as_deref().unwrap_or("?")
-        );
+    if clients.has_custom_dialogue() {
+        let (_, dial_model) = clients.dialogue_client();
+        println!("Dialogue: {} (override)", dial_model);
     }
     println!("Type /help for commands, /quit to exit.");
     println!();
@@ -70,19 +70,46 @@ pub async fn run_headless(
         }
     }
     app.inference_queue = Some(queue);
-    app.client = Some(clients.local.clone());
-    app.model_name = clients.local_model.clone();
+    app.client = Some(clients.base.clone());
+    app.model_name = clients.base_model.clone();
     app.dialogue_model = dialogue_model;
     app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = improv;
 
-    // Set cloud fields if configured
-    if let Some(cc) = cloud_config {
+    // Set intent client/model
+    let (intent_cl, intent_mdl) = clients.intent_client();
+    app.intent_client = Some(intent_cl.clone());
+    app.intent_model = intent_mdl.to_string();
+
+    // Set simulation client/model
+    let (sim_cl, sim_mdl) = clients.simulation_client();
+    app.simulation_client = Some(sim_cl.clone());
+    app.simulation_model = sim_mdl.to_string();
+
+    // Initialize per-category provider metadata from config
+    if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
+        app.intent_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.intent_api_key = cat_cfg.api_key.clone();
+        app.intent_base_url = Some(cat_cfg.base_url.clone());
+    }
+    if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Simulation) {
+        app.simulation_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.simulation_api_key = cat_cfg.api_key.clone();
+        app.simulation_base_url = Some(cat_cfg.base_url.clone());
+    }
+
+    // Set cloud/dialogue fields if configured
+    if clients.has_custom_dialogue() {
+        let (dial_cl, dial_mdl) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
+        app.cloud_model_name = Some(dial_mdl.to_string());
+    } else if let Some(cc) = cloud_config {
         app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
         app.cloud_model_name = Some(cc.model.clone());
-        app.cloud_client = clients.cloud.clone();
+        let (dial_cl, _) = clients.dialogue_client();
+        app.cloud_client = Some(dial_cl.clone());
         app.cloud_api_key = cc.api_key.clone();
         app.cloud_base_url = Some(cc.base_url.clone());
     }
@@ -184,8 +211,8 @@ pub async fn run_headless(
                 }
             }
             InputResult::GameInput(text) => {
-                let intent_client = app.client.clone().unwrap();
-                let intent_model = app.model_name.clone();
+                let intent_client = app.intent_client.clone().unwrap();
+                let intent_model = app.intent_model.clone();
                 handle_headless_game_input(
                     &mut app,
                     &intent_client,
@@ -324,10 +351,15 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /status   - Where am I?");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
-            println!("  /provider - Show or change local LLM provider");
-            println!("  /model    - Show or change local model name");
-            println!("  /key      - Show or change local API key");
-            println!("  /cloud    - Show or change cloud dialogue provider");
+            println!("  /provider - Show or change base LLM provider");
+            println!("  /model    - Show or change base model name");
+            println!("  /key      - Show or change base API key");
+            println!("  /cloud    - Show or change cloud dialogue provider (legacy)");
+            println!(
+                "  /model.<cat>    - Show or change model for a category (dialogue/simulation/intent)"
+            );
+            println!("  /provider.<cat> - Show or change provider for a category");
+            println!("  /key.<cat>      - Show or change API key for a category");
             println!("  /help     - Show this help");
             println!("  /save     - Save game");
             println!("  /fork <n> - Fork a new timeline branch");
@@ -347,10 +379,11 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             }
         }
         Command::ShowProvider => {
-            if let Some(ref cloud) = app.cloud_provider_name {
-                println!("Local: {} | Cloud: {}", app.provider_name, cloud);
-            } else {
-                println!("Provider: {}", app.provider_name);
+            println!("Base: {}", app.provider_name);
+            for cat in InferenceCategory::ALL {
+                if let Some(provider) = app.category_provider_name(cat) {
+                    println!("  {}: {}", cat.name(), provider);
+                }
             }
         }
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
@@ -367,9 +400,15 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         },
         Command::ShowModel => {
             if app.model_name.is_empty() {
-                println!("Model: (auto-detect)");
+                println!("Base model: (auto-detect)");
             } else {
-                println!("Model: {}", app.model_name);
+                println!("Base model: {}", app.model_name);
+            }
+            for cat in InferenceCategory::ALL {
+                let model = app.category_model(cat);
+                if !model.is_empty() {
+                    println!("  {}: {}", cat.name(), model);
+                }
             }
         }
         Command::SetModel(name) => {
@@ -608,6 +647,66 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
             rebuild = true;
             println!("Cloud API key updated.");
+        }
+        Command::ShowCategoryProvider(cat) => {
+            let name = cat.name();
+            if let Some(provider) = app.category_provider_name(cat) {
+                println!("{} provider: {}", name, provider);
+            } else {
+                println!("{} provider: (inherits base: {})", name, app.provider_name);
+            }
+        }
+        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                let base_url = provider.default_base_url().to_string();
+                let provider_name = format!("{:?}", provider).to_lowercase();
+                let api_key = app.category_api_key(cat).map(|s| s.to_string());
+                app.set_category_provider_name(cat, provider_name.clone());
+                app.set_category_base_url(cat, base_url.clone());
+                app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+                rebuild = true;
+                println!("{} provider changed to {}.", cat.name(), provider_name);
+            }
+            Err(e) => {
+                println!("{}", e);
+            }
+        },
+        Command::ShowCategoryModel(cat) => {
+            let model = app.category_model(cat);
+            if model.is_empty() {
+                println!("{} model: (inherits base: {})", cat.name(), app.model_name);
+            } else {
+                println!("{} model: {}", cat.name(), model);
+            }
+        }
+        Command::SetCategoryModel(cat, name) => {
+            let cat_name = cat.name();
+            app.set_category_model(cat, name.clone());
+            println!("{} model changed to {}.", cat_name, name);
+        }
+        Command::ShowCategoryKey(cat) => match app.category_api_key(cat) {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                println!("{} API key: {}", cat.name(), masked);
+            }
+            Some(_) => {
+                println!("{} API key: (set, too short to mask)", cat.name());
+            }
+            None => {
+                println!("{} API key: (not set)", cat.name());
+            }
+        },
+        Command::SetCategoryKey(cat, value) => {
+            let cat_name = cat.name();
+            app.set_category_api_key(cat, value);
+            let base_url = app
+                .category_base_url(cat)
+                .unwrap_or(&app.base_url)
+                .to_string();
+            let api_key = app.category_api_key(cat).map(|s| s.to_string());
+            app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+            rebuild = true;
+            println!("{} API key updated.", cat_name);
         }
     }
     (false, rebuild)
@@ -1128,5 +1227,74 @@ mod tests {
             (app.world.clock.speed_factor() - 72.0).abs() < f64::EPSILON,
             "Speed should be 72.0 after setting Fast"
         );
+    }
+
+    #[tokio::test]
+    async fn test_handle_set_category_model_dialogue() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCategoryModel(InferenceCategory::Dialogue, "gpt-4".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+        assert_eq!(app.cloud_model_name.as_deref(), Some("gpt-4"));
+        assert_eq!(app.dialogue_model, "gpt-4");
+    }
+
+    #[tokio::test]
+    async fn test_handle_set_category_model_intent() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCategoryModel(InferenceCategory::Intent, "qwen3:1.5b".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+        assert_eq!(app.intent_model, "qwen3:1.5b");
+    }
+
+    #[tokio::test]
+    async fn test_handle_set_category_model_simulation() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCategoryModel(InferenceCategory::Simulation, "qwen3:8b".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+        assert_eq!(app.simulation_model, "qwen3:8b");
+    }
+
+    #[tokio::test]
+    async fn test_handle_set_category_provider_rebuilds() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCategoryProvider(InferenceCategory::Intent, "openrouter".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(
+            rebuild,
+            "Setting a category provider should trigger rebuild"
+        );
+        assert_eq!(app.intent_provider_name.as_deref(), Some("openrouter"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_set_category_key_rebuilds() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCategoryKey(InferenceCategory::Dialogue, "sk-test-key".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(rebuild, "Setting a category key should trigger rebuild");
+        assert_eq!(app.cloud_api_key.as_deref(), Some("sk-test-key"));
     }
 }

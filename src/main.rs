@@ -1,8 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
 use parish::config::{
-    CliCloudOverrides, CliOverrides, CloudConfig, Provider, ProviderConfig, resolve_cloud_config,
-    resolve_config,
+    CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, Provider,
+    ProviderConfig, resolve_category_configs, resolve_cloud_config, resolve_config,
 };
 use parish::headless;
 use parish::inference::openai_client::OpenAiClient;
@@ -78,6 +78,46 @@ struct Cli {
     #[arg(long, env = "PARISH_CLOUD_API_KEY")]
     cloud_api_key: Option<String>,
 
+    // --- Per-category provider overrides ---
+    /// Dialogue LLM provider override
+    #[arg(long, env = "PARISH_DIALOGUE_PROVIDER")]
+    dialogue_provider: Option<String>,
+    /// Dialogue LLM model override
+    #[arg(long, env = "PARISH_DIALOGUE_MODEL")]
+    dialogue_model: Option<String>,
+    /// Dialogue LLM base URL override
+    #[arg(long, env = "PARISH_DIALOGUE_BASE_URL")]
+    dialogue_base_url: Option<String>,
+    /// Dialogue LLM API key override
+    #[arg(long, env = "PARISH_DIALOGUE_API_KEY")]
+    dialogue_api_key: Option<String>,
+
+    /// Simulation LLM provider override
+    #[arg(long, env = "PARISH_SIMULATION_PROVIDER")]
+    simulation_provider: Option<String>,
+    /// Simulation LLM model override
+    #[arg(long, env = "PARISH_SIMULATION_MODEL")]
+    simulation_model: Option<String>,
+    /// Simulation LLM base URL override
+    #[arg(long, env = "PARISH_SIMULATION_BASE_URL")]
+    simulation_base_url: Option<String>,
+    /// Simulation LLM API key override
+    #[arg(long, env = "PARISH_SIMULATION_API_KEY")]
+    simulation_api_key: Option<String>,
+
+    /// Intent parsing LLM provider override
+    #[arg(long, env = "PARISH_INTENT_PROVIDER")]
+    intent_provider: Option<String>,
+    /// Intent parsing LLM model override
+    #[arg(long, env = "PARISH_INTENT_MODEL")]
+    intent_model: Option<String>,
+    /// Intent parsing LLM base URL override
+    #[arg(long, env = "PARISH_INTENT_BASE_URL")]
+    intent_base_url: Option<String>,
+    /// Intent parsing LLM API key override
+    #[arg(long, env = "PARISH_INTENT_API_KEY")]
+    intent_api_key: Option<String>,
+
     /// Run in TUI mode (terminal interface) instead of default GUI
     #[arg(long)]
     tui: bool,
@@ -131,7 +171,7 @@ async fn main() -> Result<()> {
     };
     let provider_config = resolve_config(config_path, &overrides)?;
 
-    // Resolve cloud provider configuration (optional, for dialogue)
+    // Resolve cloud provider configuration (legacy, for backward compat)
     let cloud_overrides = CliCloudOverrides {
         provider: cli.cloud_provider.clone(),
         base_url: cli.cloud_base_url.clone(),
@@ -140,17 +180,30 @@ async fn main() -> Result<()> {
     };
     let cloud_config = resolve_cloud_config(config_path, &cloud_overrides)?;
 
+    // Build per-category CLI overrides
+    let cli_category_overrides = build_cli_category_overrides(&cli);
+
+    // Resolve per-category provider configs
+    let category_configs = resolve_category_configs(
+        config_path,
+        &provider_config,
+        &cli_category_overrides,
+        &cloud_overrides,
+    )?;
+
     // Set up local inference client based on provider
     let (client, model, mut ollama_process) = setup_provider(&cli, &provider_config).await?;
 
-    // Build dual-client routing struct
-    let clients = build_inference_clients(&client, &model, &cloud_config);
+    // Build per-category client routing struct
+    let clients = build_inference_clients(&client, &model, &category_configs);
 
-    if cloud_config.is_some() {
+    for (cat, cfg) in &category_configs {
         tracing::info!(
-            "Cloud dialogue enabled: {:?} with model {}",
-            clients.cloud_model.as_deref().unwrap_or("?"),
-            clients.cloud_model.as_deref().unwrap_or("?")
+            "{:?} category: {:?} provider at {} with model {}",
+            cat,
+            cfg.provider,
+            cfg.base_url,
+            cfg.model.as_deref().unwrap_or("(auto)")
         );
     }
 
@@ -159,6 +212,7 @@ async fn main() -> Result<()> {
             clients.clone(),
             &provider_config,
             cloud_config.as_ref(),
+            &category_configs,
             cli.improv,
         )
         .await;
@@ -187,21 +241,51 @@ async fn main() -> Result<()> {
             }
         }
         app.inference_queue = Some(queue);
-        app.client = Some(clients.local.clone());
-        app.model_name = clients.local_model.clone();
+        app.client = Some(clients.base.clone());
+        app.model_name = clients.base_model.clone();
         app.dialogue_model = dial_model.to_string();
         app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
         app.base_url = provider_config.base_url.clone();
         app.api_key = provider_config.api_key.clone();
         app.improv_enabled = cli.improv;
 
-        // Set cloud fields if configured
-        if let Some(ref cc) = cloud_config {
+        // Set cloud fields if configured (legacy compat + new per-category)
+        if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Dialogue) {
+            app.cloud_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+            app.cloud_model_name = cat_cfg.model.clone();
+            let (dial_cl, _) = clients.dialogue_client();
+            app.cloud_client = Some(dial_cl.clone());
+            app.cloud_api_key = cat_cfg.api_key.clone();
+            app.cloud_base_url = Some(cat_cfg.base_url.clone());
+        } else if let Some(ref cc) = cloud_config {
             app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
             app.cloud_model_name = Some(cc.model.clone());
-            app.cloud_client = clients.cloud.clone();
+            let (dial_cl, _) = clients.dialogue_client();
+            app.cloud_client = Some(dial_cl.clone());
             app.cloud_api_key = cc.api_key.clone();
             app.cloud_base_url = Some(cc.base_url.clone());
+        }
+
+        // Set intent client/model (may differ from base)
+        let (intent_cl, intent_mdl) = clients.intent_client();
+        app.intent_client = Some(intent_cl.clone());
+        app.intent_model = intent_mdl.to_string();
+
+        // Set simulation client/model (may differ from base)
+        let (sim_cl, sim_mdl) = clients.simulation_client();
+        app.simulation_client = Some(sim_cl.clone());
+        app.simulation_model = sim_mdl.to_string();
+
+        // Initialize per-category provider metadata from config
+        if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
+            app.intent_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+            app.intent_api_key = cat_cfg.api_key.clone();
+            app.intent_base_url = Some(cat_cfg.base_url.clone());
+        }
+        if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Simulation) {
+            app.simulation_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+            app.simulation_api_key = cat_cfg.api_key.clone();
+            app.simulation_base_url = Some(cat_cfg.base_url.clone());
         }
 
         // Load NPCs from data file
@@ -356,9 +440,9 @@ async fn main() -> Result<()> {
                         }
                     }
                     InputResult::GameInput(text) => {
-                        // Always parse intent first (uses local client for low latency)
-                        let (intent_client, intent_model) =
-                            (app.client.clone().unwrap(), app.model_name.clone());
+                        // Parse intent (uses intent client, may be per-category override or base)
+                        let intent_client = app.intent_client.clone().unwrap();
+                        let intent_model = app.intent_model.clone();
                         let intent = parse_intent(&intent_client, &text, &intent_model).await?;
 
                         match intent.intent {
@@ -667,25 +751,68 @@ async fn setup_provider(
     }
 }
 
-/// Builds the dual-client inference routing struct from local and cloud configs.
+/// Builds the per-category inference routing struct from base and category configs.
 fn build_inference_clients(
-    local_client: &OpenAiClient,
-    local_model: &str,
-    cloud_config: &Option<CloudConfig>,
+    base_client: &OpenAiClient,
+    base_model: &str,
+    category_configs: &std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
 ) -> InferenceClients {
-    let (cloud_client, cloud_model) = match cloud_config {
-        Some(cc) => {
-            let client = OpenAiClient::new(&cc.base_url, cc.api_key.as_deref());
-            (Some(client), Some(cc.model.clone()))
-        }
-        None => (None, None),
-    };
-    InferenceClients {
-        local: local_client.clone(),
-        local_model: local_model.to_string(),
-        cloud: cloud_client,
-        cloud_model,
+    let mut overrides = std::collections::HashMap::new();
+    for (category, cfg) in category_configs {
+        let client = OpenAiClient::new(&cfg.base_url, cfg.api_key.as_deref());
+        let model = cfg.model.clone().unwrap_or_else(|| base_model.to_string());
+        overrides.insert(*category, (client, model));
     }
+    InferenceClients::new(base_client.clone(), base_model.to_string(), overrides)
+}
+
+/// Builds per-category CLI overrides from the parsed CLI arguments.
+fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
+    let mut categories = std::collections::HashMap::new();
+
+    let dialogue = CliOverrides {
+        provider: cli.dialogue_provider.clone(),
+        base_url: cli.dialogue_base_url.clone(),
+        api_key: cli.dialogue_api_key.clone(),
+        model: cli.dialogue_model.clone(),
+    };
+    if dialogue.provider.is_some()
+        || dialogue.base_url.is_some()
+        || dialogue.api_key.is_some()
+        || dialogue.model.is_some()
+    {
+        categories.insert("dialogue".to_string(), dialogue);
+    }
+
+    let simulation = CliOverrides {
+        provider: cli.simulation_provider.clone(),
+        base_url: cli.simulation_base_url.clone(),
+        api_key: cli.simulation_api_key.clone(),
+        model: cli.simulation_model.clone(),
+    };
+    if simulation.provider.is_some()
+        || simulation.base_url.is_some()
+        || simulation.api_key.is_some()
+        || simulation.model.is_some()
+    {
+        categories.insert("simulation".to_string(), simulation);
+    }
+
+    let intent = CliOverrides {
+        provider: cli.intent_provider.clone(),
+        base_url: cli.intent_base_url.clone(),
+        api_key: cli.intent_api_key.clone(),
+        model: cli.intent_model.clone(),
+    };
+    if intent.provider.is_some()
+        || intent.base_url.is_some()
+        || intent.api_key.is_some()
+        || intent.model.is_some()
+    {
+        categories.insert("intent".to_string(), intent);
+    }
+
+    CliCategoryOverrides { categories }
 }
 
 /// Atmospheric idle messages shown when no NPC is present for conversation.
@@ -818,11 +945,11 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             }
         }
         Command::ShowProvider => {
-            if let Some(ref cloud) = app.cloud_provider_name {
-                app.world
-                    .log(format!("Local: {} | Cloud: {}", app.provider_name, cloud));
-            } else {
-                app.world.log(format!("Provider: {}", app.provider_name));
+            app.world.log(format!("Base: {}", app.provider_name));
+            for cat in InferenceCategory::ALL {
+                if let Some(provider) = app.category_provider_name(cat) {
+                    app.world.log(format!("  {}: {}", cat.name(), provider));
+                }
             }
         }
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
@@ -840,9 +967,15 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
         },
         Command::ShowModel => {
             if app.model_name.is_empty() {
-                app.world.log("Model: (auto-detect)".to_string());
+                app.world.log("Base model: (auto-detect)".to_string());
             } else {
-                app.world.log(format!("Model: {}", app.model_name));
+                app.world.log(format!("Base model: {}", app.model_name));
+            }
+            for cat in InferenceCategory::ALL {
+                let model = app.category_model(cat);
+                if !model.is_empty() {
+                    app.world.log(format!("  {}: {}", cat.name(), model));
+                }
             }
         }
         Command::SetModel(name) => {
@@ -1098,6 +1231,80 @@ async fn handle_system_command(app: &mut App, cmd: Command) -> bool {
             app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
             rebuild_inference = true;
             app.world.log("Cloud API key updated.".to_string());
+        }
+        Command::ShowCategoryProvider(cat) => {
+            if let Some(provider) = app.category_provider_name(cat) {
+                app.world
+                    .log(format!("{} provider: {}", cat.name(), provider));
+            } else {
+                app.world.log(format!(
+                    "{} provider: (inherits base: {})",
+                    cat.name(),
+                    app.provider_name
+                ));
+            }
+        }
+        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                let base_url = provider.default_base_url().to_string();
+                let provider_name = format!("{:?}", provider).to_lowercase();
+                let api_key = app.category_api_key(cat).map(|s| s.to_string());
+                app.set_category_provider_name(cat, provider_name.clone());
+                app.set_category_base_url(cat, base_url.clone());
+                app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+                rebuild_inference = true;
+                app.world.log(format!(
+                    "{} provider changed to {}.",
+                    cat.name(),
+                    provider_name
+                ));
+            }
+            Err(e) => {
+                app.world.log(format!("{}", e));
+            }
+        },
+        Command::ShowCategoryModel(cat) => {
+            let model = app.category_model(cat);
+            if model.is_empty() {
+                app.world.log(format!(
+                    "{} model: (inherits base: {})",
+                    cat.name(),
+                    app.model_name
+                ));
+            } else {
+                app.world.log(format!("{} model: {}", cat.name(), model));
+            }
+        }
+        Command::SetCategoryModel(cat, name) => {
+            let cat_name = cat.name();
+            app.set_category_model(cat, name.clone());
+            app.world
+                .log(format!("{} model changed to {}.", cat_name, name));
+        }
+        Command::ShowCategoryKey(cat) => match app.category_api_key(cat) {
+            Some(key) if key.len() > 8 => {
+                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
+                app.world.log(format!("{} API key: {}", cat.name(), masked));
+            }
+            Some(_) => {
+                app.world
+                    .log(format!("{} API key: (set, too short to mask)", cat.name()));
+            }
+            None => {
+                app.world.log(format!("{} API key: (not set)", cat.name()));
+            }
+        },
+        Command::SetCategoryKey(cat, value) => {
+            let cat_name = cat.name();
+            app.set_category_api_key(cat, value);
+            let base_url = app
+                .category_base_url(cat)
+                .unwrap_or(&app.base_url)
+                .to_string();
+            let api_key = app.category_api_key(cat).map(|s| s.to_string());
+            app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
+            rebuild_inference = true;
+            app.world.log(format!("{} API key updated.", cat_name));
         }
     }
     app.world.log(String::new());

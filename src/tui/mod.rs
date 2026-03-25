@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::config::InferenceCategory;
 use crate::inference::InferenceQueue;
 use crate::inference::openai_client::OpenAiClient;
 use crate::loading::LoadingAnimation;
@@ -242,6 +243,26 @@ pub struct App {
     pub latest_snapshot_id: i64,
     /// Wall-clock time of the last autosave.
     pub last_autosave: Option<Instant>,
+    /// The LLM client for intent parsing (may differ from base client).
+    pub intent_client: Option<OpenAiClient>,
+    /// The model name for intent parsing.
+    pub intent_model: String,
+    /// Provider name for intent category (None = inherits base).
+    pub intent_provider_name: Option<String>,
+    /// API key for intent category.
+    pub intent_api_key: Option<String>,
+    /// Base URL for intent category.
+    pub intent_base_url: Option<String>,
+    /// The LLM client for simulation (may differ from base client).
+    pub simulation_client: Option<OpenAiClient>,
+    /// The model name for simulation.
+    pub simulation_model: String,
+    /// Provider name for simulation category (None = inherits base).
+    pub simulation_provider_name: Option<String>,
+    /// API key for simulation category.
+    pub simulation_api_key: Option<String>,
+    /// Base URL for simulation category.
+    pub simulation_base_url: Option<String>,
 }
 
 impl App {
@@ -276,6 +297,109 @@ impl App {
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,
+            intent_client: None,
+            intent_model: String::new(),
+            intent_provider_name: None,
+            intent_api_key: None,
+            intent_base_url: None,
+            simulation_client: None,
+            simulation_model: String::new(),
+            simulation_provider_name: None,
+            simulation_api_key: None,
+            simulation_base_url: None,
+        }
+    }
+
+    /// Returns the provider name for a given inference category (or None if inheriting base).
+    pub fn category_provider_name(&self, cat: InferenceCategory) -> Option<&str> {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
+            InferenceCategory::Simulation => self.simulation_provider_name.as_deref(),
+            InferenceCategory::Intent => self.intent_provider_name.as_deref(),
+        }
+    }
+
+    /// Returns the model name for a given inference category (empty string if inheriting base).
+    pub fn category_model(&self, cat: InferenceCategory) -> &str {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
+            InferenceCategory::Simulation => &self.simulation_model,
+            InferenceCategory::Intent => &self.intent_model,
+        }
+    }
+
+    /// Returns the API key for a given inference category.
+    pub fn category_api_key(&self, cat: InferenceCategory) -> Option<&str> {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
+            InferenceCategory::Simulation => self.simulation_api_key.as_deref(),
+            InferenceCategory::Intent => self.intent_api_key.as_deref(),
+        }
+    }
+
+    /// Returns the base URL for a given inference category.
+    pub fn category_base_url(&self, cat: InferenceCategory) -> Option<&str> {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
+            InferenceCategory::Simulation => self.simulation_base_url.as_deref(),
+            InferenceCategory::Intent => self.intent_base_url.as_deref(),
+        }
+    }
+
+    /// Returns the client for a given inference category.
+    pub fn category_client(&self, cat: InferenceCategory) -> Option<&OpenAiClient> {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_client.as_ref(),
+            InferenceCategory::Simulation => self.simulation_client.as_ref(),
+            InferenceCategory::Intent => self.intent_client.as_ref(),
+        }
+    }
+
+    /// Sets the provider name for a given inference category.
+    pub fn set_category_provider_name(&mut self, cat: InferenceCategory, name: String) {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
+            InferenceCategory::Simulation => self.simulation_provider_name = Some(name),
+            InferenceCategory::Intent => self.intent_provider_name = Some(name),
+        }
+    }
+
+    /// Sets the model name for a given inference category.
+    pub fn set_category_model(&mut self, cat: InferenceCategory, model: String) {
+        match cat {
+            InferenceCategory::Dialogue => {
+                self.cloud_model_name = Some(model.clone());
+                self.dialogue_model = model;
+            }
+            InferenceCategory::Simulation => self.simulation_model = model,
+            InferenceCategory::Intent => self.intent_model = model,
+        }
+    }
+
+    /// Sets the API key for a given inference category.
+    pub fn set_category_api_key(&mut self, cat: InferenceCategory, key: String) {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
+            InferenceCategory::Simulation => self.simulation_api_key = Some(key),
+            InferenceCategory::Intent => self.intent_api_key = Some(key),
+        }
+    }
+
+    /// Sets the base URL for a given inference category.
+    pub fn set_category_base_url(&mut self, cat: InferenceCategory, url: String) {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
+            InferenceCategory::Simulation => self.simulation_base_url = Some(url),
+            InferenceCategory::Intent => self.intent_base_url = Some(url),
+        }
+    }
+
+    /// Sets the client for a given inference category.
+    pub fn set_category_client(&mut self, cat: InferenceCategory, client: OpenAiClient) {
+        match cat {
+            InferenceCategory::Dialogue => self.cloud_client = Some(client),
+            InferenceCategory::Simulation => self.simulation_client = Some(client),
+            InferenceCategory::Intent => self.intent_client = Some(client),
         }
     }
 

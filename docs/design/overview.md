@@ -164,34 +164,44 @@ model = "anthropic/claude-sonnet-4-20250514"
 CLI: `--provider`, `--base-url`, `--api-key`, `--model`
 Env: `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`
 
-### Dual-Client Architecture: Cloud Dialogue + Local Simulation
+### Per-Category Provider Routing
 
-Parish supports an optional **cloud LLM provider** for player-facing Tier 1 dialogue while keeping local inference for background NPC simulation and intent parsing (see [ADR-013](../adr/013-cloud-llm-dialogue.md)):
+Each inference category can use a different provider, model, and endpoint. Categories without explicit overrides inherit from the base `[provider]` config:
 
-| Inference Type | Client | Default |
+| Category | Purpose | Default |
 |---|---|---|
-| Tier 1 dialogue (player-facing) | Cloud (if configured) | Local fallback |
-| Tier 2 simulation (NPC background) | Local (always) | Ollama |
-| Intent parsing | Local (always) | Ollama |
+| **Dialogue** | Player-facing NPC conversation (Tier 1, streaming) | Base provider |
+| **Simulation** | Background NPC group interactions (Tier 2, JSON) | Base provider |
+| **Intent** | Player input parsing (JSON, low-latency) | Base provider |
 
-Cloud provider is configured independently via `[cloud]` TOML section:
+Per-category overrides in TOML:
 
 ```toml
 [provider]
 name = "ollama"
+model = "qwen3:14b"
 
-[cloud]
+[provider.dialogue]
 name = "openrouter"
+base_url = "https://openrouter.ai/api"
 api_key = "sk-or-..."
 model = "anthropic/claude-sonnet-4-20250514"
+
+[provider.simulation]
+model = "qwen3:8b"
+
+[provider.intent]
+model = "qwen3:1.5b"
 ```
 
-CLI: `--cloud-provider`, `--cloud-base-url`, `--cloud-api-key`, `--cloud-model`
-Env: `PARISH_CLOUD_PROVIDER`, `PARISH_CLOUD_BASE_URL`, `PARISH_CLOUD_API_KEY`, `PARISH_CLOUD_MODEL`
+Per-category CLI flags: `--dialogue-provider`, `--dialogue-model`, `--simulation-model`, `--intent-model`, etc.
+Per-category env vars: `PARISH_DIALOGUE_PROVIDER`, `PARISH_DIALOGUE_MODEL`, `PARISH_SIMULATION_MODEL`, `PARISH_INTENT_MODEL`, etc.
+
+**Legacy support**: The `[cloud]` TOML section, `--cloud-*` CLI flags, and `PARISH_CLOUD_*` env vars still work and map to the dialogue category. Explicit `[provider.dialogue]` overrides take precedence over `[cloud]`.
 
 Runtime commands: `/cloud`, `/cloud model <name>`, `/cloud key <key>`, `/cloud provider <name>`
 
-The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests to the correct client via `dialogue_client()`, `simulation_client()`, and `intent_client()` methods.
+The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests via `dialogue_client()`, `simulation_client()`, and `intent_client()` methods, falling back to the base provider when no per-category override exists.
 
 ### Ollama Bootstrap & GPU Detection (Default Path)
 

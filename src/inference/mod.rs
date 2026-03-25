@@ -86,51 +86,67 @@ impl InferenceQueue {
     }
 }
 
-/// Holds both local and cloud LLM clients for request routing.
+/// Per-category LLM client routing with a base provider fallback.
 ///
-/// The local client is used for Tier 2 background NPC simulation and intent parsing.
-/// The cloud client (if configured) is used for Tier 1 player-facing dialogue.
-/// Falls back to local if no cloud client is configured.
+/// Each inference category (dialogue, simulation, intent) can have its own
+/// provider, model, and endpoint. Categories without explicit overrides
+/// fall back to the base provider.
 #[derive(Clone)]
 pub struct InferenceClients {
-    /// Local client (Ollama/LM Studio) for background tasks and intent parsing.
-    pub local: OpenAiClient,
-    /// Local model name (e.g. "qwen3:14b").
-    pub local_model: String,
-    /// Cloud client for player dialogue (None = use local for everything).
-    pub cloud: Option<OpenAiClient>,
-    /// Cloud model name (e.g. "anthropic/claude-sonnet-4-20250514").
-    pub cloud_model: Option<String>,
+    /// Per-category (client, model) overrides.
+    overrides: std::collections::HashMap<crate::config::InferenceCategory, (OpenAiClient, String)>,
+    /// Base client used when no per-category override exists.
+    pub base: OpenAiClient,
+    /// Base model name (e.g. "qwen3:14b").
+    pub base_model: String,
 }
 
 impl InferenceClients {
-    /// Returns the client and model to use for player dialogue (Tier 1).
-    ///
-    /// Prefers cloud if configured, falls back to local.
-    pub fn dialogue_client(&self) -> (&OpenAiClient, &str) {
-        match (&self.cloud, &self.cloud_model) {
-            (Some(client), Some(model)) => (client, model),
-            _ => (&self.local, &self.local_model),
+    /// Creates a new `InferenceClients` with the given base client and per-category overrides.
+    pub fn new(
+        base: OpenAiClient,
+        base_model: String,
+        overrides: std::collections::HashMap<
+            crate::config::InferenceCategory,
+            (OpenAiClient, String),
+        >,
+    ) -> Self {
+        Self {
+            overrides,
+            base,
+            base_model,
         }
     }
 
-    /// Returns the client and model to use for background NPC simulation (Tier 2).
+    /// Returns the client and model for a given inference category.
     ///
-    /// Always uses the local client.
+    /// Uses the per-category override if configured, otherwise falls back to the base.
+    pub fn client_for(&self, category: crate::config::InferenceCategory) -> (&OpenAiClient, &str) {
+        match self.overrides.get(&category) {
+            Some((client, model)) => (client, model),
+            None => (&self.base, &self.base_model),
+        }
+    }
+
+    /// Returns the client and model to use for player dialogue (Tier 1).
+    pub fn dialogue_client(&self) -> (&OpenAiClient, &str) {
+        self.client_for(crate::config::InferenceCategory::Dialogue)
+    }
+
+    /// Returns the client and model to use for background NPC simulation (Tier 2).
     pub fn simulation_client(&self) -> (&OpenAiClient, &str) {
-        (&self.local, &self.local_model)
+        self.client_for(crate::config::InferenceCategory::Simulation)
     }
 
     /// Returns the client and model to use for intent parsing.
-    ///
-    /// Always uses the local client for low-latency structured output.
     pub fn intent_client(&self) -> (&OpenAiClient, &str) {
-        (&self.local, &self.local_model)
+        self.client_for(crate::config::InferenceCategory::Intent)
     }
 
-    /// Whether a cloud provider is configured for dialogue.
-    pub fn has_cloud(&self) -> bool {
-        self.cloud.is_some() && self.cloud_model.is_some()
+    /// Whether the dialogue category uses a different provider than the base.
+    pub fn has_custom_dialogue(&self) -> bool {
+        self.overrides
+            .contains_key(&crate::config::InferenceCategory::Dialogue)
     }
 }
 
@@ -271,58 +287,82 @@ mod tests {
     }
 
     #[test]
-    fn test_inference_clients_dialogue_uses_cloud() {
-        let local = OpenAiClient::new("http://localhost:11434", None);
+    fn test_inference_clients_dialogue_uses_override() {
+        use crate::config::InferenceCategory;
+        use std::collections::HashMap;
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
         let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
-        let clients = InferenceClients {
-            local,
-            local_model: "qwen3:14b".to_string(),
-            cloud: Some(cloud),
-            cloud_model: Some("anthropic/claude-sonnet-4-20250514".to_string()),
-        };
+        let mut overrides = HashMap::new();
+        overrides.insert(
+            InferenceCategory::Dialogue,
+            (cloud, "anthropic/claude-sonnet-4-20250514".to_string()),
+        );
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
         let (_client, model) = clients.dialogue_client();
         assert_eq!(model, "anthropic/claude-sonnet-4-20250514");
-        assert!(clients.has_cloud());
+        assert!(clients.has_custom_dialogue());
     }
 
     #[test]
-    fn test_inference_clients_dialogue_falls_back_to_local() {
-        let local = OpenAiClient::new("http://localhost:11434", None);
-        let clients = InferenceClients {
-            local,
-            local_model: "qwen3:14b".to_string(),
-            cloud: None,
-            cloud_model: None,
-        };
+    fn test_inference_clients_dialogue_falls_back_to_base() {
+        use std::collections::HashMap;
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.dialogue_client();
         assert_eq!(model, "qwen3:14b");
-        assert!(!clients.has_cloud());
+        assert!(!clients.has_custom_dialogue());
     }
 
     #[test]
-    fn test_inference_clients_simulation_always_local() {
-        let local = OpenAiClient::new("http://localhost:11434", None);
+    fn test_inference_clients_simulation_falls_back_to_base() {
+        use crate::config::InferenceCategory;
+        use std::collections::HashMap;
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
         let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
-        let clients = InferenceClients {
-            local,
-            local_model: "qwen3:14b".to_string(),
-            cloud: Some(cloud),
-            cloud_model: Some("gpt-4".to_string()),
-        };
+        let mut overrides = HashMap::new();
+        overrides.insert(InferenceCategory::Dialogue, (cloud, "gpt-4".to_string()));
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
         let (_client, model) = clients.simulation_client();
         assert_eq!(model, "qwen3:14b");
     }
 
     #[test]
-    fn test_inference_clients_intent_always_local() {
-        let local = OpenAiClient::new("http://localhost:11434", None);
-        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
-        let clients = InferenceClients {
-            local,
-            local_model: "qwen3:14b".to_string(),
-            cloud: Some(cloud),
-            cloud_model: Some("gpt-4".to_string()),
-        };
+    fn test_inference_clients_per_category_overrides() {
+        use crate::config::InferenceCategory;
+        use std::collections::HashMap;
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
+        let dial = OpenAiClient::new("https://openrouter.ai/api", Some("sk-dial"));
+        let sim = OpenAiClient::new("http://localhost:11434", None);
+        let intent = OpenAiClient::new("http://localhost:1234", None);
+        let mut overrides = HashMap::new();
+        overrides.insert(InferenceCategory::Dialogue, (dial, "claude-4".to_string()));
+        overrides.insert(InferenceCategory::Simulation, (sim, "qwen3:8b".to_string()));
+        overrides.insert(
+            InferenceCategory::Intent,
+            (intent, "qwen3:1.5b".to_string()),
+        );
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
+
+        let (_, model) = clients.dialogue_client();
+        assert_eq!(model, "claude-4");
+
+        let (_, model) = clients.simulation_client();
+        assert_eq!(model, "qwen3:8b");
+
+        let (_, model) = clients.intent_client();
+        assert_eq!(model, "qwen3:1.5b");
+    }
+
+    #[test]
+    fn test_inference_clients_intent_falls_back_to_base() {
+        use std::collections::HashMap;
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.intent_client();
         assert_eq!(model, "qwen3:14b");
     }

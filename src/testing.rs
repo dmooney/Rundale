@@ -654,7 +654,13 @@ impl GameTestHarness {
             | Command::ShowCloudModel
             | Command::SetCloudModel(_)
             | Command::ShowCloudKey
-            | Command::SetCloudKey(_) => {
+            | Command::SetCloudKey(_)
+            | Command::ShowCategoryProvider(_)
+            | Command::SetCategoryProvider(_, _)
+            | Command::ShowCategoryModel(_)
+            | Command::SetCategoryModel(_, _)
+            | Command::ShowCategoryKey(_)
+            | Command::SetCategoryKey(_, _) => {
                 let msg = "Cloud commands not available in test mode.".to_string();
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
