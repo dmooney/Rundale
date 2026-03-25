@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { worldState } from '../stores/game';
+	import { debugVisible } from '../stores/debug';
 	import { onMount } from 'svelte';
 
 	let displayHour = $state(0);
@@ -73,6 +74,7 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
+		<button class="debug-toggle" class:debug-active={$debugVisible} on:click={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">DBG</button>
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
 		<span class="muted">Loading…</span>
@@ -135,5 +137,27 @@
 	.muted {
 		color: var(--color-muted);
 		font-style: italic;
+	}
+
+	.debug-toggle {
+		background: none;
+		border: 1px solid var(--color-border);
+		color: var(--color-muted);
+		font-size: 0.6rem;
+		padding: 0.1rem 0.35rem;
+		cursor: pointer;
+		font-family: monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.debug-toggle:hover {
+		color: var(--color-fg);
+		border-color: var(--color-accent);
+	}
+
+	.debug-toggle.debug-active {
+		color: var(--color-accent);
+		border-color: var(--color-accent);
 	}
 </style>

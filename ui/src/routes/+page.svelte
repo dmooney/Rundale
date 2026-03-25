@@ -5,20 +5,38 @@
 	import MapPanel from '../components/MapPanel.svelte';
 	import Sidebar from '../components/Sidebar.svelte';
 	import InputField from '../components/InputField.svelte';
+	import DebugPanel from '../components/DebugPanel.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, irishHints } from '../stores/game';
+	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { palette } from '../stores/theme';
 	import {
 		getWorldSnapshot,
 		getMap,
 		getNpcsHere,
+		getDebugSnapshot,
 		onWorldUpdate,
 		onStreamToken,
 		onStreamEnd,
 		onTextLog,
 		onLoading,
-		onThemeUpdate
+		onThemeUpdate,
+		onDebugUpdate
 	} from '$lib/ipc';
+
+	// F12 toggle for debug panel
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'F12') {
+			e.preventDefault();
+			debugVisible.update((v) => !v);
+			// Fetch initial snapshot when opening
+			if (!$debugVisible) {
+				getDebugSnapshot()
+					.then((s) => debugSnapshot.set(s))
+					.catch(() => {});
+			}
+		}
+	}
 
 	onMount(async () => {
 		// Initial data fetch
@@ -43,6 +61,12 @@
 		}
 
 		// Subscribe to events
+		// Fetch initial debug snapshot
+		try {
+			const debugSnap = await getDebugSnapshot();
+			debugSnapshot.set(debugSnap);
+		} catch (_) {}
+
 		const unlisten = await Promise.all([
 			onWorldUpdate(async (snap) => {
 				worldState.set(snap);
@@ -103,6 +127,10 @@
 
 			onThemeUpdate((p) => {
 				palette.apply(p);
+			}),
+
+			onDebugUpdate((snap) => {
+				debugSnapshot.set(snap);
 			})
 		]);
 
@@ -111,6 +139,8 @@
 		};
 	});
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="app-shell">
 	<StatusBar />
@@ -125,6 +155,8 @@
 		</div>
 	</div>
 </div>
+
+<DebugPanel />
 
 <style>
 	.app-shell {

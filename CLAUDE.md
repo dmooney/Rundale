@@ -52,6 +52,7 @@ Parish/
 │   └── src/
 │       ├── error.rs     #   ParishError (thiserror)
 │       ├── config.rs    #   Provider configuration (TOML + env + CLI)
+│       ├── debug_snapshot.rs # DebugSnapshot struct + builder (debug data for GUI)
 │       ├── loading.rs   #   LoadingAnimation (RGB-based, no ratatui)
 │       ├── input/       #   Player input parsing, command detection
 │       ├── world/       #   World state, location graph, time, movement, encounters
@@ -78,13 +79,15 @@ Parish/
         │   └── ipc.ts   #   Typed wrappers for all Tauri commands and events
         ├── stores/
         │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive
-        │   └── theme.ts #   palette store (applies CSS vars to :root)
+        │   ├── theme.ts #   palette store (applies CSS vars to :root)
+        │   └── debug.ts #   debugVisible, debugSnapshot, debugTab, selectedNpcId
         └── components/
-            ├── StatusBar.svelte  # Location | time | weather | season bar
+            ├── StatusBar.svelte  # Location | time | weather | season bar + debug toggle
             ├── ChatPanel.svelte  # Scrolling chat log with streaming cursor
             ├── MapPanel.svelte   # SVG equirectangular map with click-to-travel
             ├── Sidebar.svelte    # NPCs Here + Focail (Irish words) panels
-            └── InputField.svelte # Player input (disabled during streaming)
+            ├── InputField.svelte # Player input (disabled during streaming)
+            └── DebugPanel.svelte # Tabbed debug panel (Overview, NPCs, World, Events, Inference)
 ```
 
 ## Code Style

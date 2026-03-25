@@ -13,6 +13,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::Mutex;
 
+use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::npc::manager::NpcManager;
@@ -168,6 +169,9 @@ impl GameConfig {
     }
 }
 
+/// Maximum number of debug events to retain.
+pub const DEBUG_EVENT_CAPACITY: usize = 100;
+
 /// Shared mutable game state managed by Tauri.
 ///
 /// Wrapped in `Arc` so background tasks can hold references without
@@ -185,6 +189,8 @@ pub struct AppState {
     pub cloud_client: Mutex<Option<OpenAiClient>>,
     /// Mutable runtime configuration (provider, model, cloud, improv).
     pub config: Mutex<GameConfig>,
+    /// Rolling debug event log for the debug panel.
+    pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -355,6 +361,9 @@ pub fn run() {
         inference_queue: Mutex::new(None),
         client: Mutex::new(client.clone()),
         cloud_client: Mutex::new(cloud_env.client),
+        debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
+            DEBUG_EVENT_CAPACITY,
+        )),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -379,6 +388,7 @@ pub fn run() {
             commands::get_map,
             commands::get_npcs_here,
             commands::get_theme,
+            commands::get_debug_snapshot,
             commands::submit_input,
         ])
         .setup(move |app| {
@@ -516,6 +526,37 @@ pub fn run() {
                         );
                         let palette = ThemePalette::from(raw);
                         let _ = handle_theme.emit(events::EVENT_THEME_UPDATE, palette);
+                    }
+                });
+
+                // Debug tick: emit debug snapshot every 2 seconds
+                let state_debug = Arc::clone(&state_setup);
+                let handle_debug = handle.clone();
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        let world = state_debug.world.lock().await;
+                        let npc_manager = state_debug.npc_manager.lock().await;
+                        let debug_events = state_debug.debug_events.lock().await;
+                        let config = state_debug.config.lock().await;
+
+                        let inference = InferenceDebug {
+                            provider_name: config.provider_name.clone(),
+                            model_name: config.model_name.clone(),
+                            base_url: config.base_url.clone(),
+                            cloud_provider: config.cloud_provider_name.clone(),
+                            cloud_model: config.cloud_model_name.clone(),
+                            has_queue: state_debug.inference_queue.lock().await.is_some(),
+                            improv_enabled: config.improv_enabled,
+                        };
+
+                        let snapshot = parish_core::debug_snapshot::build_debug_snapshot(
+                            &world,
+                            &npc_manager,
+                            &debug_events,
+                            &inference,
+                        );
+                        let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);
                     }
                 });
             });
