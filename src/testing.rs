@@ -68,6 +68,9 @@ pub enum ActionResult {
         npc: String,
         /// The dialogue text.
         dialogue: String,
+        /// Anachronistic terms detected in the player's input.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        anachronisms: Vec<String>,
     },
     /// NPC interaction attempted but no canned response or inference available.
     NpcNotAvailable,
@@ -772,14 +775,19 @@ impl GameTestHarness {
     ///
     /// Checks all NPCs at the current location for canned responses,
     /// not just the first one. This allows tests to target specific NPCs
-    /// regardless of iteration order.
-    fn handle_npc_interaction(&mut self, _text: &str) -> ActionResult {
+    /// regardless of iteration order. Also runs anachronism detection on
+    /// the player's input and includes any detected terms in the result.
+    fn handle_npc_interaction(&mut self, text: &str) -> ActionResult {
         let npcs_here = self.app.npc_manager.npcs_at(self.app.world.player_location);
 
         if npcs_here.is_empty() {
             self.app.world.log("Nothing happens.".to_string());
             return ActionResult::UnknownInput;
         }
+
+        // Detect anachronisms in player input
+        let detected = crate::npc::anachronism::check_input(text);
+        let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
 
         // Check each NPC at this location for canned responses
         for npc in &npcs_here {
@@ -793,6 +801,7 @@ impl GameTestHarness {
                 return ActionResult::NpcResponse {
                     npc: name,
                     dialogue,
+                    anachronisms: anachronism_terms,
                 };
             }
         }
@@ -1070,7 +1079,7 @@ mod tests {
         h.execute("go to pub");
         let result = h.execute("hello there");
         assert!(matches!(result, ActionResult::NpcResponse { .. }));
-        if let ActionResult::NpcResponse { npc, dialogue } = result {
+        if let ActionResult::NpcResponse { npc, dialogue, .. } = result {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }

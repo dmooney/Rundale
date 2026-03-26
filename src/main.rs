@@ -462,12 +462,23 @@ async fn main() -> Result<()> {
                                         &npc,
                                         app.improv_enabled,
                                     );
-                                    let context = ticks::build_enhanced_context(
+                                    let mut context = ticks::build_enhanced_context(
                                         &npc,
                                         &app.world,
                                         &text,
                                         &other_npcs,
                                     );
+
+                                    // Check for anachronisms and inject alert
+                                    let detected_anachronisms =
+                                        parish::npc::anachronism::check_input(&text);
+                                    if let Some(alert) =
+                                        parish::npc::anachronism::format_context_alert(
+                                            &detected_anachronisms,
+                                        )
+                                    {
+                                        context.push_str(&alert);
+                                    }
 
                                     if let Some(queue) = &app.inference_queue {
                                         request_id += 1;

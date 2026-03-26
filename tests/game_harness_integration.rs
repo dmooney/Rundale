@@ -205,7 +205,7 @@ fn test_npc_canned_response_at_pub() {
     h.execute("go to pub");
 
     let r = h.execute("hello Padraig");
-    if let ActionResult::NpcResponse { npc, dialogue } = r {
+    if let ActionResult::NpcResponse { npc, dialogue, .. } = r {
         assert_eq!(npc, "Padraig Darcy");
         assert_eq!(dialogue, "Top of the morning to ye!");
     } else {
@@ -232,6 +232,7 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "First line".to_string(),
+            anachronisms: vec![],
         }
     );
     assert_eq!(
@@ -239,6 +240,7 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "Second line".to_string(),
+            anachronisms: vec![],
         }
     );
     assert_eq!(
@@ -246,6 +248,7 @@ fn test_npc_canned_responses_consumed_in_order() {
         ActionResult::NpcResponse {
             npc: "Padraig Darcy".to_string(),
             dialogue: "Third line".to_string(),
+            anachronisms: vec![],
         }
     );
 }

@@ -4,6 +4,7 @@
 //! with other NPCs, and short/long-term memory. Cognition fidelity
 //! scales with distance from the player (4 LOD tiers).
 
+pub mod anachronism;
 pub mod data;
 pub mod manager;
 pub mod memory;

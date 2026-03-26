@@ -1,0 +1,24 @@
+# Anachronism detection test fixture
+# Tests that anachronistic terms in player input are detected
+# and that period-appropriate language passes cleanly.
+
+# Navigate to an NPC location
+go to crossroads
+go to pub
+
+# Period-appropriate dialogue (no anachronisms expected)
+hello there
+how are you today
+tell me about the parish
+what news from the market
+
+# Anachronistic terms (should be detected)
+can I use the telephone
+do you have electricity here
+I saw it on the television
+let me take a photograph
+
+# Return to safe ground
+look
+/status
+/quit
