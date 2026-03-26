@@ -33,14 +33,13 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [World & Geography](design/world-geography.md) | Location graph, real Irish geography, map data | [ADR-001](adr/001-graph-based-world.md), [ADR-009](adr/009-real-geography-fictional-people.md) |
 | [Time System](design/time-system.md) | Day/night cycle, seasons, Irish festivals | [ADR-007](adr/007-time-scale-20min-day.md) |
 | [Weather System](design/weather-system.md) | Weather states and simulation effects | — |
-| [TUI Design](design/tui-design.md) | Layout, color palettes, terminal compatibility | — |
-| [GUI Design](design/gui-design.md) | Windowed egui GUI with map, chat, and sidebars | — |
+| [GUI Design](design/gui-design.md) | Tauri 2 + Svelte 5 desktop GUI with map, chat, and sidebars | — |
 | [Map Evolution](design/map-evolution.md) | Brainstorm: minimap, OSM tiles, fog of war, label fixes | RFC |
 | [Player Input](design/player-input.md) | Natural language input, system commands | [ADR-006](adr/006-natural-language-input.md) |
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
 | [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |
-| [Debug System](design/debug-system.md) | Debug commands, live TUI panel, metrics (feature-gated) | — |
+| [Debug System](design/debug-system.md) | Debug commands, metrics (feature-gated) | — |
 | [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
 | [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer | — |
@@ -83,7 +82,7 @@ Detailed, implementation-ready plans for each development phase.
 
 | Plan | Phase | Status |
 |------|-------|--------|
-| [Phase 1: Core Loop](plans/phase-1-core-loop.md) | Core game loop, TUI, single NPC | **Complete** |
+| [Phase 1: Core Loop](plans/phase-1-core-loop.md) | Core game loop, single NPC | **Complete** |
 | [Phase 2: World Graph](plans/phase-2-world-graph.md) | Location graph, movement, encounters | **Complete** |
 | [Phase 3: NPCs & Simulation](plans/phase-3-npcs-simulation.md) | Multiple NPCs, schedules, tiers 1-2 | **Complete** |
 | [Phase 4: Persistence](plans/phase-4-persistence.md) | SQLite, journal, snapshots, branching | **Next** |

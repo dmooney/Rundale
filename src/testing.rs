@@ -1,7 +1,7 @@
-//! Game testing harness for programmatic interaction without a TUI or LLM.
+//! Game testing harness for programmatic interaction without an LLM.
 //!
 //! Provides [`GameTestHarness`] — a synchronous, no-Ollama-needed API that
-//! drives the game through the same code paths as the headless and TUI modes.
+//! drives the game through the same code paths as the headless mode.
 //! Also provides [`run_script_mode`] for executing command files from the CLI
 //! with structured JSON output.
 //!
@@ -16,10 +16,10 @@
 //! assert_eq!(h.player_location(), "The Crossroads");
 //! ```
 
+use crate::app::App;
 use crate::input::{self, Command, InputResult, IntentKind};
 use crate::npc::Npc;
 use crate::npc::manager::NpcManager;
-use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::time::{Season, TimeOfDay};

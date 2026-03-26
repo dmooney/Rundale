@@ -91,7 +91,7 @@ pub struct OllamaSetup {
 
 /// Trait for reporting setup progress to the UI layer.
 ///
-/// Implemented differently by TUI and headless modes to show
+/// Implemented differently by headless and other modes to show
 /// installation, detection, and download progress appropriately.
 pub trait SetupProgress {
     /// Reports a status message during setup.

@@ -10,16 +10,15 @@ The game is committed to representing Irish people and culture with accuracy, re
 
 The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the player are driven by full LLM inference for rich, emergent behavior. Distant NPCs are simulated at progressively lower fidelity. The result is a living world where hundreds of NPCs have ongoing lives, relationships, and conversations — whether or not the player is watching.
 
-**This is a prototype. No story or quest system yet. The goal is to get the simulation loop, TUI, movement, NPC interaction, and persistence working end-to-end.**
+**This is a prototype. No story or quest system yet. The goal is to get the simulation loop, movement, NPC interaction, and persistence working end-to-end.**
 
 ## Tech Stack
 
 | Component     | Technology                               | Purpose                                            |
 |---------------|------------------------------------------|----------------------------------------------------|
-| Language      | **Rust**                                 | Core game engine, simulation, TUI                  |
+| Language      | **Rust**                                 | Core game engine, simulation                       |
 | Async Runtime | **Tokio**                                | Concurrent simulation tiers, async inference calls |
-| TUI           | **Ratatui + Crossterm**                  | Terminal UI with 24-bit true color                 |
-| GUI           | **egui + eframe**                        | Windowed GUI with map, chat, and sidebars          |
+| GUI           | **Tauri 2 + Svelte 5**                   | Desktop app with map, chat, and sidebars           |
 | LLM Inference | **OpenAI-compatible API** (Ollama, LM Studio, OpenRouter, custom) | NPC cognition, natural language parsing |
 | HTTP Client   | **Reqwest**                              | Communication with LLM provider via `/v1/chat/completions` |
 | Serialization | **Serde** (JSON)                         | World state, LLM structured output                 |
@@ -29,7 +28,7 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 ## Hardware Assumptions
 
 - **GPU**: RX 9070 16GB — dedicated to LLM inference via Ollama/ROCm
-- **CPU**: Intel i9-13900KS — handles game logic, TUI rendering, background simulation on E-cores
+- **CPU**: Intel i9-13900KS — handles game logic, background simulation on E-cores
 - **Models**: Qwen3 14B for close-proximity NPCs, smaller model (8B/3B) for nearby tier
 
 ## Core Loop
@@ -47,7 +46,7 @@ Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Update
                                           ↓
-                                   Text Rendering → TUI / GUI
+                                   Text Rendering → Headless REPL / GUI
 ```
 
 ## Module Tree
@@ -56,9 +55,10 @@ Player Input → Command Detection → [System Command OR Game Input]
 src/
 ├── main.rs              # Entry point, CLI args (clap), mode routing
 ├── lib.rs               # Module declarations
+├── app.rs               # Core application state (App, ScrollState)
 ├── error.rs             # ParishError (thiserror)
 ├── config.rs            # Provider configuration (TOML + env + CLI)
-├── headless.rs          # Headless stdin/stdout REPL for testing
+├── headless.rs          # Headless stdin/stdout REPL (default mode)
 ├── testing.rs           # GameTestHarness for automated script-based testing
 ├── debug.rs             # Debug commands and metrics (feature-gated)
 ├── input/
@@ -90,9 +90,6 @@ src/
 │   ├── database.rs      # Database + AsyncDatabase (SQLite WAL, schema, CRUD)
 │   ├── snapshot.rs      # GameSnapshot, ClockSnapshot, NpcSnapshot
 │   └── journal.rs       # WorldEvent enum, replay logic
-├── tui/
-│   ├── mod.rs           # App struct, main render loop, event handling
-│   └── debug_panel.rs   # Debug overlay panel
 ├── gui/
 │   ├── mod.rs           # ParishGui, eframe integration
 │   ├── theme.rs         # Time-of-day color theming (smooth interpolation)
@@ -123,13 +120,12 @@ src/
 - [World & Geography](world-geography.md) — Location graph, real Irish geography, map data sources
 - [Time System](time-system.md) — Day/night cycle, seasons, Irish calendar festivals
 - [Weather System](weather-system.md) — Weather as simulation driver, effects on NPCs and atmosphere
-- [TUI Design](tui-design.md) — Terminal UI layout, 24-bit true color palettes, time/weather visuals
-- [GUI Design](gui-design.md) — Windowed egui GUI with map, chat panel, sidebars, and color theming
+- [GUI Design](gui-design.md) — Tauri 2 + Svelte 5 desktop GUI with map, chat panel, sidebars, and color theming
 - [Player Input](player-input.md) — Natural language parsing, system commands
 - [Persistence](persistence.md) — Save system, WAL journal, git-like branching
 - [NPC System](npc-system.md) — Entity data model, context construction, gossip propagation
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
-- [Debug System](debug-system.md) — Debug commands, live TUI panel, metrics collection (feature-gated)
+- [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
 - [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
@@ -225,15 +221,15 @@ For non-Ollama providers, none of these steps run — the user provides the endp
 
 ## Headless Mode
 
-Run `cargo run -- --headless` for a plain stdin/stdout REPL without the TUI. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
+Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
 
 ## Source Modules
 
 - [`src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
 - [`src/lib.rs`](../../src/lib.rs)
 - [`src/error.rs`](../../src/error.rs)
-- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode
-- [`src/tui/`](../../src/tui/)
+- [`src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
+- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
 - [`src/world/`](../../src/world/)
 - [`src/npc/`](../../src/npc/)
 - [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap

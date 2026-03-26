@@ -1,14 +1,14 @@
 //! Debug interface — `/debug` command handlers.
 //!
 //! Pure query functions that inspect game state and return formatted
-//! lines for display. No mutation, works across TUI, headless, and script modes.
+//! lines for display. No mutation, works across headless and script modes.
 
 use chrono::Timelike;
 
+use crate::app::App;
 use crate::npc::NpcId;
 use crate::npc::manager::NpcManager;
 use crate::npc::types::{CogTier, NpcState};
-use crate::tui::App;
 use crate::world::LocationId;
 use crate::world::graph::WorldGraph;
 
@@ -31,7 +31,6 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "schedule" => debug_schedule(app, arg),
                 "memory" => debug_memory(app, arg),
                 "relationships" | "rels" => debug_relationships(app, arg),
-                "panel" => vec!["[Debug panel toggled]".to_string()],
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -329,7 +328,6 @@ fn debug_help() -> Vec<String> {
         "  /debug schedule <name>  — NPC's daily schedule".to_string(),
         "  /debug memory <name>    — NPC's recent memories".to_string(),
         "  /debug rels <name>      — NPC's relationships".to_string(),
-        "  /debug panel    — Toggle debug sidebar (TUI only)".to_string(),
     ]
 }
 

@@ -6,8 +6,6 @@
 
 use std::time::{Duration, Instant};
 
-use ratatui::style::Color;
-
 /// Celtic cross geometric variants — thin → hollow → bold → back.
 const SPINNER_FRAMES: &[&str] = &["✢", "✙", "✛", "✜", "✚", "✜", "✛", "✙"];
 
@@ -45,14 +43,14 @@ const LOADING_PHRASES: &[&str] = &[
     "Searching for the right word...",
 ];
 
-/// Cycling colors in an Irish palette (greens, golds, blues).
-const SPINNER_COLORS: &[Color] = &[
-    Color::Rgb(72, 199, 142),  // soft green
-    Color::Rgb(255, 200, 87),  // warm gold
-    Color::Rgb(100, 149, 237), // cornflower blue
-    Color::Rgb(255, 160, 100), // soft orange
-    Color::Rgb(180, 130, 255), // lavender
-    Color::Rgb(120, 220, 180), // mint
+/// Cycling colors in an Irish palette (greens, golds, blues) as `(R, G, B)` tuples.
+const SPINNER_COLORS: &[(u8, u8, u8)] = &[
+    (72, 199, 142),  // soft green
+    (255, 200, 87),  // warm gold
+    (100, 149, 237), // cornflower blue
+    (255, 160, 100), // soft orange
+    (180, 130, 255), // lavender
+    (120, 220, 180), // mint
 ];
 
 /// Animated loading indicator for LLM inference waits.
@@ -132,19 +130,9 @@ impl LoadingAnimation {
         LOADING_PHRASES[self.phrase_index]
     }
 
-    /// Returns the current cycling color as a [`ratatui::style::Color`] for TUI rendering.
-    pub fn current_color(&self) -> Color {
-        // Defensive modulo — `tick()` already wraps color_index, but guard against
-        // direct field manipulation or future changes.
-        SPINNER_COLORS[self.color_index % SPINNER_COLORS.len()]
-    }
-
-    /// Returns the current color as an `(R, G, B)` tuple for GUI rendering.
+    /// Returns the current cycling color as an `(R, G, B)` tuple.
     pub fn current_color_rgb(&self) -> (u8, u8, u8) {
-        match SPINNER_COLORS[self.color_index % SPINNER_COLORS.len()] {
-            Color::Rgb(r, g, b) => (r, g, b),
-            _ => (200, 200, 200),
-        }
+        SPINNER_COLORS[self.color_index % SPINNER_COLORS.len()]
     }
 
     /// Returns an ANSI 24-bit foreground color escape sequence for headless mode.
@@ -254,13 +242,6 @@ mod tests {
         let text = anim.display_text();
         assert!(text.contains(' '));
         assert!(text.ends_with("..."));
-    }
-
-    #[test]
-    fn test_current_color_returns_valid_color() {
-        let anim = LoadingAnimation::new();
-        let color = anim.current_color();
-        assert!(matches!(color, Color::Rgb(_, _, _)));
     }
 
     #[test]

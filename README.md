@@ -35,18 +35,12 @@ cd ui && npm install && cd ..
 cargo tauri dev
 ```
 
-### TUI Mode (Terminal)
+### Headless Mode (Terminal REPL)
+
+The default mode is a plain stdin/stdout REPL:
 
 ```sh
 cargo run
-```
-
-### Headless Mode
-
-For piping input/output or running without a UI:
-
-```sh
-cargo run -- --headless
 ```
 
 **Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)

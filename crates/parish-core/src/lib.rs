@@ -2,7 +2,7 @@
 //!
 //! Contains all backend-agnostic game systems: world graph, NPC management,
 //! LLM inference pipeline, player input parsing, and persistence.
-//! Consumed by the CLI binary (TUI/headless) and the Tauri desktop frontend.
+//! Consumed by the CLI binary (headless) and the Tauri desktop frontend.
 
 pub mod config;
 pub mod error;

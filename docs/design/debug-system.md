@@ -2,7 +2,7 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
-The debug system provides runtime visibility into Parish's background simulation. It exposes NPC state, inference pipeline metrics, background task health, and performance data through both slash commands and a live TUI panel.
+The debug system provides runtime visibility into Parish's background simulation. It exposes NPC state, inference pipeline metrics, background task health, and performance data through slash commands.
 
 All debug functionality is gated behind a `debug` cargo feature flag and compiles out of release builds entirely.
 
@@ -18,7 +18,6 @@ All debug code is behind `#[cfg(feature = "debug")]`:
 
 - Debug command parsing and dispatch
 - `DebugState` struct and metrics collection
-- Debug panel TUI widget
 - Ring buffer log capture
 - Inference request preview storage
 
@@ -96,67 +95,9 @@ Example: `/debug log inference` shows only inference-related log lines.
 
 ### `/debug perf` — Performance Metrics
 
-- **Frame time**: TUI render duration (ms), target vs actual
 - **Inference latency**: p50, p95, p99 over rolling window
 - **Memory usage**: RSS, heap (if available)
 - **Queue wait time**: average time requests spend in the inference queue
-
-## Debug Panel (TUI Overlay)
-
-A live-updating panel that coexists with the main game view. Toggled via `/debug panel` or the `F12` key.
-
-### Layout
-
-When active, the debug panel splits the terminal layout:
-
-```
-┌─────────────────────────────────┬──────────────────────┐
-│ Top bar: location | time | wx   │                      │
-├─────────────────────────────────┤   Debug Panel        │
-│                                 │                      │
-│   Main text panel               │   [Overview] [NPCs]  │
-│   (game output)                 │   [Inference] [Tasks] │
-│                                 │                      │
-│                                 │   (tab content)      │
-│                                 │                      │
-├─────────────────────────────────┤                      │
-│ > player input                  │                      │
-└─────────────────────────────────┴──────────────────────┘
-```
-
-The debug panel takes roughly 35% of terminal width. On narrow terminals (< 120 cols), it renders as a bottom split instead.
-
-### Tabs
-
-**Overview** — At-a-glance dashboard:
-- Game clock and real elapsed time
-- Weather and season
-- NPC count by tier (e.g., `T1: 3  T2: 12  T3: 47  T4: 230`)
-- Inference queue depth with mini sparkline
-- Background task health indicators (colored dots)
-
-**NPCs** — Scrollable NPC list:
-- Columns: name, location, mood, activity, tier
-- Search/filter by name or location (type to filter)
-- Select an NPC to expand inline state detail
-- Sorted by tier (T1 first), then alphabetically
-
-**Inference** — Pipeline monitor:
-- Queue depth sparkline (last 60 seconds)
-- Throughput counter (req/sec, tokens/sec)
-- Active request: NPC name, model, elapsed time
-- Recent requests table: NPC, tier, model, latency, truncated prompt/response (first 200 chars each)
-
-**Tasks** — Background task monitor:
-- Each task as a row: name, status indicator (colored), uptime, last activity timestamp, error count
-- Expandable detail: recent errors, performance history
-
-### Navigation
-
-- `Tab` / `Shift+Tab`: cycle between debug panel tabs
-- Arrow keys: scroll within the active tab
-- `/` in NPC tab: activate search filter
-- `F12`: close the panel
 
 ## Debug Data Architecture
 
@@ -237,14 +178,13 @@ A custom tracing subscriber layer captures log entries into a ring buffer:
 ## Related
 
 - [Player Input](player-input.md) — Debug commands extend the `/` command system
-- [TUI Design](tui-design.md) — Debug panel layout within the TUI
 - [Inference Pipeline](inference-pipeline.md) — Metrics source for inference debug
 - [Cognitive LOD](cognitive-lod.md) — Tier assignments displayed in debug
 - [NPC System](npc-system.md) — NPC state exposed through debug commands
 
 ## Source Modules
 
-- [`src/tui/`](../../src/tui/) — Debug panel widget, panel layout split
+- [`src/debug.rs`](../../src/debug.rs) — Debug commands and metrics
 - [`src/input/`](../../src/input/) — Debug command parsing
 - [`src/npc/`](../../src/npc/) — NPC state access for debug views
 - [`src/inference/`](../../src/inference/) — Inference metrics collection

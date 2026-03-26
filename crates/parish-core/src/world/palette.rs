@@ -2,8 +2,7 @@
 //!
 //! Provides backend-agnostic RGB palette computation that smoothly
 //! interpolates between time-of-day keyframes and applies seasonal
-//! and weather tinting. Both the GUI ([`crate::gui::theme`]) and
-//! TUI ([`crate::tui`]) consume [`RawPalette`] values from this module.
+//! and weather tinting. UI renderers consume [`RawPalette`] values from this module.
 
 use super::Weather;
 use super::time::Season;
@@ -361,7 +360,7 @@ fn ensure_contrast(palette: &mut RawPalette) {
 
 /// Computes the fully interpolated and tinted palette for the given time, season, and weather.
 ///
-/// This is the main entry point for both GUI and TUI renderers.
+/// This is the main entry point for UI renderers.
 /// 1. Smoothly interpolates between time-of-day keyframe palettes
 /// 2. Applies seasonal color tinting
 /// 3. Applies weather color tinting

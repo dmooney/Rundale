@@ -78,7 +78,7 @@ pub struct Location {
 /// Central game state container.
 ///
 /// Holds the game clock, player position, the world graph, weather,
-/// and the scrollback text log displayed in the TUI.
+/// and the scrollback text log displayed in the UI.
 pub struct WorldState {
     /// The game clock mapping real time to game time.
     pub clock: GameClock,
@@ -90,7 +90,7 @@ pub struct WorldState {
     pub graph: WorldGraph,
     /// Current weather conditions affecting palette and descriptions.
     pub weather: Weather,
-    /// Scrollback text log displayed in the main TUI panel.
+    /// Scrollback text log displayed in the main text panel.
     pub text_log: Vec<String>,
 }
 

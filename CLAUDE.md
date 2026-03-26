@@ -40,13 +40,13 @@ This is a **Cargo workspace** with three members:
 
 ```
 Parish/
-├── src/                 # Root crate: TUI, headless, testing, CLI entry point
+├── src/                 # Root crate: headless, testing, CLI entry point
 │   ├── main.rs          #   Entry point, CLI args (clap), mode routing
 │   ├── lib.rs           #   Module declarations + re-exports from parish-core
 │   ├── headless.rs      #   Headless stdin/stdout REPL mode
 │   ├── testing.rs       #   GameTestHarness for automated testing
 │   ├── debug.rs         #   Debug commands and metrics (feature-gated)
-│   ├── tui/             #   Ratatui terminal UI + debug panel
+│   ├── app.rs           #   Core application state (App, ScrollState)
 │   └── bin/geo_tool/    #   OSM geographic data extraction tool
 ├── crates/parish-core/  # Pure game logic library (no UI dependencies)
 │   └── src/
@@ -101,7 +101,6 @@ Parish/
 | Crate / Package | Purpose |
 |-----------------|---------|
 | tokio | Async runtime (features = "full") |
-| ratatui + crossterm | Terminal UI with 24-bit true color |
 | tauri 2 | Desktop GUI framework (Rust backend + WebView frontend) |
 | @tauri-apps/api v2 | TypeScript IPC bindings |
 | svelte 5 + sveltekit | Frontend framework (static adapter for Tauri) |
@@ -117,7 +116,6 @@ Parish/
 
 - **Tokio + blocking**: Never use `std::thread::sleep` in async code; use `tokio::time::sleep`
 - **Rusqlite is sync**: Wrap DB calls in `tokio::task::spawn_blocking`
-- **Ratatui panic safety**: Always restore terminal state on panic (install panic hook)
 - **Ollama**: Must be running on `localhost:11434` for inference calls
 - **Reqwest timeouts**: Set explicit timeouts on all HTTP requests
 - **Serde defaults**: Use `#[serde(default)]` for optional fields in LLM response structs

@@ -1,3 +1,4 @@
+pub mod app;
 pub mod config;
 pub mod debug;
 pub mod error;
@@ -8,5 +9,4 @@ pub mod loading;
 pub mod npc;
 pub mod persistence;
 pub mod testing;
-pub mod tui;
 pub mod world;

@@ -6,6 +6,17 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-25 — TUI Removal
+
+Removed the ratatui terminal UI (`src/tui/`) from the project. Parish now has two modes:
+
+- **Headless REPL** (default): plain stdin/stdout, launched via `cargo run`
+- **Tauri GUI** (desktop app): launched via `cargo tauri dev`
+
+The `App` struct (core application state, `ScrollState`) moved from `src/tui/mod.rs` to `src/app.rs`. All ratatui and crossterm dependencies have been dropped. Updated all documentation to reflect the change.
+
+---
+
 ## 2026-03-21 — Phase 3: Multiple NPCs & Simulation
 
 Implemented Phase 3 in 6 batches:

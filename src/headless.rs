@@ -1,9 +1,10 @@
-//! Headless CLI mode for testing without the TUI.
+//! Headless CLI mode — the default interactive mode.
 //!
-//! Provides a simple stdin/stdout REPL that reuses the same game logic
-//! (NPC inference, intent parsing, system commands) as the TUI mode.
-//! Activated with `--headless` on the command line.
+//! Provides a simple stdin/stdout REPL with full game logic
+//! (NPC inference, intent parsing, system commands).
+//! Runs by default or with `--headless` on the command line.
 
+use crate::app::App;
 use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, Provider, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
@@ -15,7 +16,6 @@ use crate::npc::ticks;
 use crate::npc::{
     SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary, parse_npc_stream_response,
 };
-use crate::tui::App;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
@@ -1045,7 +1045,7 @@ fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tui::App;
+    use crate::app::App;
     use crate::world::time::GameSpeed;
 
     #[tokio::test]
