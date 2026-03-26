@@ -56,7 +56,7 @@ Parish/
 │       ├── npc/         #   NPC data model, behavior, cognition tiers
 │       │   └── anachronism.rs # Anachronism detection (hardcoded + mod-driven)
 │       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
-│       └── persistence/ #   SQLite save/load, WAL journal
+│       └── persistence/ #   SQLite save/load, WAL journal, save picker
 ├── mods/                # Game data packages (Factorio-style engine/mod separation)
 │   └── kilteevan-1820/  # Default mod: 1820 rural Ireland
 │       ├── mod.toml     #   Manifest (start_date, start_location, period_year)

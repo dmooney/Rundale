@@ -48,7 +48,7 @@ Additional behaviors:
 
 ## Storage
 
-Single SQLite file (`parish_saves.db`) in WAL mode with branch-tagged rows.
+SQLite files stored in the `saves/` directory in WAL mode with branch-tagged rows. Each save file is an independent DAG of branches. On startup, a Papers Please-style picker displays all save files with their nested branch trees, allowing the player to continue an existing game or start fresh.
 
 ### Schema
 
@@ -76,6 +76,7 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 | `/save` | Immediate snapshot to current branch |
 | `/quit` | Snapshot + exit |
 | `/fork <name>` | Snapshot, create new branch, switch to it |
+| `/load` | Show save picker (switch save file or start new game) |
 | `/load <name>` | Auto-save current branch (if different), load target branch |
 | `/branches` | List all branches with active marker |
 | `/log` | Show snapshot history for current branch |
@@ -92,3 +93,4 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 - [`src/persistence/database.rs`](../../src/persistence/database.rs) — Database, AsyncDatabase, schema, CRUD
 - [`src/persistence/snapshot.rs`](../../src/persistence/snapshot.rs) — GameSnapshot, ClockSnapshot, NpcSnapshot
 - [`src/persistence/journal.rs`](../../src/persistence/journal.rs) — WorldEvent enum, replay logic
+- [`src/persistence/picker.rs`](../../src/persistence/picker.rs) — Save file discovery, picker display, startup/load selection

@@ -160,11 +160,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         }
     } else if lower == "/load" || lower.starts_with("/load ") {
         let name = trimmed.get(5..).unwrap_or("").trim().to_string();
-        if name.is_empty() {
-            Some(Command::Help) // bare /load → show help
-        } else {
-            Some(Command::Load(name))
-        }
+        Some(Command::Load(name)) // empty string = show save picker
     } else if lower == "/branches" {
         Some(Command::Branches)
     } else if lower == "/log" {
@@ -544,6 +540,23 @@ mod tests {
         assert_eq!(
             parse_system_command("/load main"),
             Some(Command::Load("main".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_load_bare_shows_picker() {
+        // Bare /load returns Load with empty string (triggers save picker)
+        assert_eq!(
+            parse_system_command("/load"),
+            Some(Command::Load(String::new()))
+        );
+        assert_eq!(
+            parse_system_command("/load "),
+            Some(Command::Load(String::new()))
+        );
+        assert_eq!(
+            parse_system_command("/load   "),
+            Some(Command::Load(String::new()))
         );
     }
 

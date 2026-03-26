@@ -482,6 +482,11 @@ impl GameTestHarness {
                     }
                 }
             }
+            Command::Load(ref name) if name.is_empty() => {
+                let msg = "Save picker not available in test mode.".to_string();
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
             Command::Load(name) => {
                 if let Some(ref db_sync) = self.db_sync {
                     match db_sync.find_branch(&name) {

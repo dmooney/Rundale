@@ -43,6 +43,8 @@ The default mode is a plain stdin/stdout REPL:
 cargo run
 ```
 
+On startup, a save picker shows existing save files (in `saves/`) with their timeline branches, or lets you start a new game. In-game, use `/load` to switch saves, `/save` to snapshot, `/fork <name>` to branch timelines.
+
 **Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)
 
 ## Documentation
