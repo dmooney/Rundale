@@ -6,7 +6,7 @@
 	import Sidebar from '../components/Sidebar.svelte';
 	import InputField from '../components/InputField.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, irishHints } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, irishHints } from '../stores/game';
 	import { palette } from '../stores/theme';
 	import {
 		getWorldSnapshot,
@@ -90,6 +90,10 @@
 			onLoading((payload) => {
 				streamingActive.set(payload.active);
 				if (payload.active) {
+					// Update animated loading phrase and spinner
+					if (payload.spinner) loadingSpinner.set(payload.spinner);
+					if (payload.phrase) loadingPhrase.set(payload.phrase);
+					if (payload.color) loadingColor.set(payload.color);
 					// Prepare for new streaming entry
 					textLog.update((log) => {
 						// Remove any stale streaming entry

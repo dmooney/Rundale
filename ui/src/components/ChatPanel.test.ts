@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
-import { textLog, streamingActive } from '../stores/game';
+import { textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor } from '../stores/game';
 import ChatPanel from './ChatPanel.svelte';
 
 describe('ChatPanel', () => {
 	beforeEach(() => {
 		textLog.set([]);
 		streamingActive.set(false);
+		loadingSpinner.set('');
+		loadingPhrase.set('');
+		loadingColor.set([72, 199, 142]);
 	});
 
 	it('renders empty chat panel', () => {
@@ -24,10 +27,24 @@ describe('ChatPanel', () => {
 		expect(getByText('You arrive at the pub.')).toBeTruthy();
 	});
 
-	it('shows spinner when streaming is active with no streaming entry', () => {
+	it('shows loading phrase when streaming is active with no streaming entry', () => {
+		loadingSpinner.set('✛');
+		loadingPhrase.set('Consulting the sheep...');
+		streamingActive.set(true);
+		const { container, getByText } = render(ChatPanel);
+		expect(container.querySelector('.loading-row')).toBeTruthy();
+		expect(container.querySelector('.loading-spinner')).toBeTruthy();
+		expect(getByText('Consulting the sheep...')).toBeTruthy();
+	});
+
+	it('applies spinner colour from loadingColor store', () => {
+		loadingSpinner.set('✜');
+		loadingPhrase.set('Pondering the craic...');
+		loadingColor.set([255, 200, 87]);
 		streamingActive.set(true);
 		const { container } = render(ChatPanel);
-		expect(container.querySelector('.spinner')).toBeTruthy();
+		const spinner = container.querySelector('.loading-spinner') as HTMLElement;
+		expect(spinner.style.color).toBe('rgb(255, 200, 87)');
 	});
 
 	it('shows blinking cursor on streaming entry', () => {

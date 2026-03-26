@@ -51,10 +51,81 @@ pub struct TextLogPayload {
 }
 
 /// Payload for `loading` events.
+///
+/// When `active` is `true`, the payload includes an animated spinner character,
+/// a fun Irish-themed loading phrase, and an RGB colour for the spinner —
+/// driven by [`parish_core::loading::LoadingAnimation`].
 #[derive(serde::Serialize, Clone)]
 pub struct LoadingPayload {
     /// Whether the loading indicator should be shown.
     pub active: bool,
+    /// Current Celtic-cross spinner character (e.g. `"✛"`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spinner: Option<String>,
+    /// Current fun loading phrase (e.g. `"Consulting the sheep..."`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phrase: Option<String>,
+    /// Spinner colour as `[R, G, B]`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<[u8; 3]>,
+}
+
+// ── Loading animation bridge ─────────────────────────────────────────────
+
+/// Spawns a background task that emits [`LoadingPayload`] events with cycling
+/// fun Irish phrases while the player waits for NPC inference.
+///
+/// Returns a [`tokio_util::sync::CancellationToken`] — drop or cancel it to
+/// stop the animation loop and emit a final `active: false` event.
+pub fn spawn_loading_animation(app: tauri::AppHandle, cancel: tokio_util::sync::CancellationToken) {
+    tokio::spawn(async move {
+        use parish_core::loading::LoadingAnimation;
+
+        let mut anim = LoadingAnimation::new();
+
+        // Emit an initial frame immediately
+        anim.tick();
+        let (r, g, b) = anim.current_color_rgb();
+        let _ = app.emit(
+            EVENT_LOADING,
+            LoadingPayload {
+                active: true,
+                spinner: Some(anim.spinner_char().to_string()),
+                phrase: Some(anim.phrase().to_string()),
+                color: Some([r, g, b]),
+            },
+        );
+
+        loop {
+            tokio::select! {
+                _ = cancel.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(300)) => {
+                    anim.tick();
+                    let (r, g, b) = anim.current_color_rgb();
+                    let _ = app.emit(
+                        EVENT_LOADING,
+                        LoadingPayload {
+                            active: true,
+                            spinner: Some(anim.spinner_char().to_string()),
+                            phrase: Some(anim.phrase().to_string()),
+                            color: Some([r, g, b]),
+                        },
+                    );
+                }
+            }
+        }
+
+        // Final "off" event
+        let _ = app.emit(
+            EVENT_LOADING,
+            LoadingPayload {
+                active: false,
+                spinner: None,
+                phrase: None,
+                color: None,
+            },
+        );
+    });
 }
 
 // ── Streaming bridge ─────────────────────────────────────────────────────────
