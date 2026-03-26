@@ -77,12 +77,14 @@ pub struct MapData {
 /// Minimal NPC info for the sidebar.
 #[derive(serde::Serialize, Clone)]
 pub struct NpcInfo {
-    /// NPC's name.
+    /// Display name (full name if introduced, brief description otherwise).
     pub name: String,
     /// NPC's occupation.
     pub occupation: String,
     /// NPC's current mood.
     pub mood: String,
+    /// Whether the player has been introduced to this NPC.
+    pub introduced: bool,
 }
 
 /// CSS hex-string theme palette derived from `RawPalette`.

@@ -39,6 +39,9 @@ pub struct NpcSnapshot {
     pub id: NpcId,
     /// Full name.
     pub name: String,
+    /// Brief anonymous description shown before the player is introduced.
+    #[serde(default)]
+    pub brief_description: String,
     /// Age in years.
     pub age: u8,
     /// Occupation or role.
@@ -71,6 +74,7 @@ impl NpcSnapshot {
         Self {
             id: npc.id,
             name: npc.name.clone(),
+            brief_description: npc.brief_description.clone(),
             age: npc.age,
             occupation: npc.occupation.clone(),
             personality: npc.personality.clone(),
@@ -91,6 +95,7 @@ impl NpcSnapshot {
         Npc {
             id: self.id,
             name: self.name,
+            brief_description: self.brief_description,
             age: self.age,
             occupation: self.occupation,
             personality: self.personality,
@@ -221,6 +226,7 @@ mod tests {
         Npc {
             id: NpcId(id),
             name: format!("NPC {}", id),
+            brief_description: "a person".to_string(),
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),

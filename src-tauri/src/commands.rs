@@ -25,6 +25,15 @@ use crate::events::{
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, ThemePalette, WorldSnapshot};
 
+/// Capitalizes the first character of a string slice.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -140,10 +149,14 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     let npcs = npc_manager.npcs_at(world.player_location);
     Ok(npcs
         .into_iter()
-        .map(|npc| NpcInfo {
-            name: npc.name.clone(),
-            occupation: npc.occupation.clone(),
-            mood: npc.mood.clone(),
+        .map(|npc| {
+            let introduced = npc_manager.is_introduced(npc.id);
+            NpcInfo {
+                name: npc_manager.display_name(npc).to_string(),
+                occupation: npc.occupation.clone(),
+                mood: npc.mood.clone(),
+                introduced,
+            }
         })
         .collect())
 }
@@ -651,11 +664,12 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let desc = if let Some(loc_data) = world.current_location_data() {
         let tod = world.clock.time_of_day();
         let weather = world.weather.to_string();
-        let npc_names: Vec<&str> = npc_manager
+        let npc_display: Vec<String> = npc_manager
             .npcs_at(world.player_location)
             .iter()
-            .map(|n| n.name.as_str())
+            .map(|n| npc_manager.display_name(n).to_string())
             .collect();
+        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
         render_description(loc_data, tod, &weather, &npc_names)
     } else {
         world.current_location().description.clone()
@@ -678,27 +692,31 @@ async fn handle_npc_conversation(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
-    let (npc_name, system_prompt, context, queue) = {
+    let (npc_name, npc_id, system_prompt, context, queue) = {
         let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
 
         let npcs_here = npc_manager.npcs_at(world.player_location);
         let npc = npcs_here.first().cloned().cloned();
 
         if let (Some(npc), Some(q)) = (npc, queue.clone()) {
+            let display = npc_manager.display_name(&npc).to_string();
+            let id = npc.id;
             let other_npcs: Vec<&parish_core::npc::Npc> =
                 npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
             let system = ticks::build_enhanced_system_prompt(&npc, false);
             let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
-            (Some(npc.name.clone()), Some(system), Some(ctx), Some(q))
+            // Mark NPC as introduced on first conversation
+            npc_manager.mark_introduced(id);
+            (Some(display), Some(id), Some(system), Some(ctx), Some(q))
         } else {
-            (None, None, None, None)
+            (None, None, None, None, None)
         }
     };
 
-    let (Some(npc_name), Some(system_prompt), Some(context), Some(queue)) =
-        (npc_name, system_prompt, context, queue)
+    let (Some(npc_name), Some(_npc_id), Some(system_prompt), Some(context), Some(queue)) =
+        (npc_name, npc_id, system_prompt, context, queue)
     else {
         // No NPC present or no inference queue — show idle message
         let idle_messages = [
@@ -729,10 +747,11 @@ async fn handle_npc_conversation(
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
     // Emit NPC name prefix as the start of the streaming entry
+    let display_label = capitalize_first(&npc_name);
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
-            source: npc_name.clone(),
+            source: display_label,
             content: String::new(),
         },
     );

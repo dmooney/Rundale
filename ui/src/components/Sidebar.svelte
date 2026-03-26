@@ -10,8 +10,10 @@
 				{#each $npcsHere as npc}
 					<li class="npc-item">
 						<span class="npc-name">{npc.name}</span>
-						<span class="npc-detail">{npc.occupation}</span>
-						<span class="npc-mood">{npc.mood}</span>
+						{#if npc.introduced}
+							<span class="npc-detail">{npc.occupation}</span>
+							<span class="npc-mood">{npc.mood}</span>
+						{/if}
 					</li>
 				{/each}
 			</ul>

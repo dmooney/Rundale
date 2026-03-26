@@ -25,6 +25,8 @@ struct NpcFile {
 struct NpcFileEntry {
     id: u32,
     name: String,
+    #[serde(default)]
+    brief_description: Option<String>,
     age: u8,
     occupation: String,
     personality: String,
@@ -99,9 +101,15 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 .map(|r| (NpcId(r.target_id), Relationship::new(r.kind, r.strength)))
                 .collect();
 
+            let brief_description = entry
+                .brief_description
+                .clone()
+                .unwrap_or_else(|| format!("a {}", entry.occupation.to_lowercase()));
+
             Npc {
                 id: NpcId(entry.id),
                 name: entry.name.clone(),
+                brief_description,
                 age: entry.age,
                 occupation: entry.occupation.clone(),
                 personality: entry.personality.clone(),
