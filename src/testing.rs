@@ -733,6 +733,8 @@ impl GameTestHarness {
                             description: data.description_template.clone(),
                             indoor: data.indoor,
                             public: data.public,
+                            lat: data.lat,
+                            lon: data.lon,
                         });
                 }
 

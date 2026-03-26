@@ -60,6 +60,7 @@ Each location has:
 
 - **Name** (real place name)
 - **Description template** (dynamically enriched by LLM based on time, weather, season, current events)
+- **Geolocation** (WGS 84 latitude/longitude for real-world map placement)
 - **Connections** to other locations with traversal times
 - **Properties**: indoor/outdoor, public/private
 - **Associated NPCs** (home, workplace)

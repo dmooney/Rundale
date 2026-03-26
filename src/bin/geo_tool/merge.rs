@@ -46,8 +46,8 @@ pub fn load_existing(path: &Path) -> Result<Vec<TrackedLocation>> {
                 data: data.clone(),
                 description_source: DescriptionSource::Curated,
                 osm_id: None,
-                lat: 0.0, // Curated locations don't have coordinates in current format
-                lon: 0.0,
+                lat: data.lat,
+                lon: data.lon,
             });
         }
     }
@@ -245,11 +245,11 @@ mod tests {
                 description_template: format!("{name} description. It is {{time}}."),
                 indoor: false,
                 public: true,
+                lat,
+                lon,
                 connections: Vec::new(),
                 associated_npcs: Vec::<NpcId>::new(),
                 mythological_significance: None,
-                lat,
-                lon,
             },
             description_source: source,
             osm_id: None,

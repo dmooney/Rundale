@@ -14,7 +14,7 @@ The game world is built on real Irish geography (see [World Geography](world-geo
 4. Creating description templates in 1820s style
 5. Outputting validated `parish.json` files
 
-This enables scaling from the current 14 hand-authored locations to thousands or millions of locations across Ireland.
+This enables scaling from the current 15 hand-authored locations to thousands or millions of locations across Ireland.
 
 ## Architecture
 
@@ -137,8 +137,10 @@ Overpass API responses are cached in `data/cache/geo/` to avoid redundant downlo
 
 ## Output Files
 
-- `data/parish-generated.json` — Game-loadable parish data (standard format)
-- `data/parish-generated.meta.json` — Provenance metadata (description tiers, OSM IDs, coordinates)
+- `data/parish-generated.json` — Game-loadable parish data (standard format, includes lat/lon coordinates)
+- `data/parish-generated.meta.json` — Provenance metadata (description tiers, OSM IDs)
+
+All generated locations include WGS 84 `lat`/`lon` coordinates in the main parish.json, sourced from OSM geometry. The GUI map panel uses these coordinates for geographic positioning.
 
 ## Scale Considerations
 

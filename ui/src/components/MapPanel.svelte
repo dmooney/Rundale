@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { mapData } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
+	import { resolveLabels, distSq, estimateTextWidth } from '$lib/map-labels';
 	import type { MapLocation } from '$lib/types';
+	import type { ResolvedLabel } from '$lib/map-labels';
 
 	const W = 320;
 	const H = 240;
+	const NODE_R = 5;
+	const PLAYER_R = 8;
+	const LABEL_FONT_SIZE = 7;
 
 	interface ProjectedLocation extends MapLocation {
 		x: number;
@@ -12,6 +17,19 @@
 	}
 
 	let projected: ProjectedLocation[] = $derived(project($mapData?.locations ?? []));
+	let labels: ResolvedLabel[] = $derived(
+		resolveLabels(
+			projected.map((loc) => ({
+				nodeX: loc.x,
+				nodeY: loc.y,
+				nodeR: isPlayer(loc) ? PLAYER_R : NODE_R,
+				textW: estimateTextWidth(loc.name),
+				textH: LABEL_FONT_SIZE
+			})),
+			W,
+			H
+		)
+	);
 	let tooltip: string | null = $state(null);
 
 	function project(locs: MapLocation[]): ProjectedLocation[] {
@@ -66,8 +84,25 @@
 				{/if}
 			{/each}
 
+			<!-- Leader lines (drawn behind labels) -->
+			{#each projected as loc, i}
+				{@const label = labels[i]}
+				{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
+				{@const threshold = (r + 6) ** 2}
+				{#if label && distSq(label.cx, label.cy, label.ax, label.ay) > threshold}
+					<line
+						x1={loc.x}
+						y1={loc.y + r + 1}
+						x2={label.cx}
+						y2={label.cy - label.h / 2}
+						class="leader"
+					/>
+				{/if}
+			{/each}
+
 			<!-- Location nodes -->
-			{#each projected as loc}
+			{#each projected as loc, i}
+				{@const label = labels[i]}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<g
@@ -78,10 +113,12 @@
 					onmouseenter={() => (tooltip = loc.name)}
 					onmouseleave={() => (tooltip = null)}
 				>
-					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? 8 : 5} class="node-circle" />
-					<text x={loc.x} y={loc.y + (isPlayer(loc) ? 18 : 14)} class="node-label">
-						{loc.name.length > 14 ? loc.name.slice(0, 12) + '…' : loc.name}
-					</text>
+					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? PLAYER_R : NODE_R} class="node-circle" />
+					{#if label}
+						<text x={label.cx} y={label.cy + LABEL_FONT_SIZE / 2 - 1} class="node-label">
+							{loc.name.length > 14 ? loc.name.slice(0, 12) + '…' : loc.name}
+						</text>
+					{/if}
 				</g>
 			{/each}
 		</svg>
@@ -120,6 +157,12 @@
 	.edge {
 		stroke: var(--color-border);
 		stroke-width: 1;
+	}
+
+	.leader {
+		stroke: var(--color-muted);
+		stroke-width: 0.3;
+		stroke-dasharray: 1.5 1;
 	}
 
 	.node-circle {

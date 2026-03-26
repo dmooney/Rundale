@@ -83,9 +83,9 @@ mod tests {
                 "A place at {time}. Weather: {weather}. People here: {npcs_present}.".to_string(),
             indoor: false,
             public: true,
+            lat: 53.618,
+            lon: -8.095,
             connections: vec![],
-            lat: 0.0,
-            lon: 0.0,
             associated_npcs: vec![NpcId(1)],
             mythological_significance: None,
         }
@@ -155,9 +155,9 @@ mod tests {
             description_template: "A plain description with no placeholders.".to_string(),
             indoor: false,
             public: true,
+            lat: 53.618,
+            lon: -8.095,
             connections: vec![],
-            lat: 0.0,
-            lon: 0.0,
             associated_npcs: vec![],
             mythological_significance: None,
         };
