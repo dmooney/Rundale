@@ -265,6 +265,15 @@ pub async fn run_headless(
     Ok(())
 }
 
+/// Capitalizes the first character of a string slice.
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+    }
+}
+
 /// Handles a system command in headless mode. Returns true if the game should exit.
 /// Atmospheric idle messages shown when no NPC is present for conversation.
 const HEADLESS_IDLE_MESSAGES: &[&str] = &[
@@ -762,7 +771,8 @@ async fn handle_headless_game_input(
 
                     let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
 
-                    print!("{}: ", npc.name);
+                    let npc_display_name = app.npc_manager.display_name(&npc).to_string();
+                    print!("{}: ", capitalize_first(&npc_display_name));
                     std::io::stdout().flush().ok();
 
                     // Spawn a loading animation that prints to stdout
@@ -770,7 +780,7 @@ async fn handle_headless_game_input(
                     // deterministic cancellation instead of a timed sleep.
                     let cancel_notify = Arc::new(Notify::new());
                     let cancel_for_stream = Arc::clone(&cancel_notify);
-                    let npc_name_for_anim = npc.name.clone();
+                    let npc_name_for_anim = npc_display_name.clone();
                     let anim_handle = tokio::spawn(async move {
                         let mut anim = LoadingAnimation::new();
                         loop {
@@ -864,6 +874,8 @@ async fn handle_headless_game_input(
                                             err
                                         );
                                     } else {
+                                        // Mark the NPC as introduced after their first response
+                                        app.npc_manager.mark_introduced(npc.id);
                                         let parsed = parse_npc_stream_response(&response.text);
                                         if let Some(meta) = &parsed.metadata {
                                             tracing::debug!(
@@ -910,12 +922,13 @@ fn print_location_arrival(app: &App) {
 
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
-        let npc_names: Vec<&str> = app
+        let npc_display: Vec<String> = app
             .npc_manager
             .npcs_at(app.world.player_location)
             .iter()
-            .map(|n| n.name.as_str())
+            .map(|n| app.npc_manager.display_name(n).to_string())
             .collect();
+        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
         let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
         println!("{}", desc);
     } else {
@@ -923,7 +936,8 @@ fn print_location_arrival(app: &App) {
     }
 
     for npc in app.npc_manager.npcs_at(app.world.player_location) {
-        println!("{} is here.", npc.name);
+        let display = app.npc_manager.display_name(npc);
+        println!("{} is here.", capitalize_first(display));
     }
 
     let exits = format_exits(app.world.player_location, &app.world.graph);
@@ -935,12 +949,13 @@ fn print_location_arrival(app: &App) {
 fn print_location_description(app: &App) {
     if let Some(loc_data) = app.world.current_location_data() {
         let tod = app.world.clock.time_of_day();
-        let npc_names: Vec<&str> = app
+        let npc_display: Vec<String> = app
             .npc_manager
             .npcs_at(app.world.player_location)
             .iter()
-            .map(|n| n.name.as_str())
+            .map(|n| app.npc_manager.display_name(n).to_string())
             .collect();
+        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
         let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
         println!("{}", desc);
     } else {
@@ -1008,12 +1023,19 @@ fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager
     for event in events {
         app.debug_event(event.debug_string());
 
+        // Look up the display name (brief description if not yet introduced)
+        let display = app
+            .npc_manager
+            .get(event.npc_id)
+            .map(|n| app.npc_manager.display_name(n).to_string())
+            .unwrap_or_else(|| event.npc_name.clone());
+
         match &event.kind {
             ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                println!("{} heads off down the road.", event.npc_name);
+                println!("{} heads off down the road.", capitalize_first(&display));
             }
             ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                println!("{} arrives.", event.npc_name);
+                println!("{} arrives.", capitalize_first(&display));
             }
             _ => {}
         }

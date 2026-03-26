@@ -250,6 +250,7 @@ mod tests {
         npcs.add_npc(crate::npc::Npc {
             id: NpcId(1),
             name: "Test".to_string(),
+            brief_description: "a person".to_string(),
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test".to_string(),

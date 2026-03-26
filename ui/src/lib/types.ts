@@ -32,6 +32,7 @@ export interface NpcInfo {
 	name: string;
 	occupation: string;
 	mood: string;
+	introduced: boolean;
 }
 
 export interface ThemePalette {

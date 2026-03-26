@@ -77,12 +77,14 @@ pub struct MapData {
 /// Minimal NPC info for the sidebar.
 #[derive(serde::Serialize, Clone)]
 pub struct NpcInfo {
-    /// NPC's name.
+    /// Display name (full name if introduced, brief description otherwise).
     pub name: String,
     /// NPC's occupation.
     pub occupation: String,
     /// NPC's current mood.
     pub mood: String,
+    /// Whether the player has been introduced to this NPC.
+    pub introduced: bool,
 }
 
 /// CSS hex-string theme palette derived from `RawPalette`.
@@ -533,7 +535,7 @@ fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Opt
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| match provider.as_str() {
         "ollama" => "http://localhost:11434".to_string(),
         "lmstudio" => "http://localhost:1234".to_string(),
-        "openrouter" => "https://openrouter.ai/api/v1".to_string(),
+        "openrouter" => "https://openrouter.ai/api".to_string(),
         _ => "http://localhost:11434".to_string(),
     });
     let api_key = std::env::var("PARISH_API_KEY")
@@ -577,7 +579,7 @@ struct CloudEnvConfig {
 fn build_cloud_client_from_env() -> CloudEnvConfig {
     let provider = std::env::var("PARISH_CLOUD_PROVIDER").ok();
     let base_url = std::env::var("PARISH_CLOUD_BASE_URL")
-        .unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string());
+        .unwrap_or_else(|_| "https://openrouter.ai/api".to_string());
     let api_key = std::env::var("PARISH_CLOUD_API_KEY")
         .ok()
         .filter(|s| !s.is_empty());
