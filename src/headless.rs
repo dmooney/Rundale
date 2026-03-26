@@ -9,6 +9,7 @@ use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
 use crate::loading::LoadingAnimation;
+use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
 use crate::npc::ticks;
 use crate::npc::{
@@ -747,7 +748,14 @@ async fn handle_headless_game_input(
                     .filter(|n| n.id != npc.id)
                     .collect();
                 let system_prompt = ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
-                let context = ticks::build_enhanced_context(&npc, &app.world, text, &other_npcs);
+                let mut context =
+                    ticks::build_enhanced_context(&npc, &app.world, text, &other_npcs);
+
+                // Check for anachronisms in player input and inject alert
+                let anachronisms = anachronism::check_input(text);
+                if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
+                    context.push_str(&alert);
+                }
 
                 if let Some(queue) = &app.inference_queue {
                     *request_id += 1;

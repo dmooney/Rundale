@@ -62,6 +62,7 @@ Parish/
 │       │   ├── encounter.rs # En-route encounter system
 │       │   └── description.rs # Dynamic location description templates
 │       ├── npc/         #   NPC data model, behavior, cognition tiers
+│       │   └── anachronism.rs # Anachronism detection for player input (1820 period)
 │       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
 │       └── persistence/ #   SQLite save/load, WAL journal
 ├── src-tauri/           # Tauri 2 desktop backend (Rust)

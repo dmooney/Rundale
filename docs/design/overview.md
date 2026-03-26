@@ -78,6 +78,7 @@ src/
 │   ├── ticks.rs         # Tier 1 & 2 inference ticks
 │   ├── memory.rs        # ShortTermMemory (ring buffer)
 │   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
+│   ├── anachronism.rs   # Anachronism detection for player input (1820 period)
 │   └── data.rs          # NPC data loader (JSON)
 ├── inference/
 │   ├── mod.rs           # Inference queue, worker task
