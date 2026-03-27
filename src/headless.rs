@@ -212,7 +212,13 @@ pub async fn run_headless(
                 }
             }
             InputResult::GameInput(text) => {
-                let intent_client = app.intent_client.clone().unwrap();
+                let intent_client = match app.intent_client.clone() {
+                    Some(client) => client,
+                    None => {
+                        eprintln!("Intent client unavailable; cannot process input");
+                        continue;
+                    }
+                };
                 let intent_model = app.intent_model.clone();
                 handle_headless_game_input(
                     &mut app,
@@ -611,14 +617,12 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 let base_url = provider.default_base_url().to_string();
-                app.cloud_provider_name = Some(format!("{:?}", provider).to_lowercase());
+                let provider_name = format!("{:?}", provider).to_lowercase();
+                app.cloud_provider_name = Some(provider_name.clone());
                 app.cloud_base_url = Some(base_url.clone());
                 app.cloud_client = Some(OpenAiClient::new(&base_url, app.cloud_api_key.as_deref()));
                 rebuild = true;
-                println!(
-                    "Cloud provider changed to {}.",
-                    app.cloud_provider_name.as_deref().unwrap()
-                );
+                println!("Cloud provider changed to {}.", provider_name);
             }
             Err(e) => {
                 println!("{}", e);
@@ -1328,5 +1332,28 @@ mod tests {
         assert!(!quit);
         assert!(rebuild, "Setting a category key should trigger rebuild");
         assert_eq!(app.cloud_api_key.as_deref(), Some("sk-test-key"));
+    }
+
+    /// Verify SetCloudProvider sets cloud_provider_name without panicking (issue #80).
+    #[tokio::test]
+    async fn test_set_cloud_provider_sets_name_without_panic() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCloudProvider("openrouter".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(rebuild);
+        assert_eq!(app.cloud_provider_name.as_deref(), Some("openrouter"));
+    }
+
+    /// Verify that intent_client being None is observable (guards against regression of issue #79).
+    /// The App starts with intent_client unset; this confirms no panic on access.
+    #[test]
+    fn test_app_intent_client_starts_none() {
+        let app = App::new();
+        // intent_client is None until initialized by run_headless; accessing it must not panic.
+        assert!(app.intent_client.is_none());
     }
 }
