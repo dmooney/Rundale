@@ -1,7 +1,10 @@
 # Parish — An Irish Living World Text Adventure
 # Run `just` or `just --list` to see all available commands.
 
-set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Ensure cargo and fnm are on PATH for all recipes
+export PATH := env("HOME") + "/.cargo/bin:" + env("HOME") + "/.local/share/fnm:" + env("PATH")
 
 # Default: list available commands
 default:
@@ -9,14 +12,66 @@ default:
 
 # ─── Setup ───────────────────────────────────────────────────────────────────
 
-# One-time developer setup: install tools and frontend dependencies
+# One-time developer setup: install Rust, Node.js, tools, and frontend dependencies
 setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Install system build dependencies (C compiler, linker, Tauri/WebView libs)
+    if command -v dnf &>/dev/null; then
+        echo "Installing system dependencies via dnf..."
+        sudo dnf install -y gcc gcc-c++ make pkg-config \
+            openssl-devel \
+            gtk3-devel webkit2gtk4.1-devel libappindicator-gtk3-devel \
+            librsvg2-devel patchelf
+    elif command -v apt-get &>/dev/null; then
+        echo "Installing system dependencies via apt..."
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config \
+            libssl-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf
+    else
+        echo "WARNING: Unknown package manager. Ensure gcc, pkg-config, openssl-dev, and Tauri deps are installed."
+    fi
+
+    # Install Rust via rustup if missing
+    if ! command -v cargo &>/dev/null; then
+        echo "Installing Rust via rustup..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+        echo "Rust $(rustc --version) installed."
+    else
+        echo "Rust already installed: $(rustc --version)"
+    fi
+
+    # Install Node.js via fnm if missing
+    if ! command -v node &>/dev/null; then
+        echo "Installing fnm (Fast Node Manager)..."
+        curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
+        export PATH="$HOME/.local/share/fnm:$PATH"
+        eval "$(fnm env)"
+        echo "Installing Node.js LTS..."
+        fnm install --lts
+        fnm use lts-latest
+        echo "Node $(node --version) installed."
+    else
+        echo "Node.js already installed: $(node --version)"
+    fi
+
+    # Install Tauri CLI
+    echo "Installing tauri-cli..."
     cargo install tauri-cli
+
+    # Install frontend dependencies
+    echo "Installing frontend dependencies..."
     cd ui && npm install
+
+    echo "Setup complete."
 
 # Install frontend dependencies only
 ui-install:
-    cd ui && npm install
+    eval "$(fnm env)" && cd ui && npm install
 
 # ─── Build ───────────────────────────────────────────────────────────────────
 
@@ -36,8 +91,8 @@ clean:
 
 # Run the game (Tauri desktop GUI) — installs frontend deps if missing
 run:
-    @test -d ui/node_modules || (echo "Installing frontend dependencies..." && cd ui && npm install)
-    cargo tauri dev
+    @eval "$(fnm env)" && test -d ui/node_modules || (echo "Installing frontend dependencies..." && cd ui && npm install)
+    eval "$(fnm env)" && cargo tauri dev
 
 # Run the game in TUI mode (terminal interface)
 run-tui:
@@ -55,31 +110,31 @@ run-release:
 
 # Start the Tauri desktop app in dev mode (frontend + backend)
 tauri-dev:
-    cargo tauri dev
+    eval "$(fnm env)" && cargo tauri dev
 
 # Build the Tauri desktop app for production
 tauri-build:
-    cargo tauri build
+    eval "$(fnm env)" && cargo tauri build
 
 # Run the Svelte frontend dev server standalone (no Tauri backend)
 ui-dev:
-    cd ui && npm run dev
+    eval "$(fnm env)" && cd ui && npm run dev
 
 # Build the Svelte frontend for production
 ui-build:
-    cd ui && npm run build
+    eval "$(fnm env)" && cd ui && npm run build
 
 # Run svelte-check (TypeScript + Svelte validation)
 ui-check:
-    cd ui && npm run check
+    eval "$(fnm env)" && cd ui && npm run check
 
 # Run svelte-check in watch mode
 ui-check-watch:
-    cd ui && npm run check:watch
+    eval "$(fnm env)" && cd ui && npm run check:watch
 
 # Run frontend component tests (vitest)
 ui-test:
-    cd ui && npx vitest run
+    eval "$(fnm env)" && cd ui && npx vitest run
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 
