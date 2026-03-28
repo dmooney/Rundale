@@ -136,6 +136,18 @@ ui-check-watch:
 ui-test:
     eval "$(fnm env)" && cd ui && npx vitest run
 
+# Run Playwright E2E tests (headless Chromium, mocked Tauri IPC)
+ui-e2e:
+    cd ui && npx playwright test
+
+# Update Playwright visual regression baselines
+ui-e2e-update:
+    cd ui && npx playwright test --update-snapshots
+
+# Regenerate GUI screenshots via Playwright (outputs to docs/screenshots/)
+screenshots:
+    cd ui && npx playwright test e2e/screenshots.spec.ts
+
 # ─── Test ────────────────────────────────────────────────────────────────────
 
 # Run all Rust tests

@@ -175,6 +175,52 @@ The `headless_script_tests.rs` file uses `run_script_captured()` to exercise
 all 18 fixture scripts with real assertions on game state — verifying locations,
 time progression, NPC data, debug output, error handling, and more.
 
+## E2E GUI Testing (Playwright)
+
+The Svelte frontend has Playwright E2E tests in `ui/e2e/` that run against
+the Vite dev server with Tauri IPC fully mocked. This enables:
+
+- **Real browser rendering** — headless Chromium, no X11/GDK/xvfb required
+- **Screenshot generation** — captures 4 times of day to `docs/screenshots/`
+- **Visual regression** — baseline comparison via `toHaveScreenshot()`
+- **Interaction testing** — input submission, streaming, theme transitions
+
+### How the Mock Works
+
+`ui/e2e/fixtures.ts` uses `page.addInitScript()` to install a fake
+`window.__TAURI_INTERNALS__` before any app code runs. This provides:
+
+- `invoke()` — returns mock data for `get_world_snapshot`, `get_map`, etc.
+- `transformCallback()` — registers callbacks with numeric IDs
+- `plugin:event|listen` — tracks event listeners by name + callback ID
+- `__TEST_EMIT_EVENT__()` — helper for tests to dispatch events to listeners
+
+### Running
+
+```bash
+# Full E2E suite
+cd ui && npx playwright test           # or: just ui-e2e
+
+# Screenshots only
+cd ui && npx playwright test e2e/screenshots.spec.ts  # or: just screenshots
+
+# Update visual regression baselines
+cd ui && npx playwright test --update-snapshots       # or: just ui-e2e-update
+```
+
+### Test Files
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `e2e/app.spec.ts` | 10 | Layout, status bar, chat, map, sidebar, theme, events |
+| `e2e/interactions.spec.ts` | 5 | Input, streaming, paused state, festival badge |
+| `e2e/screenshots.spec.ts` | 8 | Screenshot capture + visual regression baselines |
+
+### Visual Regression Baselines
+
+Baseline images live in `ui/e2e/screenshots/baseline/`. When UI changes are
+intentional, update them with `npx playwright test --update-snapshots`.
+
 ## Query APIs
 
 | Method | Returns |

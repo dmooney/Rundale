@@ -7,8 +7,12 @@
 - Run: `cargo run`
 - Test all: `cargo test`
 - Test one: `cargo test <test_name>`
+- Format: `cargo fmt --check` (apply: `cargo fmt`)
+- Lint: `cargo clippy -- -D warnings`
 - Game harness: `cargo run -- --script tests/fixtures/test_walkthrough.txt`
-- Frontend tests: `cd ui && npm test`
+- Frontend tests: `cd ui && npx vitest run` (or `just ui-test`)
+- E2E GUI tests: `cd ui && npx playwright test` (or `just ui-e2e`)
+- Screenshots: `cd ui && npx playwright test e2e/screenshots.spec.ts` (or `just screenshots`)
 
 Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/game-test` for harness testing. Hooks handle formatting, compile checks, and quality gates automatically.
 
@@ -111,6 +115,29 @@ Parish/
 
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:` (enforced by `commit-msg-check.sh` hook)
 - One logical change per commit
+- Run full test suite before pushing
+
+## GUI Screenshots
+
+Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
+
+**Always regenerate screenshots when you change anything in `ui/` or `src-tauri/`.** Run:
+
+```sh
+cd ui && npx playwright test e2e/screenshots.spec.ts
+# or: just screenshots
+```
+
+This captures the Svelte frontend at 4 times of day (morning, midday, dusk, night) using Playwright with headless Chromium and mocked Tauri IPC. No X11, GDK, or `xvfb` required.
+
+To update visual regression baselines after intentional UI changes:
+
+```sh
+cd ui && npx playwright test --update-snapshots
+# or: just ui-e2e-update
+```
+
+Commit the updated screenshots alongside your UI changes.
 
 ## Tauri Development
 
@@ -141,7 +168,7 @@ Custom slash commands defined in `.claude/skills/`:
 | `/check` | Run fmt + clippy + tests (quality gate) |
 | `/game-test [script]` | Run GameTestHarness to verify game behavior |
 | `/verify` | Full pre-push checklist (quality gate + harness) |
-| `/screenshot` | Regenerate GUI screenshots via xvfb |
+| `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
 | `/fix-issue <N>` | End-to-end GitHub issue workflow |
 
 ## Claude Code Hooks
