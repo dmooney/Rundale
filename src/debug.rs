@@ -79,7 +79,14 @@ fn debug_overview(app: &App) -> Vec<String> {
     } else {
         let names: Vec<String> = here
             .iter()
-            .map(|n| format!("{} [{}]", n.name, n.mood))
+            .map(|n| {
+                format!(
+                    "{} {} [{}]",
+                    n.name,
+                    crate::npc::mood::mood_emoji(&n.mood),
+                    n.mood
+                )
+            })
             .collect();
         lines.push(format!("  Here: {}", names.join(", ")));
     }
@@ -116,8 +123,12 @@ fn debug_npcs(app: &App) -> Vec<String> {
 
         lines.push(format!("  {} ({}y, {})", npc.name, npc.age, npc.occupation));
         lines.push(format!(
-            "    Loc: {} | {} | Mood: {} | {}",
-            loc_name, tier, npc.mood, state
+            "    Loc: {} | {} | Mood: {} {} | {}",
+            loc_name,
+            tier,
+            crate::npc::mood::mood_emoji(&npc.mood),
+            npc.mood,
+            state
         ));
     }
 
@@ -211,7 +222,13 @@ fn debug_here(app: &App) -> Vec<String> {
                 .tier_of(npc.id)
                 .map(|t| format!("{:?}", t))
                 .unwrap_or_default();
-            lines.push(format!("    {} [{}] ({})", npc.name, npc.mood, tier));
+            lines.push(format!(
+                "    {} {} [{}] ({})",
+                npc.name,
+                crate::npc::mood::mood_emoji(&npc.mood),
+                npc.mood,
+                tier
+            ));
         }
     }
 

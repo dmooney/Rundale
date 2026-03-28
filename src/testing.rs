@@ -671,6 +671,11 @@ impl GameTestHarness {
                     response: lines.join("\n"),
                 }
             }
+            Command::About => {
+                let msg = "Parish — A text adventure set in 1820s rural Ireland.\nExplore a living village powered by AI-driven NPCs.".to_string();
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
             Command::ShowCloud
             | Command::SetCloudProvider(_)
             | Command::ShowCloudModel

@@ -84,6 +84,8 @@ pub enum Command {
     ShowCategoryKey(InferenceCategory),
     /// Set API key for a specific inference category.
     SetCategoryKey(InferenceCategory, String),
+    /// Show about / credits information.
+    About,
 }
 
 /// The kind of player action parsed from natural language input.
@@ -173,6 +175,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::ToggleSidebar)
     } else if lower == "/improv" {
         Some(Command::ToggleImprov)
+    } else if lower == "/about" {
+        Some(Command::About)
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
     } else if lower == "/provider" {
@@ -965,6 +969,16 @@ mod tests {
     fn test_classify_improv_command() {
         let result = classify_input("/improv");
         assert_eq!(result, InputResult::SystemCommand(Command::ToggleImprov));
+    }
+
+    #[test]
+    fn test_parse_about_command() {
+        assert_eq!(parse_system_command("/about"), Some(Command::About));
+    }
+
+    #[test]
+    fn test_parse_about_command_case_insensitive() {
+        assert_eq!(parse_system_command("/ABOUT"), Some(Command::About));
     }
 
     #[test]

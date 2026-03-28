@@ -377,11 +377,19 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /provider.<cat> - Show or change provider for a category");
             println!("  /key.<cat>      - Show or change API key for a category");
             println!("  /help     - Show this help");
+            println!("  /about    - About the game and credits");
             println!("  /save     - Save game");
             println!("  /fork <n> - Fork a new timeline branch");
             println!("  /load <n> - Load a saved branch");
             println!("  /branches - List save branches");
             println!("  /log      - Show snapshot history");
+        }
+        Command::About => {
+            println!("Parish — A text adventure set in 1820s rural Ireland.");
+            println!("Explore a living village powered by AI-driven NPCs.");
+            // TODO: add credits (contributors, libraries, etc.)
+            println!();
+            println!("Type /help for available commands.");
         }
         Command::ToggleSidebar => {
             println!("The pronunciation sidebar is only available in TUI mode.");

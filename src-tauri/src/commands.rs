@@ -155,6 +155,7 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
             NpcInfo {
                 name: npc_manager.display_name(npc).to_string(),
                 occupation: npc.occupation.clone(),
+                mood_emoji: parish_core::npc::mood::mood_emoji(&npc.mood).to_string(),
                 mood: npc.mood.clone(),
                 introduced,
             }
@@ -314,6 +315,7 @@ async fn handle_system_command(
             "  /branches — List save branches",
             "  /cloud    — Show or change cloud dialogue provider",
             "  /fork <n> — Fork a new timeline branch",
+            "  /about    — About the game and credits",
             "  /help     — Show this help",
             "  /improv   — Toggle improv craft for NPC dialogue",
             "  /irish    — Toggle Irish words sidebar",
@@ -359,6 +361,15 @@ async fn handle_system_command(
                 name
             )
         }
+
+        Command::About => [
+            "Parish — A text adventure set in 1820s rural Ireland.",
+            "Explore a living village powered by AI-driven NPCs.",
+            // TODO: add credits (contributors, libraries, etc.)
+            "",
+            "Type /help for available commands.",
+        ]
+        .join("\n"),
 
         // ── Sidebar & Improv ─────────────────────────────────────────────
         Command::ToggleSidebar => {

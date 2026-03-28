@@ -79,6 +79,7 @@ src/
 │   ├── memory.rs        # ShortTermMemory (ring buffer)
 │   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
 │   ├── anachronism.rs   # Anachronism detection for player input (1820 period)
+│   ├── mood.rs          # Mood-to-emoji mapping for NPC emotional state display
 │   └── data.rs          # NPC data loader (JSON)
 ├── inference/
 │   ├── mod.rs           # Inference queue, worker task

@@ -8,6 +8,7 @@ pub mod anachronism;
 pub mod data;
 pub mod manager;
 pub mod memory;
+pub mod mood;
 pub mod overhear;
 pub mod ticks;
 pub mod types;

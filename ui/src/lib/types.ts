@@ -33,6 +33,7 @@ export interface NpcInfo {
 	occupation: string;
 	mood: string;
 	introduced: boolean;
+	mood_emoji: string;
 }
 
 export interface ThemePalette {
