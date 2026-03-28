@@ -315,6 +315,7 @@ async fn handle_system_command(
             "  /branches — List save branches",
             "  /cloud    — Show or change cloud dialogue provider",
             "  /fork <n> — Fork a new timeline branch",
+            "  /about    — About the game and credits",
             "  /help     — Show this help",
             "  /improv   — Toggle improv craft for NPC dialogue",
             "  /irish    — Toggle Irish words sidebar",
@@ -360,6 +361,15 @@ async fn handle_system_command(
                 name
             )
         }
+
+        Command::About => [
+            "Parish — A text adventure set in 1820s rural Ireland.",
+            "Explore a living village powered by AI-driven NPCs.",
+            // TODO: add credits (contributors, libraries, etc.)
+            "",
+            "Type /help for available commands.",
+        ]
+        .join("\n"),
 
         // ── Sidebar & Improv ─────────────────────────────────────────────
         Command::ToggleSidebar => {

@@ -10,10 +10,12 @@
 			<ul class="npc-list">
 				{#each $npcsHere as npc}
 					<li class="npc-item">
-						<span class="npc-name">{npc.name}</span>
+						<div class="npc-name-row">
+							<span class="npc-mood"><MoodIcon mood={npc.mood} /></span>
+							<span class="npc-name">{npc.name}</span>
+						</div>
 						{#if npc.introduced}
 							<span class="npc-detail">{npc.occupation}</span>
-							<span class="npc-mood"><MoodIcon mood={npc.mood} /></span>
 						{/if}
 					</li>
 				{/each}
@@ -102,6 +104,12 @@
 		border-bottom: none;
 	}
 
+	.npc-name-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+	}
+
 	.npc-name {
 		color: var(--color-accent);
 		font-weight: 600;
@@ -116,6 +124,9 @@
 	.npc-mood {
 		font-size: 1rem;
 		cursor: default;
+		display: inline-flex;
+		align-self: center;
+		transform: translateY(-2px);
 	}
 
 	.hint-item {
