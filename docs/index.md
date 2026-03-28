@@ -43,6 +43,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
 | [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer | — |
+| [Game Ideas Brainstorm](design/game-ideas-brainstorm.md) | 20 gameplay ideas across social, economic, mythology, and political themes | — |
 | [Ambient Sound](design/ambient-sound.md) | Location-aware audio playback via rodio | [ADR-015](adr/015-ambient-sound-system.md) |
 
 ## Architecture Decision Records (ADRs)
