@@ -2513,6 +2513,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tokio",
+ "tokio-util",
  "tracing",
 ]
 

@@ -20,8 +20,8 @@ use parish_core::world::movement::{self, MovementResult};
 use parish_core::world::palette::compute_palette;
 
 use crate::events::{
-    EVENT_LOADING, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, LoadingPayload,
-    StreamEndPayload, TextLogPayload,
+    EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload, TextLogPayload,
+    spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, ThemePalette, WorldSnapshot};
 
@@ -742,7 +742,9 @@ async fn handle_npc_conversation(
     };
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
 
-    let _ = app.emit(EVENT_LOADING, LoadingPayload { active: true });
+    // Spawn the animated loading indicator (fun Irish phrases)
+    let loading_cancel = tokio_util::sync::CancellationToken::new();
+    spawn_loading_animation(app.clone(), loading_cancel.clone());
 
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
@@ -813,5 +815,6 @@ async fn handle_npc_conversation(
         }
     }
 
-    let _ = app.emit(EVENT_LOADING, LoadingPayload { active: false });
+    // Stop the animated loading indicator (emits active: false)
+    loading_cancel.cancel();
 }

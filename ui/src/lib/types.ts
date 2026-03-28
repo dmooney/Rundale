@@ -74,4 +74,7 @@ export type WorldUpdatePayload = WorldSnapshot;
 
 export interface LoadingPayload {
 	active: boolean;
+	spinner?: string;
+	phrase?: string;
+	color?: [number, number, number];
 }
