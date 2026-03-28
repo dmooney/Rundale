@@ -39,6 +39,13 @@ pub struct IrishWordHint {
 /// or `  ---\n` on its own line, even when preceded by text on the same line.
 pub const SEPARATOR_HOLDBACK: usize = 24;
 
+/// Maximum tokens for NPC dialogue responses (including the JSON metadata block).
+///
+/// Keeps responses conversational (a few sentences of dialogue plus the compact
+/// metadata JSON). Prevents models from generating excessively long monologues
+/// that break the chat formatting.
+pub const MAX_DIALOGUE_TOKENS: u32 = 300;
+
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
 /// If `pos` is already a char boundary, returns it unchanged. Otherwise
@@ -367,7 +374,13 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         \n\
         Current mood: {mood}\n\
         \n\
-        Respond in character as {name}. Use this EXACT format:\n\
+        Respond in character as {name}.\n\
+        \n\
+        LENGTH: Keep your dialogue to 2-4 sentences. Be natural and conversational — \
+        this is a back-and-forth exchange, not a monologue. Say what you would naturally \
+        say, then let the player respond. Do not narrate at length or give speeches.\n\
+        \n\
+        Use this EXACT format:\n\
         \n\
         1. First, write what you say or do, in plain text. Stay in character. \
         Pepper your speech naturally with the occasional Irish word or phrase. \

@@ -791,7 +791,14 @@ async fn handle_npc_conversation(
     );
 
     match queue
-        .send(req_id, model, context, Some(system_prompt), Some(token_tx))
+        .send(
+            req_id,
+            model,
+            context,
+            Some(system_prompt),
+            Some(token_tx),
+            Some(parish_core::npc::MAX_DIALOGUE_TOKENS),
+        )
         .await
     {
         Ok(mut response_rx) => {

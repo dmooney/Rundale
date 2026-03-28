@@ -30,6 +30,8 @@ pub struct InferenceRequest {
     /// Optional channel for streaming tokens. If present, the worker streams
     /// individual tokens through this before sending the final response.
     pub token_tx: Option<mpsc::UnboundedSender<String>>,
+    /// Optional maximum number of tokens to generate.
+    pub max_tokens: Option<u32>,
 }
 
 /// The response from an inference request.
@@ -60,9 +62,10 @@ impl InferenceQueue {
     /// Submits an inference request to the queue.
     ///
     /// If `token_tx` is provided, the worker will stream individual tokens
-    /// through it before sending the final complete response. Returns a
-    /// oneshot receiver that will yield the complete response.
-    /// Returns an error if the queue channel is closed.
+    /// through it before sending the final complete response. An optional
+    /// `max_tokens` cap is forwarded to the LLM provider to limit output
+    /// length. Returns a oneshot receiver that will yield the complete
+    /// response. Returns an error if the queue channel is closed.
     pub async fn send(
         &self,
         id: u64,
@@ -70,6 +73,7 @@ impl InferenceQueue {
         prompt: String,
         system: Option<String>,
         token_tx: Option<mpsc::UnboundedSender<String>>,
+        max_tokens: Option<u32>,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
         let (response_tx, response_rx) = oneshot::channel();
@@ -80,6 +84,7 @@ impl InferenceQueue {
             system,
             response_tx,
             token_tx,
+            max_tokens,
         };
         self.tx.send(request).await?;
         Ok(response_rx)
@@ -168,11 +173,17 @@ pub fn spawn_inference_worker(
                         &request.prompt,
                         request.system.as_deref(),
                         token_tx,
+                        request.max_tokens,
                     )
                     .await
             } else {
                 client
-                    .generate(&request.model, &request.prompt, request.system.as_deref())
+                    .generate(
+                        &request.model,
+                        &request.prompt,
+                        request.system.as_deref(),
+                        request.max_tokens,
+                    )
                     .await
             };
 
@@ -211,6 +222,7 @@ mod tests {
                 "hello".to_string(),
                 Some("system".to_string()),
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -243,7 +255,14 @@ mod tests {
         let queue = InferenceQueue::new(tx);
 
         let _response_rx = queue
-            .send(2, "model".to_string(), "prompt".to_string(), None, None)
+            .send(
+                2,
+                "model".to_string(),
+                "prompt".to_string(),
+                None,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -266,6 +285,7 @@ mod tests {
                 "prompt".to_string(),
                 None,
                 Some(token_tx),
+                None,
             )
             .await
             .unwrap();
