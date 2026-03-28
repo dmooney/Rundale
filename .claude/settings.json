@@ -1,0 +1,116 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-files.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/auto-fmt.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/compile-check.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/dep-audit-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/quality-gates.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/harness-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/doc-staleness.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/screenshot-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/coverage-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/compact-context.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/commit-msg-check.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/notify.sh"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/worktree-compile.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/tauri-server-check.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

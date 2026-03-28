@@ -7,30 +7,16 @@
 - Run: `cargo run`
 - Test all: `cargo test`
 - Test one: `cargo test <test_name>`
-- Format: `cargo fmt --check` (apply: `cargo fmt`)
-- Lint: `cargo clippy -- -D warnings`
+- Game harness: `cargo run -- --script tests/fixtures/test_walkthrough.txt`
+- Frontend tests: `cd ui && npm test`
 
-Run `cargo fmt`, `cargo clippy`, and `cargo test` before committing.
-
-**Skills shortcut**: Run `/check` to execute all three quality gates, or `/verify` for the full pre-push checklist including the game harness.
-
-## Verification Before Pushing
-
-**Always manually verify changes work before pushing.** Running tests alone is not enough — use the `GameTestHarness` to actually exercise your changes:
-
-- Run `cargo run -- --script tests/fixtures/test_walkthrough.txt` and inspect the JSON output
-- Write a quick ad-hoc script file to test the specific feature you changed
-- If you added or changed game mechanics, write a targeted test script and run it through `--script` mode
-- Only push after you've both run the test suite **and** visually confirmed the harness output looks correct
+Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/game-test` for harness testing. Hooks handle formatting, compile checks, and quality gates automatically.
 
 ## Engineering Standards
 
-Every commit **must** satisfy all of the following:
-
-1. **Documentation**: **Every commit must leave docs current.** Update `README.md`, `CLAUDE.md`, `docs/design/`, `docs/adr/`, and doc comments (`///`) to reflect all changes. New public APIs, changed behavior, renamed or removed items, and architectural decisions must be documented before pushing. If you change code, you change the docs — no exceptions.
-2. **Tests required**: All new code must have accompanying unit tests. No new function, struct, or module lands without test coverage.
-3. **Coverage threshold**: Maintain test coverage above **90%**. Use `cargo tarpaulin` (or equivalent) to verify. PRs that drop coverage below 90% must not be merged.
-4. **All standards must pass**: `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test` must all succeed. No exceptions, no `#[allow]` without a justifying comment.
+- All new code must have accompanying unit tests. No `#[allow]` without a justifying comment.
+- Coverage must stay above **90%** (`cargo tarpaulin`).
+- Hooks enforce: formatting, clippy, tests, doc updates, conventional commits, coverage reminders, and screenshot regeneration. See the **Hooks** section below.
 
 ## Architecture
 
@@ -89,8 +75,6 @@ Parish/
 
 ## Code Style
 
-- Follow `cargo fmt` output exactly
-- All `cargo clippy` warnings are errors (`-D warnings`)
 - Doc comments (`///`) on all public structs and functions
 - Use `thiserror` for library errors, `anyhow` in main/binary code
 - Prefer `match` over `if let` for enum exhaustiveness
@@ -122,45 +106,15 @@ Parish/
 
 ## Git Workflow
 
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:` (enforced by `commit-msg-check.sh` hook)
 - One logical change per commit
-- Run full test suite before pushing
-
-## GUI Screenshots
-
-Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
-
-**Always regenerate screenshots when you change anything in `ui/` or `src-tauri/`.** Run:
-
-```sh
-cargo tauri dev -- -- --screenshot docs/screenshots
-```
-
-This captures the Tauri WebView at 4 times of day (morning, midday, dusk, night) via `WebviewWindow::capture_image()` and saves PNGs.
-
-Commit the updated screenshots alongside your UI changes.
 
 ## Tauri Development
 
-**To run the full Tauri desktop app:**
-```sh
-cargo tauri dev
-```
-This starts the Vite dev server (`ui/`) and the Tauri backend (`src-tauri/`) together.
-
-**To build a production bundle:**
-```sh
-cargo tauri build
-```
-
-**Frontend tests** (Svelte components):
-```sh
-cd ui && npm test
-```
-
-**IPC types**: All Rust → TypeScript types use `snake_case` (Rust serde defaults). TypeScript types in `ui/src/lib/types.ts` must match exactly.
-
-**System requirements** (Linux): `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
+- Dev: `cargo tauri dev` (starts Vite + Tauri together)
+- Build: `cargo tauri build`
+- IPC types use `snake_case` — TypeScript types in `ui/src/lib/types.ts` must match Rust serde output exactly.
+- System requirements (Linux): `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`.
 
 ## Documentation Map
 
@@ -186,3 +140,26 @@ Custom slash commands defined in `.claude/skills/`:
 | `/verify` | Full pre-push checklist (quality gate + harness) |
 | `/screenshot` | Regenerate GUI screenshots via xvfb |
 | `/fix-issue <N>` | End-to-end GitHub issue workflow |
+
+## Claude Code Hooks
+
+Automated hooks configured in `.claude/settings.json` that run at lifecycle events:
+
+| Hook | Event | Trigger | What It Does |
+|------|-------|---------|--------------|
+| `auto-fmt.sh` | PostToolUse | After any Edit/Write to a `.rs` file | Runs `cargo fmt --quiet` to auto-format |
+| `compile-check.sh` | PostToolUse | After any Edit/Write to a `.rs` file | Runs `cargo check` for immediate compile error feedback |
+| `dep-audit-reminder.sh` | PostToolUse | After any Edit/Write to `Cargo.toml` | Reminds to run `cargo audit` and `cargo outdated` |
+| `protect-files.sh` | PreToolUse | Before any Edit/Write | Blocks direct edits to `Cargo.lock` (exit 2) |
+| `quality-gates.sh` | Stop | When Claude finishes responding | Runs fmt + clippy + test if `.rs` files changed |
+| `harness-reminder.sh` | Stop | When Claude finishes responding | Reminds to run game harness if parish-core/world logic changed |
+| `doc-staleness.sh` | Stop | When Claude finishes responding | Warns if `.rs` files changed but no docs were updated |
+| `screenshot-reminder.sh` | Stop | When Claude finishes responding | Reminds to regenerate screenshots if `ui/` or `src-tauri/` changed |
+| `coverage-reminder.sh` | Stop | When Claude finishes responding | Reminds to check coverage when new `.rs` files are added |
+| `compact-context.sh` | SessionStart | After context compaction | Re-injects key project context |
+| `commit-msg-check.sh` | UserPromptSubmit | When user submits a prompt mentioning "commit" | Validates conventional commit message format |
+| `notify.sh` | Notification | When Claude needs attention | Sends desktop notification via `notify-send` |
+| `worktree-compile.sh` | WorktreeCreate | When a git worktree is created | Runs `cargo check --all` to verify workspace compiles |
+| `tauri-server-check.sh` | SubagentStart | When a subagent is spawned | Checks if Vite/Tauri dev server is running |
+
+Hook scripts live in `.claude/hooks/` and require `jq` for JSON parsing. All scripts are executable (`chmod +x`).
