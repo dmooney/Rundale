@@ -8,13 +8,37 @@
 
 Complete the cognitive LOD system with Tier 3 batch inference and Tier 4 CPU rules engine, expand the world beyond the starting parish, implement weather simulation, seasonal effects, gossip propagation, and NPC long-term memory.
 
+## Sub-Phase Breakdown
+
+Phase 5 is broken into six independently workable sub-phases. See each plan for detailed APIs, structs, and test specifications.
+
+```
+5A: Event Bus & Tier Transitions ──── foundation, do first
+ ├── 5B: Weather State Machine
+ ├── 5C: NPC Long-Term Memory & Gossip
+ │    └── 5D: Tier 3 Batch Inference
+ │         ├── 5E: Tier 4 Rules Engine & Seasonal Effects
+ │         └── 5F: World Graph Expansion
+```
+
+| Sub-Phase | Plan | Depends On | Key Deliverable |
+|-----------|------|-----------|-----------------|
+| **5A** | [Event Bus & Tier Transitions](phase-5a-event-bus-tier-transitions.md) | Phase 4 | `EventBus`, inflate/deflate |
+| **5B** | [Weather State Machine](phase-5b-weather-state-machine.md) | 5A | `WeatherEngine`, NPC shelter behavior |
+| **5C** | [Long-Term Memory & Gossip](phase-5c-memory-gossip.md) | 5A | `LongTermMemory`, `GossipNetwork` |
+| **5D** | [Tier 3 Batch Inference](phase-5d-tier3-batch-inference.md) | 5A, 5C | Batch NPC simulation, priority queue |
+| **5E** | [Tier 4 Rules Engine](phase-5e-tier4-seasonal-effects.md) | 5A, 5B, 5D | CPU rules engine, festivals, seasons |
+| **5F** | [World Graph Expansion](phase-5f-world-expansion.md) | 5D | Roscommon, Athlone, Dublin |
+
+**5B and 5C can be worked on in parallel** after 5A is complete.
+
 ## Prerequisites
 
 - Phase 4 complete: persistence working, autosave, branch system
 - Tier 1 and Tier 2 NPC cognition working (Phase 3)
 - Inference pipeline handles multiple concurrent requests (Phase 1)
 
-## Tasks
+## Tasks (Original — see sub-phase plans for detailed breakdowns)
 
 1. **Implement Tier 3 batch inference in `src/npc/mod.rs`**
    - `async fn tick_tier3(npcs: &mut [&mut Npc], world: &WorldState, queue: &InferenceQueue) -> Result<Vec<Tier3Update>>`

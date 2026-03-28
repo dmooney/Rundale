@@ -75,16 +75,74 @@
 ## Phase 5 — Full LOD & Scale
 
 > [Detailed plan](../plans/phase-5-full-lod-scale.md) | [Design: Cognitive LOD](../design/cognitive-lod.md), [Weather](../design/weather-system.md)
+>
+> Broken into six independently workable sub-phases with explicit dependency ordering.
 
-- [ ] Tier 3 batch inference
-- [ ] Tier 4 CPU-only rules engine
-- [ ] Tier transition: inflate/deflate NPC state
-- [ ] Event bus across tier boundaries
-- [ ] Expand world graph beyond starting parish
-- [ ] Weather state machine
-- [ ] Seasonal cycle effects on NPCs
-- [ ] Gossip/information propagation
-- [ ] NPC long-term memory with retrieval
+### Phase 5A — Event Bus & Tier Transitions
+
+> [Detailed plan](../plans/phase-5a-event-bus-tier-transitions.md) | **Foundation — do first**
+
+- [ ] `WorldEvent` enum and `EventBus` (tokio broadcast)
+- [ ] Tier inflation: build narrative context on NPC promotion (distant → close)
+- [ ] Tier deflation: compact short-term memory on NPC demotion (close → distant)
+- [ ] Wire transitions into `NpcManager::assign_tiers`
+- [ ] Event journal bridge (persistence subscriber)
+
+### Phase 5B — Weather State Machine
+
+> [Detailed plan](../plans/phase-5b-weather-state-machine.md) | Depends on: 5A
+
+- [ ] Expand `Weather` enum (add PartlyCloudy, LightRain, HeavyRain)
+- [ ] `WeatherEngine` with seasonal transition probabilities
+- [ ] Weather affects NPC schedules (seek shelter in rain)
+- [ ] Weather context in Tier 2 prompts
+- [ ] Palette tinting for new weather variants
+- [ ] Publish `WeatherChanged` events via event bus
+
+### Phase 5C — NPC Long-Term Memory & Gossip
+
+> [Detailed plan](../plans/phase-5c-memory-gossip.md) | Depends on: 5A
+
+- [ ] `LongTermMemory` with keyword-based retrieval
+- [ ] Short-term → long-term promotion on eviction (importance threshold)
+- [ ] Long-term memory recall in Tier 1 context construction
+- [ ] `GossipNetwork` with probabilistic propagation (60% transfer, 20% distortion)
+- [ ] Gossip creation from world events
+- [ ] Gossip injection into Tier 1 dialogue context
+
+### Phase 5D — Tier 3 Batch Inference
+
+> [Detailed plan](../plans/phase-5d-tier3-batch-inference.md) | Depends on: 5A, 5C
+
+- [ ] `Tier3Update` / `Tier3Response` types
+- [ ] Batch prompt construction (8-10 NPCs per call)
+- [ ] Tier 3 tick function (every 1 in-game day)
+- [ ] Priority queue: Tier 1 > Tier 2 > Tier 3
+- [ ] Skip overdue ticks (don't queue)
+- [ ] Tier 3 vs Tier 4 distance split in `assign_tiers`
+
+### Phase 5E — Tier 4 Rules Engine & Seasonal Effects
+
+> [Detailed plan](../plans/phase-5e-tier4-seasonal-effects.md) | Depends on: 5A, 5B, 5D
+
+- [ ] `Tier4Event` enum and `tick_tier4` CPU-only rules engine
+- [ ] Life event probabilities (illness, death, birth, trade)
+- [ ] Seasonal schedule overrides (farmers, teachers, publicans)
+- [ ] Festival event hooks (Imbolc, Bealtaine, Lughnasa, Samhain)
+- [ ] NPC health state tracking
+- [ ] Run on `spawn_blocking`
+
+### Phase 5F — World Graph Expansion
+
+> [Detailed plan](../plans/phase-5f-world-expansion.md) | Depends on: 5D
+
+- [ ] Roscommon town data (~10 locations)
+- [ ] Athlone data (~5 locations)
+- [ ] Dublin data (~5 locations)
+- [ ] Inter-region connections with realistic travel times
+- [ ] Multi-file graph loading
+- [ ] New NPCs for expanded locations
+- [ ] Long-journey travel narration
 
 ## Phase 6 — Polish & Mythology Hooks
 
