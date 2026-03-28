@@ -1,14 +1,14 @@
 /* Parish — Global CSS Theme */
 
 :root {
-	/* Default palette (overridden at runtime by Rust theme-update events) */
-	--color-bg: #1a1a2e;
-	--color-fg: #e8e0d0;
-	--color-accent: #c4a35a;
-	--color-panel-bg: #16213e;
-	--color-input-bg: #0f3460;
-	--color-border: #2a2a4a;
-	--color-muted: #7a7a9a;
+	/* Default palette: morning (game starts at 8 AM). Overridden at runtime by Rust theme-update events. */
+	--color-bg: #fff5dc;
+	--color-fg: #32230f;
+	--color-accent: #b48232;
+	--color-panel-bg: #faf0d7;
+	--color-input-bg: #f5ebd2;
+	--color-border: #d2be96;
+	--color-muted: #78643c;
 }
 
 *,
