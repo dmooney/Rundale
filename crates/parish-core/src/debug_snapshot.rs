@@ -119,6 +119,25 @@ pub struct NpcDebug {
     pub memories: Vec<MemoryDebug>,
     /// Knowledge entries.
     pub knowledge: Vec<String>,
+    /// Intelligence profile dimensions (each 1–5).
+    pub intelligence: IntelligenceDebug,
+}
+
+/// Compact intelligence profile for debug display.
+#[derive(Debug, Clone, Serialize)]
+pub struct IntelligenceDebug {
+    /// Verbal — language fluency, vocabulary, eloquence (1–5).
+    pub verbal: u8,
+    /// Analytical — logic, reasoning, problem-solving (1–5).
+    pub analytical: u8,
+    /// Emotional — empathy, reading people, social awareness (1–5).
+    pub emotional: u8,
+    /// Practical — common sense, hands-on resourcefulness (1–5).
+    pub practical: u8,
+    /// Wisdom — life experience, judgment, foresight (1–5).
+    pub wisdom: u8,
+    /// Creative — imagination, wit, improvisation (1–5).
+    pub creative: u8,
 }
 
 /// A single schedule entry for debug display.
@@ -384,6 +403,14 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
                 relationships,
                 memories,
                 knowledge: npc.knowledge.clone(),
+                intelligence: IntelligenceDebug {
+                    verbal: npc.intelligence.verbal,
+                    analytical: npc.intelligence.analytical,
+                    emotional: npc.intelligence.emotional,
+                    practical: npc.intelligence.practical,
+                    wisdom: npc.intelligence.wisdom,
+                    creative: npc.intelligence.creative,
+                },
             }
         })
         .collect();
@@ -475,6 +502,14 @@ mod tests {
         assert_eq!(snapshot.npcs[0].name, "Padraig O'Brien");
         assert_eq!(snapshot.npcs[0].mood, "content");
         assert_eq!(snapshot.npcs[0].state, "Present");
+        // Intelligence matches new_test_npc: Intelligence::new(3, 3, 4, 4, 5, 4)
+        let intel = &snapshot.npcs[0].intelligence;
+        assert_eq!(intel.verbal, 3);
+        assert_eq!(intel.analytical, 3);
+        assert_eq!(intel.emotional, 4);
+        assert_eq!(intel.practical, 4);
+        assert_eq!(intel.wisdom, 5);
+        assert_eq!(intel.creative, 4);
     }
 
     #[test]

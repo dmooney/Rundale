@@ -133,6 +133,16 @@ export interface NpcDebug {
 	relationships: RelationshipDebug[];
 	memories: MemoryDebug[];
 	knowledge: string[];
+	intelligence: IntelligenceDebug;
+}
+
+export interface IntelligenceDebug {
+	verbal: number;
+	analytical: number;
+	emotional: number;
+	practical: number;
+	wisdom: number;
+	creative: number;
 }
 
 export interface ScheduleEntryDebug {
