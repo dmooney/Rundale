@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { textLog, streamingActive } from '../stores/game';
+	import { textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 
 	let logEl: HTMLDivElement;
@@ -32,8 +32,9 @@
 		</div>
 	{/each}
 	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming)}
-		<div class="spinner-row">
-			<span class="spinner"></span>
+		<div class="loading-row">
+			<span class="loading-spinner" style="color: rgb({$loadingColor[0]}, {$loadingColor[1]}, {$loadingColor[2]})">{$loadingSpinner}</span>
+			<span class="loading-phrase" style="color: rgb({$loadingColor[0]}, {$loadingColor[1]}, {$loadingColor[2]})">{$loadingPhrase}</span>
 		</div>
 	{/if}
 </div>
@@ -82,23 +83,33 @@
 		50% { opacity: 0; }
 	}
 
-	.spinner-row {
+	.loading-row {
 		display: flex;
 		align-items: center;
+		gap: 0.5rem;
 		padding: 0.25rem 0;
+		font-size: 1.1rem;
+		animation: fade-in 0.3s ease-in;
 	}
 
-	.spinner {
+	.loading-spinner {
 		display: inline-block;
-		width: 1rem;
-		height: 1rem;
-		border: 2px solid var(--color-border);
-		border-top-color: var(--color-accent);
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
+		font-size: 1.3rem;
+		animation: pulse 1.2s ease-in-out infinite;
 	}
 
-	@keyframes spin {
-		to { transform: rotate(360deg); }
+	.loading-phrase {
+		font-style: italic;
+		transition: color 0.5s ease;
+	}
+
+	@keyframes fade-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.6; transform: scale(1.15); }
 	}
 </style>
