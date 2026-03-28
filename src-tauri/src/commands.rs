@@ -200,11 +200,16 @@ pub async fn get_debug_snapshot(
         improv_enabled: config.improv_enabled,
     };
 
+    let gossip = state.gossip_network.lock().await;
+    let weather_engine = state.weather_engine.lock().await;
+
     Ok(debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &inference,
+        Some(&gossip),
+        Some(&weather_engine),
     ))
 }
 

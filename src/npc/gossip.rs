@@ -134,6 +134,11 @@ impl GossipNetwork {
         }
     }
 
+    /// Returns all gossip items for debug inspection.
+    pub fn all_items(&self) -> &[GossipItem] {
+        &self.items
+    }
+
     /// Returns all gossip items known by a specific NPC.
     pub fn gossip_for_npc(&self, npc_id: NpcId) -> Vec<&GossipItem> {
         self.items

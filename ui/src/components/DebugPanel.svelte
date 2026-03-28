@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { debugVisible, debugSnapshot, debugTab, selectedNpcId } from '../stores/debug';
-	import type { NpcDebug } from '$lib/types';
+	import type { NpcDebug, GossipItemDebug } from '$lib/types';
 
-	const tabs = ['Overview', 'NPCs', 'World', 'Events', 'Inference'];
+	const tabs = ['Overview', 'NPCs', 'World', 'Events', 'Inference', 'Gossip'];
 
 	function selectTab(index: number) {
 		debugTab.set(index);
@@ -57,6 +57,9 @@
 					<div class="field">{snap.clock.game_time}</div>
 					<div class="field">{snap.clock.time_of_day} | {snap.clock.season}</div>
 					<div class="field">Weather: {snap.clock.weather}</div>
+					{#if snap.clock.weather_since}
+						<div class="field muted">Since: {snap.clock.weather_since} (min {snap.clock.weather_min_duration_hours}h between changes)</div>
+					{/if}
 					<div class="field">Speed: {snap.clock.speed_factor}x {snap.clock.paused ? '(PAUSED)' : ''}</div>
 					{#if snap.clock.festival}
 						<div class="field accent">Festival: {snap.clock.festival}</div>
@@ -71,8 +74,18 @@
 					<h4>Tiers</h4>
 					<div class="field">T1: {snap.tier_summary.tier1_count} | T2: {snap.tier_summary.tier2_count} | T3: {snap.tier_summary.tier3_count} | T4: {snap.tier_summary.tier4_count}</div>
 					{#if snap.tier_summary.tier1_names.length > 0}
-						<div class="field muted">T1 NPCs: {snap.tier_summary.tier1_names.join(', ')}</div>
+						<div class="field muted">T1: {snap.tier_summary.tier1_names.join(', ')}</div>
 					{/if}
+					{#if snap.tier_summary.tier2_names.length > 0}
+						<div class="field muted">T2: {snap.tier_summary.tier2_names.join(', ')}</div>
+					{/if}
+					{#if snap.tier_summary.tier3_names.length > 0}
+						<div class="field muted">T3: {snap.tier_summary.tier3_names.join(', ')}</div>
+					{/if}
+					{#if snap.tier_summary.tier4_names.length > 0}
+						<div class="field muted">T4: {snap.tier_summary.tier4_names.join(', ')}</div>
+					{/if}
+					<div class="field muted">Last ticks — T2: {snap.tier_summary.last_tier2_tick ?? 'never'} | T3: {snap.tier_summary.last_tier3_tick ?? 'never'} | T4: {snap.tier_summary.last_tier4_tick ?? 'never'}</div>
 				</div>
 
 			{:else if tab === 1}
@@ -124,6 +137,15 @@
 								<h5>Memory ({selectedNpc.memories.length})</h5>
 								{#each selectedNpc.memories as mem}
 									<div class="field"><span class="muted">[{mem.timestamp}]</span> {mem.content} <span class="muted">({mem.location_name})</span></div>
+								{/each}
+							</div>
+						{/if}
+
+						{#if selectedNpc.long_term_memories.length > 0}
+							<div class="section">
+								<h5>Long-term Memory ({selectedNpc.long_term_memories.length})</h5>
+								{#each selectedNpc.long_term_memories as ltm}
+									<div class="field"><span class="muted">[{ltm.timestamp}]</span> {ltm.content} <span class="muted">(imp: {ltm.importance.toFixed(2)}, kw: {ltm.keywords.join(', ')})</span></div>
 								{/each}
 							</div>
 						{/if}
@@ -207,6 +229,30 @@
 				</div>
 				<div class="section">
 					<div class="field">Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
+				</div>
+
+			{:else if tab === 5}
+				<!-- Gossip -->
+				<div class="section">
+					<h4>Gossip Network ({snap.gossip.length} items)</h4>
+					{#if snap.gossip.length === 0}
+						<div class="field muted">(no gossip circulating)</div>
+					{:else}
+						{#each snap.gossip as item}
+							<div class="gossip-item">
+								<div class="field">
+									<span class="muted">[{item.timestamp}]</span>
+									<span class="accent">{item.source_name}:</span>
+									{item.content}
+								</div>
+								{#if item.distortion_level > 0}
+									<div class="field muted indent">Original: {item.original_content}</div>
+									<div class="field indent">Distortion: {'!'.repeat(item.distortion_level)}</div>
+								{/if}
+								<div class="field muted indent">Known by: {item.known_by_names.join(', ')} ({item.known_by_names.length})</div>
+							</div>
+						{/each}
+					{/if}
 				</div>
 			{/if}
 		</div>
@@ -413,5 +459,10 @@
 	.event-cat {
 		color: var(--color-accent);
 		font-size: 0.65rem;
+	}
+
+	.gossip-item {
+		padding: 0.3rem 0;
+		border-bottom: 1px solid var(--color-border);
 	}
 </style>

@@ -16,8 +16,10 @@ use tokio::sync::Mutex;
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+use parish_core::npc::gossip::GossipNetwork;
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::palette::{RawColor, RawPalette, compute_palette};
+use parish_core::world::weather::WeatherEngine;
 use parish_core::world::{LocationId, WorldState};
 
 // ── IPC type definitions ─────────────────────────────────────────────────────
@@ -191,6 +193,10 @@ pub struct AppState {
     pub config: Mutex<GameConfig>,
     /// Rolling debug event log for the debug panel.
     pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    /// Gossip network tracking circulating rumours.
+    pub gossip_network: Mutex<GossipNetwork>,
+    /// Weather state machine with Markov chain transitions.
+    pub weather_engine: Mutex<WeatherEngine>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -351,6 +357,9 @@ pub fn run() {
     // Initial tier assignment
     npc_manager.assign_tiers(world.player_location, &world.graph);
 
+    // Capture weather engine initial state before world moves into Mutex
+    let weather_engine = WeatherEngine::new(world.weather, world.clock.now());
+
     // Read provider config from env vars (optional)
     let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
     let cloud_env = build_cloud_client_from_env();
@@ -379,6 +388,8 @@ pub fn run() {
             category_api_key: [None, None, None],
             category_base_url: [None, None, None],
         }),
+        gossip_network: Mutex::new(GossipNetwork::new()),
+        weather_engine: Mutex::new(weather_engine),
     });
 
     tauri::Builder::default()
@@ -550,11 +561,16 @@ pub fn run() {
                             improv_enabled: config.improv_enabled,
                         };
 
+                        let gossip = state_debug.gossip_network.lock().await;
+                        let weather_engine = state_debug.weather_engine.lock().await;
+
                         let snapshot = parish_core::debug_snapshot::build_debug_snapshot(
                             &world,
                             &npc_manager,
                             &debug_events,
                             &inference,
+                            Some(&gossip),
+                            Some(&weather_engine),
                         );
                         let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);
                     }

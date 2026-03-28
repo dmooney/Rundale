@@ -88,6 +88,7 @@ export interface DebugSnapshot {
 	tier_summary: TierSummary;
 	events: DebugEvent[];
 	inference: InferenceDebug;
+	gossip: GossipItemDebug[];
 }
 
 export interface ClockDebug {
@@ -96,6 +97,8 @@ export interface ClockDebug {
 	season: string;
 	festival: string | null;
 	weather: string;
+	weather_since: string | null;
+	weather_min_duration_hours: number | null;
 	paused: boolean;
 	speed_factor: number;
 }
@@ -133,6 +136,7 @@ export interface NpcDebug {
 	relationships: RelationshipDebug[];
 	memories: MemoryDebug[];
 	knowledge: string[];
+	long_term_memories: LongTermMemoryDebug[];
 }
 
 export interface ScheduleEntryDebug {
@@ -162,6 +166,11 @@ export interface TierSummary {
 	tier4_count: number;
 	tier1_names: string[];
 	tier2_names: string[];
+	tier3_names: string[];
+	tier4_names: string[];
+	last_tier2_tick: string | null;
+	last_tier3_tick: string | null;
+	last_tier4_tick: string | null;
 }
 
 export interface DebugEvent {
@@ -178,4 +187,21 @@ export interface InferenceDebug {
 	cloud_model: string | null;
 	has_queue: boolean;
 	improv_enabled: boolean;
+}
+
+export interface LongTermMemoryDebug {
+	timestamp: string;
+	content: string;
+	importance: number;
+	keywords: string[];
+}
+
+export interface GossipItemDebug {
+	id: number;
+	content: string;
+	original_content: string;
+	source_name: string;
+	known_by_names: string[];
+	distortion_level: number;
+	timestamp: string;
 }

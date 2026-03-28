@@ -9,10 +9,12 @@ use std::collections::VecDeque;
 use chrono::Timelike;
 use serde::Serialize;
 
+use crate::npc::gossip::GossipNetwork;
 use crate::npc::manager::NpcManager;
 use crate::npc::types::{CogTier, NpcState};
 use crate::world::WorldState;
 use crate::world::graph::WorldGraph;
+use crate::world::weather::WeatherEngine;
 
 /// A complete debug snapshot of all game state.
 ///
@@ -33,6 +35,8 @@ pub struct DebugSnapshot {
     pub events: Vec<DebugEvent>,
     /// Inference pipeline configuration.
     pub inference: InferenceDebug,
+    /// Active gossip items circulating in the parish.
+    pub gossip: Vec<GossipItemDebug>,
 }
 
 /// Game clock state for debug display.
@@ -48,6 +52,10 @@ pub struct ClockDebug {
     pub festival: Option<String>,
     /// Current weather.
     pub weather: String,
+    /// When the current weather condition began (formatted).
+    pub weather_since: Option<String>,
+    /// Minimum hours between weather transitions.
+    pub weather_min_duration_hours: Option<u32>,
     /// Whether the clock is paused.
     pub paused: bool,
     /// Clock speed multiplier.
@@ -119,6 +127,21 @@ pub struct NpcDebug {
     pub memories: Vec<MemoryDebug>,
     /// Knowledge entries.
     pub knowledge: Vec<String>,
+    /// Long-term memory entries.
+    pub long_term_memories: Vec<LongTermMemoryDebug>,
+}
+
+/// A long-term memory entry for debug display.
+#[derive(Debug, Clone, Serialize)]
+pub struct LongTermMemoryDebug {
+    /// Formatted game timestamp.
+    pub timestamp: String,
+    /// What happened.
+    pub content: String,
+    /// Importance score (0.0 to 1.0).
+    pub importance: f32,
+    /// Keywords extracted from the content.
+    pub keywords: Vec<String>,
 }
 
 /// A single schedule entry for debug display.
@@ -173,6 +196,16 @@ pub struct TierSummary {
     pub tier1_names: Vec<String>,
     /// Names of Tier 2 NPCs (nearby).
     pub tier2_names: Vec<String>,
+    /// Names of Tier 3 NPCs (distant).
+    pub tier3_names: Vec<String>,
+    /// Names of Tier 4 NPCs (far away).
+    pub tier4_names: Vec<String>,
+    /// Formatted game time of last Tier 2 tick.
+    pub last_tier2_tick: Option<String>,
+    /// Formatted game time of last Tier 3 tick.
+    pub last_tier3_tick: Option<String>,
+    /// Formatted game time of last Tier 4 tick.
+    pub last_tier4_tick: Option<String>,
 }
 
 /// A timestamped debug event for the event log.
@@ -205,6 +238,25 @@ pub struct InferenceDebug {
     pub improv_enabled: bool,
 }
 
+/// A gossip item for debug display.
+#[derive(Debug, Clone, Serialize)]
+pub struct GossipItemDebug {
+    /// Unique gossip identifier.
+    pub id: u32,
+    /// Current (possibly distorted) content.
+    pub content: String,
+    /// Original undistorted content.
+    pub original_content: String,
+    /// Name of the NPC who originated this gossip.
+    pub source_name: String,
+    /// Names of NPCs who know this gossip.
+    pub known_by_names: Vec<String>,
+    /// Number of times the content has been distorted.
+    pub distortion_level: u8,
+    /// Formatted timestamp of when this gossip was created.
+    pub timestamp: String,
+}
+
 /// Builds a complete debug snapshot from live game state.
 ///
 /// Pure query function — reads but never mutates any state.
@@ -215,12 +267,15 @@ pub fn build_debug_snapshot(
     npc_manager: &NpcManager,
     events: &VecDeque<DebugEvent>,
     inference: &InferenceDebug,
+    gossip_network: Option<&GossipNetwork>,
+    weather_engine: Option<&WeatherEngine>,
 ) -> DebugSnapshot {
-    let clock = build_clock_debug(world);
+    let clock = build_clock_debug(world, weather_engine);
     let world_debug = build_world_debug(world, npc_manager);
     let npcs = build_npc_debug_list(npc_manager, &world.graph);
     let tier_summary = build_tier_summary(npc_manager);
     let event_list: Vec<DebugEvent> = events.iter().cloned().collect();
+    let gossip = build_gossip_debug(gossip_network, npc_manager);
 
     DebugSnapshot {
         clock,
@@ -229,11 +284,12 @@ pub fn build_debug_snapshot(
         tier_summary,
         events: event_list,
         inference: inference.clone(),
+        gossip,
     }
 }
 
 /// Builds clock debug info from world state.
-fn build_clock_debug(world: &WorldState) -> ClockDebug {
+fn build_clock_debug(world: &WorldState, weather_engine: Option<&WeatherEngine>) -> ClockDebug {
     let now = world.clock.now();
     ClockDebug {
         game_time: format!(
@@ -246,6 +302,8 @@ fn build_clock_debug(world: &WorldState) -> ClockDebug {
         season: world.clock.season().to_string(),
         festival: world.clock.check_festival().map(|f| f.to_string()),
         weather: world.weather.to_string(),
+        weather_since: weather_engine.map(|e| e.since().format("%H:%M %Y-%m-%d").to_string()),
+        weather_min_duration_hours: weather_engine.map(|_| 2),
         paused: world.clock.is_paused(),
         speed_factor: world.clock.speed_factor(),
     }
@@ -367,6 +425,18 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
                 })
                 .collect();
 
+            let long_term_memories: Vec<LongTermMemoryDebug> = npc
+                .long_term_memory
+                .all_entries()
+                .iter()
+                .map(|e| LongTermMemoryDebug {
+                    timestamp: e.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+                    content: e.content.clone(),
+                    importance: e.importance,
+                    keywords: e.keywords.clone(),
+                })
+                .collect();
+
             NpcDebug {
                 id: npc.id.0,
                 name: npc.name.clone(),
@@ -384,6 +454,7 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
                 relationships,
                 memories,
                 knowledge: npc.knowledge.clone(),
+                long_term_memories,
             }
         })
         .collect();
@@ -397,27 +468,78 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
 fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
     let mut t1 = Vec::new();
     let mut t2 = Vec::new();
-    let mut t3: usize = 0;
-    let mut t4: usize = 0;
+    let mut t3 = Vec::new();
+    let mut t4 = Vec::new();
 
     for npc in npc_manager.all_npcs() {
         match npc_manager.tier_of(npc.id) {
             Some(CogTier::Tier1) => t1.push(npc.name.clone()),
             Some(CogTier::Tier2) => t2.push(npc.name.clone()),
-            Some(CogTier::Tier3) => t3 += 1,
-            Some(CogTier::Tier4) => t4 += 1,
-            None => t3 += 1, // unassigned counts as Tier3
+            Some(CogTier::Tier3) => t3.push(npc.name.clone()),
+            Some(CogTier::Tier4) => t4.push(npc.name.clone()),
+            None => t3.push(npc.name.clone()), // unassigned counts as Tier3
         }
     }
+
+    let fmt_time = |dt: Option<chrono::DateTime<chrono::Utc>>| {
+        dt.map(|t| t.format("%H:%M %Y-%m-%d").to_string())
+    };
 
     TierSummary {
         tier1_count: t1.len(),
         tier2_count: t2.len(),
-        tier3_count: t3,
-        tier4_count: t4,
+        tier3_count: t3.len(),
+        tier4_count: t4.len(),
         tier1_names: t1,
         tier2_names: t2,
+        tier3_names: t3,
+        tier4_names: t4,
+        last_tier2_tick: fmt_time(npc_manager.last_tier2_game_time()),
+        last_tier3_tick: fmt_time(npc_manager.last_tier3_game_time()),
+        last_tier4_tick: fmt_time(npc_manager.last_tier4_game_time()),
     }
+}
+
+/// Builds gossip debug info from the gossip network.
+fn build_gossip_debug(
+    gossip_network: Option<&GossipNetwork>,
+    npc_manager: &NpcManager,
+) -> Vec<GossipItemDebug> {
+    let Some(network) = gossip_network else {
+        return Vec::new();
+    };
+
+    network
+        .all_items()
+        .iter()
+        .map(|item| {
+            let source_name = npc_manager
+                .get(item.source)
+                .map(|n| n.name.clone())
+                .unwrap_or_else(|| format!("NPC({})", item.source.0));
+
+            let known_by_names: Vec<String> = item
+                .known_by
+                .iter()
+                .map(|id| {
+                    npc_manager
+                        .get(*id)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_else(|| format!("NPC({})", id.0))
+                })
+                .collect();
+
+            GossipItemDebug {
+                id: item.id,
+                content: item.content.clone(),
+                original_content: item.original_content.clone(),
+                source_name,
+                known_by_names,
+                distortion_level: item.distortion_level,
+                timestamp: item.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -441,7 +563,7 @@ mod tests {
             improv_enabled: false,
         };
 
-        let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference);
+        let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference, None, None);
 
         assert!(snapshot.clock.game_time.contains("08:00"));
         assert_eq!(snapshot.clock.weather, "Clear");
@@ -469,7 +591,7 @@ mod tests {
             improv_enabled: false,
         };
 
-        let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference);
+        let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference, None, None);
 
         assert_eq!(snapshot.npcs.len(), 1);
         assert_eq!(snapshot.npcs[0].name, "Padraig O'Brien");
@@ -480,7 +602,7 @@ mod tests {
     #[test]
     fn test_build_clock_debug() {
         let world = WorldState::new();
-        let clock = build_clock_debug(&world);
+        let clock = build_clock_debug(&world, None);
 
         assert!(clock.game_time.contains("08:00"));
         assert_eq!(clock.time_of_day, "Morning");
@@ -559,7 +681,7 @@ mod tests {
             improv_enabled: false,
         };
 
-        let snapshot = build_debug_snapshot(&world, &mgr, &events, &inference);
+        let snapshot = build_debug_snapshot(&world, &mgr, &events, &inference, None, None);
         assert_eq!(snapshot.events.len(), 2);
         assert_eq!(snapshot.events[0].message, "Test event");
         assert_eq!(snapshot.events[1].category, "schedule");

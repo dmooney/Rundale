@@ -201,6 +201,11 @@ impl LongTermMemory {
         scored.into_iter().take(limit).map(|(_, e)| e).collect()
     }
 
+    /// Returns all entries for debug inspection.
+    pub fn all_entries(&self) -> &[LongTermEntry] {
+        &self.entries
+    }
+
     /// Returns the number of stored entries.
     pub fn len(&self) -> usize {
         self.entries.len()

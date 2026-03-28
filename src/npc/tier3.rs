@@ -118,6 +118,7 @@ mod tests {
         Npc {
             id: NpcId(id),
             name: name.to_string(),
+            brief_description: format!("a {}", occupation.to_lowercase()),
             age: 35,
             occupation: occupation.to_string(),
             personality: "test".to_string(),
