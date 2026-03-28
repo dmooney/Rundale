@@ -90,17 +90,6 @@
         ]
       }
     ],
-    "WorktreeCreate": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/worktree-compile.sh"
-          }
-        ]
-      }
-    ],
     "SubagentStart": [
       {
         "matcher": "",
