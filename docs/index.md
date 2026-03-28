@@ -40,6 +40,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
 | [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |
 | [Debug System](design/debug-system.md) | Debug commands, metrics (feature-gated) | — |
+| [Debug UI](design/debug-ui.md) | Tabbed debug panel for Tauri GUI (state inspector) | — |
 | [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
 | [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer | — |

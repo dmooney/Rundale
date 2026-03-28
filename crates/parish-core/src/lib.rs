@@ -5,6 +5,7 @@
 //! Consumed by the CLI binary (headless) and the Tauri desktop frontend.
 
 pub mod config;
+pub mod debug_snapshot;
 pub mod error;
 pub mod inference;
 pub mod input;

@@ -78,3 +78,104 @@ export interface LoadingPayload {
 	phrase?: string;
 	color?: [number, number, number];
 }
+
+// ── Debug types ─────────────────────────────────────────────────────────────
+
+export interface DebugSnapshot {
+	clock: ClockDebug;
+	world: WorldDebug;
+	npcs: NpcDebug[];
+	tier_summary: TierSummary;
+	events: DebugEvent[];
+	inference: InferenceDebug;
+}
+
+export interface ClockDebug {
+	game_time: string;
+	time_of_day: string;
+	season: string;
+	festival: string | null;
+	weather: string;
+	paused: boolean;
+	speed_factor: number;
+}
+
+export interface WorldDebug {
+	player_location_name: string;
+	player_location_id: number;
+	location_count: number;
+	locations: LocationDebug[];
+}
+
+export interface LocationDebug {
+	id: number;
+	name: string;
+	indoor: boolean;
+	public: boolean;
+	connection_count: number;
+	npcs_here: string[];
+}
+
+export interface NpcDebug {
+	id: number;
+	name: string;
+	age: number;
+	occupation: string;
+	personality: string;
+	location_name: string;
+	location_id: number;
+	home_name: string | null;
+	workplace_name: string | null;
+	mood: string;
+	state: string;
+	tier: string;
+	schedule: ScheduleEntryDebug[];
+	relationships: RelationshipDebug[];
+	memories: MemoryDebug[];
+	knowledge: string[];
+}
+
+export interface ScheduleEntryDebug {
+	start_hour: number;
+	end_hour: number;
+	location_name: string;
+	activity: string;
+}
+
+export interface RelationshipDebug {
+	target_name: string;
+	kind: string;
+	strength: number;
+	history_count: number;
+}
+
+export interface MemoryDebug {
+	timestamp: string;
+	content: string;
+	location_name: string;
+}
+
+export interface TierSummary {
+	tier1_count: number;
+	tier2_count: number;
+	tier3_count: number;
+	tier4_count: number;
+	tier1_names: string[];
+	tier2_names: string[];
+}
+
+export interface DebugEvent {
+	timestamp: string;
+	category: string;
+	message: string;
+}
+
+export interface InferenceDebug {
+	provider_name: string;
+	model_name: string;
+	base_url: string;
+	cloud_provider: string | null;
+	cloud_model: string | null;
+	has_queue: boolean;
+	improv_enabled: boolean;
+}

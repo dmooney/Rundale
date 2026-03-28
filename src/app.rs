@@ -101,6 +101,12 @@ pub struct App {
     pub improv_enabled: bool,
     /// Whether the debug sidebar panel is visible.
     pub debug_sidebar_visible: bool,
+    /// Active debug panel tab index (0=Overview, 1=NPCs, 2=World, 3=Events, 4=Inference).
+    pub debug_tab: usize,
+    /// Selected NPC index in the NPC tab (-1 = none, >=0 = index into sorted list).
+    pub debug_selected_npc: Option<usize>,
+    /// Scroll offset within the active debug tab.
+    pub debug_scroll: u16,
     /// Rolling activity log for the debug panel.
     pub debug_log: VecDeque<String>,
     /// Counter for rotating idle messages.
@@ -173,6 +179,9 @@ impl App {
             pronunciation_hints: Vec::new(),
             improv_enabled: false,
             debug_sidebar_visible: false,
+            debug_tab: 0,
+            debug_selected_npc: None,
+            debug_scroll: 0,
             debug_log: VecDeque::with_capacity(DEBUG_LOG_CAPACITY),
             idle_counter: 0,
             client: None,

@@ -10,6 +10,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 
 use parish_core::config::Provider;
+use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
@@ -174,6 +175,37 @@ pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePa
         world.weather,
     );
     Ok(ThemePalette::from(raw))
+}
+
+/// Returns a debug snapshot of all game state for the debug panel.
+///
+/// Aggregates clock, world graph, NPC state, events, and inference config
+/// into a single serializable [`DebugSnapshot`].
+#[tauri::command]
+pub async fn get_debug_snapshot(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<DebugSnapshot, String> {
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let events = state.debug_events.lock().await;
+    let config = state.config.lock().await;
+
+    let inference = InferenceDebug {
+        provider_name: config.provider_name.clone(),
+        model_name: config.model_name.clone(),
+        base_url: config.base_url.clone(),
+        cloud_provider: config.cloud_provider_name.clone(),
+        cloud_model: config.cloud_model_name.clone(),
+        has_queue: state.inference_queue.lock().await.is_some(),
+        improv_enabled: config.improv_enabled,
+    };
+
+    Ok(debug_snapshot::build_debug_snapshot(
+        &world,
+        &npc_manager,
+        &events,
+        &inference,
+    ))
 }
 
 /// Processes player text input: classification → movement, look, or NPC conversation.

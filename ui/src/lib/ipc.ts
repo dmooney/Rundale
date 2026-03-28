@@ -9,7 +9,8 @@ import type {
 	StreamEndPayload,
 	TextLogPayload,
 	WorldUpdatePayload,
-	LoadingPayload
+	LoadingPayload,
+	DebugSnapshot
 } from './types';
 
 // ── Commands ─────────────────────────────────────────────────────────────────
@@ -23,6 +24,8 @@ export const getNpcsHere = () => invoke<NpcInfo[]>('get_npcs_here');
 export const getTheme = () => invoke<ThemePalette>('get_theme');
 
 export const submitInput = (text: string) => invoke<void>('submit_input', { text });
+
+export const getDebugSnapshot = () => invoke<DebugSnapshot>('get_debug_snapshot');
 
 // ── Events ───────────────────────────────────────────────────────────────────
 
@@ -43,3 +46,6 @@ export const onLoading = (cb: (payload: LoadingPayload) => void) =>
 
 export const onThemeUpdate = (cb: (payload: ThemePalette) => void) =>
 	listen<ThemePalette>('theme-update', (e) => cb(e.payload));
+
+export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
+	listen<DebugSnapshot>('debug-update', (e) => cb(e.payload));

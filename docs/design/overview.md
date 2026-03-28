@@ -126,6 +126,7 @@ src/
 - [NPC System](npc-system.md) — Entity data model, context construction, gossip propagation
 - [Inference Pipeline](inference-pipeline.md) — Ollama integration, queue architecture, throughput
 - [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
+- [Debug UI](debug-ui.md) — Tabbed debug panel for Tauri GUI (full game state inspector)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
 - [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
