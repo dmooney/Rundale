@@ -224,7 +224,7 @@ pub async fn run_tier2_for_group(
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     match client
-        .generate_json::<Tier2Response>(model, &prompt, None)
+        .generate_json::<Tier2Response>(model, &prompt, None, None)
         .await
     {
         Ok(resp) => Some(Tier2Event {

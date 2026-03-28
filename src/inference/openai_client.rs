@@ -47,6 +47,8 @@ struct ChatCompletionRequest<'a> {
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     response_format: Option<ResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
 }
 
 /// Controls structured output format.
@@ -129,14 +131,16 @@ impl OpenAiClient {
     ///
     /// Builds a messages array from the prompt and optional system message,
     /// posts to `/v1/chat/completions` with `stream: false`, and extracts
-    /// `choices[0].message.content`.
+    /// `choices[0].message.content`. An optional `max_tokens` cap prevents
+    /// excessively long responses.
     pub async fn generate(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
+        max_tokens: Option<u32>,
     ) -> Result<String, ParishError> {
-        let body = self.build_request(model, prompt, system, false, false);
+        let body = self.build_request(model, prompt, system, false, false, max_tokens);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
         Ok(extract_content(&completion))
@@ -147,15 +151,17 @@ impl OpenAiClient {
     /// Posts to `/v1/chat/completions` with `stream: true`. Parses SSE
     /// (Server-Sent Events) data lines, extracts delta content, and sends
     /// each token through `token_tx`. Returns the full accumulated text
-    /// after the stream completes. Uses a 5-minute timeout.
+    /// after the stream completes. Uses a 5-minute timeout. An optional
+    /// `max_tokens` cap prevents excessively long responses.
     pub async fn generate_stream(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
         token_tx: mpsc::UnboundedSender<String>,
+        max_tokens: Option<u32>,
     ) -> Result<String, ParishError> {
-        let body = self.build_request(model, prompt, system, true, false);
+        let body = self.build_request(model, prompt, system, true, false, max_tokens);
 
         // Use a longer timeout for streaming
         let streaming_client = reqwest::Client::builder()
@@ -203,14 +209,16 @@ impl OpenAiClient {
     ///
     /// Requests JSON output via `response_format: {"type": "json_object"}` and
     /// parses the response content into the target type `T`. Use
-    /// `#[serde(default)]` on optional fields in `T` for robustness.
+    /// `#[serde(default)]` on optional fields in `T` for robustness. An
+    /// optional `max_tokens` cap prevents excessively long responses.
     pub async fn generate_json<T: DeserializeOwned>(
         &self,
         model: &str,
         prompt: &str,
         system: Option<&str>,
+        max_tokens: Option<u32>,
     ) -> Result<T, ParishError> {
-        let body = self.build_request(model, prompt, system, false, true);
+        let body = self.build_request(model, prompt, system, false, true, max_tokens);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
         let content = extract_content(&completion);
@@ -226,6 +234,7 @@ impl OpenAiClient {
         system: Option<&'a str>,
         stream: bool,
         json_mode: bool,
+        max_tokens: Option<u32>,
     ) -> ChatCompletionRequest<'a> {
         let mut messages = Vec::new();
         if let Some(sys) = system {
@@ -252,6 +261,7 @@ impl OpenAiClient {
             messages,
             stream,
             response_format,
+            max_tokens,
         }
     }
 
@@ -403,7 +413,14 @@ mod tests {
     #[test]
     fn test_build_request_with_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", Some("you are helpful"), false, false);
+        let req = client.build_request(
+            "model",
+            "hello",
+            Some("you are helpful"),
+            false,
+            false,
+            None,
+        );
         assert_eq!(req.model, "model");
         assert_eq!(req.messages.len(), 2);
         assert_eq!(req.messages[0].role, "system");
@@ -417,7 +434,7 @@ mod tests {
     #[test]
     fn test_build_request_without_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, false);
+        let req = client.build_request("model", "hello", None, false, false, None);
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
     }
@@ -425,7 +442,7 @@ mod tests {
     #[test]
     fn test_build_request_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, true);
+        let req = client.build_request("model", "hello", None, false, true, None);
         let fmt = req.response_format.unwrap();
         assert_eq!(fmt.format_type, "json_object");
     }
@@ -433,7 +450,7 @@ mod tests {
     #[test]
     fn test_build_request_streaming() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, true, false);
+        let req = client.build_request("model", "hello", None, true, false, None);
         assert!(req.stream);
     }
 
@@ -543,7 +560,7 @@ mod tests {
     #[test]
     fn test_request_serialization() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", Some("be brief"), false, false);
+        let req = client.build_request("qwen3:14b", "hello", Some("be brief"), false, false, None);
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["model"], "qwen3:14b");
         assert_eq!(json["messages"][0]["role"], "system");
@@ -552,12 +569,13 @@ mod tests {
         assert_eq!(json["messages"][1]["content"], "hello");
         assert_eq!(json["stream"], false);
         assert!(json.get("response_format").is_none());
+        assert!(json.get("max_tokens").is_none());
     }
 
     #[test]
     fn test_request_serialization_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, true);
+        let req = client.build_request("qwen3:14b", "hello", None, false, true, None);
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["response_format"]["type"], "json_object");
     }
@@ -567,7 +585,7 @@ mod tests {
     async fn test_generate_live() {
         let client = OpenAiClient::new("http://localhost:11434", None);
         let result = client
-            .generate("qwen3:14b", "Say hello in one word.", None)
+            .generate("qwen3:14b", "Say hello in one word.", None, None)
             .await;
         assert!(result.is_ok());
         assert!(!result.unwrap().is_empty());
@@ -579,7 +597,7 @@ mod tests {
         let client = OpenAiClient::new("http://localhost:11434", None);
         let (tx, mut rx) = mpsc::unbounded_channel();
         let result = client
-            .generate_stream("qwen3:14b", "Say hello in one word.", None, tx)
+            .generate_stream("qwen3:14b", "Say hello in one word.", None, tx, None)
             .await;
         assert!(result.is_ok());
 
@@ -604,6 +622,7 @@ mod tests {
             .generate_json(
                 "qwen3:14b",
                 "Return a JSON object with a 'greeting' field containing 'hello'.",
+                None,
                 None,
             )
             .await;

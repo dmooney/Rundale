@@ -368,7 +368,13 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         \n\
         Current mood: {mood}\n\
         \n\
-        Respond in character as {name}. Use this EXACT format:\n\
+        Respond in character as {name}.\n\
+        \n\
+        LENGTH: Keep your dialogue to 2-4 sentences. Be natural and conversational — \
+        this is a back-and-forth exchange, not a monologue. Say what you would naturally \
+        say, then let the player respond. Do not narrate at length or give speeches.\n\
+        \n\
+        Use this EXACT format:\n\
         \n\
         1. First, write what you say or do, in plain text. Stay in character. \
         Pepper your speech naturally with the occasional Irish word or phrase. \

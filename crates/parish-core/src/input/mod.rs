@@ -479,7 +479,7 @@ pub async fn parse_intent(
     }
 
     let result = client
-        .generate_json::<IntentResponse>(model, raw_input, Some(INTENT_SYSTEM_PROMPT))
+        .generate_json::<IntentResponse>(model, raw_input, Some(INTENT_SYSTEM_PROMPT), None)
         .await;
 
     match result {
