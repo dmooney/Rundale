@@ -26,6 +26,8 @@ pub struct NpcSnapshot {
     pub occupation: String,
     /// Personality summary.
     pub personality: String,
+    /// Compact intelligence tag for prompt injection (e.g. `INT[V3 A4 E2 P5 W4 C3]`).
+    pub intelligence_tag: String,
     /// Current mood.
     pub mood: String,
     /// Relationship summaries with other NPCs at this location.
@@ -160,7 +162,12 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
     let npc_descriptions: Vec<String> = group
         .npcs
         .iter()
-        .map(|snap| format!("- {} ({}), mood: {}", snap.name, snap.occupation, snap.mood))
+        .map(|snap| {
+            format!(
+                "- {} ({}), mood: {}, {}",
+                snap.name, snap.occupation, snap.mood, snap.intelligence_tag
+            )
+        })
         .collect();
 
     format!(
@@ -324,6 +331,7 @@ mod tests {
             age: 40,
             occupation: "Test".to_string(),
             personality: "Friendly".to_string(),
+            intelligence: crate::npc::types::Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
             home: Some(LocationId(location)),
@@ -431,6 +439,7 @@ mod tests {
                     name: "Padraig".to_string(),
                     occupation: "Publican".to_string(),
                     personality: "Warm".to_string(),
+                    intelligence_tag: "INT[V3 A3 E4 P4 W5 C4]".to_string(),
                     mood: "content".to_string(),
                     relationship_context: String::new(),
                 },
@@ -439,6 +448,7 @@ mod tests {
                     name: "Tommy".to_string(),
                     occupation: "Retired Farmer".to_string(),
                     personality: "Storyteller".to_string(),
+                    intelligence_tag: "INT[V4 A2 E3 P4 W5 C5]".to_string(),
                     mood: "reflective".to_string(),
                     relationship_context: String::new(),
                 },

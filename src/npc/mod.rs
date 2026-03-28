@@ -18,7 +18,7 @@ use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
 use memory::ShortTermMemory;
-use types::{DailySchedule, NpcState, Relationship};
+use types::{DailySchedule, Intelligence, NpcState, Relationship};
 
 /// A pronunciation hint for an Irish word used in NPC dialogue.
 ///
@@ -119,6 +119,8 @@ pub struct Npc {
     pub occupation: String,
     /// Personality description used in system prompts.
     pub personality: String,
+    /// Multidimensional intelligence profile shaping dialogue generation.
+    pub intelligence: Intelligence,
     /// Current location.
     pub location: LocationId,
     /// Current emotional state.
@@ -156,6 +158,7 @@ impl Npc {
                 local history, and tendency to offer unsolicited advice. He speaks with \
                 a thick Roscommon accent and peppers his speech with Irish phrases."
                 .to_string(),
+            intelligence: Intelligence::new(3, 3, 4, 4, 5, 4),
             location: LocationId(1),
             mood: "content".to_string(),
             home: None,
@@ -336,6 +339,8 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 /// block (which is parsed silently for simulation state).
 pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
+    let intel_tag = npc.intelligence.prompt_tag();
+    let intel_guidance = npc.intelligence.prompt_guidance();
 
     format!(
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
@@ -356,6 +361,10 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         {improv_section}\n\
         \n\
         Personality: {personality}\n\
+        \n\
+        {intel_legend}\n\
+        {intel_tag}\n\
+        {intel_guidance}\n\
         \n\
         Current mood: {mood}\n\
         \n\
@@ -386,6 +395,9 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         age = npc.age,
         occupation = npc.occupation,
         personality = npc.personality,
+        intel_legend = Intelligence::prompt_legend(),
+        intel_tag = intel_tag,
+        intel_guidance = intel_guidance,
         mood = npc.mood,
         improv_section = improv_section,
     )

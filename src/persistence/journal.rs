@@ -254,6 +254,7 @@ mod tests {
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test".to_string(),
+            intelligence: crate::npc::types::Intelligence::default(),
             location: LocationId(1),
             mood: "calm".to_string(),
             home: None,

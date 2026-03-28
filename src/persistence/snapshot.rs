@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::npc::memory::ShortTermMemory;
-use crate::npc::types::{DailySchedule, NpcState, Relationship};
+use crate::npc::types::{DailySchedule, Intelligence, NpcState, Relationship};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
 
@@ -48,6 +48,9 @@ pub struct NpcSnapshot {
     pub occupation: String,
     /// Personality description.
     pub personality: String,
+    /// Multidimensional intelligence profile.
+    #[serde(default)]
+    pub intelligence: Intelligence,
     /// Current location.
     pub location: LocationId,
     /// Current emotional state.
@@ -78,6 +81,7 @@ impl NpcSnapshot {
             age: npc.age,
             occupation: npc.occupation.clone(),
             personality: npc.personality.clone(),
+            intelligence: npc.intelligence,
             location: npc.location,
             mood: npc.mood.clone(),
             home: npc.home,
@@ -99,6 +103,7 @@ impl NpcSnapshot {
             age: self.age,
             occupation: self.occupation,
             personality: self.personality,
+            intelligence: self.intelligence,
             location: self.location,
             mood: self.mood,
             home: self.home,
@@ -230,6 +235,7 @@ mod tests {
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),
+            intelligence: Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
             home: Some(LocationId(location)),

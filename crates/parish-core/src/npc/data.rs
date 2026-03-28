@@ -10,7 +10,9 @@ use serde::Deserialize;
 
 use crate::error::ParishError;
 use crate::npc::memory::ShortTermMemory;
-use crate::npc::types::{DailySchedule, NpcState, Relationship, RelationshipKind, ScheduleEntry};
+use crate::npc::types::{
+    DailySchedule, Intelligence, NpcState, Relationship, RelationshipKind, ScheduleEntry,
+};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
 
@@ -30,6 +32,8 @@ struct NpcFileEntry {
     age: u8,
     occupation: String,
     personality: String,
+    #[serde(default)]
+    intelligence: Option<IntelligenceFileEntry>,
     home: u32,
     workplace: Option<u32>,
     mood: String,
@@ -37,6 +41,44 @@ struct NpcFileEntry {
     relationships: Vec<RelationshipFileEntry>,
     #[serde(default)]
     knowledge: Vec<String>,
+}
+
+/// Intelligence ratings in the data file.
+///
+/// Maps directly to [`Intelligence`] dimensions. All fields default to 3
+/// (average) if omitted in JSON.
+#[derive(Debug, Deserialize)]
+struct IntelligenceFileEntry {
+    #[serde(default = "default_intelligence_value")]
+    verbal: u8,
+    #[serde(default = "default_intelligence_value")]
+    analytical: u8,
+    #[serde(default = "default_intelligence_value")]
+    emotional: u8,
+    #[serde(default = "default_intelligence_value")]
+    practical: u8,
+    #[serde(default = "default_intelligence_value")]
+    wisdom: u8,
+    #[serde(default = "default_intelligence_value")]
+    creative: u8,
+}
+
+/// Default intelligence dimension value (average).
+fn default_intelligence_value() -> u8 {
+    3
+}
+
+impl From<IntelligenceFileEntry> for Intelligence {
+    fn from(e: IntelligenceFileEntry) -> Self {
+        Intelligence::new(
+            e.verbal,
+            e.analytical,
+            e.emotional,
+            e.practical,
+            e.wisdom,
+            e.creative,
+        )
+    }
 }
 
 /// A schedule entry in the data file.
@@ -113,6 +155,20 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 age: entry.age,
                 occupation: entry.occupation.clone(),
                 personality: entry.personality.clone(),
+                intelligence: entry
+                    .intelligence
+                    .as_ref()
+                    .map(|i| {
+                        Intelligence::new(
+                            i.verbal,
+                            i.analytical,
+                            i.emotional,
+                            i.practical,
+                            i.wisdom,
+                            i.creative,
+                        )
+                    })
+                    .unwrap_or_default(),
                 location: LocationId(entry.home),
                 mood: entry.mood.clone(),
                 home: Some(LocationId(entry.home)),

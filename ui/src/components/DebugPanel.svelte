@@ -101,6 +101,11 @@
 							<div class="field">Tier: {selectedNpc.tier} | {selectedNpc.state}</div>
 						</div>
 
+						<div class="section">
+							<h5>Intelligence</h5>
+							<div class="field">Verbal: {selectedNpc.intelligence.verbal} | Analytical: {selectedNpc.intelligence.analytical} | Emotional: {selectedNpc.intelligence.emotional} | Practical: {selectedNpc.intelligence.practical} | Wisdom: {selectedNpc.intelligence.wisdom} | Creative: {selectedNpc.intelligence.creative}</div>
+						</div>
+
 						{#if selectedNpc.schedule.length > 0}
 							<div class="section">
 								<h5>Schedule</h5>

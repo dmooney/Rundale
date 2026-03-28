@@ -1,7 +1,8 @@
-//! Phase 3 NPC types — relationships, schedules, cognitive tiers, and events.
+//! Phase 3 NPC types — relationships, schedules, cognitive tiers, intelligence, and events.
 //!
 //! These types extend the base NPC system with daily schedules, inter-NPC
-//! relationships, cognitive LOD tiers, and Tier 2 simulation events.
+//! relationships, cognitive LOD tiers, multidimensional intelligence, and
+//! Tier 2 simulation events.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,165 @@ use std::fmt;
 
 use crate::npc::NpcId;
 use crate::world::LocationId;
+
+/// Multidimensional intelligence profile for an NPC.
+///
+/// Six dimensions rated on a 1–5 scale, where 1 is very low and 5 is
+/// exceptional. These ratings shape LLM dialogue generation: a high-verbal
+/// NPC uses richer vocabulary, a high-emotional NPC reads subtext, a
+/// low-analytical NPC avoids abstract reasoning, etc.
+///
+/// # Dimensions
+///
+/// | Dim | Code | Meaning |
+/// |-----|------|---------|
+/// | Verbal | V | Language fluency, vocabulary, eloquence |
+/// | Analytical | A | Logic, reasoning, problem-solving |
+/// | Emotional | E | Empathy, reading people, social awareness |
+/// | Practical | P | Common sense, hands-on resourcefulness |
+/// | Wisdom | W | Life experience, judgment, foresight |
+/// | Creative | C | Imagination, wit, improvisation |
+///
+/// # Prompt encoding
+///
+/// [`Intelligence::prompt_tag`] produces a compact token-efficient string
+/// like `INT[V3 A4 E2 P5 W4 C3]` that is injected into LLM system prompts
+/// alongside a one-time legend. This keeps overhead to ~20 tokens per NPC.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Intelligence {
+    /// Language fluency, vocabulary, eloquence (1–5).
+    pub verbal: u8,
+    /// Logic, reasoning, problem-solving (1–5).
+    pub analytical: u8,
+    /// Empathy, reading people, social awareness (1–5).
+    pub emotional: u8,
+    /// Common sense, hands-on resourcefulness (1–5).
+    pub practical: u8,
+    /// Life experience, judgment, foresight (1–5).
+    pub wisdom: u8,
+    /// Imagination, wit, improvisation (1–5).
+    pub creative: u8,
+}
+
+impl Default for Intelligence {
+    /// Returns a baseline "average" intelligence profile (all 3s).
+    fn default() -> Self {
+        Self {
+            verbal: 3,
+            analytical: 3,
+            emotional: 3,
+            practical: 3,
+            wisdom: 3,
+            creative: 3,
+        }
+    }
+}
+
+impl Intelligence {
+    /// Creates a new intelligence profile, clamping all values to 1–5.
+    pub fn new(
+        verbal: u8,
+        analytical: u8,
+        emotional: u8,
+        practical: u8,
+        wisdom: u8,
+        creative: u8,
+    ) -> Self {
+        Self {
+            verbal: verbal.clamp(1, 5),
+            analytical: analytical.clamp(1, 5),
+            emotional: emotional.clamp(1, 5),
+            practical: practical.clamp(1, 5),
+            wisdom: wisdom.clamp(1, 5),
+            creative: creative.clamp(1, 5),
+        }
+    }
+
+    /// Returns a compact prompt tag for LLM injection.
+    ///
+    /// Format: `INT[V3 A4 E2 P5 W4 C3]` — six dimensions in ~20 tokens.
+    /// Pair with [`Intelligence::prompt_legend`] in the system prompt so the
+    /// LLM knows what the codes mean.
+    pub fn prompt_tag(&self) -> String {
+        format!(
+            "INT[V{} A{} E{} P{} W{} C{}]",
+            self.verbal,
+            self.analytical,
+            self.emotional,
+            self.practical,
+            self.wisdom,
+            self.creative,
+        )
+    }
+
+    /// Returns the one-time legend that explains the prompt tag codes.
+    ///
+    /// Include this once in the system prompt so the LLM can interpret
+    /// `INT[...]` tags. Costs ~60 tokens but only appears once.
+    pub fn prompt_legend() -> &'static str {
+        "INTELLIGENCE KEY: V=verbal/eloquence A=analytical/logic E=emotional/empathy \
+         P=practical/resourcefulness W=wisdom/judgment C=creative/wit. Scale 1-5 \
+         (1=very low, 3=average, 5=exceptional). Match dialogue complexity, vocabulary, \
+         reasoning depth, emotional perception, and wit to these ratings."
+    }
+
+    /// Returns behavioral guidance tailored to this NPC's specific profile.
+    ///
+    /// Generates 2-4 short directives highlighting the NPC's strongest and
+    /// weakest dimensions, so the LLM knows which traits to emphasize.
+    /// Keeps output under ~40 tokens.
+    pub fn prompt_guidance(&self) -> String {
+        let mut hints = Vec::new();
+
+        // Highlight strong dimensions (4-5)
+        if self.verbal >= 4 {
+            hints.push("Use rich vocabulary and articulate speech.");
+        }
+        if self.analytical >= 4 {
+            hints.push("Reason clearly; notice logical connections.");
+        }
+        if self.emotional >= 4 {
+            hints.push("Read subtext and respond to unspoken feelings.");
+        }
+        if self.practical >= 4 {
+            hints.push("Offer concrete, hands-on solutions.");
+        }
+        if self.wisdom >= 4 {
+            hints.push("Draw on life experience; give measured counsel.");
+        }
+        if self.creative >= 4 {
+            hints.push("Be witty and inventive; use vivid metaphors.");
+        }
+
+        // Highlight weak dimensions (1-2)
+        if self.verbal <= 2 {
+            hints.push("Speak simply; struggle with complex words.");
+        }
+        if self.analytical <= 2 {
+            hints.push("Avoid abstract reasoning; think concretely.");
+        }
+        if self.emotional <= 2 {
+            hints.push("Miss emotional cues; be blunt or oblivious.");
+        }
+        if self.practical <= 2 {
+            hints.push("Be impractical; overlook obvious solutions.");
+        }
+        if self.wisdom <= 2 {
+            hints.push("Act impulsively; lack foresight.");
+        }
+        if self.creative <= 2 {
+            hints.push("Be literal-minded; lack humor or imagination.");
+        }
+
+        hints.join(" ")
+    }
+}
+
+impl fmt::Display for Intelligence {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.prompt_tag())
+    }
+}
 
 /// The kind of relationship between two NPCs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,7 +204,7 @@ impl fmt::Display for RelationshipKind {
 }
 
 /// A recorded event in a relationship's history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RelationshipEvent {
     /// When the event occurred in game time.
     pub timestamp: DateTime<Utc>,
@@ -56,7 +216,7 @@ pub struct RelationshipEvent {
 ///
 /// Tracks the kind of relationship, its strength on a -1.0 to 1.0 scale,
 /// and an append-only history of significant events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Relationship {
     /// The type of relationship.
     pub kind: RelationshipKind,
@@ -95,7 +255,7 @@ impl Relationship {
 /// A single entry in an NPC's daily schedule.
 ///
 /// Defines where the NPC should be and what they do during a time range.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScheduleEntry {
     /// Start hour (0-23, inclusive).
     pub start_hour: u8,
@@ -111,7 +271,7 @@ pub struct ScheduleEntry {
 ///
 /// Contains a list of time-slot entries defining where the NPC goes
 /// throughout the day. Entries should cover all 24 hours without gaps.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DailySchedule {
     /// Schedule entries sorted by start_hour.
     pub entries: Vec<ScheduleEntry>,
@@ -134,7 +294,7 @@ impl DailySchedule {
 }
 
 /// Whether an NPC is stationary or moving between locations.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub enum NpcState {
     /// NPC is at their current location.
     #[default]
@@ -371,5 +531,160 @@ mod tests {
         assert_eq!(resp.summary, "");
         assert!(resp.mood_changes.is_empty());
         assert!(resp.relationship_changes.is_empty());
+    }
+
+    // --- Intelligence tests ---
+
+    #[test]
+    fn test_intelligence_default() {
+        let intel = Intelligence::default();
+        assert_eq!(intel.verbal, 3);
+        assert_eq!(intel.analytical, 3);
+        assert_eq!(intel.emotional, 3);
+        assert_eq!(intel.practical, 3);
+        assert_eq!(intel.wisdom, 3);
+        assert_eq!(intel.creative, 3);
+    }
+
+    #[test]
+    fn test_intelligence_new_clamps() {
+        let intel = Intelligence::new(0, 6, 1, 5, 10, 255);
+        assert_eq!(intel.verbal, 1, "below-minimum clamped to 1");
+        assert_eq!(intel.analytical, 5, "above-maximum clamped to 5");
+        assert_eq!(intel.emotional, 1);
+        assert_eq!(intel.practical, 5);
+        assert_eq!(intel.wisdom, 5, "far above maximum clamped to 5");
+        assert_eq!(intel.creative, 5);
+    }
+
+    #[test]
+    fn test_intelligence_new_valid_range() {
+        let intel = Intelligence::new(1, 2, 3, 4, 5, 3);
+        assert_eq!(intel.verbal, 1);
+        assert_eq!(intel.analytical, 2);
+        assert_eq!(intel.emotional, 3);
+        assert_eq!(intel.practical, 4);
+        assert_eq!(intel.wisdom, 5);
+        assert_eq!(intel.creative, 3);
+    }
+
+    #[test]
+    fn test_intelligence_prompt_tag_format() {
+        let intel = Intelligence::new(3, 4, 2, 5, 4, 3);
+        assert_eq!(intel.prompt_tag(), "INT[V3 A4 E2 P5 W4 C3]");
+    }
+
+    #[test]
+    fn test_intelligence_prompt_tag_extremes() {
+        let low = Intelligence::new(1, 1, 1, 1, 1, 1);
+        assert_eq!(low.prompt_tag(), "INT[V1 A1 E1 P1 W1 C1]");
+
+        let high = Intelligence::new(5, 5, 5, 5, 5, 5);
+        assert_eq!(high.prompt_tag(), "INT[V5 A5 E5 P5 W5 C5]");
+    }
+
+    #[test]
+    fn test_intelligence_display_matches_tag() {
+        let intel = Intelligence::new(2, 4, 1, 3, 5, 2);
+        assert_eq!(format!("{}", intel), intel.prompt_tag());
+    }
+
+    #[test]
+    fn test_intelligence_prompt_legend_content() {
+        let legend = Intelligence::prompt_legend();
+        assert!(legend.contains("V=verbal"));
+        assert!(legend.contains("A=analytical"));
+        assert!(legend.contains("E=emotional"));
+        assert!(legend.contains("P=practical"));
+        assert!(legend.contains("W=wisdom"));
+        assert!(legend.contains("C=creative"));
+        assert!(legend.contains("1-5"));
+    }
+
+    #[test]
+    fn test_intelligence_guidance_high_verbal() {
+        let intel = Intelligence::new(5, 3, 3, 3, 3, 3);
+        let guidance = intel.prompt_guidance();
+        assert!(
+            guidance.contains("rich vocabulary"),
+            "high verbal should mention vocabulary"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_guidance_low_analytical() {
+        let intel = Intelligence::new(3, 1, 3, 3, 3, 3);
+        let guidance = intel.prompt_guidance();
+        assert!(
+            guidance.contains("abstract reasoning"),
+            "low analytical should warn about reasoning"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_guidance_high_emotional() {
+        let intel = Intelligence::new(3, 3, 5, 3, 3, 3);
+        let guidance = intel.prompt_guidance();
+        assert!(
+            guidance.contains("subtext"),
+            "high emotional should mention reading subtext"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_guidance_low_creative() {
+        let intel = Intelligence::new(3, 3, 3, 3, 3, 1);
+        let guidance = intel.prompt_guidance();
+        assert!(
+            guidance.contains("literal-minded"),
+            "low creative should mention literal-mindedness"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_guidance_average_is_empty() {
+        let intel = Intelligence::default();
+        let guidance = intel.prompt_guidance();
+        assert!(
+            guidance.is_empty(),
+            "all-3s profile should have no special guidance"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_guidance_mixed_profile() {
+        // High verbal + low practical = both hints
+        let intel = Intelligence::new(5, 3, 3, 1, 3, 3);
+        let guidance = intel.prompt_guidance();
+        assert!(guidance.contains("rich vocabulary"));
+        assert!(guidance.contains("impractical"));
+    }
+
+    #[test]
+    fn test_intelligence_serialize_roundtrip() {
+        let intel = Intelligence::new(2, 4, 1, 5, 3, 4);
+        let json = serde_json::to_string(&intel).unwrap();
+        let restored: Intelligence = serde_json::from_str(&json).unwrap();
+        assert_eq!(intel, restored);
+    }
+
+    #[test]
+    fn test_intelligence_deserialize_from_json() {
+        let json =
+            r#"{"verbal":4,"analytical":2,"emotional":5,"practical":1,"wisdom":3,"creative":4}"#;
+        let intel: Intelligence = serde_json::from_str(json).unwrap();
+        assert_eq!(intel.verbal, 4);
+        assert_eq!(intel.analytical, 2);
+        assert_eq!(intel.emotional, 5);
+        assert_eq!(intel.practical, 1);
+        assert_eq!(intel.wisdom, 3);
+        assert_eq!(intel.creative, 4);
+    }
+
+    #[test]
+    fn test_intelligence_copy_semantics() {
+        let a = Intelligence::new(1, 2, 3, 4, 5, 1);
+        let b = a; // Copy
+        assert_eq!(a, b);
     }
 }

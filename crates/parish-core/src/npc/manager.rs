@@ -399,6 +399,7 @@ mod tests {
             age: 30,
             occupation: "Test".to_string(),
             personality: "Test personality".to_string(),
+            intelligence: crate::npc::types::Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
             home: Some(LocationId(location)),
