@@ -43,7 +43,7 @@ Parish/
 │       ├── error.rs     #   ParishError (thiserror)
 │       ├── config.rs    #   Provider configuration (TOML + env + CLI)
 │       ├── debug_snapshot.rs # DebugSnapshot struct + builder (debug data for GUI)
-│       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts)
+│       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts, pronunciations)
 │       ├── loading.rs   #   LoadingAnimation (configurable from mod or defaults)
 │       ├── input/       #   Player input parsing, command detection
 │       ├── world/       #   World state, location graph, time, movement, encounters
@@ -67,7 +67,8 @@ Parish/
 │       ├── festivals.json    # Calendar events
 │       ├── encounters.json   # Encounter text by time-of-day
 │       ├── loading.toml      # Spinner frames, phrases, colours
-│       └── ui.toml           # Sidebar labels, accent colour
+│       ├── ui.toml           # Sidebar labels, accent colour
+│       └── pronunciations.json # Name pronunciation hints (Irish names → phonetic guides)
 ├── src-tauri/           # Tauri 2 desktop backend (Rust)
 │   └── src/
 │       ├── lib.rs       #   AppState, IPC types, Tauri run() entry point
