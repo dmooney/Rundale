@@ -300,3 +300,70 @@ fn test_parish_mythological_locations() {
         "Darcy's Pub should not have mythological significance"
     );
 }
+
+// ── Alias matching integration tests ────────────────────────────────────────
+
+#[test]
+fn test_parish_find_by_alias_coast() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("coast").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "Lough Ree Shore");
+}
+
+#[test]
+fn test_parish_find_by_alias_store() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("store").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "Connolly's Shop");
+}
+
+#[test]
+fn test_parish_find_by_alias_rath() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("rath").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "The Fairy Fort");
+}
+
+#[test]
+fn test_parish_find_by_alias_post_office() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("post office").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "The Letter Office");
+}
+
+#[test]
+fn test_parish_find_by_alias_town() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("town").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "Kilteevan Village");
+}
+
+#[test]
+fn test_parish_find_by_alias_bog() {
+    let graph = load_parish_graph();
+    let id = graph.find_by_name("bog").unwrap();
+    let loc = graph.get(id).unwrap();
+    assert_eq!(loc.name, "The Bog Road");
+}
+
+#[test]
+fn test_movement_go_to_coast() {
+    let graph = load_parish_graph();
+    let result = resolve_movement("the coast", &graph, LocationId(1));
+    match result {
+        MovementResult::Arrived {
+            destination,
+            narration,
+            ..
+        } => {
+            assert_eq!(destination, LocationId(7));
+            assert!(!narration.is_empty());
+        }
+        other => panic!("expected Arrived at Lough Ree Shore, got {:?}", other),
+    }
+}

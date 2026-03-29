@@ -14,6 +14,23 @@ Research: no existing Celtic knot spinner libraries were found — constructed t
 
 ---
 
+## 2026-03-26 — Location Alias System
+
+Added `aliases` field to `LocationData` to support colloquial and semantic synonyms
+for location names. Players can now say "go to the coast" (→ Lough Ree Shore),
+"go to the store" (→ Connolly's Shop), "go to the rath" (→ The Fairy Fort), etc.
+
+- Added `aliases: Vec<String>` with `#[serde(default)]` to `LocationData`
+- Extended `find_by_name` to check aliases at every matching level (exact, substring,
+  reverse substring, article-stripped), with name matches always taking priority
+- Added Level 5 Jaro-Winkler fuzzy fallback (`strsim` crate) to catch typos
+  and near-misses (threshold 0.82 to avoid false positives)
+- Added aliases to all 15 locations in `data/parish.json`
+- Added unit tests for alias matching, fuzzy matching, and integration tests
+  against real parish data
+
+---
+
 ## 2026-03-25 — TUI Removal
 
 Removed the ratatui terminal UI (`src/tui/`) from the project. Parish now has two modes:

@@ -88,6 +88,7 @@ mod tests {
             mythological_significance: None,
             lat: 0.0,
             lon: 0.0,
+            aliases: vec![],
         }
     }
 
@@ -160,6 +161,7 @@ mod tests {
             mythological_significance: None,
             lat: 0.0,
             lon: 0.0,
+            aliases: vec![],
         };
         let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
         assert_eq!(result, "A plain description with no placeholders.");
