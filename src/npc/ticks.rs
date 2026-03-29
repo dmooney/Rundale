@@ -305,16 +305,17 @@ pub async fn run_tier2_for_group(
     }
 }
 
-/// Applies a Tier 2 event's effects to the relevant NPCs.
+/// Applies a Tier 2 event's effects to the relevant NPCs using the given config.
 ///
 /// Updates moods, adjusts relationship strengths, and records memories
 /// for all participating NPCs.
 ///
 /// Returns debug event strings describing what happened.
-pub fn apply_tier2_event(
+pub fn apply_tier2_event_with_config(
     event: &Tier2Event,
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
+    config: &NpcConfig,
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
@@ -341,14 +342,14 @@ pub fn apply_tier2_event(
     }
 
     // Record memory for all participants
-    let memory_content = truncate_for_memory(&event.summary, 100);
+    let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
     // Log the memory commit for all participants
     for &pid in &event.participants {
         if let Some(npc) = npcs.get(&pid) {
             debug_events.push(format!(
                 "{} remembers: {}",
                 npc.name,
-                truncate_for_memory(&event.summary, 50)
+                truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
             ));
         }
     }
@@ -364,6 +365,20 @@ pub fn apply_tier2_event(
     }
 
     debug_events
+}
+
+/// Applies a Tier 2 event's effects to the relevant NPCs.
+///
+/// Updates moods, adjusts relationship strengths, and records memories
+/// for all participating NPCs.
+///
+/// Returns debug event strings describing what happened.
+pub fn apply_tier2_event(
+    event: &Tier2Event,
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    game_time: chrono::DateTime<Utc>,
+) -> Vec<String> {
+    apply_tier2_event_with_config(event, npcs, game_time, &NpcConfig::default())
 }
 
 /// Truncates a string to a maximum length, adding "..." if truncated.
@@ -391,7 +406,7 @@ mod tests {
         Npc {
             id: NpcId(id),
             name: name.to_string(),
-            brief_description: "a person".to_string(),
+            brief_description: format!("a test NPC named {}", name),
             age: 40,
             occupation: "Test".to_string(),
             personality: "Friendly".to_string(),
