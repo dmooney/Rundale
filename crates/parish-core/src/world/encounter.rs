@@ -2,8 +2,12 @@
 //!
 //! Generates random encounters during travel between locations.
 //! Probability is ~20% per traversal, influenced by time of day.
+//!
+//! Encounter flavour text can come from hardcoded defaults (legacy) or from
+//! a mod's [`EncounterTable`](crate::game_mod::EncounterTable) data.
 
 use super::time::TimeOfDay;
+use crate::game_mod::EncounterTable;
 use crate::npc::NpcId;
 
 /// An encounter event that occurs during travel.
@@ -54,6 +58,41 @@ pub fn check_encounter(time_of_day: TimeOfDay, roll: f64) -> Option<EncounterEve
     Some(EncounterEvent {
         npc_id: None,
         description: description.to_string(),
+    })
+}
+
+/// Checks whether an encounter occurs during travel, using a mod-provided
+/// [`EncounterTable`] for flavour text instead of hardcoded strings.
+///
+/// Falls back to a generic description if the table has no entry for the
+/// current time of day.
+pub fn check_encounter_with_table(
+    time_of_day: TimeOfDay,
+    roll: f64,
+    table: &EncounterTable,
+) -> Option<EncounterEvent> {
+    let threshold = match time_of_day {
+        TimeOfDay::Dawn | TimeOfDay::Morning => 0.25,
+        TimeOfDay::Midday | TimeOfDay::Afternoon => 0.20,
+        TimeOfDay::Dusk => 0.15,
+        TimeOfDay::Night => 0.10,
+        TimeOfDay::Midnight => 0.05,
+    };
+
+    if roll >= threshold {
+        return None;
+    }
+
+    let key = format!("{}", time_of_day).to_lowercase();
+    let description = table
+        .by_time
+        .get(&key)
+        .cloned()
+        .unwrap_or_else(|| "You notice something on the road.".to_string());
+
+    Some(EncounterEvent {
+        npc_id: None,
+        description,
     })
 }
 
@@ -127,6 +166,40 @@ mod tests {
                 time
             );
         }
+    }
+
+    #[test]
+    fn test_encounter_with_table_uses_mod_text() {
+        use std::collections::HashMap;
+        let mut by_time = HashMap::new();
+        by_time.insert("morning".to_string(), "A shepherd passes.".to_string());
+        let table = EncounterTable { by_time };
+
+        let event = check_encounter_with_table(TimeOfDay::Morning, 0.1, &table).unwrap();
+        assert_eq!(event.description, "A shepherd passes.");
+        assert!(event.npc_id.is_none());
+    }
+
+    #[test]
+    fn test_encounter_with_table_fallback() {
+        use std::collections::HashMap;
+        let table = EncounterTable {
+            by_time: HashMap::new(),
+        };
+
+        // No entry for "dawn", should use fallback
+        let event = check_encounter_with_table(TimeOfDay::Dawn, 0.1, &table).unwrap();
+        assert!(!event.description.is_empty());
+    }
+
+    #[test]
+    fn test_encounter_with_table_respects_threshold() {
+        use std::collections::HashMap;
+        let table = EncounterTable {
+            by_time: HashMap::new(),
+        };
+        // Roll above threshold should return None
+        assert!(check_encounter_with_table(TimeOfDay::Morning, 0.5, &table).is_none());
     }
 
     #[test]

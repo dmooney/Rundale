@@ -402,7 +402,7 @@ mod tests {
                 action: "speaks".to_string(),
                 mood: "cheerful".to_string(),
                 internal_thought: None,
-                irish_words: Vec::new(),
+                language_hints: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();

@@ -2,8 +2,10 @@
 //!
 //! 40 real-world minutes = 1 in-game day (speed factor 36.0, "Normal").
 //! Adjustable at runtime via [`GameSpeed`] presets (Slow/Normal/Fast/Fastest).
-//! Tracks time of day, season, and Irish calendar festivals
-//! (Imbolc, Bealtaine, Lughnasa, Samhain).
+//! Tracks time of day, season, and calendar festivals.
+//!
+//! Festivals can be defined via the hardcoded [`Festival`] enum (legacy) or
+//! loaded from a mod's [`FestivalDef`](parish_core::game_mod::FestivalDef) data.
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
 use std::fmt;
@@ -268,9 +270,25 @@ impl GameClock {
         Season::from_date(self.now().date_naive())
     }
 
-    /// Checks if today is a festival day.
+    /// Checks if today is a festival day using the hardcoded [`Festival`] enum.
+    ///
+    /// Prefer [`check_festival_data`](GameClock::check_festival_data) for
+    /// mod-driven festival definitions.
     pub fn check_festival(&self) -> Option<Festival> {
         Festival::check(self.now().date_naive())
+    }
+
+    /// Checks if today is a festival day using data-driven definitions.
+    ///
+    /// Returns a reference to the matching [`FestivalDef`](parish_core::game_mod::FestivalDef)
+    /// if the current game date matches a festival's month and day.
+    pub fn check_festival_data<'a>(
+        &self,
+        festivals: &'a [parish_core::game_mod::FestivalDef],
+    ) -> Option<&'a parish_core::game_mod::FestivalDef> {
+        let date = self.now().date_naive();
+        let (month, day) = (date.month(), date.day());
+        festivals.iter().find(|f| f.month == month && f.day == day)
     }
 
     /// Advances the game clock by the given number of game minutes.

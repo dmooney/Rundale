@@ -8,13 +8,14 @@
 	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, irishHints } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, uiConfig } from '../stores/game';
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { palette } from '../stores/theme';
 	import {
 		getWorldSnapshot,
 		getMap,
 		getNpcsHere,
+		getUiConfig,
 		getDebugSnapshot,
 		onWorldUpdate,
 		onStreamToken,
@@ -60,6 +61,12 @@
 		} catch (e) {
 			console.warn('Initial fetch failed (expected in browser dev):', e);
 		}
+
+		// Fetch UI config from mod
+		try {
+			const cfg = await getUiConfig();
+			uiConfig.set(cfg);
+		} catch (_) {}
 
 		// Subscribe to events
 		// Fetch initial debug snapshot
@@ -108,7 +115,7 @@
 					}
 					return log;
 				});
-				irishHints.set(payload.hints);
+				languageHints.set(payload.hints);
 				streamingActive.set(false);
 			}),
 

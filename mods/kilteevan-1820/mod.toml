@@ -1,0 +1,25 @@
+# Kilteevan 1820 — Game Mod Manifest
+[mod]
+name = "Kilteevan 1820"
+id = "kilteevan-1820"
+version = "1.0.0"
+description = "A small parish in County Roscommon, Ireland, in the year 1820"
+
+[setting]
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+
+[files]
+world = "world.json"
+npcs = "npcs.json"
+anachronisms = "anachronisms.json"
+festivals = "festivals.json"
+encounters = "encounters.json"
+loading = "loading.toml"
+ui = "ui.toml"
+
+[prompts]
+tier1_system = "prompts/tier1_system.txt"
+tier1_context = "prompts/tier1_context.txt"
+tier2_system = "prompts/tier2_system.txt"

@@ -21,13 +21,14 @@ use serde::{Deserialize, Serialize};
 use memory::ShortTermMemory;
 use types::{DailySchedule, Intelligence, NpcState, Relationship};
 
-/// A pronunciation hint for an Irish word used in NPC dialogue.
+/// A pronunciation hint for a word in the setting's secondary language.
 ///
 /// Extracted from NPC response metadata and displayed in the
-/// pronunciation sidebar to help players with Irish-language words.
+/// pronunciation sidebar to help players with unfamiliar words.
+/// The mod's prompt template instructs the LLM to produce these.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-pub struct IrishWordHint {
-    /// The Irish word as it appears in text.
+pub struct LanguageHint {
+    /// The word as it appears in text.
     pub word: String,
     /// Approximate English phonetic pronunciation.
     pub pronunciation: String,
@@ -36,10 +37,20 @@ pub struct IrishWordHint {
     pub meaning: Option<String>,
 }
 
+/// Backward-compatible alias for [`LanguageHint`].
+pub type IrishWordHint = LanguageHint;
+
 /// Maximum number of bytes to hold back during streaming to detect
 /// the separator pattern. Must be large enough to catch ` --- ` inline
 /// or `  ---\n` on its own line, even when preceded by text on the same line.
 pub const SEPARATOR_HOLDBACK: usize = 24;
+
+/// Maximum tokens for NPC dialogue responses (including the JSON metadata block).
+///
+/// Keeps responses conversational (a few sentences of dialogue plus the compact
+/// metadata JSON). Prevents models from generating excessively long monologues
+/// that break the chat formatting.
+pub const MAX_DIALOGUE_TOKENS: u32 = 300;
 
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
@@ -216,9 +227,9 @@ pub struct NpcMetadata {
     /// Internal thought (not shown to player).
     #[serde(default)]
     pub internal_thought: Option<String>,
-    /// Pronunciation hints for any Irish words used in the dialogue.
-    #[serde(default)]
-    pub irish_words: Vec<IrishWordHint>,
+    /// Pronunciation hints for any secondary-language words used in dialogue.
+    #[serde(default, alias = "irish_words")]
+    pub language_hints: Vec<LanguageHint>,
 }
 
 /// Parses a complete NPC response into dialogue and metadata.
@@ -243,7 +254,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             action: action.action,
             mood: action.mood,
             internal_thought: action.internal_thought,
-            irish_words: Vec::new(),
+            language_hints: Vec::new(),
         });
         return NpcStreamResponse { dialogue, metadata };
     }
@@ -735,7 +746,23 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_metadata_with_irish_words() {
+    fn test_npc_metadata_with_language_hints() {
+        let json = r#"{
+            "action": "speaks",
+            "mood": "friendly",
+            "language_hints": [
+                {"word": "Dia dhuit", "pronunciation": "DEE-ah gwit", "meaning": "Hello"}
+            ]
+        }"#;
+        let meta: NpcMetadata = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.language_hints.len(), 1);
+        assert_eq!(meta.language_hints[0].word, "Dia dhuit");
+    }
+
+    #[test]
+    fn test_npc_metadata_with_irish_words_alias() {
+        // LLMs trained on the old prompt may still output "irish_words"
         let json = r#"{
             "action": "speaks",
             "mood": "friendly",
@@ -744,20 +771,19 @@ mod tests {
             ]
         }"#;
         let meta: NpcMetadata = serde_json::from_str(json).unwrap();
-        assert_eq!(meta.action, "speaks");
-        assert_eq!(meta.irish_words.len(), 1);
-        assert_eq!(meta.irish_words[0].word, "Dia dhuit");
+        assert_eq!(meta.language_hints.len(), 1);
+        assert_eq!(meta.language_hints[0].word, "Dia dhuit");
     }
 
     #[test]
-    fn test_npc_metadata_empty_irish_words() {
+    fn test_npc_metadata_empty_language_hints() {
         let json = r#"{"action": "nods", "mood": "content"}"#;
         let meta: NpcMetadata = serde_json::from_str(json).unwrap();
-        assert!(meta.irish_words.is_empty());
+        assert!(meta.language_hints.is_empty());
     }
 
     #[test]
-    fn test_parse_response_with_irish_words() {
+    fn test_parse_response_with_language_hints() {
         let text = "Dia dhuit! How are ye this fine morning?\n---\n\
             {\"action\": \"speaks\", \"mood\": \"warm\", \
             \"irish_words\": [{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
@@ -765,9 +791,9 @@ mod tests {
         let parsed = parse_npc_stream_response(text);
         assert_eq!(parsed.dialogue, "Dia dhuit! How are ye this fine morning?");
         let meta = parsed.metadata.unwrap();
-        assert_eq!(meta.irish_words.len(), 1);
-        assert_eq!(meta.irish_words[0].word, "Dia dhuit");
-        assert_eq!(meta.irish_words[0].pronunciation, "DEE-ah gwit");
+        assert_eq!(meta.language_hints.len(), 1);
+        assert_eq!(meta.language_hints[0].word, "Dia dhuit");
+        assert_eq!(meta.language_hints[0].pronunciation, "DEE-ah gwit");
     }
 
     #[test]

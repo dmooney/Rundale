@@ -5,6 +5,7 @@ import type {
 	MapData,
 	NpcInfo,
 	ThemePalette,
+	UiConfig,
 	StreamTokenPayload,
 	StreamEndPayload,
 	TextLogPayload,
@@ -26,6 +27,8 @@ export const getTheme = () => invoke<ThemePalette>('get_theme');
 export const submitInput = (text: string) => invoke<void>('submit_input', { text });
 
 export const getDebugSnapshot = () => invoke<DebugSnapshot>('get_debug_snapshot');
+
+export const getUiConfig = () => invoke<UiConfig>('get_ui_config');
 
 // ── Events ───────────────────────────────────────────────────────────────────
 

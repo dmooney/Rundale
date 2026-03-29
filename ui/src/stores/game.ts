@@ -1,5 +1,5 @@
 import { writable } from 'svelte/store';
-import type { WorldSnapshot, MapData, NpcInfo, IrishWordHint, TextLogEntry } from '$lib/types';
+import type { WorldSnapshot, MapData, NpcInfo, LanguageHint, TextLogEntry, UiConfig } from '$lib/types';
 
 export const worldState = writable<WorldSnapshot | null>(null);
 
@@ -20,4 +20,9 @@ export const loadingPhrase = writable<string>('');
 /// Current loading spinner colour as `[R, G, B]`.
 export const loadingColor = writable<[number, number, number]>([72, 199, 142]);
 
-export const irishHints = writable<IrishWordHint[]>([]);
+export const languageHints = writable<LanguageHint[]>([]);
+
+export const uiConfig = writable<UiConfig>({
+	hints_label: 'Language Hints',
+	default_accent: '#c4a35a'
+});

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { npcsHere, irishHints } from '../stores/game';
+	import { npcsHere, languageHints, uiConfig } from '../stores/game';
 	import MoodIcon from './MoodIcon.svelte';
 </script>
 
@@ -26,10 +26,10 @@
 	</details>
 
 	<details open>
-		<summary>Focail (Irish Words)</summary>
-		{#if $irishHints.length > 0}
+		<summary>{$uiConfig.hints_label}</summary>
+		{#if $languageHints.length > 0}
 			<ul class="hint-list">
-				{#each $irishHints as hint}
+				{#each $languageHints as hint}
 					<li class="hint-item">
 						<span class="word">{hint.word}</span>
 						<span class="pronunciation">[{hint.pronunciation}]</span>
@@ -40,7 +40,7 @@
 				{/each}
 			</ul>
 		{:else}
-			<p class="empty">No Irish words yet.</p>
+			<p class="empty">No words yet.</p>
 		{/if}
 	</details>
 </aside>

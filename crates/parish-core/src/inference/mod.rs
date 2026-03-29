@@ -206,6 +206,7 @@ mod tests {
                 "hello".to_string(),
                 Some("system".to_string()),
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -238,7 +239,14 @@ mod tests {
         let queue = InferenceQueue::new(tx);
 
         let _response_rx = queue
-            .send(2, "model".to_string(), "prompt".to_string(), None, None)
+            .send(
+                2,
+                "model".to_string(),
+                "prompt".to_string(),
+                None,
+                None,
+                None,
+            )
             .await
             .unwrap();
 
@@ -261,6 +269,7 @@ mod tests {
                 "prompt".to_string(),
                 None,
                 Some(token_tx),
+                None,
             )
             .await
             .unwrap();

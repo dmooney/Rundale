@@ -43,24 +43,36 @@ Parish/
 │       ├── error.rs     #   ParishError (thiserror)
 │       ├── config.rs    #   Provider configuration (TOML + env + CLI)
 │       ├── debug_snapshot.rs # DebugSnapshot struct + builder (debug data for GUI)
-│       ├── loading.rs   #   LoadingAnimation (RGB-based, no ratatui)
+│       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts)
+│       ├── loading.rs   #   LoadingAnimation (configurable from mod or defaults)
 │       ├── input/       #   Player input parsing, command detection
 │       ├── world/       #   World state, location graph, time, movement, encounters
 │       │   ├── graph.rs #     WorldGraph, BFS pathfinding, fuzzy name search
-│       │   ├── time.rs  #     GameClock, GameSpeed, TimeOfDay, Season
+│       │   ├── time.rs  #     GameClock, GameSpeed, TimeOfDay, Season, data-driven festivals
 │       │   ├── palette.rs #   Smooth color interpolation (time/season/weather tinting)
 │       │   ├── movement.rs #  Movement resolution and travel narration
-│       │   ├── encounter.rs # En-route encounter system
+│       │   ├── encounter.rs # En-route encounter system (hardcoded + mod-driven)
 │       │   └── description.rs # Dynamic location description templates
 │       ├── npc/         #   NPC data model, behavior, cognition tiers
-│       │   └── anachronism.rs # Anachronism detection for player input (1820 period)
+│       │   └── anachronism.rs # Anachronism detection (hardcoded + mod-driven)
 │       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
 │       └── persistence/ #   SQLite save/load, WAL journal
+├── mods/                # Game data packages (Factorio-style engine/mod separation)
+│   └── kilteevan-1820/  # Default mod: 1820 rural Ireland
+│       ├── mod.toml     #   Manifest (start_date, start_location, period_year)
+│       ├── world.json   #   World graph (locations, connections)
+│       ├── npcs.json    #   NPC definitions
+│       ├── prompts/     #   LLM prompt templates with {placeholder} interpolation
+│       ├── anachronisms.json # Period enforcement dictionary
+│       ├── festivals.json    # Calendar events
+│       ├── encounters.json   # Encounter text by time-of-day
+│       ├── loading.toml      # Spinner frames, phrases, colours
+│       └── ui.toml           # Sidebar labels, accent colour
 ├── src-tauri/           # Tauri 2 desktop backend (Rust)
 │   └── src/
 │       ├── lib.rs       #   AppState, IPC types, Tauri run() entry point
 │       ├── main.rs      #   Tauri binary entry point
-│       ├── commands.rs  #   Tauri IPC commands (get_world_snapshot, submit_input, etc.)
+│       ├── commands.rs  #   Tauri IPC commands (get_world_snapshot, get_ui_config, submit_input, etc.)
 │       └── events.rs    #   Event constants, streaming bridge (NPC token streaming)
 └── ui/                  # Svelte 5 + TypeScript frontend (SvelteKit + static adapter)
     └── src/
@@ -68,7 +80,7 @@ Parish/
         │   ├── types.ts #   TypeScript IPC types (snake_case, matching Rust serde)
         │   └── ipc.ts   #   Typed wrappers for all Tauri commands and events
         ├── stores/
-        │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive
+        │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive, uiConfig
         │   ├── theme.ts #   palette store (applies CSS vars to :root)
         │   └── debug.ts #   debugVisible, debugSnapshot, debugTab, selectedNpcId
         └── components/

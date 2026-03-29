@@ -168,6 +168,52 @@ impl WorldState {
         })
     }
 
+    /// Creates a world state from a [`GameMod`](crate::game_mod::GameMod).
+    ///
+    /// Loads the world graph from the mod's `world.json`, sets the start
+    /// location and start date from the mod manifest, and populates the
+    /// legacy locations map.
+    pub fn from_mod(game_mod: &crate::game_mod::GameMod) -> Result<Self, ParishError> {
+        let graph = WorldGraph::load_from_file(&game_mod.world_path())?;
+
+        // Build legacy locations map from graph data
+        let mut locations = HashMap::new();
+        for loc_id in graph.location_ids() {
+            if let Some(data) = graph.get(loc_id) {
+                locations.insert(
+                    loc_id,
+                    Location {
+                        id: loc_id,
+                        name: data.name.clone(),
+                        description: data.description_template.clone(),
+                        indoor: data.indoor,
+                        public: data.public,
+                    },
+                );
+            }
+        }
+
+        // Parse start date from mod manifest
+        let start_dt = chrono::DateTime::parse_from_rfc3339(game_mod.start_date())
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| {
+                // Fallback: try a simpler format or use a sensible default
+                chrono::Utc::now()
+            });
+
+        let clock = GameClock::new(start_dt);
+        let start_location = LocationId(game_mod.start_location());
+
+        Ok(Self {
+            clock,
+            player_location: start_location,
+            locations,
+            graph,
+            weather: Weather::Clear,
+            text_log: Vec::new(),
+        })
+    }
+
     /// Returns a reference to the player's current location.
     ///
     /// # Panics
@@ -260,6 +306,18 @@ mod tests {
             assert!(world.locations.len() >= 12);
             assert!(world.graph.location_count() >= 12);
             assert_eq!(world.current_location().name, "Kilteevan Village");
+        }
+    }
+
+    #[test]
+    fn test_from_mod() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let world = WorldState::from_mod(&game_mod).expect("should create world from mod");
+            assert_eq!(world.player_location, LocationId(game_mod.start_location()));
+            assert!(world.locations.len() >= 12);
+            assert!(world.graph.location_count() >= 12);
         }
     }
 

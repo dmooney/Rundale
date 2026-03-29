@@ -1,0 +1,8 @@
+Location: {location_name} — {location_description}
+Time: {time}
+Season: {season}
+Weather: {weather}
+
+{npc_name} is here.
+
+The player {player_action}

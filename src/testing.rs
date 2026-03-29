@@ -118,27 +118,46 @@ pub struct GameTestHarness {
 impl GameTestHarness {
     /// Creates a new harness with the full parish world loaded.
     ///
-    /// Loads `data/parish.json` for the world graph and adds the test NPC
-    /// (Padraig O'Brien at The Crossroads). The player starts at Kilteevan Village.
+    /// Prefers mod data from `mods/kilteevan-1820/` if available, otherwise
+    /// falls back to `data/parish.json`. Adds NPCs from the mod or data directory.
     pub fn new() -> Self {
         let mut app = App::new();
-        let parish_path = Path::new("data/parish.json");
-        if parish_path.exists() {
-            match crate::world::WorldState::from_parish_file(parish_path, LocationId(15)) {
+
+        // Try to load game mod
+        let game_mod = parish_core::game_mod::find_default_mod()
+            .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
+
+        // Load world — prefer mod, fall back to legacy data/parish.json
+        if let Some(ref gm) = game_mod {
+            match crate::world::WorldState::from_mod(gm) {
                 Ok(world) => app.world = world,
-                Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
+                Err(e) => eprintln!("Warning: Failed to load world from mod: {}", e),
+            }
+        } else {
+            let parish_path = Path::new("data/parish.json");
+            if parish_path.exists() {
+                match crate::world::WorldState::from_parish_file(parish_path, LocationId(15)) {
+                    Ok(world) => app.world = world,
+                    Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
+                }
             }
         }
-        // Load NPCs from data file, fall back to test NPC
-        let npcs_path = Path::new("data/npcs.json");
+
+        // Load NPCs — prefer mod, fall back to legacy data/npcs.json, then test NPC
+        let npcs_path = if let Some(ref gm) = game_mod {
+            gm.npcs_path()
+        } else {
+            std::path::PathBuf::from("data/npcs.json")
+        };
         if npcs_path.exists() {
-            match NpcManager::load_from_file(npcs_path) {
+            match NpcManager::load_from_file(&npcs_path) {
                 Ok(mgr) => app.npc_manager = mgr,
                 Err(_) => app.npc_manager.add_npc(Npc::new_test_npc()),
             }
         } else {
             app.npc_manager.add_npc(Npc::new_test_npc());
         }
+        app.game_mod = game_mod;
 
         // Initial tier assignment
         app.npc_manager

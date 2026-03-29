@@ -6,8 +6,9 @@ import type {
 	MapData,
 	NpcInfo,
 	ThemePalette,
-	IrishWordHint,
-	TextLogEntry
+	LanguageHint,
+	TextLogEntry,
+	UiConfig
 } from '../src/lib/types';
 
 // ── Theme palettes for each time of day ─────────────────────────────────────
@@ -120,10 +121,17 @@ export const NPCS: NpcInfo[] = [
 
 // ── Irish word hints ────────────────────────────────────────────────────────
 
-export const IRISH_HINTS: IrishWordHint[] = [
+export const IRISH_HINTS: LanguageHint[] = [
 	{ word: 'sláinte', pronunciation: 'SLAWN-cha', meaning: 'health / cheers' },
 	{ word: 'craic', pronunciation: 'crack', meaning: 'fun, entertainment' }
 ];
+
+// ── UI config ──────────────────────────────────────────────────────────────
+
+export const UI_CONFIG: UiConfig = {
+	hints_label: 'Focail (Irish Words)',
+	default_accent: '#c4a35a'
+};
 
 // ── Text log entries ────────────────────────────────────────────────────────
 

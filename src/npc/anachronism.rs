@@ -557,6 +557,65 @@ pub fn format_context_alert(anachronisms: &[Anachronism]) -> Option<String> {
     Some(alert)
 }
 
+/// A term detected by the data-driven anachronism checker.
+///
+/// Unlike [`Anachronism`] which references the static dictionary, this
+/// type owns all its strings and works with mod-loaded data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetectedTerm {
+    /// The anachronistic word or phrase that was matched.
+    pub term: String,
+    /// A brief note on why this is anachronistic.
+    pub reason: String,
+}
+
+/// Checks player input against mod-loaded anachronism entries.
+///
+/// Works identically to [`check_input`] but uses data from a
+/// [`GameMod`](parish_core::game_mod::GameMod) instead of the static dictionary.
+pub fn check_input_from_mod_data(
+    input: &str,
+    entries: &[parish_core::game_mod::AnachronismEntry],
+) -> Vec<DetectedTerm> {
+    let lower = input.to_lowercase();
+    let mut results = Vec::new();
+
+    for entry in entries {
+        if has_word_match(&lower, &entry.term) {
+            results.push(DetectedTerm {
+                term: entry.term.clone(),
+                reason: entry.reason.clone(),
+            });
+        }
+    }
+
+    results
+}
+
+/// Formats detected anachronisms using mod-provided alert prefix and suffix.
+///
+/// Works identically to [`format_context_alert`] but uses text from the mod's
+/// `anachronisms.json` instead of hardcoded strings.
+pub fn format_context_alert_from_mod_data(
+    detected: &[DetectedTerm],
+    prefix: &str,
+    suffix: &str,
+) -> Option<String> {
+    if detected.is_empty() {
+        return None;
+    }
+
+    let mut alert = format!("\n{}\n", prefix);
+
+    for d in detected {
+        alert.push_str(&format!("- \"{}\": {}\n", d.term, d.reason));
+    }
+
+    alert.push_str(&format!("\n{}", suffix));
+
+    Some(alert)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -791,6 +850,60 @@ mod tests {
     #[test]
     fn test_word_match_empty_haystack() {
         assert!(!has_word_match("", "phone"));
+    }
+
+    // === Data-driven anachronism tests ===
+
+    #[test]
+    fn test_check_input_from_mod_data() {
+        let entries = vec![
+            parish_core::game_mod::AnachronismEntry {
+                term: "telephone".to_string(),
+                reason: "invented 1876".to_string(),
+            },
+            parish_core::game_mod::AnachronismEntry {
+                term: "internet".to_string(),
+                reason: "developed 1960s".to_string(),
+            },
+        ];
+
+        let hits = check_input_from_mod_data("Where is the telephone?", &entries);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].term, "telephone");
+        assert_eq!(hits[0].reason, "invented 1876");
+    }
+
+    #[test]
+    fn test_check_input_from_mod_data_no_match() {
+        let entries = vec![parish_core::game_mod::AnachronismEntry {
+            term: "telephone".to_string(),
+            reason: "invented 1876".to_string(),
+        }];
+
+        let hits = check_input_from_mod_data("Good morning!", &entries);
+        assert!(hits.is_empty());
+    }
+
+    #[test]
+    fn test_format_context_alert_from_mod_data() {
+        let detected = vec![DetectedTerm {
+            term: "telephone".to_string(),
+            reason: "invented 1876".to_string(),
+        }];
+
+        let alert =
+            format_context_alert_from_mod_data(&detected, "ALERT: anachronisms!", "Stay in role.")
+                .unwrap();
+        assert!(alert.contains("ALERT: anachronisms!"));
+        assert!(alert.contains("telephone"));
+        assert!(alert.contains("Stay in role."));
+    }
+
+    #[test]
+    fn test_format_context_alert_from_mod_data_empty() {
+        let alert =
+            format_context_alert_from_mod_data(&[], "ALERT: anachronisms!", "Stay in role.");
+        assert!(alert.is_none());
     }
 
     // === AnachronismCategory display ===

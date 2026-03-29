@@ -193,6 +193,51 @@ impl WorldState {
         })
     }
 
+    /// Creates a world state from a [`GameMod`](parish_core::game_mod::GameMod).
+    ///
+    /// Loads the world graph from the mod's `world.json`, sets the start
+    /// location and start date from the mod manifest, and populates the
+    /// legacy locations map.
+    pub fn from_mod(game_mod: &parish_core::game_mod::GameMod) -> Result<Self, ParishError> {
+        let graph = WorldGraph::load_from_file(&game_mod.world_path())?;
+
+        // Build legacy locations map from graph data
+        let mut locations = HashMap::new();
+        for loc_id in graph.location_ids() {
+            if let Some(data) = graph.get(loc_id) {
+                locations.insert(
+                    loc_id,
+                    Location {
+                        id: loc_id,
+                        name: data.name.clone(),
+                        description: data.description_template.clone(),
+                        indoor: data.indoor,
+                        public: data.public,
+                        lat: data.lat,
+                        lon: data.lon,
+                    },
+                );
+            }
+        }
+
+        // Parse start date from mod manifest
+        let start_dt = chrono::DateTime::parse_from_rfc3339(game_mod.start_date())
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
+
+        let clock = GameClock::new(start_dt);
+        let start_location = LocationId(game_mod.start_location());
+
+        Ok(Self {
+            clock,
+            player_location: start_location,
+            locations,
+            graph,
+            weather: Weather::Clear,
+            text_log: Vec::new(),
+        })
+    }
+
     /// Returns a reference to the player's current location.
     ///
     /// # Panics

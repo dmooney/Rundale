@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use parish_core::npc::{
-    IrishWordHint, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
+    LanguageHint, SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary,
 };
 use tauri::Emitter;
 
@@ -39,8 +39,8 @@ pub struct StreamTokenPayload {
 /// Payload for `stream-end` events.
 #[derive(serde::Serialize, Clone)]
 pub struct StreamEndPayload {
-    /// Irish word hints extracted from the completed NPC response.
-    pub hints: Vec<IrishWordHint>,
+    /// Language hints extracted from the completed NPC response.
+    pub hints: Vec<LanguageHint>,
 }
 
 /// Payload for `text-log` events.

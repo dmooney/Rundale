@@ -1,8 +1,10 @@
 //! Loading animation displayed while waiting for LLM inference responses.
 //!
-//! Shows a cycling Celtic cross spinner with humorous Irish-themed
-//! "verbing" phrases and color animation, so the player knows the game
-//! is working while an NPC thinks.
+//! Shows a cycling spinner with humorous themed phrases and color animation,
+//! so the player knows the game is working while an NPC thinks.
+//!
+//! The spinner frames, phrases, and colours can come from hardcoded defaults
+//! (legacy) or from a mod's [`LoadingConfig`](crate::game_mod::LoadingConfig).
 
 use std::time::{Duration, Instant};
 
@@ -59,12 +61,21 @@ const SPINNER_COLORS: &[(u8, u8, u8)] = &[
 /// of render frame rate. Call [`tick`](LoadingAnimation::tick) each frame
 /// and read the current display state via [`display_text`](LoadingAnimation::display_text)
 /// and [`current_color_rgb`](LoadingAnimation::current_color_rgb).
+///
+/// Construct with [`new`](LoadingAnimation::new) for hardcoded defaults, or
+/// [`from_config`](LoadingAnimation::from_config) for mod-provided data.
 pub struct LoadingAnimation {
-    /// Index into [`SPINNER_FRAMES`].
+    /// Spinner frame strings (owned for mod-provided data).
+    spinner_frames: Vec<String>,
+    /// Loading phrase strings (owned for mod-provided data).
+    phrases: Vec<String>,
+    /// Spinner colors as `(R, G, B)` tuples.
+    colors: Vec<(u8, u8, u8)>,
+    /// Index into spinner frames.
     frame_index: usize,
-    /// Index into [`LOADING_PHRASES`].
+    /// Index into phrases.
     phrase_index: usize,
-    /// Index into [`SPINNER_COLORS`].
+    /// Index into colors.
     color_index: usize,
     /// When the current spinner frame started.
     last_frame_change: Instant,
@@ -73,18 +84,45 @@ pub struct LoadingAnimation {
 }
 
 impl LoadingAnimation {
-    /// Creates a new animation with a time-seeded initial phrase for variety.
+    /// Creates a new animation with hardcoded defaults and a time-seeded
+    /// initial phrase for variety.
     pub fn new() -> Self {
+        let frames: Vec<String> = SPINNER_FRAMES.iter().map(|s| s.to_string()).collect();
+        let phrases: Vec<String> = LOADING_PHRASES.iter().map(|s| s.to_string()).collect();
+        let colors: Vec<(u8, u8, u8)> = SPINNER_COLORS.to_vec();
+
+        Self::build(frames, phrases, colors)
+    }
+
+    /// Creates a new animation from mod-provided [`LoadingConfig`](crate::game_mod::LoadingConfig).
+    pub fn from_config(config: &crate::game_mod::LoadingConfig) -> Self {
+        let frames = config.spinner_frames.clone();
+        let phrases = config.phrases.clone();
+        let colors: Vec<(u8, u8, u8)> = config
+            .spinner_colors
+            .iter()
+            .map(|c| (c[0], c[1], c[2]))
+            .collect();
+
+        Self::build(frames, phrases, colors)
+    }
+
+    /// Internal constructor shared by `new()` and `from_config()`.
+    fn build(spinner_frames: Vec<String>, phrases: Vec<String>, colors: Vec<(u8, u8, u8)>) -> Self {
         // Use low-order bits of the system clock to pick a starting phrase
         // so players don't always see the same one first.
         let seed = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as usize)
             .unwrap_or(0);
-        let phrase_index = seed % LOADING_PHRASES.len();
+        let phrase_count = phrases.len().max(1);
+        let phrase_index = seed % phrase_count;
         let now = Instant::now();
 
         Self {
+            spinner_frames,
+            phrases,
+            colors,
             frame_index: 0,
             phrase_index,
             color_index: 0,
@@ -100,34 +138,53 @@ impl LoadingAnimation {
     pub fn tick(&mut self) {
         let now = Instant::now();
 
-        if now.duration_since(self.last_frame_change) >= SPINNER_FRAME_DURATION {
-            self.frame_index = (self.frame_index + 1) % SPINNER_FRAMES.len();
+        if !self.spinner_frames.is_empty()
+            && now.duration_since(self.last_frame_change) >= SPINNER_FRAME_DURATION
+        {
+            self.frame_index = (self.frame_index + 1) % self.spinner_frames.len();
             self.last_frame_change = now;
         }
 
-        if now.duration_since(self.last_phrase_change) >= PHRASE_DURATION {
-            self.phrase_index = (self.phrase_index + 1) % LOADING_PHRASES.len();
-            self.color_index = (self.color_index + 1) % SPINNER_COLORS.len();
+        if !self.phrases.is_empty()
+            && now.duration_since(self.last_phrase_change) >= PHRASE_DURATION
+        {
+            self.phrase_index = (self.phrase_index + 1) % self.phrases.len();
+            if !self.colors.is_empty() {
+                self.color_index = (self.color_index + 1) % self.colors.len();
+            }
             self.last_phrase_change = now;
         }
     }
 
     /// Returns the current display string, e.g. `"✛ Consulting the sheep..."`.
     pub fn display_text(&self) -> String {
-        format!(
-            "{} {}",
-            SPINNER_FRAMES[self.frame_index], LOADING_PHRASES[self.phrase_index]
-        )
+        let frame = self
+            .spinner_frames
+            .get(self.frame_index)
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        let phrase = self
+            .phrases
+            .get(self.phrase_index)
+            .map(|s| s.as_str())
+            .unwrap_or("");
+        format!("{} {}", frame, phrase)
     }
 
     /// Returns the current spinner character, e.g. `"✛"`.
-    pub fn spinner_char(&self) -> &'static str {
-        SPINNER_FRAMES[self.frame_index]
+    pub fn spinner_char(&self) -> &str {
+        self.spinner_frames
+            .get(self.frame_index)
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 
     /// Returns the current loading phrase, e.g. `"Consulting the sheep..."`.
-    pub fn phrase(&self) -> &'static str {
-        LOADING_PHRASES[self.phrase_index]
+    pub fn phrase(&self) -> &str {
+        self.phrases
+            .get(self.phrase_index)
+            .map(|s| s.as_str())
+            .unwrap_or("")
     }
 
     /// Returns the current color as an `(R, G, B)` tuple.
@@ -135,7 +192,10 @@ impl LoadingAnimation {
     /// Callers that need a renderer-specific color (e.g. `ratatui::style::Color`)
     /// should convert this tuple themselves.
     pub fn current_color_rgb(&self) -> (u8, u8, u8) {
-        SPINNER_COLORS[self.color_index % SPINNER_COLORS.len()]
+        if self.colors.is_empty() {
+            return (72, 199, 142); // default soft green
+        }
+        self.colors[self.color_index % self.colors.len()]
     }
 
     /// Returns an ANSI 24-bit foreground color escape sequence for headless mode.
@@ -165,8 +225,8 @@ mod tests {
     #[test]
     fn test_new_creates_valid_state() {
         let anim = LoadingAnimation::new();
-        assert!(anim.frame_index < SPINNER_FRAMES.len());
-        assert!(anim.phrase_index < LOADING_PHRASES.len());
+        assert!(anim.frame_index < anim.spinner_frames.len());
+        assert!(anim.phrase_index < anim.phrases.len());
         assert_eq!(anim.color_index, 0);
     }
 
@@ -185,20 +245,22 @@ mod tests {
     fn test_frame_advances_after_duration() {
         let mut anim = LoadingAnimation::new();
         let initial_frame = anim.frame_index;
+        let frame_count = anim.spinner_frames.len();
         // Simulate time passing by backdating the last change
         anim.last_frame_change = Instant::now() - SPINNER_FRAME_DURATION;
         anim.tick();
-        assert_eq!(anim.frame_index, (initial_frame + 1) % SPINNER_FRAMES.len());
+        assert_eq!(anim.frame_index, (initial_frame + 1) % frame_count);
     }
 
     #[test]
     fn test_phrase_advances_after_duration() {
         let mut anim = LoadingAnimation::new();
         let initial_phrase = anim.phrase_index;
+        let phrase_count = anim.phrases.len();
         // Simulate time passing
         anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
         anim.tick();
-        let expected = (initial_phrase + 1) % LOADING_PHRASES.len();
+        let expected = (initial_phrase + 1) % phrase_count;
         assert_eq!(anim.phrase_index, expected);
     }
 
@@ -214,29 +276,35 @@ mod tests {
     #[test]
     fn test_frame_wraps_around() {
         let mut anim = LoadingAnimation::new();
-        for _ in 0..SPINNER_FRAMES.len() {
+        let frame_count = anim.spinner_frames.len();
+        for _ in 0..frame_count {
             anim.last_frame_change = Instant::now() - SPINNER_FRAME_DURATION;
             anim.tick();
         }
-        assert!(anim.frame_index < SPINNER_FRAMES.len());
+        assert!(anim.frame_index < frame_count);
     }
 
     #[test]
     fn test_phrase_wraps_around() {
         let mut anim = LoadingAnimation::new();
-        for _ in 0..LOADING_PHRASES.len() {
+        let phrase_count = anim.phrases.len();
+        for _ in 0..phrase_count {
             anim.last_phrase_change = Instant::now() - PHRASE_DURATION;
             anim.tick();
         }
-        assert!(anim.phrase_index < LOADING_PHRASES.len());
+        assert!(anim.phrase_index < phrase_count);
     }
 
     #[test]
     fn test_display_text_contains_spinner_and_phrase() {
         let anim = LoadingAnimation::new();
         let text = anim.display_text();
-        assert!(SPINNER_FRAMES.iter().any(|f| text.contains(f)));
-        assert!(text.contains(LOADING_PHRASES[anim.phrase_index]));
+        assert!(
+            anim.spinner_frames
+                .iter()
+                .any(|f| text.contains(f.as_str()))
+        );
+        assert!(text.contains(anim.phrases[anim.phrase_index].as_str()));
     }
 
     #[test]
@@ -268,5 +336,33 @@ mod tests {
         let b = LoadingAnimation::default();
         assert_eq!(a.frame_index, b.frame_index);
         assert_eq!(a.color_index, b.color_index);
+    }
+
+    #[test]
+    fn test_from_config() {
+        use crate::game_mod::LoadingConfig;
+        let config = LoadingConfig {
+            spinner_frames: vec!["A".to_string(), "B".to_string()],
+            spinner_colors: vec![[255, 0, 0], [0, 255, 0]],
+            phrases: vec!["Testing...".to_string(), "Waiting...".to_string()],
+        };
+        let anim = LoadingAnimation::from_config(&config);
+        assert_eq!(anim.spinner_frames.len(), 2);
+        assert_eq!(anim.phrases.len(), 2);
+        assert_eq!(anim.colors.len(), 2);
+        let text = anim.display_text();
+        assert!(text.contains('A') || text.contains('B'));
+    }
+
+    #[test]
+    fn test_from_config_color_conversion() {
+        use crate::game_mod::LoadingConfig;
+        let config = LoadingConfig {
+            spinner_frames: vec!["X".to_string()],
+            spinner_colors: vec![[100, 200, 50]],
+            phrases: vec!["Go...".to_string()],
+        };
+        let anim = LoadingAnimation::from_config(&config);
+        assert_eq!(anim.current_color_rgb(), (100, 200, 50));
     }
 }

@@ -11,10 +11,11 @@ use crate::config::InferenceCategory;
 use crate::inference::InferenceQueue;
 use crate::inference::openai_client::OpenAiClient;
 use crate::loading::LoadingAnimation;
-use crate::npc::IrishWordHint;
+use crate::npc::LanguageHint;
 use crate::npc::manager::NpcManager;
 use crate::persistence::AsyncDatabase;
 use crate::world::WorldState;
+use parish_core::game_mod::GameMod;
 
 /// Maximum number of entries in the debug activity log.
 pub const DEBUG_LOG_CAPACITY: usize = 50;
@@ -95,8 +96,8 @@ pub struct App {
     pub scroll: ScrollState,
     /// Whether the Irish pronunciation sidebar is visible.
     pub sidebar_visible: bool,
-    /// Pronunciation hints for Irish words from NPC responses.
-    pub pronunciation_hints: Vec<IrishWordHint>,
+    /// Pronunciation hints for secondary-language words from NPC responses.
+    pub pronunciation_hints: Vec<LanguageHint>,
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
     /// Whether the debug sidebar panel is visible.
@@ -163,6 +164,8 @@ pub struct App {
     pub simulation_api_key: Option<String>,
     /// Base URL for simulation category.
     pub simulation_base_url: Option<String>,
+    /// Loaded game mod data (None if no mod directory was found or specified).
+    pub game_mod: Option<GameMod>,
 }
 
 impl App {
@@ -210,6 +213,7 @@ impl App {
             simulation_provider_name: None,
             simulation_api_key: None,
             simulation_base_url: None,
+            game_mod: None,
         }
     }
 
@@ -369,9 +373,9 @@ mod tests {
 
     #[test]
     fn test_pronunciation_hints_storage() {
-        use crate::npc::IrishWordHint;
+        use crate::npc::LanguageHint;
         let mut app = App::new();
-        let hint = IrishWordHint {
+        let hint = LanguageHint {
             word: "sláinte".to_string(),
             pronunciation: "SLAWN-cha".to_string(),
             meaning: Some("Health/cheers".to_string()),
@@ -383,10 +387,10 @@ mod tests {
 
     #[test]
     fn test_pronunciation_hints_truncation() {
-        use crate::npc::IrishWordHint;
+        use crate::npc::LanguageHint;
         let mut app = App::new();
         for i in 0..25 {
-            app.pronunciation_hints.push(IrishWordHint {
+            app.pronunciation_hints.push(LanguageHint {
                 word: format!("word_{}", i),
                 pronunciation: format!("pron_{}", i),
                 meaning: None,

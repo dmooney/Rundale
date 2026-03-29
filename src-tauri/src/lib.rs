@@ -174,6 +174,18 @@ impl GameConfig {
 /// Maximum number of debug events to retain.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
+/// UI configuration sent to the frontend via `get_ui_config`.
+///
+/// Sourced from the loaded [`GameMod`](parish_core::game_mod::GameMod)'s `ui.toml`
+/// or defaults if no mod is loaded.
+#[derive(serde::Serialize, Clone)]
+pub struct UiConfigSnapshot {
+    /// Label for the language-hints sidebar panel.
+    pub hints_label: String,
+    /// Default accent colour (CSS hex string).
+    pub default_accent: String,
+}
+
 /// Shared mutable game state managed by Tauri.
 ///
 /// Wrapped in `Arc` so background tasks can hold references without
@@ -193,6 +205,8 @@ pub struct AppState {
     pub config: Mutex<GameConfig>,
     /// Rolling debug event log for the debug panel.
     pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    /// UI configuration from the loaded game mod.
+    pub ui_config: UiConfigSnapshot,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -336,19 +350,49 @@ pub fn run() {
             })
     };
 
-    // Load world
-    let world = WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15))
-        .unwrap_or_else(|e| {
-            tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
-            WorldState::new()
-        });
+    // Try to load game mod (auto-detect from workspace root)
+    let game_mod = parish_core::game_mod::find_default_mod().and_then(|dir| {
+        match parish_core::game_mod::GameMod::load(&dir) {
+            Ok(gm) => {
+                tracing::info!(
+                    "Loaded game mod: {} ({})",
+                    gm.manifest.meta.name,
+                    dir.display()
+                );
+                Some(gm)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
+                None
+            }
+        }
+    });
 
-    // Load NPCs
-    let mut npc_manager =
-        NpcManager::load_from_file(&data_dir.join("npcs.json")).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
-            NpcManager::new()
-        });
+    // Load world — prefer mod data, fall back to legacy data/ directory
+    let world = if let Some(ref gm) = game_mod {
+        WorldState::from_mod(gm).unwrap_or_else(|e| {
+            tracing::warn!("Failed to load world from mod: {}. Using default.", e);
+            WorldState::new()
+        })
+    } else {
+        WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15)).unwrap_or_else(
+            |e| {
+                tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
+                WorldState::new()
+            },
+        )
+    };
+
+    // Load NPCs — prefer mod data, fall back to legacy data/ directory
+    let npcs_path = if let Some(ref gm) = game_mod {
+        gm.npcs_path()
+    } else {
+        data_dir.join("npcs.json")
+    };
+    let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
+        tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
+        NpcManager::new()
+    });
 
     // Initial tier assignment
     npc_manager.assign_tiers(world.player_location, &world.graph);
@@ -356,6 +400,19 @@ pub fn run() {
     // Read provider config from env vars (optional)
     let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
     let cloud_env = build_cloud_client_from_env();
+
+    // Build UI config from mod or defaults
+    let ui_config = if let Some(ref gm) = game_mod {
+        UiConfigSnapshot {
+            hints_label: gm.ui.sidebar.hints_label.clone(),
+            default_accent: gm.ui.theme.default_accent.clone(),
+        }
+    } else {
+        UiConfigSnapshot {
+            hints_label: "Language Hints".to_string(),
+            default_accent: "#c4a35a".to_string(),
+        }
+    };
 
     let state = Arc::new(AppState {
         world: Mutex::new(world),
@@ -366,6 +423,7 @@ pub fn run() {
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
+        ui_config,
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -390,6 +448,7 @@ pub fn run() {
             commands::get_map,
             commands::get_npcs_here,
             commands::get_theme,
+            commands::get_ui_config,
             commands::get_debug_snapshot,
             commands::submit_input,
         ])

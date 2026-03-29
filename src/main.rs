@@ -104,6 +104,10 @@ struct Cli {
     /// Intent parsing LLM API key override
     #[arg(long, env = "PARISH_INTENT_API_KEY")]
     intent_api_key: Option<String>,
+
+    /// Path to a game mod directory (default: auto-detect mods/kilteevan-1820/)
+    #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
+    game_mod: Option<String>,
 }
 
 #[tokio::main]
@@ -180,6 +184,35 @@ async fn main() -> Result<()> {
         );
     }
 
+    // Load game mod (from --game-mod flag, env var, or auto-detect)
+    let game_mod = {
+        let mod_dir = if let Some(ref path) = cli.game_mod {
+            Some(std::path::PathBuf::from(path))
+        } else {
+            parish_core::game_mod::find_default_mod()
+        };
+        match mod_dir {
+            Some(dir) => match parish_core::game_mod::GameMod::load(&dir) {
+                Ok(gm) => {
+                    tracing::info!(
+                        "Loaded game mod: {} ({})",
+                        gm.manifest.meta.name,
+                        dir.display()
+                    );
+                    Some(gm)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
+                    None
+                }
+            },
+            None => {
+                tracing::info!("No game mod found; using built-in defaults");
+                None
+            }
+        }
+    };
+
     // Headless REPL mode (default)
     let result = headless::run_headless(
         clients.clone(),
@@ -187,6 +220,7 @@ async fn main() -> Result<()> {
         cloud_config.as_ref(),
         &category_configs,
         cli.improv,
+        game_mod,
     )
     .await;
     ollama_process.stop();

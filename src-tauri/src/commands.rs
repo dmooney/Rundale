@@ -209,6 +209,16 @@ pub async fn get_debug_snapshot(
     ))
 }
 
+/// Returns the UI configuration from the loaded game mod.
+///
+/// The frontend uses this to set sidebar labels, accent colours, etc.
+#[tauri::command]
+pub async fn get_ui_config(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<crate::UiConfigSnapshot, String> {
+    Ok(state.ui_config.clone())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
@@ -883,7 +893,10 @@ async fn handle_npc_conversation(
                     vec![]
                 } else {
                     let parsed = parse_npc_stream_response(&resp.text);
-                    parsed.metadata.map(|m| m.irish_words).unwrap_or_default()
+                    parsed
+                        .metadata
+                        .map(|m| m.language_hints)
+                        .unwrap_or_default()
                 }
             } else {
                 vec![]

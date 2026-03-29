@@ -39,6 +39,7 @@ pub async fn run_headless(
     cloud_config: Option<&CloudConfig>,
     category_configs: &HashMap<InferenceCategory, CategoryConfig>,
     improv: bool,
+    game_mod: Option<parish_core::game_mod::GameMod>,
 ) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
     println!(
@@ -60,16 +61,26 @@ pub async fn run_headless(
     let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
     let queue = InferenceQueue::new(tx);
 
-    // Initialize app state — load parish data if available
+    // Initialize app state — prefer mod data, fall back to legacy parish.json
     let mut app = App::new();
-    let parish_path = Path::new("data/parish.json");
-    if parish_path.exists() {
-        match crate::world::WorldState::from_parish_file(parish_path, crate::world::LocationId(15))
-        {
+    if let Some(ref gm) = game_mod {
+        match crate::world::WorldState::from_mod(gm) {
             Ok(world) => app.world = world,
-            Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
+            Err(e) => eprintln!("Warning: Failed to load world from mod: {}", e),
+        }
+    } else {
+        let parish_path = Path::new("data/parish.json");
+        if parish_path.exists() {
+            match crate::world::WorldState::from_parish_file(
+                parish_path,
+                crate::world::LocationId(15),
+            ) {
+                Ok(world) => app.world = world,
+                Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
+            }
         }
     }
+    app.game_mod = game_mod;
     app.inference_queue = Some(queue);
     app.client = Some(clients.base.clone());
     app.model_name = clients.base_model.clone();
@@ -115,10 +126,14 @@ pub async fn run_headless(
         app.cloud_base_url = Some(cc.base_url.clone());
     }
 
-    // Load NPCs from data file
-    let npcs_path = Path::new("data/npcs.json");
+    // Load NPCs — prefer mod data, fall back to legacy data/ directory
+    let npcs_path = if let Some(ref gm) = app.game_mod {
+        gm.npcs_path()
+    } else {
+        std::path::PathBuf::from("data/npcs.json")
+    };
     if npcs_path.exists() {
-        match NpcManager::load_from_file(npcs_path) {
+        match NpcManager::load_from_file(&npcs_path) {
             Ok(mgr) => app.npc_manager = mgr,
             Err(e) => eprintln!("Warning: Failed to load NPC data: {}", e),
         }

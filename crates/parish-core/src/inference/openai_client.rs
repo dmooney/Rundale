@@ -413,7 +413,14 @@ mod tests {
     #[test]
     fn test_build_request_with_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", Some("you are helpful"), false, false);
+        let req = client.build_request(
+            "model",
+            "hello",
+            Some("you are helpful"),
+            false,
+            false,
+            None,
+        );
         assert_eq!(req.model, "model");
         assert_eq!(req.messages.len(), 2);
         assert_eq!(req.messages[0].role, "system");
@@ -427,7 +434,7 @@ mod tests {
     #[test]
     fn test_build_request_without_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, false);
+        let req = client.build_request("model", "hello", None, false, false, None);
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
     }
@@ -435,7 +442,7 @@ mod tests {
     #[test]
     fn test_build_request_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, true);
+        let req = client.build_request("model", "hello", None, false, true, None);
         let fmt = req.response_format.unwrap();
         assert_eq!(fmt.format_type, "json_object");
     }
@@ -443,7 +450,7 @@ mod tests {
     #[test]
     fn test_build_request_streaming() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, true, false);
+        let req = client.build_request("model", "hello", None, true, false, None);
         assert!(req.stream);
     }
 

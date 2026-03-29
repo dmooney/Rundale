@@ -46,10 +46,18 @@ export interface ThemePalette {
 	muted: string;
 }
 
-export interface IrishWordHint {
+export interface LanguageHint {
 	word: string;
 	pronunciation: string;
 	meaning: string | null;
+}
+
+/** Backward-compatible alias. */
+export type IrishWordHint = LanguageHint;
+
+export interface UiConfig {
+	hints_label: string;
+	default_accent: string;
 }
 
 export interface TextLogEntry {

@@ -49,13 +49,47 @@ Player Input → Command Detection → [System Command OR Game Input]
                                    Text Rendering → Headless REPL / GUI
 ```
 
+## Engine / Game Data Separation (Mod System)
+
+The engine is generic and knows nothing about any specific setting. All game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
+
+A mod is a directory with a `mod.toml` manifest and data files:
+
+```
+mods/kilteevan-1820/
+├── mod.toml              # Manifest: name, version, start_date, start_location, period_year
+├── world.json            # Location graph (from data/parish.json)
+├── npcs.json             # NPC definitions (from data/npcs.json)
+├── prompts/
+│   ├── tier1_system.txt  # Tier 1 system prompt template with {name}, {age}, etc.
+│   ├── tier1_context.txt # Tier 1 context template
+│   └── tier2_system.txt  # Tier 2 background simulation prompt
+├── anachronisms.json     # Period enforcement dictionary
+├── festivals.json        # Calendar events (Imbolc, Bealtaine, Lughnasa, Samhain)
+├── encounters.json       # Encounter flavour text keyed by time-of-day
+├── loading.toml          # Loading spinner frames, phrases, colours
+└── ui.toml               # UI customisation: sidebar labels, accent colour
+```
+
+The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected from `mods/kilteevan-1820/`) and passes it through the application:
+
+- `WorldState::from_mod(&game_mod)` — loads world graph and start date from mod
+- `LoadingAnimation::from_config(&game_mod.loading)` — configurable spinner
+- `check_encounter_with_table()` — mod-provided encounter text
+- `GameClock::check_festival_data(&game_mod.festivals)` — data-driven festivals
+- `check_input_from_mod_data()` — loaded anachronism dictionary
+- `interpolate_template()` — `{placeholder}` interpolation for prompt templates
+- `get_ui_config` IPC command — sidebar labels and theme from mod
+
+See [Engine / Game Data Separation Plan](../plans/engine-game-data-separation.md) for the full design.
+
 ## Module Tree
 
 ```
 src/
-├── main.rs              # Entry point, CLI args (clap), mode routing
+├── main.rs              # Entry point, CLI args (clap), mode routing (--game-mod flag)
 ├── lib.rs               # Module declarations
-├── app.rs               # Core application state (App, ScrollState)
+├── app.rs               # Core application state (App, ScrollState, GameMod)
 ├── error.rs             # ParishError (thiserror)
 ├── config.rs            # Provider configuration (TOML + env + CLI)
 ├── headless.rs          # Headless stdin/stdout REPL (default mode)
