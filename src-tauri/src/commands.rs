@@ -345,7 +345,7 @@ async fn handle_system_command(
             "  /quit     — Take your leave",
             "  /resume   — Let time flow again",
             "  /save     — Save game",
-            "  /speed    — Show or change game speed (slow/normal/fast/fastest)",
+            "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)",
             "  /status   — Where am I?",
             "",
             "  <cat> = dialogue, simulation, or intent",
@@ -371,7 +371,7 @@ async fn handle_system_command(
         }
         Command::InvalidSpeed(name) => {
             format!(
-                "Unknown speed '{}'. Try: slow, normal, fast, fastest.",
+                "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
                 name
             )
         }
