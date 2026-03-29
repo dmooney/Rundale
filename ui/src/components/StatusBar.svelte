@@ -74,7 +74,7 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
-		<button class="debug-toggle" class:debug-active={$debugVisible} on:click={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">DBG</button>
+		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">DBG</button>
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
 		<span class="muted">Loading…</span>
