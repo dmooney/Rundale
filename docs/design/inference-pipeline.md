@@ -40,16 +40,78 @@ Player natural language input is also sent to Ollama for intent parsing. The LLM
 
 If the LLM can't resolve intent, the game asks for clarification in-character.
 
+## Multi-Provider Support
+
+The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, etc.) via `OpenAiClient`. Per-category provider routing allows different models for different tasks:
+
+| Category | Purpose | Default |
+|----------|---------|---------|
+| Dialogue | Player-facing NPC conversation (Tier 1) | Cloud if configured, else local |
+| Simulation | Background NPC activity (Tier 2) | Always local |
+| Intent | Player input classification | Always local |
+
+Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client.
+
+## Inference Call Logging
+
+Every request processed by the inference worker is logged in a shared ring buffer (`InferenceLog`) for real-time visibility in the debug panel.
+
+### `InferenceLogEntry`
+
+```rust
+pub struct InferenceLogEntry {
+    pub request_id: u64,      // Unique request ID
+    pub timestamp: String,     // Wall-clock time (HH:MM:SS)
+    pub model: String,         // Model name used
+    pub streaming: bool,       // Whether SSE streaming was used
+    pub duration_ms: u64,      // End-to-end latency
+    pub prompt_len: usize,     // Prompt length in characters
+    pub response_len: usize,   // Response length in characters
+    pub error: Option<String>, // Error message if failed
+}
+```
+
+### Architecture
+
+```
+InferenceRequest → spawn_inference_worker() → generate()/generate_stream()
+                         │                              │
+                         │  records Instant::now()       │  measures elapsed
+                         │                              │
+                         └──── InferenceLogEntry ───────┘
+                                      │
+                              InferenceLog (Arc<Mutex<VecDeque>>)
+                                      │
+                              DebugSnapshot.inference.call_log
+                                      │
+                              Tauri IPC → Svelte DebugPanel
+```
+
+- **Capacity**: 50 entries (ring buffer, oldest evicted first)
+- **Scope**: Captures all queued requests (NPC dialogue). Direct `generate_json()` calls (Tier 2 simulation, intent parsing) are not yet logged.
+- **Shared state**: The `InferenceLog` (`Arc<Mutex<VecDeque<InferenceLogEntry>>>`) is passed to the worker at spawn time and stored on `AppState` for snapshot reads.
+- **Timing**: `std::time::Instant` measures end-to-end latency including network round-trip, model inference, and streaming delivery.
+
+### Debug Panel Display
+
+The Inference tab in the debug panel shows:
+
+1. **Config section** (top): Provider, model, URL, queue status, cloud info, improv flag
+2. **Call Log section** (below): Summary stats (avg latency, error count) followed by a scrollable list of entries (newest first) with color-coded OK/ERROR/STREAM badges
+
 ## Related
 
 - [NPC System](npc-system.md) — NPC context construction feeds the inference queue
 - [Cognitive LOD](cognitive-lod.md) — Tier determines model selection and batch strategy
 - [Player Input](player-input.md) — Natural language input parsed via this pipeline
+- [Debug UI](debug-ui.md) — Debug panel that displays inference call log
 - [ADR 005: Ollama Local Inference](../adr/005-ollama-local-inference.md)
 - [ADR 008: Structured JSON LLM Output](../adr/008-structured-json-llm-output.md)
 
 ## Source Modules
 
-- [`src/inference/`](../../src/inference/) — Ollama HTTP client, inference queue
+- [`crates/parish-core/src/inference/`](../../crates/parish-core/src/inference/) — OpenAI-compatible HTTP client, inference queue, worker, log
+- [`crates/parish-core/src/debug_snapshot.rs`](../../crates/parish-core/src/debug_snapshot.rs) — `InferenceLogEntry`, `InferenceDebug` structs
+- [`src/inference/`](../../src/inference/) — Root crate inference (headless mode)
 - [`src/input/`](../../src/input/) — Player input parsing
 - [`src/npc/`](../../src/npc/) — NPC context construction

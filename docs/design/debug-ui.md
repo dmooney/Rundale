@@ -59,6 +59,17 @@ pub struct DebugSnapshot {
 - `cloud_provider`, `cloud_model`: Option strings
 - `has_queue`: bool (whether inference is configured)
 - `improv_enabled`: bool
+- `call_log`: `Vec<InferenceLogEntry>` — recent inference call history
+
+#### `InferenceLogEntry`
+- `request_id`: u64 — unique request identifier
+- `timestamp`: String — wall-clock time (HH:MM:SS)
+- `model`: String — model name used
+- `streaming`: bool — whether SSE streaming was used
+- `duration_ms`: u64 — end-to-end latency in milliseconds
+- `prompt_len`: usize — prompt length in characters
+- `response_len`: usize — response length in characters
+- `error`: Option\<String\> — error message if the request failed
 
 #### `DebugEvent`
 - `timestamp`: formatted game time
