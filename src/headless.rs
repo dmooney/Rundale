@@ -818,7 +818,7 @@ async fn handle_headless_game_input(
                             context,
                             Some(system_prompt),
                             Some(token_tx),
-                            Some(parish_core::npc::MAX_DIALOGUE_TOKENS),
+                            None,
                         )
                         .await
                     {

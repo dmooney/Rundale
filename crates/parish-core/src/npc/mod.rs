@@ -40,13 +40,6 @@ pub struct IrishWordHint {
 /// or `  ---\n` on its own line, even when preceded by text on the same line.
 pub const SEPARATOR_HOLDBACK: usize = 24;
 
-/// Maximum tokens for NPC dialogue responses (including the JSON metadata block).
-///
-/// Keeps responses conversational (a few sentences of dialogue plus the compact
-/// metadata JSON). Prevents models from generating excessively long monologues
-/// that break the chat formatting.
-pub const MAX_DIALOGUE_TOKENS: u32 = 300;
-
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
 /// If `pos` is already a char boundary, returns it unchanged. Otherwise
