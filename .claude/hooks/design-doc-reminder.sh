@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Stop hook: enforce that design docs are updated when significant code changes
-# are committed. Blocks (exit 2) if new public structs, functions, or modules
-# appear in committed .rs changes but no docs/design/ files were included in
-# any commit on the current branch.
+# Stop hook: enforce that design docs are updated alongside any non-trivial
+# code change. Blocks (exit 2) if code files were modified on this branch
+# but no docs/design/ or CLAUDE.md files were updated in any commit.
+#
+# "Non-trivial" = more than a handful of changed lines across code files.
+# Trivial threshold: <= 5 net added lines across all code files.
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
+
+# Code file extensions to track
+CODE_PATTERNS=('*.rs' '*.ts' '*.svelte' '*.js' '*.json' '*.toml')
+# Exclude patterns (lockfiles, generated files, test fixtures)
+EXCLUDE_PATTERNS=('package-lock.json' 'Cargo.lock' '*.snap' 'tests/fixtures/*')
 
 # Determine the merge base with main/master to scope the check to this branch
 BASE_BRANCH="main"
@@ -14,45 +21,63 @@ if ! git rev-parse --verify "$BASE_BRANCH" &>/dev/null; then
     BASE_BRANCH="master"
 fi
 if ! git rev-parse --verify "$BASE_BRANCH" &>/dev/null; then
-    # No main/master — fall back to checking only uncommitted changes
     BASE_BRANCH=""
 fi
 
-# Collect the .rs diff: committed changes on this branch + any uncommitted changes
+# Build git diff path specs
+PATHSPECS=()
+for p in "${CODE_PATTERNS[@]}"; do
+    PATHSPECS+=("$p")
+done
+
+EXCLUDES=()
+for p in "${EXCLUDE_PATTERNS[@]}"; do
+    EXCLUDES+=(":(exclude)$p")
+done
+
+# Collect code changes: committed on branch + uncommitted + unstaged
+COMMITTED_STAT=""
 if [[ -n "$BASE_BRANCH" ]]; then
     MERGE_BASE=$(git merge-base "$BASE_BRANCH" HEAD 2>/dev/null || echo "")
     if [[ -n "$MERGE_BASE" ]]; then
-        COMMITTED_DIFF=$(git diff "$MERGE_BASE"..HEAD --unified=0 -- '*.rs' 2>/dev/null || true)
-    else
-        COMMITTED_DIFF=""
+        COMMITTED_STAT=$(git diff "$MERGE_BASE"..HEAD --stat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null || true)
     fi
-else
-    COMMITTED_DIFF=""
 fi
 
-UNCOMMITTED_DIFF=$(git diff HEAD --unified=0 -- '*.rs' 2>/dev/null || true)
-UNSTAGED_DIFF=$(git diff --unified=0 -- '*.rs' 2>/dev/null || true)
-ALL_DIFF="${COMMITTED_DIFF}${UNCOMMITTED_DIFF}${UNSTAGED_DIFF}"
+UNCOMMITTED_STAT=$(git diff HEAD --stat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null || true)
+UNSTAGED_STAT=$(git diff --stat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null || true)
 
-if [[ -z "$ALL_DIFF" ]]; then
+ALL_STAT="${COMMITTED_STAT}${UNCOMMITTED_STAT}${UNSTAGED_STAT}"
+
+# No code changes at all — nothing to check
+if [[ -z "$ALL_STAT" ]]; then
     exit 0
 fi
 
-# Look for signals of significant architectural changes:
-#   - New pub struct/enum/type definitions
-#   - New pub fn signatures
-#   - New module declarations (pub mod)
-SIGNIFICANT=$(echo "$ALL_DIFF" | grep -E '^\+.*(pub struct |pub enum |pub type |pub fn |pub mod |pub const )' || true)
+# Count net added lines to gauge significance
+COMMITTED_ADDS=0
+if [[ -n "$BASE_BRANCH" && -n "${MERGE_BASE:-}" ]]; then
+    COMMITTED_ADDS=$(git diff "$MERGE_BASE"..HEAD --numstat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+        | awk '{s+=$1} END {print s+0}' || echo 0)
+fi
 
-if [[ -z "$SIGNIFICANT" ]]; then
+UNCOMMITTED_ADDS=$(git diff HEAD --numstat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+    | awk '{s+=$1} END {print s+0}' || echo 0)
+
+UNSTAGED_ADDS=$(git diff --numstat -- "${PATHSPECS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+    | awk '{s+=$1} END {print s+0}' || echo 0)
+
+TOTAL_ADDS=$(( COMMITTED_ADDS + UNCOMMITTED_ADDS + UNSTAGED_ADDS ))
+
+# Trivial threshold: skip if <= 5 net added lines
+if [[ "$TOTAL_ADDS" -le 5 ]]; then
     exit 0
 fi
 
 # Check if any design docs were updated in commits on this branch
+DESIGN_COMMITTED=""
 if [[ -n "$BASE_BRANCH" && -n "${MERGE_BASE:-}" ]]; then
     DESIGN_COMMITTED=$(git diff --name-only "$MERGE_BASE"..HEAD 2>/dev/null | grep -E 'docs/design/|CLAUDE\.md' || true)
-else
-    DESIGN_COMMITTED=""
 fi
 
 # Also check uncommitted/unstaged design doc changes
@@ -64,7 +89,7 @@ if [[ -n "$DESIGN_COMMITTED" || -n "$DESIGN_UNCOMMITTED" || -n "$DESIGN_UNSTAGED
 fi
 
 echo "=== Design Doc Update Required ==="
-echo "Significant new public API detected (structs, functions, modules) but"
+echo "Non-trivial code changes detected (~${TOTAL_ADDS} lines added) but"
 echo "no docs/design/ or CLAUDE.md files were updated in the commits."
 echo ""
 echo "Before declaring done, update and commit the relevant design doc(s):"

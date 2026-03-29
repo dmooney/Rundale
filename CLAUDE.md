@@ -199,7 +199,7 @@ Automated hooks configured in `.claude/settings.json` that run at lifecycle even
 | `doc-staleness.sh` | Stop | When Claude finishes responding | Warns if `.rs` files changed but no docs were updated |
 | `screenshot-reminder.sh` | Stop | When Claude finishes responding | Reminds to regenerate screenshots if `ui/` or `src-tauri/` changed |
 | `coverage-reminder.sh` | Stop | When Claude finishes responding | Reminds to check coverage when new `.rs` files are added |
-| `design-doc-reminder.sh` | Stop | When Claude finishes responding | **Blocks** (exit 2) if new public structs/functions/modules are added without updating `docs/design/` or `CLAUDE.md` |
+| `design-doc-reminder.sh` | Stop | When Claude finishes responding | **Blocks** (exit 2) if non-trivial code changes (>5 added lines across `.rs`/`.ts`/`.svelte`/`.json`/`.toml`) are made without updating `docs/design/` or `CLAUDE.md` |
 | `compact-context.sh` | SessionStart | After context compaction | Re-injects key project context |
 | `commit-msg-check.sh` | UserPromptSubmit | When user submits a prompt mentioning "commit" | Validates conventional commit message format |
 | `notify.sh` | Notification | When Claude needs attention | Sends desktop notification via `notify-send` |
