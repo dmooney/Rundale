@@ -58,7 +58,8 @@ pub async fn run_headless(
     let (dial_client, dial_model) = clients.dialogue_client();
     let dialogue_model = dial_model.to_string();
     let (tx, rx) = mpsc::channel(32);
-    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx);
+    let inference_log = inference::new_inference_log();
+    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx, inference_log.clone());
     let queue = InferenceQueue::new(tx);
 
     // Initialize app state — prefer mod data, fall back to legacy parish.json
@@ -218,7 +219,7 @@ pub async fn run_headless(
                     let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
                     if let Some(new_client) = dial_client {
                         let (tx, rx) = mpsc::channel(32);
-                        let _new_worker = inference::spawn_inference_worker(new_client, rx);
+                        let _new_worker = inference::spawn_inference_worker(new_client, rx, inference_log.clone());
                         app.inference_queue = Some(InferenceQueue::new(tx));
                     }
                 }

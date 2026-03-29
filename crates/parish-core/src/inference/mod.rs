@@ -8,9 +8,26 @@ pub mod client;
 pub mod openai_client;
 pub mod setup;
 
+use std::collections::VecDeque;
+use std::sync::Arc;
+use std::time::Instant;
+
 use openai_client::OpenAiClient;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
+
+use crate::debug_snapshot::InferenceLogEntry;
+
+/// Maximum number of inference log entries to retain.
+pub const INFERENCE_LOG_CAPACITY: usize = 50;
+
+/// Shared ring buffer of inference call log entries.
+pub type InferenceLog = Arc<Mutex<VecDeque<InferenceLogEntry>>>;
+
+/// Creates a new empty inference log with pre-allocated capacity.
+pub fn new_inference_log() -> InferenceLog {
+    Arc::new(Mutex::new(VecDeque::with_capacity(INFERENCE_LOG_CAPACITY)))
+}
 
 /// A request to generate text via the inference pipeline.
 ///
@@ -143,13 +160,21 @@ impl InferenceClients {
 ///
 /// The worker pulls requests from the mpsc receiver, calls the LLM
 /// client, and sends responses back through each request's oneshot channel.
+/// Each completed call is recorded in the shared `log` ring buffer.
 /// The task runs until the sender side of the channel is dropped.
 pub fn spawn_inference_worker(
     client: OpenAiClient,
     mut rx: mpsc::Receiver<InferenceRequest>,
+    log: InferenceLog,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(request) = rx.recv().await {
+            let streaming = request.token_tx.is_some();
+            let prompt_len = request.prompt.len();
+            let model = request.model.clone();
+            let req_id = request.id;
+            let start = Instant::now();
+
             let result = if let Some(token_tx) = request.token_tx {
                 client
                     .generate_stream(
@@ -171,18 +196,47 @@ pub fn spawn_inference_worker(
                     .await
             };
 
-            let response = match result {
-                Ok(text) => InferenceResponse {
-                    id: request.id,
-                    text,
-                    error: None,
-                },
-                Err(e) => InferenceResponse {
-                    id: request.id,
-                    text: String::new(),
-                    error: Some(e.to_string()),
-                },
+            let elapsed = start.elapsed();
+
+            let (response, entry_error, response_len) = match &result {
+                Ok(text) => (
+                    InferenceResponse {
+                        id: req_id,
+                        text: text.clone(),
+                        error: None,
+                    },
+                    None,
+                    text.len(),
+                ),
+                Err(e) => (
+                    InferenceResponse {
+                        id: req_id,
+                        text: String::new(),
+                        error: Some(e.to_string()),
+                    },
+                    Some(e.to_string()),
+                    0,
+                ),
             };
+
+            // Record log entry
+            {
+                let entry = InferenceLogEntry {
+                    request_id: req_id,
+                    timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                    model,
+                    streaming,
+                    duration_ms: elapsed.as_millis() as u64,
+                    prompt_len,
+                    response_len,
+                    error: entry_error,
+                };
+                let mut log = log.lock().await;
+                if log.len() >= INFERENCE_LOG_CAPACITY {
+                    log.pop_front();
+                }
+                log.push_back(entry);
+            }
 
             // Ignore send error — the caller may have dropped the receiver
             let _ = request.response_tx.send(response);

@@ -213,6 +213,37 @@
 				<div class="section">
 					<div class="field">Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
 				</div>
+				<div class="section">
+					<h4>Call Log ({snap.inference.call_log.length})</h4>
+					{#if snap.inference.call_log.length > 0}
+						{@const avgMs = Math.round(snap.inference.call_log.reduce((s, e) => s + e.duration_ms, 0) / snap.inference.call_log.length)}
+						{@const errorCount = snap.inference.call_log.filter(e => e.error).length}
+						<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
+						<div class="call-log">
+							{#each [...snap.inference.call_log].reverse() as entry}
+								<div class="log-entry" class:log-error={entry.error}>
+									<div class="log-header">
+										<span class="muted">[{entry.timestamp}]</span>
+										<span class="log-id">#{entry.request_id}</span>
+										<span class="log-model">{entry.model}</span>
+										{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
+										{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+									</div>
+									<div class="log-meta">
+										<span>{entry.duration_ms}ms</span>
+										<span class="muted">prompt: {entry.prompt_len}ch</span>
+										<span class="muted">response: {entry.response_len}ch</span>
+									</div>
+									{#if entry.error}
+										<div class="log-error-msg">{entry.error}</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="field muted">(no calls yet)</div>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -418,5 +449,76 @@
 	.event-cat {
 		color: var(--color-accent);
 		font-size: 0.65rem;
+	}
+
+	.call-log {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+	}
+
+	.log-entry {
+		padding: 0.3rem 0.5rem;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.log-entry.log-error {
+		background: color-mix(in srgb, #ff4444 8%, transparent);
+	}
+
+	.log-header {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: baseline;
+	}
+
+	.log-id {
+		color: var(--color-muted);
+		font-size: 0.65rem;
+	}
+
+	.log-model {
+		color: var(--color-accent);
+		font-weight: 600;
+	}
+
+	.log-badge {
+		font-size: 0.55rem;
+		padding: 0.05rem 0.3rem;
+		border-radius: 2px;
+		text-transform: uppercase;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+	}
+
+	.log-badge.stream {
+		background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+		color: var(--color-accent);
+	}
+
+	.log-badge.ok {
+		background: color-mix(in srgb, #44cc44 20%, transparent);
+		color: #44cc44;
+	}
+
+	.log-badge.error {
+		background: color-mix(in srgb, #ff4444 20%, transparent);
+		color: #ff4444;
+	}
+
+	.log-meta {
+		display: flex;
+		gap: 0.6rem;
+		font-size: 0.65rem;
+		margin-top: 0.1rem;
+	}
+
+	.log-error-msg {
+		color: #ff4444;
+		font-size: 0.65rem;
+		margin-top: 0.1rem;
+		word-break: break-word;
 	}
 </style>

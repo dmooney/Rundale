@@ -191,6 +191,9 @@ pub async fn get_debug_snapshot(
     let events = state.debug_events.lock().await;
     let config = state.config.lock().await;
 
+    let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+        state.inference_log.lock().await.iter().cloned().collect();
+
     let inference = InferenceDebug {
         provider_name: config.provider_name.clone(),
         model_name: config.model_name.clone(),
@@ -199,6 +202,7 @@ pub async fn get_debug_snapshot(
         cloud_model: config.cloud_model_name.clone(),
         has_queue: state.inference_queue.lock().await.is_some(),
         improv_enabled: config.improv_enabled,
+        call_log,
     };
 
     Ok(debug_snapshot::build_debug_snapshot(
@@ -281,7 +285,7 @@ async fn rebuild_inference(state: &Arc<AppState>) {
 
     // Respawn inference worker with the new client
     let (tx, rx) = tokio::sync::mpsc::channel(32);
-    let _worker = spawn_inference_worker(new_client, rx);
+    let _worker = spawn_inference_worker(new_client, rx, state.inference_log.clone());
     let queue = InferenceQueue::new(tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);

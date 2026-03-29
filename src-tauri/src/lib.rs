@@ -15,7 +15,9 @@ use tokio::sync::Mutex;
 
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{
+    InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
+};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::palette::{RawColor, RawPalette, compute_palette};
 use parish_core::world::{LocationId, WorldState};
@@ -205,6 +207,8 @@ pub struct AppState {
     pub config: Mutex<GameConfig>,
     /// Rolling debug event log for the debug panel.
     pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    /// Shared inference call log for the debug panel.
+    pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
 }
@@ -423,6 +427,7 @@ pub fn run() {
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
+        inference_log: new_inference_log(),
         ui_config,
         config: Mutex::new(GameConfig {
             provider_name,
@@ -538,7 +543,11 @@ pub fn run() {
                     let client_guard = state_setup.client.lock().await;
                     if let Some(ref client) = *client_guard {
                         let (tx, rx) = tokio::sync::mpsc::channel(32);
-                        let _worker = spawn_inference_worker(client.clone(), rx);
+                        let _worker = spawn_inference_worker(
+                            client.clone(),
+                            rx,
+                            state_setup.inference_log.clone(),
+                        );
                         let queue = InferenceQueue::new(tx);
                         let mut iq = state_setup.inference_queue.lock().await;
                         *iq = Some(queue);
@@ -601,6 +610,15 @@ pub fn run() {
                         let debug_events = state_debug.debug_events.lock().await;
                         let config = state_debug.config.lock().await;
 
+                        let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+                            state_debug
+                                .inference_log
+                                .lock()
+                                .await
+                                .iter()
+                                .cloned()
+                                .collect();
+
                         let inference = InferenceDebug {
                             provider_name: config.provider_name.clone(),
                             model_name: config.model_name.clone(),
@@ -609,6 +627,7 @@ pub fn run() {
                             cloud_model: config.cloud_model_name.clone(),
                             has_queue: state_debug.inference_queue.lock().await.is_some(),
                             improv_enabled: config.improv_enabled,
+                            call_log,
                         };
 
                         let snapshot = parish_core::debug_snapshot::build_debug_snapshot(
