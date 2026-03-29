@@ -4,6 +4,7 @@
 //! auto-install, GPU/VRAM detection, model selection based on
 //! available hardware, and automatic model pulling.
 
+use crate::config::InferenceConfig;
 use crate::error::ParishError;
 use crate::inference::client::OllamaProcess;
 use crate::inference::openai_client::OpenAiClient;
@@ -542,11 +543,23 @@ struct PullProgressLine {
 /// Checks whether a model is available locally in Ollama.
 ///
 /// Queries the `/api/tags` endpoint and checks if the model name
-/// appears in the list of locally available models.
+/// appears in the list of locally available models. Uses the default
+/// reachability timeout (10s).
 pub async fn is_model_available(base_url: &str, model_name: &str) -> Result<bool, ParishError> {
+    is_model_available_with_config(base_url, model_name, &InferenceConfig::default()).await
+}
+
+/// Checks whether a model is available locally in Ollama, with configurable timeout.
+///
+/// Uses `config.reachability_timeout_secs` for the HTTP request timeout.
+pub async fn is_model_available_with_config(
+    base_url: &str,
+    model_name: &str,
+    config: &InferenceConfig,
+) -> Result<bool, ParishError> {
     let url = format!("{}/api/tags", base_url);
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(config.reachability_timeout_secs))
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build HTTP client: {}", e)))?;
 
@@ -575,6 +588,7 @@ pub async fn is_model_available(base_url: &str, model_name: &str) -> Result<bool
 ///
 /// Streams progress from the `/api/pull` endpoint and reports it
 /// via the `SetupProgress` trait. Blocks until the pull is complete.
+/// Uses the default model download timeout (3600s).
 ///
 /// # Errors
 ///
@@ -584,6 +598,22 @@ pub async fn pull_model(
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
+    pull_model_with_config(base_url, model_name, progress, &InferenceConfig::default()).await
+}
+
+/// Pulls (downloads) a model from the Ollama registry, with configurable timeout.
+///
+/// Uses `config.model_download_timeout_secs` for the HTTP request timeout.
+///
+/// # Errors
+///
+/// Returns `ParishError::ModelNotAvailable` if the pull fails.
+pub async fn pull_model_with_config(
+    base_url: &str,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+    config: &InferenceConfig,
+) -> Result<(), ParishError> {
     progress.on_status(&format!(
         "Fetching the storyteller's book of tales ('{}')...",
         model_name
@@ -591,7 +621,7 @@ pub async fn pull_model(
 
     let url = format!("{}/api/pull", base_url);
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(3600)) // Model downloads can take a while
+        .timeout(Duration::from_secs(config.model_download_timeout_secs))
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build HTTP client: {}", e)))?;
 
