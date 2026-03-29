@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { worldState } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
+	import { savePickerVisible } from '../stores/save';
 	import { onMount } from 'svelte';
 
 	let displayHour = $state(0);
@@ -74,6 +75,7 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
+		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">LEDGER</button>
 		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">DBG</button>
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
@@ -137,6 +139,28 @@
 	.muted {
 		color: var(--color-muted);
 		font-style: italic;
+	}
+
+	.save-toggle {
+		background: none;
+		border: 1px solid var(--color-border);
+		color: var(--color-muted);
+		font-size: 0.6rem;
+		padding: 0.1rem 0.35rem;
+		cursor: pointer;
+		font-family: monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.save-toggle:hover {
+		color: var(--color-fg);
+		border-color: var(--color-accent);
+	}
+
+	.save-toggle.save-active {
+		color: var(--color-accent);
+		border-color: var(--color-accent);
 	}
 
 	.debug-toggle {

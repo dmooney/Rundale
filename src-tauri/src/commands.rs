@@ -21,10 +21,10 @@ use parish_core::world::movement::{self, MovementResult};
 use parish_core::world::palette::compute_palette;
 
 use crate::events::{
-    EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload, TextLogPayload,
-    spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload,
+    TextLogPayload, spawn_loading_animation,
 };
-use crate::{AppState, MapData, MapLocation, NpcInfo, ThemePalette, WorldSnapshot};
+use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
 /// Capitalizes the first character of a string slice.
 fn capitalize_first(s: &str) -> String {
@@ -505,10 +505,30 @@ async fn handle_system_command(
         }
 
         // ── Persistence ──────────────────────────────────────────────────
-        Command::Save | Command::Fork(_) | Command::Load(_) | Command::Branches | Command::Log => {
-            "Persistence is not yet available in the GUI. Use TUI or headless mode for save/load."
-                .to_string()
+        Command::Save => match do_save_game(state).await {
+            Ok(msg) => msg,
+            Err(e) => format!("Save failed: {}", e),
+        },
+        Command::Load(_) => {
+            // Emit event to open the save picker in the frontend
+            let _ = app.emit(EVENT_SAVE_PICKER, ());
+            "Opening save picker...".to_string()
         }
+        Command::Fork(name) => {
+            let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
+            match do_create_branch(state, &name, parent_id).await {
+                Ok(msg) => msg,
+                Err(e) => format!("Fork failed: {}", e),
+            }
+        }
+        Command::Branches => match do_list_branches_text(state).await {
+            Ok(text) => text,
+            Err(e) => format!("Failed to list branches: {}", e),
+        },
+        Command::Log => match do_branch_log_text(state).await {
+            Ok(text) => text,
+            Err(e) => format!("Failed to show log: {}", e),
+        },
 
         // ── Per-category provider/model/key ──────────────────────────────
         Command::ShowCategoryProvider(cat) => {
@@ -966,4 +986,385 @@ async fn handle_npc_conversation(
 
     // Stop the animated loading indicator (emits active: false)
     loading_cancel.cancel();
+}
+
+// ── Persistence commands ────────────────────────────────────────────────────
+
+use parish_core::persistence::Database;
+use parish_core::persistence::picker::{
+    SaveFileInfo, discover_saves, ensure_saves_dir, new_save_path,
+};
+use parish_core::persistence::snapshot::GameSnapshot;
+
+/// Resolves the saves directory relative to the data directory.
+fn saves_dir() -> std::path::PathBuf {
+    let mut p = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    for _ in 0..4 {
+        if p.join("data/parish.json").exists() {
+            let sd = p.join("saves");
+            std::fs::create_dir_all(&sd).ok();
+            return sd;
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    // Fallback: use ensure_saves_dir which creates ./saves
+    ensure_saves_dir()
+}
+
+/// Returns the list of save files with branch metadata.
+#[tauri::command]
+pub async fn discover_save_files(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Vec<SaveFileInfo>, String> {
+    let world = state.world.lock().await;
+    let sd = saves_dir();
+    let saves = discover_saves(&sd, &world.graph);
+    for s in &saves {
+        tracing::info!(
+            "Save file: {} — {} branches: {:?}",
+            s.filename,
+            s.branches.len(),
+            s.branches.iter().map(|b| &b.name).collect::<Vec<_>>()
+        );
+    }
+    Ok(saves)
+}
+
+/// Saves the current game state to the active save file and branch.
+///
+/// If no save file is active, creates a new one.
+#[tauri::command]
+pub async fn save_game(state: tauri::State<'_, Arc<AppState>>) -> Result<String, String> {
+    do_save_game(&state).await
+}
+
+/// Internal save implementation shared by the command and /save handler.
+async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    drop(npc_manager);
+    drop(world);
+
+    let mut save_path_guard = state.save_path.lock().await;
+    let mut branch_id_guard = state.current_branch_id.lock().await;
+    let mut branch_name_guard = state.current_branch_name.lock().await;
+
+    let db_path = if let Some(ref path) = *save_path_guard {
+        path.clone()
+    } else {
+        // Create a new save file
+        let sd = saves_dir();
+        let path = new_save_path(&sd);
+        *save_path_guard = Some(path.clone());
+        path
+    };
+
+    let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+
+    let branch_id = if let Some(id) = *branch_id_guard {
+        id
+    } else {
+        let branch = db.find_branch("main").map_err(|e| e.to_string())?;
+        let id = branch.map(|b| b.id).unwrap_or(1);
+        *branch_id_guard = Some(id);
+        *branch_name_guard = Some("main".to_string());
+        id
+    };
+
+    db.save_snapshot(branch_id, &snapshot)
+        .map_err(|e| e.to_string())?;
+
+    let filename = db_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "save".to_string());
+    let branch_name = branch_name_guard.as_deref().unwrap_or("main");
+    Ok(format!(
+        "Game saved to {} (branch: {}).",
+        filename, branch_name
+    ))
+}
+
+/// Loads a branch from a save file, restoring world and NPC state.
+#[tauri::command]
+pub async fn load_branch(
+    file_path: String,
+    branch_id: i64,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let path = std::path::PathBuf::from(&file_path);
+    let db = Database::open(&path).map_err(|e| e.to_string())?;
+
+    let (_, snapshot) = db
+        .load_latest_snapshot(branch_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
+
+    // Find the branch name
+    let branches = db.list_branches().map_err(|e| e.to_string())?;
+    let branch_name = branches
+        .iter()
+        .find(|b| b.id == branch_id)
+        .map(|b| b.name.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Restore state
+    let mut world = state.world.lock().await;
+    let mut npc_manager = state.npc_manager.lock().await;
+    snapshot.restore(&mut world, &mut npc_manager);
+    npc_manager.assign_tiers(world.player_location, &world.graph);
+
+    // Update save tracking
+    let filename = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    drop(npc_manager);
+
+    // Emit updated state to frontend
+    let ws = snapshot_from_world(&world);
+    let _ = app.emit(EVENT_WORLD_UPDATE, ws);
+    let _ = app.emit(
+        EVENT_TEXT_LOG,
+        TextLogPayload {
+            source: "system".to_string(),
+            content: format!("Loaded {} (branch: {}).", filename, branch_name),
+        },
+    );
+
+    drop(world);
+
+    // Update persistence tracking
+    *state.save_path.lock().await = Some(path);
+    *state.current_branch_id.lock().await = Some(branch_id);
+    *state.current_branch_name.lock().await = Some(branch_name);
+
+    Ok(())
+}
+
+/// Creates a new branch forked from a specified parent branch.
+#[tauri::command]
+pub async fn create_branch(
+    name: String,
+    parent_branch_id: i64,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<String, String> {
+    do_create_branch(&state, &name, parent_branch_id).await
+}
+
+/// Internal fork implementation shared by the command and /fork handler.
+async fn do_create_branch(
+    state: &Arc<AppState>,
+    name: &str,
+    parent_branch_id: i64,
+) -> Result<String, String> {
+    let save_path_guard = state.save_path.lock().await;
+
+    let db_path = save_path_guard
+        .as_ref()
+        .ok_or("No active save file. Use /save first.")?;
+
+    let db_path_clone = db_path.clone();
+    let db = Database::open(db_path).map_err(|e| e.to_string())?;
+
+    tracing::info!(
+        "Creating branch '{}' with parent {} in {:?}",
+        name,
+        parent_branch_id,
+        db_path_clone
+    );
+
+    let new_id = db
+        .create_branch(name, Some(parent_branch_id))
+        .map_err(|e| {
+            tracing::error!("create_branch failed: {}", e);
+            e.to_string()
+        })?;
+
+    tracing::info!("Branch '{}' created with id {}", name, new_id);
+
+    drop(save_path_guard);
+
+    // Save current state to the new branch
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    drop(npc_manager);
+    drop(world);
+
+    db.save_snapshot(new_id, &snapshot)
+        .map_err(|e| e.to_string())?;
+
+    tracing::info!("Snapshot saved to branch '{}'", name);
+
+    // Switch to the new branch
+    *state.current_branch_id.lock().await = Some(new_id);
+    *state.current_branch_name.lock().await = Some(name.to_string());
+
+    Ok(format!("Created new branch '{}'.", name))
+}
+
+/// Creates a new save file and saves the current state.
+#[tauri::command]
+pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let sd = saves_dir();
+    let path = new_save_path(&sd);
+    let db = Database::open(&path).map_err(|e| e.to_string())?;
+
+    let branch = db
+        .find_branch("main")
+        .map_err(|e| e.to_string())?
+        .ok_or("Failed to create main branch")?;
+
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    drop(npc_manager);
+    drop(world);
+
+    db.save_snapshot(branch.id, &snapshot)
+        .map_err(|e| e.to_string())?;
+
+    *state.save_path.lock().await = Some(path);
+    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_name.lock().await = Some("main".to_string());
+
+    Ok(())
+}
+
+/// Starts a brand new game: reloads world and NPCs from data files,
+/// creates a new save file, and saves the fresh initial state.
+#[tauri::command]
+pub async fn new_game(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let data_dir = crate::find_data_dir();
+
+    // Reload fresh world and NPCs from data files
+    let fresh_world = parish_core::world::WorldState::from_parish_file(
+        &data_dir.join("parish.json"),
+        parish_core::world::LocationId(15),
+    )
+    .map_err(|e| format!("Failed to load parish.json: {}", e))?;
+
+    let mut fresh_npcs =
+        parish_core::npc::manager::NpcManager::load_from_file(&data_dir.join("npcs.json"))
+            .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
+
+    fresh_npcs.assign_tiers(fresh_world.player_location, &fresh_world.graph);
+
+    // Replace live state
+    let mut world = state.world.lock().await;
+    let mut npc_manager = state.npc_manager.lock().await;
+    *world = fresh_world;
+    *npc_manager = fresh_npcs;
+
+    // Create a new save file with the fresh state
+    let sd = saves_dir();
+    let path = new_save_path(&sd);
+    let db = Database::open(&path).map_err(|e| e.to_string())?;
+    let branch = db
+        .find_branch("main")
+        .map_err(|e| e.to_string())?
+        .ok_or("Failed to create main branch")?;
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    db.save_snapshot(branch.id, &snapshot)
+        .map_err(|e| e.to_string())?;
+
+    // Emit updated state
+    let ws = snapshot_from_world(&world);
+    let _ = app.emit(EVENT_WORLD_UPDATE, ws);
+    let _ = app.emit(
+        EVENT_TEXT_LOG,
+        TextLogPayload {
+            source: "system".to_string(),
+            content: "A new chapter begins in the parish...".to_string(),
+        },
+    );
+
+    drop(npc_manager);
+    drop(world);
+
+    *state.save_path.lock().await = Some(path);
+    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_name.lock().await = Some("main".to_string());
+
+    Ok(())
+}
+
+/// Returns the current save state for display in the StatusBar.
+#[tauri::command]
+pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<SaveState, String> {
+    let save_path = state.save_path.lock().await;
+    let branch_id = state.current_branch_id.lock().await;
+    let branch_name = state.current_branch_name.lock().await;
+
+    Ok(SaveState {
+        filename: save_path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string()),
+        branch_id: *branch_id,
+        branch_name: branch_name.clone(),
+    })
+}
+
+/// Formats branch list as text for the /branches command.
+async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
+    let save_path = state.save_path.lock().await;
+    let db_path = save_path
+        .as_ref()
+        .ok_or("No active save file. Use /save first.")?;
+    let db = Database::open(db_path).map_err(|e| e.to_string())?;
+    let branches = db.list_branches().map_err(|e| e.to_string())?;
+
+    let current_id = *state.current_branch_id.lock().await;
+
+    let mut lines = vec!["Branches:".to_string()];
+    for b in &branches {
+        let marker = if Some(b.id) == current_id { " *" } else { "" };
+        let parent = b
+            .parent_branch_id
+            .and_then(|pid| branches.iter().find(|bb| bb.id == pid))
+            .map(|bb| format!(" (from {})", bb.name))
+            .unwrap_or_default();
+        lines.push(format!("  {}{}{}", b.name, parent, marker));
+    }
+    Ok(lines.join("\n"))
+}
+
+/// Formats branch log as text for the /log command.
+async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
+    let save_path = state.save_path.lock().await;
+    let branch_id = state.current_branch_id.lock().await;
+
+    let db_path = save_path
+        .as_ref()
+        .ok_or("No active save file. Use /save first.")?;
+    let bid = branch_id.ok_or("No active branch.")?;
+
+    let db = Database::open(db_path).map_err(|e| e.to_string())?;
+    let log = db.branch_log(bid).map_err(|e| e.to_string())?;
+
+    if log.is_empty() {
+        return Ok("No snapshots yet on this branch.".to_string());
+    }
+
+    let branch_name = state.current_branch_name.lock().await;
+    let name = branch_name.as_deref().unwrap_or("unknown");
+
+    let mut lines = vec![format!("Save log for branch '{}':", name)];
+    for (i, info) in log.iter().enumerate() {
+        let time = parish_core::persistence::format_timestamp(&info.real_time);
+        lines.push(format!("  {}. {} (game: {})", i + 1, time, info.game_time));
+    }
+    Ok(lines.join("\n"))
 }

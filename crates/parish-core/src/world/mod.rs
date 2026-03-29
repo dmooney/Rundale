@@ -39,6 +39,21 @@ pub enum Weather {
     Storm,
 }
 
+impl std::str::FromStr for Weather {
+    type Err = ParishError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Clear" => Ok(Weather::Clear),
+            "Overcast" => Ok(Weather::Overcast),
+            "Rain" => Ok(Weather::Rain),
+            "Fog" => Ok(Weather::Fog),
+            "Storm" => Ok(Weather::Storm),
+            other => Err(ParishError::Config(format!("unknown weather: {}", other))),
+        }
+    }
+}
+
 impl fmt::Display for Weather {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

@@ -7,7 +7,10 @@ export default defineConfig({
 	clearScreen: false,
 	server: {
 		port: 5173,
-		strictPort: true
+		strictPort: true,
+		fs: {
+			allow: ['.']
+		}
 	},
 	test: {
 		include: ['src/**/*.test.ts'],

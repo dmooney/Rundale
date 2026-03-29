@@ -173,6 +173,17 @@ impl GameConfig {
     }
 }
 
+/// Current save state for display in the StatusBar.
+#[derive(serde::Serialize, Clone)]
+pub struct SaveState {
+    /// Filename of the current save file (e.g. "parish_001.db"), or None.
+    pub filename: Option<String>,
+    /// Current branch database id, or None.
+    pub branch_id: Option<i64>,
+    /// Current branch name, or None.
+    pub branch_name: Option<String>,
+}
+
 /// Maximum number of debug events to retain.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
@@ -213,6 +224,12 @@ pub struct AppState {
     pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
+    /// Path to the currently active save database file (None if unsaved).
+    pub save_path: Mutex<Option<PathBuf>>,
+    /// Branch id within the current save file.
+    pub current_branch_id: Mutex<Option<i64>>,
+    /// Name of the current branch.
+    pub current_branch_name: Mutex<Option<String>>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -221,7 +238,7 @@ pub struct AppState {
 ///
 /// During `cargo tauri dev` the cwd is `src-tauri/`; in production bundles it
 /// may be the app resources directory. We walk up at most 3 levels.
-fn find_data_dir() -> PathBuf {
+pub(crate) fn find_data_dir() -> PathBuf {
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..4 {
         if p.join("data/parish.json").exists() {
@@ -445,6 +462,9 @@ pub fn run() {
         )),
         inference_log: new_inference_log(),
         ui_config,
+        save_path: Mutex::new(None),
+        current_branch_id: Mutex::new(None),
+        current_branch_name: Mutex::new(None),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -472,6 +492,13 @@ pub fn run() {
             commands::get_ui_config,
             commands::get_debug_snapshot,
             commands::submit_input,
+            commands::discover_save_files,
+            commands::save_game,
+            commands::load_branch,
+            commands::create_branch,
+            commands::new_save_file,
+            commands::new_game,
+            commands::get_save_state,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -570,6 +597,117 @@ pub fn run() {
                     }
                 }
 
+                // ── Persistence: auto-load or create save file ──────────────
+                {
+                    use parish_core::persistence::Database;
+                    use parish_core::persistence::picker::{
+                        discover_saves, ensure_saves_dir, new_save_path,
+                    };
+                    use parish_core::persistence::snapshot::GameSnapshot;
+
+                    let saves_dir = {
+                        // Resolve saves dir relative to data dir
+                        let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                        let mut found = None;
+                        for _ in 0..4 {
+                            if p.join("data/parish.json").exists() {
+                                let sd = p.join("saves");
+                                std::fs::create_dir_all(&sd).ok();
+                                found = Some(sd);
+                                break;
+                            }
+                            match p.parent() {
+                                Some(parent) => p = parent.to_path_buf(),
+                                None => break,
+                            }
+                        }
+                        found.unwrap_or_else(ensure_saves_dir)
+                    };
+
+                    let world = state_setup.world.lock().await;
+                    let saves = discover_saves(&saves_dir, &world.graph);
+                    drop(world);
+
+                    if let Some(save) = saves.last() {
+                        // Load the most recent save file
+                        match Database::open(&save.path) {
+                            Ok(db) => {
+                                // Find the "main" branch or first branch
+                                let branch = db.find_branch("main").ok().flatten().or_else(|| {
+                                    db.list_branches().ok().and_then(|b| b.into_iter().next())
+                                });
+
+                                if let Some(branch) = branch {
+                                    if let Ok(Some((_snap_id, snapshot))) =
+                                        db.load_latest_snapshot(branch.id)
+                                    {
+                                        let mut world = state_setup.world.lock().await;
+                                        let mut npc_mgr = state_setup.npc_manager.lock().await;
+                                        snapshot.restore(&mut world, &mut npc_mgr);
+                                        npc_mgr.assign_tiers(world.player_location, &world.graph);
+                                        drop(npc_mgr);
+                                        drop(world);
+
+                                        *state_setup.save_path.lock().await =
+                                            Some(save.path.clone());
+                                        *state_setup.current_branch_id.lock().await =
+                                            Some(branch.id);
+                                        *state_setup.current_branch_name.lock().await =
+                                            Some(branch.name.clone());
+                                        tracing::info!(
+                                            "Restored from {} (branch: {})",
+                                            save.filename,
+                                            branch.name
+                                        );
+                                    } else {
+                                        // Save file exists but no snapshots — save initial state
+                                        let world = state_setup.world.lock().await;
+                                        let npc_mgr = state_setup.npc_manager.lock().await;
+                                        let snap = GameSnapshot::capture(&world, &npc_mgr);
+                                        drop(npc_mgr);
+                                        drop(world);
+                                        let _ = db.save_snapshot(branch.id, &snap);
+
+                                        *state_setup.save_path.lock().await =
+                                            Some(save.path.clone());
+                                        *state_setup.current_branch_id.lock().await =
+                                            Some(branch.id);
+                                        *state_setup.current_branch_name.lock().await =
+                                            Some(branch.name);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to open save file {}: {}", save.filename, e);
+                            }
+                        }
+                    } else {
+                        // No saves exist — create a new save file
+                        let path = new_save_path(&saves_dir);
+                        match Database::open(&path) {
+                            Ok(db) => {
+                                if let Ok(Some(branch)) = db.find_branch("main") {
+                                    let world = state_setup.world.lock().await;
+                                    let npc_mgr = state_setup.npc_manager.lock().await;
+                                    let snap = GameSnapshot::capture(&world, &npc_mgr);
+                                    drop(npc_mgr);
+                                    drop(world);
+                                    let _ = db.save_snapshot(branch.id, &snap);
+
+                                    *state_setup.save_path.lock().await = Some(path);
+                                    *state_setup.current_branch_id.lock().await = Some(branch.id);
+                                    *state_setup.current_branch_name.lock().await =
+                                        Some("main".to_string());
+                                    tracing::info!("Created new save file");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Failed to create save file: {}", e);
+                            }
+                        }
+                    }
+                }
+
                 // ── Background ticks ─────────────────────────────────────────
 
                 // Idle tick: emit world snapshot every 5 seconds.
@@ -653,6 +791,38 @@ pub fn run() {
                             &inference,
                         );
                         let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);
+                    }
+                });
+
+                // Autosave tick: save snapshot every 60 seconds (if a save file is active)
+                let state_autosave = Arc::clone(&state_setup);
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(Duration::from_secs(60)).await;
+
+                        // Only autosave if a save file and branch are active
+                        let save_path = state_autosave.save_path.lock().await.clone();
+                        let branch_id = *state_autosave.current_branch_id.lock().await;
+
+                        if let (Some(path), Some(bid)) = (save_path, branch_id) {
+                            let world = state_autosave.world.lock().await;
+                            let npc_manager = state_autosave.npc_manager.lock().await;
+                            let snapshot =
+                                parish_core::persistence::snapshot::GameSnapshot::capture(
+                                    &world,
+                                    &npc_manager,
+                                );
+                            drop(npc_manager);
+                            drop(world);
+
+                            match parish_core::persistence::Database::open(&path) {
+                                Ok(db) => match db.save_snapshot(bid, &snapshot) {
+                                    Ok(_) => tracing::debug!("Autosave complete"),
+                                    Err(e) => tracing::warn!("Autosave failed: {}", e),
+                                },
+                                Err(e) => tracing::warn!("Autosave DB open failed: {}", e),
+                            }
+                        }
                     }
                 });
             });

@@ -18,6 +18,7 @@
 
 pub mod database;
 pub mod journal;
+pub mod picker;
 pub mod snapshot;
 
 pub use database::{AsyncDatabase, BranchInfo, Database, SnapshotInfo};

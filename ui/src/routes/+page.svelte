@@ -7,9 +7,11 @@
 	import Sidebar from '../components/Sidebar.svelte';
 	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
+	import SavePicker from '../components/SavePicker.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, uiConfig } from '../stores/game';
 	import { debugVisible, debugSnapshot } from '../stores/debug';
+	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
 	import {
 		getWorldSnapshot,
@@ -24,11 +26,16 @@
 		onTextLog,
 		onLoading,
 		onThemeUpdate,
-		onDebugUpdate
+		onDebugUpdate,
+		onSavePicker
 	} from '$lib/ipc';
 
-	// F12 toggle for debug panel
+	// F5 toggle for save picker, F12 toggle for debug panel
 	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'F5') {
+			e.preventDefault();
+			savePickerVisible.update((v) => !v);
+		}
 		if (e.key === 'F12') {
 			e.preventDefault();
 			debugVisible.update((v) => !v);
@@ -173,8 +180,13 @@
 			})
 		]);
 
+		const unlistenSavePicker = await onSavePicker(() => {
+			savePickerVisible.set(true);
+		});
+
 		return () => {
 			unlisten.forEach((fn) => fn());
+			unlistenSavePicker();
 		};
 	});
 </script>
@@ -196,6 +208,7 @@
 </div>
 
 <DebugPanel />
+<SavePicker />
 
 <style>
 	.app-shell {

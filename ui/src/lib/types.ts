@@ -215,3 +215,34 @@ export interface InferenceLogEntry {
 	response_text: string;
 	max_tokens: number | null;
 }
+
+// ── Persistence types ───────────────────────────────────────────────────────
+
+export interface SnapshotCell {
+	id: number;
+	game_date: string;
+	location: string | null;
+}
+
+export interface SaveBranchDisplay {
+	name: string;
+	id: number;
+	parent_name: string | null;
+	snapshot_count: number;
+	latest_location: string | null;
+	latest_game_date: string | null;
+	snapshots: SnapshotCell[];
+}
+
+export interface SaveFileInfo {
+	path: string;
+	filename: string;
+	file_size: string;
+	branches: SaveBranchDisplay[];
+}
+
+export interface SaveState {
+	filename: string | null;
+	branch_id: number | null;
+	branch_name: string | null;
+}

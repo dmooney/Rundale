@@ -364,6 +364,11 @@ impl NpcManager {
         }
     }
 
+    /// Returns the game time of the last Tier 2 tick, if any.
+    pub fn last_tier2_game_time(&self) -> Option<DateTime<Utc>> {
+        self.last_tier2_game_time
+    }
+
     /// Records that a Tier 2 tick has been performed at the given game time.
     pub fn record_tier2_tick(&mut self, time: DateTime<Utc>) {
         self.last_tier2_game_time = Some(time);

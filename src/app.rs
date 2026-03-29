@@ -4,6 +4,7 @@
 //! used by headless, script, and Tauri modes.
 
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -138,6 +139,8 @@ pub struct App {
     pub loading_animation: Option<LoadingAnimation>,
     /// Async database handle for persistence (None if persistence is disabled).
     pub db: Option<Arc<AsyncDatabase>>,
+    /// Path to the active save database file.
+    pub save_file_path: Option<PathBuf>,
     /// Active save branch id.
     pub active_branch_id: i64,
     /// Most recent snapshot id on the active branch.
@@ -200,6 +203,7 @@ impl App {
             dialogue_model: String::new(),
             loading_animation: None,
             db: None,
+            save_file_path: None,
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,

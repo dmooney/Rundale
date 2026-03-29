@@ -144,45 +144,15 @@ pub async fn run_headless(
     app.npc_manager
         .assign_tiers(app.world.player_location, &app.world.graph);
 
-    // Initialize persistence
-    let db_path = std::path::Path::new("parish_saves.db");
-    match crate::persistence::Database::open(db_path) {
+    // Initialize persistence — Papers Please-style save picker
+    let saves_dir = crate::persistence::picker::ensure_saves_dir();
+    let db_path = crate::persistence::picker::run_picker(&saves_dir, &app.world.graph);
+    app.save_file_path = Some(db_path.clone());
+
+    match crate::persistence::Database::open(&db_path) {
         Ok(db) => {
             let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
-
-            // Find the main branch
-            if let Ok(Some(branch)) = async_db.find_branch("main").await {
-                app.active_branch_id = branch.id;
-
-                // Try to load latest snapshot
-                if let Ok(Some((snap_id, snapshot))) =
-                    async_db.load_latest_snapshot(branch.id).await
-                {
-                    // Replay journal events
-                    let events = async_db
-                        .events_since_snapshot(branch.id, snap_id)
-                        .await
-                        .unwrap_or_default();
-                    snapshot.restore(&mut app.world, &mut app.npc_manager);
-                    crate::persistence::replay_journal(
-                        &mut app.world,
-                        &mut app.npc_manager,
-                        &events,
-                    );
-                    app.latest_snapshot_id = snap_id;
-                    app.npc_manager
-                        .assign_tiers(app.world.player_location, &app.world.graph);
-                    println!("Restored from save.");
-                } else {
-                    // First run — save initial snapshot
-                    let snapshot =
-                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                    if let Ok(snap_id) = async_db.save_snapshot(branch.id, &snapshot).await {
-                        app.latest_snapshot_id = snap_id;
-                    }
-                }
-            }
-
+            restore_from_db(&mut app, &async_db).await;
             app.db = Some(async_db);
             app.last_autosave = Some(std::time::Instant::now());
         }
@@ -312,6 +282,36 @@ const HEADLESS_IDLE_MESSAGES: &[&str] = &[
     "The smell of turf smoke drifts from a cottage chimney.",
 ];
 
+/// Restores game state from a database, loading the "main" branch snapshot.
+///
+/// Finds the "main" branch, loads the latest snapshot, replays any journal
+/// events since that snapshot, and reassigns NPC tiers. If no snapshot exists
+/// (fresh database), captures and saves an initial snapshot.
+async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::AsyncDatabase>) {
+    if let Ok(Some(branch)) = async_db.find_branch("main").await {
+        app.active_branch_id = branch.id;
+
+        if let Ok(Some((snap_id, snapshot))) = async_db.load_latest_snapshot(branch.id).await {
+            let events = async_db
+                .events_since_snapshot(branch.id, snap_id)
+                .await
+                .unwrap_or_default();
+            snapshot.restore(&mut app.world, &mut app.npc_manager);
+            crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
+            app.latest_snapshot_id = snap_id;
+            app.npc_manager
+                .assign_tiers(app.world.player_location, &app.world.graph);
+            println!("Restored from save.");
+        } else {
+            // First run — save initial snapshot
+            let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+            if let Ok(snap_id) = async_db.save_snapshot(branch.id, &snapshot).await {
+                app.latest_snapshot_id = snap_id;
+            }
+        }
+    }
+}
+
 /// Headless idle message counter.
 static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
@@ -400,7 +400,8 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("  /about    - About the game and credits");
             println!("  /save     - Save game");
             println!("  /fork <n> - Fork a new timeline branch");
-            println!("  /load <n> - Load a saved branch");
+            println!("  /load     - Show save picker (switch save file)");
+            println!("  /load <n> - Load a named branch in current save");
             println!("  /branches - List save branches");
             println!("  /log      - Show snapshot history");
         }
@@ -524,7 +525,51 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 println!("Persistence not available.");
             }
         }
+        Command::Load(name) if name.is_empty() => {
+            // Bare /load — show save picker for switching save files
+            let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
+            if let Some(new_path) =
+                crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
+            {
+                // Autosave current state before switching
+                if let Some(ref db) = app.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                }
+
+                // Reload parish data for a clean base state
+                let parish_path = Path::new("data/parish.json");
+                if parish_path.exists()
+                    && let Ok(world) = crate::world::WorldState::from_parish_file(
+                        parish_path,
+                        crate::world::LocationId(15),
+                    )
+                {
+                    app.world = world;
+                }
+                let npcs_path = Path::new("data/npcs.json");
+                if npcs_path.exists()
+                    && let Ok(mgr) = NpcManager::load_from_file(npcs_path)
+                {
+                    app.npc_manager = mgr;
+                }
+
+                match crate::persistence::Database::open(&new_path) {
+                    Ok(new_db) => {
+                        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
+                        restore_from_db(app, &async_db).await;
+                        app.db = Some(async_db);
+                        app.save_file_path = Some(new_path);
+                        app.last_autosave = Some(std::time::Instant::now());
+                        print_location_arrival(app);
+                    }
+                    Err(e) => eprintln!("Failed to open save file: {}", e),
+                }
+            }
+        }
         Command::Load(name) => {
+            // /load <branch_name> — switch branch within current save
             if let Some(ref db) = app.db {
                 match db.find_branch(&name).await {
                     Ok(Some(branch)) => {
@@ -1387,5 +1432,44 @@ mod tests {
         let app = App::new();
         // intent_client is None until initialized by run_headless; accessing it must not panic.
         assert!(app.intent_client.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_restore_from_db_fresh_database() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+
+        // Fresh DB — should create initial snapshot
+        restore_from_db(&mut app, &async_db).await;
+        assert_eq!(app.active_branch_id, 1);
+        assert!(app.latest_snapshot_id > 0);
+    }
+
+    #[tokio::test]
+    async fn test_restore_from_db_with_existing_snapshot() {
+        let mut app = App::new();
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+
+        // Save a snapshot first
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        let snap_id = async_db.save_snapshot(branch.id, &snapshot).await.unwrap();
+
+        // Now restore — should load the existing snapshot
+        let mut app2 = App::new();
+        restore_from_db(&mut app2, &async_db).await;
+        assert_eq!(app2.active_branch_id, branch.id);
+        assert_eq!(app2.latest_snapshot_id, snap_id);
+    }
+
+    #[tokio::test]
+    async fn test_handle_load_bare_no_db() {
+        // Bare /load without a DB should not crash
+        let mut app = App::new();
+        let (quit, _rebuild) =
+            handle_headless_command(&mut app, Command::Load(String::new())).await;
+        assert!(!quit);
     }
 }
