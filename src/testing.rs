@@ -711,6 +711,11 @@ impl GameTestHarness {
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
             }
+            Command::Spinner(secs) => {
+                let msg = format!("Spinner preview ({secs}s) — GUI only.");
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 
 	let logEl: HTMLDivElement;
@@ -33,7 +33,19 @@
 	{/each}
 	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming)}
 		<div class="loading-row">
-			<span class="loading-spinner" style="color: rgb({$loadingColor[0]}, {$loadingColor[1]}, {$loadingColor[2]})">{$loadingSpinner}</span>
+			<svg class="triquetra-spinner" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+				<circle class="knot-circle" pathLength="120"
+					cx="50" cy="50" r="16"
+					fill="none" stroke="var(--color-accent)" stroke-width="3"
+					stroke-linecap="round" />
+				<path class="triquetra-path" pathLength="120"
+					d="M 50 22
+					   A 28 28 0 0 0 74.25 64
+					   A 28 28 0 0 0 25.75 64
+					   A 28 28 0 0 0 50 22 Z"
+					fill="none" stroke="var(--color-accent)" stroke-width="3"
+					stroke-linecap="round" stroke-linejoin="round" />
+			</svg>
 			<span class="loading-phrase" style="color: rgb({$loadingColor[0]}, {$loadingColor[1]}, {$loadingColor[2]})">{$loadingPhrase}</span>
 		</div>
 	{/if}
@@ -92,12 +104,6 @@
 		animation: fade-in 0.3s ease-in;
 	}
 
-	.loading-spinner {
-		display: inline-block;
-		font-size: 1.3rem;
-		animation: pulse 1.2s ease-in-out infinite;
-	}
-
 	.loading-phrase {
 		font-style: italic;
 		transition: color 0.5s ease;
@@ -108,8 +114,34 @@
 		to { opacity: 1; }
 	}
 
-	@keyframes pulse {
-		0%, 100% { opacity: 1; transform: scale(1); }
-		50% { opacity: 0.6; transform: scale(1.15); }
+	.triquetra-spinner {
+		width: 2.5rem;
+		height: 2.5rem;
+		animation: triquetra-rotate 6s linear infinite;
+	}
+
+	.triquetra-path {
+		stroke-dasharray: 80 40;
+		stroke-dashoffset: 0;
+		animation: triquetra-draw 2.4s linear infinite;
+	}
+
+	.knot-circle {
+		stroke-dasharray: 120;
+		stroke-dashoffset: 120;
+		animation: triquetra-draw 2.4s ease-in-out infinite;
+		animation-delay: 0.4s;
+	}
+
+	@keyframes triquetra-draw {
+		to {
+			stroke-dashoffset: -120;
+		}
+	}
+
+	@keyframes triquetra-rotate {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>
