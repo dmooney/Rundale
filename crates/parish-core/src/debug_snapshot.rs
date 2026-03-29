@@ -222,6 +222,37 @@ pub struct InferenceDebug {
     pub has_queue: bool,
     /// Whether improv mode is enabled.
     pub improv_enabled: bool,
+    /// Recent inference call log entries (newest last).
+    pub call_log: Vec<InferenceLogEntry>,
+}
+
+/// A single logged inference call for the debug panel.
+#[derive(Debug, Clone, Serialize)]
+pub struct InferenceLogEntry {
+    /// Unique request ID.
+    pub request_id: u64,
+    /// Wall-clock timestamp (e.g. "14:32:05").
+    pub timestamp: String,
+    /// Model name used for this request.
+    pub model: String,
+    /// Whether this was a streaming request.
+    pub streaming: bool,
+    /// Request duration in milliseconds.
+    pub duration_ms: u64,
+    /// Prompt length in characters.
+    pub prompt_len: usize,
+    /// Response length in characters.
+    pub response_len: usize,
+    /// Error message if the request failed (None = success).
+    pub error: Option<String>,
+    /// System prompt sent (if any).
+    pub system_prompt: Option<String>,
+    /// User prompt text.
+    pub prompt_text: String,
+    /// Full response text (empty on error).
+    pub response_text: String,
+    /// Max tokens limit sent to provider (if any).
+    pub max_tokens: Option<u32>,
 }
 
 /// Builds a complete debug snapshot from live game state.
@@ -466,6 +497,7 @@ mod tests {
             cloud_model: None,
             has_queue: false,
             improv_enabled: false,
+            call_log: vec![],
         };
 
         let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference);
@@ -494,6 +526,7 @@ mod tests {
             cloud_model: None,
             has_queue: true,
             improv_enabled: false,
+            call_log: vec![],
         };
 
         let snapshot = build_debug_snapshot(&world, &npc_manager, &events, &inference);
@@ -570,6 +603,85 @@ mod tests {
     }
 
     #[test]
+    fn test_inference_log_entry_serialize() {
+        let entry = InferenceLogEntry {
+            request_id: 42,
+            timestamp: "14:32:05".to_string(),
+            model: "qwen3:14b".to_string(),
+            streaming: true,
+            duration_ms: 1250,
+            prompt_len: 500,
+            response_len: 200,
+            error: None,
+            system_prompt: Some("You are helpful.".to_string()),
+            prompt_text: "Hello world".to_string(),
+            response_text: "Hi there!".to_string(),
+            max_tokens: Some(300),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("qwen3:14b"));
+        assert!(json.contains("1250"));
+        assert!(json.contains("\"streaming\":true"));
+    }
+
+    #[test]
+    fn test_inference_log_entry_with_error() {
+        let entry = InferenceLogEntry {
+            request_id: 7,
+            timestamp: "09:00:00".to_string(),
+            model: "test".to_string(),
+            streaming: false,
+            duration_ms: 30000,
+            prompt_len: 100,
+            response_len: 0,
+            error: Some("timeout".to_string()),
+            system_prompt: None,
+            prompt_text: "test prompt".to_string(),
+            response_text: String::new(),
+            max_tokens: None,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("timeout"));
+        assert!(json.contains("\"response_len\":0"));
+    }
+
+    #[test]
+    fn test_call_log_included_in_snapshot() {
+        let world = WorldState::new();
+        let mgr = NpcManager::new();
+        let events = VecDeque::new();
+        let entry = InferenceLogEntry {
+            request_id: 1,
+            timestamp: "10:00:00".to_string(),
+            model: "test-model".to_string(),
+            streaming: true,
+            duration_ms: 500,
+            prompt_len: 100,
+            response_len: 50,
+            error: None,
+            system_prompt: None,
+            prompt_text: "test".to_string(),
+            response_text: "response".to_string(),
+            max_tokens: None,
+        };
+        let inference = InferenceDebug {
+            provider_name: "test".to_string(),
+            model_name: "test".to_string(),
+            base_url: "http://localhost".to_string(),
+            cloud_provider: None,
+            cloud_model: None,
+            has_queue: false,
+            improv_enabled: false,
+            call_log: vec![entry],
+        };
+
+        let snapshot = build_debug_snapshot(&world, &mgr, &events, &inference);
+        assert_eq!(snapshot.inference.call_log.len(), 1);
+        assert_eq!(snapshot.inference.call_log[0].request_id, 1);
+        assert_eq!(snapshot.inference.call_log[0].duration_ms, 500);
+    }
+
+    #[test]
     fn test_events_included_in_snapshot() {
         let world = WorldState::new();
         let mgr = NpcManager::new();
@@ -592,6 +704,7 @@ mod tests {
             cloud_model: None,
             has_queue: false,
             improv_enabled: false,
+            call_log: vec![],
         };
 
         let snapshot = build_debug_snapshot(&world, &mgr, &events, &inference);

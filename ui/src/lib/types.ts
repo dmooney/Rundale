@@ -198,4 +198,20 @@ export interface InferenceDebug {
 	cloud_model: string | null;
 	has_queue: boolean;
 	improv_enabled: boolean;
+	call_log: InferenceLogEntry[];
+}
+
+export interface InferenceLogEntry {
+	request_id: number;
+	timestamp: string;
+	model: string;
+	streaming: boolean;
+	duration_ms: number;
+	prompt_len: number;
+	response_len: number;
+	error: string | null;
+	system_prompt: string | null;
+	prompt_text: string;
+	response_text: string;
+	max_tokens: number | null;
 }

@@ -59,6 +59,23 @@ pub struct DebugSnapshot {
 - `cloud_provider`, `cloud_model`: Option strings
 - `has_queue`: bool (whether inference is configured)
 - `improv_enabled`: bool
+- `call_log`: `Vec<InferenceLogEntry>` — recent inference call history
+
+#### `InferenceLogEntry`
+- `request_id`: u64 — unique request identifier
+- `timestamp`: String — wall-clock time (HH:MM:SS)
+- `model`: String — model name used
+- `streaming`: bool — whether SSE streaming was used
+- `duration_ms`: u64 — end-to-end latency in milliseconds
+- `prompt_len`: usize — prompt length in characters
+- `response_len`: usize — response length in characters
+- `error`: Option\<String\> — error message if the request failed
+- `system_prompt`: Option\<String\> — system prompt sent to provider
+- `prompt_text`: String — full user prompt text
+- `response_text`: String — full response text (empty on error)
+- `max_tokens`: Option\<u32\> — token limit if set
+
+Clicking a log entry in the Inference tab opens a detail view showing the full system prompt, user prompt, and response text in scrollable `<pre>` blocks. A "Back to list" button returns to the call log list (same pattern as the NPC inspector).
 
 #### `DebugEvent`
 - `timestamp`: formatted game time

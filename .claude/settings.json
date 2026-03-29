@@ -53,6 +53,10 @@
           {
             "type": "command",
             "command": ".claude/hooks/coverage-reminder.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/design-doc-reminder.sh"
           }
         ]
       }

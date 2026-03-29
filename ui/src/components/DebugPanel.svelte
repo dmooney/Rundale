@@ -7,6 +7,7 @@
 	function selectTab(index: number) {
 		debugTab.set(index);
 		selectedNpcId.set(null);
+		selectedLogId = null;
 	}
 
 	function selectNpc(id: number) {
@@ -24,10 +25,21 @@
 		return '[' + '#'.repeat(filled) + '.'.repeat(empty) + ']';
 	}
 
+	let selectedLogId: number | null = null;
+
+	function selectLogEntry(id: number) {
+		selectedLogId = id;
+	}
+
+	function deselectLogEntry() {
+		selectedLogId = null;
+	}
+
 	$: snap = $debugSnapshot;
 	$: tab = $debugTab;
 	$: npcId = $selectedNpcId;
 	$: selectedNpc = snap?.npcs.find((n: NpcDebug) => n.id === npcId) ?? null;
+	$: selectedLog = snap?.inference.call_log.find(e => e.request_id === selectedLogId) ?? null;
 </script>
 
 {#if $debugVisible && snap}
@@ -194,25 +206,100 @@
 
 			{:else if tab === 4}
 				<!-- Inference -->
-				<div class="section">
-					<h4>Base Provider</h4>
-					<div class="field">Provider: {snap.inference.provider_name}</div>
-					<div class="field">Model: {snap.inference.model_name || '(auto)'}</div>
-					<div class="field">URL: {snap.inference.base_url || '(default)'}</div>
-					<div class="field">Queue: {snap.inference.has_queue ? 'active' : 'none'}</div>
-				</div>
-				<div class="section">
-					<h4>Cloud</h4>
-					{#if snap.inference.cloud_provider}
-						<div class="field">Provider: {snap.inference.cloud_provider}</div>
-						<div class="field">Model: {snap.inference.cloud_model || '(none)'}</div>
-					{:else}
-						<div class="field muted">(not configured)</div>
-					{/if}
-				</div>
-				<div class="section">
-					<div class="field">Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
-				</div>
+				{#if selectedLog}
+					<!-- Detail view for a single inference call -->
+					<div class="npc-detail">
+						<button class="back-btn" on:click={deselectLogEntry}>Back to list</button>
+						<h4>Request #{selectedLog.request_id}</h4>
+
+						<div class="section">
+							<h5>Summary</h5>
+							<div class="field">Time: {selectedLog.timestamp}</div>
+							<div class="field">Model: <span class="accent">{selectedLog.model}</span></div>
+							<div class="field">Duration: {selectedLog.duration_ms}ms</div>
+							<div class="field">Streaming: {selectedLog.streaming ? 'yes' : 'no'}</div>
+							{#if selectedLog.max_tokens}
+								<div class="field">Max tokens: {selectedLog.max_tokens}</div>
+							{/if}
+							<div class="field">Status:
+								{#if selectedLog.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+							</div>
+						</div>
+
+						{#if selectedLog.system_prompt}
+							<div class="section">
+								<h5>System Prompt ({selectedLog.system_prompt.length}ch)</h5>
+								<pre class="prompt-block">{selectedLog.system_prompt}</pre>
+							</div>
+						{/if}
+
+						<div class="section">
+							<h5>Prompt ({selectedLog.prompt_len}ch)</h5>
+							<pre class="prompt-block">{selectedLog.prompt_text}</pre>
+						</div>
+
+						<div class="section">
+							<h5>Response ({selectedLog.response_len}ch)</h5>
+							{#if selectedLog.error}
+								<div class="log-error-msg">{selectedLog.error}</div>
+							{:else}
+								<pre class="prompt-block">{selectedLog.response_text}</pre>
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<!-- Config + call log list -->
+					<div class="section">
+						<h4>Base Provider</h4>
+						<div class="field">Provider: {snap.inference.provider_name}</div>
+						<div class="field">Model: {snap.inference.model_name || '(auto)'}</div>
+						<div class="field">URL: {snap.inference.base_url || '(default)'}</div>
+						<div class="field">Queue: {snap.inference.has_queue ? 'active' : 'none'}</div>
+					</div>
+					<div class="section">
+						<h4>Cloud</h4>
+						{#if snap.inference.cloud_provider}
+							<div class="field">Provider: {snap.inference.cloud_provider}</div>
+							<div class="field">Model: {snap.inference.cloud_model || '(none)'}</div>
+						{:else}
+							<div class="field muted">(not configured)</div>
+						{/if}
+					</div>
+					<div class="section">
+						<div class="field">Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
+					</div>
+					<div class="section">
+						<h4>Call Log ({snap.inference.call_log.length})</h4>
+						{#if snap.inference.call_log.length > 0}
+							{@const avgMs = Math.round(snap.inference.call_log.reduce((s, e) => s + e.duration_ms, 0) / snap.inference.call_log.length)}
+							{@const errorCount = snap.inference.call_log.filter(e => e.error).length}
+							<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
+							<div class="call-log">
+								{#each [...snap.inference.call_log].reverse() as entry}
+									<button class="log-entry-btn" class:log-error={entry.error} on:click={() => selectLogEntry(entry.request_id)}>
+										<div class="log-header">
+											<span class="muted">[{entry.timestamp}]</span>
+											<span class="log-id">#{entry.request_id}</span>
+											<span class="log-model">{entry.model}</span>
+											{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
+											{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+										</div>
+										<div class="log-meta">
+											<span>{entry.duration_ms}ms</span>
+											<span class="muted">prompt: {entry.prompt_len}ch</span>
+											<span class="muted">response: {entry.response_len}ch</span>
+										</div>
+										{#if entry.error}
+											<div class="log-error-msg">{entry.error}</div>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<div class="field muted">(no calls yet)</div>
+						{/if}
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -418,5 +505,106 @@
 	.event-cat {
 		color: var(--color-accent);
 		font-size: 0.65rem;
+	}
+
+	.call-log {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+	}
+
+	.log-entry-btn {
+		display: block;
+		width: 100%;
+		padding: 0.3rem 0.5rem;
+		border: none;
+		border-bottom: 1px solid var(--color-border);
+		background: none;
+		cursor: pointer;
+		text-align: left;
+		font-size: 0.75rem;
+		color: var(--color-fg);
+	}
+
+	.log-entry-btn:hover {
+		background: var(--color-input-bg);
+	}
+
+	.log-entry-btn.log-error {
+		background: color-mix(in srgb, #ff4444 8%, transparent);
+	}
+
+	.log-entry-btn.log-error:hover {
+		background: color-mix(in srgb, #ff4444 14%, transparent);
+	}
+
+	.prompt-block {
+		background: var(--color-input-bg);
+		border: 1px solid var(--color-border);
+		padding: 0.4rem 0.5rem;
+		font-size: 0.65rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-break: break-word;
+		max-height: 12rem;
+		overflow-y: auto;
+		color: var(--color-fg);
+		margin: 0.15rem 0 0;
+	}
+
+	.log-header {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: baseline;
+	}
+
+	.log-id {
+		color: var(--color-muted);
+		font-size: 0.65rem;
+	}
+
+	.log-model {
+		color: var(--color-accent);
+		font-weight: 600;
+	}
+
+	.log-badge {
+		font-size: 0.55rem;
+		padding: 0.05rem 0.3rem;
+		border-radius: 2px;
+		text-transform: uppercase;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+	}
+
+	.log-badge.stream {
+		background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+		color: var(--color-accent);
+	}
+
+	.log-badge.ok {
+		background: color-mix(in srgb, #44cc44 20%, transparent);
+		color: #44cc44;
+	}
+
+	.log-badge.error {
+		background: color-mix(in srgb, #ff4444 20%, transparent);
+		color: #ff4444;
+	}
+
+	.log-meta {
+		display: flex;
+		gap: 0.6rem;
+		font-size: 0.65rem;
+		margin-top: 0.1rem;
+	}
+
+	.log-error-msg {
+		color: #ff4444;
+		font-size: 0.65rem;
+		margin-top: 0.1rem;
+		word-break: break-word;
 	}
 </style>
