@@ -54,6 +54,8 @@ pub enum Command {
     SetKey(String),
     /// Debug command with optional subcommand.
     Debug(Option<String>),
+    /// Show the loading spinner for a duration (seconds).
+    Spinner(u64),
     /// Show cloud provider info.
     ShowCloud,
     /// Change cloud provider at runtime.
@@ -206,6 +208,11 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         } else {
             Some(Command::SetKey(value))
         }
+    } else if lower == "/spinner" {
+        Some(Command::Spinner(30))
+    } else if lower.starts_with("/spinner ") {
+        let secs = trimmed[9..].trim().parse::<u64>().unwrap_or(30);
+        Some(Command::Spinner(secs))
     } else if lower == "/debug" {
         Some(Command::Debug(None))
     } else if lower.starts_with("/debug ") {

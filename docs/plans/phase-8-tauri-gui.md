@@ -323,7 +323,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 15. **Implement `ChatPanel.svelte`**
     - Renders `$textLog` as a scrollable list; auto-scrolls to bottom on new entries
     - Each entry: speaker label in `var(--color-accent)`, body text in `var(--color-fg)`
-    - Loading state (`$streamingActive`): shows animated Celtic knot spinner (CSS animation, no font glyph dependency)
+    - Loading state (`$streamingActive`): shows animated Celtic triquetra (Trinity knot) SVG spinner — three interlocking lobes draw and erase sequentially using `stroke-dasharray`/`stroke-dashoffset` CSS animation with `pathLength="120"` normalization, staggered delays (0s/0.8s/1.6s), opacity pulsing (0.3→1→0.3), and a slow 6s rotation overlay. Uses `var(--color-accent)` (gold) for the stroke, adapting to time-of-day palette changes. Pure inline SVG + scoped CSS, no JS animation libraries or font glyph dependencies
     - Empty state: "The story begins…" in muted italic
     - Streaming entry: last log entry renders with a blinking cursor while `streamingActive` is true
 

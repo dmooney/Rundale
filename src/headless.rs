@@ -745,6 +745,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             rebuild = true;
             println!("{} API key updated.", cat_name);
         }
+        Command::Spinner(secs) => {
+            println!("Showing spinner for {} seconds (GUI only).", secs);
+        }
     }
     (false, rebuild)
 }

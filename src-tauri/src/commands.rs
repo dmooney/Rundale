@@ -564,6 +564,18 @@ async fn handle_system_command(
             format!("{} API key updated.", cat_name)
         }
 
+        // ── Spinner (debug/preview) ──────────────────────────────────────
+        Command::Spinner(secs) => {
+            let app_handle = app.clone();
+            let cancel = tokio_util::sync::CancellationToken::new();
+            spawn_loading_animation(app_handle.clone(), cancel.clone());
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+                cancel.cancel();
+            });
+            format!("Showing spinner for {} seconds…", secs)
+        }
+
         // ── Debug ────────────────────────────────────────────────────────
         Command::Debug(_) => "Debug commands are not available in the GUI.".to_string(),
     };

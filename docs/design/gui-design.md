@@ -2,6 +2,27 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
+> **Note:** The desktop GUI has been migrated from egui to **Tauri 2 + Svelte 5**. See [Phase 8 plan](../plans/phase-8-tauri-gui.md) and [ADR 016](../adr/016-tauri-svelte-gui.md) for the Tauri architecture. The Svelte component source lives in `ui/src/components/`. The egui documentation below is retained for historical reference.
+
+## Tauri / Svelte — Loading Spinner
+
+The `ChatPanel.svelte` component displays an animated **Celtic triquetra (Trinity knot)** SVG while waiting for LLM responses (`$streamingActive === true`). The animation uses the `stroke-dasharray` / `stroke-dashoffset` CSS technique:
+
+- **Three SVG arc paths** form the interlocking triquetra lobes, each with `pathLength="120"` for normalized dash control
+- **Draw/erase cycle** (2.4s per lobe): `stroke-dashoffset` animates 120 → 0 → −120 to trace on, hold, then erase from the start
+- **Staggered delays**: lobes draw sequentially at 0s, 0.8s, 1.6s offsets
+- **Opacity pulse**: 0.3 → 1.0 → 0.3 adds depth to the draw cycle
+- **Slow rotation**: the entire SVG rotates at 6s/revolution for organic motion
+- **Theme-adaptive**: uses `var(--color-accent)` (gold) which changes with time-of-day palette
+
+Once streaming tokens begin arriving, the spinner is replaced by a blinking cursor (`▋`) at the end of the streaming text.
+
+The headless and TUI modes continue to use the Rust `LoadingAnimation` (`crates/parish-core/src/loading.rs`) with Celtic cross Unicode characters and Irish-themed phrases.
+
+---
+
+## Legacy egui GUI
+
 ## Overview
 
 Parish has three UI modes, selectable via CLI flags:
