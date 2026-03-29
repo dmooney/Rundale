@@ -50,15 +50,24 @@ pub(crate) struct GenerateResponse {
 }
 
 impl OllamaClient {
-    /// Creates a new Ollama client with a 30-second request timeout.
+    /// Creates a new Ollama client with default timeouts (30s request, 300s streaming).
     pub fn new(base_url: &str) -> Self {
+        Self::new_with_config(base_url, &InferenceConfig::default())
+    }
+
+    /// Creates a new Ollama client with timeouts sourced from `InferenceConfig`.
+    ///
+    /// Uses `config.timeout_secs` for the default HTTP client and stores
+    /// `config.streaming_timeout_secs` for streaming request clients.
+    pub fn new_with_config(base_url: &str, config: &InferenceConfig) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(config.timeout_secs))
             .build()
             .expect("failed to build reqwest client");
 
         Self {
             client,
+            streaming_timeout_secs: config.streaming_timeout_secs,
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
@@ -119,7 +128,7 @@ impl OllamaClient {
 
         // Use a longer timeout for streaming — tokens arrive gradually
         let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(300))
+            .timeout(Duration::from_secs(self.streaming_timeout_secs))
             .build()
             .expect("failed to build streaming reqwest client");
 
