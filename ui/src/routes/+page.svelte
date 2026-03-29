@@ -65,10 +65,16 @@
 			console.warn('Initial fetch failed (expected in browser dev):', e);
 		}
 
-		// Fetch UI config from mod
+		// Fetch UI config from mod and show splash text
 		try {
 			const cfg = await getUiConfig();
 			uiConfig.set(cfg);
+			if (cfg.splash_text) {
+				textLog.update((log) => [
+					{ source: 'system', content: cfg.splash_text },
+					...log
+				]);
+			}
 		} catch (_) {}
 
 		// Subscribe to events

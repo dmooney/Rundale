@@ -59,6 +59,7 @@
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
+		justify-content: flex-end;
 		gap: 0.6rem;
 		background: var(--color-bg);
 	}

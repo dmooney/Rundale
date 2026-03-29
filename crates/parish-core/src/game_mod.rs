@@ -34,6 +34,10 @@ pub struct ModManifest {
 pub struct ModMeta {
     /// Human-readable mod name.
     pub name: String,
+    /// Display title for the splash screen (e.g. "Parish: Kilteevan 1820").
+    /// Falls back to the engine default "Parish" if not set.
+    #[serde(default)]
+    pub title: Option<String>,
     /// Machine-friendly mod identifier (e.g. `kilteevan-1820`).
     pub id: String,
     /// Semantic version string.

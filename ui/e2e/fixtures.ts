@@ -47,7 +47,12 @@ export async function installTauriMock(
 				get_world_snapshot: snapshot,
 				get_map: mapData,
 				get_npcs_here: npcs,
-				get_theme: palette
+				get_theme: palette,
+				get_ui_config: {
+					hints_label: 'Focail',
+					default_accent: '#c4a35a',
+					splash_text: 'Parish: Kilteevan 1820\nCopyright \u00A9 2026 David Mooney. All rights reserved.\ntest-branch - 2026-03-29 00:00'
+				}
 			};
 
 			// Expose for test helpers
