@@ -10,11 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-/// Default timeout for non-streaming requests (30 seconds).
+/// Timeout for all requests (30 seconds).
+/// Both streaming and non-streaming share the same client and timeout.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
-
-/// Timeout for streaming requests (30 seconds).
-const STREAMING_TIMEOUT_SECS: u64 = 30;
 
 /// HTTP client for OpenAI-compatible chat completions endpoints.
 ///
@@ -163,14 +161,11 @@ impl OpenAiClient {
     ) -> Result<String, ParishError> {
         let body = self.build_request(model, prompt, system, true, false, max_tokens);
 
-        // Use a longer timeout for streaming
-        let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(STREAMING_TIMEOUT_SECS))
-            .build()
-            .expect("failed to build streaming reqwest client");
-
+        // Reuse the shared client to leverage its connection pool and avoid
+        // per-request TLS handshake overhead. Both streaming and non-streaming
+        // share the same timeout; reqwest's pool keeps idle connections alive.
         let url = format!("{}/v1/chat/completions", self.base_url);
-        let mut req = streaming_client.post(&url).json(&body);
+        let mut req = self.client.post(&url).json(&body);
         req = self.apply_auth_headers(req);
 
         let resp = req
