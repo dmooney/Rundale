@@ -13,8 +13,8 @@ use tokio::sync::mpsc;
 /// Default timeout for non-streaming requests (30 seconds).
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
-/// Timeout for streaming requests (5 minutes).
-const STREAMING_TIMEOUT_SECS: u64 = 300;
+/// Timeout for streaming requests (30 seconds).
+const STREAMING_TIMEOUT_SECS: u64 = 30;
 
 /// HTTP client for OpenAI-compatible chat completions endpoints.
 ///

@@ -10,7 +10,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 
 use parish_core::config::Provider;
-use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
+use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
@@ -808,7 +808,7 @@ async fn handle_npc_conversation(
             context,
             Some(system_prompt),
             Some(token_tx),
-            Some(parish_core::npc::MAX_DIALOGUE_TOKENS),
+            None,
         )
         .await
     {
@@ -847,8 +847,39 @@ async fn handle_npc_conversation(
 
             // Parse Irish word hints from the complete response
             let hints = if let Some(resp) = full_response {
-                if resp.error.is_some() {
-                    tracing::warn!("Inference error: {:?}", resp.error);
+                if let Some(ref err) = resp.error {
+                    tracing::warn!("Inference error: {:?}", err);
+
+                    // Log actual error to the debug events panel
+                    let mut events = state.debug_events.lock().await;
+                    if events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                        events.pop_front();
+                    }
+                    events.push_back(DebugEvent {
+                        timestamp: String::new(),
+                        category: "inference".to_string(),
+                        message: format!("Dialogue error: {err}"),
+                    });
+
+                    // Show a funny canned message to the player
+                    let canned = [
+                        "A sudden fog rolls in and swallows the conversation whole.",
+                        "A crow lands between you, caws loudly, and the moment is lost.",
+                        "The wind picks up and carries their words clean away.",
+                        "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
+                        "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
+                        "They stare at you blankly, as if the thought simply left their head.",
+                        "A strange silence falls over the parish. Even the birds have stopped.",
+                    ];
+                    let idx = resp.id as usize % canned.len();
+                    let _ = app.emit(
+                        EVENT_TEXT_LOG,
+                        TextLogPayload {
+                            source: "system".to_string(),
+                            content: canned[idx].to_string(),
+                        },
+                    );
+
                     vec![]
                 } else {
                     let parsed = parse_npc_stream_response(&resp.text);
@@ -862,6 +893,26 @@ async fn handle_npc_conversation(
         }
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
+
+            // Log to debug events
+            let mut events = state.debug_events.lock().await;
+            if events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                events.pop_front();
+            }
+            events.push_back(DebugEvent {
+                timestamp: String::new(),
+                category: "inference".to_string(),
+                message: format!("Queue submit failed: {e}"),
+            });
+
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    source: "system".to_string(),
+                    content: "The parish storyteller has wandered off. Try again in a moment."
+                        .to_string(),
+                },
+            );
         }
     }
 
