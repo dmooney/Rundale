@@ -7,6 +7,7 @@
 //! a mod's [`EncounterTable`](parish_core::game_mod::EncounterTable) data.
 
 use super::time::TimeOfDay;
+use crate::config::EncounterConfig;
 use crate::npc::NpcId;
 use parish_core::game_mod::EncounterTable;
 
@@ -19,7 +20,7 @@ pub struct EncounterEvent {
     pub description: String,
 }
 
-/// Checks whether an encounter occurs during travel.
+/// Checks whether an encounter occurs during travel using default config.
 ///
 /// Base probability is 20%. Modified by time of day:
 /// - Dawn/Morning: slightly higher (more people about)
@@ -28,12 +29,26 @@ pub struct EncounterEvent {
 /// The `roll` parameter is a value in `0.0..1.0` for testability
 /// (in production, pass `rand::random::<f64>()`).
 pub fn check_encounter(time_of_day: TimeOfDay, roll: f64) -> Option<EncounterEvent> {
+    check_encounter_with_config(time_of_day, roll, &EncounterConfig::default())
+}
+
+/// Checks whether an encounter occurs during travel using the given config.
+///
+/// The config provides per-time-of-day probability thresholds. A random `roll`
+/// in `0.0..1.0` below the threshold triggers an encounter.
+pub fn check_encounter_with_config(
+    time_of_day: TimeOfDay,
+    roll: f64,
+    config: &EncounterConfig,
+) -> Option<EncounterEvent> {
     let threshold = match time_of_day {
-        TimeOfDay::Dawn | TimeOfDay::Morning => 0.25,
-        TimeOfDay::Midday | TimeOfDay::Afternoon => 0.20,
-        TimeOfDay::Dusk => 0.15,
-        TimeOfDay::Night => 0.10,
-        TimeOfDay::Midnight => 0.05,
+        TimeOfDay::Dawn => config.dawn,
+        TimeOfDay::Morning => config.morning,
+        TimeOfDay::Midday => config.midday,
+        TimeOfDay::Afternoon => config.afternoon,
+        TimeOfDay::Dusk => config.dusk,
+        TimeOfDay::Night => config.night,
+        TimeOfDay::Midnight => config.midnight,
     };
 
     if roll >= threshold {
@@ -71,12 +86,15 @@ pub fn check_encounter_with_table(
     roll: f64,
     table: &EncounterTable,
 ) -> Option<EncounterEvent> {
+    let config = EncounterConfig::default();
     let threshold = match time_of_day {
-        TimeOfDay::Dawn | TimeOfDay::Morning => 0.25,
-        TimeOfDay::Midday | TimeOfDay::Afternoon => 0.20,
-        TimeOfDay::Dusk => 0.15,
-        TimeOfDay::Night => 0.10,
-        TimeOfDay::Midnight => 0.05,
+        TimeOfDay::Dawn => config.dawn,
+        TimeOfDay::Morning => config.morning,
+        TimeOfDay::Midday => config.midday,
+        TimeOfDay::Afternoon => config.afternoon,
+        TimeOfDay::Dusk => config.dusk,
+        TimeOfDay::Night => config.night,
+        TimeOfDay::Midnight => config.midnight,
     };
 
     if roll >= threshold {
