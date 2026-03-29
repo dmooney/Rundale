@@ -34,6 +34,17 @@ body {
 	height: 100%;
 }
 
+/* Layout: ChatPanel fills space, InputField pinned to bottom.
+   Must be global — Svelte scoped styles can't reach into child components. */
+.chat-panel {
+	flex: 1 1 0 !important;
+	min-height: 0 !important;
+}
+
+.input-wrapper {
+	flex: 0 0 auto !important;
+}
+
 ::-webkit-scrollbar {
 	width: 6px;
 }

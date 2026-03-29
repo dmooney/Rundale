@@ -96,7 +96,7 @@ src/
 ├── testing.rs           # GameTestHarness for automated script-based testing
 ├── debug.rs             # Debug commands and metrics (feature-gated)
 ├── input/
-│   └── mod.rs           # Player input parsing, command detection
+│   └── mod.rs           # Player input parsing, command detection, @mention extraction
 ├── world/
 │   ├── mod.rs           # WorldState, Weather enum, location types
 │   ├── graph.rs         # WorldGraph (adjacency list, BFS pathfinding)

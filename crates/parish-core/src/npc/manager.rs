@@ -158,6 +158,36 @@ impl NpcManager {
             .collect()
     }
 
+    /// Finds an NPC at a location by name (case-insensitive).
+    ///
+    /// Matches against the NPC's display name (full name if introduced,
+    /// brief description otherwise). Checks for exact match first, then
+    /// falls back to first-name prefix matching (e.g., "Padraig" matches
+    /// "Padraig Darcy").
+    pub fn find_by_name(&self, name: &str, location: LocationId) -> Option<&Npc> {
+        let npcs = self.npcs_at(location);
+        let lower = name.to_lowercase();
+
+        // Exact match on display name
+        if let Some(npc) = npcs
+            .iter()
+            .find(|n| self.display_name(n).to_lowercase() == lower)
+        {
+            return Some(npc);
+        }
+
+        // First-name prefix match
+        npcs.iter()
+            .find(|n| {
+                let display = self.display_name(n).to_lowercase();
+                display
+                    .split_whitespace()
+                    .next()
+                    .is_some_and(|first| first == lower)
+            })
+            .copied()
+    }
+
     /// Returns an iterator over all NPCs.
     pub fn all_npcs(&self) -> impl Iterator<Item = &Npc> {
         self.npcs.values()
@@ -716,5 +746,79 @@ mod tests {
     fn test_default_manager() {
         let mgr = NpcManager::default();
         assert_eq!(mgr.npc_count(), 0);
+    }
+
+    #[test]
+    fn test_find_by_name_exact_match() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.name = "Padraig Darcy".to_string();
+        mgr.add_npc(npc);
+        mgr.mark_introduced(NpcId(1));
+
+        let found = mgr.find_by_name("Padraig Darcy", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_name_case_insensitive() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.name = "Padraig Darcy".to_string();
+        mgr.add_npc(npc);
+        mgr.mark_introduced(NpcId(1));
+
+        let found = mgr.find_by_name("padraig darcy", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_name_first_name_match() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.name = "Padraig Darcy".to_string();
+        mgr.add_npc(npc);
+        mgr.mark_introduced(NpcId(1));
+
+        let found = mgr.find_by_name("Padraig", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_find_by_name_wrong_location() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.name = "Padraig Darcy".to_string();
+        mgr.add_npc(npc);
+        mgr.mark_introduced(NpcId(1));
+
+        let found = mgr.find_by_name("Padraig", LocationId(99));
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_find_by_name_no_match() {
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 2));
+        mgr.mark_introduced(NpcId(1));
+
+        let found = mgr.find_by_name("Nobody", LocationId(2));
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_find_by_name_unintroduced_uses_brief_description() {
+        let mut mgr = NpcManager::new();
+        let mut npc = make_test_npc(1, 2);
+        npc.brief_description = "an older man behind the bar".to_string();
+        mgr.add_npc(npc);
+        // Not introduced — display name is brief_description
+
+        let found = mgr.find_by_name("an older man behind the bar", LocationId(2));
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, NpcId(1));
     }
 }

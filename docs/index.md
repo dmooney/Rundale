@@ -35,7 +35,8 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Weather System](design/weather-system.md) | Weather states and simulation effects | — |
 | [GUI Design](design/gui-design.md) | Tauri 2 + Svelte 5 desktop GUI with map, chat, and sidebars | — |
 | [Map Evolution](design/map-evolution.md) | Brainstorm: minimap, OSM tiles, fog of war, label fixes | RFC |
-| [Player Input](design/player-input.md) | Natural language input, system commands | [ADR-006](adr/006-natural-language-input.md) |
+| [Player Input](design/player-input.md) | Natural language input, system commands, @mention targeting | [ADR-006](adr/006-natural-language-input.md) |
+| [Input Enrichment Ideas](design/input-enrichment-ideas.md) | Brainstorm: slash autocomplete, emotes, history, whispers, reactions | RFC |
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
 | [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |

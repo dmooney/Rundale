@@ -13,7 +13,7 @@ use parish_core::config::Provider;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, parse_intent_local};
+use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
@@ -639,8 +639,14 @@ async fn handle_game_input(
         return;
     }
 
+    // Extract @mention for NPC targeting, if present
+    let (target_name, dialogue) = match extract_mention(&raw) {
+        Some(mention) => (Some(mention.name), mention.remaining),
+        None => (None, raw),
+    };
+
     // Try NPC conversation
-    handle_npc_conversation(raw, state, app).await;
+    handle_npc_conversation(dialogue, target_name, state, app).await;
 }
 
 /// Resolves movement to a named location.
@@ -752,8 +758,12 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
 }
 
 /// Routes input to the NPC at the player's location, or shows idle message.
+///
+/// If `target_name` is provided (from an `@mention`), the matching NPC
+/// is selected. Otherwise falls back to the first NPC at the location.
 async fn handle_npc_conversation(
     raw: String,
+    target_name: Option<String>,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
@@ -763,7 +773,16 @@ async fn handle_npc_conversation(
         let queue = state.inference_queue.lock().await;
 
         let npcs_here = npc_manager.npcs_at(world.player_location);
-        let npc = npcs_here.first().cloned().cloned();
+
+        // If an @mention was provided, try to find that NPC; otherwise first NPC
+        let npc = if let Some(ref name) = target_name {
+            npc_manager
+                .find_by_name(name, world.player_location)
+                .cloned()
+                .or_else(|| npcs_here.first().cloned().cloned())
+        } else {
+            npcs_here.first().cloned().cloned()
+        };
 
         if let (Some(npc), Some(q)) = (npc, queue.clone()) {
             let display = npc_manager.display_name(&npc).to_string();

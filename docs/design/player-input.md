@@ -13,6 +13,40 @@ Examples:
 - "Look around"
 - "Pick up the stone"
 
+## NPC @Mention Targeting
+
+Players can direct dialogue to a specific NPC using `@mention` syntax at the start of their input, similar to chat apps like Slack or Discord.
+
+Examples:
+
+- `@Padraig how's business?` — talks to Padraig Darcy
+- `@Siobhan tell me about the harvest` — talks to Siobhan Murphy
+- `hello everyone` — talks to the first NPC present (default behavior)
+
+### Autocomplete
+
+When the player types `@` in the input field (Tauri GUI), an autocomplete dropdown appears listing all NPCs at the current location. The dropdown:
+
+- Filters as the player types (e.g., `@Pa` narrows to "Padraig Darcy")
+- Supports keyboard navigation (Arrow keys, Tab/Enter to select, Escape to dismiss)
+- Shows NPC name and occupation (if introduced)
+- Inserts `@FirstName` into the input on selection
+
+### Name Matching
+
+The backend matches `@mentions` case-insensitively against NPC display names:
+
+- **Exact match**: `@Padraig Darcy` matches the full name
+- **First-name match**: `@Padraig` matches by first name
+- **Brief description match**: Un-introduced NPCs can be targeted by their brief description
+- **Fallback**: If no match is found, the first NPC at the location is used
+
+### Source
+
+- `parish_core::input::extract_mention()` — Extracts `@name` from input
+- `NpcManager::find_by_name()` — Case-insensitive NPC lookup at a location
+- `InputField.svelte` — Autocomplete dropdown UI
+
 ## System Commands
 
 System commands use `/` prefix for now (placeholder — may change to a prefix-free autocomplete system later).
