@@ -95,10 +95,12 @@
 			}),
 
 			onTextLog((payload) => {
-				textLog.update((log) => [
-					...log,
-					{ source: payload.source, content: payload.content }
-				]);
+				// Strip "> " prefix from player messages — bubble alignment shows speaker
+				const content =
+					payload.source === 'player' && payload.content.startsWith('> ')
+						? payload.content.slice(2)
+						: payload.content;
+				textLog.update((log) => [...log, { source: payload.source, content }]);
 			}),
 
 			onStreamToken((payload) => {
@@ -110,7 +112,19 @@
 							{ ...last, content: last.content + payload.token }
 						];
 					}
-					// Start new streaming entry
+					// Merge with the empty NPC name placeholder emitted by Rust
+					const last = log.length > 0 ? log[log.length - 1] : null;
+					if (
+						last &&
+						last.content === '' &&
+						last.source !== 'player' &&
+						last.source !== 'system'
+					) {
+						return [
+							...log.slice(0, -1),
+							{ ...last, content: payload.token, streaming: true }
+						];
+					}
 					return [...log, { source: 'NPC', content: payload.token, streaming: true }];
 				});
 			}),

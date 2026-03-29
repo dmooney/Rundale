@@ -508,21 +508,19 @@ pub struct MentionExtraction {
 /// ```
 pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
     let trimmed = raw.trim();
-    let rest = trimmed.strip_prefix('@')?;
 
+    // Find `@` anywhere in the input (at start, or preceded by a space)
+    let at_pos = trimmed.find('@').or_else(|| None)?;
+    if at_pos > 0 && !trimmed.as_bytes()[at_pos - 1].is_ascii_whitespace() {
+        return None;
+    }
+
+    let rest = &trimmed[at_pos + 1..];
     if rest.is_empty() || rest.starts_with(' ') {
         return None;
     }
 
     // Name runs until we hit a delimiter that signals end of the name portion.
-    // We split on the first occurrence of common sentence-start patterns:
-    // - A word followed by punctuation characters that start dialogue
-    // - Two spaces (unlikely in names)
-    // Strategy: scan for the first lowercase word following an uppercase-started
-    // word to detect "Name rest of sentence". Simpler: split on first comma,
-    // period, question mark, exclamation, or take everything if none found,
-    // then trim trailing whitespace from name.
-
     // Find where the name ends. Name = sequence of words where each word
     // starts with an uppercase letter or is a short connector (e.g., "O'Brien").
     // Once we hit a word starting with lowercase (and it's not a name particle),
@@ -546,16 +544,21 @@ pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
     }
 
     let name = words[..name_end].join(" ");
-    let remaining = words[name_end..].join(" ");
+    // Remaining = text before the @mention + text after the name
+    let before = trimmed[..at_pos].trim();
+    let after = words[name_end..].join(" ");
+    let remaining = match (before.is_empty(), after.trim().is_empty()) {
+        (true, true) => String::new(),
+        (true, false) => after.trim().to_string(),
+        (false, true) => before.to_string(),
+        (false, false) => format!("{} {}", before, after.trim()),
+    };
 
     if name.is_empty() {
         return None;
     }
 
-    Some(MentionExtraction {
-        name,
-        remaining: remaining.trim().to_string(),
-    })
+    Some(MentionExtraction { name, remaining })
 }
 
 /// Parses natural language input into a structured `PlayerIntent`.
@@ -1273,8 +1276,15 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_mention_at_not_at_start() {
-        assert!(extract_mention("hello @Padraig").is_none());
+    fn test_extract_mention_at_mid_input() {
+        let result = extract_mention("hello @Padraig").unwrap();
+        assert_eq!(result.name, "Padraig");
+        assert_eq!(result.remaining, "hello");
+    }
+
+    #[test]
+    fn test_extract_mention_at_not_after_space() {
+        assert!(extract_mention("email@Padraig").is_none());
     }
 
     #[test]
@@ -1299,5 +1309,12 @@ mod tests {
         let result = extract_mention("  @Padraig  hello  ").unwrap();
         assert_eq!(result.name, "Padraig");
         assert_eq!(result.remaining, "hello");
+    }
+
+    #[test]
+    fn test_extract_mention_mid_with_rest() {
+        let result = extract_mention("hello @Padraig how are you").unwrap();
+        assert_eq!(result.name, "Padraig");
+        assert_eq!(result.remaining, "hello how are you");
     }
 }

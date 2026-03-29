@@ -15,21 +15,37 @@
 		});
 	});
 
-	function entryClass(entry: TextLogEntry): string {
-		if (entry.source === 'player') return 'entry player';
-		if (entry.source === 'system') return 'entry system';
-		return 'entry npc';
+	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' {
+		if (entry.source === 'player') return 'player';
+		if (entry.source === 'system') return 'system';
+		return 'npc';
+	}
+
+	function displayLabel(entry: TextLogEntry): string {
+		if (entry.source === 'player') return 'You';
+		return entry.source;
 	}
 </script>
 
 <div class="chat-panel" bind:this={logEl}>
 	{#each $textLog as entry (entry)}
-		<div class={entryClass(entry)}>
-			{#if entry.source !== 'system'}
-				<span class="source">{entry.source === 'player' ? 'You' : entry.source}:</span>
-			{/if}
-			<span class="content">{entry.content}{#if entry.streaming}<span class="cursor">▋</span>{/if}</span>
-		</div>
+		{#if entryType(entry) === 'system'}
+			<div class="entry system">
+				<span class="content">{entry.content}</span>
+			</div>
+		{:else}
+			<div class="bubble-row {entryType(entry)}">
+				<div class="bubble-wrapper">
+					<span class="label">{displayLabel(entry)}</span>
+					<div class="bubble">
+						<span class="content"
+							>{entry.content}{#if entry.streaming}<span class="cursor">▋</span
+							>{/if}</span
+						>
+					</div>
+				</div>
+			</div>
+		{/if}
 	{/each}
 	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming)}
 		<div class="loading-row">
@@ -64,27 +80,74 @@
 		background: var(--color-bg);
 	}
 
-	.entry {
+	/* System messages: full-width, no bubble */
+	.entry.system {
 		line-height: 1.6;
-		font-size: 1.15rem;
-		white-space: pre-wrap;
-	}
-
-	.source {
-		font-weight: 600;
-		margin-right: 0.5rem;
-	}
-
-	.player .source {
-		color: var(--color-muted);
-	}
-
-	.npc .source {
-		color: var(--color-accent);
-	}
-
-	.system .content {
+		font-size: 1.05rem;
 		color: var(--color-fg);
+		white-space: pre-wrap;
+		padding: 0.25rem 0;
+	}
+
+	/* Bubble row: flex container controlling left/right alignment */
+	.bubble-row {
+		display: flex;
+		width: 100%;
+	}
+
+	.bubble-row.npc {
+		justify-content: flex-start;
+	}
+
+	.bubble-row.player {
+		justify-content: flex-end;
+	}
+
+	/* Wrapper keeps label + bubble aligned together */
+	.bubble-wrapper {
+		display: flex;
+		flex-direction: column;
+		max-width: 75%;
+	}
+
+	/* Name label above the bubble */
+	.label {
+		font-size: 0.8rem;
+		font-weight: 600;
+		margin-bottom: 0.2rem;
+		padding: 0 0.5rem;
+	}
+
+	.npc .label {
+		color: var(--color-accent);
+		text-align: left;
+	}
+
+	.player .label {
+		color: var(--color-muted);
+		text-align: right;
+	}
+
+	/* Message bubble */
+	.bubble {
+		padding: 0.6rem 0.9rem;
+		border-radius: 1rem;
+		font-size: 1.1rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-wrap: break-word;
+	}
+
+	.npc .bubble {
+		background: var(--color-border);
+		color: var(--color-fg);
+		border-top-left-radius: 0.25rem;
+	}
+
+	.player .bubble {
+		background: var(--color-accent);
+		color: var(--color-bg);
+		border-top-right-radius: 0.25rem;
 	}
 
 	.cursor {
@@ -93,8 +156,13 @@
 	}
 
 	@keyframes blink {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0; }
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
+		}
 	}
 
 	.loading-row {

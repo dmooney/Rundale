@@ -56,12 +56,31 @@ describe('ChatPanel', () => {
 	it('player source shows You label', () => {
 		textLog.set([{ source: 'player', content: 'Go north' }]);
 		const { getByText } = render(ChatPanel);
-		expect(getByText('You:')).toBeTruthy();
+		expect(getByText('You')).toBeTruthy();
 	});
 
 	it('npc source shows name label', () => {
 		textLog.set([{ source: 'Máire', content: 'Conas atá tú?' }]);
 		const { getByText } = render(ChatPanel);
-		expect(getByText('Máire:')).toBeTruthy();
+		expect(getByText('Máire')).toBeTruthy();
+	});
+
+	it('player bubble is right-aligned', () => {
+		textLog.set([{ source: 'player', content: 'Hello' }]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.player')).toBeTruthy();
+	});
+
+	it('npc bubble is left-aligned', () => {
+		textLog.set([{ source: 'Seán', content: 'Dia dhuit' }]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row.npc')).toBeTruthy();
+	});
+
+	it('system messages have no bubble', () => {
+		textLog.set([{ source: 'system', content: 'You look around.' }]);
+		const { container } = render(ChatPanel);
+		expect(container.querySelector('.bubble-row')).toBeFalsy();
+		expect(container.querySelector('.entry.system')).toBeTruthy();
 	});
 });

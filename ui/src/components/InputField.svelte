@@ -40,7 +40,7 @@
 				result += node.textContent ?? '';
 			}
 		}
-		return result;
+		return result.replace(/\u00A0/g, ' ');
 	}
 
 	/** Returns true if the editor is visually empty (no text, no chips). */
@@ -328,7 +328,6 @@
 				tabindex="0"
 				aria-label="Player input"
 				onkeydown={handleKeydown}
-				onkeyup={handleInput}
 				oninput={handleInput}
 				onpaste={handlePaste}
 				data-placeholder={$streamingActive ? 'Waiting…' : 'What do you do? (@ to mention NPC)'}
