@@ -16,6 +16,7 @@
 		getMap,
 		getNpcsHere,
 		getUiConfig,
+		getTheme,
 		getDebugSnapshot,
 		onWorldUpdate,
 		onStreamToken,
@@ -41,16 +42,18 @@
 	}
 
 	onMount(async () => {
-		// Initial data fetch
+		// Initial data fetch (theme first to avoid color flash)
 		try {
-			const [snap, map, npcs] = await Promise.all([
+			const [snap, map, npcs, theme] = await Promise.all([
 				getWorldSnapshot(),
 				getMap(),
-				getNpcsHere()
+				getNpcsHere(),
+				getTheme()
 			]);
 			worldState.set(snap);
 			mapData.set(map);
 			npcsHere.set(npcs);
+			palette.apply(theme);
 			// Show initial location description in the chat panel
 			if (snap.location_description) {
 				textLog.update((log) => [

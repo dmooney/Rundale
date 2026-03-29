@@ -2,13 +2,13 @@ import { writable } from 'svelte/store';
 import type { ThemePalette } from '$lib/types';
 
 const defaultPalette: ThemePalette = {
-	bg: '#1a1a2e',
-	fg: '#e8e0d0',
-	accent: '#c4a35a',
-	panel_bg: '#16213e',
-	input_bg: '#0f3460',
-	border: '#2a2a4a',
-	muted: '#7a7a9a'
+	bg: '#fff5dc',
+	fg: '#32230f',
+	accent: '#b48232',
+	panel_bg: '#faf0d7',
+	input_bg: '#f5ebd2',
+	border: '#d2be96',
+	muted: '#78643c'
 };
 
 function createPaletteStore() {
