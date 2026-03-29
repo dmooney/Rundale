@@ -11,6 +11,8 @@ use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
 use std::fmt;
 use std::time::Instant;
 
+use crate::config::SpeedConfig;
+
 /// Represents the time of day in the game world.
 ///
 /// Used to drive color palette selection and NPC behavior.
@@ -156,14 +158,19 @@ impl GameSpeed {
         GameSpeed::Ludicrous,
     ];
 
-    /// Returns the speed factor for this preset.
+    /// Returns the speed factor for this preset using default config values.
     pub fn factor(self) -> f64 {
+        self.factor_with_config(&SpeedConfig::default())
+    }
+
+    /// Returns the speed factor for this preset using the given config.
+    pub fn factor_with_config(self, config: &SpeedConfig) -> f64 {
         match self {
-            GameSpeed::Slow => 18.0,
-            GameSpeed::Normal => 36.0,
-            GameSpeed::Fast => 72.0,
-            GameSpeed::Fastest => 144.0,
-            GameSpeed::Ludicrous => 864.0,
+            GameSpeed::Slow => config.slow,
+            GameSpeed::Normal => config.normal,
+            GameSpeed::Fast => config.fast,
+            GameSpeed::Fastest => config.fastest,
+            GameSpeed::Ludicrous => config.ludicrous,
         }
     }
 
@@ -231,7 +238,7 @@ impl GameClock {
             start_real: Instant::now(),
             start_game,
             paused: false,
-            speed_factor: 36.0,
+            speed_factor: SpeedConfig::default().normal,
             paused_game_time: start_game,
         }
     }
