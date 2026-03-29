@@ -741,7 +741,7 @@
 
 	.node-current-badge {
 		position: absolute;
-		top: -0.5rem;
+		bottom: -0.5rem;
 		right: 0.3rem;
 		font-size: 0.65rem;
 		color: var(--color-accent);
