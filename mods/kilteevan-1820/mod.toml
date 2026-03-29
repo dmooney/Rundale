@@ -1,6 +1,7 @@
 # Kilteevan 1820 — Game Mod Manifest
 [mod]
 name = "Kilteevan 1820"
+title = "Parish: Kilteevan 1820"
 id = "kilteevan-1820"
 version = "1.0.0"
 description = "A small parish in County Roscommon, Ireland, in the year 1820"

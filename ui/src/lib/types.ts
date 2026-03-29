@@ -58,6 +58,7 @@ export type IrishWordHint = LanguageHint;
 export interface UiConfig {
 	hints_label: string;
 	default_accent: string;
+	splash_text: string;
 }
 
 export interface TextLogEntry {

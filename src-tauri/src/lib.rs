@@ -184,6 +184,8 @@ pub struct UiConfigSnapshot {
     pub hints_label: String,
     /// Default accent colour (CSS hex string).
     pub default_accent: String,
+    /// Splash text displayed on game start (Zork-style).
+    pub splash_text: String,
 }
 
 /// Shared mutable game state managed by Tauri.
@@ -401,16 +403,30 @@ pub fn run() {
     let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
     let cloud_env = build_cloud_client_from_env();
 
+    // Build splash text from mod title + build info
+    let game_title = game_mod
+        .as_ref()
+        .and_then(|gm| gm.manifest.meta.title.clone())
+        .unwrap_or_else(|| "Parish".to_string());
+    let splash_text = format!(
+        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\n{} - {}",
+        game_title,
+        env!("PARISH_GIT_BRANCH"),
+        env!("PARISH_BUILD_TIME"),
+    );
+
     // Build UI config from mod or defaults
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
             default_accent: gm.ui.theme.default_accent.clone(),
+            splash_text: splash_text.clone(),
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
             default_accent: "#c4a35a".to_string(),
+            splash_text,
         }
     };
 
