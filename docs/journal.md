@@ -6,6 +6,14 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-03-27 — Celtic Triquetra Loading Spinner
+
+Replaced the generic rotating circle CSS spinner in `ChatPanel.svelte` with an inline SVG Celtic triquetra (Trinity knot) animation. The three interlocking lobes draw and erase themselves sequentially using `stroke-dasharray`/`stroke-dashoffset`, with staggered delays and a slow rotation overlay. Uses `var(--color-accent)` so it adapts to time-of-day palette changes. Pure CSS animation, no JS libraries. Thematically consistent with the game's 1820s Irish setting.
+
+Research: no existing Celtic knot spinner libraries were found — constructed the triquetra geometry from three pairs of SVG arc commands forming vesica piscis lobes at 120° intervals, with `pathLength="120"` for normalized dash control.
+
+---
+
 ## 2026-03-25 — TUI Removal
 
 Removed the ratatui terminal UI (`src/tui/`) from the project. Parish now has two modes:

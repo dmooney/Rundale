@@ -85,7 +85,7 @@ Parish/
         │   └── debug.ts #   debugVisible, debugSnapshot, debugTab, selectedNpcId
         └── components/
             ├── StatusBar.svelte  # Location | time | weather | season bar + debug toggle
-            ├── ChatPanel.svelte  # Scrolling chat log with streaming cursor
+            ├── ChatPanel.svelte  # Scrolling chat log with streaming cursor + Celtic knot spinner
             ├── MapPanel.svelte   # SVG equirectangular map with click-to-travel
             ├── Sidebar.svelte    # NPCs Here + Focail (Irish words) panels
             ├── InputField.svelte # Player input (disabled during streaming)
