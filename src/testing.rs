@@ -385,7 +385,7 @@ impl GameTestHarness {
             }
             Command::InvalidSpeed(name) => {
                 let msg = format!(
-                    "Unknown speed '{}'. Try: slow, normal, fast, fastest.",
+                    "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
                     name
                 );
                 self.app.world.log(msg.clone());
