@@ -510,7 +510,7 @@ pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
     let trimmed = raw.trim();
 
     // Find `@` anywhere in the input (at start, or preceded by a space)
-    let at_pos = trimmed.find('@').or_else(|| None)?;
+    let at_pos = trimmed.find('@')?;
     if at_pos > 0 && !trimmed.as_bytes()[at_pos - 1].is_ascii_whitespace() {
         return None;
     }
