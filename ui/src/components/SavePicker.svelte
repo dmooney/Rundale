@@ -123,15 +123,29 @@
 			collectNodes(root);
 		}
 
-		// Compute edges (parent bottom-center → child top-center)
+		// Compute container size with padding for badges and breathing room
+		const PAD = 40;
+		let maxX = 0;
+		for (const n of allNodes) {
+			if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
+		}
+		// Offset all nodes to add padding
+		for (const n of allNodes) {
+			n.x += PAD;
+			n.y += PAD;
+		}
+		const width = maxX + PAD * 2;
+		const height = (maxDepth + 1) * (NODE_H + GAP_Y) - GAP_Y + PAD * 2;
+
+		// Compute edges AFTER offset (parent top-center → child bottom-center)
 		const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
 		function collectEdges(node: TreeNode) {
 			for (const child of node.children) {
 				edges.push({
 					x1: node.x + NODE_W / 2,
-					y1: node.y,       // top of parent (parent is below)
+					y1: node.y,
 					x2: child.x + NODE_W / 2,
-					y2: child.y + NODE_H // bottom of child (child is above)
+					y2: child.y + NODE_H
 				});
 				collectEdges(child);
 			}
@@ -139,14 +153,6 @@
 		for (const root of tree) {
 			collectEdges(root);
 		}
-
-		// Compute container size
-		let maxX = 0;
-		for (const n of allNodes) {
-			if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
-		}
-		const width = maxX;
-		const height = (maxDepth + 1) * (NODE_H + GAP_Y) - GAP_Y;
 
 		return { nodes: allNodes, width, height, edges };
 	}
@@ -242,7 +248,18 @@
 			await createBranch(name, parentBranch.id);
 			forkingBranchId = null;
 			forkName = '';
+			// Save scroll position before refresh re-renders the tree
+			const body = document.querySelector('.modal-body');
+			const scrollTop = body?.scrollTop ?? 0;
+			const scrollLeft = body?.scrollLeft ?? 0;
 			await refreshSaves();
+			// Restore scroll position after re-render
+			requestAnimationFrame(() => {
+				if (body) {
+					body.scrollTop = scrollTop;
+					body.scrollLeft = scrollLeft;
+				}
+			});
 		} catch (e: any) {
 			console.error('Branch creation failed:', e);
 			forkName = String(e).substring(0, 60);
@@ -250,9 +267,59 @@
 		loading = false;
 	}
 
+	/** Generate a default branch name based on the parent branch's state. */
+	function generateBranchName(parent: SaveBranchDisplay, branches: SaveBranchDisplay[]): string {
+		const existing = new Set(branches.map(b => b.name));
+		// Try location-based name first
+		if (parent.latest_location) {
+			const locSlug = parent.latest_location.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+			if (!existing.has(locSlug)) return locSlug;
+			for (let i = 2; i < 100; i++) {
+				const name = `${locSlug}-${i}`;
+				if (!existing.has(name)) return name;
+			}
+		}
+		// Fallback: numbered
+		for (let i = 1; i < 100; i++) {
+			const name = `branch-${i}`;
+			if (!existing.has(name)) return name;
+		}
+		return `branch-${Date.now()}`;
+	}
+
 	function startFork(branchId: number) {
+		if (!activeFile) return;
+		const parent = activeFile.branches.find(b => b.id === branchId);
+		if (!parent) return;
 		forkingBranchId = branchId;
-		forkName = '';
+		forkName = generateBranchName(parent, activeFile.branches);
+	}
+
+	function autofocus(node: HTMLInputElement) {
+		node.focus();
+		node.select();
+		// Scroll the phantom node into view with extra room for scrollbar
+		requestAnimationFrame(() => {
+			const dagNode = node.closest('.dag-node') as HTMLElement | null;
+			const body = document.querySelector('.modal-body');
+			if (dagNode && body) {
+				const nodeRect = dagNode.getBoundingClientRect();
+				const bodyRect = body.getBoundingClientRect();
+				const scrollPad = 30;
+				// Scroll up if node is above visible area
+				if (nodeRect.top < bodyRect.top + scrollPad) {
+					body.scrollTop -= (bodyRect.top + scrollPad - nodeRect.top);
+				}
+				// Scroll down if node is below visible area
+				if (nodeRect.bottom > bodyRect.bottom - scrollPad) {
+					body.scrollTop += (nodeRect.bottom - bodyRect.bottom + scrollPad);
+				}
+				// Scroll right if node is past visible area
+				if (nodeRect.right > bodyRect.right - scrollPad) {
+					body.scrollLeft += (nodeRect.right - bodyRect.right + scrollPad);
+				}
+			}
+		});
 	}
 
 	function cancelFork() {
@@ -279,18 +346,50 @@
 		}
 	}
 
+	function scrollToCurrentNode() {
+		requestAnimationFrame(() => {
+			const current = document.querySelector('.dag-current');
+			if (current) {
+				current.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+			}
+		});
+	}
+
 	let prevVisible = false;
 	$: {
 		const visible = $savePickerVisible;
 		if (visible && !prevVisible) {
-			refreshSaves();
+			refreshSaves().then(scrollToCurrentNode);
 		}
 		prevVisible = visible;
 	}
 
 	$: files = $saveFiles;
 	$: saveState = $currentSaveState;
-	$: layout = activeFile ? layoutTree(activeFile.branches) : null;
+
+	// Phantom branch ID used to identify the new-branch node in the layout
+	const PHANTOM_ID = -999;
+
+	$: layoutBranches = (() => {
+		if (!activeFile) return [];
+		const branches = [...activeFile.branches];
+		if (forkingBranchId !== null) {
+			const parent = branches.find(b => b.id === forkingBranchId);
+			if (parent) {
+				branches.push({
+					name: forkName || 'new-branch',
+					id: PHANTOM_ID,
+					parent_name: parent.name,
+					snapshot_count: 0,
+					latest_location: parent.latest_location,
+					latest_game_date: parent.latest_game_date,
+					snapshots: [],
+				});
+			}
+		}
+		return branches;
+	})();
+	$: layout = layoutBranches.length > 0 ? layoutTree(layoutBranches) : null;
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -360,42 +459,52 @@
 
 							<!-- Node boxes -->
 							{#each layout.nodes as node (node.branch.id)}
-								{@const isCurrent = node.branch.name === saveState?.branch_name}
-								<div
-									class="dag-node"
-									class:dag-current={isCurrent}
-									style="left: {node.x}px; top: {node.y}px; width: {NODE_W}px; height: {NODE_H}px;"
-								>
-									<button
-										class="node-body"
-										disabled={loading}
-										on:click={() => handleLoadBranch(activeFile, node.branch)}
+								{#if node.branch.id === PHANTOM_ID}
+									<!-- Phantom node: editable new branch -->
+									{@const parent = activeFile.branches.find(b => b.id === forkingBranchId)}
+									<div
+										class="dag-node dag-phantom"
+										style="left: {node.x}px; top: {node.y}px; width: {NODE_W}px; height: {NODE_H}px;"
 									>
-										<span class="node-name">{node.branch.name}</span>
-										<span class="node-location">{node.branch.latest_location ?? 'New'}</span>
-										<span class="node-date">{node.branch.latest_game_date ?? ''}</span>
-									</button>
-									{#if isCurrent}
-										<span class="node-current-badge">You are here</span>
-									{/if}
-									<button
-										class="node-branch-btn"
-										disabled={loading}
-										on:click|stopPropagation={() => startFork(node.branch.id)}
-									>Branch From Here</button>
-								</div>
-
-								<!-- Fork input (appears above the node) -->
-								{#if forkingBranchId === node.branch.id}
-									<div class="dag-fork-input" style="left: {node.x}px; top: {node.y - 32}px; width: {NODE_W}px;">
-										<input
-											class="fork-input"
-											type="text"
-											placeholder="Branch name..."
-											bind:value={forkName}
-											on:keydown|stopPropagation={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFork(node.branch); } if (e.key === 'Escape') cancelFork(); }}
-										/>
-										<button class="fork-go" on:click|stopPropagation={() => handleFork(node.branch)} disabled={loading || !forkName.trim()}>OK</button>
+										<div class="phantom-body">
+											<input
+												class="phantom-name-input"
+												type="text"
+												bind:value={forkName}
+												use:autofocus
+												on:keydown|stopPropagation={(e) => { if (e.key === 'Enter' && parent) { e.preventDefault(); handleFork(parent); } if (e.key === 'Escape') cancelFork(); }}
+											/>
+											<span class="node-location">{node.branch.latest_location ?? 'New'}</span>
+											<div class="phantom-actions">
+												<button class="phantom-btn" on:click|stopPropagation={() => { if (parent) handleFork(parent); }} disabled={loading || !forkName.trim()}>Create</button>
+												<button class="phantom-btn" on:click|stopPropagation={cancelFork}>Cancel</button>
+											</div>
+										</div>
+									</div>
+								{:else}
+									{@const isCurrent = node.branch.name === saveState?.branch_name}
+									<div
+										class="dag-node"
+										class:dag-current={isCurrent}
+										style="left: {node.x}px; top: {node.y}px; width: {NODE_W}px; height: {NODE_H}px;"
+									>
+										<button
+											class="node-body"
+											disabled={loading}
+											on:click={() => handleLoadBranch(activeFile, node.branch)}
+										>
+											<span class="node-name">{node.branch.name}</span>
+											<span class="node-location">{node.branch.latest_location ?? 'New'}</span>
+											<span class="node-date">{node.branch.latest_game_date ?? ''}</span>
+										</button>
+										{#if isCurrent}
+											<span class="node-current-badge">You are here</span>
+										{/if}
+										<button
+											class="node-branch-btn"
+											disabled={loading}
+											on:click|stopPropagation={() => startFork(node.branch.id)}
+										>Branch From Here</button>
 									</div>
 								{/if}
 							{/each}
@@ -464,6 +573,23 @@
 		flex: 1;
 		overflow: auto;
 		padding: 0.75rem;
+		min-height: 0;
+		scrollbar-width: thin;
+		scrollbar-color: var(--color-border) transparent;
+	}
+	.modal-body::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	.modal-body::-webkit-scrollbar-thumb {
+		background: var(--color-border);
+		border-radius: 3px;
+	}
+	.modal-body::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	.modal-body::-webkit-scrollbar-corner {
+		background: transparent;
 	}
 
 	.modal-footer {
@@ -495,17 +621,12 @@
 	/* ── DAG tree ────────────────────────────────────────────────── */
 
 	.dag-scroll {
-		overflow: auto;
-		display: flex;
-		justify-content: center;
-		min-height: 100%;
-		align-items: flex-end;
-		padding: 1rem 0;
+		padding: 1rem;
 	}
 
 	.dag-container {
 		position: relative;
-		flex-shrink: 0;
+		margin: auto auto 0 auto;
 	}
 
 	.dag-edges {
@@ -631,42 +752,60 @@
 		padding: 0 0.25rem;
 	}
 
-	.dag-fork-input {
-		position: absolute;
-		display: flex;
-		gap: 2px;
-		z-index: 10;
+	.dag-phantom {
+		border-style: dashed;
+		border-color: var(--color-accent);
 	}
 
-	.fork-input {
+	.phantom-body {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.15rem;
+		padding: 0.25rem 0.4rem;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+	}
+
+	.phantom-name-input {
 		background: var(--color-input-bg);
 		border: 1px solid var(--color-border);
-		color: var(--color-fg);
-		font-size: 0.65rem;
-		padding: 0.15rem 0.3rem;
-		flex: 1;
-		min-width: 0;
+		color: var(--color-accent);
+		font-size: 0.7rem;
+		font-weight: bold;
+		padding: 0.1rem 0.3rem;
+		text-align: center;
+		width: 90%;
 	}
-	.fork-input:focus {
+	.phantom-name-input:focus {
 		border-color: var(--color-accent);
 		outline: none;
 	}
 
-	.fork-go {
+	.phantom-actions {
+		display: flex;
+		gap: 0.25rem;
+	}
+
+	.phantom-btn {
 		background: none;
 		border: 1px solid var(--color-border);
 		color: var(--color-muted);
 		cursor: pointer;
-		font-size: 0.55rem;
+		font-size: 0.5rem;
 		padding: 0.1rem 0.3rem;
 		text-transform: uppercase;
+		letter-spacing: 0.03em;
 	}
-	.fork-go:hover:not(:disabled) {
+	.phantom-btn:hover:not(:disabled) {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
-	.fork-go:disabled {
+	.phantom-btn:disabled {
 		opacity: 0.4;
+		cursor: default;
 	}
 
 	/* ── Ledger view ─────────────────────────────────────────────── */
