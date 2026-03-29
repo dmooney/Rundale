@@ -92,7 +92,7 @@ pub fn build_enhanced_context(
     player_input: &str,
     other_npcs: &[&Npc],
 ) -> String {
-    let mut context = build_tier1_context(npc, world, player_input);
+    let mut context = build_tier1_context(world, player_input);
 
     // Add other NPCs present
     if !other_npcs.is_empty() {
