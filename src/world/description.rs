@@ -88,6 +88,7 @@ mod tests {
             connections: vec![],
             associated_npcs: vec![NpcId(1)],
             mythological_significance: None,
+            aliases: vec![],
         }
     }
 
@@ -160,6 +161,7 @@ mod tests {
             connections: vec![],
             associated_npcs: vec![],
             mythological_significance: None,
+            aliases: vec![],
         };
         let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
         assert_eq!(result, "A plain description with no placeholders.");

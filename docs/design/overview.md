@@ -99,7 +99,7 @@ src/
 │   └── mod.rs           # Player input parsing, command detection, @mention extraction
 ├── world/
 │   ├── mod.rs           # WorldState, Weather enum, location types
-│   ├── graph.rs         # WorldGraph (adjacency list, BFS pathfinding)
+│   ├── graph.rs         # WorldGraph (adjacency list, BFS pathfinding, alias-aware name matching)
 │   ├── time.rs          # GameClock, TimeOfDay, Season
 │   ├── palette.rs       # Smooth color interpolation engine (time/season/weather)
 │   ├── movement.rs      # Movement resolution, fuzzy destination matching

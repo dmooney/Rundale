@@ -8,8 +8,15 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use strsim::jaro_winkler;
 
 use crate::error::ParishError;
+
+/// Minimum Jaro-Winkler similarity (0.0–1.0) for fuzzy name matching.
+///
+/// Set high enough to avoid false positives (e.g., "bog" should not match "bay")
+/// while still catching genuine typos like "churh" → "church".
+const FUZZY_THRESHOLD: f64 = 0.82;
 use crate::npc::NpcId;
 
 use super::LocationId;
@@ -58,6 +65,11 @@ pub struct LocationData {
     /// Optional mythological significance (fairy forts, holy wells, etc.).
     #[serde(default)]
     pub mythological_significance: Option<String>,
+    /// Alternative names for this location (e.g., "coast" for "Lough Ree Shore").
+    ///
+    /// Used by fuzzy name matching to support colloquial and semantic synonyms.
+    #[serde(default)]
+    pub aliases: Vec<String>,
 }
 
 /// The world graph: a collection of locations connected by traversable paths.
@@ -170,28 +182,51 @@ impl WorldGraph {
 
     /// Finds a location by name using case-insensitive fuzzy matching.
     ///
-    /// Matching priority: exact match > query in name > name in query >
-    /// stripped-article match. Common articles ("the", "a", "an") are
-    /// stripped for fuzzy matching.
+    /// Matching priority (name matches beat alias matches at each level):
+    /// 1. Exact name → exact alias
+    /// 2. Query in name → query in alias
+    /// 3. Name in query → alias in query
+    /// 4. Article-stripped name → article-stripped alias
+    /// 5. Jaro-Winkler fuzzy score (catches typos and near-misses)
+    ///
+    /// Common articles ("the", "a", "an") are stripped for fuzzy matching.
     pub fn find_by_name(&self, name: &str) -> Option<LocationId> {
         let lower = name.to_lowercase();
         let stripped = strip_articles(&lower);
 
-        // First try exact match (case-insensitive)
+        // Level 1: Exact match on name (case-insensitive)
         for (id, loc) in &self.locations {
             if loc.name.to_lowercase() == lower {
                 return Some(*id);
             }
         }
 
-        // Then try: query contained in location name
+        // Level 1b: Exact match on aliases
+        for (id, loc) in &self.locations {
+            for alias in &loc.aliases {
+                if alias.to_lowercase() == lower {
+                    return Some(*id);
+                }
+            }
+        }
+
+        // Level 2: Query contained in location name
         for (id, loc) in &self.locations {
             if loc.name.to_lowercase().contains(&lower) {
                 return Some(*id);
             }
         }
 
-        // Then try: location name contained in query
+        // Level 2b: Query contained in an alias
+        for (id, loc) in &self.locations {
+            for alias in &loc.aliases {
+                if alias.to_lowercase().contains(&lower) {
+                    return Some(*id);
+                }
+            }
+        }
+
+        // Level 3: Location name contained in query
         for (id, loc) in &self.locations {
             let loc_lower = loc.name.to_lowercase();
             if lower.contains(&loc_lower) {
@@ -199,7 +234,17 @@ impl WorldGraph {
             }
         }
 
-        // Then try with articles stripped from both sides
+        // Level 3b: Alias contained in query
+        for (id, loc) in &self.locations {
+            for alias in &loc.aliases {
+                let alias_lower = alias.to_lowercase();
+                if lower.contains(&alias_lower) {
+                    return Some(*id);
+                }
+            }
+        }
+
+        // Level 4: Article-stripped match on name
         if stripped != lower {
             for (id, loc) in &self.locations {
                 let loc_stripped = strip_articles(&loc.name.to_lowercase());
@@ -209,7 +254,41 @@ impl WorldGraph {
             }
         }
 
-        None
+        // Level 4b: Article-stripped match on aliases
+        if stripped != lower {
+            for (id, loc) in &self.locations {
+                for alias in &loc.aliases {
+                    let alias_stripped = strip_articles(&alias.to_lowercase());
+                    if alias_stripped.contains(&stripped) || stripped.contains(&alias_stripped) {
+                        return Some(*id);
+                    }
+                }
+            }
+        }
+
+        // Level 5: Jaro-Winkler fuzzy match — catches typos and near-misses
+        self.find_by_fuzzy_score(&stripped, FUZZY_THRESHOLD)
+    }
+
+    /// Finds the best fuzzy match across all location names and aliases.
+    ///
+    /// Returns the location whose name or alias has the highest
+    /// Jaro-Winkler similarity to `query`, provided it exceeds `threshold`.
+    fn find_by_fuzzy_score(&self, query: &str, threshold: f64) -> Option<LocationId> {
+        let mut best: Option<(LocationId, f64)> = None;
+        for (id, loc) in &self.locations {
+            let name_score = jaro_winkler(&loc.name.to_lowercase(), query);
+            let alias_score = loc
+                .aliases
+                .iter()
+                .map(|a| jaro_winkler(&a.to_lowercase(), query))
+                .fold(0.0_f64, f64::max);
+            let max_score = name_score.max(alias_score);
+            if max_score > best.as_ref().map_or(0.0, |(_, s)| *s) {
+                best = Some((*id, max_score));
+            }
+        }
+        best.filter(|(_, s)| *s >= threshold).map(|(id, _)| id)
     }
 
     /// Finds the shortest path between two locations using BFS.
@@ -346,7 +425,8 @@ mod tests {
                         {"target": 1, "traversal_minutes": 5, "path_description": "a short lane back to the crossroads"}
                     ],
                     "associated_npcs": [],
-                    "mythological_significance": null
+                    "mythological_significance": null,
+                    "aliases": ["tavern", "the pub"]
                 },
                 {
                     "id": 3,
@@ -359,7 +439,8 @@ mod tests {
                         {"target": 4, "traversal_minutes": 10, "path_description": "a path through the graveyard"}
                     ],
                     "associated_npcs": [],
-                    "mythological_significance": null
+                    "mythological_significance": null,
+                    "aliases": ["church", "chapel"]
                 },
                 {
                     "id": 4,
@@ -371,7 +452,8 @@ mod tests {
                         {"target": 3, "traversal_minutes": 10, "path_description": "the path back past the church"}
                     ],
                     "associated_npcs": [],
-                    "mythological_significance": "A rath said to be home to the sídhe. Locals avoid it after dark."
+                    "mythological_significance": "A rath said to be home to the sídhe. Locals avoid it after dark.",
+                    "aliases": ["rath", "ring fort", "the rath"]
                 }
             ]
         }"#
@@ -448,6 +530,67 @@ mod tests {
     fn test_find_by_name_not_found() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         assert!(graph.find_by_name("castle").is_none());
+    }
+
+    #[test]
+    fn test_find_by_name_alias_exact() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let id = graph.find_by_name("rath").unwrap();
+        assert_eq!(id, LocationId(4));
+    }
+
+    #[test]
+    fn test_find_by_name_alias_substring() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        // "ring" is a substring of alias "ring fort"
+        let id = graph.find_by_name("ring").unwrap();
+        assert_eq!(id, LocationId(4));
+    }
+
+    #[test]
+    fn test_find_by_name_alias_with_article() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let id = graph.find_by_name("the rath").unwrap();
+        assert_eq!(id, LocationId(4));
+    }
+
+    #[test]
+    fn test_find_by_name_alias_tavern() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let id = graph.find_by_name("tavern").unwrap();
+        assert_eq!(id, LocationId(2));
+    }
+
+    #[test]
+    fn test_find_by_name_prefers_name_over_alias() {
+        // "pub" is both a substring of the name "Darcy's Pub" (level 2)
+        // and an alias. Name match (level 2) should win.
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let id = graph.find_by_name("pub").unwrap();
+        assert_eq!(id, LocationId(2));
+    }
+
+    #[test]
+    fn test_aliases_default_empty() {
+        // Location 1 has no aliases field — should default to empty vec
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let crossroads = graph.get(LocationId(1)).unwrap();
+        assert!(crossroads.aliases.is_empty());
+    }
+
+    #[test]
+    fn test_find_by_name_fuzzy_typo() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        // "churh" is a typo for "church" — Jaro-Winkler should catch it
+        let id = graph.find_by_name("churh").unwrap();
+        assert_eq!(id, LocationId(3));
+    }
+
+    #[test]
+    fn test_find_by_name_fuzzy_no_false_positive() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        // "xyz" is nothing close to any location — should not match
+        assert!(graph.find_by_name("xyz").is_none());
     }
 
     #[test]

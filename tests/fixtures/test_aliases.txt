@@ -1,0 +1,15 @@
+# Test alias-based movement
+/status
+go to the coast
+/status
+go to the rath
+/status
+go to the store
+/status
+go to the town
+/status
+go to the pub
+/status
+go to the bog
+/status
+/quit

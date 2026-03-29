@@ -18,7 +18,8 @@
                 {"target": 15, "traversal_minutes": 6, "path_description": "the Kilteevan road heading south past low fields"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin."
+            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin.",
+            "aliases": ["crossroads"]
         },
         {
             "id": 2,
@@ -32,7 +33,8 @@
                 {"target": 1, "traversal_minutes": 3, "path_description": "the lane back to the crossroads"}
             ],
             "associated_npcs": [1],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["pub", "the pub", "tavern"]
         },
         {
             "id": 3,
@@ -47,7 +49,8 @@
                 {"target": 12, "traversal_minutes": 6, "path_description": "a muddy track past the graveyard wall"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint."
+            "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint.",
+            "aliases": ["church", "the church", "chapel"]
         },
         {
             "id": 4,
@@ -61,7 +64,8 @@
                 {"target": 1, "traversal_minutes": 2, "path_description": "back across to the crossroads"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["post office", "post", "letters", "mail"]
         },
         {
             "id": 5,
@@ -75,7 +79,8 @@
                 {"target": 6, "traversal_minutes": 3, "path_description": "a beaten path back past the schoolmaster's cabin"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["pitch", "the pitch", "hurling field"]
         },
         {
             "id": 6,
@@ -90,7 +95,8 @@
                 {"target": 5, "traversal_minutes": 3, "path_description": "a beaten path down to the hurling green"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["school", "schoolhouse"]
         },
         {
             "id": 7,
@@ -105,7 +111,8 @@
                 {"target": 11, "traversal_minutes": 10, "path_description": "a rough track climbing away from the shore"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
+            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie.",
+            "aliases": ["coast", "the coast", "lakeside", "the lake", "shore", "lakeshore"]
         },
         {
             "id": 8,
@@ -120,7 +127,8 @@
                 {"target": 9, "traversal_minutes": 7, "path_description": "a lane winding uphill from the bay"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["bay", "the bay", "harbour", "harbor"]
         },
         {
             "id": 9,
@@ -136,7 +144,8 @@
                 {"target": 10, "traversal_minutes": 5, "path_description": "a boreen through a gap in the hedge"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["murphy's", "murphys"]
         },
         {
             "id": 10,
@@ -151,7 +160,8 @@
                 {"target": 14, "traversal_minutes": 6, "path_description": "a soggy track across the lower field"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["o'brien's", "obriens"]
         },
         {
             "id": 11,
@@ -166,7 +176,8 @@
                 {"target": 12, "traversal_minutes": 8, "path_description": "a barely visible path through gorse and bracken"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
+            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune.",
+            "aliases": ["rath", "ring fort", "the rath", "fort"]
         },
         {
             "id": 12,
@@ -182,7 +193,8 @@
                 {"target": 14, "traversal_minutes": 7, "path_description": "a squelching path along the bog's edge"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
+            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights.",
+            "aliases": ["the bog", "turf bog", "bog", "bogland"]
         },
         {
             "id": 13,
@@ -196,7 +208,8 @@
                 {"target": 1, "traversal_minutes": 3, "path_description": "a few steps back across the road to the crossroads"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["store", "the store", "general store", "shop"]
         },
         {
             "id": 14,
@@ -211,7 +224,8 @@
                 {"target": 12, "traversal_minutes": 7, "path_description": "a path along the bog's edge back to the road"}
             ],
             "associated_npcs": [],
-            "mythological_significance": null
+            "mythological_significance": null,
+            "aliases": ["kiln", "the kiln", "limekiln"]
         },
         {
             "id": 15,
@@ -225,7 +239,8 @@
                 {"target": 1, "traversal_minutes": 6, "path_description": "the road north past low fields to the crossroads"}
             ],
             "associated_npcs": [],
-            "mythological_significance": "Kilteevan — Cill Tíobáin, the church of St. Tíobán. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
+            "mythological_significance": "Kilteevan — Cill Tíobáin, the church of St. Tíobán. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder.",
+            "aliases": ["town", "the town", "village", "kilteevan"]
         }
     ]
 }
