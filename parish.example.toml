@@ -28,6 +28,7 @@ streaming_timeout_secs = 300    # Streaming request timeout
 reachability_timeout_secs = 10  # Ollama reachability check timeout
 model_download_timeout_secs = 3600  # Model download timeout (1 hour)
 model_loading_timeout_secs = 300    # Model loading/warmup timeout
+log_capacity = 50               # Max entries in debug inference log ring buffer
 
 [engine.speeds]
 slow = 18.0                     # 80 real minutes per game day
@@ -82,3 +83,9 @@ overcast = [0.95, 0.95, 0.97, 0.15, 0.92, 0.0]
 rain = [0.88, 0.90, 0.95, 0.20, 0.85, 0.0]
 fog = [0.97, 0.97, 0.98, 0.35, 0.95, 0.15]
 storm = [0.80, 0.82, 0.85, 0.30, 0.75, 0.0]
+
+[engine.world]
+fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location matching (0.0–1.0)
+
+[engine.persistence]
+journal_compaction_threshold = 1000  # Max journal entries before compaction (reserved)

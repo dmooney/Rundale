@@ -14,11 +14,13 @@ Extract engine tuning parameters into an `[engine]` section of `parish.toml` via
 
 ### What was extracted
 
-- **Inference**: 5 timeout values (request, streaming, reachability, download, loading)
+- **Inference**: 5 timeout values (request, streaming, reachability, download, loading) + log ring buffer capacity
 - **Game speed**: 5 speed presets (Slow through Ludicrous)
 - **Encounters**: 7 per-time-of-day probability thresholds
 - **NPC**: Memory capacity, separator holdback, context count, 4 truncation lengths, cognitive tier distances, tier 2 tick interval, 5 relationship label thresholds
 - **Palette**: 2 contrast thresholds, 4 season tints, 5 weather tints
+- **World**: Fuzzy name-matching threshold (Jaro-Winkler similarity)
+- **Persistence**: Journal compaction threshold (reserved, not yet wired)
 
 ### What stays in the mod system
 

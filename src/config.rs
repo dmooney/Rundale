@@ -11,7 +11,8 @@
 
 pub use parish_core::config::{
     CognitiveTierConfig, EncounterConfig, EngineConfig, InferenceConfig, NpcConfig, PaletteConfig,
-    RelationshipLabelConfig, SeasonTintConfig, SpeedConfig, WeatherTintConfig,
+    PersistenceConfig, RelationshipLabelConfig, SeasonTintConfig, SpeedConfig, WeatherTintConfig,
+    WorldConfig,
 };
 
 use crate::error::ParishError;

@@ -28,6 +28,12 @@ pub struct EngineConfig {
     /// Color palette tints and contrast.
     #[serde(default)]
     pub palette: PaletteConfig,
+    /// World graph tuning.
+    #[serde(default)]
+    pub world: WorldConfig,
+    /// Persistence / save system tuning.
+    #[serde(default)]
+    pub persistence: PersistenceConfig,
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +58,9 @@ pub struct InferenceConfig {
     /// Model loading/warmup timeout in seconds.
     #[serde(default = "default_model_loading_timeout_secs")]
     pub model_loading_timeout_secs: u64,
+    /// Maximum entries in the debug inference log ring buffer.
+    #[serde(default = "default_log_capacity")]
+    pub log_capacity: usize,
 }
 
 impl Default for InferenceConfig {
@@ -62,6 +71,7 @@ impl Default for InferenceConfig {
             reachability_timeout_secs: 10,
             model_download_timeout_secs: 3600,
             model_loading_timeout_secs: 300,
+            log_capacity: 50,
         }
     }
 }
@@ -80,6 +90,9 @@ fn default_model_download_timeout_secs() -> u64 {
 }
 fn default_model_loading_timeout_secs() -> u64 {
     300
+}
+fn default_log_capacity() -> usize {
+    50
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +502,58 @@ fn default_storm_tint() -> [f32; 6] {
 }
 
 // ---------------------------------------------------------------------------
+// World
+// ---------------------------------------------------------------------------
+
+/// World graph tuning parameters.
+#[derive(Debug, Deserialize, Clone)]
+pub struct WorldConfig {
+    /// Minimum Jaro-Winkler similarity (0.0–1.0) for fuzzy location name matching.
+    ///
+    /// Higher values reduce false positives but miss more typos.
+    #[serde(default = "default_fuzzy_threshold")]
+    pub fuzzy_threshold: f64,
+}
+
+impl Default for WorldConfig {
+    fn default() -> Self {
+        Self {
+            fuzzy_threshold: 0.82,
+        }
+    }
+}
+
+fn default_fuzzy_threshold() -> f64 {
+    0.82
+}
+
+// ---------------------------------------------------------------------------
+// Persistence
+// ---------------------------------------------------------------------------
+
+/// Persistence / save system tuning parameters.
+#[derive(Debug, Deserialize, Clone)]
+pub struct PersistenceConfig {
+    /// Maximum journal entries per branch before automatic compaction.
+    ///
+    /// Reserved for future use — compaction is not yet implemented.
+    #[serde(default = "default_journal_compaction_threshold")]
+    pub journal_compaction_threshold: usize,
+}
+
+impl Default for PersistenceConfig {
+    fn default() -> Self {
+        Self {
+            journal_compaction_threshold: 1000,
+        }
+    }
+}
+
+fn default_journal_compaction_threshold() -> usize {
+    1000
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -501,10 +566,13 @@ mod tests {
         let cfg = EngineConfig::default();
         assert_eq!(cfg.inference.timeout_secs, 30);
         assert_eq!(cfg.inference.streaming_timeout_secs, 300);
+        assert_eq!(cfg.inference.log_capacity, 50);
         assert!((cfg.speeds.normal - 36.0).abs() < f64::EPSILON);
         assert!((cfg.encounters.dawn - 0.25).abs() < f64::EPSILON);
         assert_eq!(cfg.npc.memory_capacity, 20);
         assert!((cfg.palette.min_fg_bg_contrast - 80.0).abs() < f32::EPSILON);
+        assert!((cfg.world.fuzzy_threshold - 0.82).abs() < f64::EPSILON);
+        assert_eq!(cfg.persistence.journal_compaction_threshold, 1000);
     }
 
     #[test]
@@ -564,5 +632,23 @@ memory_capacity = 30
         assert!((cfg.min_fg_bg_contrast - 80.0).abs() < f32::EPSILON);
         assert_eq!(cfg.season_tints.spring, [0.98, 1.02, 0.98, 0.0]);
         assert_eq!(cfg.weather_tints.clear, [1.0, 1.0, 1.0, 0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn test_world_config_defaults() {
+        let cfg = WorldConfig::default();
+        assert!((cfg.fuzzy_threshold - 0.82).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_persistence_config_defaults() {
+        let cfg = PersistenceConfig::default();
+        assert_eq!(cfg.journal_compaction_threshold, 1000);
+    }
+
+    #[test]
+    fn test_inference_log_capacity_default() {
+        let cfg = InferenceConfig::default();
+        assert_eq!(cfg.log_capacity, 50);
     }
 }
