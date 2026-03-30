@@ -30,8 +30,9 @@
 <div class="chat-panel" data-testid="chat-panel" bind:this={logEl}>
 	{#each $textLog as entry (entry)}
 		{#if entryType(entry) === 'system'}
+			{@const lines = entry.content.split('\n')}
 			<div class="entry system">
-				<span class="content">{entry.content}</span>
+				<span class="content"><strong>{lines[0]}</strong>{lines.length > 1 ? '\n' + lines.slice(1).join('\n') : ''}</span>
 			</div>
 		{:else}
 			<div class="bubble-row {entryType(entry)}">
