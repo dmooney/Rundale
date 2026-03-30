@@ -9,6 +9,7 @@ use std::path::Path;
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 
+use crate::config::CognitiveTierConfig;
 use crate::error::ParishError;
 use crate::npc::data::load_npcs_from_file;
 use crate::npc::types::{CogTier, NpcState};
@@ -168,12 +169,14 @@ impl NpcManager {
         self.npcs.len()
     }
 
-    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
-    ///
-    /// - Distance 0 (same location): Tier 1
-    /// - Distance 1-2: Tier 2
-    /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player,
+    /// using the given cognitive tier config for distance thresholds.
+    pub fn assign_tiers_with_config(
+        &mut self,
+        player_location: LocationId,
+        graph: &WorldGraph,
+        config: &CognitiveTierConfig,
+    ) {
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
 
@@ -194,8 +197,8 @@ impl NpcManager {
             };
 
             let tier = match distance {
-                Some(0) => CogTier::Tier1,
-                Some(1..=2) => CogTier::Tier2,
+                Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
+                Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
                 _ => CogTier::Tier3,
             };
 
@@ -208,6 +211,15 @@ impl NpcManager {
             tier2 = self.tier2_npcs().len(),
             "Tier assignment complete"
         );
+    }
+
+    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
+    ///
+    /// - Distance 0 (same location): Tier 1
+    /// - Distance 1-2: Tier 2
+    /// - Distance 3+: Tier 3
+    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+        self.assign_tiers_with_config(player_location, graph, &CognitiveTierConfig::default());
     }
 
     /// Returns the current cognitive tier for an NPC.
@@ -321,17 +333,27 @@ impl NpcManager {
         events
     }
 
-    /// Returns whether enough game time has elapsed for a Tier 2 tick.
-    ///
-    /// Tier 2 ticks run every 5 game-minutes.
-    pub fn needs_tier2_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+    /// Returns whether enough game time has elapsed for a Tier 2 tick,
+    /// using the given cognitive tier config for the tick interval.
+    pub fn needs_tier2_tick_with_config(
+        &self,
+        current_game_time: DateTime<Utc>,
+        config: &CognitiveTierConfig,
+    ) -> bool {
         match self.last_tier2_game_time {
             None => true,
             Some(last) => {
                 let elapsed = current_game_time.signed_duration_since(last);
-                elapsed.num_minutes() >= 5
+                elapsed.num_minutes() >= config.tier2_tick_interval_minutes
             }
         }
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 2 tick.
+    ///
+    /// Tier 2 ticks run every 5 game-minutes.
+    pub fn needs_tier2_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+        self.needs_tier2_tick_with_config(current_game_time, &CognitiveTierConfig::default())
     }
 
     /// Records that a Tier 2 tick has been performed at the given game time.

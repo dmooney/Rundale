@@ -1,0 +1,91 @@
+# Parish — Example Engine Configuration
+#
+# Copy this file to `parish.toml` to override engine defaults.
+# All sections and fields are optional — omitted values use compiled-in defaults.
+# Delete any section you don't need to change.
+#
+# NOTE: Game content (prompts, loading screen, encounter text, etc.) is
+# configured via the mod system in mods/<mod-name>/. This file only covers
+# engine-level tuning parameters.
+
+# ---------------------------------------------------------------------------
+# Provider (existing — not part of engine config)
+# ---------------------------------------------------------------------------
+
+# [provider]
+# name = "ollama"
+# base_url = "http://localhost:11434"
+# model = "qwen3:14b"
+# api_key = ""
+
+# ---------------------------------------------------------------------------
+# Engine Configuration
+# ---------------------------------------------------------------------------
+
+[engine.inference]
+timeout_secs = 30               # Non-streaming request timeout
+streaming_timeout_secs = 300    # Streaming request timeout
+reachability_timeout_secs = 10  # Ollama reachability check timeout
+model_download_timeout_secs = 3600  # Model download timeout (1 hour)
+model_loading_timeout_secs = 300    # Model loading/warmup timeout
+log_capacity = 50               # Max entries in debug inference log ring buffer
+
+[engine.speeds]
+slow = 18.0                     # 80 real minutes per game day
+normal = 36.0                   # 40 real minutes per game day
+fast = 72.0                     # 20 real minutes per game day
+fastest = 144.0                 # 10 real minutes per game day
+ludicrous = 864.0               # ~100 real seconds per game day
+
+[engine.encounters]
+dawn = 0.25                     # Encounter probability at dawn
+morning = 0.25
+midday = 0.20
+afternoon = 0.20
+dusk = 0.15
+night = 0.10
+midnight = 0.05
+
+[engine.npc]
+memory_capacity = 20            # Max entries in NPC short-term memory
+separator_holdback = 24         # Buffer for detecting --- in streamed responses
+memory_context_count = 5        # Recent memories in dialogue context
+memory_truncation_dialogue = 80 # Max chars for dialogue memory entries
+memory_truncation_event_log = 60
+event_summary_truncation = 100
+event_summary_debug_truncation = 50
+
+[engine.npc.cognitive_tiers]
+tier1_max_distance = 0          # Same location = Tier 1 (full LLM)
+tier2_max_distance = 2          # Within 2 hops = Tier 2 (periodic simulation)
+tier2_tick_interval_minutes = 5
+
+[engine.npc.relationship_labels]
+very_close = 0.7
+friendly = 0.3
+acquainted = 0.0
+cool = -0.3
+strained = -0.7
+
+[engine.palette]
+min_fg_bg_contrast = 80.0
+min_muted_bg_contrast = 45.0
+
+[engine.palette.season_tints]
+spring = [0.98, 1.02, 0.98, 0.0]   # [r_mult, g_mult, b_mult, desaturation]
+summer = [1.03, 1.01, 0.97, 0.0]
+autumn = [1.06, 1.00, 0.92, 0.0]
+winter = [0.94, 0.96, 1.04, 0.08]
+
+[engine.palette.weather_tints]
+clear = [1.0, 1.0, 1.0, 0.0, 1.0, 0.0]       # [r, g, b, desat, brightness, contrast_reduction]
+overcast = [0.95, 0.95, 0.97, 0.15, 0.92, 0.0]
+rain = [0.88, 0.90, 0.95, 0.20, 0.85, 0.0]
+fog = [0.97, 0.97, 0.98, 0.35, 0.95, 0.15]
+storm = [0.80, 0.82, 0.85, 0.30, 0.75, 0.0]
+
+[engine.world]
+fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location matching (0.0–1.0)
+
+[engine.persistence]
+journal_compaction_threshold = 1000  # Max journal entries before compaction (reserved)

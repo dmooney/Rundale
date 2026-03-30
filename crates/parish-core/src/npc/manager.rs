@@ -9,6 +9,7 @@ use std::path::Path;
 
 use chrono::{DateTime, Duration, Timelike, Utc};
 
+use crate::config::CognitiveTierConfig;
 use crate::error::ParishError;
 use crate::npc::data::load_npcs_from_file;
 use crate::npc::types::{CogTier, NpcState};
@@ -198,12 +199,14 @@ impl NpcManager {
         self.npcs.len()
     }
 
-    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
-    ///
-    /// - Distance 0 (same location): Tier 1
-    /// - Distance 1-2: Tier 2
-    /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player,
+    /// using the given cognitive tier config for distance thresholds.
+    pub fn assign_tiers_with_config(
+        &mut self,
+        player_location: LocationId,
+        graph: &WorldGraph,
+        config: &CognitiveTierConfig,
+    ) {
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
 
@@ -224,8 +227,8 @@ impl NpcManager {
             };
 
             let tier = match distance {
-                Some(0) => CogTier::Tier1,
-                Some(1..=2) => CogTier::Tier2,
+                Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
+                Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
                 _ => CogTier::Tier3,
             };
 
@@ -238,6 +241,15 @@ impl NpcManager {
             tier2 = self.tier2_npcs().len(),
             "Tier assignment complete"
         );
+    }
+
+    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
+    ///
+    /// - Distance 0 (same location): Tier 1
+    /// - Distance 1-2: Tier 2
+    /// - Distance 3+: Tier 3
+    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
+        self.assign_tiers_with_config(player_location, graph, &CognitiveTierConfig::default());
     }
 
     /// Returns the current cognitive tier for an NPC.
@@ -351,15 +363,18 @@ impl NpcManager {
         events
     }
 
-    /// Returns whether enough game time has elapsed for a Tier 2 tick.
-    ///
-    /// Tier 2 ticks run every 5 game-minutes.
-    pub fn needs_tier2_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+    /// Returns whether enough game time has elapsed for a Tier 2 tick,
+    /// using the given cognitive tier config for the tick interval.
+    pub fn needs_tier2_tick_with_config(
+        &self,
+        current_game_time: DateTime<Utc>,
+        config: &CognitiveTierConfig,
+    ) -> bool {
         match self.last_tier2_game_time {
             None => true,
             Some(last) => {
                 let elapsed = current_game_time.signed_duration_since(last);
-                elapsed.num_minutes() >= 5
+                elapsed.num_minutes() >= config.tier2_tick_interval_minutes
             }
         }
     }
@@ -367,6 +382,13 @@ impl NpcManager {
     /// Returns the game time of the last Tier 2 tick, if any.
     pub fn last_tier2_game_time(&self) -> Option<DateTime<Utc>> {
         self.last_tier2_game_time
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 2 tick.
+    ///
+    /// Tier 2 ticks run every 5 game-minutes.
+    pub fn needs_tier2_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+        self.needs_tier2_tick_with_config(current_game_time, &CognitiveTierConfig::default())
     }
 
     /// Records that a Tier 2 tick has been performed at the given game time.
@@ -825,5 +847,87 @@ mod tests {
         let found = mgr.find_by_name("an older man behind the bar", LocationId(2));
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_assign_tiers_with_config_custom_distances() {
+        let graph = match load_test_graph() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 2)); // Pub (1 edge from crossroads)
+        mgr.add_npc(make_test_npc(2, 1)); // Crossroads (player is here)
+
+        // With tier1_max_distance = 1, NPC at pub (distance 1) should be Tier 1
+        let config = CognitiveTierConfig {
+            tier1_max_distance: 1,
+            tier2_max_distance: 3,
+            tier2_tick_interval_minutes: 5,
+        };
+        mgr.assign_tiers_with_config(LocationId(1), &graph, &config);
+
+        assert_eq!(mgr.tier_of(NpcId(2)), Some(CogTier::Tier1)); // distance 0
+        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier1)); // distance 1, within tier1_max
+    }
+
+    #[test]
+    fn test_assign_tiers_with_config_narrow_tiers() {
+        let graph = match load_test_graph() {
+            Some(g) => g,
+            None => return,
+        };
+
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(1, 2)); // Pub (1 edge from crossroads)
+        mgr.add_npc(make_test_npc(2, 1)); // Crossroads (player is here)
+
+        // With tier2_max_distance = 0, only same location is Tier 1, everything else Tier 3
+        let config = CognitiveTierConfig {
+            tier1_max_distance: 0,
+            tier2_max_distance: 0,
+            tier2_tick_interval_minutes: 5,
+        };
+        mgr.assign_tiers_with_config(LocationId(1), &graph, &config);
+
+        assert_eq!(mgr.tier_of(NpcId(2)), Some(CogTier::Tier1)); // distance 0
+        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier3)); // distance 1, beyond tier2_max
+    }
+
+    #[test]
+    fn test_needs_tier2_tick_with_config_custom_interval() {
+        let mut mgr = NpcManager::new();
+        let t0 = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        mgr.record_tier2_tick(t0);
+
+        let config = CognitiveTierConfig {
+            tier1_max_distance: 0,
+            tier2_max_distance: 2,
+            tier2_tick_interval_minutes: 10,
+        };
+
+        // 5 minutes later: not enough (interval is 10)
+        let t1 = t0 + Duration::minutes(5);
+        assert!(!mgr.needs_tier2_tick_with_config(t1, &config));
+
+        // 10 minutes later: yes
+        let t2 = t0 + Duration::minutes(10);
+        assert!(mgr.needs_tier2_tick_with_config(t2, &config));
+    }
+
+    #[test]
+    fn test_needs_tier2_tick_with_config_first_tick() {
+        let mgr = NpcManager::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+
+        let config = CognitiveTierConfig {
+            tier1_max_distance: 0,
+            tier2_max_distance: 2,
+            tier2_tick_interval_minutes: 10,
+        };
+
+        // First time should always need a tick regardless of config
+        assert!(mgr.needs_tier2_tick_with_config(now, &config));
     }
 }

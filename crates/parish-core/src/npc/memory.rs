@@ -35,19 +35,36 @@ pub struct MemoryEntry {
 pub struct ShortTermMemory {
     /// The entries, ordered oldest to newest.
     entries: VecDeque<MemoryEntry>,
+    /// Maximum number of entries before eviction.
+    #[serde(default = "default_max_capacity")]
+    max_capacity: usize,
+}
+
+/// Serde default for `max_capacity`.
+fn default_max_capacity() -> usize {
+    MEMORY_CAPACITY
 }
 
 impl ShortTermMemory {
-    /// Creates an empty short-term memory.
+    /// Creates an empty short-term memory with the default capacity.
     pub fn new() -> Self {
         Self {
             entries: VecDeque::with_capacity(MEMORY_CAPACITY),
+            max_capacity: MEMORY_CAPACITY,
+        }
+    }
+
+    /// Creates an empty short-term memory with the given capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: VecDeque::with_capacity(capacity),
+            max_capacity: capacity,
         }
     }
 
     /// Adds a new memory entry, evicting the oldest if at capacity.
     pub fn add(&mut self, entry: MemoryEntry) {
-        if self.entries.len() >= MEMORY_CAPACITY {
+        if self.entries.len() >= self.max_capacity {
             self.entries.pop_front();
         }
         self.entries.push_back(entry);
@@ -194,5 +211,27 @@ mod tests {
         let recent = mem.recent(1);
         assert_eq!(recent[0].participants.len(), 3);
         assert_eq!(recent[0].location, LocationId(2));
+    }
+
+    #[test]
+    fn test_with_capacity_custom() {
+        let mut mem = ShortTermMemory::with_capacity(5);
+        for i in 0..10 {
+            mem.add(make_entry(8, &format!("Event {}", i)));
+        }
+        assert_eq!(mem.len(), 5);
+        let recent = mem.recent(5);
+        assert_eq!(recent[0].content, "Event 5");
+        assert_eq!(recent[4].content, "Event 9");
+    }
+
+    #[test]
+    fn test_with_capacity_larger() {
+        let mut mem = ShortTermMemory::with_capacity(30);
+        for i in 0..25 {
+            mem.add(make_entry(8, &format!("Event {}", i)));
+        }
+        // All 25 should fit since capacity is 30
+        assert_eq!(mem.len(), 25);
     }
 }

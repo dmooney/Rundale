@@ -16,17 +16,20 @@ use openai_client::OpenAiClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
+use crate::config::InferenceConfig;
 use crate::debug_snapshot::InferenceLogEntry;
-
-/// Maximum number of inference log entries to retain.
-pub const INFERENCE_LOG_CAPACITY: usize = 50;
 
 /// Shared ring buffer of inference call log entries.
 pub type InferenceLog = Arc<Mutex<VecDeque<InferenceLogEntry>>>;
 
-/// Creates a new empty inference log with pre-allocated capacity.
+/// Creates a new empty inference log with pre-allocated capacity from config.
+pub fn new_inference_log_with_config(config: &InferenceConfig) -> InferenceLog {
+    Arc::new(Mutex::new(VecDeque::with_capacity(config.log_capacity)))
+}
+
+/// Creates a new empty inference log with default capacity.
 pub fn new_inference_log() -> InferenceLog {
-    Arc::new(Mutex::new(VecDeque::with_capacity(INFERENCE_LOG_CAPACITY)))
+    new_inference_log_with_config(&InferenceConfig::default())
 }
 
 /// A request to generate text via the inference pipeline.
@@ -241,7 +244,7 @@ pub fn spawn_inference_worker(
                     max_tokens,
                 };
                 let mut log = log.lock().await;
-                if log.len() >= INFERENCE_LOG_CAPACITY {
+                if log.len() >= log.capacity().max(1) {
                     log.pop_front();
                 }
                 log.push_back(entry);

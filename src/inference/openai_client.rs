@@ -4,17 +4,12 @@
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
 
+use crate::config::InferenceConfig;
 use crate::error::ParishError;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
-
-/// Default timeout for non-streaming requests (30 seconds).
-const DEFAULT_TIMEOUT_SECS: u64 = 30;
-
-/// Timeout for streaming requests (30 seconds).
-const STREAMING_TIMEOUT_SECS: u64 = 30;
 
 /// HTTP client for OpenAI-compatible chat completions endpoints.
 ///
@@ -26,6 +21,8 @@ const STREAMING_TIMEOUT_SECS: u64 = 30;
 pub struct OpenAiClient {
     /// HTTP client with default timeout.
     client: reqwest::Client,
+    /// Streaming request timeout in seconds.
+    streaming_timeout_secs: u64,
     /// Base URL (e.g. "http://localhost:11434" or "https://openrouter.ai/api").
     base_url: String,
     /// Optional API key for authenticated providers.
@@ -103,20 +100,30 @@ pub(crate) struct Delta {
 }
 
 impl OpenAiClient {
-    /// Creates a new client for an OpenAI-compatible endpoint.
+    /// Creates a new client for an OpenAI-compatible endpoint using default timeouts.
     ///
     /// The `base_url` should be the root URL without `/v1/chat/completions`
     /// (e.g. "http://localhost:11434" for Ollama, "https://openrouter.ai/api"
     /// for OpenRouter). The `/v1/chat/completions` path is appended
     /// automatically.
     pub fn new(base_url: &str, api_key: Option<&str>) -> Self {
+        Self::new_with_config(base_url, api_key, &InferenceConfig::default())
+    }
+
+    /// Creates a new client with timeouts sourced from `InferenceConfig`.
+    pub fn new_with_config(
+        base_url: &str,
+        api_key: Option<&str>,
+        config: &InferenceConfig,
+    ) -> Self {
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(config.timeout_secs))
             .build()
             .expect("failed to build reqwest client");
 
         Self {
             client,
+            streaming_timeout_secs: config.streaming_timeout_secs,
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.map(|s| s.to_string()),
         }
@@ -165,7 +172,7 @@ impl OpenAiClient {
 
         // Use a longer timeout for streaming
         let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(STREAMING_TIMEOUT_SECS))
+            .timeout(Duration::from_secs(self.streaming_timeout_secs))
             .build()
             .expect("failed to build streaming reqwest client");
 

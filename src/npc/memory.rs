@@ -31,23 +31,40 @@ pub struct MemoryEntry {
 ///
 /// Holds the last [`MEMORY_CAPACITY`] entries. When full, the oldest
 /// entry is evicted to make room for new ones.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ShortTermMemory {
     /// The entries, ordered oldest to newest.
     entries: VecDeque<MemoryEntry>,
+    /// Maximum number of entries before eviction.
+    #[serde(default = "default_max_capacity")]
+    max_capacity: usize,
+}
+
+/// Serde default for `max_capacity`.
+fn default_max_capacity() -> usize {
+    MEMORY_CAPACITY
 }
 
 impl ShortTermMemory {
-    /// Creates an empty short-term memory.
+    /// Creates an empty short-term memory with the default capacity.
     pub fn new() -> Self {
         Self {
             entries: VecDeque::with_capacity(MEMORY_CAPACITY),
+            max_capacity: MEMORY_CAPACITY,
+        }
+    }
+
+    /// Creates an empty short-term memory with the given capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: VecDeque::with_capacity(capacity),
+            max_capacity: capacity,
         }
     }
 
     /// Adds a new memory entry, evicting the oldest if at capacity.
     pub fn add(&mut self, entry: MemoryEntry) {
-        if self.entries.len() >= MEMORY_CAPACITY {
+        if self.entries.len() >= self.max_capacity {
             self.entries.pop_front();
         }
         self.entries.push_back(entry);

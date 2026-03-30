@@ -91,7 +91,7 @@ src/
 ├── lib.rs               # Module declarations
 ├── app.rs               # Core application state (App, ScrollState, GameMod)
 ├── error.rs             # ParishError (thiserror)
-├── config.rs            # Provider configuration (TOML + env + CLI)
+├── config.rs            # Provider configuration (TOML + env + CLI) + engine tuning
 ├── headless.rs          # Headless stdin/stdout REPL (default mode)
 ├── testing.rs           # GameTestHarness for automated script-based testing
 ├── debug.rs             # Debug commands and metrics (feature-gated)
@@ -235,6 +235,22 @@ Per-category env vars: `PARISH_DIALOGUE_PROVIDER`, `PARISH_DIALOGUE_MODEL`, `PAR
 Runtime commands: `/cloud`, `/cloud model <name>`, `/cloud key <key>`, `/cloud provider <name>`
 
 The `InferenceClients` struct (in `src/inference/mod.rs`) routes requests via `dialogue_client()`, `simulation_client()`, and `intent_client()` methods, falling back to the base provider when no per-category override exists.
+
+### Engine Configuration
+
+Beyond provider settings, `parish.toml` supports an `[engine]` section for runtime tuning of engine parameters. All fields use `#[serde(default)]` so existing deployments work unchanged. See `parish.example.toml` for all available settings.
+
+| Section | What it configures |
+|---|---|
+| `[engine.inference]` | Timeouts (request, streaming, reachability, download, loading) |
+| `[engine.speeds]` | Speed presets (Slow/Normal/Fast/Fastest/Ludicrous) |
+| `[engine.encounters]` | Per-time-of-day encounter probabilities |
+| `[engine.npc]` | Memory capacity, holdback, truncation limits |
+| `[engine.npc.cognitive_tiers]` | Tier distance thresholds, Tier 2 tick interval |
+| `[engine.npc.relationship_labels]` | Relationship strength label thresholds |
+| `[engine.palette]` | Contrast thresholds, season/weather tints |
+
+Config structs live in `crates/parish-core/src/config/engine.rs`.
 
 ### Ollama Bootstrap & GPU Detection (Default Path)
 

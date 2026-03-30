@@ -5,6 +5,7 @@
 
 use chrono::Utc;
 
+use crate::config::{NpcConfig, RelationshipLabelConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::npc::memory::MemoryEntry;
 use crate::npc::types::{Tier2Event, Tier2Response};
@@ -45,25 +46,43 @@ pub struct Tier2Group {
     pub npcs: Vec<NpcSnapshot>,
 }
 
-/// Builds an enhanced system prompt for Tier 1 interactions.
+/// Returns a descriptive label for a relationship strength value using the given config thresholds.
+pub fn relationship_label_with_config(
+    strength: f64,
+    config: &RelationshipLabelConfig,
+) -> &'static str {
+    match strength {
+        s if s > config.very_close => "very close",
+        s if s > config.friendly => "friendly",
+        s if s > config.acquainted => "acquainted",
+        s if s > config.cool => "cool",
+        s if s > config.strained => "strained",
+        _ => "hostile",
+    }
+}
+
+/// Returns a descriptive label for a relationship strength value using default thresholds.
+pub fn relationship_label(strength: f64) -> &'static str {
+    relationship_label_with_config(strength, &RelationshipLabelConfig::default())
+}
+
+/// Builds an enhanced system prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base system prompt with relationship summaries and
 /// knowledge entries for richer, more contextual NPC dialogue.
-pub fn build_enhanced_system_prompt(npc: &Npc, improv: bool) -> String {
+pub fn build_enhanced_system_prompt_with_config(
+    npc: &Npc,
+    improv: bool,
+    config: &NpcConfig,
+) -> String {
     let mut prompt = build_tier1_system_prompt(npc, improv);
 
     // Add relationship context
     if !npc.relationships.is_empty() {
         prompt.push_str("\n\nRELATIONSHIPS:\n");
         for (target_id, rel) in &npc.relationships {
-            let strength_desc = match rel.strength {
-                s if s > 0.7 => "very close",
-                s if s > 0.3 => "friendly",
-                s if s > 0.0 => "acquainted",
-                s if s > -0.3 => "cool",
-                s if s > -0.7 => "strained",
-                _ => "hostile",
-            };
+            let strength_desc =
+                relationship_label_with_config(rel.strength, &config.relationship_labels);
             prompt.push_str(&format!(
                 "- NPC #{}: {} relationship, {} (strength {:.1})\n",
                 target_id.0, rel.kind, strength_desc, rel.strength
@@ -82,15 +101,24 @@ pub fn build_enhanced_system_prompt(npc: &Npc, improv: bool) -> String {
     prompt
 }
 
-/// Builds an enhanced context prompt for Tier 1 interactions.
+/// Builds an enhanced system prompt for Tier 1 interactions.
+///
+/// Extends the base system prompt with relationship summaries and
+/// knowledge entries for richer, more contextual NPC dialogue.
+pub fn build_enhanced_system_prompt(npc: &Npc, improv: bool) -> String {
+    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default())
+}
+
+/// Builds an enhanced context prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base context with the NPC's recent memories and
 /// information about other NPCs present at the same location.
-pub fn build_enhanced_context(
+pub fn build_enhanced_context_with_config(
     npc: &Npc,
     world: &WorldState,
     player_input: &str,
     other_npcs: &[&Npc],
+    config: &NpcConfig,
 ) -> String {
     let mut context = build_tier1_context(npc, world, player_input);
 
@@ -103,7 +131,7 @@ pub fn build_enhanced_context(
     }
 
     // Add recent memories
-    let memory_ctx = npc.memory.context_string(5);
+    let memory_ctx = npc.memory.context_string(config.memory_context_count);
     if !memory_ctx.is_empty() {
         context.push_str("\n\nRecent memories:\n");
         context.push_str(&memory_ctx);
@@ -112,18 +140,32 @@ pub fn build_enhanced_context(
     context
 }
 
-/// Processes a Tier 1 NPC response, updating mood and recording a memory.
+/// Builds an enhanced context prompt for Tier 1 interactions.
+///
+/// Extends the base context with the NPC's recent memories and
+/// information about other NPCs present at the same location.
+pub fn build_enhanced_context(
+    npc: &Npc,
+    world: &WorldState,
+    player_input: &str,
+    other_npcs: &[&Npc],
+) -> String {
+    build_enhanced_context_with_config(npc, world, player_input, other_npcs, &NpcConfig::default())
+}
+
+/// Processes a Tier 1 NPC response using the given config, updating mood and recording a memory.
 ///
 /// Call this after receiving and parsing the LLM response for a Tier 1
 /// interaction. Updates the NPC's mood from metadata and adds a memory
 /// entry recording the interaction.
 ///
 /// Returns a list of debug event strings (e.g. mood changes, memory commits).
-pub fn apply_tier1_response(
+pub fn apply_tier1_response_with_config(
     npc: &mut Npc,
     response: &NpcStreamResponse,
     player_input: &str,
     game_time: chrono::DateTime<Utc>,
+    config: &NpcConfig,
 ) -> Vec<String> {
     let mut events = Vec::new();
 
@@ -140,12 +182,12 @@ pub fn apply_tier1_response(
     let content = format!(
         "Spoke with a traveller who {}. Responded: {}",
         player_input,
-        truncate_for_memory(&response.dialogue, 80)
+        truncate_for_memory(&response.dialogue, config.memory_truncation_dialogue)
     );
     events.push(format!(
         "{} remembers: {}",
         npc.name,
-        truncate_for_memory(&content, 60)
+        truncate_for_memory(&content, config.memory_truncation_event_log)
     ));
     npc.memory.add(MemoryEntry {
         timestamp: game_time,
@@ -155,6 +197,28 @@ pub fn apply_tier1_response(
     });
 
     events
+}
+
+/// Processes a Tier 1 NPC response, updating mood and recording a memory.
+///
+/// Call this after receiving and parsing the LLM response for a Tier 1
+/// interaction. Updates the NPC's mood from metadata and adds a memory
+/// entry recording the interaction.
+///
+/// Returns a list of debug event strings (e.g. mood changes, memory commits).
+pub fn apply_tier1_response(
+    npc: &mut Npc,
+    response: &NpcStreamResponse,
+    player_input: &str,
+    game_time: chrono::DateTime<Utc>,
+) -> Vec<String> {
+    apply_tier1_response_with_config(
+        npc,
+        response,
+        player_input,
+        game_time,
+        &NpcConfig::default(),
+    )
 }
 
 /// Builds the system prompt for a Tier 2 interaction between NPCs at a location.
@@ -241,16 +305,17 @@ pub async fn run_tier2_for_group(
     }
 }
 
-/// Applies a Tier 2 event's effects to the relevant NPCs.
+/// Applies a Tier 2 event's effects to the relevant NPCs using the given config.
 ///
 /// Updates moods, adjusts relationship strengths, and records memories
 /// for all participating NPCs.
 ///
 /// Returns debug event strings describing what happened.
-pub fn apply_tier2_event(
+pub fn apply_tier2_event_with_config(
     event: &Tier2Event,
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
+    config: &NpcConfig,
 ) -> Vec<String> {
     let mut debug_events = Vec::new();
 
@@ -277,14 +342,14 @@ pub fn apply_tier2_event(
     }
 
     // Record memory for all participants
-    let memory_content = truncate_for_memory(&event.summary, 100);
+    let memory_content = truncate_for_memory(&event.summary, config.event_summary_truncation);
     // Log the memory commit for all participants
     for &pid in &event.participants {
         if let Some(npc) = npcs.get(&pid) {
             debug_events.push(format!(
                 "{} remembers: {}",
                 npc.name,
-                truncate_for_memory(&event.summary, 50)
+                truncate_for_memory(&event.summary, config.event_summary_debug_truncation)
             ));
         }
     }
@@ -300,6 +365,20 @@ pub fn apply_tier2_event(
     }
 
     debug_events
+}
+
+/// Applies a Tier 2 event's effects to the relevant NPCs.
+///
+/// Updates moods, adjusts relationship strengths, and records memories
+/// for all participating NPCs.
+///
+/// Returns debug event strings describing what happened.
+pub fn apply_tier2_event(
+    event: &Tier2Event,
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    game_time: chrono::DateTime<Utc>,
+) -> Vec<String> {
+    apply_tier2_event_with_config(event, npcs, game_time, &NpcConfig::default())
 }
 
 /// Truncates a string to a maximum length, adding "..." if truncated.
@@ -327,7 +406,7 @@ mod tests {
         Npc {
             id: NpcId(id),
             name: name.to_string(),
-            brief_description: "a person".to_string(),
+            brief_description: format!("a test NPC named {}", name),
             age: 40,
             occupation: "Test".to_string(),
             personality: "Friendly".to_string(),

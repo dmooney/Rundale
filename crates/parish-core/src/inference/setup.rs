@@ -4,6 +4,7 @@
 //! auto-install, GPU/VRAM detection, model selection based on
 //! available hardware, and automatic model pulling.
 
+use crate::config::InferenceConfig;
 use crate::error::ParishError;
 use crate::inference::client::OllamaProcess;
 use crate::inference::openai_client::OpenAiClient;
@@ -542,11 +543,23 @@ struct PullProgressLine {
 /// Checks whether a model is available locally in Ollama.
 ///
 /// Queries the `/api/tags` endpoint and checks if the model name
-/// appears in the list of locally available models.
+/// appears in the list of locally available models. Uses the default
+/// reachability timeout (10s).
 pub async fn is_model_available(base_url: &str, model_name: &str) -> Result<bool, ParishError> {
+    is_model_available_with_config(base_url, model_name, &InferenceConfig::default()).await
+}
+
+/// Checks whether a model is available locally in Ollama, with configurable timeout.
+///
+/// Uses `config.reachability_timeout_secs` for the HTTP request timeout.
+pub async fn is_model_available_with_config(
+    base_url: &str,
+    model_name: &str,
+    config: &InferenceConfig,
+) -> Result<bool, ParishError> {
     let url = format!("{}/api/tags", base_url);
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(config.reachability_timeout_secs))
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build HTTP client: {}", e)))?;
 
@@ -575,6 +588,7 @@ pub async fn is_model_available(base_url: &str, model_name: &str) -> Result<bool
 ///
 /// Streams progress from the `/api/pull` endpoint and reports it
 /// via the `SetupProgress` trait. Blocks until the pull is complete.
+/// Uses the default model download timeout (3600s).
 ///
 /// # Errors
 ///
@@ -584,6 +598,22 @@ pub async fn pull_model(
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
+    pull_model_with_config(base_url, model_name, progress, &InferenceConfig::default()).await
+}
+
+/// Pulls (downloads) a model from the Ollama registry, with configurable timeout.
+///
+/// Uses `config.model_download_timeout_secs` for the HTTP request timeout.
+///
+/// # Errors
+///
+/// Returns `ParishError::ModelNotAvailable` if the pull fails.
+pub async fn pull_model_with_config(
+    base_url: &str,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+    config: &InferenceConfig,
+) -> Result<(), ParishError> {
     progress.on_status(&format!(
         "Fetching the storyteller's book of tales ('{}')...",
         model_name
@@ -591,7 +621,7 @@ pub async fn pull_model(
 
     let url = format!("{}/api/pull", base_url);
     let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(3600)) // Model downloads can take a while
+        .timeout(Duration::from_secs(config.model_download_timeout_secs))
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build HTTP client: {}", e)))?;
 
@@ -641,13 +671,27 @@ pub async fn pull_model(
 /// Ensures a model is available locally, pulling it if necessary.
 ///
 /// Returns `Ok(())` if the model is available (either already present
-/// or successfully pulled).
+/// or successfully pulled). Uses default timeouts.
 pub async fn ensure_model_available(
     base_url: &str,
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
-    if is_model_available(base_url, model_name).await? {
+    ensure_model_available_with_config(base_url, model_name, progress, &InferenceConfig::default())
+        .await
+}
+
+/// Ensures a model is available locally, pulling it if necessary, with configurable timeouts.
+///
+/// Uses `config.reachability_timeout_secs` for checking availability and
+/// `config.model_download_timeout_secs` for pulling.
+pub async fn ensure_model_available_with_config(
+    base_url: &str,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+    config: &InferenceConfig,
+) -> Result<(), ParishError> {
+    if is_model_available_with_config(base_url, model_name, config).await? {
         progress.on_status(&format!(
             "The storyteller already has '{}' in hand.",
             model_name
@@ -655,7 +699,7 @@ pub async fn ensure_model_available(
         return Ok(());
     }
 
-    pull_model(base_url, model_name, progress).await
+    pull_model_with_config(base_url, model_name, progress, config).await
 }
 
 /// Builds GPU-specific environment variables for the Ollama process.
@@ -676,7 +720,24 @@ pub fn build_gpu_env(gpu_info: &GpuInfo) -> Option<Vec<(String, String)>> {
     None
 }
 
-/// Runs the full Ollama setup sequence.
+/// Runs the full Ollama setup sequence with default timeouts.
+///
+/// See [`setup_ollama_with_config`] for details.
+pub async fn setup_ollama(
+    base_url: &str,
+    model_override: Option<&str>,
+    progress: &dyn SetupProgress,
+) -> Result<OllamaSetup, ParishError> {
+    setup_ollama_with_config(
+        base_url,
+        model_override,
+        progress,
+        &InferenceConfig::default(),
+    )
+    .await
+}
+
+/// Runs the full Ollama setup sequence with configurable timeouts.
 ///
 /// 1. Checks if Ollama is installed; installs if not
 /// 2. Detects GPU vendor and VRAM — **fails if no discrete GPU found**
@@ -692,10 +753,11 @@ pub fn build_gpu_env(gpu_info: &GpuInfo) -> Option<Vec<(String, String)>> {
 /// Returns `ParishError::Setup` if no discrete GPU is detected,
 /// installation fails, Ollama cannot start, or the selected model
 /// cannot be pulled.
-pub async fn setup_ollama(
+pub async fn setup_ollama_with_config(
     base_url: &str,
     model_override: Option<&str>,
     progress: &dyn SetupProgress,
+    config: &InferenceConfig,
 ) -> Result<OllamaSetup, ParishError> {
     // Step 1: Check/install Ollama
     if !check_ollama_installed() {
@@ -751,20 +813,21 @@ pub async fn setup_ollama(
             }
         }
         None => {
-            let config = select_model(&gpu_info);
-            progress.on_status(&format!("Chosen tale: {}", config));
-            config
+            let selected = select_model(&gpu_info);
+            progress.on_status(&format!("Chosen tale: {}", selected));
+            selected
         }
     };
 
     // Step 5: Ensure model is available (uses Ollama native /api/tags + /api/pull)
-    ensure_model_available(base_url, &model_config.model_name, progress).await?;
+    ensure_model_available_with_config(base_url, &model_config.model_name, progress, config)
+        .await?;
 
     // Step 6: Warm up the model (uses Ollama native /api/generate)
-    warmup_model(base_url, &model_config.model_name, progress).await?;
+    warmup_model_with_config(base_url, &model_config.model_name, progress, config).await?;
 
     // Create an OpenAI-compatible client pointing at Ollama's /v1/ endpoint
-    let client = OpenAiClient::new(base_url, None);
+    let client = OpenAiClient::new_with_config(base_url, None, config);
 
     Ok(OllamaSetup {
         process,
@@ -782,16 +845,30 @@ pub async fn setup_ollama(
 ///
 /// Uses a dedicated HTTP client with a 5-minute timeout since the first
 /// model load (moving weights from disk to VRAM) can be slow.
+#[allow(dead_code)] // Kept as default-timeout wrapper for external callers
 async fn warmup_model(
     base_url: &str,
     model_name: &str,
     progress: &dyn SetupProgress,
 ) -> Result<(), ParishError> {
+    warmup_model_with_config(base_url, model_name, progress, &InferenceConfig::default()).await
+}
+
+/// Sends a trivial generate request to force Ollama to load the model into VRAM,
+/// with configurable timeout.
+///
+/// Uses `config.model_loading_timeout_secs` for the HTTP request timeout.
+async fn warmup_model_with_config(
+    base_url: &str,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+    config: &InferenceConfig,
+) -> Result<(), ParishError> {
     progress.on_status("The storyteller is gathering their thoughts...");
 
     // Build a one-off client with a generous timeout for model loading
     let warmup_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(config.model_loading_timeout_secs))
         .build()
         .map_err(|e| ParishError::Setup(format!("failed to build warmup client: {}", e)))?;
 

@@ -10,13 +10,8 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use strsim::jaro_winkler;
 
+use crate::config::WorldConfig;
 use crate::error::ParishError;
-
-/// Minimum Jaro-Winkler similarity (0.0–1.0) for fuzzy name matching.
-///
-/// Set high enough to avoid false positives (e.g., "bog" should not match "bay")
-/// while still catching genuine typos like "churh" → "church".
-const FUZZY_THRESHOLD: f64 = 0.82;
 use crate::npc::NpcId;
 
 use super::LocationId;
@@ -191,6 +186,12 @@ impl WorldGraph {
     ///
     /// Common articles ("the", "a", "an") are stripped for fuzzy matching.
     pub fn find_by_name(&self, name: &str) -> Option<LocationId> {
+        self.find_by_name_with_config(name, &WorldConfig::default())
+    }
+
+    /// Finds a location by name using case-insensitive fuzzy matching,
+    /// with a configurable fuzzy threshold from [`WorldConfig`].
+    pub fn find_by_name_with_config(&self, name: &str, config: &WorldConfig) -> Option<LocationId> {
         let lower = name.to_lowercase();
         let stripped = strip_articles(&lower);
 
@@ -267,7 +268,7 @@ impl WorldGraph {
         }
 
         // Level 5: Jaro-Winkler fuzzy match — catches typos and near-misses
-        self.find_by_fuzzy_score(&stripped, FUZZY_THRESHOLD)
+        self.find_by_fuzzy_score(&stripped, config.fuzzy_threshold)
     }
 
     /// Finds the best fuzzy match across all location names and aliases.

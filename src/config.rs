@@ -9,6 +9,12 @@
 //! per-category TOML sections, environment variables, or CLI flags. Unconfigured
 //! categories inherit from the base `[provider]` config.
 
+pub use parish_core::config::{
+    CognitiveTierConfig, EncounterConfig, EngineConfig, InferenceConfig, NpcConfig, PaletteConfig,
+    PersistenceConfig, RelationshipLabelConfig, SeasonTintConfig, SpeedConfig, WeatherTintConfig,
+    WorldConfig,
+};
+
 use crate::error::ParishError;
 use serde::Deserialize;
 use std::collections::HashMap;

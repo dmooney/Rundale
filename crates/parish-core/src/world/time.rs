@@ -11,6 +11,8 @@ use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
 use std::fmt;
 use std::time::Instant;
 
+use crate::config::SpeedConfig;
+
 /// Represents the time of day in the game world.
 ///
 /// Used to drive color palette selection and NPC behavior.
@@ -156,14 +158,19 @@ impl GameSpeed {
         GameSpeed::Ludicrous,
     ];
 
-    /// Returns the speed factor for this preset.
+    /// Returns the speed factor for this preset using default config values.
     pub fn factor(self) -> f64 {
+        self.factor_with_config(&SpeedConfig::default())
+    }
+
+    /// Returns the speed factor for this preset using the given config.
+    pub fn factor_with_config(self, config: &SpeedConfig) -> f64 {
         match self {
-            GameSpeed::Slow => 18.0,
-            GameSpeed::Normal => 36.0,
-            GameSpeed::Fast => 72.0,
-            GameSpeed::Fastest => 144.0,
-            GameSpeed::Ludicrous => 864.0,
+            GameSpeed::Slow => config.slow,
+            GameSpeed::Normal => config.normal,
+            GameSpeed::Fast => config.fast,
+            GameSpeed::Fastest => config.fastest,
+            GameSpeed::Ludicrous => config.ludicrous,
         }
     }
 
@@ -231,7 +238,7 @@ impl GameClock {
             start_real: Instant::now(),
             start_game,
             paused: false,
-            speed_factor: 36.0,
+            speed_factor: SpeedConfig::default().normal,
             paused_game_time: start_game,
         }
     }
@@ -526,6 +533,37 @@ mod tests {
         assert!((GameSpeed::Fast.factor() - 72.0).abs() < f64::EPSILON);
         assert!((GameSpeed::Fastest.factor() - 144.0).abs() < f64::EPSILON);
         assert!((GameSpeed::Ludicrous.factor() - 864.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_game_speed_factor_with_config() {
+        use crate::config::SpeedConfig;
+
+        let config = SpeedConfig {
+            slow: 10.0,
+            normal: 20.0,
+            fast: 40.0,
+            fastest: 80.0,
+            ludicrous: 500.0,
+        };
+        assert!((GameSpeed::Slow.factor_with_config(&config) - 10.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Normal.factor_with_config(&config) - 20.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Fast.factor_with_config(&config) - 40.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Fastest.factor_with_config(&config) - 80.0).abs() < f64::EPSILON);
+        assert!((GameSpeed::Ludicrous.factor_with_config(&config) - 500.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_game_speed_factor_delegates_to_config() {
+        // factor() should return the same values as factor_with_config(&default)
+        let config = SpeedConfig::default();
+        for speed in GameSpeed::ALL {
+            assert!(
+                (speed.factor() - speed.factor_with_config(&config)).abs() < f64::EPSILON,
+                "factor() and factor_with_config(default) differ for {:?}",
+                speed,
+            );
+        }
     }
 
     #[test]

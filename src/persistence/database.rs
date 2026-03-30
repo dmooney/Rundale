@@ -13,9 +13,6 @@ use crate::error::ParishError;
 use crate::persistence::journal::WorldEvent;
 use crate::persistence::snapshot::GameSnapshot;
 
-/// Maximum journal entries per branch before automatic compaction.
-pub const JOURNAL_COMPACTION_THRESHOLD: usize = 1000;
-
 /// Information about a save branch.
 #[derive(Debug, Clone)]
 pub struct BranchInfo {
