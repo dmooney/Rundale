@@ -10,6 +10,7 @@ pub mod memory;
 pub mod mood;
 pub mod overhear;
 pub mod ticks;
+pub mod transitions;
 pub mod types;
 
 use std::collections::HashMap;
@@ -18,6 +19,7 @@ use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
 use memory::ShortTermMemory;
+use transitions::NpcSummary;
 use types::{DailySchedule, Intelligence, NpcState, Relationship};
 
 /// A pronunciation hint for a word in the setting's secondary language.
@@ -143,6 +145,11 @@ pub struct Npc {
     pub knowledge: Vec<String>,
     /// Whether the NPC is present at their location or in transit.
     pub state: NpcState,
+    /// Compact summary from the last tier deflation, if any.
+    ///
+    /// Set when the NPC drops to a lower cognitive tier; cleared when
+    /// they are inflated back to a higher tier.
+    pub deflated_summary: Option<NpcSummary>,
 }
 
 impl Npc {
@@ -172,6 +179,7 @@ impl Npc {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::default(),
+            deflated_summary: None,
         }
     }
 

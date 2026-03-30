@@ -12,9 +12,12 @@ use chrono::{DateTime, Duration, Timelike, Utc};
 use crate::config::CognitiveTierConfig;
 use crate::error::ParishError;
 use crate::npc::data::load_npcs_from_file;
+use crate::npc::transitions::{deflate_npc_state, inflate_npc_context};
 use crate::npc::types::{CogTier, NpcState};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
+use crate::world::WorldState;
+use crate::world::events::GameEvent;
 use crate::world::graph::WorldGraph;
 use crate::world::time::GameClock;
 
@@ -199,16 +202,24 @@ impl NpcManager {
         self.npcs.len()
     }
 
-    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player,
-    /// using the given cognitive tier config for distance thresholds.
-    pub fn assign_tiers_with_config(
-        &mut self,
-        player_location: LocationId,
-        graph: &WorldGraph,
-        config: &CognitiveTierConfig,
-    ) {
+    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
+    ///
+    /// Uses the default [`CognitiveTierConfig`] for distance thresholds.
+    ///
+    /// When an NPC's tier changes, inflation (promotion) or deflation
+    /// (demotion) is performed to manage narrative context. Tier 1
+    /// arrivals are published as [`GameEvent::NpcArrived`] on the
+    /// world's event bus.
+    pub fn assign_tiers(&mut self, world: &WorldState, recent_events: &[GameEvent]) {
+        let player_location = world.player_location;
+        let graph = &world.graph;
+        let game_time = world.clock.now();
+        let config = CognitiveTierConfig::default();
         // BFS from player location to compute distances
         let distances = bfs_distances(player_location, graph);
+
+        // First pass: compute new tier assignments and detect changes
+        let mut changes: Vec<(NpcId, CogTier, CogTier)> = Vec::new();
 
         for npc in self.npcs.values() {
             let distance = match npc.state {
@@ -226,30 +237,73 @@ impl NpcManager {
                 }
             };
 
-            let tier = match distance {
+            let new_tier = match distance {
                 Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
                 Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
                 _ => CogTier::Tier3,
             };
 
-            self.tier_assignments.insert(npc.id, tier);
+            let old_tier = self
+                .tier_assignments
+                .get(&npc.id)
+                .copied()
+                .unwrap_or(CogTier::Tier3);
+
+            if new_tier != old_tier {
+                changes.push((npc.id, old_tier, new_tier));
+            }
+
+            self.tier_assignments.insert(npc.id, new_tier);
+        }
+
+        // Second pass: handle tier transitions (inflate/deflate)
+        for (npc_id, old_tier, new_tier) in &changes {
+            let promoted = tier_rank(*new_tier) < tier_rank(*old_tier);
+            let demoted = tier_rank(*new_tier) > tier_rank(*old_tier);
+
+            if promoted && let Some(npc) = self.npcs.get_mut(npc_id) {
+                inflate_npc_context(npc, recent_events, game_time);
+                tracing::debug!(
+                    npc_id = npc_id.0,
+                    old_tier = ?old_tier,
+                    new_tier = ?new_tier,
+                    "NPC promoted (inflated)"
+                );
+            }
+
+            if demoted && let Some(npc) = self.npcs.get(npc_id) {
+                let summary = deflate_npc_state(npc, recent_events);
+                if let Some(npc_mut) = self.npcs.get_mut(npc_id) {
+                    npc_mut.deflated_summary = Some(summary);
+                }
+                tracing::debug!(
+                    npc_id = npc_id.0,
+                    old_tier = ?old_tier,
+                    new_tier = ?new_tier,
+                    "NPC demoted (deflated)"
+                );
+            }
+
+            // Publish arrival events for NPCs entering Tier 1
+            if *new_tier == CogTier::Tier1
+                && *old_tier != CogTier::Tier1
+                && let Some(npc) = self.npcs.get(npc_id)
+            {
+                world.event_bus.publish(GameEvent::NpcArrived {
+                    npc_id: *npc_id,
+                    location: npc.location,
+                    timestamp: game_time,
+                });
+            }
         }
 
         tracing::debug!(
             player_location = player_location.0,
             tier1 = self.tier1_npcs().len(),
             tier2 = self.tier2_npcs().len(),
+            transitions = changes.len(),
             "Tier assignment complete"
         );
-    }
-
-    /// Assigns cognitive tiers to all NPCs based on BFS distance from the player.
-    ///
-    /// - Distance 0 (same location): Tier 1
-    /// - Distance 1-2: Tier 2
-    /// - Distance 3+: Tier 3
-    pub fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph) {
-        self.assign_tiers_with_config(player_location, graph, &CognitiveTierConfig::default());
     }
 
     /// Returns the current cognitive tier for an NPC.
@@ -441,6 +495,18 @@ fn bfs_distances(source: LocationId, graph: &WorldGraph) -> HashMap<LocationId, 
     distances
 }
 
+/// Maps cognitive tiers to a numeric rank for comparison.
+///
+/// Lower rank = closer to the player = higher cognitive fidelity.
+fn tier_rank(tier: CogTier) -> u8 {
+    match tier {
+        CogTier::Tier1 => 1,
+        CogTier::Tier2 => 2,
+        CogTier::Tier3 => 3,
+        CogTier::Tier4 => 4,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,6 +532,7 @@ mod tests {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
+            deflated_summary: None,
         }
     }
 
@@ -504,6 +571,14 @@ mod tests {
         } else {
             None
         }
+    }
+
+    /// Creates a WorldState with the given graph and player location for tests.
+    fn make_test_world(graph: WorldGraph, player_location: u32) -> WorldState {
+        let mut world = WorldState::new();
+        world.graph = graph;
+        world.player_location = LocationId(player_location);
+        world
     }
 
     #[test]
@@ -592,7 +667,8 @@ mod tests {
         mgr.add_npc(make_test_npc(3, 11)); // Fairy fort (far)
 
         // Player at crossroads (id 1)
-        mgr.assign_tiers(LocationId(1), &graph);
+        let world = make_test_world(graph, 1);
+        mgr.assign_tiers(&world, &[]);
 
         assert_eq!(mgr.tier_of(NpcId(2)), Some(CogTier::Tier1)); // same location
         assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier2)); // 1 edge
@@ -615,7 +691,8 @@ mod tests {
         mgr.add_npc(make_test_npc(1, 1)); // At crossroads with player
         mgr.add_npc(make_test_npc(2, 2)); // Pub, 1 edge away
 
-        mgr.assign_tiers(LocationId(1), &graph);
+        let world = make_test_world(graph, 1);
+        mgr.assign_tiers(&world, &[]);
 
         let tier1 = mgr.tier1_npcs();
         assert!(tier1.contains(&NpcId(1)));
@@ -725,7 +802,8 @@ mod tests {
         mgr.add_npc(make_test_npc(3, 3)); // church
 
         // Player at crossroads — pub and church are nearby (Tier 2)
-        mgr.assign_tiers(LocationId(1), &graph);
+        let world = make_test_world(graph, 1);
+        mgr.assign_tiers(&world, &[]);
 
         let groups = mgr.tier2_groups();
         assert_eq!(groups.get(&LocationId(2)).map(|v| v.len()), Some(2));
@@ -850,49 +928,63 @@ mod tests {
     }
 
     #[test]
-    fn test_assign_tiers_with_config_custom_distances() {
+    fn test_tier_promotion_inflates_npc() {
         let graph = match load_test_graph() {
             Some(g) => g,
             None => return,
         };
 
         let mut mgr = NpcManager::new();
-        mgr.add_npc(make_test_npc(1, 2)); // Pub (1 edge from crossroads)
-        mgr.add_npc(make_test_npc(2, 1)); // Crossroads (player is here)
+        mgr.add_npc(make_test_npc(1, 11)); // Far location (Tier 3)
 
-        // With tier1_max_distance = 1, NPC at pub (distance 1) should be Tier 1
-        let config = CognitiveTierConfig {
-            tier1_max_distance: 1,
-            tier2_max_distance: 3,
-            tier2_tick_interval_minutes: 5,
-        };
-        mgr.assign_tiers_with_config(LocationId(1), &graph, &config);
+        // Initial assignment — NPC at far location
+        let world = make_test_world(graph.clone(), 1);
+        mgr.assign_tiers(&world, &[]);
+        let initial_tier = mgr.tier_of(NpcId(1)).unwrap();
+        assert_ne!(initial_tier, CogTier::Tier1);
 
-        assert_eq!(mgr.tier_of(NpcId(2)), Some(CogTier::Tier1)); // distance 0
-        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier1)); // distance 1, within tier1_max
+        // Move NPC to player's location and provide recent events
+        mgr.get_mut(NpcId(1)).unwrap().location = LocationId(1);
+        let events = vec![GameEvent::MoodChanged {
+            npc_id: NpcId(1),
+            new_mood: "excited".to_string(),
+            timestamp: world.clock.now(),
+        }];
+        mgr.assign_tiers(&world, &events);
+
+        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier1));
+        // Check that a context recap memory was injected
+        let npc = mgr.get(NpcId(1)).unwrap();
+        let memories = npc.memory.recent(10);
+        assert!(!memories.is_empty());
+        assert!(memories[0].content.contains("[Context recap]"));
     }
 
     #[test]
-    fn test_assign_tiers_with_config_narrow_tiers() {
+    fn test_tier_demotion_deflates_npc() {
         let graph = match load_test_graph() {
             Some(g) => g,
             None => return,
         };
 
         let mut mgr = NpcManager::new();
-        mgr.add_npc(make_test_npc(1, 2)); // Pub (1 edge from crossroads)
-        mgr.add_npc(make_test_npc(2, 1)); // Crossroads (player is here)
+        mgr.add_npc(make_test_npc(1, 1)); // Same location as player (Tier 1)
 
-        // With tier2_max_distance = 0, only same location is Tier 1, everything else Tier 3
-        let config = CognitiveTierConfig {
-            tier1_max_distance: 0,
-            tier2_max_distance: 0,
-            tier2_tick_interval_minutes: 5,
-        };
-        mgr.assign_tiers_with_config(LocationId(1), &graph, &config);
+        // Initial assignment
+        let world = make_test_world(graph.clone(), 1);
+        mgr.assign_tiers(&world, &[]);
+        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier1));
 
-        assert_eq!(mgr.tier_of(NpcId(2)), Some(CogTier::Tier1)); // distance 0
-        assert_eq!(mgr.tier_of(NpcId(1)), Some(CogTier::Tier3)); // distance 1, beyond tier2_max
+        // Move NPC far away
+        mgr.get_mut(NpcId(1)).unwrap().location = LocationId(11);
+        mgr.assign_tiers(&world, &[]);
+
+        // Check that deflated_summary was set
+        let npc = mgr.get(NpcId(1)).unwrap();
+        assert!(npc.deflated_summary.is_some());
+        let summary = npc.deflated_summary.as_ref().unwrap();
+        assert_eq!(summary.npc_id, NpcId(1));
+        assert_eq!(summary.mood, "calm");
     }
 
     #[test]

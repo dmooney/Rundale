@@ -424,7 +424,7 @@ pub fn run() {
     });
 
     // Initial tier assignment
-    npc_manager.assign_tiers(world.player_location, &world.graph);
+    npc_manager.assign_tiers(&world, &[]);
 
     // Read provider config from env vars (optional)
     let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
@@ -657,7 +657,7 @@ pub fn run() {
                                         let mut world = state_setup.world.lock().await;
                                         let mut npc_mgr = state_setup.npc_manager.lock().await;
                                         snapshot.restore(&mut world, &mut npc_mgr);
-                                        npc_mgr.assign_tiers(world.player_location, &world.graph);
+                                        npc_mgr.assign_tiers(&world, &[]);
                                         drop(npc_mgr);
                                         drop(world);
 

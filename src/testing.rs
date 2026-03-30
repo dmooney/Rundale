@@ -160,8 +160,7 @@ impl GameTestHarness {
         app.game_mod = game_mod;
 
         // Initial tier assignment
-        app.npc_manager
-            .assign_tiers(app.world.player_location, &app.world.graph);
+        app.npc_manager.assign_tiers(&app.world, &[]);
 
         // Initialize in-memory persistence for test harness
         let db_sync = crate::persistence::Database::open_memory().ok();
@@ -204,9 +203,7 @@ impl GameTestHarness {
         };
 
         // Simulation tick after each action
-        self.app
-            .npc_manager
-            .assign_tiers(self.app.world.player_location, &self.app.world.graph);
+        self.app.npc_manager.assign_tiers(&self.app.world, &[]);
         let schedule_events = self
             .app
             .npc_manager
@@ -295,9 +292,7 @@ impl GameTestHarness {
             .npc_manager
             .tick_schedules(&self.app.world.clock, &self.app.world.graph);
         self.process_schedule_events(&events);
-        self.app
-            .npc_manager
-            .assign_tiers(self.app.world.player_location, &self.app.world.graph);
+        self.app.npc_manager.assign_tiers(&self.app.world, &[]);
     }
 
     /// Returns the debug activity log entries.
@@ -513,10 +508,7 @@ impl GameTestHarness {
                                     );
                                     self.app.active_branch_id = branch.id;
                                     self.app.latest_snapshot_id = snap_id;
-                                    self.app.npc_manager.assign_tiers(
-                                        self.app.world.player_location,
-                                        &self.app.world.graph,
-                                    );
+                                    self.app.npc_manager.assign_tiers(&self.app.world, &[]);
                                     let time = self.app.world.clock.time_of_day();
                                     let season = self.app.world.clock.season();
                                     let msg =

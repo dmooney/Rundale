@@ -113,6 +113,7 @@ impl NpcSnapshot {
             memory: self.memory,
             knowledge: self.knowledge,
             state: self.state,
+            deflated_summary: None,
         }
     }
 }
@@ -245,6 +246,7 @@ mod tests {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
+            deflated_summary: None,
         }
     }
 

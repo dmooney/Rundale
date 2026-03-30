@@ -6,6 +6,7 @@
 
 pub mod description;
 pub mod encounter;
+pub mod events;
 pub mod graph;
 pub mod movement;
 pub mod palette;
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use time::GameClock;
 
 use crate::error::ParishError;
+use events::EventBus;
 use graph::{LocationData, WorldGraph};
 
 /// Current weather conditions in the game world.
@@ -113,6 +115,8 @@ pub struct WorldState {
     pub weather: Weather,
     /// Scrollback text log displayed in the main TUI panel.
     pub text_log: Vec<String>,
+    /// Cross-tier event bus for publishing and subscribing to game events.
+    pub event_bus: EventBus,
 }
 
 impl WorldState {
@@ -149,6 +153,7 @@ impl WorldState {
             graph: WorldGraph::new(),
             weather: Weather::Clear,
             text_log: Vec::new(),
+            event_bus: EventBus::new(),
         }
     }
 
@@ -190,6 +195,7 @@ impl WorldState {
             graph,
             weather: Weather::Clear,
             text_log: Vec::new(),
+            event_bus: EventBus::new(),
         })
     }
 
@@ -235,6 +241,7 @@ impl WorldState {
             graph,
             weather: Weather::Clear,
             text_log: Vec::new(),
+            event_bus: EventBus::new(),
         })
     }
 

@@ -1180,7 +1180,7 @@ pub async fn load_branch(
     let mut world = state.world.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
     snapshot.restore(&mut world, &mut npc_manager);
-    npc_manager.assign_tiers(world.player_location, &world.graph);
+    npc_manager.assign_tiers(&world, &[]);
 
     // Update save tracking
     let filename = path
@@ -1321,7 +1321,7 @@ pub async fn new_game(
         parish_core::npc::manager::NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
 
-    fresh_npcs.assign_tiers(fresh_world.player_location, &fresh_world.graph);
+    fresh_npcs.assign_tiers(&fresh_world, &[]);
 
     // Replace live state
     let mut world = state.world.lock().await;
