@@ -425,18 +425,16 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
 ///
 /// Includes the current location, time of day, weather, season,
 /// and the player's action, giving the LLM full situational context.
-pub fn build_tier1_context(npc: &Npc, world: &WorldState, player_input: &str) -> String {
+pub fn build_tier1_context(world: &WorldState, player_input: &str) -> String {
     let location = world.current_location();
     let time_of_day = world.clock.time_of_day();
     let season = world.clock.season();
 
     format!(
-        "Location: {loc_name} — {loc_desc}\n\
+        "Your Location: {loc_name} — {loc_desc}\n\
         Time: {time}\n\
         Season: {season}\n\
         Weather: {weather}\n\
-        \n\
-        {npc_name} is here.\n\
         \n\
         The player {action}",
         loc_name = location.name,
@@ -444,7 +442,6 @@ pub fn build_tier1_context(npc: &Npc, world: &WorldState, player_input: &str) ->
         time = time_of_day,
         season = season,
         weather = world.weather,
-        npc_name = npc.name,
         action = player_input,
     )
 }
@@ -506,12 +503,13 @@ mod tests {
     fn test_build_context() {
         let npc = Npc::new_test_npc();
         let world = WorldState::new();
-        let context = build_tier1_context(&npc, &world, "says hello");
+        let context = build_tier1_context(&world, "says hello");
         assert!(context.contains("The Crossroads"));
         assert!(context.contains("Morning"));
         assert!(context.contains("Spring"));
         assert!(context.contains("Clear"));
-        assert!(context.contains("Padraig O'Brien"));
+        assert!(context.contains("Your Location:"));
+        assert!(!context.contains("is here"));
         assert!(context.contains("says hello"));
     }
 
