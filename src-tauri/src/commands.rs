@@ -1050,7 +1050,7 @@ async fn handle_npc_conversation(
             "A dog barks somewhere beyond the hill.",
             "The clouds shift. The parish carries on.",
         ];
-        let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % idle_messages.len();
+        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % idle_messages.len();
         let _ = app.emit(
             EVENT_TEXT_LOG,
             TextLogPayload {
@@ -1065,7 +1065,7 @@ async fn handle_npc_conversation(
         let config = state.config.lock().await;
         config.model_name.clone()
     };
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
 
     // Spawn the animated loading indicator (fun Irish phrases)
     let loading_cancel = tokio_util::sync::CancellationToken::new();

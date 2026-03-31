@@ -229,7 +229,14 @@ impl WorldState {
         // Parse start date from mod manifest
         let start_dt = chrono::DateTime::parse_from_rfc3339(game_mod.start_date())
             .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| chrono::Utc::now());
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    start_date = game_mod.start_date(),
+                    error = %e,
+                    "Failed to parse mod start_date, falling back to current time"
+                );
+                chrono::Utc::now()
+            });
 
         let clock = GameClock::new(start_dt);
         let start_location = LocationId(game_mod.start_location());
