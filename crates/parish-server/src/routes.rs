@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 
 use parish_core::config::Provider;
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
 use parish_core::ipc::{
     LoadingPayload, MapData, NpcInfo, StreamEndPayload, TextLogPayload, ThemePalette,
@@ -73,6 +73,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
         cloud_model: config.cloud_model_name.clone(),
         has_queue: state.inference_queue.lock().await.is_some(),
         improv_enabled: config.improv_enabled,
+        call_log: Vec::new(),
     };
     Json(debug_snapshot::build_debug_snapshot(
         &world,
@@ -135,7 +136,7 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     drop(client_guard);
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
-    let _worker = spawn_inference_worker(new_client, rx);
+    let _worker = spawn_inference_worker(new_client, rx, new_inference_log());
     let queue = InferenceQueue::new(tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
@@ -372,6 +373,8 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
             format!("{} API key updated.", cat_name)
         }
         Command::Debug(_) => "Debug commands are not available in web mode.".to_string(),
+        Command::Spinner(_) => "Spinner customization is not available in web mode.".to_string(),
+        Command::About => "Parish — An Irish Living World Text Adventure (web mode).".to_string(),
     };
 
     if needs_rebuild {
@@ -647,7 +650,10 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
                     vec![]
                 } else {
                     let parsed = parse_npc_stream_response(&resp.text);
-                    parsed.metadata.map(|m| m.irish_words).unwrap_or_default()
+                    parsed
+                        .metadata
+                        .map(|m| m.language_hints)
+                        .unwrap_or_default()
                 }
             } else {
                 vec![]

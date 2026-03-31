@@ -18,6 +18,7 @@ use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
 use parish_core::world::movement::{self, MovementResult};
+use parish_core::world::palette::compute_palette;
 
 use crate::events::{
     EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload,
@@ -37,6 +38,53 @@ fn capitalize_first(s: &str) -> String {
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
+// ── Helper: build a WorldSnapshot from locked world state ────────────────────
+
+/// Builds a [`WorldSnapshot`] from a locked world state reference.
+///
+/// Used both by the `get_world_snapshot` command and by the background
+/// idle-tick task in `lib.rs`.
+pub fn get_world_snapshot_inner(world: &parish_core::world::WorldState) -> WorldSnapshot {
+    snapshot_from_world(world)
+}
+
+fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot {
+    use chrono::Timelike;
+    use parish_core::world::description::{format_exits, render_description};
+
+    let now = world.clock.now();
+    let hour = now.hour() as u8;
+    let minute = now.minute() as u8;
+    let tod = world.clock.time_of_day();
+    let season = world.clock.season();
+    let festival = world.clock.check_festival().map(|f| f.to_string());
+    let weather_str = world.weather.to_string();
+
+    let loc = world.current_location();
+    // Render the description template with current game state + exits
+    let description = if let Some(data) = world.current_location_data() {
+        let desc = render_description(data, tod, &weather_str, &[]);
+        let exits = format_exits(world.player_location, &world.graph);
+        format!("{}\n\n{}", desc, exits)
+    } else {
+        loc.description.clone()
+    };
+
+    WorldSnapshot {
+        location_name: loc.name.clone(),
+        location_description: description,
+        time_label: tod.to_string(),
+        hour,
+        minute,
+        weather: weather_str,
+        season: season.to_string(),
+        festival,
+        paused: world.clock.is_paused(),
+        game_epoch_ms: now.timestamp_millis() as f64,
+        speed_factor: world.clock.speed_factor(),
+    }
+}
+
 // ── Commands ─────────────────────────────────────────────────────────────────
 
 /// Returns a snapshot of the current world state (location, time, weather, season).
@@ -45,16 +93,53 @@ pub async fn get_world_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<WorldSnapshot, String> {
     let world = state.world.lock().await;
-    Ok(parish_core::ipc::snapshot_from_world(&world))
+    Ok(snapshot_from_world(&world))
 }
 
 /// Returns the map data: all locations with coordinates, edges, and player position.
 #[tauri::command]
-pub async fn get_map(
-    state: tauri::State<'_, Arc<AppState>>,
-) -> Result<parish_core::ipc::MapData, String> {
+pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, String> {
     let world = state.world.lock().await;
-    Ok(parish_core::ipc::build_map_data(&world))
+    let player_loc = world.player_location;
+
+    // Collect adjacent location IDs
+    let adjacent_ids: std::collections::HashSet<parish_core::world::LocationId> = world
+        .graph
+        .neighbors(player_loc)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+
+    let locations: Vec<MapLocation> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id).map(|data| (id, data)))
+        .map(|(id, data)| MapLocation {
+            id: id.0.to_string(),
+            name: data.name.clone(),
+            lat: data.lat,
+            lon: data.lon,
+            adjacent: adjacent_ids.contains(&id) || id == player_loc,
+        })
+        .collect();
+
+    // Collect edges as (source_id, target_id) string pairs
+    let mut edges: Vec<(String, String)> = Vec::new();
+    for loc_id in world.graph.location_ids() {
+        for (neighbor_id, _conn) in world.graph.neighbors(loc_id) {
+            // Only add each edge once (lower id first)
+            if loc_id.0 < neighbor_id.0 {
+                edges.push((loc_id.0.to_string(), neighbor_id.0.to_string()));
+            }
+        }
+    }
+
+    Ok(MapData {
+        locations,
+        edges,
+        player_location: player_loc.0.to_string(),
+    })
 }
 
 /// Returns the list of NPCs currently at the player's location.
@@ -81,8 +166,16 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
 /// Returns the current time-of-day theme palette as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
+    use chrono::Timelike;
     let world = state.world.lock().await;
-    Ok(parish_core::ipc::build_theme(&world))
+    let now = world.clock.now();
+    let raw = compute_palette(
+        now.hour(),
+        now.minute(),
+        world.clock.season(),
+        world.weather,
+    );
+    Ok(ThemePalette::from(raw))
 }
 
 /// Returns a debug snapshot of all game state for the debug panel.
@@ -167,6 +260,15 @@ pub async fn submit_input(
 }
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
+
+/// Helper to mask an API key for display.
+fn mask_key(key: &str) -> String {
+    if key.len() > 8 {
+        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+    } else {
+        "(set, too short to mask)".to_string()
+    }
+}
 
 /// Rebuilds the inference pipeline after a provider/key/client change.
 ///
@@ -329,7 +431,7 @@ async fn handle_system_command(
         Command::ShowKey => {
             let config = state.config.lock().await;
             match &config.api_key {
-                Some(key) => format!("API key: {}", parish_core::ipc::mask_key(key)),
+                Some(key) => format!("API key: {}", mask_key(key)),
                 None => "API key: (not set)".to_string(),
             }
         }
@@ -382,7 +484,7 @@ async fn handle_system_command(
         Command::ShowCloudKey => {
             let config = state.config.lock().await;
             match &config.cloud_api_key {
-                Some(key) => format!("Cloud API key: {}", parish_core::ipc::mask_key(key)),
+                Some(key) => format!("Cloud API key: {}", mask_key(key)),
                 None => "Cloud API key: (not set)".to_string(),
             }
         }
@@ -474,11 +576,7 @@ async fn handle_system_command(
             let config = state.config.lock().await;
             let idx = crate::GameConfig::cat_idx(cat);
             match &config.category_api_key[idx] {
-                Some(key) => format!(
-                    "{} API key: {}",
-                    cat.name(),
-                    parish_core::ipc::mask_key(key)
-                ),
+                Some(key) => format!("{} API key: {}", cat.name(), mask_key(key)),
                 None => format!("{} API key: (not set)", cat.name()),
             }
         }
@@ -520,10 +618,7 @@ async fn handle_system_command(
 
     // Emit updated world state for status bar
     let world = state.world.lock().await;
-    let _ = app.emit(
-        EVENT_WORLD_UPDATE,
-        parish_core::ipc::snapshot_from_world(&world),
-    );
+    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot_from_world(&world));
 }
 
 /// Handles free-form game input: parses intent then dispatches.
@@ -628,10 +723,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
             // Emit updated world snapshot
             let world = state.world.lock().await;
-            let _ = app.emit(
-                EVENT_WORLD_UPDATE,
-                parish_core::ipc::snapshot_from_world(&world),
-            );
+            let _ = app.emit(EVENT_WORLD_UPDATE, snapshot_from_world(&world));
         }
         MovementResult::AlreadyHere => {
             let _ = app.emit(

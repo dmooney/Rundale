@@ -30,7 +30,6 @@ pub const EVENT_SAVE_PICKER: &str = "save-picker";
 pub const BATCH_MS: u64 = 16;
 
 // ── Payload types ────────────────────────────────────────────────────────────
-// Re-exported from parish_core::ipc.
 
 /// Payload for `stream-token` events.
 #[derive(serde::Serialize, Clone)]

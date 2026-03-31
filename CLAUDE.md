@@ -220,6 +220,7 @@ Custom slash commands defined in `.claude/skills/`:
 | `/verify` | Full pre-push checklist (quality gate + harness) |
 | `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
 | `/fix-issue <N>` | End-to-end GitHub issue workflow |
+| `/chrome-test` | Live Chrome browser testing session via Claude-in-Chrome MCP |
 
 ## Claude Code Hooks
 
