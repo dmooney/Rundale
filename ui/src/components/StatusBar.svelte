@@ -57,7 +57,7 @@
 	});
 </script>
 
-<div class="status-bar">
+<div class="status-bar" data-testid="status-bar">
 	{#if $worldState}
 		<span class="location">{$worldState.location_name}</span>
 		<span class="sep">|</span>

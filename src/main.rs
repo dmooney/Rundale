@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Result;
 use clap::Parser;
 use parish::config::{
@@ -8,7 +10,6 @@ use parish::headless;
 use parish::inference::InferenceClients;
 use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
-use std::path::Path;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -108,6 +109,14 @@ struct Cli {
     /// Path to a game mod directory (default: auto-detect mods/kilteevan-1820/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
     game_mod: Option<String>,
+
+    /// Run as a web server (serves UI in browser for testing)
+    ///
+    /// Starts an axum HTTP server on the specified port (default: 3001)
+    /// that serves the Svelte frontend and exposes REST + WebSocket
+    /// endpoints. Use this for automated Chrome testing via Playwright.
+    #[arg(long, value_name = "PORT", default_missing_value = "3001", num_args = 0..=1)]
+    web: Option<u16>,
 }
 
 #[tokio::main]
@@ -136,6 +145,19 @@ async fn main() -> Result<()> {
     // Script mode — no LLM needed, synchronous execution
     if let Some(script_path) = &cli.script {
         return parish::testing::run_script_mode(Path::new(script_path));
+    }
+
+    // Web server mode — serves UI in browser for testing
+    if let Some(port) = cli.web {
+        let data_dir = find_data_dir();
+        let static_dir = find_ui_dist_dir();
+        tracing::info!(
+            "Starting web server on port {} (data={}, static={})",
+            port,
+            data_dir.display(),
+            static_dir.display()
+        );
+        return parish_server::run_server(port, data_dir, static_dir).await;
     }
 
     // Resolve provider configuration from file + env + CLI
@@ -285,6 +307,36 @@ fn build_inference_clients(
         overrides.insert(*category, (client, model));
     }
     InferenceClients::new(base_client.clone(), base_model.to_string(), overrides)
+}
+
+/// Finds the `data/` directory by walking up from the cwd.
+fn find_data_dir() -> PathBuf {
+    let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for _ in 0..4 {
+        if p.join("data/parish.json").exists() {
+            return p.join("data");
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    PathBuf::from("data")
+}
+
+/// Finds the `ui/dist/` directory for the Svelte frontend build.
+fn find_ui_dist_dir() -> PathBuf {
+    let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    for _ in 0..4 {
+        if p.join("ui/dist/index.html").exists() {
+            return p.join("ui/dist");
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    PathBuf::from("ui/dist")
 }
 
 /// Builds per-category CLI overrides from the parsed CLI arguments.

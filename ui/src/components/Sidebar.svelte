@@ -3,7 +3,7 @@
 	import MoodIcon from './MoodIcon.svelte';
 </script>
 
-<aside class="sidebar">
+<aside class="sidebar" data-testid="sidebar">
 	<details open>
 		<summary>NPCs Here</summary>
 		{#if $npcsHere.length > 0}

@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/parish-core", "src-tauri"]
+members = [".", "crates/parish-core", "crates/parish-server", "src-tauri"]
 resolver = "2"
 
 [package]
@@ -12,6 +12,7 @@ default-run = "parish"
 
 [dependencies]
 parish-core = { path = "crates/parish-core" }
+parish-server = { path = "crates/parish-server" }
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
