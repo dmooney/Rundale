@@ -3,6 +3,7 @@
 //! Each route maps to a Tauri command, calling the shared handlers in
 //! [`parish_core::ipc`] and returning JSON responses.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -558,7 +559,12 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
             let id = npc.id;
             let other_npcs: Vec<&parish_core::npc::Npc> =
                 npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-            let system = ticks::build_enhanced_system_prompt(&npc, false);
+            let npc_names: HashMap<parish_core::npc::NpcId, String> = npc
+                .relationships
+                .keys()
+                .filter_map(|id| npc_manager.get(*id).map(|n| (*id, n.name.clone())))
+                .collect();
+            let system = ticks::build_enhanced_system_prompt(&npc, false, &npc_names);
             let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
             npc_manager.mark_introduced(id);
             (Some(display), Some(id), Some(system), Some(ctx), Some(q))

@@ -836,7 +836,13 @@ async fn handle_headless_game_input(
                     .into_iter()
                     .filter(|n| n.id != npc.id)
                     .collect();
-                let system_prompt = ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
+                let npc_names: HashMap<crate::npc::NpcId, String> = npc
+                    .relationships
+                    .keys()
+                    .filter_map(|id| app.npc_manager.get(*id).map(|n| (*id, n.name.clone())))
+                    .collect();
+                let system_prompt =
+                    ticks::build_enhanced_system_prompt(&npc, app.improv_enabled, &npc_names);
                 let mut context =
                     ticks::build_enhanced_context(&npc, &app.world, text, &other_npcs);
 

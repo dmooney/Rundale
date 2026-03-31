@@ -3,6 +3,7 @@
 //! Each public function here is registered with `tauri::generate_handler!` and
 //! becomes callable from the Svelte frontend via `invoke("command_name", args)`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -876,7 +877,12 @@ async fn handle_npc_conversation(
             let id = npc.id;
             let other_npcs: Vec<&parish_core::npc::Npc> =
                 npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-            let system = ticks::build_enhanced_system_prompt(&npc, false);
+            let npc_names: HashMap<parish_core::npc::NpcId, String> = npc
+                .relationships
+                .keys()
+                .filter_map(|id| npc_manager.get(*id).map(|n| (*id, n.name.clone())))
+                .collect();
+            let system = ticks::build_enhanced_system_prompt(&npc, false, &npc_names);
             let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
             // Mark NPC as introduced on first conversation
             npc_manager.mark_introduced(id);

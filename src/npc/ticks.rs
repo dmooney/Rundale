@@ -3,6 +3,8 @@
 //! Tier 1 ticks run per player interaction (full LLM inference).
 //! Tier 2 ticks run every 5 game-minutes for nearby NPCs (lighter inference).
 
+use std::collections::HashMap;
+
 use chrono::Utc;
 
 use crate::config::{NpcConfig, RelationshipLabelConfig};
@@ -74,6 +76,7 @@ pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
     config: &NpcConfig,
+    npc_names: &HashMap<NpcId, String>,
 ) -> String {
     let mut prompt = build_tier1_system_prompt(npc, improv);
 
@@ -83,9 +86,13 @@ pub fn build_enhanced_system_prompt_with_config(
         for (target_id, rel) in &npc.relationships {
             let strength_desc =
                 relationship_label_with_config(rel.strength, &config.relationship_labels);
+            let name = npc_names
+                .get(target_id)
+                .map(|s| s.as_str())
+                .unwrap_or("Unknown");
             prompt.push_str(&format!(
-                "- NPC #{}: {} relationship, {} (strength {:.1})\n",
-                target_id.0, rel.kind, strength_desc, rel.strength
+                "- {}: {} relationship, {} (strength {:.1})\n",
+                name, rel.kind, strength_desc, rel.strength
             ));
         }
     }
@@ -105,8 +112,12 @@ pub fn build_enhanced_system_prompt_with_config(
 ///
 /// Extends the base system prompt with relationship summaries and
 /// knowledge entries for richer, more contextual NPC dialogue.
-pub fn build_enhanced_system_prompt(npc: &Npc, improv: bool) -> String {
-    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default())
+pub fn build_enhanced_system_prompt(
+    npc: &Npc,
+    improv: bool,
+    npc_names: &HashMap<NpcId, String>,
+) -> String {
+    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names)
 }
 
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
@@ -430,8 +441,10 @@ mod tests {
             .insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.8));
         npc.knowledge = vec!["Knows local history".to_string()];
 
-        let prompt = build_enhanced_system_prompt(&npc, false);
+        let npc_names = HashMap::from([(NpcId(2), "Tommy".to_string())]);
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
         assert!(prompt.contains("RELATIONSHIPS:"));
+        assert!(prompt.contains("Tommy"));
         assert!(prompt.contains("very close"));
         assert!(prompt.contains("THINGS YOU KNOW:"));
         assert!(prompt.contains("Knows local history"));
@@ -440,7 +453,8 @@ mod tests {
     #[test]
     fn test_enhanced_system_prompt_without_relationships() {
         let npc = make_test_npc(1, "Padraig", 2);
-        let prompt = build_enhanced_system_prompt(&npc, false);
+        let npc_names = HashMap::new();
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
         assert!(!prompt.contains("RELATIONSHIPS:"));
         assert!(!prompt.contains("THINGS YOU KNOW:"));
     }
@@ -606,7 +620,13 @@ mod tests {
         npc.relationships
             .insert(NpcId(3), Relationship::new(RelationshipKind::Enemy, -0.8));
 
-        let prompt = build_enhanced_system_prompt(&npc, false);
+        let npc_names = HashMap::from([
+            (NpcId(2), "Brigid".to_string()),
+            (NpcId(3), "Seamus".to_string()),
+        ]);
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
         assert!(prompt.contains("very close") || prompt.contains("hostile"));
+        assert!(prompt.contains("Brigid"));
+        assert!(prompt.contains("Seamus"));
     }
 }
