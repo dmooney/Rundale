@@ -409,6 +409,10 @@ impl GameTestHarness {
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
             }
+            Command::InvalidBranchName(msg) => {
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
             Command::Status => {
                 let time = self.app.world.clock.time_of_day();
                 let season = self.app.world.clock.season();

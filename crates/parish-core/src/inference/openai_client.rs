@@ -294,13 +294,20 @@ impl OpenAiClient {
     }
 
     /// Applies authorization and provider-specific headers to a request.
+    ///
+    /// OpenRouter-specific headers (`HTTP-Referer`, `X-Title`) are only sent
+    /// when the base URL targets OpenRouter, avoiding client fingerprinting
+    /// on other providers.
     fn apply_auth_headers(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        match &self.api_key {
-            Some(key) => req
-                .header("Authorization", format!("Bearer {}", key))
-                .header("HTTP-Referer", "https://github.com/parish-game/parish")
-                .header("X-Title", "Parish"),
+        let req = match &self.api_key {
+            Some(key) => req.header("Authorization", format!("Bearer {}", key)),
             None => req,
+        };
+        if self.base_url.contains("openrouter") {
+            req.header("HTTP-Referer", "https://github.com/parish-game/parish")
+                .header("X-Title", "Parish")
+        } else {
+            req
         }
     }
 }
