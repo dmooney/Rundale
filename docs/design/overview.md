@@ -277,6 +277,66 @@ For non-Ollama providers, none of these steps run — the user provides the endp
 
 Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses identical game logic (NPC inference, intent parsing, system commands). Useful for development testing and scripted interaction.
 
+## Web Server Mode & Deployment
+
+Run `cargo run -- --web [PORT]` to serve the Svelte frontend via an axum HTTP + WebSocket server. This provides the same game experience as the Tauri desktop app, accessible from any browser.
+
+### Per-Session Architecture
+
+Each browser visitor gets an isolated game session:
+
+```
+Browser → POST /api/session → SessionManager creates GameSession
+                                  ├── WorldState (cloned from data files)
+                                  ├── NpcManager (cloned from data files)
+                                  └── EventBus (per-session broadcast channel)
+```
+
+All subsequent requests include `?session=<uuid>` to route to the correct session. The inference pipeline (OpenAiClient + InferenceQueue) is shared across sessions since it's a stateless HTTP client.
+
+**Key types** (`crates/parish-server/src/state.rs`):
+
+| Struct | Scope | Purpose |
+|--------|-------|---------|
+| `ServerState` | Global | Holds `SessionManager`, shared inference queue/clients, config |
+| `SessionManager` | Global | Creates/looks up/cleans up sessions, holds data dir path |
+| `GameSession` | Per-visitor | Isolated world, NPC manager, event bus, activity timestamp |
+
+**Session lifecycle**:
+- Created via `POST /api/session` (returns UUID)
+- Activity tracked on every REST/WebSocket interaction
+- Cleaned up after 10 minutes of inactivity (background task every 60s)
+- Maximum concurrent sessions: 50 (configurable via `PARISH_MAX_SESSIONS`)
+- Background tick tasks use `Weak<GameSession>` to auto-exit when session drops
+
+**Endpoints** (`crates/parish-server/src/routes.rs`):
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/session` | Create new game session |
+| GET | `/api/world-snapshot?session=` | Current world state |
+| GET | `/api/map?session=` | Location graph |
+| GET | `/api/npcs-here?session=` | NPCs at player location |
+| GET | `/api/theme?session=` | Time-of-day color palette |
+| POST | `/api/submit-input?session=` | Player command input |
+| GET | `/api/ws?session=` | WebSocket (per-session events) |
+
+### Deployment (Fly.io)
+
+The project includes a multi-stage `Dockerfile` and `fly.toml` for Fly.io deployment:
+
+1. **Stage 1** (Node): Builds `ui/dist/` static frontend
+2. **Stage 2** (Rust): Compiles the `parish` binary
+3. **Stage 3** (Debian slim): Copies binary + frontend + data files (~30MB)
+
+Environment variables for production:
+- `PARISH_PROVIDER=openrouter` — Use cloud LLM (no local GPU needed)
+- `PARISH_MODEL=google/gemma-3-27b-it` — Model for NPC dialogue
+- `PARISH_API_KEY` — OpenRouter API key (set via `fly secrets set`)
+- `PARISH_MAX_SESSIONS=50` — Concurrent session limit
+
+The Fly.io config uses `auto_stop_machines = "stop"` with `min_machines_running = 0` for cost efficiency — the machine hibernates when idle and wakes on first request.
+
 ## Source Modules
 
 - [`src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
