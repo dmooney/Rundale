@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/protect-files.sh"
+            "command": ".claude/hooks/PreToolUse--protect-files.sh"
           }
         ]
       }
@@ -17,15 +17,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/auto-fmt.sh"
+            "command": ".claude/hooks/PostToolUse--auto-fmt.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/compile-check.sh"
+            "command": ".claude/hooks/PostToolUse--compile-check.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/dep-audit-reminder.sh"
+            "command": ".claude/hooks/PostToolUse--dep-audit-reminder.sh"
           }
         ]
       }
@@ -36,27 +36,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/quality-gates.sh"
+            "command": ".claude/hooks/Stop--quality-gates.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/harness-reminder.sh"
+            "command": ".claude/hooks/Stop--harness-reminder.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/doc-staleness.sh"
+            "command": ".claude/hooks/Stop--doc-staleness.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/screenshot-reminder.sh"
+            "command": ".claude/hooks/Stop--screenshot-reminder.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/coverage-reminder.sh"
+            "command": ".claude/hooks/Stop--coverage-reminder.sh"
           },
           {
             "type": "command",
-            "command": ".claude/hooks/design-doc-reminder.sh"
+            "command": ".claude/hooks/Stop--design-doc-reminder.sh"
           }
         ]
       }
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/compact-context.sh"
+            "command": ".claude/hooks/SessionStart--compact-context.sh"
           }
         ]
       }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/commit-msg-check.sh"
+            "command": ".claude/hooks/UserPromptSubmit--commit-msg-check.sh"
           }
         ]
       }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/notify.sh"
+            "command": ".claude/hooks/Notification--notify.sh"
           }
         ]
       }
@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/tauri-server-check.sh"
+            "command": ".claude/hooks/SubagentStart--tauri-server-check.sh"
           }
         ]
       }

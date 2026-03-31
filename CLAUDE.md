@@ -14,7 +14,7 @@
 - E2E GUI tests: `cd ui && npx playwright test` (or `just ui-e2e`)
 - Screenshots: `cd ui && npx playwright test e2e/screenshots.spec.ts` (or `just screenshots`)
 
-Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/game-test` for harness testing. Hooks handle formatting, compile checks, and quality gates automatically.
+Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/game-test` for harness testing.
 
 ## Web Server Mode (for Browser Testing)
 
@@ -48,7 +48,6 @@ Playwright auto-starts the axum server via `cargo run -- --web 3099`.
 
 - All new code must have accompanying unit tests. No `#[allow]` without a justifying comment.
 - Coverage must stay above **90%** (`cargo tarpaulin`).
-- Hooks enforce: formatting, clippy, tests, doc updates, conventional commits, coverage reminders, and screenshot regeneration. See the **Hooks** section below.
 
 ## Architecture
 
@@ -164,7 +163,7 @@ Parish/
 
 ## Git Workflow
 
-- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:` (enforced by `commit-msg-check.sh` hook)
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
 - One logical change per commit
 - Run full test suite before pushing
 
@@ -172,7 +171,7 @@ Parish/
 
 Screenshots live in `docs/screenshots/` and are referenced from `README.md`.
 
-**Always regenerate screenshots when you change anything in `ui/` or `src-tauri/`.** Run:
+Run:
 
 ```sh
 cd ui && npx playwright test e2e/screenshots.spec.ts
@@ -223,26 +222,3 @@ Custom slash commands defined in `.claude/skills/`:
 | `/fix-issue <N>` | End-to-end GitHub issue workflow |
 | `/chrome-test` | Live Chrome browser testing session via Claude-in-Chrome MCP |
 
-## Claude Code Hooks
-
-Automated hooks configured in `.claude/settings.json` that run at lifecycle events:
-
-| Hook | Event | Trigger | What It Does |
-|------|-------|---------|--------------|
-| `auto-fmt.sh` | PostToolUse | After any Edit/Write to a `.rs` file | Runs `cargo fmt --quiet` to auto-format |
-| `compile-check.sh` | PostToolUse | After any Edit/Write to a `.rs` file | Runs `cargo check` for immediate compile error feedback |
-| `dep-audit-reminder.sh` | PostToolUse | After any Edit/Write to `Cargo.toml` | Reminds to run `cargo audit` and `cargo outdated` |
-| `protect-files.sh` | PreToolUse | Before any Edit/Write | Blocks direct edits to `Cargo.lock` (exit 2) |
-| `quality-gates.sh` | Stop | When Claude finishes responding | Runs fmt + clippy + test if `.rs` files changed |
-| `harness-reminder.sh` | Stop | When Claude finishes responding | Reminds to run game harness if parish-core/world logic changed |
-| `doc-staleness.sh` | Stop | When Claude finishes responding | Warns if `.rs` files changed but no docs were updated |
-| `screenshot-reminder.sh` | Stop | When Claude finishes responding | Reminds to regenerate screenshots if `ui/` or `src-tauri/` changed |
-| `coverage-reminder.sh` | Stop | When Claude finishes responding | Reminds to check coverage when new `.rs` files are added |
-| `design-doc-reminder.sh` | Stop | When Claude finishes responding | **Blocks** (exit 2) if non-trivial code changes (>5 added lines across `.rs`/`.ts`/`.svelte`/`.json`/`.toml`) are made without updating `docs/design/` or `CLAUDE.md` |
-| `compact-context.sh` | SessionStart | After context compaction | Re-injects key project context |
-| `commit-msg-check.sh` | UserPromptSubmit | When user submits a prompt mentioning "commit" | Validates conventional commit message format |
-| `notify.sh` | Notification | When Claude needs attention | Sends desktop notification via `notify-send` |
-| `worktree-compile.sh` | WorktreeCreate | When a git worktree is created | Runs `cargo check --all` to verify workspace compiles |
-| `tauri-server-check.sh` | SubagentStart | When a subagent is spawned | Checks if Vite/Tauri dev server is running |
-
-Hook scripts live in `.claude/hooks/` and require `jq` for JSON parsing. All scripts are executable (`chmod +x`).
