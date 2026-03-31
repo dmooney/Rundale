@@ -83,4 +83,47 @@ describe('ChatPanel', () => {
 		expect(container.querySelector('.bubble-row')).toBeFalsy();
 		expect(container.querySelector('.entry.system')).toBeTruthy();
 	});
+
+	describe('emote rendering', () => {
+		it('renders *action* text with emote class', () => {
+			textLog.set([{ source: 'player', content: '*waves*' }]);
+			const { container } = render(ChatPanel);
+			const emote = container.querySelector('.emote');
+			expect(emote).toBeTruthy();
+			expect(emote?.textContent).toBe('waves');
+		});
+
+		it('renders mixed text and emotes', () => {
+			textLog.set([{ source: 'Padraig', content: 'Hello *smiles warmly* how are ye?' }]);
+			const { container } = render(ChatPanel);
+			const emotes = container.querySelectorAll('.emote');
+			expect(emotes.length).toBe(1);
+			expect(emotes[0].textContent).toBe('smiles warmly');
+			// Normal text should also be present
+			const content = container.querySelector('.content');
+			expect(content?.textContent).toContain('Hello');
+			expect(content?.textContent).toContain('how are ye?');
+		});
+
+		it('renders text without asterisks normally', () => {
+			textLog.set([{ source: 'player', content: 'Just plain text' }]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.emote')).toBeFalsy();
+			expect(container.querySelector('.content')?.textContent).toContain('Just plain text');
+		});
+
+		it('renders unmatched asterisks as normal text', () => {
+			textLog.set([{ source: 'player', content: 'I think *this is incomplete' }]);
+			const { container } = render(ChatPanel);
+			expect(container.querySelector('.emote')).toBeFalsy();
+		});
+
+		it('renders emotes in system messages too', () => {
+			textLog.set([{ source: 'system', content: 'You *tip your hat* to the barman.' }]);
+			const { container } = render(ChatPanel);
+			const emote = container.querySelector('.emote');
+			expect(emote).toBeTruthy();
+			expect(emote?.textContent).toBe('tip your hat');
+		});
+	});
 });

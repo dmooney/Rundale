@@ -431,19 +431,36 @@ pub fn build_tier1_context(world: &WorldState, player_input: &str) -> String {
     let time_of_day = world.clock.time_of_day();
     let season = world.clock.season();
 
+    // Detect *emote* actions: input fully wrapped in asterisks
+    let action_line = if let Some(inner) = player_input
+        .strip_prefix('*')
+        .and_then(|s| s.strip_suffix('*'))
+    {
+        if !inner.is_empty() && !inner.contains('*') {
+            format!(
+                "The player performs an action: {inner}\n\
+                (The player is emoting rather than speaking. \
+                Respond to their physical action naturally.)"
+            )
+        } else {
+            format!("The player {player_input}")
+        }
+    } else {
+        format!("The player {player_input}")
+    };
+
     format!(
         "Your Location: {loc_name} — {loc_desc}\n\
         Time: {time}\n\
         Season: {season}\n\
         Weather: {weather}\n\
         \n\
-        The player {action}",
+        {action_line}",
         loc_name = location.name,
         loc_desc = location.description,
         time = time_of_day,
         season = season,
         weather = world.weather,
-        action = player_input,
     )
 }
 
@@ -512,6 +529,49 @@ mod tests {
         assert!(context.contains("Your Location:"));
         assert!(!context.contains("is here"));
         assert!(context.contains("says hello"));
+    }
+
+    #[test]
+    fn test_build_context_emote_action() {
+        let world = WorldState::new();
+        let context = build_tier1_context(&world, "*tips hat*");
+        assert!(
+            context.contains("performs an action: tips hat"),
+            "emote should strip asterisks and use action phrasing"
+        );
+        assert!(
+            context.contains("emoting rather than speaking"),
+            "emote should include action-mode instruction"
+        );
+        assert!(
+            !context.contains("The player *tips hat*"),
+            "emote should not pass raw asterisks through"
+        );
+    }
+
+    #[test]
+    fn test_build_context_normal_input_not_emote() {
+        let world = WorldState::new();
+        let context = build_tier1_context(&world, "hello there");
+        assert!(
+            context.contains("The player hello there"),
+            "normal input should use standard phrasing"
+        );
+        assert!(
+            !context.contains("performs an action"),
+            "normal input should not trigger action phrasing"
+        );
+    }
+
+    #[test]
+    fn test_build_context_partial_asterisks_not_emote() {
+        let world = WorldState::new();
+        // Single leading asterisk — not a complete emote
+        let context = build_tier1_context(&world, "*incomplete");
+        assert!(
+            context.contains("The player *incomplete"),
+            "partial asterisks should pass through as normal input"
+        );
     }
 
     #[test]

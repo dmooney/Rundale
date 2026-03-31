@@ -25,6 +25,34 @@
 		if (entry.source === 'player') return 'You';
 		return entry.source;
 	}
+
+	interface TextSegment {
+		text: string;
+		isAction: boolean;
+	}
+
+	/** Splits text on *action* markers into normal and emote segments. */
+	function parseEmotes(content: string): TextSegment[] {
+		const segments: TextSegment[] = [];
+		const regex = /\*([^*]+)\*/g;
+		let lastIndex = 0;
+		let match: RegExpExecArray | null;
+		while ((match = regex.exec(content)) !== null) {
+			if (match.index > lastIndex) {
+				segments.push({ text: content.slice(lastIndex, match.index), isAction: false });
+			}
+			segments.push({ text: match[1], isAction: true });
+			lastIndex = regex.lastIndex;
+		}
+		if (lastIndex < content.length) {
+			segments.push({ text: content.slice(lastIndex), isAction: false });
+		}
+		// If no emotes found, return the whole content as a single segment
+		if (segments.length === 0) {
+			segments.push({ text: content, isAction: false });
+		}
+		return segments;
+	}
 </script>
 
 <div class="chat-panel" data-testid="chat-panel" bind:this={logEl}>
@@ -36,7 +64,7 @@
 				{#if isSplash}
 					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
 				{:else}
-					<span class="content">{entry.content}</span>
+					<span class="content">{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}</span>
 				{/if}
 			</div>
 		{:else}
@@ -45,7 +73,7 @@
 					<span class="label">{displayLabel(entry)}</span>
 					<div class="bubble">
 						<span class="content"
-							>{entry.content}{#if entry.streaming}<span class="cursor">▋</span
+							>{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}{#if entry.streaming}<span class="cursor">▋</span
 							>{/if}</span
 						>
 					</div>
@@ -154,6 +182,11 @@
 		background: var(--color-accent);
 		color: var(--color-bg);
 		border-top-right-radius: 0.25rem;
+	}
+
+	.emote {
+		font-style: italic;
+		opacity: 0.85;
 	}
 
 	.cursor {
