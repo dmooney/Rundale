@@ -126,14 +126,19 @@ pub async fn submit_input(
 // ── Internal helpers ────────────────────────────────────────────────────────
 
 /// Rebuilds the inference pipeline after a provider/key/client change.
+///
+/// Config is read in a scoped block so the lock is dropped before any other
+/// lock is acquired, minimising the race window between concurrent rebuilds.
 async fn rebuild_inference(state: &Arc<AppState>) {
-    let config = state.config.lock().await;
-    let new_client = OpenAiClient::new(&config.base_url, config.api_key.as_deref());
-    drop(config);
+    let new_client = {
+        let config = state.config.lock().await;
+        OpenAiClient::new(&config.base_url, config.api_key.as_deref())
+    };
 
-    let mut client_guard = state.client.lock().await;
-    *client_guard = Some(new_client.clone());
-    drop(client_guard);
+    {
+        let mut client_guard = state.client.lock().await;
+        *client_guard = Some(new_client.clone());
+    }
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
     let _worker = spawn_inference_worker(new_client, rx, new_inference_log());
@@ -545,12 +550,13 @@ async fn handle_look(state: &Arc<AppState>) {
 
 /// Routes input to the NPC at the player's location, or shows idle message.
 async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
-    let (npc_name, npc_id, system_prompt, context, queue) = {
+    let (npc_name, npc_id, system_prompt, context, queue, npc_present) = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
 
         let npcs_here = npc_manager.npcs_at(world.player_location);
+        let npc_present = !npcs_here.is_empty();
         let npc = npcs_here.first().cloned().cloned();
 
         if let (Some(npc), Some(q)) = (npc, queue.clone()) {
@@ -561,27 +567,42 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
             let system = ticks::build_enhanced_system_prompt(&npc, false);
             let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
             npc_manager.mark_introduced(id);
-            (Some(display), Some(id), Some(system), Some(ctx), Some(q))
+            (
+                Some(display),
+                Some(id),
+                Some(system),
+                Some(ctx),
+                Some(q),
+                npc_present,
+            )
         } else {
-            (None, None, None, None, None)
+            (None, None, None, None, None, npc_present)
         }
     };
 
     let (Some(npc_name), Some(_npc_id), Some(system_prompt), Some(context), Some(queue)) =
         (npc_name, npc_id, system_prompt, context, queue)
     else {
-        let idle_messages = [
-            "The wind stirs, but nothing else.",
-            "Only the sound of a distant crow.",
-            "A dog barks somewhere beyond the hill.",
-            "The clouds shift. The parish carries on.",
-        ];
-        let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % idle_messages.len();
+        // If an NPC is present but inference isn't configured, give a clear message.
+        // Otherwise show a generic idle message.
+        let content = if npc_present {
+            "There's someone here, but the LLM is not configured — set a provider with /provider."
+                .to_string()
+        } else {
+            let idle_messages = [
+                "The wind stirs, but nothing else.",
+                "Only the sound of a distant crow.",
+                "A dog barks somewhere beyond the hill.",
+                "The clouds shift. The parish carries on.",
+            ];
+            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % idle_messages.len();
+            idle_messages[idx].to_string()
+        };
         state.event_bus.emit(
             "text-log",
             &TextLogPayload {
                 source: "system".to_string(),
-                content: idle_messages[idx].to_string(),
+                content,
             },
         );
         return;

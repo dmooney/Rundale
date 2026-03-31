@@ -97,16 +97,27 @@ impl EventBus {
 
     /// Sends an event to all subscribers. Returns the number of receivers.
     pub fn send(&self, event: ServerEvent) -> usize {
-        self.tx.send(event).unwrap_or(0)
+        match self.tx.send(event) {
+            Ok(count) => count,
+            Err(_) => {
+                tracing::warn!("EventBus: broadcast failed — no active subscribers");
+                0
+            }
+        }
     }
 
     /// Emits a named event with a serializable payload.
     pub fn emit<T: serde::Serialize>(&self, event_name: &str, payload: &T) {
-        if let Ok(value) = serde_json::to_value(payload) {
-            self.send(ServerEvent {
-                event: event_name.to_string(),
-                payload: value,
-            });
+        match serde_json::to_value(payload) {
+            Ok(value) => {
+                self.send(ServerEvent {
+                    event: event_name.to_string(),
+                    payload: value,
+                });
+            }
+            Err(e) => {
+                tracing::warn!(event = %event_name, error = %e, "EventBus: failed to serialize event payload");
+            }
         }
     }
 

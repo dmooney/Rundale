@@ -92,6 +92,7 @@ fn spawn_background_ticks(state: Arc<AppState>) {
     // Idle tick: broadcast world snapshot every 5 seconds
     let state_tick = Arc::clone(&state);
     tokio::spawn(async move {
+        tracing::debug!("World tick task started");
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
             {
@@ -113,6 +114,7 @@ fn spawn_background_ticks(state: Arc<AppState>) {
     // Theme tick: broadcast updated palette every 500 ms
     let state_theme = Arc::clone(&state);
     tokio::spawn(async move {
+        tracing::debug!("Theme tick task started");
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
             let world = state_theme.world.lock().await;
