@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # PostToolUse hook: remind about dependency audit when Cargo.toml is edited
 # Matcher: Edit|Write
