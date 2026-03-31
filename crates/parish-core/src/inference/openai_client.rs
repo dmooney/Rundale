@@ -634,6 +634,7 @@ mod tests {
     #[ignore] // Requires Ollama running on localhost:11434
     async fn test_generate_json_live() {
         #[derive(Deserialize, Debug)]
+        #[allow(dead_code)] // used only for JSON deserialization test
         struct TestResponse {
             #[serde(default)]
             greeting: String,

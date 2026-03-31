@@ -50,13 +50,11 @@ impl ScrollState {
     }
 
     /// Scrolls down by the given number of lines.
-    pub fn scroll_down(&mut self, lines: u16, max_offset: u16) {
+    pub fn scroll_down(&mut self, lines: u16) {
         self.offset = self.offset.saturating_sub(lines);
         if self.offset == 0 {
             self.auto_scroll = true;
         }
-        // Clamp — offset is distance from bottom, so 0 = bottom
-        let _ = max_offset; // kept for API clarity; clamping happens in update()
     }
 
     /// Scrolls to the top of the text log.
@@ -425,7 +423,7 @@ mod tests {
         scroll.scroll_up(3);
         assert!(!scroll.auto_scroll);
 
-        scroll.scroll_down(3, 100);
+        scroll.scroll_down(3);
         assert_eq!(scroll.offset, 0);
         assert!(scroll.auto_scroll);
     }
@@ -434,7 +432,7 @@ mod tests {
     fn test_scroll_down_partial() {
         let mut scroll = ScrollState::new();
         scroll.scroll_up(10);
-        scroll.scroll_down(3, 100);
+        scroll.scroll_down(3);
         assert_eq!(scroll.offset, 7);
         assert!(!scroll.auto_scroll);
     }
@@ -443,7 +441,7 @@ mod tests {
     fn test_scroll_down_clamps_at_zero() {
         let mut scroll = ScrollState::new();
         scroll.scroll_up(2);
-        scroll.scroll_down(10, 100);
+        scroll.scroll_down(10);
         assert_eq!(scroll.offset, 0);
         assert!(scroll.auto_scroll);
     }

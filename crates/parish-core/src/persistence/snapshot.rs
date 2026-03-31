@@ -342,7 +342,7 @@ mod tests {
         let mut new_world = WorldState::new();
         let mut new_npcs = NpcManager::new();
         snapshot.restore(&mut new_world, &mut new_npcs);
-        assert!(new_npcs.needs_tier2_tick(t) == false);
+        assert!(!new_npcs.needs_tier2_tick(t));
     }
 
     #[test]

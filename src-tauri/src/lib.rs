@@ -593,12 +593,12 @@ pub fn run() {
                         // GDK must be called from the GTK main thread; dispatch and await.
                         let path = dir.join(format!("gui-{}.png", name));
                         if let Err(e) = dispatch_screenshot(path).await {
-                            eprintln!("screenshot: failed for {name}: {e}");
+                            tracing::error!(name = %name, error = %e, "screenshot capture failed");
                         }
                     }
 
                     println!("screenshot: all done, exiting");
-                    std::process::exit(0);
+                    handle_ss.exit(0);
                 });
 
                 return Ok(());

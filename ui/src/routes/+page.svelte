@@ -141,7 +141,12 @@
 							{ ...last, content: payload.token, streaming: true }
 						];
 					}
-					return [...log, { source: 'NPC', content: payload.token, streaming: true }];
+					// Use the most recent NPC source name if available, otherwise fall back
+					const npcSource =
+						last && last.source !== 'player' && last.source !== 'system'
+							? last.source
+							: 'NPC';
+					return [...log, { source: npcSource, content: payload.token, streaming: true }];
 				});
 			}),
 

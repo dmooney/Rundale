@@ -425,12 +425,12 @@ fn test_pause_shows_paused_in_status() {
             is_paused = true;
         } else if r.command == "/resume" {
             is_paused = false;
-        } else if r.command == "/status" && is_paused {
-            if let ActionResult::SystemCommand { response } = &r.result {
-                if response.contains("paused") || response.contains("PAUSED") {
-                    found_paused_status = true;
-                }
-            }
+        } else if r.command == "/status"
+            && is_paused
+            && let ActionResult::SystemCommand { response } = &r.result
+            && (response.contains("paused") || response.contains("PAUSED"))
+        {
+            found_paused_status = true;
         }
     }
 
@@ -452,10 +452,10 @@ fn test_resume_clears_pause() {
         if r.command == "/resume" {
             last_was_resume = true;
         } else if r.command == "/status" && last_was_resume {
-            if let ActionResult::SystemCommand { response } = &r.result {
-                if !response.contains("paused") {
-                    found_unpaused = true;
-                }
+            if let ActionResult::SystemCommand { response } = &r.result
+                && !response.contains("paused")
+            {
+                found_unpaused = true;
             }
             last_was_resume = false;
         } else {
