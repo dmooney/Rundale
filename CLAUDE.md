@@ -16,6 +16,34 @@
 
 Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/game-test` for harness testing. Hooks handle formatting, compile checks, and quality gates automatically.
 
+## Web Server Mode (for Browser Testing)
+
+Run the Svelte frontend in a standard browser (no Tauri required):
+
+```sh
+# Build the frontend first
+cd ui && npm run build && cd ..
+
+# Start the web server on port 3001 (default)
+cargo run -- --web
+# Or specify a custom port
+cargo run -- --web 8080
+```
+
+Then open `http://localhost:3001` in Chrome. The web server provides the same
+game experience as the Tauri desktop app using HTTP + WebSocket instead of IPC.
+
+### E2E Testing with Playwright
+
+```sh
+cd ui
+npx playwright install chromium   # first time only
+npx playwright test               # runs smoke tests in headless Chrome
+npx playwright test --headed      # runs with visible browser
+```
+
+Playwright auto-starts the axum server via `cargo run -- --web 3099`.
+
 ## Engineering Standards
 
 - All new code must have accompanying unit tests. No `#[allow]` without a justifying comment.
@@ -26,7 +54,7 @@ Use `/check` for quality gates, `/verify` for the full pre-push checklist, or `/
 
 See [docs/design/overview.md](docs/design/overview.md) for full architecture. See [docs/index.md](docs/index.md) for all documentation.
 
-This is a **Cargo workspace** with three members:
+This is a **Cargo workspace** with four members:
 
 ```
 Parish/
@@ -45,6 +73,9 @@ Parish/
 │       ├── debug_snapshot.rs # DebugSnapshot struct + builder (debug data for GUI)
 │       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts, pronunciations)
 │       ├── loading.rs   #   LoadingAnimation (configurable from mod or defaults)
+│       ├── ipc/         #   Shared IPC types + handler functions (used by Tauri + web)
+│       │   ├── types.rs #     WorldSnapshot, MapData, NpcInfo, ThemePalette, payloads
+│       │   └── handlers.rs #  snapshot_from_world, build_map_data, build_theme, etc.
 │       ├── input/       #   Player input parsing, command detection
 │       ├── world/       #   World state, location graph, time, movement, encounters
 │       │   ├── graph.rs #     WorldGraph, BFS pathfinding, fuzzy name search
@@ -57,6 +88,13 @@ Parish/
 │       │   └── anachronism.rs # Anachronism detection (hardcoded + mod-driven)
 │       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
 │       └── persistence/ #   SQLite save/load, WAL journal, save picker
+├── crates/parish-server/ # Axum web server for browser testing (no Tauri dependency)
+│   └── src/
+│       ├── lib.rs       #   run_server(), background ticks, client init
+│       ├── state.rs     #   AppState, EventBus, GameConfig
+│       ├── routes.rs    #   HTTP route handlers (REST API)
+│       ├── ws.rs        #   WebSocket event relay
+│       └── streaming.rs #   NPC token streaming via EventBus
 ├── mods/                # Game data packages (Factorio-style engine/mod separation)
 │   └── kilteevan-1820/  # Default mod: 1820 rural Ireland
 │       ├── mod.toml     #   Manifest (start_date, start_location, period_year)
@@ -183,6 +221,7 @@ Custom slash commands defined in `.claude/skills/`:
 | `/verify` | Full pre-push checklist (quality gate + harness) |
 | `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
 | `/fix-issue <N>` | End-to-end GitHub issue workflow |
+| `/chrome-test` | Live Chrome browser testing session via Claude-in-Chrome MCP |
 
 ## Claude Code Hooks
 

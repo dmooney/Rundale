@@ -27,7 +27,7 @@
 	}
 </script>
 
-<div class="chat-panel" bind:this={logEl}>
+<div class="chat-panel" data-testid="chat-panel" bind:this={logEl}>
 	{#each $textLog as entry (entry)}
 		{#if entryType(entry) === 'system'}
 			<div class="entry system">

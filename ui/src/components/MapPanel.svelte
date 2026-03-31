@@ -71,7 +71,7 @@
 	}
 </script>
 
-<div class="map-panel">
+<div class="map-panel" data-testid="map-panel">
 	<div class="map-title">Parish Map</div>
 	{#if $mapData}
 		<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish map">
