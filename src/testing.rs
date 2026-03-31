@@ -737,7 +737,152 @@ impl GameTestHarness {
                 ActionResult::SystemCommand { response: msg }
             }
             Command::Map => {
-                let msg = "Map overlay is only available in the GUI.".to_string();
+                let player_loc = self.app.world.player_location;
+                let mut lines = vec!["=== Parish Map ===".to_string()];
+                for node_id in self.app.world.graph.location_ids() {
+                    if let Some(data) = self.app.world.graph.get(node_id) {
+                        let marker = if node_id == player_loc { " * " } else { "   " };
+                        lines.push(format!("{}{}", marker, data.name));
+                    }
+                }
+                lines.push(String::new());
+                lines.push("Connections:".to_string());
+                for node_id in self.app.world.graph.location_ids() {
+                    if let Some(data) = self.app.world.graph.get(node_id) {
+                        for (neighbor_id, _) in self.app.world.graph.neighbors(node_id) {
+                            if node_id.0 < neighbor_id.0 {
+                                let neighbor_name = self
+                                    .app
+                                    .world
+                                    .graph
+                                    .get(neighbor_id)
+                                    .map(|d| d.name.as_str())
+                                    .unwrap_or("???");
+                                lines.push(format!("  {} — {}", data.name, neighbor_name));
+                            }
+                        }
+                    }
+                }
+                let msg = lines.join("\n");
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::NpcsHere => {
+                let npcs = self.app.npc_manager.npcs_at(self.app.world.player_location);
+                let msg = if npcs.is_empty() {
+                    "No one else is here.".to_string()
+                } else {
+                    let mut lines = vec!["NPCs here:".to_string()];
+                    for npc in &npcs {
+                        let display = self.app.npc_manager.display_name(npc);
+                        let intro = if self.app.npc_manager.is_introduced(npc.id) {
+                            " [introduced]"
+                        } else {
+                            ""
+                        };
+                        lines.push(format!(
+                            "  {} — {} ({}){}",
+                            display, npc.occupation, npc.mood, intro
+                        ));
+                    }
+                    lines.join("\n")
+                };
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::Time => {
+                use chrono::Timelike;
+                let now = self.app.world.clock.now();
+                let hour = now.hour();
+                let minute = now.minute();
+                let tod = self.app.world.clock.time_of_day();
+                let season = self.app.world.clock.season();
+                let festival = self
+                    .app
+                    .world
+                    .clock
+                    .check_festival()
+                    .map(|f| f.to_string())
+                    .unwrap_or_else(|| "none".to_string());
+                let paused = if self.app.world.clock.is_paused() {
+                    " (PAUSED)"
+                } else {
+                    ""
+                };
+                let lines = [
+                    format!("{:02}:{:02} {} — {}{}", hour, minute, tod, season, paused),
+                    format!("Weather: {}", self.app.world.weather),
+                    format!("Speed: {}x", self.app.world.clock.speed_factor()),
+                    format!("Festival: {}", festival),
+                ];
+                let msg = lines.join("\n");
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::Wait(minutes) => {
+                use chrono::Timelike;
+                self.advance_time(minutes as i64);
+                let now = self.app.world.clock.now();
+                let tod = self.app.world.clock.time_of_day();
+                let msg = format!(
+                    "Waited {} minutes. Now {:02}:{:02} {}.",
+                    minutes,
+                    now.hour(),
+                    now.minute(),
+                    tod
+                );
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::NewGame => {
+                // Re-initialize from GameTestHarness::new() logic
+                let game_mod = parish_core::game_mod::find_default_mod()
+                    .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
+
+                if let Some(ref gm) = game_mod
+                    && let Ok(world) = crate::world::WorldState::from_mod(gm)
+                {
+                    self.app.world = world;
+                } else {
+                    let parish_path = Path::new("data/parish.json");
+                    if parish_path.exists()
+                        && let Ok(world) =
+                            crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
+                    {
+                        self.app.world = world;
+                    }
+                }
+
+                let npcs_path = if let Some(ref gm) = game_mod {
+                    gm.npcs_path()
+                } else {
+                    std::path::PathBuf::from("data/npcs.json")
+                };
+                if npcs_path.exists()
+                    && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
+                {
+                    self.app.npc_manager = mgr;
+                }
+                self.app.game_mod = game_mod;
+                self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+
+                let msg = "New game started.".to_string();
+                self.app.world.log(msg.clone());
+                ActionResult::SystemCommand { response: msg }
+            }
+            Command::Tick => {
+                self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+                let events = self
+                    .app
+                    .npc_manager
+                    .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+                let count = events.len();
+                self.process_schedule_events(&events);
+                let msg = if count == 0 {
+                    "No NPC activity.".to_string()
+                } else {
+                    format!("{} schedule event(s) processed.", count)
+                };
                 self.app.world.log(msg.clone());
                 ActionResult::SystemCommand { response: msg }
             }

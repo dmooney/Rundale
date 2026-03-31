@@ -19,6 +19,7 @@ use crate::npc::{
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
+use chrono::Timelike;
 use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -390,6 +391,13 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 "  /speed    - Show or change game speed (slow/normal/fast/fastest/ludicrous)"
             );
             println!("  /status   - Where am I?");
+            println!("  /where    - Alias for /status");
+            println!("  /map      - Show the parish map");
+            println!("  /npcs     - Who's here?");
+            println!("  /time     - Detailed time and weather");
+            println!("  /wait [n] - Wait in place (default 15 minutes)");
+            println!("  /tick     - Advance NPC schedules");
+            println!("  /new      - Start a fresh game");
             println!("  /irish    - Toggle Irish words sidebar (TUI only)");
             println!("  /improv   - Toggle improv craft for NPC dialogue");
             println!("  /provider - Show or change base LLM provider");
@@ -803,7 +811,152 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("Showing spinner for {} seconds (GUI only).", secs);
         }
         Command::Map => {
-            println!("The map overlay is only available in the GUI (Tauri) mode.");
+            println!("=== Parish Map ===");
+            let player_loc = app.world.player_location;
+            for node_id in app.world.graph.location_ids() {
+                if let Some(data) = app.world.graph.get(node_id) {
+                    let marker = if node_id == player_loc { " * " } else { "   " };
+                    println!("{}{}", marker, data.name);
+                }
+            }
+            println!();
+            println!("Connections:");
+            for node_id in app.world.graph.location_ids() {
+                if let Some(data) = app.world.graph.get(node_id) {
+                    for (neighbor_id, _) in app.world.graph.neighbors(node_id) {
+                        // Print each edge once (only when from < to)
+                        if node_id.0 < neighbor_id.0 {
+                            let neighbor_name = app
+                                .world
+                                .graph
+                                .get(neighbor_id)
+                                .map(|d| d.name.as_str())
+                                .unwrap_or("???");
+                            println!("  {} — {}", data.name, neighbor_name);
+                        }
+                    }
+                }
+            }
+        }
+        Command::NpcsHere => {
+            let npcs = app.npc_manager.npcs_at(app.world.player_location);
+            if npcs.is_empty() {
+                println!("No one else is here.");
+            } else {
+                println!("NPCs here:");
+                for npc in &npcs {
+                    let display = app.npc_manager.display_name(npc);
+                    let intro = if app.npc_manager.is_introduced(npc.id) {
+                        " [introduced]"
+                    } else {
+                        ""
+                    };
+                    println!("  {} — {} ({}){}", display, npc.occupation, npc.mood, intro);
+                }
+            }
+        }
+        Command::Time => {
+            let now = app.world.clock.now();
+            let hour = now.hour();
+            let minute = now.minute();
+            let tod = app.world.clock.time_of_day();
+            let season = app.world.clock.season();
+            let festival = app
+                .world
+                .clock
+                .check_festival()
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "none".to_string());
+            let paused = if app.world.clock.is_paused() {
+                " (PAUSED)"
+            } else {
+                ""
+            };
+            println!("{:02}:{:02} {} — {}{}", hour, minute, tod, season, paused);
+            println!("Weather: {}", app.world.weather);
+            println!("Speed: {}x", app.world.clock.speed_factor());
+            println!("Festival: {}", festival);
+        }
+        Command::Wait(minutes) => {
+            println!("You wait for {} minutes...", minutes);
+            app.world.clock.advance(minutes as i64);
+            app.npc_manager.assign_tiers(&app.world, &[]);
+            let schedule_events = app
+                .npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph);
+            process_headless_schedule_events(app, &schedule_events);
+            let now = app.world.clock.now();
+            let tod = app.world.clock.time_of_day();
+            println!("It is now {:02}:{:02} {}.", now.hour(), now.minute(), tod);
+        }
+        Command::NewGame => {
+            // Re-initialize world from mod or data files
+            if let Some(ref gm) = app.game_mod {
+                match crate::world::WorldState::from_mod(gm) {
+                    Ok(world) => app.world = world,
+                    Err(e) => {
+                        eprintln!("Failed to reset world: {}", e);
+                        return (false, false);
+                    }
+                }
+            } else {
+                let parish_path = Path::new("data/parish.json");
+                if parish_path.exists() {
+                    match crate::world::WorldState::from_parish_file(
+                        parish_path,
+                        crate::world::LocationId(15),
+                    ) {
+                        Ok(world) => app.world = world,
+                        Err(e) => {
+                            eprintln!("Failed to reset world: {}", e);
+                            return (false, false);
+                        }
+                    }
+                }
+            }
+            // Re-initialize NPCs
+            let npcs_path = if let Some(ref gm) = app.game_mod {
+                gm.npcs_path()
+            } else {
+                std::path::PathBuf::from("data/npcs.json")
+            };
+            if npcs_path.exists() {
+                match NpcManager::load_from_file(&npcs_path) {
+                    Ok(mgr) => app.npc_manager = mgr,
+                    Err(e) => eprintln!("Warning: Failed to reload NPCs: {}", e),
+                }
+            }
+            app.npc_manager.assign_tiers(&app.world, &[]);
+
+            // Reset persistence
+            if let Some(ref db) = app.db
+                && let Ok(branch_id) = db.create_branch("main", None).await
+            {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                if let Ok(snap_id) = db.save_snapshot(branch_id, &snapshot).await {
+                    app.active_branch_id = branch_id;
+                    app.latest_snapshot_id = snap_id;
+                    app.last_autosave = Some(std::time::Instant::now());
+                }
+            }
+
+            println!("A new day dawns in the parish.");
+            println!();
+            print_location_arrival(app);
+        }
+        Command::Tick => {
+            app.npc_manager.assign_tiers(&app.world, &[]);
+            let schedule_events = app
+                .npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph);
+            let count = schedule_events.len();
+            process_headless_schedule_events(app, &schedule_events);
+            if count == 0 {
+                println!("No NPC activity.");
+            } else {
+                println!("{} schedule event(s) processed.", count);
+            }
         }
     }
     (false, rebuild)
