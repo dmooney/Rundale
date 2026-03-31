@@ -43,9 +43,18 @@ static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 /// Builds a [`WorldSnapshot`] from a locked world state reference.
 ///
 /// Used both by the `get_world_snapshot` command and by the background
-/// idle-tick task in `lib.rs`.
-pub fn get_world_snapshot_inner(world: &parish_core::world::WorldState) -> WorldSnapshot {
-    snapshot_from_world(world)
+/// idle-tick task in `lib.rs`. Includes name pronunciation hints when
+/// NPC manager and pronunciation data are provided.
+pub fn get_world_snapshot_inner(
+    world: &parish_core::world::WorldState,
+    npc_manager: Option<&parish_core::npc::manager::NpcManager>,
+    pronunciations: &[parish_core::game_mod::PronunciationEntry],
+) -> WorldSnapshot {
+    let mut snapshot = snapshot_from_world(world);
+    if let Some(npc_mgr) = npc_manager {
+        snapshot.name_hints = compute_name_hints(world, npc_mgr, pronunciations);
+    }
+    snapshot
 }
 
 fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot {
@@ -82,7 +91,47 @@ fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot 
         paused: world.clock.is_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
+        name_hints: vec![],
     }
+}
+
+/// Computes contextual name pronunciation hints for the current location.
+///
+/// Matches pronunciation entries against the current location name and
+/// any NPC names present at the player's location.
+fn compute_name_hints(
+    world: &parish_core::world::WorldState,
+    npc_manager: &parish_core::npc::manager::NpcManager,
+    pronunciations: &[parish_core::game_mod::PronunciationEntry],
+) -> Vec<parish_core::npc::LanguageHint> {
+    if pronunciations.is_empty() {
+        tracing::debug!("compute_name_hints: no pronunciation entries loaded");
+        return vec![];
+    }
+    let loc = world.current_location();
+    let mut names: Vec<&str> = vec![&loc.name];
+    let npcs = npc_manager.npcs_at(world.player_location);
+    let npc_names: Vec<String> = npcs
+        .iter()
+        .filter(|n| npc_manager.is_introduced(n.id))
+        .map(|n| n.name.clone())
+        .collect();
+    for name in &npc_names {
+        names.push(name);
+    }
+    let hints: Vec<parish_core::npc::LanguageHint> = pronunciations
+        .iter()
+        .filter(|entry| entry.matches_any(&names))
+        .map(|entry| entry.to_hint())
+        .collect();
+    tracing::debug!(
+        location = %loc.name,
+        npc_names = ?npc_names,
+        pronunciation_count = pronunciations.len(),
+        matched_hints = hints.len(),
+        "compute_name_hints"
+    );
+    hints
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────
@@ -93,7 +142,10 @@ pub async fn get_world_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<WorldSnapshot, String> {
     let world = state.world.lock().await;
-    Ok(snapshot_from_world(&world))
+    let npc_manager = state.npc_manager.lock().await;
+    let mut snapshot = snapshot_from_world(&world);
+    snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    Ok(snapshot)
 }
 
 /// Returns the map data: all locations with coordinates, edges, and player position.
@@ -617,8 +669,13 @@ async fn handle_system_command(
     );
 
     // Emit updated world state for status bar
-    let world = state.world.lock().await;
-    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot_from_world(&world));
+    {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = snapshot_from_world(&world);
+        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+    }
 }
 
 /// Handles free-form game input: parses intent then dispatches.
@@ -722,8 +779,14 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             handle_look(state, app).await;
 
             // Emit updated world snapshot
-            let world = state.world.lock().await;
-            let _ = app.emit(EVENT_WORLD_UPDATE, snapshot_from_world(&world));
+            {
+                let world = state.world.lock().await;
+                let npc_manager = state.npc_manager.lock().await;
+                let mut snapshot = snapshot_from_world(&world);
+                snapshot.name_hints =
+                    compute_name_hints(&world, &npc_manager, &state.pronunciations);
+                let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+            }
         }
         MovementResult::AlreadyHere => {
             let _ = app.emit(
@@ -1125,10 +1188,10 @@ pub async fn load_branch(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
 
+    // Emit updated state to frontend (compute name hints before dropping locks)
+    let mut ws = snapshot_from_world(&world);
+    ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
     drop(npc_manager);
-
-    // Emit updated state to frontend
-    let ws = snapshot_from_world(&world);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
     let _ = app.emit(
         EVENT_TEXT_LOG,
@@ -1280,7 +1343,8 @@ pub async fn new_game(
         .map_err(|e| e.to_string())?;
 
     // Emit updated state
-    let ws = snapshot_from_world(&world);
+    let mut ws = snapshot_from_world(&world);
+    ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
     let _ = app.emit(
         EVENT_TEXT_LOG,

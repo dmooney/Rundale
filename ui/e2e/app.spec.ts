@@ -48,6 +48,13 @@ test.describe('App layout', () => {
 		await expect(input).toBeVisible();
 		await expect(input).toBeEnabled();
 	});
+
+	test('sidebar shows name pronunciation hints from world snapshot', async ({ page }) => {
+		// Verify pronunciation hints appear in the Focail panel
+		await expect(page.getByText('[EE-fa]')).toBeVisible();
+		await expect(page.getByText('— beauty, radiance')).toBeVisible();
+		await expect(page.getByText('[BAHL-ya AH-ha KLEE-ah]')).toBeVisible();
+	});
 });
 
 test.describe('Theme application', () => {

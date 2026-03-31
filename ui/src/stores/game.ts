@@ -22,7 +22,10 @@ export const loadingColor = writable<[number, number, number]>([72, 199, 142]);
 
 export const languageHints = writable<LanguageHint[]>([]);
 
+export const nameHints = writable<LanguageHint[]>([]);
+
 export const uiConfig = writable<UiConfig>({
 	hints_label: 'Language Hints',
-	default_accent: '#c4a35a'
+	default_accent: '#c4a35a',
+	splash_text: ''
 });

@@ -25,7 +25,8 @@ const snapshot: WorldSnapshot = {
 	festival: null,
 	paused: false,
 	game_epoch_ms: morningEpoch(),
-	speed_factor: 0
+	speed_factor: 0,
+	name_hints: []
 };
 
 describe('StatusBar', () => {

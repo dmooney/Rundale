@@ -1,0 +1,46 @@
+{
+    "names": [
+        {
+            "word": "Pádraig",
+            "pronunciation": "PAW-rick",
+            "meaning": "Irish form of Patrick",
+            "matches": ["Padraig"]
+        },
+        {
+            "word": "Siobhán",
+            "pronunciation": "shiv-AWN",
+            "meaning": "Irish form of Joan",
+            "matches": ["Siobhan"]
+        },
+        {
+            "word": "Róisín",
+            "pronunciation": "ro-SHEEN",
+            "meaning": "little rose",
+            "matches": ["Roisin"]
+        },
+        {
+            "word": "Aoife",
+            "pronunciation": "EE-fa",
+            "meaning": "beauty, radiance",
+            "matches": ["Aoife"]
+        },
+        {
+            "word": "Niamh",
+            "pronunciation": "NEEV",
+            "meaning": "brightness, radiance",
+            "matches": ["Niamh"]
+        },
+        {
+            "word": "Kilteevan",
+            "pronunciation": "kill-TEE-van",
+            "meaning": "Cill Tíobáin — church of St. Tíobán",
+            "matches": ["Kilteevan"]
+        },
+        {
+            "word": "Lough Ree",
+            "pronunciation": "lock REE",
+            "meaning": "Loch Rí — lake of kings",
+            "matches": ["Lough Ree"]
+        }
+    ]
+}

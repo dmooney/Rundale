@@ -19,6 +19,7 @@ festivals = "festivals.json"
 encounters = "encounters.json"
 loading = "loading.toml"
 ui = "ui.toml"
+pronunciations = "pronunciations.json"
 
 [prompts]
 tier1_system = "prompts/tier1_system.txt"

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { npcsHere, languageHints, uiConfig } from '../stores/game';
+	import { npcsHere, languageHints, nameHints, uiConfig } from '../stores/game';
 	import MoodIcon from './MoodIcon.svelte';
 </script>
 
@@ -27,8 +27,17 @@
 
 	<details open>
 		<summary>{$uiConfig.hints_label}</summary>
-		{#if $languageHints.length > 0}
+		{#if $nameHints.length > 0 || $languageHints.length > 0}
 			<ul class="hint-list">
+				{#each $nameHints as hint}
+					<li class="hint-item name-hint">
+						<span class="word">{hint.word}</span>
+						<span class="pronunciation">[{hint.pronunciation}]</span>
+						{#if hint.meaning}
+							<span class="meaning">— {hint.meaning}</span>
+						{/if}
+					</li>
+				{/each}
 				{#each $languageHints as hint}
 					<li class="hint-item">
 						<span class="word">{hint.word}</span>
@@ -156,6 +165,10 @@
 	.meaning {
 		color: var(--color-fg);
 		font-size: 0.75rem;
+	}
+
+	.name-hint .word {
+		font-style: normal;
 	}
 
 	.empty {

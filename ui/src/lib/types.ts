@@ -12,6 +12,7 @@ export interface WorldSnapshot {
 	paused: boolean;
 	game_epoch_ms: number;
 	speed_factor: number;
+	name_hints: LanguageHint[];
 }
 
 export interface MapLocation {

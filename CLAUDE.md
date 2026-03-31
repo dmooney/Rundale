@@ -43,7 +43,7 @@ Parish/
 │       ├── error.rs     #   ParishError (thiserror)
 │       ├── config.rs    #   Provider configuration (TOML + env + CLI)
 │       ├── debug_snapshot.rs # DebugSnapshot struct + builder (debug data for GUI)
-│       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts)
+│       ├── game_mod.rs  #   GameMod loader (mod.toml manifest, data files, prompts, pronunciations)
 │       ├── loading.rs   #   LoadingAnimation (configurable from mod or defaults)
 │       ├── input/       #   Player input parsing, command detection
 │       ├── world/       #   World state, location graph, time, movement, encounters
@@ -67,7 +67,8 @@ Parish/
 │       ├── festivals.json    # Calendar events
 │       ├── encounters.json   # Encounter text by time-of-day
 │       ├── loading.toml      # Spinner frames, phrases, colours
-│       └── ui.toml           # Sidebar labels, accent colour
+│       ├── ui.toml           # Sidebar labels, accent colour
+│       └── pronunciations.json # Name pronunciation hints (Irish names → phonetic guides)
 ├── src-tauri/           # Tauri 2 desktop backend (Rust)
 │   └── src/
 │       ├── lib.rs       #   AppState, IPC types, Tauri run() entry point
@@ -198,7 +199,7 @@ Automated hooks configured in `.claude/settings.json` that run at lifecycle even
 | `doc-staleness.sh` | Stop | When Claude finishes responding | Warns if `.rs` files changed but no docs were updated |
 | `screenshot-reminder.sh` | Stop | When Claude finishes responding | Reminds to regenerate screenshots if `ui/` or `src-tauri/` changed |
 | `coverage-reminder.sh` | Stop | When Claude finishes responding | Reminds to check coverage when new `.rs` files are added |
-| `design-doc-reminder.sh` | Stop | When Claude finishes responding | Reminds to update `docs/design/` when new public structs/functions/modules are added |
+| `design-doc-reminder.sh` | Stop | When Claude finishes responding | **Blocks** (exit 2) if non-trivial code changes (>5 added lines across `.rs`/`.ts`/`.svelte`/`.json`/`.toml`) are made without updating `docs/design/` or `CLAUDE.md` |
 | `compact-context.sh` | SessionStart | After context compaction | Re-injects key project context |
 | `commit-msg-check.sh` | UserPromptSubmit | When user submits a prompt mentioning "commit" | Validates conventional commit message format |
 | `notify.sh` | Notification | When Claude needs attention | Sends desktop notification via `notify-send` |

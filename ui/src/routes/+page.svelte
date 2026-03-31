@@ -9,7 +9,7 @@
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, uiConfig } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig } from '../stores/game';
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
@@ -61,6 +61,7 @@
 			mapData.set(map);
 			npcsHere.set(npcs);
 			palette.apply(theme);
+			if (snap.name_hints) nameHints.set(snap.name_hints);
 			// Show initial location description in the chat panel
 			if (snap.location_description) {
 				textLog.update((log) => [
@@ -94,6 +95,7 @@
 		const unlisten = await Promise.all([
 			onWorldUpdate(async (snap) => {
 				worldState.set(snap);
+				if (snap.name_hints) nameHints.set(snap.name_hints);
 				try {
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
 					mapData.set(map);

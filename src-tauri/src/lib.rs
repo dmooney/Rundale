@@ -14,6 +14,7 @@ use tauri::Emitter;
 use tokio::sync::Mutex;
 
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
+use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{
     InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
@@ -49,6 +50,8 @@ pub struct WorldSnapshot {
     pub game_epoch_ms: f64,
     /// Clock speed multiplier (1 real second = speed_factor game seconds).
     pub speed_factor: f64,
+    /// Pronunciation hints for Irish names relevant to the current location.
+    pub name_hints: Vec<parish_core::npc::LanguageHint>,
 }
 
 /// A location node in the map data.
@@ -224,6 +227,8 @@ pub struct AppState {
     pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
+    /// Name pronunciation entries from the loaded game mod.
+    pub pronunciations: Vec<PronunciationEntry>,
     /// Path to the currently active save database file (None if unsaved).
     pub save_path: Mutex<Option<PathBuf>>,
     /// Branch id within the current save file.
@@ -451,6 +456,12 @@ pub fn run() {
         }
     };
 
+    // Extract pronunciation data from the game mod
+    let pronunciations = game_mod
+        .as_ref()
+        .map(|gm| gm.pronunciations.clone())
+        .unwrap_or_default();
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -462,6 +473,7 @@ pub fn run() {
         )),
         inference_log: new_inference_log(),
         ui_config,
+        pronunciations,
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
@@ -719,7 +731,12 @@ pub fn run() {
                         tokio::time::sleep(Duration::from_secs(5)).await;
                         {
                             let world = state_tick.world.lock().await;
-                            let snapshot = crate::commands::get_world_snapshot_inner(&world);
+                            let npc_mgr = state_tick.npc_manager.lock().await;
+                            let snapshot = crate::commands::get_world_snapshot_inner(
+                                &world,
+                                Some(&npc_mgr),
+                                &state_tick.pronunciations,
+                            );
                             let _ = handle_tick.emit(events::EVENT_WORLD_UPDATE, snapshot);
                         }
                         {

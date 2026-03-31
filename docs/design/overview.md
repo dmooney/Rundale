@@ -68,7 +68,8 @@ mods/kilteevan-1820/
 ├── festivals.json        # Calendar events (Imbolc, Bealtaine, Lughnasa, Samhain)
 ├── encounters.json       # Encounter flavour text keyed by time-of-day
 ├── loading.toml          # Loading spinner frames, phrases, colours
-└── ui.toml               # UI customisation: sidebar labels, accent colour
+├── ui.toml               # UI customisation: sidebar labels, accent colour
+└── pronunciations.json   # Name pronunciation hints (optional)
 ```
 
 The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected from `mods/kilteevan-1820/`) and passes it through the application:
@@ -80,6 +81,7 @@ The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected
 - `check_input_from_mod_data()` — loaded anachronism dictionary
 - `interpolate_template()` — `{placeholder}` interpolation for prompt templates
 - `get_ui_config` IPC command — sidebar labels and theme from mod
+- `name_hints_for()` — contextual name pronunciation hints matched against NPCs and locations
 
 See [Engine / Game Data Separation Plan](../plans/engine-game-data-separation.md) for the full design.
 

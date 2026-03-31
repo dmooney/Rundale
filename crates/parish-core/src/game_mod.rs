@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::error::ParishError;
+use crate::npc::LanguageHint;
 
 // ---------------------------------------------------------------------------
 // Manifest types (parsed from mod.toml)
@@ -74,6 +75,9 @@ pub struct FileRefs {
     pub loading: String,
     /// UI configuration TOML file.
     pub ui: String,
+    /// Pronunciation hints JSON file (optional for backward compatibility).
+    #[serde(default)]
+    pub pronunciations: Option<String>,
 }
 
 /// Relative paths to prompt template text files.
@@ -107,8 +111,15 @@ pub struct PromptTemplates {
 pub struct AnachronismEntry {
     /// The anachronistic term or phrase.
     pub term: String,
-    /// Explanation of why the term is anachronistic.
-    pub reason: String,
+    /// Category of anachronism (e.g. "technology", "slang").
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Earliest year this concept existed.
+    #[serde(default)]
+    pub origin_year: Option<u32>,
+    /// Brief note explaining why the term is anachronistic.
+    #[serde(default, alias = "reason")]
+    pub note: String,
 }
 
 /// Anachronism detection data loaded from JSON.
@@ -139,6 +150,7 @@ pub struct FestivalDef {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EncounterTable {
     /// Encounter flavour text keyed by time-of-day (e.g. "morning", "night").
+    #[serde(flatten)]
     pub by_time: HashMap<String, String>,
 }
 
@@ -204,6 +216,60 @@ impl Default for ThemeConfig {
     }
 }
 
+/// A single pronunciation entry from the mod's `pronunciations.json`.
+///
+/// Extends [`LanguageHint`] with a list of match strings used to associate
+/// the pronunciation with NPC or location names (case-insensitive).
+#[derive(Debug, Clone, Deserialize)]
+pub struct PronunciationEntry {
+    /// The word displayed in the sidebar (may include fada/diacritics).
+    pub word: String,
+    /// Phonetic pronunciation guide.
+    pub pronunciation: String,
+    /// English meaning or gloss.
+    #[serde(default)]
+    pub meaning: Option<String>,
+    /// Strings to match against NPC/location names (case-insensitive substring).
+    #[serde(default)]
+    pub matches: Vec<String>,
+}
+
+impl PronunciationEntry {
+    /// Convert to a [`LanguageHint`] for frontend display.
+    pub fn to_hint(&self) -> LanguageHint {
+        LanguageHint {
+            word: self.word.clone(),
+            pronunciation: self.pronunciation.clone(),
+            meaning: self.meaning.clone(),
+        }
+    }
+
+    /// Check whether this entry matches any of the given names.
+    pub fn matches_any(&self, names: &[&str]) -> bool {
+        for name in names {
+            let name_lower = name.to_lowercase();
+            // Check the match strings first
+            for m in &self.matches {
+                if name_lower.contains(&m.to_lowercase()) {
+                    return true;
+                }
+            }
+            // Fall back to matching the word itself
+            if name_lower.contains(&self.word.to_lowercase()) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// Pronunciation data loaded from the mod's `pronunciations.json`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PronunciationData {
+    /// Name pronunciation entries.
+    pub names: Vec<PronunciationEntry>,
+}
+
 // ---------------------------------------------------------------------------
 // GameMod
 // ---------------------------------------------------------------------------
@@ -231,6 +297,8 @@ pub struct GameMod {
     pub loading: LoadingConfig,
     /// UI configuration.
     pub ui: UiConfig,
+    /// Name pronunciation entries loaded from `pronunciations.json`.
+    pub pronunciations: Vec<PronunciationEntry>,
 }
 
 impl GameMod {
@@ -307,6 +375,16 @@ impl GameMod {
             ParishError::Config(format!("failed to parse {}: {e}", manifest.files.ui))
         })?;
 
+        // -- optional pronunciation data ------------------------------------
+        let pronunciations = if let Some(ref pron_path) = manifest.files.pronunciations {
+            let pron_json = read_text(pron_path)?;
+            let data: PronunciationData = serde_json::from_str(&pron_json)
+                .map_err(|e| ParishError::Config(format!("failed to parse {}: {e}", pron_path)))?;
+            data.names
+        } else {
+            vec![]
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -316,6 +394,7 @@ impl GameMod {
             encounters,
             loading,
             ui,
+            pronunciations,
         })
     }
 
@@ -347,6 +426,19 @@ impl GameMod {
     /// Look up encounter flavour text for a given time of day.
     pub fn encounter_text(&self, time_of_day: &str) -> Option<&str> {
         self.encounters.by_time.get(time_of_day).map(|s| s.as_str())
+    }
+
+    /// Returns pronunciation hints for names matching the given context strings.
+    ///
+    /// Typically called with the current location name and NPC names at
+    /// the player's location. Returns a deduplicated list of [`LanguageHint`]
+    /// values suitable for sidebar display.
+    pub fn name_hints_for(&self, names: &[&str]) -> Vec<LanguageHint> {
+        self.pronunciations
+            .iter()
+            .filter(|entry| entry.matches_any(names))
+            .map(|entry| entry.to_hint())
+            .collect()
     }
 
     /// Check whether a festival falls on the given month and day.
@@ -450,7 +542,7 @@ mod tests {
         // encounters.json
         fs::write(
             root.join("encounters.json"),
-            r#"{"by_time": {"morning": "A farmer waves.", "night": "An owl hoots."}}"#,
+            r#"{"morning": "A farmer waves.", "night": "An owl hoots."}"#,
         )
         .unwrap();
 
@@ -523,6 +615,8 @@ tier2_system = "prompts/tier2_system.txt"
         assert_eq!(gm.anachronisms.terms.len(), 1);
         assert_eq!(gm.festivals.len(), 2);
         assert_eq!(gm.loading.spinner_frames.len(), 4);
+        // No pronunciations file referenced → empty vec
+        assert!(gm.pronunciations.is_empty());
     }
 
     #[test]
@@ -615,10 +709,22 @@ default_accent = "#ff0000"
 
     #[test]
     fn test_anachronism_entry_deserialize() {
+        // JSON with the current format (note, category, origin_year)
+        let json = r#"{"term":"telephone","category":"technology","origin_year":1876,"note":"invented by Bell in 1876"}"#;
+        let e: AnachronismEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(e.term, "telephone");
+        assert_eq!(e.note, "invented by Bell in 1876");
+        assert_eq!(e.category.as_deref(), Some("technology"));
+        assert_eq!(e.origin_year, Some(1876));
+    }
+
+    #[test]
+    fn test_anachronism_entry_deserialize_legacy_reason() {
+        // Backward compatible: accepts "reason" alias for "note"
         let json = r#"{"term":"telephone","reason":"invented 1876"}"#;
         let e: AnachronismEntry = serde_json::from_str(json).unwrap();
         assert_eq!(e.term, "telephone");
-        assert_eq!(e.reason, "invented 1876");
+        assert_eq!(e.note, "invented 1876");
     }
 
     #[test]
@@ -648,6 +754,125 @@ default_accent = "#ff0000"
         assert_eq!(result, "");
     }
 
+    // -- Pronunciation tests --------------------------------------------------
+
+    /// Build a test mod that includes a pronunciations.json file.
+    fn create_test_mod_with_pronunciations() -> TempDir {
+        let tmp = create_test_mod();
+        let root = tmp.path();
+
+        fs::write(
+            root.join("pronunciations.json"),
+            r#"{
+                "names": [
+                    {"word": "Niamh", "pronunciation": "NEEV", "meaning": "brightness", "matches": ["Niamh"]},
+                    {"word": "Siobhán", "pronunciation": "shiv-AWN", "meaning": "Irish form of Joan", "matches": ["Siobhan"]},
+                    {"word": "Kilteevan", "pronunciation": "kill-TEE-van", "meaning": "church of St. Tíobán", "matches": ["Kilteevan"]}
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        // Rewrite mod.toml to include pronunciations
+        fs::write(
+            root.join("mod.toml"),
+            r#"
+[mod]
+name = "Test Mod"
+id = "test-mod"
+version = "0.1.0"
+description = "A test mod."
+
+[setting]
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+
+[files]
+world = "world.json"
+npcs = "npcs.json"
+anachronisms = "anachronisms.json"
+festivals = "festivals.json"
+encounters = "encounters.json"
+loading = "loading.toml"
+ui = "ui.toml"
+pronunciations = "pronunciations.json"
+
+[prompts]
+tier1_system = "prompts/tier1_system.txt"
+tier1_context = "prompts/tier1_context.txt"
+tier2_system = "prompts/tier2_system.txt"
+"#,
+        )
+        .unwrap();
+
+        tmp
+    }
+
+    #[test]
+    fn test_load_mod_with_pronunciations() {
+        let tmp = create_test_mod_with_pronunciations();
+        let gm = GameMod::load(tmp.path()).expect("should load mod with pronunciations");
+        assert_eq!(gm.pronunciations.len(), 3);
+        assert_eq!(gm.pronunciations[0].word, "Niamh");
+        assert_eq!(gm.pronunciations[0].pronunciation, "NEEV");
+    }
+
+    #[test]
+    fn test_name_hints_for_matching() {
+        let tmp = create_test_mod_with_pronunciations();
+        let gm = GameMod::load(tmp.path()).unwrap();
+
+        // Match NPC name containing "Niamh"
+        let hints = gm.name_hints_for(&["Niamh Darcy"]);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].word, "Niamh");
+        assert_eq!(hints[0].pronunciation, "NEEV");
+
+        // Match location name
+        let hints = gm.name_hints_for(&["Kilteevan Village"]);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].word, "Kilteevan");
+
+        // Multiple matches
+        let hints = gm.name_hints_for(&["Niamh Darcy", "Kilteevan Village"]);
+        assert_eq!(hints.len(), 2);
+
+        // No match
+        let hints = gm.name_hints_for(&["Tommy O'Brien"]);
+        assert!(hints.is_empty());
+    }
+
+    #[test]
+    fn test_name_hints_case_insensitive() {
+        let tmp = create_test_mod_with_pronunciations();
+        let gm = GameMod::load(tmp.path()).unwrap();
+
+        let hints = gm.name_hints_for(&["niamh darcy"]);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].word, "Niamh");
+    }
+
+    #[test]
+    fn test_pronunciation_entry_deserialize() {
+        let json =
+            r#"{"word":"Aoife","pronunciation":"EE-fa","meaning":"beauty","matches":["Aoife"]}"#;
+        let e: PronunciationEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(e.word, "Aoife");
+        assert_eq!(e.pronunciation, "EE-fa");
+        assert_eq!(e.meaning, Some("beauty".to_string()));
+        assert_eq!(e.matches, vec!["Aoife"]);
+    }
+
+    #[test]
+    fn test_pronunciation_entry_matches_via_word_fallback() {
+        let json = r#"{"word":"Aoife","pronunciation":"EE-fa"}"#;
+        let e: PronunciationEntry = serde_json::from_str(json).unwrap();
+        // No explicit matches → falls back to matching the word itself
+        assert!(e.matches_any(&["Aoife Brennan"]));
+        assert!(!e.matches_any(&["Tommy O'Brien"]));
+    }
+
     // -- Integration test against the real mod directory (skipped in CI) ----
 
     #[test]
@@ -657,6 +882,40 @@ default_accent = "#ff0000"
             assert!(!gm.manifest.meta.name.is_empty());
             assert!(gm.world_path().is_absolute());
             assert!(gm.npcs_path().is_absolute());
+            // The kilteevan mod should have pronunciation data
+            assert!(
+                !gm.pronunciations.is_empty(),
+                "default mod should have pronunciation entries"
+            );
+        }
+    }
+
+    #[test]
+    fn test_real_mod_npc_name_hints() {
+        if let Some(mod_dir) = find_default_mod() {
+            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+
+            // Each NPC with an Irish name should produce a hint
+            let hints = gm.name_hints_for(&["Padraig Darcy"]);
+            assert_eq!(hints.len(), 1, "Padraig should match");
+            assert_eq!(hints[0].word, "Pádraig");
+
+            let hints = gm.name_hints_for(&["Siobhan Murphy"]);
+            assert_eq!(hints.len(), 1, "Siobhan should match");
+            assert_eq!(hints[0].word, "Siobhán");
+
+            let hints = gm.name_hints_for(&["Niamh Darcy"]);
+            assert_eq!(hints.len(), 1, "Niamh should match");
+
+            let hints = gm.name_hints_for(&["Aoife Brennan"]);
+            assert_eq!(hints.len(), 1, "Aoife should match");
+
+            let hints = gm.name_hints_for(&["Roisin Connolly"]);
+            assert_eq!(hints.len(), 1, "Roisin should match");
+
+            // Location + NPC combined
+            let hints = gm.name_hints_for(&["Kilteevan Village", "Padraig Darcy", "Niamh Darcy"]);
+            assert_eq!(hints.len(), 3, "should match location + both NPCs");
         }
     }
 }
