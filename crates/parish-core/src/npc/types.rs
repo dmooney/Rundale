@@ -31,9 +31,9 @@ use crate::world::LocationId;
 ///
 /// # Prompt encoding
 ///
-/// [`Intelligence::prompt_tag`] produces a compact token-efficient string
-/// like `INT[V3 A4 E2 P5 W4 C3]` that is injected into LLM system prompts
-/// alongside a one-time legend. This keeps overhead to ~20 tokens per NPC.
+/// [`Intelligence::prompt_guidance`] produces direct behavioral directives
+/// for LLM system prompts, highlighting only notable strengths (4-5) and
+/// weaknesses (1-2). Average dimensions (3) generate no output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Intelligence {
     /// Language fluency, vocabulary, eloquence (1–5).
@@ -82,34 +82,6 @@ impl Intelligence {
             wisdom: wisdom.clamp(1, 5),
             creative: creative.clamp(1, 5),
         }
-    }
-
-    /// Returns a compact prompt tag for LLM injection.
-    ///
-    /// Format: `INT[V3 A4 E2 P5 W4 C3]` — six dimensions in ~20 tokens.
-    /// Pair with [`Intelligence::prompt_legend`] in the system prompt so the
-    /// LLM knows what the codes mean.
-    pub fn prompt_tag(&self) -> String {
-        format!(
-            "INT[V{} A{} E{} P{} W{} C{}]",
-            self.verbal,
-            self.analytical,
-            self.emotional,
-            self.practical,
-            self.wisdom,
-            self.creative,
-        )
-    }
-
-    /// Returns the one-time legend that explains the prompt tag codes.
-    ///
-    /// Include this once in the system prompt so the LLM can interpret
-    /// `INT[...]` tags. Costs ~60 tokens but only appears once.
-    pub fn prompt_legend() -> &'static str {
-        "INTELLIGENCE KEY: V=verbal/eloquence A=analytical/logic E=emotional/empathy \
-         P=practical/resourcefulness W=wisdom/judgment C=creative/wit. Scale 1-5 \
-         (1=very low, 3=average, 5=exceptional). Match dialogue complexity, vocabulary, \
-         reasoning depth, emotional perception, and wit to these ratings."
     }
 
     /// Returns behavioral guidance tailored to this NPC's specific profile.
@@ -161,12 +133,6 @@ impl Intelligence {
         }
 
         hints.join(" ")
-    }
-}
-
-impl fmt::Display for Intelligence {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.prompt_tag())
     }
 }
 
@@ -566,39 +532,6 @@ mod tests {
         assert_eq!(intel.practical, 4);
         assert_eq!(intel.wisdom, 5);
         assert_eq!(intel.creative, 3);
-    }
-
-    #[test]
-    fn test_intelligence_prompt_tag_format() {
-        let intel = Intelligence::new(3, 4, 2, 5, 4, 3);
-        assert_eq!(intel.prompt_tag(), "INT[V3 A4 E2 P5 W4 C3]");
-    }
-
-    #[test]
-    fn test_intelligence_prompt_tag_extremes() {
-        let low = Intelligence::new(1, 1, 1, 1, 1, 1);
-        assert_eq!(low.prompt_tag(), "INT[V1 A1 E1 P1 W1 C1]");
-
-        let high = Intelligence::new(5, 5, 5, 5, 5, 5);
-        assert_eq!(high.prompt_tag(), "INT[V5 A5 E5 P5 W5 C5]");
-    }
-
-    #[test]
-    fn test_intelligence_display_matches_tag() {
-        let intel = Intelligence::new(2, 4, 1, 3, 5, 2);
-        assert_eq!(format!("{}", intel), intel.prompt_tag());
-    }
-
-    #[test]
-    fn test_intelligence_prompt_legend_content() {
-        let legend = Intelligence::prompt_legend();
-        assert!(legend.contains("V=verbal"));
-        assert!(legend.contains("A=analytical"));
-        assert!(legend.contains("E=emotional"));
-        assert!(legend.contains("P=practical"));
-        assert!(legend.contains("W=wisdom"));
-        assert!(legend.contains("C=creative"));
-        assert!(legend.contains("1-5"));
     }
 
     #[test]

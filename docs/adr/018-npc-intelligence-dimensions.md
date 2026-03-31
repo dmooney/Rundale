@@ -39,23 +39,23 @@ Each NPC gets a six-dimension intelligence profile rated 1–5:
 
 ### Prompt encoding
 
-To minimize token overhead, we inject intelligence as a compact tag
-plus a one-time legend:
+Intelligence is injected as direct behavioral guidance only — no coded
+tags or legends. For dimensions rated 4–5 or 1–2, `prompt_guidance()`
+produces natural-language directives that the LLM can follow without
+needing to decode a symbol system:
 
 ```
-INTELLIGENCE KEY: V=verbal/eloquence A=analytical/logic E=emotional/empathy
-P=practical/resourcefulness W=wisdom/judgment C=creative/wit. Scale 1-5
-(1=very low, 3=average, 5=exceptional). Match dialogue complexity, vocabulary,
-reasoning depth, emotional perception, and wit to these ratings.
-
-INT[V3 A3 E4 P4 W5 C4]
-Read subtext and respond to unspoken feelings. Offer concrete, hands-on solutions.
-Draw on life experience; give measured counsel. Be witty and inventive; use vivid metaphors.
+Speech style: Read subtext and respond to unspoken feelings. Offer concrete,
+hands-on solutions. Draw on life experience; give measured counsel. Be witty
+and inventive; use vivid metaphors.
 ```
 
-**Token cost**: ~60 tokens for the legend (once per system prompt) + ~20 tokens
-for the tag + 0–40 tokens for behavioral hints. Total overhead: ~80–120 tokens
-per NPC interaction, well within budget.
+Dimensions at 3 (average) produce no output. An all-3s NPC adds zero
+intelligence tokens to the prompt.
+
+**Token cost**: 0–40 tokens for behavioral hints only. The previous
+`INT[...]` tag + legend approach (~80–120 tokens) was replaced to
+reduce per-interaction overhead by ~50%.
 
 ### Behavioral guidance
 
@@ -67,8 +67,8 @@ words" for V1). Dimensions at 3 produce no hints to save tokens.
 
 - **Differentiated dialogue**: Each NPC's speech patterns, reasoning style,
   and emotional awareness now reflect their intelligence profile.
-- **Low token cost**: The compact `INT[...]` encoding adds minimal overhead
-  compared to verbose prose descriptions of intelligence.
+- **Low token cost**: Direct behavioral guidance adds 0–40 tokens, only for
+  notable strengths/weaknesses. Average dimensions cost zero tokens.
 - **Data-driven**: Intelligence ratings live in `npcs.json` alongside
   personality, making them easy to tune per character.
 - **Backward compatible**: The `intelligence` field defaults to all-3s if
@@ -80,7 +80,7 @@ words" for V1). Dimensions at 3 produce no hints to save tokens.
 
 - `Intelligence` struct in `crates/parish-core/src/npc/types.rs`
 - `intelligence` field on `Npc`, `NpcFileEntry`, `NpcSnapshot`
-- Injected into Tier 1 system prompts via `prompt_tag()` + `prompt_legend()`
-  + `prompt_guidance()`
+- Injected into Tier 1 system prompts via `prompt_guidance()` (behavioral
+  directives only; `prompt_tag()` and `prompt_legend()` were removed)
 - Injected into Tier 2 prompts as compact tags per NPC in the character list
 - Ratings defined per NPC in `data/npcs.json`
