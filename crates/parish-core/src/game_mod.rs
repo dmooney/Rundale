@@ -111,8 +111,15 @@ pub struct PromptTemplates {
 pub struct AnachronismEntry {
     /// The anachronistic term or phrase.
     pub term: String,
-    /// Explanation of why the term is anachronistic.
-    pub reason: String,
+    /// Category of anachronism (e.g. "technology", "slang").
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Earliest year this concept existed.
+    #[serde(default)]
+    pub origin_year: Option<u32>,
+    /// Brief note explaining why the term is anachronistic.
+    #[serde(default, alias = "reason")]
+    pub note: String,
 }
 
 /// Anachronism detection data loaded from JSON.
@@ -143,6 +150,7 @@ pub struct FestivalDef {
 #[derive(Debug, Clone, Deserialize)]
 pub struct EncounterTable {
     /// Encounter flavour text keyed by time-of-day (e.g. "morning", "night").
+    #[serde(flatten)]
     pub by_time: HashMap<String, String>,
 }
 
@@ -534,7 +542,7 @@ mod tests {
         // encounters.json
         fs::write(
             root.join("encounters.json"),
-            r#"{"by_time": {"morning": "A farmer waves.", "night": "An owl hoots."}}"#,
+            r#"{"morning": "A farmer waves.", "night": "An owl hoots."}"#,
         )
         .unwrap();
 
@@ -701,10 +709,22 @@ default_accent = "#ff0000"
 
     #[test]
     fn test_anachronism_entry_deserialize() {
+        // JSON with the current format (note, category, origin_year)
+        let json = r#"{"term":"telephone","category":"technology","origin_year":1876,"note":"invented by Bell in 1876"}"#;
+        let e: AnachronismEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(e.term, "telephone");
+        assert_eq!(e.note, "invented by Bell in 1876");
+        assert_eq!(e.category.as_deref(), Some("technology"));
+        assert_eq!(e.origin_year, Some(1876));
+    }
+
+    #[test]
+    fn test_anachronism_entry_deserialize_legacy_reason() {
+        // Backward compatible: accepts "reason" alias for "note"
         let json = r#"{"term":"telephone","reason":"invented 1876"}"#;
         let e: AnachronismEntry = serde_json::from_str(json).unwrap();
         assert_eq!(e.term, "telephone");
-        assert_eq!(e.reason, "invented 1876");
+        assert_eq!(e.note, "invented 1876");
     }
 
     #[test]
@@ -867,6 +887,35 @@ tier2_system = "prompts/tier2_system.txt"
                 !gm.pronunciations.is_empty(),
                 "default mod should have pronunciation entries"
             );
+        }
+    }
+
+    #[test]
+    fn test_real_mod_npc_name_hints() {
+        if let Some(mod_dir) = find_default_mod() {
+            let gm = GameMod::load(&mod_dir).expect("should load default mod");
+
+            // Each NPC with an Irish name should produce a hint
+            let hints = gm.name_hints_for(&["Padraig Darcy"]);
+            assert_eq!(hints.len(), 1, "Padraig should match");
+            assert_eq!(hints[0].word, "Pádraig");
+
+            let hints = gm.name_hints_for(&["Siobhan Murphy"]);
+            assert_eq!(hints.len(), 1, "Siobhan should match");
+            assert_eq!(hints[0].word, "Siobhán");
+
+            let hints = gm.name_hints_for(&["Niamh Darcy"]);
+            assert_eq!(hints.len(), 1, "Niamh should match");
+
+            let hints = gm.name_hints_for(&["Aoife Brennan"]);
+            assert_eq!(hints.len(), 1, "Aoife should match");
+
+            let hints = gm.name_hints_for(&["Roisin Connolly"]);
+            assert_eq!(hints.len(), 1, "Roisin should match");
+
+            // Location + NPC combined
+            let hints = gm.name_hints_for(&["Kilteevan Village", "Padraig Darcy", "Niamh Darcy"]);
+            assert_eq!(hints.len(), 3, "should match location + both NPCs");
         }
     }
 }

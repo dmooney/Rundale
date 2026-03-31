@@ -105,20 +105,33 @@ fn compute_name_hints(
     pronunciations: &[parish_core::game_mod::PronunciationEntry],
 ) -> Vec<parish_core::npc::LanguageHint> {
     if pronunciations.is_empty() {
+        tracing::debug!("compute_name_hints: no pronunciation entries loaded");
         return vec![];
     }
     let loc = world.current_location();
     let mut names: Vec<&str> = vec![&loc.name];
     let npcs = npc_manager.npcs_at(world.player_location);
-    let npc_names: Vec<String> = npcs.iter().map(|n| n.name.clone()).collect();
+    let npc_names: Vec<String> = npcs
+        .iter()
+        .filter(|n| npc_manager.is_introduced(n.id))
+        .map(|n| n.name.clone())
+        .collect();
     for name in &npc_names {
         names.push(name);
     }
-    pronunciations
+    let hints: Vec<parish_core::npc::LanguageHint> = pronunciations
         .iter()
         .filter(|entry| entry.matches_any(&names))
         .map(|entry| entry.to_hint())
-        .collect()
+        .collect();
+    tracing::debug!(
+        location = %loc.name,
+        npc_names = ?npc_names,
+        pronunciation_count = pronunciations.len(),
+        matched_hints = hints.len(),
+        "compute_name_hints"
+    );
+    hints
 }
 
 // ── Commands ─────────────────────────────────────────────────────────────────

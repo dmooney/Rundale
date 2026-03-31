@@ -46,9 +46,9 @@ describe('InputField', () => {
 
 	describe('NPC mention autocomplete', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true },
-			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true },
-			{ name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false }
+			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
+			{ name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
 		];
 
 		beforeEach(() => {

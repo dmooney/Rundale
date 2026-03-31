@@ -584,7 +584,7 @@ pub fn check_input_from_mod_data(
         if has_word_match(&lower, &entry.term) {
             results.push(DetectedTerm {
                 term: entry.term.clone(),
-                reason: entry.reason.clone(),
+                reason: entry.note.clone(),
             });
         }
     }
@@ -859,11 +859,15 @@ mod tests {
         let entries = vec![
             parish_core::game_mod::AnachronismEntry {
                 term: "telephone".to_string(),
-                reason: "invented 1876".to_string(),
+                note: "invented 1876".to_string(),
+                category: None,
+                origin_year: None,
             },
             parish_core::game_mod::AnachronismEntry {
                 term: "internet".to_string(),
-                reason: "developed 1960s".to_string(),
+                note: "developed 1960s".to_string(),
+                category: None,
+                origin_year: None,
             },
         ];
 
@@ -877,7 +881,9 @@ mod tests {
     fn test_check_input_from_mod_data_no_match() {
         let entries = vec![parish_core::game_mod::AnachronismEntry {
             term: "telephone".to_string(),
-            reason: "invented 1876".to_string(),
+            note: "invented 1876".to_string(),
+            category: None,
+            origin_year: None,
         }];
 
         let hits = check_input_from_mod_data("Good morning!", &entries);

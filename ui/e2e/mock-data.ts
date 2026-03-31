@@ -82,7 +82,11 @@ function makeSnapshot(
 		festival: null,
 		paused: false,
 		game_epoch_ms: epochForHour(hour),
-		speed_factor: 0 // Frozen: clock stays at the anchored hour during tests
+		speed_factor: 0, // Frozen: clock stays at the anchored hour during tests
+		name_hints: [
+			{ word: 'Baile Átha Cliath', pronunciation: 'BAHL-ya AH-ha KLEE-ah', meaning: 'town of the hurdled ford (Dublin)' },
+			{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' }
+		]
 	};
 }
 
@@ -115,8 +119,8 @@ export const MAP_DATA: MapData = {
 // ── NPCs ────────────────────────────────────────────────────────────────────
 
 export const NPCS: NpcInfo[] = [
-	{ name: 'Séamas Ó Briain', occupation: 'Publican', mood: 'cheerful' },
-	{ name: 'Aoife Ní Cheallaigh', occupation: 'Scholar', mood: 'pensive' }
+	{ name: 'Séamas Ó Briain', occupation: 'Publican', mood: 'cheerful', introduced: true, mood_emoji: '😊' },
+	{ name: 'Aoife Ní Cheallaigh', occupation: 'Scholar', mood: 'pensive', introduced: true, mood_emoji: '🤔' }
 ];
 
 // ── Irish word hints ────────────────────────────────────────────────────────
