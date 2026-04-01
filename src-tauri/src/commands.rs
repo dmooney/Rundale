@@ -775,6 +775,30 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                 },
             );
 
+            // Reassign tiers after movement
+            {
+                let world = state.world.lock().await;
+                let mut npc_manager = state.npc_manager.lock().await;
+                let tier_transitions = npc_manager.assign_tiers(&world, &[]);
+                if !tier_transitions.is_empty() {
+                    let mut debug_events = state.debug_events.lock().await;
+                    for tt in &tier_transitions {
+                        if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        let direction = if tt.promoted { "promoted" } else { "demoted" };
+                        debug_events.push_back(DebugEvent {
+                            timestamp: String::new(),
+                            category: "tier".to_string(),
+                            message: format!(
+                                "{} {} {:?} → {:?}",
+                                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+                            ),
+                        });
+                    }
+                }
+            }
+
             // Emit arrival description
             handle_look(state, app).await;
 
@@ -1180,7 +1204,7 @@ pub async fn load_branch(
     let mut world = state.world.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
     snapshot.restore(&mut world, &mut npc_manager);
-    npc_manager.assign_tiers(world.player_location, &world.graph);
+    npc_manager.assign_tiers(&world, &[]);
 
     // Update save tracking
     let filename = path
@@ -1321,7 +1345,7 @@ pub async fn new_game(
         parish_core::npc::manager::NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
 
-    fresh_npcs.assign_tiers(fresh_world.player_location, &fresh_world.graph);
+    fresh_npcs.assign_tiers(&fresh_world, &[]);
 
     // Replace live state
     let mut world = state.world.lock().await;

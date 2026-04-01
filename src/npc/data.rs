@@ -180,6 +180,7 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 memory: ShortTermMemory::new(),
                 knowledge: entry.knowledge.clone(),
                 state: NpcState::default(),
+                deflated_summary: None,
             }
         })
         .collect();

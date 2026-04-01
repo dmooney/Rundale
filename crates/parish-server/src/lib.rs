@@ -45,7 +45,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
             NpcManager::new()
         });
-    npc_manager.assign_tiers(world.player_location, &world.graph);
+    npc_manager.assign_tiers(&world, &[]);
 
     // Build client from env
     let (client, config) = build_client_and_config();

@@ -420,6 +420,7 @@ mod tests {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::default(),
+            deflated_summary: None,
         }
     }
 
