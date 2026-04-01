@@ -60,6 +60,13 @@ pub async fn get_theme(State(state): State<Arc<AppState>>) -> Json<ThemePalette>
     Json(parish_core::ipc::build_theme(&world))
 }
 
+/// `GET /api/ui-config` — returns UI configuration (splash text, labels, accent).
+pub async fn get_ui_config(
+    State(state): State<Arc<AppState>>,
+) -> Json<crate::state::UiConfigSnapshot> {
+    Json(state.ui_config.clone())
+}
+
 /// `GET /api/debug-snapshot` — returns full debug state for the debug panel.
 pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<DebugSnapshot> {
     let world = state.world.lock().await;

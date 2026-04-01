@@ -10,6 +10,17 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::world::WorldState;
 use parish_core::world::transport::TransportConfig;
 
+/// UI configuration snapshot returned by the `/api/ui-config` endpoint.
+#[derive(serde::Serialize, Clone)]
+pub struct UiConfigSnapshot {
+    /// Label for the language-hints sidebar panel.
+    pub hints_label: String,
+    /// Default accent colour (CSS hex string).
+    pub default_accent: String,
+    /// Splash text displayed on game start (Zork-style).
+    pub splash_text: String,
+}
+
 /// Shared mutable game state for the web server.
 ///
 /// Mirrors the Tauri `AppState` but uses an [`EventBus`] for push events
@@ -31,6 +42,8 @@ pub struct AppState {
     pub event_bus: EventBus,
     /// Transport mode configuration from the loaded game mod.
     pub transport: TransportConfig,
+    /// UI configuration from the loaded game mod.
+    pub ui_config: UiConfigSnapshot,
 }
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
@@ -127,6 +140,7 @@ pub fn build_app_state(
     config: GameConfig,
     cloud_client: Option<OpenAiClient>,
     transport: TransportConfig,
+    ui_config: UiConfigSnapshot,
 ) -> Arc<AppState> {
     Arc::new(AppState {
         world: Mutex::new(world),
@@ -137,6 +151,7 @@ pub fn build_app_state(
         config: Mutex::new(config),
         event_bus: EventBus::new(256),
         transport,
+        ui_config,
     })
 }
 

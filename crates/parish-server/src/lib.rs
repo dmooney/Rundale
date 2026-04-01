@@ -23,7 +23,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
-use state::{AppState, GameConfig, build_app_state};
+use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 
 /// Starts the Parish web server on the given port.
 ///
@@ -53,6 +53,18 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let cloud_client = build_cloud_client();
 
     let transport = TransportConfig::default();
+
+    // Build splash text (matches Tauri's format)
+    let splash_text = format!(
+        "Parish\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M"),
+    );
+    let ui_config = UiConfigSnapshot {
+        hints_label: "Language Hints".to_string(),
+        default_accent: "#c4a35a".to_string(),
+        splash_text,
+    };
+
     let state = build_app_state(
         world,
         npc_manager,
@@ -60,6 +72,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         config,
         cloud_client,
         transport,
+        ui_config,
     );
 
     // Initialize inference queue
@@ -80,6 +93,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
         .route("/api/theme", get(routes::get_theme))
+        .route("/api/ui-config", get(routes::get_ui_config))
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/ws", get(ws::ws_handler))
