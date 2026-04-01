@@ -375,6 +375,10 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
         }
         Command::Debug(_) => "Debug commands are not available in web mode.".to_string(),
         Command::Spinner(_) => "Spinner customization is not available in web mode.".to_string(),
+        Command::Map => {
+            state.event_bus.emit("toggle-full-map", &());
+            String::new()
+        }
         Command::About => "Parish — An Irish Living World Text Adventure (web mode).".to_string(),
     };
 
@@ -382,13 +386,15 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
         rebuild_inference(state).await;
     }
 
-    state.event_bus.emit(
-        "text-log",
-        &TextLogPayload {
-            source: "system".to_string(),
-            content: response,
-        },
-    );
+    if !response.is_empty() {
+        state.event_bus.emit(
+            "text-log",
+            &TextLogPayload {
+                source: "system".to_string(),
+                content: response,
+            },
+        );
+    }
 
     let world = state.world.lock().await;
     let transport = state.transport.default_mode();
