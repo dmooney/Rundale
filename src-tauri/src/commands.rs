@@ -794,6 +794,8 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                             description: data.description_template.clone(),
                             indoor: data.indoor,
                             public: data.public,
+                            lat: data.lat,
+                            lon: data.lon,
                         });
                 if let Some(loc) = new_loc {
                     world.locations.entry(destination).or_insert(loc);

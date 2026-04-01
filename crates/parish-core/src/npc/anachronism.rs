@@ -575,7 +575,7 @@ pub struct DetectedTerm {
 /// [`GameMod`](parish_core::game_mod::GameMod) instead of the static dictionary.
 pub fn check_input_from_mod_data(
     input: &str,
-    entries: &[parish_core::game_mod::AnachronismEntry],
+    entries: &[crate::game_mod::AnachronismEntry],
 ) -> Vec<DetectedTerm> {
     let lower = input.to_lowercase();
     let mut results = Vec::new();
@@ -857,13 +857,13 @@ mod tests {
     #[test]
     fn test_check_input_from_mod_data() {
         let entries = vec![
-            parish_core::game_mod::AnachronismEntry {
+            crate::game_mod::AnachronismEntry {
                 term: "telephone".to_string(),
                 note: "invented 1876".to_string(),
                 category: None,
                 origin_year: None,
             },
-            parish_core::game_mod::AnachronismEntry {
+            crate::game_mod::AnachronismEntry {
                 term: "internet".to_string(),
                 note: "developed 1960s".to_string(),
                 category: None,
@@ -879,7 +879,7 @@ mod tests {
 
     #[test]
     fn test_check_input_from_mod_data_no_match() {
-        let entries = vec![parish_core::game_mod::AnachronismEntry {
+        let entries = vec![crate::game_mod::AnachronismEntry {
             term: "telephone".to_string(),
             note: "invented 1876".to_string(),
             category: None,

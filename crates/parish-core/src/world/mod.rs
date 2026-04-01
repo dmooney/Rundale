@@ -78,8 +78,8 @@ pub struct LocationId(pub u32);
 /// A named location in the game world.
 ///
 /// Locations are nodes in the world graph. Each has a textual
-/// description, and flags indicating whether it is indoors and/or
-/// public.
+/// description, flags indicating whether it is indoors and/or
+/// public, and geographic coordinates for map placement.
 #[derive(Debug, Clone)]
 pub struct Location {
     /// Unique identifier.
@@ -92,6 +92,10 @@ pub struct Location {
     pub indoor: bool,
     /// Whether this location is publicly accessible.
     pub public: bool,
+    /// Latitude in decimal degrees (WGS 84).
+    pub lat: f64,
+    /// Longitude in decimal degrees (WGS 84).
+    pub lon: f64,
 }
 
 /// Central game state container.
@@ -133,6 +137,8 @@ impl WorldState {
                 .to_string(),
             indoor: false,
             public: true,
+            lat: 53.618,
+            lon: -8.095,
         };
 
         let mut locations = HashMap::new();
@@ -173,6 +179,8 @@ impl WorldState {
                         description: data.description_template.clone(),
                         indoor: data.indoor,
                         public: data.public,
+                        lat: data.lat,
+                        lon: data.lon,
                     },
                 );
             }
@@ -211,6 +219,8 @@ impl WorldState {
                         description: data.description_template.clone(),
                         indoor: data.indoor,
                         public: data.public,
+                        lat: data.lat,
+                        lon: data.lon,
                     },
                 );
             }
@@ -219,10 +229,7 @@ impl WorldState {
         // Parse start date from mod manifest
         let start_dt = chrono::DateTime::parse_from_rfc3339(game_mod.start_date())
             .map(|dt| dt.with_timezone(&chrono::Utc))
-            .unwrap_or_else(|_| {
-                // Fallback: try a simpler format or use a sensible default
-                chrono::Utc::now()
-            });
+            .unwrap_or_else(|_| chrono::Utc::now());
 
         let clock = GameClock::new(start_dt);
         let start_location = LocationId(game_mod.start_location());
