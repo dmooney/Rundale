@@ -15,10 +15,11 @@ use tokio::sync::mpsc;
 /// completion methods.
 #[derive(Clone)]
 pub struct OllamaClient {
-    /// The underlying HTTP client.
+    /// HTTP client with default timeout for non-streaming requests.
     client: reqwest::Client,
-    /// Streaming request timeout in seconds.
-    streaming_timeout_secs: u64,
+    /// HTTP client with longer timeout for streaming requests.
+    /// Reused across calls to preserve connection pooling.
+    streaming_client: reqwest::Client,
     /// Base URL for the Ollama API (e.g. "http://localhost:11434").
     base_url: String,
 }
@@ -65,9 +66,17 @@ impl OllamaClient {
             .build()
             .expect("failed to build reqwest client");
 
+        // Pre-build the streaming client once so connection pooling is
+        // preserved across streaming calls instead of creating a fresh
+        // client (and fresh TCP connections) on every request.
+        let streaming_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(config.streaming_timeout_secs))
+            .build()
+            .expect("failed to build streaming reqwest client");
+
         Self {
             client,
-            streaming_timeout_secs: config.streaming_timeout_secs,
+            streaming_client,
             base_url: base_url.trim_end_matches('/').to_string(),
         }
     }
@@ -126,13 +135,8 @@ impl OllamaClient {
             format: None,
         };
 
-        // Use a longer timeout for streaming — tokens arrive gradually
-        let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(self.streaming_timeout_secs))
-            .build()
-            .expect("failed to build streaming reqwest client");
-
-        let resp = streaming_client
+        let resp = self
+            .streaming_client
             .post(&url)
             .json(&body)
             .send()

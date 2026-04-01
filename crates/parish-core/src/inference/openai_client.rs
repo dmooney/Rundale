@@ -19,10 +19,11 @@ use tokio::sync::mpsc;
 /// generation, streaming generation, and structured JSON output.
 #[derive(Clone)]
 pub struct OpenAiClient {
-    /// HTTP client with default timeout.
+    /// HTTP client with default timeout for non-streaming requests.
     client: reqwest::Client,
-    /// Streaming request timeout in seconds.
-    streaming_timeout_secs: u64,
+    /// HTTP client with longer timeout for streaming requests.
+    /// Reused across calls to preserve connection pooling.
+    streaming_client: reqwest::Client,
     /// Base URL (e.g. "http://localhost:11434" or "https://openrouter.ai/api").
     base_url: String,
     /// Optional API key for authenticated providers.
@@ -124,9 +125,17 @@ impl OpenAiClient {
             .build()
             .expect("failed to build reqwest client");
 
+        // Pre-build the streaming client once so connection pooling is
+        // preserved across streaming calls instead of creating a fresh
+        // client (and fresh TCP connections) on every request.
+        let streaming_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(config.streaming_timeout_secs))
+            .build()
+            .expect("failed to build streaming reqwest client");
+
         Self {
             client,
-            streaming_timeout_secs: config.streaming_timeout_secs,
+            streaming_client,
             base_url: base_url.trim_end_matches('/').to_string(),
             api_key: api_key.map(|s| s.to_string()),
         }
@@ -173,14 +182,8 @@ impl OpenAiClient {
     ) -> Result<String, ParishError> {
         let body = self.build_request(model, prompt, system, true, false, max_tokens);
 
-        // Use a longer timeout for streaming
-        let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(self.streaming_timeout_secs))
-            .build()
-            .expect("failed to build streaming reqwest client");
-
         let url = format!("{}/v1/chat/completions", self.base_url);
-        let mut req = streaming_client.post(&url).json(&body);
+        let mut req = self.streaming_client.post(&url).json(&body);
         req = self.apply_auth_headers(req);
 
         let resp = req
