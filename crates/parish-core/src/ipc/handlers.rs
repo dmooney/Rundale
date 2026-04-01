@@ -48,7 +48,7 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
         weather: weather_str,
         season: season.to_string(),
         festival,
-        paused: world.clock.is_paused(),
+        paused: world.clock.is_paused() || world.clock.is_inference_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
     }

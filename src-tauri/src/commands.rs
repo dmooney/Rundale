@@ -98,7 +98,7 @@ fn snapshot_from_world(
         weather: weather_str,
         season: season.to_string(),
         festival,
-        paused: world.clock.is_paused(),
+        paused: world.clock.is_paused() || world.clock.is_inference_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
         name_hints: vec![],
@@ -997,6 +997,18 @@ async fn handle_npc_conversation(
         },
     );
 
+    // Pause the game clock while waiting for the inference response
+    // and immediately notify the frontend so it stops interpolating.
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+        let transport = state.transport.default_mode();
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = snapshot_from_world(&world, transport);
+        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+    }
+
     match queue
         .send(
             req_id,
@@ -1113,6 +1125,12 @@ async fn handle_npc_conversation(
                 },
             );
         }
+    }
+
+    // Resume the game clock now that inference is complete
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
     }
 
     // Stop the animated loading indicator (emits active: false)

@@ -221,11 +221,13 @@ pub struct GameClock {
     start_real: Instant,
     /// The game-world time corresponding to `start_real`.
     start_game: DateTime<Utc>,
-    /// Whether the clock is paused.
+    /// Whether the clock is paused by the player.
     paused: bool,
+    /// Whether the clock is paused while waiting for an inference response.
+    inference_paused: bool,
     /// Game-time seconds per real-time second (default 36.0).
     speed_factor: f64,
-    /// Game time when the clock was paused (only valid when `paused` is true).
+    /// Game time when the clock was frozen (valid when paused or inference_paused).
     paused_game_time: DateTime<Utc>,
 }
 
@@ -238,6 +240,7 @@ impl GameClock {
             start_real: Instant::now(),
             start_game,
             paused: false,
+            inference_paused: false,
             speed_factor: SpeedConfig::default().normal,
             paused_game_time: start_game,
         }
@@ -249,17 +252,24 @@ impl GameClock {
             start_real: Instant::now(),
             start_game,
             paused: false,
+            inference_paused: false,
             speed_factor,
             paused_game_time: start_game,
         }
     }
 
+    /// Returns whether the clock is frozen (by player pause or inference pause).
+    fn is_frozen(&self) -> bool {
+        self.paused || self.inference_paused
+    }
+
     /// Returns the current game time.
     ///
-    /// When paused, returns the time at which the clock was paused.
-    /// When running, maps elapsed real time to game time using the speed factor.
+    /// When frozen (player-paused or inference-paused), returns the time at
+    /// which the clock was frozen. When running, maps elapsed real time to
+    /// game time using the speed factor.
     pub fn now(&self) -> DateTime<Utc> {
-        if self.paused {
+        if self.is_frozen() {
             return self.paused_game_time;
         }
         let elapsed_real = self.start_real.elapsed().as_secs_f64();
@@ -302,33 +312,70 @@ impl GameClock {
     ///
     /// Used during travel or other time-consuming actions.
     pub fn advance(&mut self, game_minutes: i64) {
-        if self.paused {
+        if self.is_frozen() {
             self.paused_game_time += Duration::minutes(game_minutes);
         } else {
             self.start_game += Duration::minutes(game_minutes);
         }
     }
 
-    /// Pauses the game clock, freezing game time.
+    /// Pauses the game clock (player-initiated), freezing game time.
     pub fn pause(&mut self) {
         if !self.paused {
-            self.paused_game_time = self.now();
+            if !self.is_frozen() {
+                self.paused_game_time = self.now();
+            }
             self.paused = true;
         }
     }
 
-    /// Resumes the game clock from where it was paused.
+    /// Resumes the game clock (player-initiated).
+    ///
+    /// The clock only actually resumes if it is not also inference-paused.
     pub fn resume(&mut self) {
         if self.paused {
-            self.start_game = self.paused_game_time;
-            self.start_real = Instant::now();
             self.paused = false;
+            if !self.is_frozen() {
+                self.start_game = self.paused_game_time;
+                self.start_real = Instant::now();
+            }
         }
     }
 
-    /// Returns whether the clock is paused.
+    /// Returns whether the clock is player-paused.
     pub fn is_paused(&self) -> bool {
         self.paused
+    }
+
+    /// Pauses the game clock while waiting for an inference response.
+    ///
+    /// The clock freezes if it is not already frozen. Does not interfere
+    /// with player-initiated pause/resume.
+    pub fn inference_pause(&mut self) {
+        if !self.inference_paused {
+            if !self.is_frozen() {
+                self.paused_game_time = self.now();
+            }
+            self.inference_paused = true;
+        }
+    }
+
+    /// Resumes the game clock after an inference response completes.
+    ///
+    /// The clock only actually resumes if it is not also player-paused.
+    pub fn inference_resume(&mut self) {
+        if self.inference_paused {
+            self.inference_paused = false;
+            if !self.is_frozen() {
+                self.start_game = self.paused_game_time;
+                self.start_real = Instant::now();
+            }
+        }
+    }
+
+    /// Returns whether the clock is inference-paused.
+    pub fn is_inference_paused(&self) -> bool {
+        self.inference_paused
     }
 
     /// Returns the current speed factor.
@@ -342,7 +389,7 @@ impl GameClock {
     /// and applies the new speed factor going forward. Works correctly
     /// whether the clock is paused or running.
     pub fn set_speed(&mut self, speed: GameSpeed) {
-        if self.paused {
+        if self.is_frozen() {
             self.speed_factor = speed.factor();
         } else {
             let current = self.now();
@@ -660,5 +707,107 @@ mod tests {
         // Custom speed returns None
         let clock = GameClock::with_speed(game_time(2026, 6, 15, 12), 50.0);
         assert_eq!(clock.current_speed(), None);
+    }
+
+    #[test]
+    fn test_inference_pause_freezes_time() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        assert!(!clock.is_inference_paused());
+
+        clock.inference_pause();
+        assert!(clock.is_inference_paused());
+        assert_eq!(clock.time_of_day(), TimeOfDay::Midday);
+
+        // Time should remain frozen
+        let t1 = clock.now();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let t2 = clock.now();
+        assert_eq!(t1, t2);
+    }
+
+    #[test]
+    fn test_inference_resume_unfreezes_time() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.inference_pause();
+        let frozen_time = clock.now();
+
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+
+        // Time should be approximately the frozen time (just resumed)
+        let now = clock.now();
+        let diff = (now - frozen_time).num_seconds().abs();
+        assert!(diff < 2, "Time should resume near frozen point");
+    }
+
+    #[test]
+    fn test_player_pause_plus_inference_pause() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+
+        // Player pauses first
+        clock.pause();
+        assert!(clock.is_paused());
+
+        // Then inference pauses too
+        clock.inference_pause();
+        assert!(clock.is_inference_paused());
+
+        // Inference resumes — clock should stay frozen (player still paused)
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+        assert!(clock.is_paused());
+
+        let t1 = clock.now();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let t2 = clock.now();
+        assert_eq!(t1, t2, "Clock should stay frozen while player-paused");
+    }
+
+    #[test]
+    fn test_inference_pause_plus_player_resume() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+
+        // Inference pauses first
+        clock.inference_pause();
+
+        // Player also pauses
+        clock.pause();
+
+        // Player resumes — clock should stay frozen (inference still paused)
+        clock.resume();
+        assert!(!clock.is_paused());
+        assert!(clock.is_inference_paused());
+
+        let t1 = clock.now();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let t2 = clock.now();
+        assert_eq!(t1, t2, "Clock should stay frozen while inference-paused");
+
+        // Inference resumes — now clock should run
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+        assert!(!clock.is_paused());
+    }
+
+    #[test]
+    fn test_advance_while_inference_paused() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.inference_pause();
+        clock.advance(300); // 5 hours
+        assert_eq!(clock.time_of_day(), TimeOfDay::Dusk);
+    }
+
+    #[test]
+    fn test_inference_pause_idempotent() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.inference_pause();
+        let t1 = clock.now();
+        clock.inference_pause(); // second call is a no-op
+        assert_eq!(clock.now(), t1);
+
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+        clock.inference_resume(); // second call is a no-op
+        assert!(!clock.is_inference_paused());
     }
 }

@@ -817,8 +817,11 @@ async fn handle_headless_game_input(
     text: &str,
     request_id: &mut u64,
 ) -> Result<()> {
-    // Always parse intent first so Move/Look work even with NPCs present
-    let intent = parse_intent(client, text, model).await?;
+    // Pause the game clock during intent parsing inference
+    app.world.clock.inference_pause();
+    let intent_result = parse_intent(client, text, model).await;
+    app.world.clock.inference_resume();
+    let intent = intent_result?;
 
     match intent.intent {
         crate::input::IntentKind::Move => {
@@ -854,6 +857,9 @@ async fn handle_headless_game_input(
                 }
 
                 if let Some(queue) = &app.inference_queue {
+                    // Pause the game clock during NPC dialogue inference
+                    app.world.clock.inference_pause();
+
                     *request_id += 1;
 
                     let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
@@ -986,6 +992,9 @@ async fn handle_headless_game_input(
                             println!("[The storyteller couldn't hear ye: {}]", e);
                         }
                     }
+
+                    // Resume the game clock now that inference is complete
+                    app.world.clock.inference_resume();
                 } else {
                     println!("[No storyteller could be found in the parish today.]");
                 }
