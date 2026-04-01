@@ -115,19 +115,23 @@ Parish/
 └── ui/                  # Svelte 5 + TypeScript frontend (SvelteKit + static adapter)
     └── src/
         ├── lib/
-        │   ├── types.ts #   TypeScript IPC types (snake_case, matching Rust serde)
-        │   └── ipc.ts   #   Typed wrappers for all Tauri commands and events
+        │   ├── types.ts          #   TypeScript IPC types (snake_case, matching Rust serde)
+        │   ├── ipc.ts            #   Typed wrappers for all Tauri commands and events
+        │   ├── map-labels.ts     #   Label collision avoidance (force-directed repulsion)
+        │   └── map-projection.ts #   Shared map projection (fixed-scale mercator)
         ├── stores/
-        │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive, uiConfig
+        │   ├── game.ts  #   worldState, mapData, npcsHere, textLog, streamingActive, uiConfig, fullMapOpen
         │   ├── theme.ts #   palette store (applies CSS vars to :root)
         │   └── debug.ts #   debugVisible, debugSnapshot, debugTab, selectedNpcId
         └── components/
-            ├── StatusBar.svelte  # Location | time | weather | season bar + debug toggle
-            ├── ChatPanel.svelte  # Scrolling chat log with streaming cursor + Celtic knot spinner
-            ├── MapPanel.svelte   # SVG equirectangular map with click-to-travel
-            ├── Sidebar.svelte    # NPCs Here + Focail (Irish words) panels
-            ├── InputField.svelte # Player input (disabled during streaming)
-            └── DebugPanel.svelte # Tabbed debug panel (Overview, NPCs, World, Events, Inference)
+            ├── StatusBar.svelte      # Location | time | weather | season bar + debug toggle
+            ├── ChatPanel.svelte      # Scrolling chat log with streaming cursor + Celtic knot spinner
+            ├── MapPanel.svelte       # Player-centered minimap (hop-filtered, tweened pan)
+            ├── FullMapOverlay.svelte  # Full parish map overlay (zoom/pan, M hotkey)
+            ├── Sidebar.svelte        # NPCs Here + Focail (Irish words) panels
+            ├── InputField.svelte     # Player input (disabled during streaming)
+            ├── SavePicker.svelte     # Papers Please-style save picker (F5 hotkey)
+            └── DebugPanel.svelte     # Tabbed debug panel (Overview, NPCs, World, Events, Inference)
 ```
 
 ## Code Style

@@ -33,7 +33,7 @@ describe('ChatPanel', () => {
 		streamingActive.set(true);
 		const { container, getByText } = render(ChatPanel);
 		expect(container.querySelector('.loading-row')).toBeTruthy();
-		expect(container.querySelector('.loading-spinner')).toBeTruthy();
+		expect(container.querySelector('.triquetra-spinner')).toBeTruthy();
 		expect(getByText('Consulting the sheep...')).toBeTruthy();
 	});
 
@@ -43,8 +43,8 @@ describe('ChatPanel', () => {
 		loadingColor.set([255, 200, 87]);
 		streamingActive.set(true);
 		const { container } = render(ChatPanel);
-		const spinner = container.querySelector('.loading-spinner') as HTMLElement;
-		expect(spinner.style.color).toBe('rgb(255, 200, 87)');
+		const phrase = container.querySelector('.loading-phrase') as HTMLElement;
+		expect(phrase.style.color).toBe('rgb(255, 200, 87)');
 	});
 
 	it('shows blinking cursor on streaming entry', () => {

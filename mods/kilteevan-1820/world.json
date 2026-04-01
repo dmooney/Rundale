@@ -39,7 +39,7 @@
                 }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Crossroads hold power in Irish folklore \u2014 a place between places, where the veil is thin."
+            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin."
         },
         {
             "id": 2,
@@ -47,8 +47,8 @@
             "description_template": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is {time} and the weather outside is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.6195,
-            "lon": -8.0925,
+            "lat": 53.622,
+            "lon": -8.088,
             "connections": [
                 {
                     "target": 1,
@@ -87,8 +87,8 @@
             "description_template": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is {time}. The weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.6175,
-            "lon": -8.0935,
+            "lat": 53.6145,
+            "lon": -8.09,
             "connections": [
                 {
                     "target": 1,
@@ -104,8 +104,8 @@
             "description_template": "An open field where men play hurling on fair days. Goalposts of ash wood stand at each end. Stone ditches mark the boundary, and a few spectators' stools sit along the edge. The {weather} sky hangs over the flat green. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6135,
-            "lon": -8.102,
+            "lat": 53.61,
+            "lon": -8.106,
             "connections": [
                 {
                     "target": 6,
@@ -121,8 +121,8 @@
             "description_template": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6155,
-            "lon": -8.099,
+            "lat": 53.613,
+            "lon": -8.101,
             "connections": [
                 {
                     "target": 1,
@@ -155,7 +155,7 @@
                 }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Lough Ree is said to be home to a monster \u2014 the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
+            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
         },
         {
             "id": 8,
@@ -227,7 +227,7 @@
         {
             "id": 11,
             "name": "The Fairy Fort",
-            "description_template": "An ancient ring fort \u2014 a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
+            "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
             "lat": 53.627,
@@ -243,7 +243,7 @@
                 }
             ],
             "associated_npcs": [],
-            "mythological_significance": "A rath said to be home to the s\u00eddhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
+            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
         },
         {
             "id": 12,
@@ -268,7 +268,7 @@
                 }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Bogs preserve everything \u2014 bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
+            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
         },
         {
             "id": 13,
@@ -276,8 +276,8 @@
             "description_template": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.617,
-            "lon": -8.096,
+            "lat": 53.615,
+            "lon": -8.097,
             "connections": [
                 {
                     "target": 1,
@@ -311,11 +311,11 @@
         {
             "id": 15,
             "name": "Kilteevan Village",
-            "description_template": "The small village of Kilteevan \u2014 a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
+            "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6105,
-            "lon": -8.105,
+            "lat": 53.606,
+            "lon": -8.11,
             "connections": [
                 {
                     "target": 1,
@@ -323,7 +323,7 @@
                 }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Kilteevan \u2014 Cill T\u00edob\u00e1in, the church of St. T\u00edob\u00e1n. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
+            "mythological_significance": "Kilteevan — Cill Tíobáin, the church of St. Tíobán. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
         }
     ]
 }

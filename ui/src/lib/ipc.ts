@@ -178,3 +178,6 @@ export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
 
 export const onSavePicker = (cb: () => void) =>
 	onEvent<void>('save-picker', () => cb());
+
+export const onToggleFullMap = (cb: () => void) =>
+	onEvent<void>('toggle-full-map', () => cb());

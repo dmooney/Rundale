@@ -802,6 +802,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         Command::Spinner(secs) => {
             println!("Showing spinner for {} seconds (GUI only).", secs);
         }
+        Command::Map => {
+            println!("The map overlay is only available in the GUI (Tauri) mode.");
+        }
     }
     (false, rebuild)
 }

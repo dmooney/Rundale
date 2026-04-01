@@ -165,6 +165,9 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
     let world = state.world.lock().await;
     let player_loc = world.player_location;
 
+    // Compute hop distances from player for minimap filtering
+    let hop_map = world.graph.hop_distances(player_loc);
+
     // Collect adjacent location IDs
     let adjacent_ids: std::collections::HashSet<parish_core::world::LocationId> = world
         .graph
@@ -184,6 +187,7 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
             lat: data.lat,
             lon: data.lon,
             adjacent: adjacent_ids.contains(&id) || id == player_loc,
+            hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
         })
         .collect();
 
@@ -198,10 +202,19 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
         }
     }
 
+    // Get player's coordinates for minimap centering
+    let (player_lat, player_lon) = world
+        .graph
+        .get(player_loc)
+        .map(|data| (data.lat, data.lon))
+        .unwrap_or((0.0, 0.0));
+
     Ok(MapData {
         locations,
         edges,
         player_location: player_loc.0.to_string(),
+        player_lat,
+        player_lon,
     })
 }
 
@@ -400,6 +413,7 @@ async fn handle_system_command(
             "  /key.<cat>      — Show or change API key for a category",
             "  /load <n> — Load a saved branch",
             "  /log      — Show snapshot history",
+            "  /map      — Toggle full parish map overlay (or press M)",
             "  /model    — Show or change base model name",
             "  /model.<cat>    — Show or change model for a category",
             "  /pause    — Hold time still",
@@ -661,6 +675,12 @@ async fn handle_system_command(
                 cancel.cancel();
             });
             format!("Showing spinner for {} seconds…", secs)
+        }
+
+        // ── Map overlay ──────────────────────────────────────────────────
+        Command::Map => {
+            let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
+            return; // No text log for map toggle
         }
 
         // ── Debug ────────────────────────────────────────────────────────

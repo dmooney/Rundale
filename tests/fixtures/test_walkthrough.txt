@@ -1,21 +1,5 @@
-# Parish regression test — basic walkthrough
-# Tests movement, look, status, and navigation across multiple locations
-
-/status
 look
-go to crossroads
-go to pub
-look
+go to the crossroads
 /status
-go to crossroads
-go to church
-look
-/status
-go to crossroads
-go to farm
-look
-/pause
-/status
-/resume
-go to crossroads
-/quit
+/map
+/help

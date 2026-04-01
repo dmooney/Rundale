@@ -25,6 +25,8 @@ pub const EVENT_THEME_UPDATE: &str = "theme-update";
 pub const EVENT_DEBUG_UPDATE: &str = "debug-update";
 /// Event emitted to tell the frontend to open the save picker modal.
 pub const EVENT_SAVE_PICKER: &str = "save-picker";
+/// Event emitted to toggle the full map overlay.
+pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;

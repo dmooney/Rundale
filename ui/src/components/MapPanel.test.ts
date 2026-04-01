@@ -5,11 +5,13 @@ import MapPanel from './MapPanel.svelte';
 
 const testMap = {
 	locations: [
-		{ id: 'loc1', name: 'Dublin', lat: 53.35, lon: -6.26, adjacent: false },
-		{ id: 'loc2', name: 'Howth', lat: 53.39, lon: -6.07, adjacent: true }
+		{ id: 'loc1', name: 'Dublin', lat: 53.35, lon: -6.26, adjacent: false, hops: 0 },
+		{ id: 'loc2', name: 'Howth', lat: 53.39, lon: -6.07, adjacent: true, hops: 1 }
 	],
 	edges: [['loc1', 'loc2']] as [string, string][],
-	player_location: 'loc1'
+	player_location: 'loc1',
+	player_lat: 53.35,
+	player_lon: -6.26
 };
 
 describe('MapPanel', () => {
@@ -28,7 +30,7 @@ describe('MapPanel', () => {
 		expect(container.querySelector('svg')).toBeTruthy();
 	});
 
-	it('renders correct number of node circles', () => {
+	it('renders correct number of node circles for nearby locations', () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
 		const circles = container.querySelectorAll('circle');
@@ -54,5 +56,28 @@ describe('MapPanel', () => {
 		const { container } = render(MapPanel);
 		const adjacent = container.querySelector('.node.adjacent');
 		expect(adjacent).toBeTruthy();
+	});
+
+	it('only shows locations within hop radius', () => {
+		// Add a distant location (hops = 5, beyond MINIMAP_HOP_RADIUS of 3)
+		const mapWithDistant = {
+			...testMap,
+			locations: [
+				...testMap.locations,
+				{ id: 'loc3', name: 'Galway', lat: 53.27, lon: -9.05, adjacent: false, hops: 5 }
+			]
+		};
+		mapData.set(mapWithDistant);
+		const { container } = render(MapPanel);
+		const circles = container.querySelectorAll('circle');
+		// Only loc1 (hops=0) and loc2 (hops=1) should be rendered as circles
+		expect(circles.length).toBe(2);
+	});
+
+	it('shows expand button', () => {
+		mapData.set(testMap);
+		const { container } = render(MapPanel);
+		const expandBtn = container.querySelector('.expand-btn');
+		expect(expandBtn).toBeTruthy();
 	});
 });

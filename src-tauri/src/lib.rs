@@ -69,6 +69,8 @@ pub struct MapLocation {
     pub lon: f64,
     /// Whether this location is adjacent to (or is) the player's position.
     pub adjacent: bool,
+    /// Number of graph hops from the player's current location.
+    pub hops: u32,
 }
 
 /// The full map graph sent to the frontend.
@@ -80,6 +82,10 @@ pub struct MapData {
     pub edges: Vec<(String, String)>,
     /// The player's current location id.
     pub player_location: String,
+    /// Player's WGS-84 latitude (for centering the minimap).
+    pub player_lat: f64,
+    /// Player's WGS-84 longitude (for centering the minimap).
+    pub player_lon: f64,
 }
 
 /// Minimal NPC info for the sidebar.

@@ -88,6 +88,8 @@ pub enum Command {
     SetCategoryKey(InferenceCategory, String),
     /// Show about / credits information.
     About,
+    /// Toggle the full map overlay.
+    Map,
 }
 
 /// The kind of player action parsed from natural language input.
@@ -179,6 +181,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::ToggleImprov)
     } else if lower == "/about" {
         Some(Command::About)
+    } else if lower == "/map" {
+        Some(Command::Map)
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
     } else if lower == "/provider" {
@@ -1073,6 +1077,24 @@ mod tests {
     #[test]
     fn test_parse_about_command_case_insensitive() {
         assert_eq!(parse_system_command("/ABOUT"), Some(Command::About));
+    }
+
+    #[test]
+    fn test_parse_map_command() {
+        let cmd = parse_system_command("/map");
+        assert_eq!(cmd, Some(Command::Map));
+    }
+
+    #[test]
+    fn test_parse_map_command_case_insensitive() {
+        let cmd = parse_system_command("/MAP");
+        assert_eq!(cmd, Some(Command::Map));
+    }
+
+    #[test]
+    fn test_classify_map_command() {
+        let result = classify_input("/map");
+        assert_eq!(result, InputResult::SystemCommand(Command::Map));
     }
 
     #[test]

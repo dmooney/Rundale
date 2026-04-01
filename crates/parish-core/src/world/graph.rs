@@ -372,6 +372,30 @@ impl WorldGraph {
         total
     }
 
+    /// Computes the hop distance from a source location to every reachable location.
+    ///
+    /// Returns a map from `LocationId` to the number of graph hops (edges)
+    /// required to reach it from `from`. The source location has distance 0.
+    /// Unreachable or nonexistent locations are not included.
+    pub fn hop_distances(&self, from: LocationId) -> HashMap<LocationId, u32> {
+        let mut distances = HashMap::new();
+        if !self.locations.contains_key(&from) {
+            return distances;
+        }
+        distances.insert(from, 0);
+        let mut queue = VecDeque::new();
+        queue.push_back((from, 0u32));
+        while let Some((current, depth)) = queue.pop_front() {
+            for (neighbor_id, _) in self.neighbors(current) {
+                if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor_id) {
+                    e.insert(depth + 1);
+                    queue.push_back((neighbor_id, depth + 1));
+                }
+            }
+        }
+        distances
+    }
+
     /// Returns the connection from one location to another, if they are neighbors.
     pub fn connection_between(&self, from: LocationId, to: LocationId) -> Option<&Connection> {
         self.locations
@@ -821,6 +845,34 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("duplicate"));
+    }
+
+    #[test]
+    fn test_hop_distances_from_leaf() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let distances = graph.hop_distances(LocationId(4));
+        assert_eq!(distances[&LocationId(4)], 0);
+        assert_eq!(distances[&LocationId(3)], 1);
+        assert_eq!(distances[&LocationId(1)], 2);
+        assert_eq!(distances[&LocationId(2)], 3);
+        assert_eq!(distances.len(), 4);
+    }
+
+    #[test]
+    fn test_hop_distances_from_center() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let distances = graph.hop_distances(LocationId(1));
+        assert_eq!(distances[&LocationId(1)], 0);
+        assert_eq!(distances[&LocationId(2)], 1);
+        assert_eq!(distances[&LocationId(3)], 1);
+        assert_eq!(distances[&LocationId(4)], 2);
+    }
+
+    #[test]
+    fn test_hop_distances_nonexistent() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let distances = graph.hop_distances(LocationId(99));
+        assert!(distances.is_empty());
     }
 
     #[test]

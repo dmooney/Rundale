@@ -101,11 +101,11 @@ export const SNAPSHOTS: Record<string, WorldSnapshot> = {
 
 export const MAP_DATA: MapData = {
 	locations: [
-		{ id: 'dublin', name: 'Baile Átha Cliath', lat: 53.3498, lon: -6.2603, adjacent: false },
-		{ id: 'howth', name: 'Binn Éadair', lat: 53.3862, lon: -6.065, adjacent: true },
-		{ id: 'dalkey', name: 'Deilginse', lat: 53.2758, lon: -6.0986, adjacent: true },
-		{ id: 'bray', name: 'Bré', lat: 53.2009, lon: -6.0985, adjacent: false },
-		{ id: 'maynooth', name: 'Maigh Nuad', lat: 53.3851, lon: -6.5916, adjacent: false }
+		{ id: 'dublin', name: 'Baile Átha Cliath', lat: 53.3498, lon: -6.2603, adjacent: false, hops: 0 },
+		{ id: 'howth', name: 'Binn Éadair', lat: 53.3862, lon: -6.065, adjacent: true, hops: 1 },
+		{ id: 'dalkey', name: 'Deilginse', lat: 53.2758, lon: -6.0986, adjacent: true, hops: 1 },
+		{ id: 'bray', name: 'Bré', lat: 53.2009, lon: -6.0985, adjacent: false, hops: 2 },
+		{ id: 'maynooth', name: 'Maigh Nuad', lat: 53.3851, lon: -6.5916, adjacent: false, hops: 1 }
 	],
 	edges: [
 		['dublin', 'howth'],
@@ -113,7 +113,9 @@ export const MAP_DATA: MapData = {
 		['dalkey', 'bray'],
 		['dublin', 'maynooth']
 	],
-	player_location: 'dublin'
+	player_location: 'dublin',
+	player_lat: 53.3498,
+	player_lon: -6.2603
 };
 
 // ── NPCs ────────────────────────────────────────────────────────────────────

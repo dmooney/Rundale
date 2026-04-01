@@ -21,12 +21,15 @@ export interface MapLocation {
 	lat: number;
 	lon: number;
 	adjacent: boolean;
+	hops: number;
 }
 
 export interface MapData {
 	locations: MapLocation[];
 	edges: [string, string][];
 	player_location: string;
+	player_lat: number;
+	player_lon: number;
 }
 
 export interface NpcInfo {

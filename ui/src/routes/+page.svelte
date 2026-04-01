@@ -4,12 +4,13 @@
 	import StatusBar from '../components/StatusBar.svelte';
 	import ChatPanel from '../components/ChatPanel.svelte';
 	import MapPanel from '../components/MapPanel.svelte';
+	import FullMapOverlay from '../components/FullMapOverlay.svelte';
 	import Sidebar from '../components/Sidebar.svelte';
 	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen } from '../stores/game';
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
@@ -27,10 +28,11 @@
 		onLoading,
 		onThemeUpdate,
 		onDebugUpdate,
-		onSavePicker
+		onSavePicker,
+		onToggleFullMap
 	} from '$lib/ipc';
 
-	// F5 toggle for save picker, F12 toggle for debug panel
+	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'F5') {
 			e.preventDefault();
@@ -45,6 +47,11 @@
 					.then((s) => debugSnapshot.set(s))
 					.catch(() => {});
 			}
+		}
+		// Toggle full map with M key, but only when not typing in an input/contenteditable
+		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && !(document.activeElement as HTMLElement)?.isContentEditable) {
+			e.preventDefault();
+			fullMapOpen.update((v) => !v);
 		}
 	}
 
@@ -179,6 +186,10 @@
 
 			onDebugUpdate((snap) => {
 				debugSnapshot.set(snap);
+			}),
+
+			onToggleFullMap(() => {
+				fullMapOpen.update((v) => !v);
 			})
 		]);
 
@@ -193,7 +204,11 @@
 	});
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
+
+{#if $fullMapOpen}
+	<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
+{/if}
 
 <div class="app-shell" class:debug-open={$debugVisible}>
 	<StatusBar />

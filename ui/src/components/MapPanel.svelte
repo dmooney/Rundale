@@ -1,65 +1,158 @@
 <script lang="ts">
 	import { mapData } from '../stores/game';
+	import { fullMapOpen } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
-	import { resolveLabels, distSq, estimateTextWidth } from '$lib/map-labels';
+	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
+	import { projectWorld } from '$lib/map-projection';
 	import type { MapLocation } from '$lib/types';
+	import type { ProjectedLocation } from '$lib/map-projection';
 	import type { ResolvedLabel } from '$lib/map-labels';
+	import { tweened } from 'svelte/motion';
+	import { cubicOut } from 'svelte/easing';
 
+	/** Reference dimensions — visual sizes are authored relative to this. */
 	const W = 320;
 	const H = 240;
-	const NODE_R = 5;
-	const PLAYER_R = 8;
-	const LABEL_FONT_SIZE = 7;
+	/** Base sizes at the reference scale (W × H viewBox). */
+	const BASE_NODE_R = 6;
+	const BASE_PLAYER_R = 9;
+	const BASE_FONT_SIZE = 28;
+	/** Only show locations within this many hops on the minimap. */
+	const MINIMAP_HOP_RADIUS = 1;
 
-	interface ProjectedLocation extends MapLocation {
-		x: number;
-		y: number;
-	}
+	// Tweened center for smooth panning
+	const viewCenter = tweened({ x: 0, y: 0 }, { duration: 400, easing: cubicOut });
 
-	let projected: ProjectedLocation[] = $derived(project($mapData?.locations ?? []));
-	let labels: ResolvedLabel[] = $derived(
-		resolveLabels(
-			projected.map((loc) => ({
-				nodeX: loc.x,
-				nodeY: loc.y,
-				nodeR: isPlayer(loc) ? PLAYER_R : NODE_R,
-				textW: estimateTextWidth(loc.name),
-				textH: LABEL_FONT_SIZE
-			})),
-			W,
-			H
-		)
+	// Project ALL locations in world-space (stable coordinates)
+	let allProjected: ProjectedLocation[] = $derived(
+		projectWorld($mapData?.locations ?? [])
 	);
-	let tooltip: string | null = $state(null);
 
-	function project(locs: MapLocation[]): ProjectedLocation[] {
-		const hasCoords = locs.some((l) => l.lat !== 0 || l.lon !== 0);
-		if (!hasCoords || locs.length === 0) {
-			// Grid fallback layout
-			return locs.map((l, i) => ({
-				...l,
-				x: ((i % 5) + 0.5) * (W / 5),
-				y: (Math.floor(i / 5) + 0.5) * (H / Math.ceil(locs.length / 5))
-			}));
+	// Filter to minimap-visible locations (1-hop neighbors)
+	let nearbyProjected: ProjectedLocation[] = $derived(
+		allProjected.filter((l) => l.hops <= MINIMAP_HOP_RADIUS)
+	);
+
+	// Find the player's world-space position and update the tweened center
+	let playerWorld: { x: number; y: number } | null = $derived.by(() => {
+		const p = allProjected.find((l) => $mapData?.player_location === l.id);
+		return p ? { x: p.x, y: p.y } : null;
+	});
+
+	// Update tweened center when player moves
+	$effect(() => {
+		if (playerWorld) {
+			viewCenter.set({ x: playerWorld.x, y: playerWorld.y });
+		}
+	});
+
+	// Compute bounding box of nearby locations relative to the player, then derive
+	// a viewBox that fits them all with padding.  This auto-zooms the minimap so
+	// that neighbours are always visible regardless of geographic spread.
+	let viewBox: { x: number; y: number; w: number; h: number } = $derived.by(() => {
+		if (nearbyProjected.length === 0) return { x: 0, y: 0, w: W, h: H };
+
+		const cx = $viewCenter.x;
+		const cy = $viewCenter.y;
+
+		let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+		for (const l of nearbyProjected) {
+			const rx = l.x - cx;
+			const ry = l.y - cy;
+			if (rx < minX) minX = rx;
+			if (rx > maxX) maxX = rx;
+			if (ry < minY) minY = ry;
+			if (ry > maxY) maxY = ry;
 		}
 
-		const lats = locs.map((l) => l.lat);
-		const lons = locs.map((l) => l.lon);
-		const minLat = Math.min(...lats);
-		const maxLat = Math.max(...lats);
-		const minLon = Math.min(...lons);
-		const maxLon = Math.max(...lons);
-		const padX = (W * 0.1) / 2;
-		const padY = (H * 0.1) / 2;
-		const rangeX = maxLon - minLon || 1;
-		const rangeY = maxLat - minLat || 1;
+		const PAD = 40; // px padding around the bounding box
+		const spanX = maxX - minX + PAD * 2;
+		const spanY = maxY - minY + PAD * 2;
 
-		return locs.map((l) => ({
+		// Maintain the W:H aspect ratio, using whichever axis is tighter
+		const aspect = W / H;
+		let vbW: number, vbH: number;
+		if (spanX / spanY > aspect) {
+			vbW = Math.max(spanX, 80);
+			vbH = vbW / aspect;
+		} else {
+			vbH = Math.max(spanY, 60);
+			vbW = vbH * aspect;
+		}
+
+		// Cap viewBox so labels never scale below readable size (max 2x reference)
+		const MAX_SCALE = 2;
+		vbW = Math.min(vbW, W * MAX_SCALE);
+		vbH = Math.min(vbH, H * MAX_SCALE);
+
+		const midX = (minX + maxX) / 2;
+		const midY = (minY + maxY) / 2;
+
+		return { x: midX - vbW / 2, y: midY - vbH / 2, w: vbW, h: vbH };
+	});
+
+	// Scale factor: how much bigger the viewBox is compared to the reference W×H.
+	// All visual sizes (radii, fonts, strokes) are multiplied by this so they
+	// appear the same on screen regardless of geographic spread.
+	let s: number = $derived(viewBox.w / W);
+	let nodeR: number = $derived(BASE_NODE_R * s);
+	let playerR: number = $derived(BASE_PLAYER_R * s);
+	// Shrink font when many locations are visible to avoid label pile-up
+	let fontSize: number = $derived(
+		Math.max(10, BASE_FONT_SIZE - nearbyProjected.length * 2) * s
+	);
+
+	// Transform nearby locations to viewBox-local coordinates (centered on player)
+	let localProjected: ProjectedLocation[] = $derived(
+		nearbyProjected.map((l) => ({
 			...l,
-			x: padX + ((l.lon - minLon) / rangeX) * (W - padX * 2),
-			y: padY + ((maxLat - l.lat) / rangeY) * (H - padY * 2)
-		}));
-	}
+			x: l.x - $viewCenter.x - viewBox.x,
+			y: l.y - $viewCenter.y - viewBox.y
+		}))
+	);
+
+
+	let edgeLines: EdgeLine[] = $derived(
+		visibleEdges.map(([src, dst]) => {
+			const a = localProjected.find((p) => p.id === src);
+			const b = localProjected.find((p) => p.id === dst);
+			return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null;
+		}).filter((e): e is EdgeLine => e !== null)
+	);
+
+	let labels: ResolvedLabel[] = $derived(
+		resolveLabels(
+			localProjected.map((loc) => ({
+				nodeX: loc.x,
+				nodeY: loc.y,
+				nodeR: isPlayer(loc) ? playerR : nodeR,
+				textW: estimateTextWidth(loc.name, 30, fontSize),
+				textH: fontSize
+			})),
+			viewBox.w,
+			viewBox.h,
+			edgeLines
+		)
+	);
+
+	// Edges between 1-hop locations
+	let visibleEdges: [string, string][] = $derived.by(() => {
+		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
+		return ($mapData?.edges ?? []).filter(([a, b]) => nearbyIds.has(a) && nearbyIds.has(b));
+	});
+
+	// Count of off-map connections per visible node (for "road continues" stubs)
+	let offMapCounts: Map<string, number> = $derived.by(() => {
+		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
+		const counts = new Map<string, number>();
+		for (const [a, b] of $mapData?.edges ?? []) {
+			if (nearbyIds.has(a) && !nearbyIds.has(b)) counts.set(a, (counts.get(a) ?? 0) + 1);
+			if (nearbyIds.has(b) && !nearbyIds.has(a)) counts.set(b, (counts.get(b) ?? 0) + 1);
+		}
+		return counts;
+	});
+
+	let tooltip: string | null = $state(null);
 
 	function isPlayer(loc: MapLocation): boolean {
 		return $mapData?.player_location === loc.id;
@@ -69,39 +162,71 @@
 		if (!loc.adjacent) return;
 		await submitInput(`go to ${loc.name}`);
 	}
+
+	function openFullMap() {
+		fullMapOpen.set(true);
+	}
 </script>
 
 <div class="map-panel" data-testid="map-panel">
-	<div class="map-title">Parish Map</div>
+	<div class="map-header">
+		<span class="map-title">Map</span>
+		<button class="expand-btn" onclick={openFullMap} title="Open full map (M)">
+			<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+				<path d="M1 1h5v2H3v3H1V1zm9 0h5v5h-2V3h-3V1zM1 10h2v3h3v2H1v-5zm12 3h-3v2h5v-5h-2v3z" />
+			</svg>
+		</button>
+	</div>
 	{#if $mapData}
-		<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish map">
+		<svg viewBox="0 0 {viewBox.w} {viewBox.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish minimap">
+			<!-- Continuation stubs: short faded lines from nodes with off-map connections -->
+			{#each localProjected as loc}
+				{@const count = offMapCounts.get(loc.id) ?? 0}
+				{@const r = isPlayer(loc) ? playerR : nodeR}
+				{#if count > 0 && !isPlayer(loc)}
+					{@const cx = viewBox.w / 2}
+					{@const cy = viewBox.h / 2}
+					{@const angle = Math.atan2(loc.y - cy, loc.x - cx)}
+					<line
+						x1={loc.x + Math.cos(angle) * (r + 2 * s)}
+						y1={loc.y + Math.sin(angle) * (r + 2 * s)}
+						x2={loc.x + Math.cos(angle) * (r + 14 * s)}
+						y2={loc.y + Math.sin(angle) * (r + 14 * s)}
+						class="continuation-stub"
+						stroke-width={1 * s}
+					/>
+				{/if}
+			{/each}
+
 			<!-- Edges -->
-			{#each $mapData.edges as [src, dst]}
-				{@const a = projected.find((p) => p.id === src)}
-				{@const b = projected.find((p) => p.id === dst)}
+			{#each visibleEdges as [src, dst]}
+				{@const a = localProjected.find((p) => p.id === src)}
+				{@const b = localProjected.find((p) => p.id === dst)}
 				{#if a && b}
-					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" />
+					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" stroke-width={1 * s} />
 				{/if}
 			{/each}
 
 			<!-- Leader lines (drawn behind labels) -->
-			{#each projected as loc, i}
+			{#each localProjected as loc, i}
 				{@const label = labels[i]}
-				{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
-				{@const threshold = (r + 6) ** 2}
-				{#if label && distSq(label.cx, label.cy, label.ax, label.ay) > threshold}
+				{@const r = isPlayer(loc) ? playerR : nodeR}
+				{@const threshold = (r + 6 * s) ** 2}
+				{#if label && distSq(label.cx, label.cy, loc.x, loc.y) > threshold}
+					{@const angle = Math.atan2(label.cy - loc.y, label.cx - loc.x)}
 					<line
-						x1={loc.x}
-						y1={loc.y + r + 1}
-						x2={label.cx}
-						y2={label.cy - label.h / 2}
+						x1={loc.x + Math.cos(angle) * (r + 1 * s)}
+						y1={loc.y + Math.sin(angle) * (r + 1 * s)}
+						x2={label.cx - Math.cos(angle) * Math.min(label.w / 2, 8 * s)}
+						y2={label.cy - Math.sin(angle) * Math.min(label.h / 2, 6 * s)}
 						class="leader"
+						stroke-width={0.3 * s}
 					/>
 				{/if}
 			{/each}
 
 			<!-- Location nodes -->
-			{#each projected as loc, i}
+			{#each localProjected as loc, i}
 				{@const label = labels[i]}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -113,20 +238,22 @@
 					onmouseenter={() => (tooltip = loc.name)}
 					onmouseleave={() => (tooltip = null)}
 				>
-					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? PLAYER_R : NODE_R} class="node-circle" />
+					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? playerR : nodeR} class="node-circle" stroke-width={1.5 * s} />
 					{#if label}
-						<text x={label.cx} y={label.cy + LABEL_FONT_SIZE / 2 - 1} class="node-label">
-							{loc.name.length > 14 ? loc.name.slice(0, 12) + '…' : loc.name}
+						<text x={label.cx} y={label.cy + fontSize / 2 - 1 * s} class="node-label" font-size={fontSize}>
+							{loc.name}
 						</text>
 					{/if}
 				</g>
 			{/each}
+
+			<!-- Off-screen indicators removed: confusing at tight zoom -->
 		</svg>
 		{#if tooltip}
 			<div class="tooltip">{tooltip}</div>
 		{/if}
 	{:else}
-		<div class="empty">Loading map…</div>
+		<div class="empty">Loading map&hellip;</div>
 	{/if}
 </div>
 
@@ -140,12 +267,34 @@
 		flex-shrink: 0;
 	}
 
+	.map-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.25rem;
+	}
+
 	.map-title {
 		font-size: 0.75rem;
 		color: var(--color-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
-		margin-bottom: 0.25rem;
+	}
+
+	.expand-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		color: var(--color-muted);
+		cursor: pointer;
+		padding: 4px;
+		line-height: 1;
+		border-radius: 3px;
+	}
+
+	.expand-btn:hover {
+		color: var(--color-accent);
+		border-color: var(--color-accent);
+		background: var(--color-input-bg);
 	}
 
 	svg {
@@ -156,19 +305,22 @@
 
 	.edge {
 		stroke: var(--color-border);
-		stroke-width: 1;
+	}
+
+	.continuation-stub {
+		stroke: var(--color-muted);
+		opacity: 0.4;
+		stroke-dasharray: 3 2;
 	}
 
 	.leader {
 		stroke: var(--color-muted);
-		stroke-width: 0.3;
 		stroke-dasharray: 1.5 1;
 	}
 
 	.node-circle {
 		fill: var(--color-panel-bg);
 		stroke: var(--color-muted);
-		stroke-width: 1.5;
 		cursor: default;
 	}
 
@@ -187,7 +339,6 @@
 	}
 
 	.node-label {
-		font-size: 7px;
 		fill: var(--color-muted);
 		text-anchor: middle;
 		pointer-events: none;
@@ -196,6 +347,7 @@
 	.node.player .node-label {
 		fill: var(--color-fg);
 	}
+
 
 	.tooltip {
 		position: absolute;

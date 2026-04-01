@@ -29,3 +29,5 @@ export const uiConfig = writable<UiConfig>({
 	default_accent: '#c4a35a',
 	splash_text: ''
 });
+
+export const fullMapOpen = writable<boolean>(false);

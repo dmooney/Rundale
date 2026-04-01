@@ -53,6 +53,9 @@ pub struct MapLocation {
     pub lon: f64,
     /// Whether this location is adjacent to (or is) the player's position.
     pub adjacent: bool,
+    /// Number of graph hops from the player's current location.
+    #[serde(default)]
+    pub hops: u32,
 }
 
 /// The full map graph sent to the frontend.
@@ -202,6 +205,7 @@ mod tests {
                 lat: 53.0,
                 lon: -7.0,
                 adjacent: true,
+                hops: 0,
             }],
             edges: vec![("1".to_string(), "2".to_string())],
             player_location: "1".to_string(),
