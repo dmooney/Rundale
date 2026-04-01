@@ -264,6 +264,7 @@ mod tests {
             memory: ShortTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
+            deflated_summary: None,
         });
 
         let events = vec![WorldEvent::NpcMoodChanged {

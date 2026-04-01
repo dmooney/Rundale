@@ -141,8 +141,7 @@ pub async fn run_headless(
     }
 
     // Initial tier assignment
-    app.npc_manager
-        .assign_tiers(app.world.player_location, &app.world.graph);
+    app.npc_manager.assign_tiers(&app.world, &[]);
 
     // Initialize persistence — Papers Please-style save picker
     let saves_dir = crate::persistence::picker::ensure_saves_dir();
@@ -222,8 +221,14 @@ pub async fn run_headless(
         }
 
         // Simulation tick after each player action
-        app.npc_manager
-            .assign_tiers(app.world.player_location, &app.world.graph);
+        let tier_transitions = app.npc_manager.assign_tiers(&app.world, &[]);
+        for tt in &tier_transitions {
+            let direction = if tt.promoted { "promoted" } else { "demoted" };
+            app.debug_event(format!(
+                "[tier] {} {} {:?} → {:?}",
+                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+            ));
+        }
         let schedule_events = app
             .npc_manager
             .tick_schedules(&app.world.clock, &app.world.graph);
@@ -299,8 +304,7 @@ async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::Async
             snapshot.restore(&mut app.world, &mut app.npc_manager);
             crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
             app.latest_snapshot_id = snap_id;
-            app.npc_manager
-                .assign_tiers(app.world.player_location, &app.world.graph);
+            app.npc_manager.assign_tiers(&app.world, &[]);
             println!("Restored from save.");
         } else {
             // First run — save initial snapshot
@@ -600,8 +604,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                                 app.last_autosave = Some(std::time::Instant::now());
 
                                 // Reassign tiers after loading
-                                app.npc_manager
-                                    .assign_tiers(app.world.player_location, &app.world.graph);
+                                app.npc_manager.assign_tiers(&app.world, &[]);
 
                                 let time = app.world.clock.time_of_day();
                                 let season = app.world.clock.season();

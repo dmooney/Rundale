@@ -515,7 +515,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_manager = NpcManager::new();
         npc_manager.add_npc(Npc::new_test_npc());
-        npc_manager.assign_tiers(world.player_location, &world.graph);
+        npc_manager.assign_tiers(&world, &[]);
 
         let events = VecDeque::new();
         let inference = InferenceDebug {
@@ -572,7 +572,7 @@ mod tests {
         let world = WorldState::new();
         let mut mgr = NpcManager::new();
         mgr.add_npc(Npc::new_test_npc());
-        mgr.assign_tiers(world.player_location, &world.graph);
+        mgr.assign_tiers(&world, &[]);
 
         let summary = build_tier_summary(&mgr);
         // Test NPC is at LocationId(1) = player location = Tier1
