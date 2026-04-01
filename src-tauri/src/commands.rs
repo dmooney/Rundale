@@ -19,6 +19,7 @@ use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
 use parish_core::world::movement::{self, MovementResult};
 use parish_core::world::palette::compute_palette;
+use parish_core::world::transport::TransportMode;
 
 use crate::events::{
     EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload,
@@ -47,17 +48,21 @@ static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 /// NPC manager and pronunciation data are provided.
 pub fn get_world_snapshot_inner(
     world: &parish_core::world::WorldState,
+    transport: &TransportMode,
     npc_manager: Option<&parish_core::npc::manager::NpcManager>,
     pronunciations: &[parish_core::game_mod::PronunciationEntry],
 ) -> WorldSnapshot {
-    let mut snapshot = snapshot_from_world(world);
+    let mut snapshot = snapshot_from_world(world, transport);
     if let Some(npc_mgr) = npc_manager {
         snapshot.name_hints = compute_name_hints(world, npc_mgr, pronunciations);
     }
     snapshot
 }
 
-fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot {
+fn snapshot_from_world(
+    world: &parish_core::world::WorldState,
+    transport: &TransportMode,
+) -> WorldSnapshot {
     use chrono::Timelike;
     use parish_core::world::description::{format_exits, render_description};
 
@@ -73,7 +78,12 @@ fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot 
     // Render the description template with current game state + exits
     let description = if let Some(data) = world.current_location_data() {
         let desc = render_description(data, tod, &weather_str, &[]);
-        let exits = format_exits(world.player_location, &world.graph);
+        let exits = format_exits(
+            world.player_location,
+            &world.graph,
+            transport.speed_m_per_s,
+            &transport.label,
+        );
         format!("{}\n\n{}", desc, exits)
     } else {
         loc.description.clone()
@@ -142,8 +152,9 @@ pub async fn get_world_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<WorldSnapshot, String> {
     let world = state.world.lock().await;
+    let transport = state.transport.default_mode();
     let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = snapshot_from_world(&world);
+    let mut snapshot = snapshot_from_world(&world, transport);
     snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
     Ok(snapshot)
 }
@@ -671,8 +682,9 @@ async fn handle_system_command(
     // Emit updated world state for status bar
     {
         let world = state.world.lock().await;
+        let transport = state.transport.default_mode();
         let npc_manager = state.npc_manager.lock().await;
-        let mut snapshot = snapshot_from_world(&world);
+        let mut snapshot = snapshot_from_world(&world, transport);
         snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
         let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
     }
@@ -732,9 +744,10 @@ async fn handle_game_input(
 
 /// Resolves movement to a named location.
 async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let transport = state.transport.default_mode().clone();
     let result = {
         let world = state.world.lock().await;
-        movement::resolve_movement(target, &world.graph, world.player_location)
+        movement::resolve_movement(target, &world.graph, world.player_location, &transport)
     };
 
     match result {
@@ -806,7 +819,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             {
                 let world = state.world.lock().await;
                 let npc_manager = state.npc_manager.lock().await;
-                let mut snapshot = snapshot_from_world(&world);
+                let mut snapshot = snapshot_from_world(&world, &transport);
                 snapshot.name_hints =
                     compute_name_hints(&world, &npc_manager, &state.pronunciations);
                 let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
@@ -823,7 +836,12 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         }
         MovementResult::NotFound(name) => {
             let world = state.world.lock().await;
-            let exits = format_exits(world.player_location, &world.graph);
+            let exits = format_exits(
+                world.player_location,
+                &world.graph,
+                transport.speed_m_per_s,
+                &transport.label,
+            );
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
@@ -857,7 +875,13 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
         world.current_location().description.clone()
     };
 
-    let exits = format_exits(world.player_location, &world.graph);
+    let transport = state.transport.default_mode();
+    let exits = format_exits(
+        world.player_location,
+        &world.graph,
+        transport.speed_m_per_s,
+        &transport.label,
+    );
 
     let _ = app.emit(
         EVENT_TEXT_LOG,
@@ -1213,7 +1237,8 @@ pub async fn load_branch(
         .unwrap_or_default();
 
     // Emit updated state to frontend (compute name hints before dropping locks)
-    let mut ws = snapshot_from_world(&world);
+    let transport = state.transport.default_mode();
+    let mut ws = snapshot_from_world(&world, transport);
     ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
     drop(npc_manager);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
@@ -1367,7 +1392,8 @@ pub async fn new_game(
         .map_err(|e| e.to_string())?;
 
     // Emit updated state
-    let mut ws = snapshot_from_world(&world);
+    let transport = state.transport.default_mode();
+    let mut ws = snapshot_from_world(&world, transport);
     ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
     let _ = app.emit(

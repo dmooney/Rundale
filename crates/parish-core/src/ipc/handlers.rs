@@ -10,12 +10,13 @@ use chrono::Timelike;
 use crate::npc::manager::NpcManager;
 use crate::world::description::{format_exits, render_description};
 use crate::world::palette::compute_palette;
+use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
 
 use super::types::{MapData, MapLocation, NpcInfo, ThemePalette, WorldSnapshot};
 
 /// Builds a [`WorldSnapshot`] from the current world state.
-pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
+pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> WorldSnapshot {
     let now = world.clock.now();
     let hour = now.hour() as u8;
     let minute = now.minute() as u8;
@@ -27,7 +28,12 @@ pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
     let loc = world.current_location();
     let description = if let Some(data) = world.current_location_data() {
         let desc = render_description(data, tod, &weather_str, &[]);
-        let exits = format_exits(world.player_location, &world.graph);
+        let exits = format_exits(
+            world.player_location,
+            &world.graph,
+            transport.speed_m_per_s,
+            &transport.label,
+        );
         format!("{}\n\n{}", desc, exits)
     } else {
         loc.description.clone()

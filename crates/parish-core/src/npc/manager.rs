@@ -388,7 +388,8 @@ impl NpcManager {
                         && desired != npc.location
                         && let Some(path) = graph.shortest_path(npc.location, desired)
                     {
-                        let travel_minutes = graph.path_travel_time(&path);
+                        // NPCs walk at ~1.25 m/s (~4.5 km/h)
+                        let travel_minutes = graph.path_travel_time(&path, 1.25);
                         let arrives_at = now + Duration::minutes(travel_minutes as i64);
                         let from = npc.location;
                         let npc_name = npc.name.clone();

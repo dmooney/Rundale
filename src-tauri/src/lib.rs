@@ -22,6 +22,7 @@ use parish_core::inference::{
 };
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::palette::{RawColor, RawPalette, compute_palette};
+use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
 // ── IPC type definitions ─────────────────────────────────────────────────────
@@ -236,6 +237,8 @@ pub struct AppState {
     pub current_branch_id: Mutex<Option<i64>>,
     /// Name of the current branch.
     pub current_branch_name: Mutex<Option<String>>,
+    /// Transport mode configuration from the loaded game mod.
+    pub transport: TransportConfig,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -442,6 +445,12 @@ pub fn run() {
         env!("PARISH_BUILD_TIME"),
     );
 
+    // Build transport config from mod or defaults
+    let transport = game_mod
+        .as_ref()
+        .map(|gm| gm.transport.clone())
+        .unwrap_or_default();
+
     // Build UI config from mod or defaults
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
@@ -478,6 +487,7 @@ pub fn run() {
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
+        transport,
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -732,9 +742,11 @@ pub fn run() {
                         tokio::time::sleep(Duration::from_secs(5)).await;
                         {
                             let world = state_tick.world.lock().await;
+                            let transport = state_tick.transport.default_mode();
                             let npc_mgr = state_tick.npc_manager.lock().await;
                             let snapshot = crate::commands::get_world_snapshot_inner(
                                 &world,
+                                transport,
                                 Some(&npc_mgr),
                                 &state_tick.pronunciations,
                             );

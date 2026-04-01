@@ -7,10 +7,12 @@
 pub mod description;
 pub mod encounter;
 pub mod events;
+pub mod geo;
 pub mod graph;
 pub mod movement;
 pub mod palette;
 pub mod time;
+pub mod transport;
 
 use std::collections::HashMap;
 use std::fmt;

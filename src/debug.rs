@@ -237,7 +237,11 @@ fn debug_here(app: &App) -> Vec<String> {
         lines.push("  Exits:".to_string());
         for conn in &loc_data.connections {
             let dest = location_name(conn.target, &app.world.graph);
-            lines.push(format!("    -> {} ({}min)", dest, conn.traversal_minutes));
+            let minutes =
+                app.world
+                    .graph
+                    .edge_travel_minutes(app.world.player_location, conn.target, 1.25);
+            lines.push(format!("    -> {} ({}min)", dest, minutes));
         }
     }
 

@@ -20,6 +20,7 @@ encounters = "encounters.json"
 loading = "loading.toml"
 ui = "ui.toml"
 pronunciations = "pronunciations.json"
+transport = "transport.toml"
 
 [prompts]
 tier1_system = "prompts/tier1_system.txt"

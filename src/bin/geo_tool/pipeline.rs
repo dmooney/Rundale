@@ -202,14 +202,14 @@ fn build_locations(
         // Forward connection
         conn_map.entry(conn.from_idx).or_default().push(Connection {
             target: to_id,
-            traversal_minutes: conn.traversal_minutes,
+            traversal_minutes: None,
             path_description: conn.path_description.clone(),
         });
 
         // Reverse connection (bidirectional)
         conn_map.entry(conn.to_idx).or_default().push(Connection {
             target: from_id,
-            traversal_minutes: conn.traversal_minutes,
+            traversal_minutes: None,
             path_description: conn.reverse_path_description.clone(),
         });
     }

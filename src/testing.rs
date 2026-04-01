@@ -24,6 +24,7 @@ use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use crate::world::time::{Season, TimeOfDay};
 use crate::world::{Location, LocationId};
+use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -279,9 +280,24 @@ impl GameTestHarness {
             .collect()
     }
 
+    /// Returns the default transport mode from the game mod, or walking.
+    fn default_transport(&self) -> TransportMode {
+        self.app
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.transport.default_mode().clone())
+            .unwrap_or_else(TransportMode::walking)
+    }
+
     /// Returns formatted exit descriptions from the current location.
     pub fn exits(&self) -> String {
-        format_exits(self.app.world.player_location, &self.app.world.graph)
+        let transport = self.default_transport();
+        format_exits(
+            self.app.world.player_location,
+            &self.app.world.graph,
+            transport.speed_m_per_s,
+            &transport.label,
+        )
     }
 
     /// Returns the current weather.
@@ -740,7 +756,13 @@ impl GameTestHarness {
                 }
                 IntentKind::Look => {
                     let desc = self.render_current_location();
-                    let exits = format_exits(self.app.world.player_location, &self.app.world.graph);
+                    let transport = self.default_transport();
+                    let exits = format_exits(
+                        self.app.world.player_location,
+                        &self.app.world.graph,
+                        transport.speed_m_per_s,
+                        &transport.label,
+                    );
                     self.app.world.log(desc.clone());
                     self.app.world.log(exits);
                     ActionResult::Looked { description: desc }
@@ -757,10 +779,12 @@ impl GameTestHarness {
 
     /// Handles movement, advancing the clock and updating location.
     fn handle_movement(&mut self, target: &str) -> ActionResult {
+        let transport = self.default_transport();
         let result = movement::resolve_movement(
             target,
             &self.app.world.graph,
             self.app.world.player_location,
+            &transport,
         );
 
         match result {
@@ -798,7 +822,12 @@ impl GameTestHarness {
                 self.app.world.log(format!("— {} —", loc_name));
                 let desc = self.render_current_location();
                 self.app.world.log(desc);
-                let exits = format_exits(self.app.world.player_location, &self.app.world.graph);
+                let exits = format_exits(
+                    self.app.world.player_location,
+                    &self.app.world.graph,
+                    transport.speed_m_per_s,
+                    &transport.label,
+                );
                 self.app.world.log(exits);
                 self.app.world.log(String::new());
 
@@ -816,7 +845,12 @@ impl GameTestHarness {
                 self.app
                     .world
                     .log(format!("You don't know how to get to \"{}\".", name));
-                let exits = format_exits(self.app.world.player_location, &self.app.world.graph);
+                let exits = format_exits(
+                    self.app.world.player_location,
+                    &self.app.world.graph,
+                    transport.speed_m_per_s,
+                    &transport.label,
+                );
                 self.app.world.log(exits);
                 ActionResult::NotFound { target: name }
             }

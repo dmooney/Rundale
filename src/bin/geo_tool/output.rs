@@ -184,7 +184,7 @@ mod tests {
                     lon: -8.0,
                     connections: vec![Connection {
                         target: LocationId(2),
-                        traversal_minutes: 5,
+                        traversal_minutes: None,
                         path_description: "a path to B".to_string(),
                     }],
                     associated_npcs: vec![],
@@ -207,7 +207,7 @@ mod tests {
                     lon: -8.0,
                     connections: vec![Connection {
                         target: LocationId(1),
-                        traversal_minutes: 5,
+                        traversal_minutes: None,
                         path_description: "a path to A".to_string(),
                     }],
                     associated_npcs: vec![],
