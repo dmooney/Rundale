@@ -1,8 +1,10 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Supports Ollama (local, default), LM Studio (local), OpenRouter (cloud),
-//! and custom OpenAI-compatible endpoints. Configuration is resolved from
-//! a TOML file, environment variables, and CLI flags (in that priority order).
+//! Supports Ollama (local, default), LM Studio (local), and several cloud
+//! providers: OpenRouter, OpenAI, Google (Gemini), Groq, xAI (Grok),
+//! Mistral, DeepSeek, and Together AI. A custom OpenAI-compatible endpoint
+//! is also available. Configuration is resolved from a TOML file,
+//! environment variables, and CLI flags (in that priority order).
 //!
 //! Each inference category (dialogue, simulation, intent) can be independently
 //! configured with its own provider, model, base URL, and API key via
@@ -24,6 +26,13 @@ use std::path::Path;
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const DEFAULT_LMSTUDIO_URL: &str = "http://localhost:1234";
 const DEFAULT_OPENROUTER_URL: &str = "https://openrouter.ai/api";
+const DEFAULT_OPENAI_URL: &str = "https://api.openai.com";
+const DEFAULT_GOOGLE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
+const DEFAULT_GROQ_URL: &str = "https://api.groq.com/openai";
+const DEFAULT_XAI_URL: &str = "https://api.x.ai";
+const DEFAULT_MISTRAL_URL: &str = "https://api.mistral.ai";
+const DEFAULT_DEEPSEEK_URL: &str = "https://api.deepseek.com";
+const DEFAULT_TOGETHER_URL: &str = "https://api.together.xyz";
 
 /// Supported LLM provider backends.
 ///
@@ -39,6 +48,20 @@ pub enum Provider {
     LmStudio,
     /// OpenRouter cloud gateway (requires API key).
     OpenRouter,
+    /// OpenAI API (requires API key).
+    OpenAi,
+    /// Google Gemini via OpenAI-compatible endpoint (requires API key).
+    Google,
+    /// Groq cloud inference (requires API key).
+    Groq,
+    /// xAI Grok models (requires API key).
+    Xai,
+    /// Mistral AI (requires API key).
+    Mistral,
+    /// DeepSeek (requires API key).
+    DeepSeek,
+    /// Together AI (requires API key).
+    Together,
     /// Any OpenAI-compatible endpoint (requires base_url).
     Custom,
 }
@@ -50,9 +73,17 @@ impl Provider {
             "ollama" => Ok(Provider::Ollama),
             "lmstudio" | "lm_studio" | "lm-studio" => Ok(Provider::LmStudio),
             "openrouter" | "open_router" | "open-router" => Ok(Provider::OpenRouter),
+            "openai" | "open_ai" | "open-ai" => Ok(Provider::OpenAi),
+            "google" | "gemini" => Ok(Provider::Google),
+            "groq" => Ok(Provider::Groq),
+            "xai" | "x-ai" | "grok" => Ok(Provider::Xai),
+            "mistral" => Ok(Provider::Mistral),
+            "deepseek" | "deep-seek" | "deep_seek" => Ok(Provider::DeepSeek),
+            "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
             "custom" => Ok(Provider::Custom),
             other => Err(ParishError::Config(format!(
-                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, custom",
+                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, openai, \
+                 google, groq, xai, mistral, deepseek, together, custom",
                 other
             ))),
         }
@@ -64,13 +95,30 @@ impl Provider {
             Provider::Ollama => DEFAULT_OLLAMA_URL,
             Provider::LmStudio => DEFAULT_LMSTUDIO_URL,
             Provider::OpenRouter => DEFAULT_OPENROUTER_URL,
+            Provider::OpenAi => DEFAULT_OPENAI_URL,
+            Provider::Google => DEFAULT_GOOGLE_URL,
+            Provider::Groq => DEFAULT_GROQ_URL,
+            Provider::Xai => DEFAULT_XAI_URL,
+            Provider::Mistral => DEFAULT_MISTRAL_URL,
+            Provider::DeepSeek => DEFAULT_DEEPSEEK_URL,
+            Provider::Together => DEFAULT_TOGETHER_URL,
             Provider::Custom => "",
         }
     }
 
     /// Whether this provider requires an API key.
     pub fn requires_api_key(&self) -> bool {
-        matches!(self, Provider::OpenRouter)
+        matches!(
+            self,
+            Provider::OpenRouter
+                | Provider::OpenAi
+                | Provider::Google
+                | Provider::Groq
+                | Provider::Xai
+                | Provider::Mistral
+                | Provider::DeepSeek
+                | Provider::Together
+        )
     }
 
     /// Whether this provider requires an explicit model name
@@ -757,6 +805,69 @@ mod tests {
             Provider::from_str_loose("custom").unwrap(),
             Provider::Custom
         );
+
+        // Cloud providers
+        assert_eq!(
+            Provider::from_str_loose("openai").unwrap(),
+            Provider::OpenAi
+        );
+        assert_eq!(
+            Provider::from_str_loose("open-ai").unwrap(),
+            Provider::OpenAi
+        );
+        assert_eq!(
+            Provider::from_str_loose("open_ai").unwrap(),
+            Provider::OpenAi
+        );
+        assert_eq!(
+            Provider::from_str_loose("OpenAI").unwrap(),
+            Provider::OpenAi
+        );
+        assert_eq!(
+            Provider::from_str_loose("google").unwrap(),
+            Provider::Google
+        );
+        assert_eq!(
+            Provider::from_str_loose("gemini").unwrap(),
+            Provider::Google
+        );
+        assert_eq!(Provider::from_str_loose("groq").unwrap(), Provider::Groq);
+        assert_eq!(Provider::from_str_loose("xai").unwrap(), Provider::Xai);
+        assert_eq!(Provider::from_str_loose("x-ai").unwrap(), Provider::Xai);
+        assert_eq!(Provider::from_str_loose("grok").unwrap(), Provider::Xai);
+        assert_eq!(
+            Provider::from_str_loose("mistral").unwrap(),
+            Provider::Mistral
+        );
+        assert_eq!(
+            Provider::from_str_loose("deepseek").unwrap(),
+            Provider::DeepSeek
+        );
+        assert_eq!(
+            Provider::from_str_loose("deep-seek").unwrap(),
+            Provider::DeepSeek
+        );
+        assert_eq!(
+            Provider::from_str_loose("deep_seek").unwrap(),
+            Provider::DeepSeek
+        );
+        assert_eq!(
+            Provider::from_str_loose("together").unwrap(),
+            Provider::Together
+        );
+        assert_eq!(
+            Provider::from_str_loose("togetherai").unwrap(),
+            Provider::Together
+        );
+        assert_eq!(
+            Provider::from_str_loose("together-ai").unwrap(),
+            Provider::Together
+        );
+        assert_eq!(
+            Provider::from_str_loose("together_ai").unwrap(),
+            Provider::Together
+        );
+
         assert!(Provider::from_str_loose("unknown").is_err());
     }
 
@@ -774,19 +885,62 @@ mod tests {
             Provider::OpenRouter.default_base_url(),
             "https://openrouter.ai/api"
         );
+        assert_eq!(
+            Provider::OpenAi.default_base_url(),
+            "https://api.openai.com"
+        );
+        assert_eq!(
+            Provider::Google.default_base_url(),
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        );
+        assert_eq!(
+            Provider::Groq.default_base_url(),
+            "https://api.groq.com/openai"
+        );
+        assert_eq!(Provider::Xai.default_base_url(), "https://api.x.ai");
+        assert_eq!(
+            Provider::Mistral.default_base_url(),
+            "https://api.mistral.ai"
+        );
+        assert_eq!(
+            Provider::DeepSeek.default_base_url(),
+            "https://api.deepseek.com"
+        );
+        assert_eq!(
+            Provider::Together.default_base_url(),
+            "https://api.together.xyz"
+        );
         assert_eq!(Provider::Custom.default_base_url(), "");
     }
 
     #[test]
     fn test_provider_requirements() {
+        // Local providers don't require API keys
         assert!(!Provider::Ollama.requires_api_key());
         assert!(!Provider::LmStudio.requires_api_key());
-        assert!(Provider::OpenRouter.requires_api_key());
         assert!(!Provider::Custom.requires_api_key());
 
+        // All cloud providers require API keys
+        assert!(Provider::OpenRouter.requires_api_key());
+        assert!(Provider::OpenAi.requires_api_key());
+        assert!(Provider::Google.requires_api_key());
+        assert!(Provider::Groq.requires_api_key());
+        assert!(Provider::Xai.requires_api_key());
+        assert!(Provider::Mistral.requires_api_key());
+        assert!(Provider::DeepSeek.requires_api_key());
+        assert!(Provider::Together.requires_api_key());
+
+        // Only Ollama auto-detects model
         assert!(!Provider::Ollama.requires_model());
         assert!(Provider::LmStudio.requires_model());
         assert!(Provider::OpenRouter.requires_model());
+        assert!(Provider::OpenAi.requires_model());
+        assert!(Provider::Google.requires_model());
+        assert!(Provider::Groq.requires_model());
+        assert!(Provider::Xai.requires_model());
+        assert!(Provider::Mistral.requires_model());
+        assert!(Provider::DeepSeek.requires_model());
+        assert!(Provider::Together.requires_model());
         assert!(Provider::Custom.requires_model());
     }
 

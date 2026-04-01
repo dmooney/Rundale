@@ -13,6 +13,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::Mutex;
 
+use parish_core::config::Provider;
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
@@ -856,11 +857,10 @@ pub fn run() {
 fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Option<String>) {
     let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "ollama".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
-    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| match provider.as_str() {
-        "ollama" => "http://localhost:11434".to_string(),
-        "lmstudio" => "http://localhost:1234".to_string(),
-        "openrouter" => "https://openrouter.ai/api".to_string(),
-        _ => "http://localhost:11434".to_string(),
+    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
+        Provider::from_str_loose(&provider)
+            .map(|p| p.default_base_url().to_string())
+            .unwrap_or_else(|_| "http://localhost:11434".to_string())
     });
     let api_key = std::env::var("PARISH_API_KEY")
         .ok()
@@ -902,8 +902,13 @@ struct CloudEnvConfig {
 
 fn build_cloud_client_from_env() -> CloudEnvConfig {
     let provider = std::env::var("PARISH_CLOUD_PROVIDER").ok();
-    let base_url = std::env::var("PARISH_CLOUD_BASE_URL")
-        .unwrap_or_else(|_| "https://openrouter.ai/api".to_string());
+    let base_url = std::env::var("PARISH_CLOUD_BASE_URL").unwrap_or_else(|_| {
+        provider
+            .as_deref()
+            .and_then(|p| Provider::from_str_loose(p).ok())
+            .map(|p| p.default_base_url().to_string())
+            .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
+    });
     let api_key = std::env::var("PARISH_CLOUD_API_KEY")
         .ok()
         .filter(|s| !s.is_empty());

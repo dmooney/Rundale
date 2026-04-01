@@ -101,4 +101,6 @@ echo "Key design docs: inference-pipeline.md, debug-ui.md, npc-system.md,"
 echo "  cognitive-lod.md, gui-design.md, overview.md"
 echo "=================================="
 
-exit 2
+# Use exit 0 (non-blocking) to avoid infinite loop: exit 2 forces a response,
+# which triggers another Stop event, which runs this hook again endlessly.
+exit 0
