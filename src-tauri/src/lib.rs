@@ -71,6 +71,12 @@ pub struct MapLocation {
     pub adjacent: bool,
     /// Number of graph hops from the player's current location.
     pub hops: u32,
+    /// Whether this location is indoors (for tooltip display).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indoor: Option<bool>,
+    /// Estimated walking time from the player's current location, in minutes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub travel_minutes: Option<u16>,
 }
 
 /// The full map graph sent to the frontend.

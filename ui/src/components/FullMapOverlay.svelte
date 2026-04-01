@@ -30,7 +30,13 @@
 	let panY = $state(0);
 	let dragging = $state(false);
 	let lastPointer = $state({ x: 0, y: 0 });
-	let tooltip: string | null = $state(null);
+	interface TooltipInfo {
+		name: string;
+		indoor?: boolean;
+		travel_minutes?: number;
+	}
+
+	let tooltip: TooltipInfo | null = $state(null);
 
 	let projected: ProjectedLocation[] = $derived(
 		projectWorld($mapData?.locations ?? [])
@@ -203,7 +209,7 @@
 						class:player={isPlayer(loc)}
 						class:adjacent={loc.adjacent}
 						onclick={() => handleClick(loc)}
-						onmouseenter={() => (tooltip = loc.name)}
+						onmouseenter={() => (tooltip = { name: loc.name, indoor: loc.indoor, travel_minutes: loc.travel_minutes })}
 						onmouseleave={() => (tooltip = null)}
 					>
 						{#if isPlayer(loc)}
@@ -231,7 +237,15 @@
 			</svg>
 		</div>
 		{#if tooltip}
-			<div class="tooltip">{tooltip}</div>
+			<div class="tooltip">
+				<div class="tooltip-name">{tooltip.name}</div>
+				{#if tooltip.indoor !== undefined}
+					<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
+				{/if}
+				{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
+					<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </div>
@@ -369,9 +383,19 @@
 		background: var(--color-input-bg);
 		border: 1px solid var(--color-border);
 		color: var(--color-fg);
-		padding: 0.25rem 0.6rem;
-		font-size: 0.85rem;
+		padding: 0.3rem 0.6rem;
+		font-size: 0.8rem;
 		border-radius: 4px;
 		pointer-events: none;
+		line-height: 1.3;
+	}
+
+	.tooltip-name {
+		font-weight: 600;
+	}
+
+	.tooltip-detail {
+		color: var(--color-muted);
+		font-size: 0.7rem;
 	}
 </style>

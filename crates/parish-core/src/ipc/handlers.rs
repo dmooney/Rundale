@@ -54,9 +54,14 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
     }
 }
 
-/// Builds the full [`MapData`] with all locations, edges, and player position.
-pub fn build_map_data(world: &WorldState) -> MapData {
+/// Builds the [`MapData`] filtered by fog-of-war (only visited locations).
+///
+/// Only locations the player has visited are included. Edges are filtered
+/// to only include connections between visited locations. Each location
+/// is enriched with tooltip data (indoor flag, travel time).
+pub fn build_map_data(world: &WorldState, speed_m_per_s: f64) -> MapData {
     let player_loc = world.player_location;
+    let visited = &world.visited_locations;
 
     let adjacent_ids: HashSet<LocationId> = world
         .graph
@@ -71,21 +76,38 @@ pub fn build_map_data(world: &WorldState) -> MapData {
         .graph
         .location_ids()
         .into_iter()
+        .filter(|id| visited.contains(id))
         .filter_map(|id| world.graph.get(id).map(|data| (id, data)))
-        .map(|(id, data)| MapLocation {
-            id: id.0.to_string(),
-            name: data.name.clone(),
-            lat: data.lat,
-            lon: data.lon,
-            adjacent: adjacent_ids.contains(&id) || id == player_loc,
-            hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+        .map(|(id, data)| {
+            let travel_minutes = if id == player_loc {
+                None
+            } else {
+                world
+                    .graph
+                    .shortest_path(player_loc, id)
+                    .map(|path| world.graph.path_travel_time(&path, speed_m_per_s))
+            };
+
+            MapLocation {
+                id: id.0.to_string(),
+                name: data.name.clone(),
+                lat: data.lat,
+                lon: data.lon,
+                adjacent: adjacent_ids.contains(&id) || id == player_loc,
+                hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+                indoor: Some(data.indoor),
+                travel_minutes,
+            }
         })
         .collect();
 
     let mut edges: Vec<(String, String)> = Vec::new();
     for loc_id in world.graph.location_ids() {
+        if !visited.contains(&loc_id) {
+            continue;
+        }
         for (neighbor_id, _conn) in world.graph.neighbors(loc_id) {
-            if loc_id.0 < neighbor_id.0 {
+            if loc_id.0 < neighbor_id.0 && visited.contains(&neighbor_id) {
                 edges.push((loc_id.0.to_string(), neighbor_id.0.to_string()));
             }
         }
@@ -179,12 +201,65 @@ mod tests {
     #[test]
     fn build_map_data_from_default_world() {
         let world = WorldState::new();
-        let map = build_map_data(&world);
+        let map = build_map_data(&world, 1.25);
         assert!(!map.player_location.is_empty());
         // At least the player's location should exist
         assert!(
             map.locations.iter().any(|l| l.id == map.player_location) || map.locations.is_empty()
         );
+    }
+
+    #[test]
+    fn fog_of_war_only_sends_visited() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let world = WorldState::from_mod(&game_mod).expect("world from mod");
+            // Only the start location is visited initially
+            let map = build_map_data(&world, 1.25);
+            assert_eq!(
+                map.locations.len(),
+                1,
+                "only start location should be visible"
+            );
+            assert_eq!(map.locations[0].id, map.player_location);
+            assert!(
+                map.edges.is_empty(),
+                "no edges when only 1 visited location"
+            );
+            // Indoor field should be set
+            assert!(map.locations[0].indoor.is_some());
+            // Travel time to self should be None
+            assert!(map.locations[0].travel_minutes.is_none());
+        }
+    }
+
+    #[test]
+    fn fog_of_war_reveals_after_visit() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let start = world.player_location;
+            // Visit a neighbor
+            let neighbors = world.graph.neighbors(start);
+            if let Some((neighbor_id, _)) = neighbors.first() {
+                world.mark_visited(*neighbor_id);
+                let map = build_map_data(&world, 1.25);
+                assert_eq!(map.locations.len(), 2);
+                assert!(
+                    !map.edges.is_empty(),
+                    "edge between visited pair should appear"
+                );
+                // The non-player location should have travel_minutes set
+                let other = map
+                    .locations
+                    .iter()
+                    .find(|l| l.id != map.player_location)
+                    .unwrap();
+                assert!(other.travel_minutes.is_some());
+            }
+        }
     }
 
     #[test]

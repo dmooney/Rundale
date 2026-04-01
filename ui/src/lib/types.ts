@@ -22,6 +22,8 @@ export interface MapLocation {
 	lon: number;
 	adjacent: boolean;
 	hops: number;
+	indoor?: boolean;
+	travel_minutes?: number;
 }
 
 export interface MapData {

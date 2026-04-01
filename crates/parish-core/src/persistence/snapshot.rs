@@ -4,7 +4,7 @@
 //! all dynamic game state. Static data (world graph, location map) is
 //! excluded because it's loaded from data files on startup.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -137,6 +137,9 @@ pub struct GameSnapshot {
     pub npcs: Vec<NpcSnapshot>,
     /// Game time of the last Tier 2 tick.
     pub last_tier2_game_time: Option<DateTime<Utc>>,
+    /// Set of location IDs the player has visited (fog-of-war map).
+    #[serde(default)]
+    pub visited_locations: HashSet<LocationId>,
 }
 
 impl GameSnapshot {
@@ -160,6 +163,7 @@ impl GameSnapshot {
             clock,
             npcs,
             last_tier2_game_time: npc_manager.last_tier2_game_time(),
+            visited_locations: world.visited_locations.clone(),
         }
     }
 
@@ -206,6 +210,10 @@ impl GameSnapshot {
         world.player_location = self.player_location;
         world.weather = self.weather.parse().unwrap_or(crate::world::Weather::Clear);
         world.text_log = self.text_log;
+
+        // Restore visited locations; ensure current position is always visited
+        world.visited_locations = self.visited_locations;
+        world.visited_locations.insert(self.player_location);
 
         // Restore NPCs
         *npc_manager = crate::npc::manager::NpcManager::new();
@@ -343,6 +351,46 @@ mod tests {
         let mut new_npcs = NpcManager::new();
         snapshot.restore(&mut new_world, &mut new_npcs);
         assert!(!new_npcs.needs_tier2_tick(t));
+    }
+
+    #[test]
+    fn test_visited_locations_roundtrip() {
+        let mut world = WorldState::new();
+        world.mark_visited(LocationId(2));
+        world.mark_visited(LocationId(3));
+        let npc_manager = NpcManager::new();
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+        assert_eq!(snapshot.visited_locations.len(), 3); // 1 (start) + 2
+
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.visited_locations.len(), 3);
+        assert!(restored.visited_locations.contains(&LocationId(1)));
+        assert!(restored.visited_locations.contains(&LocationId(2)));
+        assert!(restored.visited_locations.contains(&LocationId(3)));
+    }
+
+    #[test]
+    fn test_old_save_backward_compat_visited() {
+        // Simulate an old save JSON without visited_locations field
+        let json = r#"{
+            "player_location": 5,
+            "weather": "Clear",
+            "text_log": [],
+            "clock": {"game_time": "1820-03-20T08:00:00Z", "speed_factor": 36.0, "paused": false},
+            "npcs": [],
+            "last_tier2_game_time": null
+        }"#;
+        let snapshot: GameSnapshot = serde_json::from_str(json).unwrap();
+        // serde(default) gives empty set
+        assert!(snapshot.visited_locations.is_empty());
+
+        // But restore inserts player location
+        let mut world = WorldState::new();
+        let mut npcs = NpcManager::new();
+        snapshot.restore(&mut world, &mut npcs);
+        assert!(world.visited_locations.contains(&LocationId(5)));
     }
 
     #[test]

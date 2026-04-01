@@ -159,16 +159,18 @@ pub async fn get_world_snapshot(
     Ok(snapshot)
 }
 
-/// Returns the map data: all locations with coordinates, edges, and player position.
+/// Returns the map data: visited locations with coordinates, edges, and player position.
+///
+/// Applies fog-of-war filtering: only locations the player has visited are included.
 #[tauri::command]
 pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, String> {
     let world = state.world.lock().await;
     let player_loc = world.player_location;
+    let visited = &world.visited_locations;
+    let speed = state.transport.default_mode().speed_m_per_s;
 
-    // Compute hop distances from player for minimap filtering
     let hop_map = world.graph.hop_distances(player_loc);
 
-    // Collect adjacent location IDs
     let adjacent_ids: std::collections::HashSet<parish_core::world::LocationId> = world
         .graph
         .neighbors(player_loc)
@@ -180,29 +182,42 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
         .graph
         .location_ids()
         .into_iter()
+        .filter(|id| visited.contains(id))
         .filter_map(|id| world.graph.get(id).map(|data| (id, data)))
-        .map(|(id, data)| MapLocation {
-            id: id.0.to_string(),
-            name: data.name.clone(),
-            lat: data.lat,
-            lon: data.lon,
-            adjacent: adjacent_ids.contains(&id) || id == player_loc,
-            hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+        .map(|(id, data)| {
+            let travel_minutes = if id == player_loc {
+                None
+            } else {
+                world
+                    .graph
+                    .shortest_path(player_loc, id)
+                    .map(|path| world.graph.path_travel_time(&path, speed))
+            };
+            MapLocation {
+                id: id.0.to_string(),
+                name: data.name.clone(),
+                lat: data.lat,
+                lon: data.lon,
+                adjacent: adjacent_ids.contains(&id) || id == player_loc,
+                hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+                indoor: Some(data.indoor),
+                travel_minutes,
+            }
         })
         .collect();
 
-    // Collect edges as (source_id, target_id) string pairs
     let mut edges: Vec<(String, String)> = Vec::new();
     for loc_id in world.graph.location_ids() {
+        if !visited.contains(&loc_id) {
+            continue;
+        }
         for (neighbor_id, _conn) in world.graph.neighbors(loc_id) {
-            // Only add each edge once (lower id first)
-            if loc_id.0 < neighbor_id.0 {
+            if loc_id.0 < neighbor_id.0 && visited.contains(&neighbor_id) {
                 edges.push((loc_id.0.to_string(), neighbor_id.0.to_string()));
             }
         }
     }
 
-    // Get player's coordinates for minimap centering
     let (player_lat, player_lon) = world
         .graph
         .get(player_loc)
