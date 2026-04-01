@@ -13,19 +13,21 @@ use strsim::jaro_winkler;
 use crate::config::WorldConfig;
 use crate::error::ParishError;
 use crate::npc::NpcId;
+use crate::world::geo;
 
 use super::LocationId;
 
 /// A connection (edge) between two locations in the world graph.
 ///
-/// Each connection has a target location, a traversal time in game minutes,
-/// and a prose description of the path.
+/// Each connection has a target location and a prose description of the path.
+/// Travel time is calculated at runtime from coordinates and transport speed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Connection {
     /// The destination location.
     pub target: LocationId,
-    /// Time in game minutes to traverse this connection.
-    pub traversal_minutes: u16,
+    /// Legacy field — ignored at runtime; travel time is calculated from coordinates.
+    #[serde(default, skip_serializing)]
+    pub traversal_minutes: Option<u16>,
     /// Prose description of the path (e.g., "a narrow boreen lined with hawthorn").
     pub path_description: String,
 }
@@ -33,7 +35,7 @@ pub struct Connection {
 /// Extended location data for the world graph.
 ///
 /// Augments the base location with connections, description templates,
-/// associated NPCs, geolocation, and optional mythological significance.
+/// associated NPCs, and optional mythological significance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocationData {
     /// Unique identifier.
@@ -46,14 +48,14 @@ pub struct LocationData {
     pub indoor: bool,
     /// Whether this location is publicly accessible.
     pub public: bool,
-    /// Latitude in decimal degrees (WGS 84).
-    #[serde(default)]
-    pub lat: f64,
-    /// Longitude in decimal degrees (WGS 84).
-    #[serde(default)]
-    pub lon: f64,
     /// Connections to neighboring locations.
     pub connections: Vec<Connection>,
+    /// WGS-84 latitude (from OSM data; 0.0 if not geocoded).
+    #[serde(default)]
+    pub lat: f64,
+    /// WGS-84 longitude (from OSM data; 0.0 if not geocoded).
+    #[serde(default)]
+    pub lon: f64,
     /// NPCs who live or work at this location.
     #[serde(default)]
     pub associated_npcs: Vec<NpcId>,
@@ -337,24 +339,35 @@ impl WorldGraph {
         None
     }
 
+    /// Calculates travel time in game minutes between two locations
+    /// using haversine distance and the given speed.
+    pub fn edge_travel_minutes(&self, from: LocationId, to: LocationId, speed_m_per_s: f64) -> u16 {
+        let from_loc = match self.locations.get(&from) {
+            Some(loc) => loc,
+            None => return 1,
+        };
+        let to_loc = match self.locations.get(&to) {
+            Some(loc) => loc,
+            None => return 1,
+        };
+        let meters = geo::haversine_distance(from_loc.lat, from_loc.lon, to_loc.lat, to_loc.lon);
+        geo::meters_to_minutes(meters, speed_m_per_s)
+    }
+
     /// Returns the total traversal time along a path in game minutes.
     ///
     /// Given a sequence of location ids (as returned by `shortest_path`),
-    /// sums the traversal times of each edge along the path.
-    pub fn path_travel_time(&self, path: &[LocationId]) -> u16 {
+    /// calculates the haversine distance for each edge and converts to
+    /// minutes at the given travel speed.
+    pub fn path_travel_time(&self, path: &[LocationId], speed_m_per_s: f64) -> u16 {
         if path.len() < 2 {
             return 0;
         }
 
         let mut total = 0u16;
         for window in path.windows(2) {
-            let from = window[0];
-            let to = window[1];
-            if let Some(loc) = self.locations.get(&from)
-                && let Some(conn) = loc.connections.iter().find(|c| c.target == to)
-            {
-                total = total.saturating_add(conn.traversal_minutes);
-            }
+            total =
+                total.saturating_add(self.edge_travel_minutes(window[0], window[1], speed_m_per_s));
         }
         total
     }
@@ -409,9 +422,11 @@ mod tests {
                     "description_template": "A quiet crossroads at {time}. The weather is {weather}.",
                     "indoor": false,
                     "public": true,
+                    "lat": 53.618,
+                    "lon": -8.095,
                     "connections": [
-                        {"target": 2, "traversal_minutes": 5, "path_description": "a short lane"},
-                        {"target": 3, "traversal_minutes": 8, "path_description": "a winding boreen"}
+                        {"target": 2, "path_description": "a short lane"},
+                        {"target": 3, "path_description": "a winding boreen"}
                     ],
                     "associated_npcs": [],
                     "mythological_significance": null
@@ -422,8 +437,10 @@ mod tests {
                     "description_template": "The warm interior of Darcy's Pub at {time}.",
                     "indoor": true,
                     "public": true,
+                    "lat": 53.6195,
+                    "lon": -8.0925,
                     "connections": [
-                        {"target": 1, "traversal_minutes": 5, "path_description": "a short lane back to the crossroads"}
+                        {"target": 1, "path_description": "a short lane back to the crossroads"}
                     ],
                     "associated_npcs": [],
                     "mythological_significance": null,
@@ -435,9 +452,11 @@ mod tests {
                     "description_template": "The old stone church stands in {weather} {time} light.",
                     "indoor": false,
                     "public": true,
+                    "lat": 53.6215,
+                    "lon": -8.099,
                     "connections": [
-                        {"target": 1, "traversal_minutes": 8, "path_description": "the boreen back to the crossroads"},
-                        {"target": 4, "traversal_minutes": 10, "path_description": "a path through the graveyard"}
+                        {"target": 1, "path_description": "the boreen back to the crossroads"},
+                        {"target": 4, "path_description": "a path through the graveyard"}
                     ],
                     "associated_npcs": [],
                     "mythological_significance": null,
@@ -449,8 +468,10 @@ mod tests {
                     "description_template": "An ancient ring fort on the hill. {weather}.",
                     "indoor": false,
                     "public": true,
+                    "lat": 53.627,
+                    "lon": -8.052,
                     "connections": [
-                        {"target": 3, "traversal_minutes": 10, "path_description": "the path back past the church"}
+                        {"target": 3, "path_description": "the path back past the church"}
                     ],
                     "associated_npcs": [],
                     "mythological_significance": "A rath said to be home to the sídhe. Locals avoid it after dark.",
@@ -629,21 +650,38 @@ mod tests {
     fn test_path_travel_time() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         let path = vec![LocationId(2), LocationId(1), LocationId(3), LocationId(4)];
-        let time = graph.path_travel_time(&path);
-        // 5 + 8 + 10 = 23
-        assert_eq!(time, 23);
+        let time = graph.path_travel_time(&path, 1.25);
+        // Computed from haversine distances — should be > 0
+        assert!(time > 0, "multi-hop travel time should be positive");
     }
 
     #[test]
     fn test_path_travel_time_single() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
-        assert_eq!(graph.path_travel_time(&[LocationId(1)]), 0);
+        assert_eq!(graph.path_travel_time(&[LocationId(1)], 1.25), 0);
     }
 
     #[test]
     fn test_path_travel_time_empty() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
-        assert_eq!(graph.path_travel_time(&[]), 0);
+        assert_eq!(graph.path_travel_time(&[], 1.25), 0);
+    }
+
+    #[test]
+    fn test_edge_travel_minutes() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        // Crossroads to Pub: ~230m at 1.25 m/s → ~3 min
+        let minutes = graph.edge_travel_minutes(LocationId(1), LocationId(2), 1.25);
+        assert!(minutes >= 1 && minutes <= 10, "edge time was {minutes}");
+    }
+
+    #[test]
+    fn test_faster_speed_shorter_time() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let path = vec![LocationId(1), LocationId(3), LocationId(4)];
+        let walk = graph.path_travel_time(&path, 1.25);
+        let fast = graph.path_travel_time(&path, 4.0);
+        assert!(fast <= walk, "faster speed should give shorter time");
     }
 
     #[test]
@@ -652,7 +690,6 @@ mod tests {
         let conn = graph
             .connection_between(LocationId(1), LocationId(2))
             .unwrap();
-        assert_eq!(conn.traversal_minutes, 5);
         assert_eq!(conn.path_description, "a short lane");
     }
 

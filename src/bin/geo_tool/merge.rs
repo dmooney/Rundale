@@ -172,7 +172,7 @@ pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_dista
         .map(|(i, _)| i)
         .collect();
 
-    let mut new_connections: Vec<(usize, usize, u16, String, String)> = Vec::new();
+    let mut new_connections: Vec<(usize, usize, String, String)> = Vec::new();
 
     for &ci in &curated_indices {
         let cur = &locations[ci];
@@ -184,7 +184,6 @@ pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_dista
         for &(gi, glat, glon) in &gen_indices {
             let dist = haversine_distance(cur.lat, cur.lon, glat, glon);
             if dist <= max_distance_m {
-                let minutes = super::osm_model::meters_to_traversal_minutes(dist);
                 let to_name = locations[gi].data.name.clone();
                 let from_name = locations[ci].data.name.clone();
 
@@ -199,7 +198,6 @@ pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_dista
                     new_connections.push((
                         ci,
                         gi,
-                        minutes,
                         format!("toward {to_name}"),
                         format!("toward {from_name}"),
                     ));
@@ -209,18 +207,18 @@ pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_dista
     }
 
     // Apply connections (bidirectional)
-    for (ci, gi, minutes, fwd_desc, rev_desc) in new_connections {
+    for (ci, gi, fwd_desc, rev_desc) in new_connections {
         let gen_id = locations[gi].data.id;
         let cur_id = locations[ci].data.id;
 
         locations[ci].data.connections.push(Connection {
             target: gen_id,
-            traversal_minutes: minutes,
+            traversal_minutes: None,
             path_description: fwd_desc,
         });
         locations[gi].data.connections.push(Connection {
             target: cur_id,
-            traversal_minutes: minutes,
+            traversal_minutes: None,
             path_description: rev_desc,
         });
     }

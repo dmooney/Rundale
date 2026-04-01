@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::error::ParishError;
 use crate::npc::LanguageHint;
+use crate::world::transport::TransportConfig;
 
 // ---------------------------------------------------------------------------
 // Manifest types (parsed from mod.toml)
@@ -78,6 +79,9 @@ pub struct FileRefs {
     /// Pronunciation hints JSON file (optional for backward compatibility).
     #[serde(default)]
     pub pronunciations: Option<String>,
+    /// Transport modes TOML file (optional; defaults to walking only).
+    #[serde(default)]
+    pub transport: Option<String>,
 }
 
 /// Relative paths to prompt template text files.
@@ -299,6 +303,8 @@ pub struct GameMod {
     pub ui: UiConfig,
     /// Name pronunciation entries loaded from `pronunciations.json`.
     pub pronunciations: Vec<PronunciationEntry>,
+    /// Transport modes configuration.
+    pub transport: TransportConfig,
 }
 
 impl GameMod {
@@ -385,6 +391,16 @@ impl GameMod {
             vec![]
         };
 
+        // -- transport (optional) ---------------------------------------------
+        let transport = if let Some(ref transport_file) = manifest.files.transport {
+            let transport_text = read_toml_text(transport_file)?;
+            toml::from_str(&transport_text).map_err(|e| {
+                ParishError::Config(format!("failed to parse {transport_file}: {e}"))
+            })?
+        } else {
+            TransportConfig::default()
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -395,6 +411,7 @@ impl GameMod {
             loading,
             ui,
             pronunciations,
+            transport,
         })
     }
 
@@ -617,6 +634,10 @@ tier2_system = "prompts/tier2_system.txt"
         assert_eq!(gm.loading.spinner_frames.len(), 4);
         // No pronunciations file referenced → empty vec
         assert!(gm.pronunciations.is_empty());
+        // No transport.toml in test mod — should default to walking
+        assert_eq!(gm.transport.default, "walking");
+        assert_eq!(gm.transport.modes.len(), 1);
+        assert_eq!(gm.transport.default_mode().id, "walking");
     }
 
     #[test]

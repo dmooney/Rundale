@@ -37,7 +37,8 @@ static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 /// `GET /api/world-snapshot` — returns the current world snapshot.
 pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<WorldSnapshot> {
     let world = state.world.lock().await;
-    Json(parish_core::ipc::snapshot_from_world(&world))
+    let transport = state.transport.default_mode();
+    Json(parish_core::ipc::snapshot_from_world(&world, transport))
 }
 
 /// `GET /api/map` — returns the map with all locations and edges.
@@ -390,9 +391,10 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     );
 
     let world = state.world.lock().await;
+    let transport = state.transport.default_mode();
     state.event_bus.emit(
         "world-update",
-        &parish_core::ipc::snapshot_from_world(&world),
+        &parish_core::ipc::snapshot_from_world(&world, transport),
     );
 }
 
@@ -440,7 +442,8 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
 async fn handle_movement(target: &str, state: &Arc<AppState>) {
     let result = {
         let world = state.world.lock().await;
-        movement::resolve_movement(target, &world.graph, world.player_location)
+        let transport = state.transport.default_mode();
+        movement::resolve_movement(target, &world.graph, world.player_location, transport)
     };
 
     match result {
@@ -482,9 +485,10 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             handle_look(state).await;
 
             let world = state.world.lock().await;
+            let transport = state.transport.default_mode();
             state.event_bus.emit(
                 "world-update",
-                &parish_core::ipc::snapshot_from_world(&world),
+                &parish_core::ipc::snapshot_from_world(&world, transport),
             );
         }
         MovementResult::AlreadyHere => {
@@ -498,7 +502,13 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         }
         MovementResult::NotFound(name) => {
             let world = state.world.lock().await;
-            let exits = format_exits(world.player_location, &world.graph);
+            let transport = state.transport.default_mode();
+            let exits = format_exits(
+                world.player_location,
+                &world.graph,
+                transport.speed_m_per_s,
+                &transport.label,
+            );
             state.event_bus.emit(
                 "text-log",
                 &TextLogPayload {
@@ -532,7 +542,13 @@ async fn handle_look(state: &Arc<AppState>) {
         world.current_location().description.clone()
     };
 
-    let exits = format_exits(world.player_location, &world.graph);
+    let transport = state.transport.default_mode();
+    let exits = format_exits(
+        world.player_location,
+        &world.graph,
+        transport.speed_m_per_s,
+        &transport.label,
+    );
 
     state.event_bus.emit(
         "text-log",

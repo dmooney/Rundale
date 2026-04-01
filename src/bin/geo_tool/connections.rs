@@ -22,7 +22,8 @@ pub struct GeneratedConnection {
     /// Distance in meters.
     #[allow(dead_code)] // Used in summary output and debugging
     pub distance_meters: f64,
-    /// Traversal time in game minutes.
+    /// Traversal time in game minutes (retained for summary/debug output).
+    #[allow(dead_code)]
     pub traversal_minutes: u16,
     /// Generated path description.
     pub path_description: String,

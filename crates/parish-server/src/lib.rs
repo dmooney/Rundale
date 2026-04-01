@@ -20,6 +20,7 @@ use tower_http::services::ServeDir;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::npc::manager::NpcManager;
+use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
 use state::{AppState, GameConfig, build_app_state};
@@ -51,7 +52,15 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let (client, config) = build_client_and_config();
     let cloud_client = build_cloud_client();
 
-    let state = build_app_state(world, npc_manager, client.clone(), config, cloud_client);
+    let transport = TransportConfig::default();
+    let state = build_app_state(
+        world,
+        npc_manager,
+        client.clone(),
+        config,
+        cloud_client,
+        transport,
+    );
 
     // Initialize inference queue
     if let Some(ref client) = client {
@@ -96,7 +105,8 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(5)).await;
             {
                 let world = state_tick.world.lock().await;
-                let snapshot = parish_core::ipc::snapshot_from_world(&world);
+                let transport = state_tick.transport.default_mode();
+                let snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
                 state_tick.event_bus.emit("world-update", &snapshot);
             }
             {

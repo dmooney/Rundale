@@ -6,19 +6,40 @@
             "description_template": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6180,
-            "lon": -8.0950,
+            "lat": 53.618,
+            "lon": -8.095,
             "connections": [
-                {"target": 2, "traversal_minutes": 3, "path_description": "a short lane past a row of cottages"},
-                {"target": 3, "traversal_minutes": 5, "path_description": "a winding boreen lined with hawthorn"},
-                {"target": 4, "traversal_minutes": 2, "path_description": "the road past a hand-lettered sign"},
-                {"target": 6, "traversal_minutes": 4, "path_description": "a muddy path along the schoolmaster's wall"},
-                {"target": 9, "traversal_minutes": 8, "path_description": "a narrow road between stone walls"},
-                {"target": 13, "traversal_minutes": 3, "path_description": "a few steps across the road"},
-                {"target": 15, "traversal_minutes": 6, "path_description": "the Kilteevan road heading south past low fields"}
+                {
+                    "target": 2,
+                    "path_description": "a short lane past a row of cottages"
+                },
+                {
+                    "target": 3,
+                    "path_description": "a winding boreen lined with hawthorn"
+                },
+                {
+                    "target": 4,
+                    "path_description": "the road past a hand-lettered sign"
+                },
+                {
+                    "target": 6,
+                    "path_description": "a muddy path along the schoolmaster's wall"
+                },
+                {
+                    "target": 9,
+                    "path_description": "a narrow road between stone walls"
+                },
+                {
+                    "target": 13,
+                    "path_description": "a few steps across the road"
+                },
+                {
+                    "target": 15,
+                    "path_description": "the Kilteevan road heading south past low fields"
+                }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin."
+            "mythological_significance": "Crossroads hold power in Irish folklore \u2014 a place between places, where the veil is thin."
         },
         {
             "id": 2,
@@ -29,9 +50,14 @@
             "lat": 53.6195,
             "lon": -8.0925,
             "connections": [
-                {"target": 1, "traversal_minutes": 3, "path_description": "the lane back to the crossroads"}
+                {
+                    "target": 1,
+                    "path_description": "the lane back to the crossroads"
+                }
             ],
-            "associated_npcs": [1],
+            "associated_npcs": [
+                1
+            ],
             "mythological_significance": null
         },
         {
@@ -41,10 +67,16 @@
             "indoor": false,
             "public": true,
             "lat": 53.6215,
-            "lon": -8.0990,
+            "lon": -8.099,
             "connections": [
-                {"target": 1, "traversal_minutes": 5, "path_description": "the boreen back to the crossroads"},
-                {"target": 12, "traversal_minutes": 6, "path_description": "a muddy track past the graveyard wall"}
+                {
+                    "target": 1,
+                    "path_description": "the boreen back to the crossroads"
+                },
+                {
+                    "target": 12,
+                    "path_description": "a muddy track past the graveyard wall"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint."
@@ -58,7 +90,10 @@
             "lat": 53.6175,
             "lon": -8.0935,
             "connections": [
-                {"target": 1, "traversal_minutes": 2, "path_description": "back across to the crossroads"}
+                {
+                    "target": 1,
+                    "path_description": "back across to the crossroads"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -70,9 +105,12 @@
             "indoor": false,
             "public": true,
             "lat": 53.6135,
-            "lon": -8.1020,
+            "lon": -8.102,
             "connections": [
-                {"target": 6, "traversal_minutes": 3, "path_description": "a beaten path back past the schoolmaster's cabin"}
+                {
+                    "target": 6,
+                    "path_description": "a beaten path back past the schoolmaster's cabin"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -84,10 +122,16 @@
             "indoor": false,
             "public": true,
             "lat": 53.6155,
-            "lon": -8.0990,
+            "lon": -8.099,
             "connections": [
-                {"target": 1, "traversal_minutes": 4, "path_description": "the muddy path back to the crossroads"},
-                {"target": 5, "traversal_minutes": 3, "path_description": "a beaten path down to the hurling green"}
+                {
+                    "target": 1,
+                    "path_description": "the muddy path back to the crossroads"
+                },
+                {
+                    "target": 5,
+                    "path_description": "a beaten path down to the hurling green"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -98,14 +142,20 @@
             "description_template": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the {weather} sky. Small islands dot the water in the distance. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6210,
-            "lon": -8.0430,
+            "lat": 53.621,
+            "lon": -8.043,
             "connections": [
-                {"target": 8, "traversal_minutes": 6, "path_description": "a lakeside path through reeds and willow"},
-                {"target": 11, "traversal_minutes": 10, "path_description": "a rough track climbing away from the shore"}
+                {
+                    "target": 8,
+                    "path_description": "a lakeside path through reeds and willow"
+                },
+                {
+                    "target": 11,
+                    "path_description": "a rough track climbing away from the shore"
+                }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
+            "mythological_significance": "Lough Ree is said to be home to a monster \u2014 the Lough Ree wurm, Ireland's lesser-known cousin of Nessie."
         },
         {
             "id": 8,
@@ -113,11 +163,17 @@
             "description_template": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is {time} and the sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6160,
-            "lon": -8.0480,
+            "lat": 53.616,
+            "lon": -8.048,
             "connections": [
-                {"target": 7, "traversal_minutes": 6, "path_description": "the lakeside path back along the shore"},
-                {"target": 9, "traversal_minutes": 7, "path_description": "a lane winding uphill from the bay"}
+                {
+                    "target": 7,
+                    "path_description": "the lakeside path back along the shore"
+                },
+                {
+                    "target": 9,
+                    "path_description": "a lane winding uphill from the bay"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -128,12 +184,21 @@
             "description_template": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": false,
-            "lat": 53.6200,
-            "lon": -8.0680,
+            "lat": 53.62,
+            "lon": -8.068,
             "connections": [
-                {"target": 1, "traversal_minutes": 8, "path_description": "the narrow road back between stone walls"},
-                {"target": 8, "traversal_minutes": 7, "path_description": "a lane winding down toward the bay"},
-                {"target": 10, "traversal_minutes": 5, "path_description": "a boreen through a gap in the hedge"}
+                {
+                    "target": 1,
+                    "path_description": "the narrow road back between stone walls"
+                },
+                {
+                    "target": 8,
+                    "path_description": "a lane winding down toward the bay"
+                },
+                {
+                    "target": 10,
+                    "path_description": "a boreen through a gap in the hedge"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -145,10 +210,16 @@
             "indoor": false,
             "public": false,
             "lat": 53.6185,
-            "lon": -8.0600,
+            "lon": -8.06,
             "connections": [
-                {"target": 9, "traversal_minutes": 5, "path_description": "a boreen back through the hedge to Murphy's"},
-                {"target": 14, "traversal_minutes": 6, "path_description": "a soggy track across the lower field"}
+                {
+                    "target": 9,
+                    "path_description": "a boreen back through the hedge to Murphy's"
+                },
+                {
+                    "target": 14,
+                    "path_description": "a soggy track across the lower field"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -156,17 +227,23 @@
         {
             "id": 11,
             "name": "The Fairy Fort",
-            "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
+            "description_template": "An ancient ring fort \u2014 a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6270,
-            "lon": -8.0520,
+            "lat": 53.627,
+            "lon": -8.052,
             "connections": [
-                {"target": 7, "traversal_minutes": 10, "path_description": "the rough track back down to the shore"},
-                {"target": 12, "traversal_minutes": 8, "path_description": "a barely visible path through gorse and bracken"}
+                {
+                    "target": 7,
+                    "path_description": "the rough track back down to the shore"
+                },
+                {
+                    "target": 12,
+                    "path_description": "a barely visible path through gorse and bracken"
+                }
             ],
             "associated_npcs": [],
-            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
+            "mythological_significance": "A rath said to be home to the s\u00eddhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune."
         },
         {
             "id": 12,
@@ -174,15 +251,24 @@
             "description_template": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The {weather} sky presses down. Pools of dark water gleam between the heather. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6260,
-            "lon": -8.0880,
+            "lat": 53.626,
+            "lon": -8.088,
             "connections": [
-                {"target": 3, "traversal_minutes": 6, "path_description": "the muddy track back toward the church"},
-                {"target": 11, "traversal_minutes": 8, "path_description": "a barely visible path through gorse to the fort"},
-                {"target": 14, "traversal_minutes": 7, "path_description": "a squelching path along the bog's edge"}
+                {
+                    "target": 3,
+                    "path_description": "the muddy track back toward the church"
+                },
+                {
+                    "target": 11,
+                    "path_description": "a barely visible path through gorse to the fort"
+                },
+                {
+                    "target": 14,
+                    "path_description": "a squelching path along the bog's edge"
+                }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
+            "mythological_significance": "Bogs preserve everything \u2014 bodies, butter, memories. People say you can hear voices in the wind here on certain nights."
         },
         {
             "id": 13,
@@ -190,10 +276,13 @@
             "description_template": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.6170,
-            "lon": -8.0960,
+            "lat": 53.617,
+            "lon": -8.096,
             "connections": [
-                {"target": 1, "traversal_minutes": 3, "path_description": "a few steps back across the road to the crossroads"}
+                {
+                    "target": 1,
+                    "path_description": "a few steps back across the road to the crossroads"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -204,11 +293,17 @@
             "description_template": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is {time}. The weather is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6230,
-            "lon": -8.0720,
+            "lat": 53.623,
+            "lon": -8.072,
             "connections": [
-                {"target": 10, "traversal_minutes": 6, "path_description": "the soggy track back up to O'Brien's"},
-                {"target": 12, "traversal_minutes": 7, "path_description": "a path along the bog's edge back to the road"}
+                {
+                    "target": 10,
+                    "path_description": "the soggy track back up to O'Brien's"
+                },
+                {
+                    "target": 12,
+                    "path_description": "a path along the bog's edge back to the road"
+                }
             ],
             "associated_npcs": [],
             "mythological_significance": null
@@ -216,16 +311,19 @@
         {
             "id": 15,
             "name": "Kilteevan Village",
-            "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
+            "description_template": "The small village of Kilteevan \u2014 a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
             "indoor": false,
             "public": true,
             "lat": 53.6105,
-            "lon": -8.1050,
+            "lon": -8.105,
             "connections": [
-                {"target": 1, "traversal_minutes": 6, "path_description": "the road north past low fields to the crossroads"}
+                {
+                    "target": 1,
+                    "path_description": "the road north past low fields to the crossroads"
+                }
             ],
             "associated_npcs": [],
-            "mythological_significance": "Kilteevan — Cill Tíobáin, the church of St. Tíobán. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
+            "mythological_significance": "Kilteevan \u2014 Cill T\u00edob\u00e1in, the church of St. T\u00edob\u00e1n. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder."
         }
     ]
 }

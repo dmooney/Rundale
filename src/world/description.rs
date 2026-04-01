@@ -36,8 +36,14 @@ pub fn render_description(
 
 /// Formats the list of exits (neighboring locations) from a given location.
 ///
-/// Returns a string like "You can go to: Darcy's Pub (3 min), St. Brigid's Church (5 min)"
-pub fn format_exits(location_id: LocationId, graph: &WorldGraph) -> String {
+/// Travel time for each exit is computed from coordinates at the given speed.
+/// Returns a string like "You can go to: Darcy's Pub (3 min on foot), The Church (6 min on foot)"
+pub fn format_exits(
+    location_id: LocationId,
+    graph: &WorldGraph,
+    speed_m_per_s: f64,
+    transport_label: &str,
+) -> String {
     let neighbors = graph.neighbors(location_id);
     if neighbors.is_empty() {
         return "There is nowhere to go from here.".to_string();
@@ -45,10 +51,11 @@ pub fn format_exits(location_id: LocationId, graph: &WorldGraph) -> String {
 
     let exits: Vec<String> = neighbors
         .iter()
-        .filter_map(|(target_id, conn)| {
+        .filter_map(|(target_id, _conn)| {
+            let minutes = graph.edge_travel_minutes(location_id, *target_id, speed_m_per_s);
             graph
                 .get(*target_id)
-                .map(|loc| format!("{} ({} min)", loc.name, conn.traversal_minutes))
+                .map(|loc| format!("{} ({} min {})", loc.name, minutes, transport_label))
         })
         .collect();
 
@@ -83,11 +90,11 @@ mod tests {
                 "A place at {time}. Weather: {weather}. People here: {npcs_present}.".to_string(),
             indoor: false,
             public: true,
-            lat: 53.618,
-            lon: -8.095,
             connections: vec![],
             associated_npcs: vec![NpcId(1)],
             mythological_significance: None,
+            lat: 0.0,
+            lon: 0.0,
             aliases: vec![],
         }
     }
@@ -156,11 +163,11 @@ mod tests {
             description_template: "A plain description with no placeholders.".to_string(),
             indoor: false,
             public: true,
-            lat: 53.618,
-            lon: -8.095,
             connections: vec![],
             associated_npcs: vec![],
             mythological_significance: None,
+            lat: 0.0,
+            lon: 0.0,
             aliases: vec![],
         };
         let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
@@ -174,34 +181,38 @@ mod tests {
                 {
                     "id": 1, "name": "The Crossroads",
                     "description_template": "X", "indoor": false, "public": true,
+                    "lat": 53.618, "lon": -8.095,
                     "connections": [
-                        {"target": 2, "traversal_minutes": 3, "path_description": "lane"},
-                        {"target": 3, "traversal_minutes": 5, "path_description": "boreen"}
+                        {"target": 2, "path_description": "lane"},
+                        {"target": 3, "path_description": "boreen"}
                     ]
                 },
                 {
                     "id": 2, "name": "Darcy's Pub",
                     "description_template": "X", "indoor": true, "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 3, "path_description": "back"}]
+                    "lat": 53.6195, "lon": -8.0925,
+                    "connections": [{"target": 1, "path_description": "back"}]
                 },
                 {
                     "id": 3, "name": "The Church",
                     "description_template": "X", "indoor": false, "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "back"}]
+                    "lat": 53.6215, "lon": -8.099,
+                    "connections": [{"target": 1, "path_description": "back"}]
                 }
             ]
         }"#;
         let graph = WorldGraph::load_from_str(json).unwrap();
-        let exits = format_exits(LocationId(1), &graph);
+        let exits = format_exits(LocationId(1), &graph, 1.25, "on foot");
         assert!(exits.starts_with("You can go to: "));
-        assert!(exits.contains("Darcy's Pub (3 min)"));
-        assert!(exits.contains("The Church (5 min)"));
+        assert!(exits.contains("Darcy's Pub"));
+        assert!(exits.contains("min on foot"));
+        assert!(exits.contains("The Church"));
     }
 
     #[test]
     fn test_format_exits_empty_graph() {
         let graph = WorldGraph::new();
-        let exits = format_exits(LocationId(99), &graph);
+        let exits = format_exits(LocationId(99), &graph, 1.25, "on foot");
         assert_eq!(exits, "There is nowhere to go from here.");
     }
 }

@@ -19,6 +19,7 @@ use crate::npc::{
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
+use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::Path;
@@ -1024,9 +1025,23 @@ fn print_location_arrival(app: &App) {
         println!("{} is here.", capitalize_first(display));
     }
 
-    let exits = format_exits(app.world.player_location, &app.world.graph);
+    let transport = default_transport(app);
+    let exits = format_exits(
+        app.world.player_location,
+        &app.world.graph,
+        transport.speed_m_per_s,
+        &transport.label,
+    );
     println!("{}", exits);
     println!();
+}
+
+/// Returns the default transport mode from the game mod, or walking.
+fn default_transport(app: &App) -> TransportMode {
+    app.game_mod
+        .as_ref()
+        .map(|gm| gm.transport.default_mode().clone())
+        .unwrap_or_else(TransportMode::walking)
 }
 
 /// Prints current location description and exits (headless /look).
@@ -1046,13 +1061,25 @@ fn print_location_description(app: &App) {
         println!("{}", app.world.current_location().description);
     }
 
-    let exits = format_exits(app.world.player_location, &app.world.graph);
+    let transport = default_transport(app);
+    let exits = format_exits(
+        app.world.player_location,
+        &app.world.graph,
+        transport.speed_m_per_s,
+        &transport.label,
+    );
     println!("{}", exits);
 }
 
 /// Handles movement in headless mode.
 fn handle_headless_movement(app: &mut App, target: &str) {
-    let result = movement::resolve_movement(target, &app.world.graph, app.world.player_location);
+    let transport = default_transport(app);
+    let result = movement::resolve_movement(
+        target,
+        &app.world.graph,
+        app.world.player_location,
+        &transport,
+    );
 
     match result {
         MovementResult::Arrived {
@@ -1092,7 +1119,12 @@ fn handle_headless_movement(app: &mut App, target: &str) {
                 "You haven't the faintest notion how to reach \"{}\". Try asking about.",
                 name
             );
-            let exits = format_exits(app.world.player_location, &app.world.graph);
+            let exits = format_exits(
+                app.world.player_location,
+                &app.world.graph,
+                transport.speed_m_per_s,
+                &transport.label,
+            );
             println!("{}", exits);
         }
     }
