@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { mapData } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
-	import { resolveLabels, distSq, estimateTextWidth } from '$lib/map-labels';
+	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
 	import { projectWorld } from '$lib/map-projection';
 	import type { MapLocation } from '$lib/types';
 	import type { ProjectedLocation } from '$lib/map-projection';
@@ -13,9 +13,9 @@
 
 	let { onclose }: Props = $props();
 
-	const NODE_R = 6;
-	const PLAYER_R = 10;
-	const LABEL_FONT_SIZE = 9;
+	const NODE_R = 5;
+	const PLAYER_R = 8;
+	const LABEL_FONT_SIZE = 11;
 	const MIN_ZOOM = 0.5;
 	const MAX_ZOOM = 4;
 
@@ -35,7 +35,7 @@
 		if (projected.length === 0) return { minX: 0, minY: 0, maxX: 800, maxY: 600 };
 		const xs = projected.map((l) => l.x);
 		const ys = projected.map((l) => l.y);
-		const pad = 60;
+		const pad = 100;
 		return {
 			minX: Math.min(...xs) - pad,
 			minY: Math.min(...ys) - pad,
@@ -56,17 +56,26 @@
 		}))
 	);
 
+	let fullEdgeLines: EdgeLine[] = $derived(
+		($mapData?.edges ?? []).map(([src, dst]) => {
+			const a = localProjected.find((p) => p.id === src);
+			const b = localProjected.find((p) => p.id === dst);
+			return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null;
+		}).filter((e): e is EdgeLine => e !== null)
+	);
+
 	let labels: ResolvedLabel[] = $derived(
 		resolveLabels(
 			localProjected.map((loc) => ({
 				nodeX: loc.x,
 				nodeY: loc.y,
 				nodeR: isPlayer(loc) ? PLAYER_R : NODE_R,
-				textW: estimateTextWidth(loc.name, 20),
+				textW: estimateTextWidth(loc.name, 20, LABEL_FONT_SIZE),
 				textH: LABEL_FONT_SIZE
 			})),
 			svgW,
-			svgH
+			svgH,
+			fullEdgeLines
 		)
 	);
 
@@ -156,12 +165,13 @@
 					{@const label = labels[i]}
 					{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
 					{@const threshold = (r + 8) ** 2}
-					{#if label && distSq(label.cx, label.cy, label.ax, label.ay) > threshold}
+					{#if label && distSq(label.cx, label.cy, loc.x, loc.y) > threshold}
+						{@const angle = Math.atan2(label.cy - loc.y, label.cx - loc.x)}
 						<line
-							x1={loc.x}
-							y1={loc.y + r + 1}
-							x2={label.cx}
-							y2={label.cy - label.h / 2}
+							x1={loc.x + Math.cos(angle) * (r + 1)}
+							y1={loc.y + Math.sin(angle) * (r + 1)}
+							x2={label.cx - Math.cos(angle) * Math.min(label.w / 2, 8)}
+							y2={label.cy - Math.sin(angle) * Math.min(label.h / 2, 6)}
 							class="leader"
 						/>
 					{/if}
@@ -298,7 +308,7 @@
 	.node-circle {
 		fill: var(--color-panel-bg);
 		stroke: var(--color-muted);
-		stroke-width: 2;
+		stroke-width: 1.5;
 		cursor: default;
 	}
 
@@ -317,7 +327,7 @@
 	}
 
 	.node-label {
-		font-size: 9px;
+		font-size: 11px;
 		fill: var(--color-muted);
 		text-anchor: middle;
 		pointer-events: none;

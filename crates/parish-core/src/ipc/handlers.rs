@@ -65,6 +65,8 @@ pub fn build_map_data(world: &WorldState) -> MapData {
         .map(|(id, _)| id)
         .collect();
 
+    let hop_map = world.graph.hop_distances(player_loc);
+
     let locations: Vec<MapLocation> = world
         .graph
         .location_ids()
@@ -76,6 +78,7 @@ pub fn build_map_data(world: &WorldState) -> MapData {
             lat: data.lat,
             lon: data.lon,
             adjacent: adjacent_ids.contains(&id) || id == player_loc,
+            hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
         })
         .collect();
 

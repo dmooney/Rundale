@@ -48,8 +48,8 @@
 					.catch(() => {});
 			}
 		}
-		// Toggle full map with M key, but only when not typing in an input field
-		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT') {
+		// Toggle full map with M key, but only when not typing in an input/contenteditable
+		if ((e.key === 'm' || e.key === 'M') && document.activeElement?.tagName !== 'INPUT' && !(document.activeElement as HTMLElement)?.isContentEditable) {
 			e.preventDefault();
 			fullMapOpen.update((v) => !v);
 		}

@@ -98,17 +98,19 @@ The map has two views: a **player-centered minimap** in the sidebar and a **full
 
 #### Minimap (MapPanel.svelte)
 
-The sidebar minimap shows only nearby locations (within 3 graph hops of the player) and smoothly pans to follow the player:
+The sidebar minimap shows only the player's immediate neighborhood and smoothly pans to follow the player:
 
 - **Player-centered viewport**: The SVG viewBox centers on the player's projected position, using Svelte `tweened` stores for smooth panning animation when the player moves
-- **Hop filtering**: Only locations with `hops <= 3` are rendered as nodes; distant locations are hidden to reduce clutter
-- **Off-screen indicators**: Locations beyond the viewport but within 5 hops are shown as small chevron arrows at the viewport boundary, pointing toward their direction
+- **Hop filtering**: Only locations with `hops <= 1` (direct neighbors) are rendered as nodes; this keeps the view tightly zoomed with large, readable labels
+- **Auto-zoom**: The viewBox dynamically fits the bounding box of visible locations with padding, capped at 2x the reference size to prevent labels from becoming too small
+- **Off-screen indicators**: Locations beyond the viewport but within 3 hops are shown as small chevron arrows at the viewport boundary, pointing toward their direction
 - **Nodes**: Circles positioned using a fixed-scale mercator projection (`map-projection.ts`), with grid fallback for locations without coordinates
 - **Edges**: Lines connecting neighboring locations (only between visible nodes)
 - **Player location**: Highlighted with accent color and larger radius
 - **Adjacent locations**: Clickable to trigger movement
-- **Expand button**: Opens the full map overlay
-- **Label collision avoidance**: Force-directed repulsion (`map-labels.ts`) with leader lines for displaced labels
+- **Expand button**: Opens the full map overlay (bordered icon with hover accent)
+- **Label placement**: Greedy 8-position candidate algorithm (Imhof model) via `map-labels.ts`, with leader lines from node edge to displaced labels
+- **M hotkey**: Toggles full map overlay, but only when the contenteditable input field is not focused (prevents stealing typed "m" characters)
 
 #### Full Map Overlay (FullMapOverlay.svelte)
 
@@ -118,8 +120,19 @@ A modal overlay showing all parish locations with zoom and pan:
 - **Zoom**: Mouse wheel zoom (0.5x–4x range) via CSS `scale()` transform
 - **Pan**: Click-and-drag via pointer events
 - **Close**: `Escape` key, `M` key toggle, backdrop click, or close button
-- **Labels**: Larger font (9px), longer truncation (20 chars) for readability
+- **Labels**: 11px font, 20-char truncation, placed using the Imhof 8-position candidate algorithm to avoid overlapping nodes and other labels
+- **Leader lines**: Drawn from node edge toward label center using angle-based positioning (not fixed "below node" assumption)
 - **Click-to-travel**: Adjacent locations remain clickable
+
+#### Label Placement Algorithm (map-labels.ts)
+
+Uses a **greedy 8-position candidate model** based on the Imhof cartographic convention (Christensen, Marks & Shieber 1995), followed by iterative force refinement:
+
+1. **Phase 1 — Greedy candidate selection**: For each node, 8 candidate label positions are generated (NE, E, SE, S, SW, W, NW, N). Each is scored by overlap area with already-placed labels and all node circles, plus an Imhof preference penalty (NE preferred, SW least preferred) and out-of-bounds penalty. The lowest-penalty position is chosen greedily.
+2. **Phase 2 — Force refinement**: 20 iterations of pairwise label-label push-apart resolve any remaining overlaps from imperfect greedy choices.
+3. **Bounds clamping**: Labels are clamped to stay within the SVG viewBox.
+
+The `estimateTextWidth(name, maxChars, fontSize)` function approximates SVG text width at ~0.6em per character, scaling with font size.
 
 See [Map Evolution](map-evolution.md) for future map improvements (fog of war, animated travel, OSM tiles).
 

@@ -108,11 +108,15 @@ describe('distSq', () => {
 
 describe('estimateTextWidth', () => {
 	it('estimates width proportional to character count', () => {
-		expect(estimateTextWidth('Hello')).toBe(20); // 5 * 4
+		expect(estimateTextWidth('Hello')).toBeCloseTo(21); // 5 * 7 * 0.6
 	});
 
 	it('caps at maxChars', () => {
 		const long = 'A very long location name';
-		expect(estimateTextWidth(long, 14)).toBe(56); // 14 * 4
+		expect(estimateTextWidth(long, 14)).toBeCloseTo(58.8); // 14 * 7 * 0.6
+	});
+
+	it('scales with font size', () => {
+		expect(estimateTextWidth('Hello', 14, 11)).toBeCloseTo(33); // 5 * 11 * 0.6
 	});
 });

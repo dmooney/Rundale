@@ -2,8 +2,8 @@
 	import { mapData } from '../stores/game';
 	import { fullMapOpen } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
-	import { resolveLabels, distSq, estimateTextWidth } from '$lib/map-labels';
-	import { projectWorld, clampToRect } from '$lib/map-projection';
+	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
+	import { projectWorld } from '$lib/map-projection';
 	import type { MapLocation } from '$lib/types';
 	import type { ProjectedLocation } from '$lib/map-projection';
 	import type { ResolvedLabel } from '$lib/map-labels';
@@ -14,13 +14,11 @@
 	const W = 320;
 	const H = 240;
 	/** Base sizes at the reference scale (W × H viewBox). */
-	const BASE_NODE_R = 5;
-	const BASE_PLAYER_R = 8;
-	const BASE_FONT_SIZE = 7;
+	const BASE_NODE_R = 6;
+	const BASE_PLAYER_R = 9;
+	const BASE_FONT_SIZE = 28;
 	/** Only show locations within this many hops on the minimap. */
-	const MINIMAP_HOP_RADIUS = 3;
-	/** Show off-screen indicators for locations up to this many hops away. */
-	const OFFSCREEN_HOP_LIMIT = 5;
+	const MINIMAP_HOP_RADIUS = 1;
 
 	// Tweened center for smooth panning
 	const viewCenter = tweened({ x: 0, y: 0 }, { duration: 400, easing: cubicOut });
@@ -30,7 +28,7 @@
 		projectWorld($mapData?.locations ?? [])
 	);
 
-	// Filter to minimap-visible locations
+	// Filter to minimap-visible locations (1-hop neighbors)
 	let nearbyProjected: ProjectedLocation[] = $derived(
 		allProjected.filter((l) => l.hops <= MINIMAP_HOP_RADIUS)
 	);
@@ -82,6 +80,11 @@
 			vbW = vbH * aspect;
 		}
 
+		// Cap viewBox so labels never scale below readable size (max 2x reference)
+		const MAX_SCALE = 2;
+		vbW = Math.min(vbW, W * MAX_SCALE);
+		vbH = Math.min(vbH, H * MAX_SCALE);
+
 		const midX = (minX + maxX) / 2;
 		const midY = (minY + maxY) / 2;
 
@@ -94,7 +97,10 @@
 	let s: number = $derived(viewBox.w / W);
 	let nodeR: number = $derived(BASE_NODE_R * s);
 	let playerR: number = $derived(BASE_PLAYER_R * s);
-	let fontSize: number = $derived(BASE_FONT_SIZE * s);
+	// Shrink font when many locations are visible to avoid label pile-up
+	let fontSize: number = $derived(
+		Math.max(10, BASE_FONT_SIZE - nearbyProjected.length * 2) * s
+	);
 
 	// Transform nearby locations to viewBox-local coordinates (centered on player)
 	let localProjected: ProjectedLocation[] = $derived(
@@ -105,50 +111,45 @@
 		}))
 	);
 
+
+	let edgeLines: EdgeLine[] = $derived(
+		visibleEdges.map(([src, dst]) => {
+			const a = localProjected.find((p) => p.id === src);
+			const b = localProjected.find((p) => p.id === dst);
+			return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null;
+		}).filter((e): e is EdgeLine => e !== null)
+	);
+
 	let labels: ResolvedLabel[] = $derived(
 		resolveLabels(
 			localProjected.map((loc) => ({
 				nodeX: loc.x,
 				nodeY: loc.y,
 				nodeR: isPlayer(loc) ? playerR : nodeR,
-				textW: estimateTextWidth(loc.name) * s,
+				textW: estimateTextWidth(loc.name, 30, fontSize),
 				textH: fontSize
 			})),
 			viewBox.w,
-			viewBox.h
+			viewBox.h,
+			edgeLines
 		)
 	);
 
-	// Off-screen indicators: locations beyond minimap radius but within indicator limit
-	let offscreenIndicators: { x: number; y: number; angle: number; name: string }[] = $derived.by(
-		() => {
-			const halfW = viewBox.w / 2;
-			const halfH = viewBox.h / 2;
-			const cx = viewBox.w / 2;
-			const cy = viewBox.h / 2;
-
-			return allProjected
-				.filter(
-					(l) => l.hops > MINIMAP_HOP_RADIUS && l.hops <= OFFSCREEN_HOP_LIMIT
-				)
-				.map((l) => {
-					const localX = l.x - $viewCenter.x - viewBox.x;
-					const localY = l.y - $viewCenter.y - viewBox.y;
-					const clamped = clampToRect(localX, localY, cx, cy, halfW - 8 * s, halfH - 8 * s);
-					return {
-						x: clamped.x,
-						y: clamped.y,
-						angle: clamped.angle,
-						name: l.name
-					};
-				});
-		}
-	);
-
-	// Edges filtered to those where both endpoints are in nearbyProjected
+	// Edges between 1-hop locations
 	let visibleEdges: [string, string][] = $derived.by(() => {
 		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
 		return ($mapData?.edges ?? []).filter(([a, b]) => nearbyIds.has(a) && nearbyIds.has(b));
+	});
+
+	// Count of off-map connections per visible node (for "road continues" stubs)
+	let offMapCounts: Map<string, number> = $derived.by(() => {
+		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
+		const counts = new Map<string, number>();
+		for (const [a, b] of $mapData?.edges ?? []) {
+			if (nearbyIds.has(a) && !nearbyIds.has(b)) counts.set(a, (counts.get(a) ?? 0) + 1);
+			if (nearbyIds.has(b) && !nearbyIds.has(a)) counts.set(b, (counts.get(b) ?? 0) + 1);
+		}
+		return counts;
 	});
 
 	let tooltip: string | null = $state(null);
@@ -178,6 +179,25 @@
 	</div>
 	{#if $mapData}
 		<svg viewBox="0 0 {viewBox.w} {viewBox.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish minimap">
+			<!-- Continuation stubs: short faded lines from nodes with off-map connections -->
+			{#each localProjected as loc}
+				{@const count = offMapCounts.get(loc.id) ?? 0}
+				{@const r = isPlayer(loc) ? playerR : nodeR}
+				{#if count > 0 && !isPlayer(loc)}
+					{@const cx = viewBox.w / 2}
+					{@const cy = viewBox.h / 2}
+					{@const angle = Math.atan2(loc.y - cy, loc.x - cx)}
+					<line
+						x1={loc.x + Math.cos(angle) * (r + 2 * s)}
+						y1={loc.y + Math.sin(angle) * (r + 2 * s)}
+						x2={loc.x + Math.cos(angle) * (r + 14 * s)}
+						y2={loc.y + Math.sin(angle) * (r + 14 * s)}
+						class="continuation-stub"
+						stroke-width={1 * s}
+					/>
+				{/if}
+			{/each}
+
 			<!-- Edges -->
 			{#each visibleEdges as [src, dst]}
 				{@const a = localProjected.find((p) => p.id === src)}
@@ -192,12 +212,13 @@
 				{@const label = labels[i]}
 				{@const r = isPlayer(loc) ? playerR : nodeR}
 				{@const threshold = (r + 6 * s) ** 2}
-				{#if label && distSq(label.cx, label.cy, label.ax, label.ay) > threshold}
+				{#if label && distSq(label.cx, label.cy, loc.x, loc.y) > threshold}
+					{@const angle = Math.atan2(label.cy - loc.y, label.cx - loc.x)}
 					<line
-						x1={loc.x}
-						y1={loc.y + r + 1 * s}
-						x2={label.cx}
-						y2={label.cy - label.h / 2}
+						x1={loc.x + Math.cos(angle) * (r + 1 * s)}
+						y1={loc.y + Math.sin(angle) * (r + 1 * s)}
+						x2={label.cx - Math.cos(angle) * Math.min(label.w / 2, 8 * s)}
+						y2={label.cy - Math.sin(angle) * Math.min(label.h / 2, 6 * s)}
 						class="leader"
 						stroke-width={0.3 * s}
 					/>
@@ -220,21 +241,13 @@
 					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? playerR : nodeR} class="node-circle" stroke-width={1.5 * s} />
 					{#if label}
 						<text x={label.cx} y={label.cy + fontSize / 2 - 1 * s} class="node-label" font-size={fontSize}>
-							{loc.name.length > 14 ? loc.name.slice(0, 12) + '\u2026' : loc.name}
+							{loc.name}
 						</text>
 					{/if}
 				</g>
 			{/each}
 
-			<!-- Off-screen indicators -->
-			{#each offscreenIndicators as ind}
-				<g
-					transform="translate({ind.x},{ind.y}) rotate({(ind.angle * 180) / Math.PI})"
-					class="offscreen-indicator"
-				>
-					<polygon points="0,{-3 * s} {6 * s},0 0,{3 * s}" />
-				</g>
-			{/each}
+			<!-- Off-screen indicators removed: confusing at tight zoom -->
 		</svg>
 		{#if tooltip}
 			<div class="tooltip">{tooltip}</div>
@@ -270,16 +283,17 @@
 
 	.expand-btn {
 		background: none;
-		border: none;
+		border: 1px solid var(--color-border);
 		color: var(--color-muted);
 		cursor: pointer;
-		padding: 2px;
+		padding: 4px;
 		line-height: 1;
-		border-radius: 2px;
+		border-radius: 3px;
 	}
 
 	.expand-btn:hover {
 		color: var(--color-accent);
+		border-color: var(--color-accent);
 		background: var(--color-input-bg);
 	}
 
@@ -291,6 +305,12 @@
 
 	.edge {
 		stroke: var(--color-border);
+	}
+
+	.continuation-stub {
+		stroke: var(--color-muted);
+		opacity: 0.4;
+		stroke-dasharray: 3 2;
 	}
 
 	.leader {
@@ -328,10 +348,6 @@
 		fill: var(--color-fg);
 	}
 
-	.offscreen-indicator polygon {
-		fill: var(--color-muted);
-		opacity: 0.6;
-	}
 
 	.tooltip {
 		position: absolute;
