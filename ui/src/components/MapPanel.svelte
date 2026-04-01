@@ -112,10 +112,15 @@
 	);
 
 
+	// O(1) location lookup map — avoids O(n) .find() per edge
+	let locationMap: Map<string, ProjectedLocation> = $derived(
+		new Map(localProjected.map((l) => [l.id, l]))
+	);
+
 	let edgeLines: EdgeLine[] = $derived(
 		visibleEdges.map(([src, dst]) => {
-			const a = localProjected.find((p) => p.id === src);
-			const b = localProjected.find((p) => p.id === dst);
+			const a = locationMap.get(src);
+			const b = locationMap.get(dst);
 			return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null;
 		}).filter((e): e is EdgeLine => e !== null)
 	);
@@ -198,13 +203,9 @@
 				{/if}
 			{/each}
 
-			<!-- Edges -->
-			{#each visibleEdges as [src, dst]}
-				{@const a = localProjected.find((p) => p.id === src)}
-				{@const b = localProjected.find((p) => p.id === dst)}
-				{#if a && b}
-					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" stroke-width={1 * s} />
-				{/if}
+			<!-- Edges (reuse pre-computed edgeLines for O(1) rendering) -->
+			{#each edgeLines as edge}
+				<line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} class="edge" stroke-width={1 * s} />
 			{/each}
 
 			<!-- Leader lines (drawn behind labels) -->

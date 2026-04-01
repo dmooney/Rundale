@@ -56,10 +56,15 @@
 		}))
 	);
 
+	// O(1) location lookup map — avoids O(n) .find() per edge
+	let locationMap: Map<string, ProjectedLocation> = $derived(
+		new Map(localProjected.map((l) => [l.id, l]))
+	);
+
 	let fullEdgeLines: EdgeLine[] = $derived(
 		($mapData?.edges ?? []).map(([src, dst]) => {
-			const a = localProjected.find((p) => p.id === src);
-			const b = localProjected.find((p) => p.id === dst);
+			const a = locationMap.get(src);
+			const b = locationMap.get(dst);
 			return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null;
 		}).filter((e): e is EdgeLine => e !== null)
 	);
@@ -151,13 +156,9 @@
 				aria-label="Full parish map"
 				style="transform: translate({panX}px, {panY}px) scale({zoom}); transform-origin: center;"
 			>
-				<!-- Edges -->
-				{#each $mapData?.edges ?? [] as [src, dst]}
-					{@const a = localProjected.find((p) => p.id === src)}
-					{@const b = localProjected.find((p) => p.id === dst)}
-					{#if a && b}
-						<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" />
-					{/if}
+				<!-- Edges (reuse pre-computed fullEdgeLines for O(1) rendering) -->
+				{#each fullEdgeLines as edge}
+					<line x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2} class="edge" />
 				{/each}
 
 				<!-- Leader lines -->
