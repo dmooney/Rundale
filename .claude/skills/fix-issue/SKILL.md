@@ -1,13 +1,12 @@
 ---
 name: fix-issue
 description: Work through a GitHub issue end-to-end — diagnose, implement, test, and verify. Pass the issue number as an argument.
-argument-hint: <issue-number>
 ---
 
-Work through GitHub issue #$ARGUMENTS end-to-end.
 
 ## Steps
 
+0. Find one or more github issues that don't already have a pull request
 1. **Fetch the issue**: Run `gh issue view $ARGUMENTS` to read the title, body, and labels.
 2. **Understand the problem**: Research the relevant code. Identify the root cause or the feature gap.
 3. **Plan the fix**: Outline what files need to change and what tests to add. Keep it minimal — only change what's needed.
