@@ -13,6 +13,7 @@ pub mod movement;
 pub mod palette;
 pub mod time;
 pub mod transport;
+pub mod weather;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -24,6 +25,7 @@ use time::GameClock;
 use crate::error::ParishError;
 use events::EventBus;
 use graph::{LocationData, WorldGraph};
+use weather::WeatherEngine;
 
 /// Current weather conditions in the game world.
 ///
@@ -33,10 +35,14 @@ use graph::{LocationData, WorldGraph};
 pub enum Weather {
     /// Clear skies — no palette modification.
     Clear,
+    /// Partly cloudy — very subtle darkening.
+    PartlyCloudy,
     /// Overcast — slightly darker and desaturated.
     Overcast,
-    /// Rain — darker with a blue-gray tint.
-    Rain,
+    /// Light rain — darker with a blue-gray tint.
+    LightRain,
+    /// Heavy rain — significantly darker and desaturated.
+    HeavyRain,
     /// Fog — washed out, low contrast.
     Fog,
     /// Storm — much darker and heavily desaturated.
@@ -49,8 +55,10 @@ impl std::str::FromStr for Weather {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "Clear" => Ok(Weather::Clear),
+            "Partly Cloudy" | "PartlyCloudy" => Ok(Weather::PartlyCloudy),
             "Overcast" => Ok(Weather::Overcast),
-            "Rain" => Ok(Weather::Rain),
+            "Light Rain" | "LightRain" | "Rain" => Ok(Weather::LightRain),
+            "Heavy Rain" | "HeavyRain" => Ok(Weather::HeavyRain),
             "Fog" => Ok(Weather::Fog),
             "Storm" => Ok(Weather::Storm),
             other => Err(ParishError::Config(format!("unknown weather: {}", other))),
@@ -62,8 +70,10 @@ impl fmt::Display for Weather {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Weather::Clear => write!(f, "Clear"),
+            Weather::PartlyCloudy => write!(f, "Partly Cloudy"),
             Weather::Overcast => write!(f, "Overcast"),
-            Weather::Rain => write!(f, "Rain"),
+            Weather::LightRain => write!(f, "Light Rain"),
+            Weather::HeavyRain => write!(f, "Heavy Rain"),
             Weather::Fog => write!(f, "Fog"),
             Weather::Storm => write!(f, "Storm"),
         }
@@ -113,6 +123,8 @@ pub struct WorldState {
     pub graph: WorldGraph,
     /// Current weather conditions affecting palette and descriptions.
     pub weather: Weather,
+    /// Dynamic weather state machine that transitions over time.
+    pub weather_engine: WeatherEngine,
     /// Scrollback text log displayed in the main text panel.
     pub text_log: Vec<String>,
     /// Cross-tier event bus for publishing and subscribing to game events.
@@ -145,6 +157,7 @@ impl WorldState {
         locations.insert(crossroads_id, crossroads);
 
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
         Self {
             clock,
@@ -152,6 +165,7 @@ impl WorldState {
             locations,
             graph: WorldGraph::new(),
             weather: Weather::Clear,
+            weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
         }
@@ -187,6 +201,7 @@ impl WorldState {
         }
 
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
         Ok(Self {
             clock,
@@ -194,6 +209,7 @@ impl WorldState {
             locations,
             graph,
             weather: Weather::Clear,
+            weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
         })
@@ -240,6 +256,7 @@ impl WorldState {
 
         let clock = GameClock::new(start_dt);
         let start_location = LocationId(game_mod.start_location());
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
         Ok(Self {
             clock,
@@ -247,6 +264,7 @@ impl WorldState {
             locations,
             graph,
             weather: Weather::Clear,
+            weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
         })
@@ -296,8 +314,10 @@ mod tests {
     #[test]
     fn test_weather_display() {
         assert_eq!(Weather::Clear.to_string(), "Clear");
+        assert_eq!(Weather::PartlyCloudy.to_string(), "Partly Cloudy");
         assert_eq!(Weather::Overcast.to_string(), "Overcast");
-        assert_eq!(Weather::Rain.to_string(), "Rain");
+        assert_eq!(Weather::LightRain.to_string(), "Light Rain");
+        assert_eq!(Weather::HeavyRain.to_string(), "Heavy Rain");
         assert_eq!(Weather::Fog.to_string(), "Fog");
         assert_eq!(Weather::Storm.to_string(), "Storm");
     }

@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn test_game_snapshot_restore() {
         let mut world = WorldState::new();
-        world.weather = crate::world::Weather::Rain;
+        world.weather = crate::world::Weather::LightRain;
         world.log("Test entry".to_string());
         let mut npc_manager = NpcManager::new();
         npc_manager.add_npc(make_test_npc(1, 1));
@@ -305,7 +305,7 @@ mod tests {
         let mut new_npcs = NpcManager::new();
         snapshot.restore(&mut new_world, &mut new_npcs);
 
-        assert_eq!(new_world.weather, crate::world::Weather::Rain);
+        assert_eq!(new_world.weather, crate::world::Weather::LightRain);
         assert_eq!(new_world.text_log.len(), 1);
         assert_eq!(new_world.text_log[0], "Test entry");
         assert_eq!(new_npcs.npc_count(), 1);

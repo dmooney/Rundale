@@ -459,12 +459,18 @@ pub struct WeatherTintConfig {
     /// Clear weather (identity).
     #[serde(default = "default_clear_tint")]
     pub clear: [f32; 6],
+    /// Partly cloudy weather.
+    #[serde(default = "default_partly_cloudy_tint")]
+    pub partly_cloudy: [f32; 6],
     /// Overcast weather.
     #[serde(default = "default_overcast_tint")]
     pub overcast: [f32; 6],
-    /// Rain weather.
-    #[serde(default = "default_rain_tint")]
-    pub rain: [f32; 6],
+    /// Light rain weather.
+    #[serde(default = "default_light_rain_tint")]
+    pub light_rain: [f32; 6],
+    /// Heavy rain weather.
+    #[serde(default = "default_heavy_rain_tint")]
+    pub heavy_rain: [f32; 6],
     /// Fog weather.
     #[serde(default = "default_fog_tint")]
     pub fog: [f32; 6],
@@ -477,8 +483,10 @@ impl Default for WeatherTintConfig {
     fn default() -> Self {
         Self {
             clear: [1.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            partly_cloudy: [0.97, 0.97, 0.98, 0.08, 0.96, 0.0],
             overcast: [0.95, 0.95, 0.97, 0.15, 0.92, 0.0],
-            rain: [0.88, 0.90, 0.95, 0.20, 0.85, 0.0],
+            light_rain: [0.90, 0.92, 0.96, 0.15, 0.88, 0.0],
+            heavy_rain: [0.85, 0.87, 0.93, 0.25, 0.80, 0.0],
             fog: [0.97, 0.97, 0.98, 0.35, 0.95, 0.15],
             storm: [0.80, 0.82, 0.85, 0.30, 0.75, 0.0],
         }
@@ -488,11 +496,17 @@ impl Default for WeatherTintConfig {
 fn default_clear_tint() -> [f32; 6] {
     [1.0, 1.0, 1.0, 0.0, 1.0, 0.0]
 }
+fn default_partly_cloudy_tint() -> [f32; 6] {
+    [0.97, 0.97, 0.98, 0.08, 0.96, 0.0]
+}
 fn default_overcast_tint() -> [f32; 6] {
     [0.95, 0.95, 0.97, 0.15, 0.92, 0.0]
 }
-fn default_rain_tint() -> [f32; 6] {
-    [0.88, 0.90, 0.95, 0.20, 0.85, 0.0]
+fn default_light_rain_tint() -> [f32; 6] {
+    [0.90, 0.92, 0.96, 0.15, 0.88, 0.0]
+}
+fn default_heavy_rain_tint() -> [f32; 6] {
+    [0.85, 0.87, 0.93, 0.25, 0.80, 0.0]
 }
 fn default_fog_tint() -> [f32; 6] {
     [0.97, 0.97, 0.98, 0.35, 0.95, 0.15]

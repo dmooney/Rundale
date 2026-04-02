@@ -231,9 +231,27 @@ pub async fn run_headless(
                 tt.npc_name, direction, tt.old_tier, tt.new_tier,
             ));
         }
-        let schedule_events = app
-            .npc_manager
-            .tick_schedules(&app.world.clock, &app.world.graph);
+        // Tick weather engine
+        {
+            let season = app.world.clock.season();
+            let now = app.world.clock.now();
+            let mut rng = rand::thread_rng();
+            if let Some(new_weather) = app.world.weather_engine.tick(now, season, &mut rng) {
+                let old = app.world.weather;
+                app.world.weather = new_weather;
+                app.world
+                    .event_bus
+                    .publish(crate::world::events::GameEvent::WeatherChanged {
+                        new_weather: new_weather.to_string(),
+                        timestamp: app.world.clock.now(),
+                    });
+                tracing::info!(old = %old, new = %new_weather, "Weather changed");
+            }
+        }
+
+        let schedule_events =
+            app.npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
         process_headless_schedule_events(&mut app, &schedule_events);
 
         // Periodic autosave
@@ -881,9 +899,11 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("You wait for {} minutes...", minutes);
             app.world.clock.advance(minutes as i64);
             app.npc_manager.assign_tiers(&app.world, &[]);
-            let schedule_events = app
-                .npc_manager
-                .tick_schedules(&app.world.clock, &app.world.graph);
+            let schedule_events = app.npc_manager.tick_schedules(
+                &app.world.clock,
+                &app.world.graph,
+                app.world.weather,
+            );
             process_headless_schedule_events(app, &schedule_events);
             let now = app.world.clock.now();
             let tod = app.world.clock.time_of_day();
@@ -947,9 +967,11 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         }
         Command::Tick => {
             app.npc_manager.assign_tiers(&app.world, &[]);
-            let schedule_events = app
-                .npc_manager
-                .tick_schedules(&app.world.clock, &app.world.graph);
+            let schedule_events = app.npc_manager.tick_schedules(
+                &app.world.clock,
+                &app.world.graph,
+                app.world.weather,
+            );
             let count = schedule_events.len();
             process_headless_schedule_events(app, &schedule_events);
             if count == 0 {
