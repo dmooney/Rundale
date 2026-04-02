@@ -368,11 +368,13 @@
 				if (e.key === 'ArrowDown') {
 					e.preventDefault();
 					selectedIndex = (selectedIndex + 1) % items.length;
+					scrollDropdownToSelected();
 					return;
 				}
 				if (e.key === 'ArrowUp') {
 					e.preventDefault();
 					selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+					scrollDropdownToSelected();
 					return;
 				}
 				if (e.key === 'Tab') {
@@ -471,6 +473,18 @@
 			e.preventDefault();
 			handleSubmit(e);
 		}
+	}
+
+	/** Scrolls the dropdown so the selected item is visible. */
+	function scrollDropdownToSelected() {
+		// Use tick-like defer so the DOM class has updated
+		requestAnimationFrame(() => {
+			const dropdown = document.querySelector('.mention-dropdown');
+			const selected = dropdown?.querySelector('.mention-item.selected');
+			if (selected) {
+				selected.scrollIntoView({ block: 'nearest' });
+			}
+		});
 	}
 
 	function handleInput() {
