@@ -6,6 +6,7 @@
 
 pub mod anachronism;
 pub mod data;
+pub mod gossip;
 pub mod manager;
 pub mod memory;
 pub mod mood;
@@ -20,7 +21,7 @@ use std::collections::HashMap;
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
-use memory::ShortTermMemory;
+use memory::{LongTermMemory, ShortTermMemory};
 use reactions::ReactionLog;
 use transitions::NpcSummary;
 use types::{DailySchedule, Intelligence, NpcState, Relationship};
@@ -144,6 +145,8 @@ pub struct Npc {
     pub relationships: HashMap<NpcId, Relationship>,
     /// Ring buffer of recent memories.
     pub memory: ShortTermMemory,
+    /// Persistent long-term memory with keyword-based retrieval.
+    pub long_term_memory: LongTermMemory,
     /// Things this NPC knows (local gossip, history, etc.).
     pub knowledge: Vec<String>,
     /// Whether the NPC is present at their location or in transit.
@@ -182,6 +185,7 @@ impl Npc {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::default(),
             deflated_summary: None,

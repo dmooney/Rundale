@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_replay_npc_mood_changed() {
-        use crate::npc::memory::ShortTermMemory;
+        use crate::npc::memory::{LongTermMemory, ShortTermMemory};
         use crate::npc::types::NpcState;
         use std::collections::HashMap;
 
@@ -283,6 +283,7 @@ mod tests {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,

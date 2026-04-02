@@ -410,7 +410,7 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
 mod tests {
     use super::*;
     use crate::npc::NpcMetadata;
-    use crate::npc::memory::ShortTermMemory;
+    use crate::npc::memory::{LongTermMemory, ShortTermMemory};
     use crate::npc::types::{
         MoodChange, NpcState, Relationship, RelationshipChange, RelationshipKind,
     };
@@ -433,6 +433,7 @@ mod tests {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::default(),
             deflated_summary: None,

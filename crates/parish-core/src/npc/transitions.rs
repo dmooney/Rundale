@@ -181,7 +181,7 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::npc::memory::ShortTermMemory;
+    use crate::npc::memory::{LongTermMemory, ShortTermMemory};
     use crate::npc::types::{Intelligence, NpcState};
     use chrono::{TimeZone, Utc};
     use std::collections::HashMap;
@@ -206,6 +206,7 @@ mod tests {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,

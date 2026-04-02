@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::npc::memory::ShortTermMemory;
+use crate::npc::memory::{LongTermMemory, ShortTermMemory};
 use crate::npc::types::{DailySchedule, Intelligence, NpcState, Relationship};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
@@ -65,6 +65,9 @@ pub struct NpcSnapshot {
     pub relationships: HashMap<NpcId, Relationship>,
     /// Short-term memory ring buffer.
     pub memory: ShortTermMemory,
+    /// Persistent long-term memory with keyword-based retrieval.
+    #[serde(default)]
+    pub long_term_memory: LongTermMemory,
     /// Knowledge entries.
     pub knowledge: Vec<String>,
     /// Present or in-transit state.
@@ -89,6 +92,7 @@ impl NpcSnapshot {
             schedule: npc.schedule.clone(),
             relationships: npc.relationships.clone(),
             memory: npc.memory.clone(),
+            long_term_memory: npc.long_term_memory.clone(),
             knowledge: npc.knowledge.clone(),
             state: npc.state.clone(),
         }
@@ -111,6 +115,7 @@ impl NpcSnapshot {
             schedule: self.schedule,
             relationships: self.relationships,
             memory: self.memory,
+            long_term_memory: self.long_term_memory,
             knowledge: self.knowledge,
             state: self.state,
             deflated_summary: None,
@@ -232,7 +237,7 @@ mod tests {
     use super::*;
     use crate::npc::Npc;
     use crate::npc::manager::NpcManager;
-    use crate::npc::memory::ShortTermMemory;
+    use crate::npc::memory::{LongTermMemory, ShortTermMemory};
     use crate::npc::types::NpcState;
     use crate::world::WorldState;
     use chrono::{TimeZone, Utc};
@@ -253,6 +258,7 @@ mod tests {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,
