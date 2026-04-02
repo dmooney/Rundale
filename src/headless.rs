@@ -1648,7 +1648,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_from_db_with_existing_snapshot() {
-        let mut app = App::new();
+        let app = App::new();
         let db = crate::persistence::Database::open_memory().unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
 

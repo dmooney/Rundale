@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn test_build_context() {
-        let npc = Npc::new_test_npc();
+        let _npc = Npc::new_test_npc();
         let world = WorldState::new();
         let context = build_tier1_context(&world, "says hello");
         assert!(context.contains("The Crossroads"));
@@ -715,6 +715,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)] // deliberate static assertion
     fn test_separator_holdback_sufficient() {
         // Holdback must be large enough to catch " --- " inline pattern
         assert!(SEPARATOR_HOLDBACK >= 20);

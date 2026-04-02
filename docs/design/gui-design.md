@@ -15,7 +15,7 @@ The `ChatPanel.svelte` component displays an animated **Celtic triquetra (Trinit
 - **Slow rotation**: the entire SVG rotates at 6s/revolution for organic motion
 - **Theme-adaptive**: uses `var(--color-accent)` (gold) which changes with time-of-day palette
 
-Once streaming tokens begin arriving, the spinner is replaced by a blinking cursor (`▋`) at the end of the streaming text.
+Once streaming tokens begin arriving, the spinner is replaced by a blinking cursor (`▋`) at the end of the streaming text. The streaming source label is derived from the last non-player, non-system log entry so the correct NPC name appears during token streaming.
 
 The headless and TUI modes continue to use the Rust `LoadingAnimation` (`crates/parish-core/src/loading.rs`) with Celtic cross Unicode characters and Irish-themed phrases.
 

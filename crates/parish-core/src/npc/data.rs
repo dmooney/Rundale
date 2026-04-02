@@ -286,7 +286,7 @@ mod tests {
         let npc_map: HashMap<NpcId, &Npc> = npcs.iter().map(|n| (n.id, n)).collect();
 
         for npc in &npcs {
-            for (target_id, _rel) in &npc.relationships {
+            for target_id in npc.relationships.keys() {
                 let target = npc_map.get(target_id).unwrap_or_else(|| {
                     panic!(
                         "{} has relationship with NPC {} but that NPC doesn't exist",
