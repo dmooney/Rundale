@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # Stop hook: run fmt + clippy + test if any .rs files changed
 # Only runs when Rust files have been modified, skips conversation-only turns
