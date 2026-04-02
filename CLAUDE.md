@@ -166,6 +166,7 @@ Parish/
 - **Ollama**: Must be running on `localhost:11434` for inference calls
 - **Reqwest timeouts**: Set explicit timeouts on all HTTP requests
 - **Serde defaults**: Use `#[serde(default)]` for optional fields in LLM response structs
+- **Mode parity**: All modes (Tauri, CLI/headless, web server, and any future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in `crates/parish-core/` and wire it up from every mode's entry point.
 
 ## Git Workflow
 
