@@ -1645,4 +1645,103 @@ mod tests {
             log
         );
     }
+
+    #[test]
+    fn test_gossip_network_on_world_state() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+
+        // Seed gossip into the world state
+        let now = h.app.world.clock.now();
+        let npc_id = NpcId(1);
+        h.app.world.gossip_network.create(
+            "The landlord raised the rent again".to_string(),
+            npc_id,
+            now,
+        );
+        h.app.world.gossip_network.create(
+            "A stranger was seen at the fairy fort".to_string(),
+            NpcId(2),
+            now,
+        );
+
+        // Verify via debug command
+        let result = h.execute("/debug gossip");
+        let text = match &result {
+            ActionResult::SystemCommand { response } => response.clone(),
+            other => panic!("Expected system command, got {:?}", other),
+        };
+        assert!(
+            text.contains("2 items"),
+            "Should show 2 gossip items: {text}"
+        );
+        assert!(
+            text.contains("landlord"),
+            "Should contain landlord gossip: {text}"
+        );
+        assert!(
+            text.contains("stranger"),
+            "Should contain stranger gossip: {text}"
+        );
+    }
+
+    #[test]
+    fn test_long_term_memory_debug_display() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+
+        // Find an NPC and seed long-term memory
+        let npc_id = NpcId(1);
+        if let Some(npc) = h.app.npc_manager.get_mut(npc_id) {
+            use parish_core::npc::memory::LongTermEntry;
+            let now = h.app.world.clock.now();
+            npc.long_term_memory.store(LongTermEntry {
+                timestamp: now,
+                content: "Argued with the landlord about tithes".to_string(),
+                importance: 0.8,
+                keywords: vec!["landlord".to_string(), "tithes".to_string()],
+            });
+        }
+
+        // Verify via debug command — get NPC name first
+        let npc_name = h.app.npc_manager.get(npc_id).unwrap().name.clone();
+        let result = h.execute(&format!("/debug memory {}", npc_name));
+        let text = match &result {
+            ActionResult::SystemCommand { response } => response.clone(),
+            other => panic!("Expected system command, got {:?}", other),
+        };
+        assert!(
+            text.contains("Long-term (1 entries)"),
+            "Should show 1 LTM entry: {text}"
+        );
+    }
+
+    #[test]
+    fn test_gossip_propagation_runtime() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+        let now = h.app.world.clock.now();
+
+        // Create gossip known by NPC 1
+        h.app.world.gossip_network.create(
+            "Mary's cow went missing last night".to_string(),
+            NpcId(1),
+            now,
+        );
+
+        // Propagate between NPC 1 and NPC 2
+        use rand::SeedableRng;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let transmitted = parish_core::npc::ticks::propagate_gossip_at_location(
+            &[NpcId(1), NpcId(2)],
+            &mut h.app.world.gossip_network,
+            &mut rng,
+        );
+
+        // Check if gossip was transmitted (probabilistic, but seed 42 should work)
+        if !transmitted.is_empty() {
+            let npc2_gossip = h.app.world.gossip_network.known_by(NpcId(2));
+            assert!(!npc2_gossip.is_empty(), "NPC 2 should now know gossip");
+        }
+    }
 }

@@ -31,6 +31,7 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "schedule" => debug_schedule(app, arg),
                 "memory" => debug_memory(app, arg),
                 "relationships" | "rels" => debug_relationships(app, arg),
+                "gossip" => debug_gossip(app, arg),
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -288,14 +289,43 @@ fn debug_memory(app: &App, name: Option<&str>) -> Vec<String> {
 
     let mut lines = vec![format!("[DEBUG MEMORY: {}]", npc.name)];
 
+    // Short-term memory
+    lines.push(format!("  Short-term ({}/{}):", npc.memory.len(), 20));
     let recent = npc.memory.recent(10);
     if recent.is_empty() {
-        lines.push("  (no memories)".to_string());
+        lines.push("    (no short-term memories)".to_string());
     } else {
         for entry in recent {
             let time = entry.timestamp.format("%H:%M");
             let loc = location_name(entry.location, &app.world.graph);
-            lines.push(format!("  [{}] {} (at {})", time, entry.content, loc));
+            lines.push(format!("    [{}] {} (at {})", time, entry.content, loc));
+        }
+    }
+
+    // Long-term memory
+    lines.push(format!(
+        "  Long-term ({} entries):",
+        npc.long_term_memory.len()
+    ));
+    if npc.long_term_memory.is_empty() {
+        lines.push("    (no long-term memories)".to_string());
+    } else {
+        let all = npc.long_term_memory.recall(&[""], 10);
+        // Show all if keyword recall returns nothing (empty query)
+        if all.is_empty() {
+            lines.push(format!(
+                "    {} stored (use keyword search to recall)",
+                npc.long_term_memory.len()
+            ));
+        } else {
+            for entry in all {
+                lines.push(format!(
+                    "    [imp={:.1}] {} (keywords: {})",
+                    entry.importance,
+                    entry.content,
+                    entry.keywords.join(", ")
+                ));
+            }
         }
     }
 
@@ -349,7 +379,60 @@ fn debug_help() -> Vec<String> {
         "  /debug schedule <name>  — NPC's daily schedule".to_string(),
         "  /debug memory <name>    — NPC's recent memories".to_string(),
         "  /debug rels <name>      — NPC's relationships".to_string(),
+        "  /debug gossip [name]    — Gossip network (or NPC's known gossip)".to_string(),
     ]
+}
+
+/// Gossip network overview, or a specific NPC's known gossip.
+fn debug_gossip(app: &App, name: Option<&str>) -> Vec<String> {
+    let network = &app.world.gossip_network;
+
+    if let Some(name) = name {
+        // Show gossip known by a specific NPC
+        let Some(npc) = find_npc_by_name(&app.npc_manager, name) else {
+            return vec![format!("NPC not found: {}", name)];
+        };
+
+        let items = network.known_by(npc.id);
+        let mut lines = vec![format!(
+            "[DEBUG GOSSIP: {} ({} items)]",
+            npc.name,
+            items.len()
+        )];
+        if items.is_empty() {
+            lines.push("  (no gossip known)".to_string());
+        } else {
+            for item in &items {
+                lines.push(format!(
+                    "  [id={}] \"{}\" (from NPC#{}, distortion={})",
+                    item.id, item.content, item.source.0, item.distortion_level
+                ));
+            }
+        }
+        lines
+    } else {
+        // Show network overview
+        let mut lines = vec![format!("[DEBUG GOSSIP NETWORK: {} items]", network.len())];
+        if network.is_empty() {
+            lines.push("  (no gossip circulating)".to_string());
+        } else {
+            let all_items = network.all_items();
+            for item in all_items.iter().take(15) {
+                lines.push(format!(
+                    "  [id={}] \"{}\" (source=NPC#{}, known_by={}, distortion={})",
+                    item.id,
+                    item.content,
+                    item.source.0,
+                    item.known_by.len(),
+                    item.distortion_level
+                ));
+            }
+            if all_items.len() > 15 {
+                lines.push(format!("  ... and {} more", all_items.len() - 15));
+            }
+        }
+        lines
+    }
 }
 
 /// Counts NPCs by tier.

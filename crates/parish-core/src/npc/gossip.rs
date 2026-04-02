@@ -151,6 +151,11 @@ impl GossipNetwork {
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
+
+    /// Returns all gossip items (for debug display).
+    pub fn all_items(&self) -> &[GossipItem] {
+        &self.items
+    }
 }
 
 /// Adjectives that can be dropped during distortion.

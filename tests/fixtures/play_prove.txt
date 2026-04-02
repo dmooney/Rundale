@@ -1,0 +1,13 @@
+look
+/status
+/debug npcs
+/debug memory Padraig
+/debug gossip
+/wait 60
+/debug memory Padraig
+/debug gossip
+/wait 120
+/debug memory Padraig
+/debug gossip
+/npcs
+/time
