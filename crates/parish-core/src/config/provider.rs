@@ -1,10 +1,11 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Supports Ollama (local, default), LM Studio (local), and several cloud
-//! providers: OpenRouter, OpenAI, Google (Gemini), Groq, xAI (Grok),
-//! Mistral, DeepSeek, and Together AI. A custom OpenAI-compatible endpoint
-//! is also available. Configuration is resolved from a TOML file,
-//! environment variables, and CLI flags (in that priority order).
+//! Supports Ollama (local, default), LM Studio (local), vLLM (local),
+//! and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
+//! xAI (Grok), Mistral, DeepSeek, and Together AI. A custom
+//! OpenAI-compatible endpoint is also available. Configuration is resolved
+//! from a TOML file, environment variables, and CLI flags (in that priority
+//! order).
 
 use crate::error::ParishError;
 use serde::Deserialize;
@@ -14,6 +15,7 @@ use std::path::Path;
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const DEFAULT_LMSTUDIO_URL: &str = "http://localhost:1234";
 const DEFAULT_OPENROUTER_URL: &str = "https://openrouter.ai/api";
+const DEFAULT_VLLM_URL: &str = "http://localhost:8000";
 const DEFAULT_OPENAI_URL: &str = "https://api.openai.com";
 const DEFAULT_GOOGLE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
 const DEFAULT_GROQ_URL: &str = "https://api.groq.com/openai";
@@ -36,6 +38,8 @@ pub enum Provider {
     LmStudio,
     /// OpenRouter cloud gateway (requires API key).
     OpenRouter,
+    /// Local vLLM inference server (OpenAI-compatible, requires model name).
+    Vllm,
     /// OpenAI API (requires API key).
     OpenAi,
     /// Google Gemini via OpenAI-compatible endpoint (requires API key).
@@ -61,6 +65,7 @@ impl Provider {
             "ollama" => Ok(Provider::Ollama),
             "lmstudio" | "lm_studio" | "lm-studio" => Ok(Provider::LmStudio),
             "openrouter" | "open_router" | "open-router" => Ok(Provider::OpenRouter),
+            "vllm" => Ok(Provider::Vllm),
             "openai" | "open_ai" | "open-ai" => Ok(Provider::OpenAi),
             "google" | "gemini" => Ok(Provider::Google),
             "groq" => Ok(Provider::Groq),
@@ -70,7 +75,7 @@ impl Provider {
             "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
             "custom" => Ok(Provider::Custom),
             other => Err(ParishError::Config(format!(
-                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, openai, \
+                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
                  google, groq, xai, mistral, deepseek, together, custom",
                 other
             ))),
@@ -83,6 +88,7 @@ impl Provider {
             Provider::Ollama => DEFAULT_OLLAMA_URL,
             Provider::LmStudio => DEFAULT_LMSTUDIO_URL,
             Provider::OpenRouter => DEFAULT_OPENROUTER_URL,
+            Provider::Vllm => DEFAULT_VLLM_URL,
             Provider::OpenAi => DEFAULT_OPENAI_URL,
             Provider::Google => DEFAULT_GOOGLE_URL,
             Provider::Groq => DEFAULT_GROQ_URL,
@@ -226,7 +232,7 @@ struct TomlConfig {
 /// The `[provider]` section of the TOML config.
 #[derive(Debug, Deserialize, Default)]
 struct TomlProvider {
-    /// Provider name: "ollama", "lmstudio", "openrouter", "custom".
+    /// Provider name: "ollama", "lmstudio", "openrouter", "vllm", "custom".
     name: Option<String>,
     /// Base URL override.
     base_url: Option<String>,
@@ -675,6 +681,7 @@ mod tests {
         // Local providers don't require API keys
         assert!(!Provider::Ollama.requires_api_key());
         assert!(!Provider::LmStudio.requires_api_key());
+        assert!(!Provider::Vllm.requires_api_key());
         assert!(!Provider::Custom.requires_api_key());
 
         // All cloud providers require API keys
@@ -691,6 +698,7 @@ mod tests {
         assert!(!Provider::Ollama.requires_model());
         assert!(Provider::LmStudio.requires_model());
         assert!(Provider::OpenRouter.requires_model());
+        assert!(Provider::Vllm.requires_model());
         assert!(Provider::OpenAi.requires_model());
         assert!(Provider::Google.requires_model());
         assert!(Provider::Groq.requires_model());
@@ -699,6 +707,51 @@ mod tests {
         assert!(Provider::DeepSeek.requires_model());
         assert!(Provider::Together.requires_model());
         assert!(Provider::Custom.requires_model());
+    }
+
+    #[test]
+    fn test_vllm_provider_from_str() {
+        assert_eq!(Provider::from_str_loose("vllm").unwrap(), Provider::Vllm);
+        assert_eq!(Provider::from_str_loose("VLLM").unwrap(), Provider::Vllm);
+    }
+
+    #[test]
+    fn test_vllm_provider_defaults() {
+        assert_eq!(Provider::Vllm.default_base_url(), "http://localhost:8000");
+        assert!(!Provider::Vllm.requires_api_key());
+        assert!(Provider::Vllm.requires_model());
+    }
+
+    #[test]
+    fn test_resolve_config_vllm() {
+        clear_parish_env();
+
+        let cli = CliOverrides {
+            provider: Some("vllm".to_string()),
+            base_url: None,
+            api_key: None,
+            model: Some("Qwen/Qwen3-8B".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Vllm);
+        assert_eq!(config.base_url, "http://localhost:8000");
+        assert!(config.api_key.is_none());
+        assert_eq!(config.model.as_deref(), Some("Qwen/Qwen3-8B"));
+    }
+
+    #[test]
+    fn test_resolve_config_vllm_custom_base_url() {
+        clear_parish_env();
+
+        let cli = CliOverrides {
+            provider: Some("vllm".to_string()),
+            base_url: Some("http://gpu-server:8000".to_string()),
+            api_key: None,
+            model: Some("meta-llama/Llama-3-8B".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Vllm);
+        assert_eq!(config.base_url, "http://gpu-server:8000");
     }
 
     #[test]
