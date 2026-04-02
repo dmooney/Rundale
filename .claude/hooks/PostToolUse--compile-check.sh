@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # PostToolUse hook: run cargo check after .rs edits to catch compile errors immediately
 # Matcher: Edit|Write

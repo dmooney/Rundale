@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # Stop hook: remind about coverage when new .rs files are added
 
