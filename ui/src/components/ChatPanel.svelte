@@ -203,9 +203,9 @@
 	}
 
 	.knot-circle {
-		stroke-dasharray: 120;
-		stroke-dashoffset: 120;
-		animation: triquetra-draw 2.4s ease-in-out infinite;
+		stroke-dasharray: 0 120;
+		stroke-dashoffset: 0;
+		animation: circle-draw 3s ease-in-out infinite;
 		animation-delay: 0.4s;
 	}
 
@@ -213,6 +213,13 @@
 		to {
 			stroke-dashoffset: -120;
 		}
+	}
+
+	@keyframes circle-draw {
+		0%   { stroke-dasharray: 0 120;   stroke-dashoffset: 0; }
+		30%  { stroke-dasharray: 120 120; stroke-dashoffset: 0; }
+		70%  { stroke-dasharray: 120 120; stroke-dashoffset: 0; }
+		100% { stroke-dasharray: 0 120;   stroke-dashoffset: -120; }
 	}
 
 	@keyframes triquetra-rotate {
