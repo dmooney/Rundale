@@ -1,0 +1,15 @@
+/status
+/time
+/map
+/npcs
+/wait 30
+/tick
+/where
+go to crossroads
+/npcs
+/time
+/wait 60
+/tick
+/speed fast
+/wait 15
+/speed normal

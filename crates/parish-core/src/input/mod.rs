@@ -88,8 +88,18 @@ pub enum Command {
     SetCategoryKey(InferenceCategory, String),
     /// Show about / credits information.
     About,
-    /// Toggle the full map overlay.
+    /// Toggle the full map overlay / show text-based map in CLI.
     Map,
+    /// Show NPCs at the current location with details.
+    NpcsHere,
+    /// Show detailed time, weather, and season info.
+    Time,
+    /// Wait in place for a number of game minutes, advancing time.
+    Wait(u32),
+    /// Start a fresh new game, resetting world and NPCs.
+    NewGame,
+    /// Manually tick NPC schedules without advancing time.
+    Tick,
 }
 
 /// The kind of player action parsed from natural language input.
@@ -179,6 +189,21 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::About)
     } else if lower == "/map" {
         Some(Command::Map)
+    } else if lower == "/npcs" {
+        Some(Command::NpcsHere)
+    } else if lower == "/time" {
+        Some(Command::Time)
+    } else if lower == "/where" {
+        Some(Command::Status)
+    } else if lower == "/wait" {
+        Some(Command::Wait(15))
+    } else if lower.starts_with("/wait ") {
+        let mins = trimmed[6..].trim().parse::<u32>().unwrap_or(15);
+        Some(Command::Wait(mins))
+    } else if lower == "/new" {
+        Some(Command::NewGame)
+    } else if lower == "/tick" {
+        Some(Command::Tick)
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
     } else if lower == "/provider" {
@@ -1091,6 +1116,38 @@ mod tests {
     fn test_classify_map_command() {
         let result = classify_input("/map");
         assert_eq!(result, InputResult::SystemCommand(Command::Map));
+    }
+
+    #[test]
+    fn test_parse_npcs_command() {
+        assert_eq!(parse_system_command("/npcs"), Some(Command::NpcsHere));
+    }
+
+    #[test]
+    fn test_parse_time_command() {
+        assert_eq!(parse_system_command("/time"), Some(Command::Time));
+    }
+
+    #[test]
+    fn test_parse_where_command() {
+        assert_eq!(parse_system_command("/where"), Some(Command::Status));
+    }
+
+    #[test]
+    fn test_parse_wait_command() {
+        assert_eq!(parse_system_command("/wait"), Some(Command::Wait(15)));
+        assert_eq!(parse_system_command("/wait 60"), Some(Command::Wait(60)));
+        assert_eq!(parse_system_command("/wait abc"), Some(Command::Wait(15)));
+    }
+
+    #[test]
+    fn test_parse_new_command() {
+        assert_eq!(parse_system_command("/new"), Some(Command::NewGame));
+    }
+
+    #[test]
+    fn test_parse_tick_command() {
+        assert_eq!(parse_system_command("/tick"), Some(Command::Tick));
     }
 
     #[test]

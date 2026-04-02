@@ -76,6 +76,66 @@ $ cargo run -- --script test.txt
 
 Lines starting with `#` are comments. Empty lines are skipped.
 
+## CLI-GUI Parity Commands
+
+The headless CLI (`src/headless.rs`) and test harness (`src/testing.rs`) support
+commands that mirror GUI-only features, enabling full play-testing without Tauri:
+
+| Command | Description | Handler Source |
+|---------|-------------|----------------|
+| `/map` | Text-based map: lists all locations with connections, marks player with `*` | `WorldGraph::location_ids()` + `neighbors()` |
+| `/npcs` | NPCs at current location: name, occupation, mood, introduced status | `NpcManager::npcs_at()` + `display_name()` |
+| `/time` | Detailed time info: hour:minute, time_of_day, season, weather, speed, festival | `GameClock::now()` + `.season()` + `.check_festival()` |
+| `/wait [N]` | Advance time by N game minutes (default 15), tick NPC schedules | `GameClock::advance()` + `tick_schedules()` |
+| `/tick` | Manually tick NPC schedules without advancing time | `assign_tiers()` + `tick_schedules()` |
+| `/new` | Start a fresh game: reload world/NPCs from mod files, reset persistence | Same init path as `GameTestHarness::new()` |
+| `/where` | Alias for `/status` | Parsed as `Command::Status` |
+
+### Time Advancement Design
+
+The GUI advances time via background tick loops (`tokio::spawn` in Tauri and
+the Axum web server). The CLI cannot do this because `reader.lines()` blocks
+synchronously on stdin — adding background ticks would require switching to
+async stdin with `tokio::select!`, which is a significant refactor.
+
+Instead, the CLI uses **explicit time control**:
+- `/wait N` advances the game clock by N minutes and ticks NPC schedules
+- `/tick` runs NPC schedule assignment without advancing time
+- The game clock still runs in real-time between commands (via `speed_factor`)
+
+This is actually better UX for a text adventure — the player controls time
+explicitly rather than having NPCs move unpredictably during input.
+
+### Command Enum Variants
+
+Added to `Command` in `src/input/mod.rs`:
+
+```rust
+Map,           // /map
+NpcsHere,      // /npcs
+Time,          // /time
+Wait(u32),     // /wait [N] — default 15
+NewGame,       // /new
+Tick,          // /tick
+```
+
+`/where` is parsed as `Command::Status` (no new variant).
+
+## Claude Code Play-Testing Skill
+
+The `/play` skill (`.claude/skills/play/SKILL.md`) enables Claude Code to
+autonomously play-test the game via `--script` mode:
+
+1. Build the project with `cargo build`
+2. Generate or use a script file with game commands
+3. Run `cargo run -- --script <file>` to get structured JSON output
+4. Analyze each JSON line for correctness (movement, NPCs, time, errors)
+5. Report a play-test summary with findings
+
+This leverages the CLI-parity commands so the AI can exercise the same
+features available in the GUI: checking the map, observing NPCs, advancing
+time, and verifying schedule-driven NPC behavior.
+
 ## Test Fixtures
 
 Test scripts live in `tests/fixtures/`:
@@ -100,6 +160,7 @@ Test scripts live in `tests/fixtures/`:
 | `test_look_variants.txt` | `look`, `l`, `look around` at multiple locations |
 | `test_grand_tour.txt` | Visit all 15 locations with look + status at each |
 | `test_speed_assertions.txt` | Speed preset changes with status verification |
+| `test_new_commands.txt` | CLI-parity commands: `/map`, `/npcs`, `/time`, `/wait`, `/tick`, `/where` |
 
 ## Captured Script Mode (`run_script_captured`)
 

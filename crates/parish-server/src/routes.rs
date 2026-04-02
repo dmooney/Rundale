@@ -392,6 +392,36 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
             String::new()
         }
         Command::About => "Parish — An Irish Living World Text Adventure (web mode).".to_string(),
+        Command::NpcsHere => {
+            let world = state.world.lock().await;
+            let npc_mgr = state.npc_manager.lock().await;
+            let npcs = npc_mgr.npcs_at(world.player_location);
+            if npcs.is_empty() {
+                "No one else is here.".to_string()
+            } else {
+                let mut lines = vec!["NPCs here:".to_string()];
+                for npc in &npcs {
+                    let display = npc_mgr.display_name(npc);
+                    lines.push(format!("  {} — {}", display, npc.occupation));
+                }
+                lines.join("\n")
+            }
+        }
+        Command::Time => {
+            use chrono::Timelike;
+            let world = state.world.lock().await;
+            let now = world.clock.now();
+            format!(
+                "{:02}:{:02} {} — {}",
+                now.hour(),
+                now.minute(),
+                world.clock.time_of_day(),
+                world.clock.season()
+            )
+        }
+        Command::Wait(_) | Command::NewGame | Command::Tick => {
+            "This command is only available in CLI/headless mode.".to_string()
+        }
     };
 
     if needs_rebuild {
