@@ -76,6 +76,9 @@ pub struct LocationData {
 pub struct WorldGraph {
     /// All locations keyed by their id.
     locations: HashMap<LocationId, LocationData>,
+    /// Pre-computed lowercase name/alias → LocationId for O(1) exact-match lookups.
+    /// Built once at load time; avoids repeated `.to_lowercase()` + linear scans.
+    name_index: HashMap<String, LocationId>,
 }
 
 /// Serialization wrapper for loading/saving the world graph as JSON.
@@ -89,6 +92,7 @@ impl WorldGraph {
     pub fn new() -> Self {
         Self {
             locations: HashMap::new(),
+            name_index: HashMap::new(),
         }
     }
 
@@ -119,7 +123,11 @@ impl WorldGraph {
             locations.insert(loc.id, loc);
         }
 
-        let graph = Self { locations };
+        let name_index = Self::build_name_index(&locations);
+        let graph = Self {
+            locations,
+            name_index,
+        };
         graph.validate()?;
         Ok(graph)
     }
@@ -177,6 +185,26 @@ impl WorldGraph {
         }
     }
 
+    /// Builds a lookup index mapping lowercase names and aliases to location ids.
+    ///
+    /// Names take priority over aliases: if an alias collides with a name,
+    /// the name's location wins.
+    fn build_name_index(
+        locations: &HashMap<LocationId, LocationData>,
+    ) -> HashMap<String, LocationId> {
+        let mut index = HashMap::new();
+        // Insert aliases first so names can overwrite on collision
+        for (id, loc) in locations {
+            for alias in &loc.aliases {
+                index.insert(alias.to_lowercase(), *id);
+            }
+        }
+        for (id, loc) in locations {
+            index.insert(loc.name.to_lowercase(), *id);
+        }
+        index
+    }
+
     /// Finds a location by name using case-insensitive fuzzy matching.
     ///
     /// Matching priority (name matches beat alias matches at each level):
@@ -197,20 +225,9 @@ impl WorldGraph {
         let lower = name.to_lowercase();
         let stripped = strip_articles(&lower);
 
-        // Level 1: Exact match on name (case-insensitive)
-        for (id, loc) in &self.locations {
-            if loc.name.to_lowercase() == lower {
-                return Some(*id);
-            }
-        }
-
-        // Level 1b: Exact match on aliases
-        for (id, loc) in &self.locations {
-            for alias in &loc.aliases {
-                if alias.to_lowercase() == lower {
-                    return Some(*id);
-                }
-            }
+        // Level 1 + 1b: O(1) exact match on pre-computed name/alias index
+        if let Some(id) = self.name_index.get(&lower) {
+            return Some(*id);
         }
 
         // Level 2: Query contained in location name
