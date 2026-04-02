@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # UserPromptSubmit hook: validate conventional commit format when user asks to commit
 

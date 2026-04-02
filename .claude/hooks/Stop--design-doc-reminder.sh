@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # Stop hook: enforce that design docs are updated alongside any non-trivial
 # code change. Blocks (exit 2) if code files were modified on this branch

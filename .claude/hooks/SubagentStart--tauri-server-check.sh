@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # SubagentStart hook: check if Tauri/Vite dev server is running
 

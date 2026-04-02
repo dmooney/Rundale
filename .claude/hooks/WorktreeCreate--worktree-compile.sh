@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # WorktreeCreate hook: compile-check all workspace members in new worktree
 

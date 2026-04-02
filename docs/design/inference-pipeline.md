@@ -103,6 +103,50 @@ The Inference tab in the debug panel shows:
 1. **Config section** (top): Provider, model, URL, queue status, cloud info, improv flag
 2. **Call Log section** (below): Summary stats (avg latency, error count) followed by a scrollable list of entries (newest first) with color-coded OK/ERROR/STREAM badges
 
+## Web Server Inference Path
+
+The `parish-server` crate provides a browser-accessible game mode via axum (HTTP + WebSocket). Its inference pipeline mirrors the Tauri path but has distinct characteristics worth noting.
+
+### EventBus
+
+Server-push events (world snapshots, theme updates, NPC streaming tokens, text log entries) are broadcast to WebSocket clients via `EventBus` (`crates/parish-server/src/state.rs`):
+
+- `send()` — returns the receiver count; logs `tracing::warn!` if the channel has no active subscribers (capacity 256, drop-on-overflow for slow receivers).
+- `emit()` — serialises the payload to `serde_json::Value` first; logs `tracing::warn!` if serialisation fails so silent event loss is observable in structured logs.
+
+### Provider Rebuild
+
+When the player issues `/provider` or `/key` commands, `rebuild_inference()` in `routes.rs` respawns the worker with a new `OpenAiClient`. The lock ordering is:
+
+1. Acquire and release `config` lock in a scoped block.
+2. Acquire and release `client` lock.
+3. Spawn inference worker (no lock held).
+4. Acquire `inference_queue` lock and replace the queue.
+
+Config is released before any other lock is acquired to minimise the race window between concurrent rebuild calls.
+
+### Inference Availability Check
+
+`handle_npc_conversation()` checks the inference queue presence together with NPC presence in a single locked block. The two failure cases are distinguished:
+
+| Condition | Response to player |
+|-----------|-------------------|
+| No NPC at current location, queue absent or present | Random idle-world flavour message |
+| NPC present, but `inference_queue` is `None` | Clear message: "There's someone here, but the LLM is not configured — set a provider with /provider." |
+
+This prevents the confusing case where the player tries to speak to a character and receives a "wind stirs" message with no indication that the LLM is unconfigured.
+
+### Background Tasks
+
+Two fire-and-forget tasks are spawned in `spawn_background_ticks()`:
+
+| Task | Interval | Purpose |
+|------|----------|---------|
+| World tick | 5 s | Broadcasts `world-update` snapshot; ticks NPC schedules |
+| Theme tick | 500 ms | Broadcasts `theme-update` palette |
+
+Both log `tracing::debug!` at startup. Serialisation errors inside either loop surface via `EventBus::emit()`'s warn logging. The Tokio runtime logs task panics automatically; no additional panic wrappers are used.
+
 ## Related
 
 - [NPC System](npc-system.md) — NPC context construction feeds the inference queue

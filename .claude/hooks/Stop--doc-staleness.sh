@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # Stop hook: warn when code changed but docs were not updated
 

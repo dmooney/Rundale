@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+exec >&2
 
 # Stop hook: remind to regenerate screenshots when UI or Tauri backend changed
 
