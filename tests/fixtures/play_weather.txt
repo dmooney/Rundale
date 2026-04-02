@@ -1,0 +1,126 @@
+# Weather State Machine Play-Test
+# ================================
+# Test: time passage, weather transitions, NPC shelter behavior
+
+# 1. Baseline check — starting conditions
+/status
+/time
+/debug clock
+/debug here
+
+# 2. Check who's around at the start
+/npcs
+/debug npcs
+/debug schedule
+
+# 3. Advance time to see weather transitions (2-hour minimum between changes)
+# Let's push through several hours rapidly
+/speed fast
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+/wait 120
+/time
+/status
+
+# 4. After 12 hours of fast-forward, check weather state
+/debug clock
+/debug here
+
+# 5. Keep going — push into next day
+/wait 180
+/time
+/status
+
+/wait 180
+/time
+/status
+
+/wait 180
+/time
+/status
+
+/wait 180
+/time
+/status
+
+# 6. Check NPC locations — are any sheltering?
+/npcs
+/debug npcs
+/debug schedule
+
+# 7. Move to an outdoor location and observe
+go to The Crossroads
+look
+/status
+/npcs
+
+# 8. Move to indoor location
+go to Darcy's Pub
+look
+/npcs
+/debug here
+
+# 9. Push time more to see more transitions
+/wait 240
+/time
+/status
+/npcs
+
+/wait 240
+/time
+/status
+/npcs
+
+/wait 240
+/time
+/status
+/npcs
+
+# 10. Check outdoor area for NPC presence during current weather
+go to The Crossroads
+/npcs
+/debug schedule
+
+# 11. Visit the farm — farmers should tolerate light rain
+go to Murphy's Farm
+look
+/npcs
+/status
+
+# 12. Push time further — aim for several days passage
+/wait 360
+/time
+/status
+
+/wait 360
+/time
+/status
+
+/wait 360
+/time
+/status
+
+# 13. Final state check
+/debug clock
+/debug npcs
+/debug schedule
+/status
+/map
