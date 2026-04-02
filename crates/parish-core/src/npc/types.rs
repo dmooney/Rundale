@@ -274,9 +274,19 @@ pub struct Relationship {
     /// The type of relationship.
     pub kind: RelationshipKind,
     /// Strength from -1.0 (hostile) to 1.0 (close).
+    #[serde(deserialize_with = "deserialize_clamped_strength")]
     pub strength: f64,
     /// Append-only log of relationship events.
     pub history: Vec<RelationshipEvent>,
+}
+
+/// Deserializes a strength value, clamping it to the valid range -1.0..=1.0.
+fn deserialize_clamped_strength<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = f64::deserialize(deserializer)?;
+    Ok(value.clamp(-1.0, 1.0))
 }
 
 impl Relationship {

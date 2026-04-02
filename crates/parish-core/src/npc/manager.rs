@@ -380,7 +380,9 @@ impl NpcManager {
         let npc_ids: Vec<NpcId> = self.npcs.keys().copied().collect();
 
         for id in npc_ids {
-            let npc = self.npcs.get(&id).unwrap();
+            let Some(npc) = self.npcs.get(&id) else {
+                continue;
+            };
 
             match &npc.state {
                 NpcState::Present => {
@@ -414,7 +416,9 @@ impl NpcManager {
                             minutes = travel_minutes,
                             "NPC starting transit"
                         );
-                        let npc = self.npcs.get_mut(&id).unwrap();
+                        let Some(npc) = self.npcs.get_mut(&id) else {
+                            continue;
+                        };
                         npc.state = NpcState::InTransit {
                             from,
                             to: desired,
@@ -443,7 +447,9 @@ impl NpcManager {
                             location = destination.0,
                             "NPC arrived"
                         );
-                        let npc = self.npcs.get_mut(&id).unwrap();
+                        let Some(npc) = self.npcs.get_mut(&id) else {
+                            continue;
+                        };
                         npc.location = destination;
                         npc.state = NpcState::Present;
                     }

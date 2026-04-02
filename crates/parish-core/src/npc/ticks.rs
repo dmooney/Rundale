@@ -387,7 +387,8 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
         s.to_string()
     } else {
         let boundary = crate::npc::floor_char_boundary(s, max_len.saturating_sub(3));
-        format!("{}...", &s[..boundary])
+        let safe_boundary = boundary.min(s.len());
+        format!("{}...", &s[..safe_boundary])
     }
 }
 

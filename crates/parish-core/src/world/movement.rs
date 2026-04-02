@@ -90,8 +90,9 @@ fn build_travel_narration(
         "travel"
     };
 
-    let dest_name = graph
-        .get(*path.last().unwrap())
+    let dest_name = path
+        .last()
+        .and_then(|id| graph.get(*id))
         .map(|l| l.name.as_str())
         .unwrap_or("your destination");
 

@@ -129,9 +129,16 @@ pub fn replay_journal(
                     rel.adjust_strength(*delta);
                 }
             }
-            WorldEvent::WeatherChanged { new_weather } => {
-                world.weather = new_weather.parse().unwrap_or(crate::world::Weather::Clear);
-            }
+            WorldEvent::WeatherChanged { new_weather } => match new_weather.parse() {
+                Ok(w) => world.weather = w,
+                Err(_) => {
+                    tracing::warn!(
+                        "Invalid weather in journal: '{}', defaulting to Clear",
+                        new_weather
+                    );
+                    world.weather = crate::world::Weather::Clear;
+                }
+            },
             WorldEvent::MemoryAdded { npc_id, content } => {
                 if let Some(npc) = npc_manager.get_mut(*npc_id) {
                     use crate::npc::memory::MemoryEntry;

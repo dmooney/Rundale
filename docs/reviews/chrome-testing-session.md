@@ -98,3 +98,70 @@ every page load.
 - Chrome with Claude-in-Chrome MCP extension
 - Rust axum server (debug build)
 - Svelte 5 + SvelteKit (static adapter)
+
+---
+
+## Session 2: 2026-04-01
+
+> Branch: `claude/fix-open-issues-dfsiw` (post-rebase onto origin/main)
+> Method: Live manual testing via Claude-in-Chrome MCP extension
+> LLM Provider: Groq (llama-3.1-8b-instant) — .env not loaded by web server; NPC tests inconclusive
+
+### Overview
+
+Post-rebase smoke test to verify merge conflict resolutions in `input/mod.rs`
+and `movement.rs` didn't break the web UI. Core navigation, system commands,
+and edge cases all passed. NPC conversation was inconclusive due to the web
+server not picking up the `.env` file (LLM requests hit a dead endpoint).
+
+### Setup
+
+1. Built frontend: `cd ui && npm run build`
+2. Killed stale server on port 3001 (leftover from previous session)
+3. Started fresh server: `cargo run -- --web 3001`
+4. Navigated Chrome to `http://127.0.0.1:3001`
+
+### Features Tested
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Page load / initial render | Pass | Status bar, map, NPCs, chat, input all present |
+| Status bar | Pass | Location, time, weather, season update on travel |
+| Map rendering | Pass | SVG minimap with player dot and labels |
+| NPC sidebar updates | Pass | NPCs appear/disappear based on location and time |
+| Travel (direct hop) | Pass | Crossroads: narration + time advance |
+| Travel (multi-hop) | Pass | Village to Pub via Crossroads: 19 min narration |
+| Invalid location | Pass | "You haven't the faintest notion how to reach 'castle dracula'." |
+| Already-here detection | Pass | "Sure, you're already standing right here." |
+| Empty submit | Pass | No-op, input stays focused |
+| `/help` | Pass | Shows command list with descriptions |
+| `/status` | Pass | "Location: Darcy's Pub \| Afternoon \| Spring" |
+| `/pause` | Pass | "The clocks of the parish stand still." + status bar indicator |
+| `/resume` | Pass | "Time stirs again in the parish." + indicator removed |
+| `/wait 180` | Pass | Advances 3 hours, NPC schedules update |
+| Idle message (no NPCs) | Pass | "Only the sound of a distant crow." |
+| NPC conversation (LLM) | Inconclusive | .env not loaded; loading indicator shown but no response |
+| Console errors | Pass | No JavaScript errors throughout session |
+
+### Bugs Found
+
+None (all tests that could run passed cleanly).
+
+### Notes
+
+- The multi-hop travel narration correctly uses the new verb logic from the
+  rebase: "You set off along the road north past low fields to the crossroads
+  toward Darcy's Pub."
+- The `/fork` and `/load` commands were not explicitly tested in-browser but
+  the conflict resolution preserved both bare-command support and safe `.len()`
+  slicing.
+- The web server does not automatically load `.env` from the project root;
+  LLM-dependent tests require the provider env vars to be exported in the shell
+  or passed on the command line.
+
+### Environment
+
+- macOS Darwin 24.6.0
+- Chrome with Claude-in-Chrome MCP extension
+- Rust axum server (debug build, freshly compiled post-rebase)
+- Svelte 5 + SvelteKit (static adapter)

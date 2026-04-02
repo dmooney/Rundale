@@ -164,14 +164,22 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/save" {
         Some(Command::Save)
     } else if lower == "/fork" || lower.starts_with("/fork ") {
-        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
+        let name = trimmed
+            .get("/fork".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if name.is_empty() {
             Some(Command::Help) // bare /fork → show help
         } else {
             Some(Command::Fork(name))
         }
     } else if lower == "/load" || lower.starts_with("/load ") {
-        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
+        let name = trimmed
+            .get("/load".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         Some(Command::Load(name)) // empty string = show save picker
     } else if lower == "/branches" {
         Some(Command::Branches)
@@ -209,7 +217,11 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/provider" {
         Some(Command::ShowProvider)
     } else if lower.starts_with("/provider ") {
-        let name = trimmed[10..].trim().to_string();
+        let name = trimmed
+            .get("/provider ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if name.is_empty() {
             Some(Command::ShowProvider)
         } else {
@@ -218,7 +230,11 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/model" {
         Some(Command::ShowModel)
     } else if lower.starts_with("/model ") {
-        let name = trimmed[7..].trim().to_string();
+        let name = trimmed
+            .get("/model ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if name.is_empty() {
             Some(Command::ShowModel)
         } else {
@@ -227,7 +243,11 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/key" {
         Some(Command::ShowKey)
     } else if lower.starts_with("/key ") {
-        let value = trimmed[5..].trim().to_string();
+        let value = trimmed
+            .get("/key ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if value.is_empty() {
             Some(Command::ShowKey)
         } else {
@@ -236,12 +256,21 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/spinner" {
         Some(Command::Spinner(30))
     } else if lower.starts_with("/spinner ") {
-        let secs = trimmed[9..].trim().parse::<u64>().unwrap_or(30);
+        let secs = trimmed
+            .get("/spinner ".len()..)
+            .unwrap_or("")
+            .trim()
+            .parse::<u64>()
+            .unwrap_or(30);
         Some(Command::Spinner(secs))
     } else if lower == "/debug" {
         Some(Command::Debug(None))
     } else if lower.starts_with("/debug ") {
-        let sub = trimmed[7..].trim().to_string();
+        let sub = trimmed
+            .get("/debug ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         if sub.is_empty() {
             Some(Command::Debug(None))
         } else {
@@ -250,7 +279,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/speed" {
         Some(Command::ShowSpeed)
     } else if lower.starts_with("/speed ") {
-        let arg = trimmed[7..].trim();
+        let arg = trimmed.get("/speed ".len()..).unwrap_or("").trim();
         match GameSpeed::from_name(arg) {
             Some(speed) => Some(Command::SetSpeed(speed)),
             None if arg.is_empty() => Some(Command::ShowSpeed),
@@ -259,10 +288,14 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/cloud" {
         Some(Command::ShowCloud)
     } else if lower.starts_with("/cloud ") {
-        let rest = trimmed[7..].trim();
+        let rest = trimmed.get("/cloud ".len()..).unwrap_or("").trim();
         let rest_lower = rest.to_lowercase();
         if rest_lower.starts_with("provider ") {
-            let name = rest[9..].trim().to_string();
+            let name = rest
+                .get("provider ".len()..)
+                .unwrap_or("")
+                .trim()
+                .to_string();
             if name.is_empty() {
                 Some(Command::ShowCloud)
             } else {
@@ -271,7 +304,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         } else if rest_lower == "provider" {
             Some(Command::ShowCloud)
         } else if rest_lower.starts_with("model ") {
-            let name = rest[6..].trim().to_string();
+            let name = rest.get("model ".len()..).unwrap_or("").trim().to_string();
             if name.is_empty() {
                 Some(Command::ShowCloudModel)
             } else {
@@ -280,7 +313,7 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         } else if rest_lower == "model" {
             Some(Command::ShowCloudModel)
         } else if rest_lower.starts_with("key ") {
-            let value = rest[4..].trim().to_string();
+            let value = rest.get("key ".len()..).unwrap_or("").trim().to_string();
             if value.is_empty() {
                 Some(Command::ShowCloudKey)
             } else {
