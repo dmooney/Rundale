@@ -17,6 +17,7 @@ use axum::Router;
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 
+use parish_core::game_mod::{GameMod, find_default_mod};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::npc::manager::NpcManager;
@@ -55,8 +56,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let transport = TransportConfig::default();
 
     // Build splash text (matches Tauri's format)
+    let game_title = find_default_mod()
+        .and_then(|dir| GameMod::load(&dir).ok())
+        .and_then(|gm| gm.manifest.meta.title.clone())
+        .unwrap_or_else(|| "Parish".to_string());
     let splash_text = format!(
-        "Parish\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
+        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
+        game_title,
         chrono::Local::now().format("%Y-%m-%d %H:%M"),
     );
     let ui_config = UiConfigSnapshot {
