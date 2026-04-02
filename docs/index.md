@@ -107,6 +107,7 @@ Detailed, implementation-ready plans for each development phase.
 |----------|-------------|
 | [Development Journal](journal.md) | Cross-session notes, observations, recommendations |
 | [Known Issues](known-issues.md) | Active bugs and UX issues |
+| [First Contribution Guide](development/first-contribution-guide.md) | Newcomer-oriented architecture map and where to implement common changes |
 | [Maybe Bad Ideas](maybe-bad-ideas.md) | Ideas under consideration — may or may not be worth pursuing |
 
 ## Research
