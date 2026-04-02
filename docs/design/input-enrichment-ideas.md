@@ -4,7 +4,7 @@
 
 Brainstorming ideas for making the text entry line richer and more interactive, drawing from chat apps (Slack, Discord, Telegram, iMessage, Twitch), social platforms (Twitter/X), and games with chat interfaces (Minecraft, MMOs, MUDs).
 
-**Status**: Ideation — none of these are committed. Pick and choose.
+**Status**: Wave 1 shipped. See priority table at the bottom for per-feature status.
 
 ---
 
@@ -424,16 +424,16 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 
 ## Priority Ranking
 
-| Idea | Effort | Impact | Recommendation |
-|------|--------|--------|----------------|
-| `/slash` command autocomplete | Low | High | **Build next** — reuses @mention infra |
-| Input history (Up/Down) | Low | High | **Build next** — table stakes UX |
-| Push-to-talk voice input | Low | High | **Build next** — Web Speech API phase first |
-| `*action*` emotes | Low | Medium | **Build soon** — enhances RP |
-| Multi-line input | Low | Medium | Build soon |
+| Idea | Effort | Impact | Status |
+|------|--------|--------|--------|
+| `/slash` command autocomplete | Low | High | **Shipped (Wave 1)** — unified dropdown with @mention |
+| Input history (Up/Down) | Low | High | **Shipped (Wave 1)** — localStorage, 50 entries |
+| Push-to-talk voice input | Low | High | Build next — Web Speech API phase first |
+| `*action*` emotes | Low | Medium | **Shipped (Wave 1)** — italic rendering + backend action context |
+| Multi-line input | Low | Medium | **Shipped (Wave 1)** — Shift+Enter for newline |
 | Typing indicator | Low-Med | Medium | Build soon — makes NPCs feel alive |
-| Location quick-travel chips | Low | Medium | Build soon |
-| Bidirectional emoji reactions | Med-High | High | **Build soon** — makes rooms feel alive |
+| Location quick-travel chips | Low | Medium | **Shipped (Wave 1)** — adjacent location pills above input |
+| Bidirectional emoji reactions | Med-High | High | Build soon — makes rooms feel alive |
 | Whisper syntax | Medium | Medium | Build later — needs context scoping |
 | Reply-to context | Medium | Medium | Build later |
 | Inline rich preview | Medium | Low-Med | Nice to have |
@@ -442,3 +442,13 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 | Voice range modifiers | Med-High | High | Build later — great emergent gameplay |
 | Contextual suggestions | High | High | Build later — needs LLM or rules |
 | Streamer mode | Very High | Niche | Someday/maybe |
+
+## Wave 1 Implementation Notes
+
+Shipped in a single commit. Key design decisions:
+
+- **Unified dropdown**: The `@mention` and `/slash` dropdowns share a single `dropdownMode` state (`'mention' | 'slash' | null`), reusing all markup and CSS. Command list lives in `ui/src/lib/slash-commands.ts`.
+- **History vs. dropdown**: ArrowUp/Down only triggers history when `dropdownMode === null` and the cursor is on the first/last line (compatible with multi-line editing).
+- **Emote passthrough**: `*action*` text is sent as raw text to the backend (no IPC changes). `build_tier1_context` in `npc/mod.rs` detects the `*...*` wrapping and substitutes action-mode phrasing for the NPC prompt.
+- **Multi-line**: The contenteditable div already had `white-space: pre-wrap` and `max-height: 6em`. Only change was Shift+Enter key handling and `getPlainText()` handling `<br>` / `<div>` nodes.
+- **Travel chips**: Derived from the existing `mapData` store's `adjacent` flag. Hidden during streaming.

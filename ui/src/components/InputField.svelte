@@ -1,11 +1,16 @@
 <script lang="ts">
-	import { streamingActive, npcsHere } from '../stores/game';
+	import { streamingActive, npcsHere, mapData } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
+	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 
 	let editorEl: HTMLDivElement;
-	let showMentions = $state(false);
+
+	// ── Unified dropdown state ──────────────────────────────────────────────
+	type DropdownMode = 'mention' | 'slash' | null;
+	let dropdownMode: DropdownMode = $state(null);
 	let selectedIndex = $state(0);
 	let mentionQuery = $state('');
+	let slashQuery = $state('');
 
 	const filteredNpcs = $derived(
 		mentionQuery === ''
@@ -15,6 +20,36 @@
 				)
 	);
 
+	const filteredCommands = $derived(filterCommands(slashQuery));
+
+	// ── Input history ───────────────────────────────────────────────────────
+	const HISTORY_KEY = 'parish-input-history';
+	const HISTORY_MAX = 50;
+
+	function loadHistory(): string[] {
+		try {
+			const raw = localStorage.getItem(HISTORY_KEY);
+			if (raw) return JSON.parse(raw);
+		} catch { /* ignore corrupt data */ }
+		return [];
+	}
+
+	function saveHistory(h: string[]) {
+		try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* quota */ }
+	}
+
+	let history: string[] = $state(loadHistory());
+	let historyIndex: number = $state(-1);
+	let savedDraft: string = $state('');
+
+	// ── Adjacent locations for quick-travel ─────────────────────────────────
+	const adjacentLocations = $derived(
+		($mapData?.locations ?? []).filter(
+			(loc) => loc.adjacent && loc.id !== $mapData?.player_location
+		)
+	);
+
+	// ── Focus management ────────────────────────────────────────────────────
 	$effect(() => {
 		if (!$streamingActive && editorEl) {
 			editorEl.focus();
@@ -22,22 +57,41 @@
 	});
 
 	$effect(() => {
-		if (selectedIndex >= filteredNpcs.length) {
+		if (dropdownMode === 'mention' && selectedIndex >= filteredNpcs.length) {
 			selectedIndex = Math.max(0, filteredNpcs.length - 1);
 		}
+		if (dropdownMode === 'slash' && selectedIndex >= filteredCommands.length) {
+			selectedIndex = Math.max(0, filteredCommands.length - 1);
+		}
 	});
+
+	// ── Editor helpers ──────────────────────────────────────────────────────
 
 	/** Returns the full plain-text content of the editor, converting chips to @Name. */
 	function getPlainText(): string {
 		if (!editorEl) return '';
+		return extractText(editorEl);
+	}
+
+	/** Recursively extract text from a node, handling <br> and <div> wrappers. */
+	function extractText(node: Node): string {
 		let result = '';
-		for (const node of editorEl.childNodes) {
-			if (node.nodeType === Node.TEXT_NODE) {
-				result += node.textContent ?? '';
-			} else if (node instanceof HTMLElement && node.dataset.npc) {
-				result += `@${node.dataset.npc}`;
-			} else if (node instanceof HTMLElement) {
-				result += node.textContent ?? '';
+		for (const child of node.childNodes) {
+			if (child.nodeType === Node.TEXT_NODE) {
+				result += child.textContent ?? '';
+			} else if (child instanceof HTMLElement && child.dataset.npc) {
+				result += `@${child.dataset.npc}`;
+			} else if (child instanceof HTMLElement && child.tagName === 'BR') {
+				result += '\n';
+			} else if (child instanceof HTMLElement && child.tagName === 'DIV') {
+				// Chrome wraps new lines in <div> elements in contenteditable
+				const inner = extractText(child);
+				if (inner && result && !result.endsWith('\n')) {
+					result += '\n';
+				}
+				result += inner;
+			} else if (child instanceof HTMLElement) {
+				result += child.textContent ?? '';
 			}
 		}
 		return result.replace(/\u00A0/g, ' ');
@@ -56,10 +110,22 @@
 		}
 	}
 
+	/** Sets the editor's plain-text content and places cursor at end. */
+	function setEditorText(text: string) {
+		if (!editorEl) return;
+		editorEl.textContent = text;
+		// Place cursor at end
+		const sel = window.getSelection();
+		const range = document.createRange();
+		range.selectNodeContents(editorEl);
+		range.collapse(false);
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+	}
+
 	/** Gets the plain text currently being typed (excluding chips). */
 	function getCurrentTypingText(): string {
 		if (!editorEl) return '';
-		// Get text from the text node the cursor is in, or fall back to full text
 		const sel = window.getSelection();
 		if (sel && sel.rangeCount > 0) {
 			const node = sel.getRangeAt(0).startContainer;
@@ -67,19 +133,49 @@
 				return node.textContent ?? '';
 			}
 		}
-		// Fallback: use the full plain text of the editor
 		return getPlainText();
 	}
 
-	/** Finds an @-trigger in the text currently being typed. */
+	/** Returns true if the cursor is on the first line (or editor is empty/single-line). */
+	function isCursorOnFirstLine(): boolean {
+		if (!editorEl) return true;
+		const text = getPlainText();
+		if (!text.includes('\n')) return true;
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return true;
+		const range = sel.getRangeAt(0);
+		// Compare cursor Y to editor top — if within first line height, we're on line 1
+		const rangeRect = range.getBoundingClientRect();
+		const editorRect = editorEl.getBoundingClientRect();
+		// If range has no rect (empty), assume first line
+		if (rangeRect.top === 0 && rangeRect.bottom === 0) return true;
+		const lineHeight = parseFloat(getComputedStyle(editorEl).lineHeight) || 20;
+		return rangeRect.top - editorRect.top < lineHeight;
+	}
+
+	/** Returns true if the cursor is on the last line. */
+	function isCursorOnLastLine(): boolean {
+		if (!editorEl) return true;
+		const text = getPlainText();
+		if (!text.includes('\n')) return true;
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return true;
+		const range = sel.getRangeAt(0);
+		const rangeRect = range.getBoundingClientRect();
+		const editorRect = editorEl.getBoundingClientRect();
+		if (rangeRect.top === 0 && rangeRect.bottom === 0) return true;
+		const lineHeight = parseFloat(getComputedStyle(editorEl).lineHeight) || 20;
+		return editorRect.bottom - rangeRect.bottom < lineHeight;
+	}
+
+	// ── Mention detection ───────────────────────────────────────────────────
+
 	function findMentionTrigger(): { query: string } | null {
 		const text = getCurrentTypingText();
 		const atIdx = text.lastIndexOf('@');
 		if (atIdx === -1) return null;
-		// @ must be at start or preceded by a space
 		if (atIdx > 0 && text[atIdx - 1] !== ' ') return null;
 		const query = text.slice(atIdx + 1);
-		// Don't trigger if there's a space in the query
 		if (query.includes(' ')) return null;
 		return { query };
 	}
@@ -88,12 +184,35 @@
 		const trigger = findMentionTrigger();
 		if (trigger !== null && $npcsHere.length > 0) {
 			mentionQuery = trigger.query;
-			showMentions = true;
+			dropdownMode = 'mention';
 			selectedIndex = 0;
-		} else {
-			showMentions = false;
+		} else if (dropdownMode === 'mention') {
+			dropdownMode = null;
 		}
 	}
+
+	// ── Slash detection ─────────────────────────────────────────────────────
+
+	function detectSlash() {
+		const text = getPlainText();
+		// Slash commands must be the first character and no space yet (still typing the command)
+		if (!text.startsWith('/')) {
+			if (dropdownMode === 'slash') dropdownMode = null;
+			return;
+		}
+		const spaceIdx = text.indexOf(' ');
+		const query = spaceIdx === -1 ? text.slice(1) : '';
+		// If user has typed a space (entering args), dismiss dropdown
+		if (spaceIdx !== -1) {
+			if (dropdownMode === 'slash') dropdownMode = null;
+			return;
+		}
+		slashQuery = query;
+		dropdownMode = 'slash';
+		selectedIndex = 0;
+	}
+
+	// ── NPC mention chip selection ──────────────────────────────────────────
 
 	function selectNpc(npcName: string) {
 		if (!editorEl) return;
@@ -102,7 +221,6 @@
 		let textNode: Text | null = null;
 		let cursorOffset = 0;
 
-		// Find the text node containing the @mention
 		if (sel && sel.rangeCount > 0) {
 			const range = sel.getRangeAt(0);
 			const node = range.startContainer;
@@ -112,7 +230,6 @@
 			}
 		}
 
-		// Fallback: find the first text node in the editor
 		if (!textNode) {
 			for (const child of editorEl.childNodes) {
 				if (child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').includes('@')) {
@@ -124,7 +241,6 @@
 		}
 
 		if (!textNode) {
-			// Last resort: just replace the entire editor content
 			const chip = document.createElement('span');
 			chip.className = 'mention-chip';
 			chip.contentEditable = 'false';
@@ -139,7 +255,7 @@
 			range.collapse(true);
 			sel?.removeAllRanges();
 			sel?.addRange(range);
-			showMentions = false;
+			dropdownMode = null;
 			editorEl.focus();
 			return;
 		}
@@ -147,21 +263,19 @@
 		const text = textNode.textContent ?? '';
 		const atIdx = text.lastIndexOf('@');
 		if (atIdx === -1) {
-			showMentions = false;
+			dropdownMode = null;
 			return;
 		}
 
 		const before = text.slice(0, atIdx);
 		const after = text.slice(cursorOffset);
 
-		// Build chip
 		const chip = document.createElement('span');
 		chip.className = 'mention-chip';
 		chip.contentEditable = 'false';
 		chip.dataset.npc = npcName;
 		chip.textContent = `@${npcName}`;
 
-		// Replace text node with: [before] [chip] [nbsp + after]
 		const parent = textNode.parentNode!;
 		if (before) {
 			parent.insertBefore(document.createTextNode(before), textNode);
@@ -171,15 +285,28 @@
 		parent.insertBefore(trailing, textNode);
 		parent.removeChild(textNode);
 
-		// Place cursor after chip
 		const range = document.createRange();
 		range.setStart(trailing, 1);
 		range.collapse(true);
 		sel?.removeAllRanges();
 		sel?.addRange(range);
 
-		showMentions = false;
+		dropdownMode = null;
 		editorEl.focus();
+	}
+
+	// ── Slash command selection ──────────────────────────────────────────────
+
+	function selectSlashCommand(cmd: SlashCommand) {
+		if (cmd.hasArgs) {
+			setEditorText(cmd.command + ' ');
+			dropdownMode = null;
+			editorEl?.focus();
+		} else {
+			clearEditor();
+			dropdownMode = null;
+			submitInput(cmd.command);
+		}
 	}
 
 	/** Dissolves a mention chip back into plain text. */
@@ -187,7 +314,6 @@
 		const text = chip.textContent ?? '';
 		const textNode = document.createTextNode(text);
 		chip.parentNode?.replaceChild(textNode, chip);
-		// Place cursor at end of dissolved text
 		const sel = window.getSelection();
 		const range = document.createRange();
 		range.setStart(textNode, text.length);
@@ -196,42 +322,102 @@
 		sel?.addRange(range);
 	}
 
+	// ── Quick-travel ────────────────────────────────────────────────────────
+
+	async function quickTravel(locationName: string) {
+		if ($streamingActive) return;
+		clearEditor();
+		await submitInput(`go to ${locationName}`);
+	}
+
+	// ── Submit ──────────────────────────────────────────────────────────────
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		if (showMentions && filteredNpcs.length > 0) {
+		// If dropdown is open, select the highlighted item
+		if (dropdownMode === 'mention' && filteredNpcs.length > 0) {
 			selectNpc(filteredNpcs[selectedIndex].name);
+			return;
+		}
+		if (dropdownMode === 'slash' && filteredCommands.length > 0) {
+			selectSlashCommand(filteredCommands[selectedIndex]);
 			return;
 		}
 		const trimmed = getPlainText().trim();
 		if (!trimmed || $streamingActive) return;
 		clearEditor();
-		showMentions = false;
+		dropdownMode = null;
+
+		// Push to history (skip consecutive dupes)
+		if (history.length === 0 || history[history.length - 1] !== trimmed) {
+			history = [...history.slice(-(HISTORY_MAX - 1)), trimmed];
+			saveHistory(history);
+		}
+		historyIndex = -1;
+
 		await submitInput(trimmed);
 	}
 
+	// ── Keyboard handling ───────────────────────────────────────────────────
+
 	function handleKeydown(e: KeyboardEvent) {
-		if (showMentions && filteredNpcs.length > 0) {
-			if (e.key === 'ArrowDown') {
+		// Dropdown navigation (mention or slash)
+		if (dropdownMode !== null) {
+			const items = dropdownMode === 'mention' ? filteredNpcs : filteredCommands;
+			if (items.length > 0) {
+				if (e.key === 'ArrowDown') {
+					e.preventDefault();
+					selectedIndex = (selectedIndex + 1) % items.length;
+					scrollDropdownToSelected();
+					return;
+				}
+				if (e.key === 'ArrowUp') {
+					e.preventDefault();
+					selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+					scrollDropdownToSelected();
+					return;
+				}
+				if (e.key === 'Tab') {
+					e.preventDefault();
+					if (dropdownMode === 'mention') {
+						selectNpc(filteredNpcs[selectedIndex].name);
+					} else {
+						selectSlashCommand(filteredCommands[selectedIndex]);
+					}
+					return;
+				}
+				if (e.key === 'Escape') {
+					e.preventDefault();
+					dropdownMode = null;
+					return;
+				}
+			}
+		}
+
+		// Input history (only when no dropdown is open)
+		if (dropdownMode === null && e.key === 'ArrowUp' && isCursorOnFirstLine()) {
+			if (history.length > 0) {
 				e.preventDefault();
-				selectedIndex = (selectedIndex + 1) % filteredNpcs.length;
+				if (historyIndex === -1) {
+					savedDraft = getPlainText();
+					historyIndex = history.length - 1;
+				} else if (historyIndex > 0) {
+					historyIndex--;
+				}
+				setEditorText(history[historyIndex]);
 				return;
 			}
-			if (e.key === 'ArrowUp') {
-				e.preventDefault();
-				selectedIndex =
-					(selectedIndex - 1 + filteredNpcs.length) % filteredNpcs.length;
-				return;
+		}
+		if (dropdownMode === null && e.key === 'ArrowDown' && historyIndex >= 0 && isCursorOnLastLine()) {
+			e.preventDefault();
+			if (historyIndex < history.length - 1) {
+				historyIndex++;
+				setEditorText(history[historyIndex]);
+			} else {
+				historyIndex = -1;
+				setEditorText(savedDraft);
 			}
-			if (e.key === 'Tab') {
-				e.preventDefault();
-				selectNpc(filteredNpcs[selectedIndex].name);
-				return;
-			}
-			if (e.key === 'Escape') {
-				e.preventDefault();
-				showMentions = false;
-				return;
-			}
+			return;
 		}
 
 		// Backspace into a chip: dissolve it
@@ -247,7 +433,6 @@
 						return;
 					}
 				}
-				// Also handle: cursor is right after chip with no text node between
 				if (range.collapsed && range.startContainer === editorEl) {
 					const idx = range.startOffset;
 					const child = editorEl.childNodes[idx - 1];
@@ -279,14 +464,38 @@
 			}
 		}
 
+		// Enter: Shift+Enter inserts newline, plain Enter submits
 		if (e.key === 'Enter') {
+			if (e.shiftKey) {
+				// Let the browser handle <br> insertion in contenteditable
+				return;
+			}
 			e.preventDefault();
 			handleSubmit(e);
 		}
 	}
 
+	/** Scrolls the dropdown so the selected item is visible. */
+	function scrollDropdownToSelected() {
+		// Use tick-like defer so the DOM class has updated
+		requestAnimationFrame(() => {
+			const dropdown = document.querySelector('.mention-dropdown');
+			const selected = dropdown?.querySelector('.mention-item.selected');
+			if (selected) {
+				selected.scrollIntoView({ block: 'nearest' });
+			}
+		});
+	}
+
 	function handleInput() {
+		// Reset history browsing on any typed input
+		if (historyIndex >= 0) {
+			historyIndex = -1;
+		}
 		detectMention();
+		if (dropdownMode !== 'mention') {
+			detectSlash();
+		}
 	}
 
 	// Prevent pasting rich content — only plain text
@@ -298,7 +507,7 @@
 </script>
 
 <div class="input-wrapper">
-	{#if showMentions && filteredNpcs.length > 0}
+	{#if dropdownMode === 'mention' && filteredNpcs.length > 0}
 		<ul class="mention-dropdown" role="listbox" aria-label="Mention NPC">
 			{#each filteredNpcs as npc, i}
 				<li
@@ -316,6 +525,36 @@
 				</li>
 			{/each}
 		</ul>
+	{/if}
+	{#if dropdownMode === 'slash' && filteredCommands.length > 0}
+		<ul class="mention-dropdown" role="listbox" aria-label="Slash commands">
+			{#each filteredCommands as cmd, i}
+				<li
+					role="option"
+					aria-selected={i === selectedIndex}
+					class="mention-item"
+					class:selected={i === selectedIndex}
+					onmousedown={(e) => { e.preventDefault(); selectSlashCommand(cmd); }}
+					onmouseenter={() => (selectedIndex = i)}
+				>
+					<span class="mention-name">{cmd.command}</span>
+					<span class="mention-detail">{cmd.description}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#if adjacentLocations.length > 0 && !$streamingActive}
+		<div class="travel-chips">
+			{#each adjacentLocations as loc}
+				<button
+					class="travel-chip"
+					onclick={() => quickTravel(loc.name)}
+					disabled={$streamingActive}
+				>
+					{loc.name}
+				</button>
+			{/each}
+		</div>
 	{/if}
 	<div class="input-form">
 		<div class="editor-wrap">
@@ -469,5 +708,38 @@
 
 	.mention-item.selected .mention-detail {
 		opacity: 0.85;
+	}
+
+	/* ── Quick-travel chips ────────────────────────────────────────────────── */
+
+	.travel-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		padding: 0.4rem 0.75rem;
+		background: var(--color-panel-bg);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.travel-chip {
+		background: var(--color-border);
+		color: var(--color-fg);
+		border: none;
+		border-radius: 12px;
+		padding: 0.25rem 0.6rem;
+		font-size: 0.8rem;
+		font-family: inherit;
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s;
+	}
+
+	.travel-chip:hover:not(:disabled) {
+		background: var(--color-accent);
+		color: var(--color-bg);
+	}
+
+	.travel-chip:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 </style>
