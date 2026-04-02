@@ -268,6 +268,15 @@ pub async fn run_headless(
     Ok(())
 }
 
+/// Masks an API key for display, hiding length information for short keys.
+fn mask_api_key(key: &str) -> String {
+    if key.len() > 8 {
+        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+    } else {
+        "****".to_string()
+    }
+}
+
 /// Capitalizes the first character of a string slice.
 fn capitalize_first(s: &str) -> String {
     let mut chars = s.chars();
@@ -370,6 +379,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
                 name
             );
+        }
+        Command::InvalidBranchName(msg) => {
+            println!("{}", msg);
         }
         Command::Status => {
             let time = app.world.clock.time_of_day();
@@ -474,12 +486,8 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("Model changed to {}.", name);
         }
         Command::ShowKey => match &app.api_key {
-            Some(key) if key.len() > 8 => {
-                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
-                println!("API key: {}", masked);
-            }
-            Some(_) => {
-                println!("API key: (set, too short to mask)");
+            Some(key) => {
+                println!("API key: {}", mask_api_key(key));
             }
             None => {
                 println!("API key: (not set)");
@@ -726,12 +734,8 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("Cloud model changed to {}.", name);
         }
         Command::ShowCloudKey => match &app.cloud_api_key {
-            Some(key) if key.len() > 8 => {
-                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
-                println!("Cloud API key: {}", masked);
-            }
-            Some(_) => {
-                println!("Cloud API key: (set, too short to mask)");
+            Some(key) => {
+                println!("Cloud API key: {}", mask_api_key(key));
             }
             None => {
                 println!("Cloud API key: (not set)");
@@ -784,12 +788,8 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("{} model changed to {}.", cat_name, name);
         }
         Command::ShowCategoryKey(cat) => match app.category_api_key(cat) {
-            Some(key) if key.len() > 8 => {
-                let masked = format!("{}...{}", &key[..4], &key[key.len() - 4..]);
-                println!("{} API key: {}", cat.name(), masked);
-            }
-            Some(_) => {
-                println!("{} API key: (set, too short to mask)", cat.name());
+            Some(key) => {
+                println!("{} API key: {}", cat.name(), mask_api_key(key));
             }
             None => {
                 println!("{} API key: (not set)", cat.name());
@@ -1671,5 +1671,23 @@ mod tests {
         let (quit, _rebuild) =
             handle_headless_command(&mut app, Command::Load(String::new())).await;
         assert!(!quit);
+    }
+
+    #[test]
+    fn test_mask_api_key_long() {
+        assert_eq!(mask_api_key("sk-1234567890abcdef"), "sk-1...cdef");
+    }
+
+    #[test]
+    fn test_mask_api_key_short_hides_length() {
+        // Short keys should not reveal length information
+        assert_eq!(mask_api_key("abc"), "****");
+        assert_eq!(mask_api_key("12345678"), "****");
+    }
+
+    #[test]
+    fn test_mask_api_key_boundary() {
+        // Exactly 9 chars — just over the threshold
+        assert_eq!(mask_api_key("123456789"), "1234...6789");
     }
 }

@@ -368,22 +368,45 @@ pub fn run() {
 
     // Parse optional --screenshot <dir> flag.
     // Relative paths are resolved against the workspace root (parent of data/).
+    // Path traversal beyond the workspace root is rejected.
     let screenshot_dir: Option<PathBuf> = {
         let args: Vec<String> = std::env::args().collect();
+        let workspace_root = data_dir
+            .parent()
+            .map(|d| d.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from(".."));
         args.iter()
             .position(|a| a == "--screenshot")
             .and_then(|i| args.get(i + 1))
-            .map(|s| {
+            .and_then(|s| {
                 let p = PathBuf::from(s);
-                if p.is_absolute() {
+                let resolved = if p.is_absolute() {
                     p
                 } else {
                     // src-tauri/ is one level below the workspace root
-                    let workspace_root = data_dir
-                        .parent()
-                        .map(|d| d.to_path_buf())
-                        .unwrap_or_else(|| PathBuf::from(".."));
                     workspace_root.join(p)
+                };
+                // Create the directory so canonicalize can resolve it
+                std::fs::create_dir_all(&resolved).ok();
+                let canonical = match resolved.canonicalize() {
+                    Ok(c) => c,
+                    Err(_) => {
+                        eprintln!("screenshot: could not resolve path: {}", resolved.display());
+                        return None;
+                    }
+                };
+                let ws_canonical = match workspace_root.canonicalize() {
+                    Ok(c) => c,
+                    Err(_) => return None,
+                };
+                if canonical.starts_with(&ws_canonical) {
+                    Some(canonical)
+                } else {
+                    eprintln!(
+                        "screenshot: path escapes workspace root: {}",
+                        resolved.display()
+                    );
+                    None
                 }
             })
     };
