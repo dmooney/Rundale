@@ -100,6 +100,33 @@ pub enum Command {
     NewGame,
     /// Manually tick NPC schedules without advancing time.
     Tick,
+    /// Invalid branch name was provided.
+    InvalidBranchName(String),
+}
+
+/// Maximum allowed length for save branch names.
+const MAX_BRANCH_NAME_LEN: usize = 255;
+
+/// Validates a save branch name for length and allowed characters.
+///
+/// Branch names may contain alphanumerics, spaces, underscores, and hyphens.
+fn validate_branch_name(name: &str) -> Result<String, String> {
+    if name.len() > MAX_BRANCH_NAME_LEN {
+        return Err(format!(
+            "Branch name too long (max {} characters).",
+            MAX_BRANCH_NAME_LEN
+        ));
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == ' ')
+    {
+        return Err(
+            "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
+                .to_string(),
+        );
+    }
+    Ok(name.to_string())
 }
 
 /// The kind of player action parsed from natural language input.
@@ -172,7 +199,10 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         if name.is_empty() {
             Some(Command::Help) // bare /fork → show help
         } else {
-            Some(Command::Fork(name))
+            match validate_branch_name(&name) {
+                Ok(valid) => Some(Command::Fork(valid)),
+                Err(msg) => Some(Command::InvalidBranchName(msg)),
+            }
         }
     } else if lower == "/load" || lower.starts_with("/load ") {
         let name = trimmed
@@ -180,7 +210,14 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             .unwrap_or("")
             .trim()
             .to_string();
-        Some(Command::Load(name)) // empty string = show save picker
+        if name.is_empty() {
+            Some(Command::Load(String::new())) // empty string = show save picker
+        } else {
+            match validate_branch_name(&name) {
+                Ok(valid) => Some(Command::Load(valid)),
+                Err(msg) => Some(Command::InvalidBranchName(msg)),
+            }
+        }
     } else if lower == "/branches" {
         Some(Command::Branches)
     } else if lower == "/log" {
@@ -1424,5 +1461,36 @@ mod tests {
         let result = extract_mention("hello @Padraig how are you").unwrap();
         assert_eq!(result.name, "Padraig");
         assert_eq!(result.remaining, "hello how are you");
+    }
+
+    #[test]
+    fn test_validate_branch_name_valid() {
+        assert!(validate_branch_name("my-save").is_ok());
+        assert!(validate_branch_name("save_1").is_ok());
+        assert!(validate_branch_name("My Save Game").is_ok());
+    }
+
+    #[test]
+    fn test_validate_branch_name_too_long() {
+        let long_name = "a".repeat(256);
+        assert!(validate_branch_name(&long_name).is_err());
+    }
+
+    #[test]
+    fn test_validate_branch_name_invalid_chars() {
+        assert!(validate_branch_name("save/game").is_err());
+        assert!(validate_branch_name("save;drop").is_err());
+        assert!(validate_branch_name("../../etc").is_err());
+    }
+
+    #[test]
+    fn test_fork_with_invalid_branch_name() {
+        assert_eq!(
+            parse_system_command("/fork ../../etc"),
+            Some(Command::InvalidBranchName(
+                "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
+                    .to_string()
+            ))
+        );
     }
 }

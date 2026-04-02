@@ -313,6 +313,9 @@ pub async fn submit_input(
     if text.is_empty() {
         return Ok(());
     }
+    if text.len() > 2000 {
+        return Err("Input too long (max 2000 characters).".to_string());
+    }
 
     // Emit the player's own text as a log entry
     let _ = app.emit(
@@ -337,12 +340,12 @@ pub async fn submit_input(
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-/// Helper to mask an API key for display.
+/// Helper to mask an API key for display, hiding length information for short keys.
 fn mask_key(key: &str) -> String {
     if key.len() > 8 {
         format!("{}...{}", &key[..4], &key[key.len() - 4..])
     } else {
-        "(set, too short to mask)".to_string()
+        "****".to_string()
     }
 }
 
@@ -452,6 +455,7 @@ async fn handle_system_command(
                 name
             )
         }
+        Command::InvalidBranchName(msg) => msg,
 
         Command::About => [
             "Parish — A text adventure set in 1820s rural Ireland.",

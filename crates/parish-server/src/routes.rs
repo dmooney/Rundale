@@ -109,6 +109,9 @@ pub async fn submit_input(
     if text.is_empty() {
         return StatusCode::OK;
     }
+    if text.len() > 2000 {
+        return StatusCode::BAD_REQUEST;
+    }
 
     // Emit the player's own text as a log entry
     state.event_bus.emit(
@@ -217,6 +220,7 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                 name
             )
         }
+        Command::InvalidBranchName(msg) => msg,
         Command::ToggleSidebar => "The Irish words panel is managed by the sidebar.".to_string(),
         Command::ToggleImprov => {
             let mut config = state.config.lock().await;
