@@ -103,12 +103,12 @@
 
 > [Detailed plan](../plans/phase-5c-memory-gossip.md) | Depends on: 5A
 
-- [ ] `LongTermMemory` with keyword-based retrieval
-- [ ] Short-term → long-term promotion on eviction (importance threshold)
-- [ ] Long-term memory recall in Tier 1 context construction
-- [ ] `GossipNetwork` with probabilistic propagation (60% transfer, 20% distortion)
-- [ ] Gossip creation from world events
-- [ ] Gossip injection into Tier 1 dialogue context
+- [x] `LongTermMemory` with keyword-based retrieval
+- [x] Short-term → long-term promotion on eviction (importance threshold)
+- [x] Long-term memory recall in Tier 1 context construction
+- [x] `GossipNetwork` with probabilistic propagation (60% transfer, 20% distortion)
+- [x] Gossip creation from world events
+- [x] Gossip injection into Tier 1 dialogue context
 
 ### Phase 5D — Tier 3 Batch Inference
 
