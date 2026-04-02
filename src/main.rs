@@ -26,7 +26,7 @@ struct Cli {
     #[arg(long, value_name = "FILE")]
     script: Option<String>,
 
-    /// LLM provider: ollama (default), lmstudio, openrouter, custom
+    /// LLM provider: ollama (default), lmstudio, openrouter, vllm, custom
     #[arg(long, env = "PARISH_PROVIDER")]
     provider: Option<String>,
 
