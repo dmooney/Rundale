@@ -28,6 +28,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/cloud', description: 'Cloud provider settings', hasArgs: true },
 	{ command: '/debug', description: 'Debug panel', hasArgs: true },
 	{ command: '/spinner', description: 'Show loading spinner', hasArgs: true },
+	{ command: '/map', description: 'Show the parish map', hasArgs: false },
+	{ command: '/npcs', description: "Who's here?", hasArgs: false },
+	{ command: '/time', description: 'What time is it?', hasArgs: false },
+	{ command: '/where', description: 'Where am I? (alias for /status)', hasArgs: false },
+	{ command: '/wait', description: 'Wait N minutes (default 15)', hasArgs: true },
+	{ command: '/tick', description: 'Advance NPC schedules', hasArgs: false },
+	{ command: '/new', description: 'Start a new game', hasArgs: false },
 	{ command: '/quit', description: 'Take your leave', hasArgs: false }
 ];
 

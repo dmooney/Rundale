@@ -685,6 +685,11 @@ async fn handle_system_command(
 
         // ── Debug ────────────────────────────────────────────────────────
         Command::Debug(_) => "Debug commands are not available in the GUI.".to_string(),
+        Command::NpcsHere => "Use the sidebar to see NPCs here.".to_string(),
+        Command::Time => "Time info is shown in the status bar.".to_string(),
+        Command::Wait(_) | Command::NewGame | Command::Tick => {
+            "This command is only available in CLI/headless mode.".to_string()
+        }
     };
 
     if needs_rebuild {
