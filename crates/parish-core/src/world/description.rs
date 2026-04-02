@@ -20,7 +20,7 @@ pub fn render_description(
     npc_names: &[&str],
 ) -> String {
     let time_str = time_display(time_of_day);
-    let weather_str = weather.to_lowercase();
+    let weather_str = weather_display(weather);
     let npcs_str = if npc_names.is_empty() {
         "no one".to_string()
     } else {
@@ -60,6 +60,20 @@ pub fn format_exits(
         .collect();
 
     format!("You can go to: {}", exits.join(", "))
+}
+
+/// Converts a weather string to a template-friendly form.
+///
+/// Multi-word weather names are reworded so they read naturally in both
+/// adjective position ("The {weather} sky") and predicate position
+/// ("The sky is {weather}").
+fn weather_display(weather: &str) -> String {
+    match weather {
+        "Partly Cloudy" => "partly cloudy".to_string(),
+        "Light Rain" => "rainy".to_string(),
+        "Heavy Rain" => "rain-soaked".to_string(),
+        other => other.to_lowercase(),
+    }
 }
 
 /// Converts a `TimeOfDay` to a human-friendly lowercase string for templates.

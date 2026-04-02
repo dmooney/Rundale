@@ -252,8 +252,10 @@ fn weather_tint_with_config(
 ) -> (f32, f32, f32, f32, f32, f32) {
     let t = match weather {
         Weather::Clear => config.weather_tints.clear,
+        Weather::PartlyCloudy => config.weather_tints.partly_cloudy,
         Weather::Overcast => config.weather_tints.overcast,
-        Weather::Rain => config.weather_tints.rain,
+        Weather::LightRain => config.weather_tints.light_rain,
+        Weather::HeavyRain => config.weather_tints.heavy_rain,
         Weather::Fog => config.weather_tints.fog,
         Weather::Storm => config.weather_tints.storm,
     };
@@ -614,8 +616,10 @@ mod tests {
         ];
         let weathers = [
             Weather::Clear,
+            Weather::PartlyCloudy,
             Weather::Overcast,
-            Weather::Rain,
+            Weather::LightRain,
+            Weather::HeavyRain,
             Weather::Fog,
             Weather::Storm,
         ];
@@ -732,5 +736,43 @@ mod tests {
         apply_season_tint(&mut autumn, Season::Autumn);
         // Autumn red multiplier is 1.06, should increase red
         assert!(autumn.bg.r >= base.bg.r, "Autumn should tint warmer/redder");
+    }
+
+    #[test]
+    fn test_palette_new_variants() {
+        let base = interpolated_palette(12, 0);
+        let base_lum = luminance(base.bg);
+
+        // PartlyCloudy should be slightly darker than Clear
+        let partly_cloudy = compute_palette(12, 0, Season::Summer, Weather::PartlyCloudy);
+        let pc_lum = luminance(partly_cloudy.bg);
+        assert!(
+            pc_lum < base_lum,
+            "PartlyCloudy should be slightly darker than base: pc={pc_lum}, base={base_lum}"
+        );
+
+        // LightRain should be darker than PartlyCloudy
+        let light_rain = compute_palette(12, 0, Season::Summer, Weather::LightRain);
+        let lr_lum = luminance(light_rain.bg);
+        assert!(
+            lr_lum < pc_lum,
+            "LightRain should be darker than PartlyCloudy: lr={lr_lum}, pc={pc_lum}"
+        );
+
+        // HeavyRain should be darker than LightRain
+        let heavy_rain = compute_palette(12, 0, Season::Summer, Weather::HeavyRain);
+        let hr_lum = luminance(heavy_rain.bg);
+        assert!(
+            hr_lum < lr_lum,
+            "HeavyRain should be darker than LightRain: hr={hr_lum}, lr={lr_lum}"
+        );
+
+        // Storm should be darkest
+        let storm = compute_palette(12, 0, Season::Summer, Weather::Storm);
+        let st_lum = luminance(storm.bg);
+        assert!(
+            st_lum < hr_lum,
+            "Storm should be darker than HeavyRain: st={st_lum}, hr={hr_lum}"
+        );
     }
 }

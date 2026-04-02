@@ -168,7 +168,8 @@ mod tests {
     #[test]
     fn snapshot_from_default_world() {
         let world = WorldState::new();
-        let snap = snapshot_from_world(&world);
+        let transport = TransportMode::walking();
+        let snap = snapshot_from_world(&world, &transport);
         assert!(!snap.location_name.is_empty());
         assert!(snap.hour <= 23);
         assert!(snap.minute <= 59);

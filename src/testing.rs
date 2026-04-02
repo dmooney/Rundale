@@ -212,10 +212,11 @@ impl GameTestHarness {
                 tt.npc_name, direction, tt.old_tier, tt.new_tier,
             ));
         }
-        let schedule_events = self
-            .app
-            .npc_manager
-            .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+        let schedule_events = self.app.npc_manager.tick_schedules(
+            &self.app.world.clock,
+            &self.app.world.graph,
+            self.app.world.weather,
+        );
         self.process_schedule_events(&schedule_events);
 
         result
@@ -310,10 +311,31 @@ impl GameTestHarness {
     /// Useful for testing NPC movement without player actions.
     pub fn advance_time(&mut self, minutes: i64) {
         self.app.world.clock.advance(minutes);
-        let events = self
-            .app
-            .npc_manager
-            .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+
+        // Tick the weather engine for each hour that elapsed, so large time jumps
+        // don't skip weather checks. The engine deduplicates by game-hour internally.
+        let season = self.app.world.clock.season();
+        let now = self.app.world.clock.now();
+        let mut rng = rand::thread_rng();
+        let hours_elapsed = (minutes / 60).max(1) as u32;
+        for h in 0..hours_elapsed {
+            let check_time =
+                now - chrono::Duration::minutes((hours_elapsed.saturating_sub(h + 1) as i64) * 60);
+            if let Some(new_weather) = self
+                .app
+                .world
+                .weather_engine
+                .tick(check_time, season, &mut rng)
+            {
+                self.app.world.weather = new_weather;
+            }
+        }
+
+        let events = self.app.npc_manager.tick_schedules(
+            &self.app.world.clock,
+            &self.app.world.graph,
+            self.app.world.weather,
+        );
         self.process_schedule_events(&events);
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
     }
@@ -875,11 +897,21 @@ impl GameTestHarness {
                 ActionResult::SystemCommand { response: msg }
             }
             Command::Tick => {
+                // Tick weather engine
+                let season = self.app.world.clock.season();
+                let now = self.app.world.clock.now();
+                let mut rng = rand::thread_rng();
+                if let Some(new_weather) = self.app.world.weather_engine.tick(now, season, &mut rng)
+                {
+                    self.app.world.weather = new_weather;
+                }
+
                 self.app.npc_manager.assign_tiers(&self.app.world, &[]);
-                let events = self
-                    .app
-                    .npc_manager
-                    .tick_schedules(&self.app.world.clock, &self.app.world.graph);
+                let events = self.app.npc_manager.tick_schedules(
+                    &self.app.world.clock,
+                    &self.app.world.graph,
+                    self.app.world.weather,
+                );
                 let count = events.len();
                 self.process_schedule_events(&events);
                 let msg = if count == 0 {

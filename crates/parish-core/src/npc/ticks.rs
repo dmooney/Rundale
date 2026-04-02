@@ -234,12 +234,17 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
         })
         .collect();
 
+    let weather_commentary = match weather {
+        "Light Rain" | "Heavy Rain" | "Storm" => " People are commenting on the weather.",
+        _ => "",
+    };
+
     format!(
         "You are simulating background interactions between characters in a small \
         Irish parish in 1820.\n\n\
         Location: {location}\n\
         Time: {time}\n\
-        Weather: {weather}\n\n\
+        Weather: {weather}.{weather_commentary}\n\n\
         Characters present:\n{characters}\n\n\
         Generate a brief (1-2 sentence) summary of what these characters are doing \
         and saying to each other. Include any mood changes or relationship shifts.\n\n\

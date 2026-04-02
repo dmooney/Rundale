@@ -742,8 +742,9 @@ mod tests {
 
     #[test]
     fn test_parse_fork_empty_name() {
-        assert_eq!(parse_system_command("/fork "), None);
-        assert_eq!(parse_system_command("/fork   "), None);
+        // Bare /fork with only whitespace returns Help command
+        assert_eq!(parse_system_command("/fork "), Some(Command::Help));
+        assert_eq!(parse_system_command("/fork   "), Some(Command::Help));
     }
 
     #[test]

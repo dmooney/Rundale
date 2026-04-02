@@ -372,7 +372,12 @@ impl NpcManager {
     /// and whose arrival time has passed, completes the move.
     ///
     /// Returns a list of structured schedule events describing what happened.
-    pub fn tick_schedules(&mut self, clock: &GameClock, graph: &WorldGraph) -> Vec<ScheduleEvent> {
+    pub fn tick_schedules(
+        &mut self,
+        clock: &GameClock,
+        graph: &WorldGraph,
+        weather: crate::world::Weather,
+    ) -> Vec<ScheduleEvent> {
         let now = clock.now();
         let current_hour = now.hour() as u8;
         let mut events = Vec::new();
@@ -386,44 +391,79 @@ impl NpcManager {
 
             match &npc.state {
                 NpcState::Present => {
-                    if let Some(desired) = npc.desired_location(current_hour)
-                        && desired != npc.location
-                        && let Some(path) = graph.shortest_path(npc.location, desired)
-                    {
-                        // NPCs walk at ~1.25 m/s (~4.5 km/h)
-                        let travel_minutes = graph.path_travel_time(&path, 1.25);
-                        let arrives_at = now + Duration::minutes(travel_minutes as i64);
-                        let from = npc.location;
-                        let npc_name = npc.name.clone();
-                        let dest_name = graph
-                            .get(desired)
-                            .map(|d| d.name.clone())
-                            .unwrap_or_else(|| "?".to_string());
-                        events.push(ScheduleEvent {
-                            npc_id: id,
-                            npc_name: npc_name.clone(),
-                            kind: ScheduleEventKind::Departed {
+                    if let Some(mut desired) = npc.desired_location(current_hour) {
+                        // Weather shelter override: NPCs seek indoor locations in bad weather
+                        let dominated_by_rain = matches!(
+                            weather,
+                            crate::world::Weather::LightRain
+                                | crate::world::Weather::HeavyRain
+                                | crate::world::Weather::Storm
+                        );
+                        if dominated_by_rain {
+                            let is_farmer = npc.occupation.to_lowercase() == "farmer";
+                            let dest_is_outdoor =
+                                graph.get(desired).map(|d| !d.indoor).unwrap_or(false);
+
+                            // Farmers tolerate light rain
+                            let needs_shelter = if is_farmer {
+                                !matches!(weather, crate::world::Weather::LightRain)
+                                    && dest_is_outdoor
+                            } else {
+                                dest_is_outdoor
+                            };
+
+                            if needs_shelter {
+                                // Override to home if it's indoor, otherwise stay put
+                                if let Some(home) = npc.home {
+                                    let home_is_indoor =
+                                        graph.get(home).map(|d| d.indoor).unwrap_or(false);
+                                    if home_is_indoor {
+                                        desired = home;
+                                    } else {
+                                        continue; // No indoor option, stay put
+                                    }
+                                } else {
+                                    continue; // No home, stay put
+                                }
+                            }
+                        }
+
+                        if desired != npc.location
+                            && let Some(path) = graph.shortest_path(npc.location, desired)
+                        {
+                            // NPCs walk at ~1.25 m/s (~4.5 km/h)
+                            let travel_minutes = graph.path_travel_time(&path, 1.25);
+                            let arrives_at = now + Duration::minutes(travel_minutes as i64);
+                            let from = npc.location;
+                            let npc_name = npc.name.clone();
+                            let dest_name = graph
+                                .get(desired)
+                                .map(|d| d.name.clone())
+                                .unwrap_or_else(|| "?".to_string());
+                            events.push(ScheduleEvent {
+                                npc_id: id,
+                                npc_name: npc_name.clone(),
+                                kind: ScheduleEventKind::Departed {
+                                    from,
+                                    to: desired,
+                                    to_name: dest_name,
+                                    minutes: travel_minutes,
+                                },
+                            });
+                            tracing::debug!(
+                                npc = %npc_name,
+                                from = from.0,
+                                to = desired.0,
+                                minutes = travel_minutes,
+                                "NPC starting transit"
+                            );
+                            let npc = self.npcs.get_mut(&id).unwrap();
+                            npc.state = NpcState::InTransit {
                                 from,
                                 to: desired,
-                                to_name: dest_name,
-                                minutes: travel_minutes,
-                            },
-                        });
-                        tracing::debug!(
-                            npc = %npc_name,
-                            from = from.0,
-                            to = desired.0,
-                            minutes = travel_minutes,
-                            "NPC starting transit"
-                        );
-                        let Some(npc) = self.npcs.get_mut(&id) else {
-                            continue;
-                        };
-                        npc.state = NpcState::InTransit {
-                            from,
-                            to: desired,
-                            arrives_at,
-                        };
+                                arrives_at,
+                            };
+                        }
                     }
                 }
                 NpcState::InTransit { to, arrives_at, .. } => {
@@ -760,7 +800,7 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause(); // freeze time for determinism
 
-        mgr.tick_schedules(&clock, &graph);
+        mgr.tick_schedules(&clock, &graph, crate::world::Weather::Clear);
 
         // NPC should now be in transit to pub
         let npc = mgr.get(NpcId(1)).unwrap();
@@ -785,7 +825,7 @@ mod tests {
         clock.pause();
 
         // Start transit
-        mgr.tick_schedules(&clock, &graph);
+        mgr.tick_schedules(&clock, &graph, crate::world::Weather::Clear);
         assert!(matches!(
             mgr.get(NpcId(1)).unwrap().state,
             NpcState::InTransit { .. }
@@ -793,7 +833,7 @@ mod tests {
 
         // Advance time past arrival
         clock.advance(30); // 30 minutes should be enough for any parish path
-        mgr.tick_schedules(&clock, &graph);
+        mgr.tick_schedules(&clock, &graph, crate::world::Weather::Clear);
 
         let npc = mgr.get(NpcId(1)).unwrap();
         assert!(
@@ -881,7 +921,7 @@ mod tests {
         let mut clock = GameClock::new(start);
         clock.pause();
 
-        mgr.tick_schedules(&clock, &graph);
+        mgr.tick_schedules(&clock, &graph, crate::world::Weather::Clear);
 
         // Should stay present, not start transit
         assert!(matches!(
@@ -1064,5 +1104,73 @@ mod tests {
 
         // First time should always need a tick regardless of config
         assert!(mgr.needs_tier2_tick_with_config(now, &config));
+    }
+
+    #[test]
+    fn test_npc_rain_override() {
+        let graph = match load_test_graph() {
+            Some(g) => g,
+            None => return, // skip if no test data
+        };
+
+        // NPC at home (Darcy's Pub, id=2, indoor), scheduled to work at Crossroads (id=1, outdoor)
+        let mut npc = make_scheduled_npc(1, 2, 1);
+        npc.home = Some(LocationId(2));
+        npc.occupation = "Shopkeeper".to_string();
+
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(npc);
+
+        // At hour 10, schedule says go to Crossroads (work=1, outdoor)
+        let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let mut clock = GameClock::new(start);
+        clock.pause();
+
+        // With HeavyRain, NPC should stay at home (indoor) instead of going outdoor
+        mgr.tick_schedules(&clock, &graph, crate::world::Weather::HeavyRain);
+
+        let npc = mgr.get(NpcId(1)).unwrap();
+        // NPC should remain present (not start transit to outdoor location)
+        assert!(
+            matches!(npc.state, NpcState::Present),
+            "NPC should stay put in heavy rain instead of going to outdoor location"
+        );
+        assert_eq!(
+            npc.location,
+            LocationId(2),
+            "NPC should remain at indoor home"
+        );
+    }
+
+    #[test]
+    fn test_farmer_tolerates_light_rain() {
+        let graph = match load_test_graph() {
+            Some(g) => g,
+            None => return,
+        };
+
+        // Farmer NPC at home (Darcy's Pub, id=2, indoor), scheduled to work at Murphy's Farm (id=9, outdoor)
+        let mut npc = make_scheduled_npc(1, 2, 9);
+        npc.home = Some(LocationId(2));
+        npc.occupation = "Farmer".to_string();
+
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(npc);
+
+        // At hour 10, schedule says go to Murphy's Farm (work=9, outdoor)
+        let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let mut clock = GameClock::new(start);
+        clock.pause();
+
+        // With LightRain, farmer should still go to work (tolerate light rain)
+        let events = mgr.tick_schedules(&clock, &graph, crate::world::Weather::LightRain);
+
+        let npc = mgr.get(NpcId(1)).unwrap();
+        // Farmer should be in transit to the farm
+        assert!(
+            matches!(npc.state, NpcState::InTransit { .. }),
+            "Farmer should tolerate light rain and head to outdoor work, got {:?}",
+            npc.state
+        );
     }
 }
