@@ -59,10 +59,11 @@ This is a **Cargo workspace** with four members:
 Parish/
 ├── src/                 # Root crate: headless, testing, CLI entry point
 │   ├── main.rs          #   Entry point, CLI args (clap), mode routing
-│   ├── lib.rs           #   Module declarations + re-exports from parish-core
+│   ├── lib.rs           #   Re-exports from parish-core (world, npc, inference, etc.)
 │   ├── headless.rs      #   Headless stdin/stdout REPL mode
 │   ├── testing.rs       #   GameTestHarness for automated testing
 │   ├── debug.rs         #   Debug commands and metrics (feature-gated)
+│   ├── config.rs        #   Provider configuration (re-exports + CLI overrides)
 │   ├── app.rs           #   Core application state (App, ScrollState)
 │   └── bin/geo_tool/    #   OSM geographic data extraction tool
 ├── crates/parish-core/  # Pure game logic library (no UI dependencies)
@@ -159,6 +160,7 @@ Parish/
 
 ## Gotchas
 
+- **Module ownership**: All shared game logic (world, npc, inference, input, persistence, error, loading) lives exclusively in `crates/parish-core/`. The root crate `src/lib.rs` re-exports these via `pub use parish_core::X`. **Never create duplicate modules in `src/`** — modify parish-core instead. The root `src/` only contains binary-specific code: `main.rs`, `headless.rs`, `testing.rs`, `app.rs`, `config.rs`, `debug.rs`.
 - **Tokio + blocking**: Never use `std::thread::sleep` in async code; use `tokio::time::sleep`
 - **Rusqlite is sync**: Wrap DB calls in `tokio::task::spawn_blocking`
 - **Ollama**: Must be running on `localhost:11434` for inference calls

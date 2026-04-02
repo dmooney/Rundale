@@ -1,12 +1,13 @@
+pub use parish_core::error;
+pub use parish_core::inference;
+pub use parish_core::input;
+pub use parish_core::loading;
+pub use parish_core::npc;
+pub use parish_core::persistence;
+pub use parish_core::world;
+
 pub mod app;
 pub mod config;
 pub mod debug;
-pub mod error;
 pub mod headless;
-pub mod inference;
-pub mod input;
-pub mod loading;
-pub mod npc;
-pub mod persistence;
 pub mod testing;
-pub mod world;

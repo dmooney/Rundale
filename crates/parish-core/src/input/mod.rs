@@ -153,20 +153,16 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::Quit)
     } else if lower == "/save" {
         Some(Command::Save)
-    } else if lower.starts_with("/fork ") {
-        let name = trimmed[6..].trim().to_string();
+    } else if lower == "/fork" || lower.starts_with("/fork ") {
+        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
         if name.is_empty() {
-            None
+            Some(Command::Help) // bare /fork → show help
         } else {
             Some(Command::Fork(name))
         }
-    } else if lower.starts_with("/load ") {
-        let name = trimmed[6..].trim().to_string();
-        if name.is_empty() {
-            None
-        } else {
-            Some(Command::Load(name))
-        }
+    } else if lower == "/load" || lower.starts_with("/load ") {
+        let name = trimmed.get(5..).unwrap_or("").trim().to_string();
+        Some(Command::Load(name)) // empty string = show save picker
     } else if lower == "/branches" {
         Some(Command::Branches)
     } else if lower == "/log" {

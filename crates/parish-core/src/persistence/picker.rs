@@ -50,6 +50,15 @@ pub struct SaveBranchDisplay {
     pub snapshots: Vec<SnapshotCell>,
 }
 
+/// Result of the player's choice in the save picker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PickerChoice {
+    /// Player chose an existing save file (index into the save list).
+    Existing(usize),
+    /// Player chose to start a new game.
+    NewGame,
+}
+
 /// Information about a save file for display in the picker.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SaveFileInfo {
@@ -263,6 +272,184 @@ fn parse_save_number(filename: &str) -> Option<u32> {
 pub fn new_save_path(saves_dir: &Path) -> PathBuf {
     let num = next_save_number(saves_dir);
     saves_dir.join(format!("{}{:03}.{}", SAVE_PREFIX, num, SAVE_EXT))
+}
+
+/// Prints a single branch line in the picker tree.
+fn print_branch_line(connector: &str, branch: &SaveBranchDisplay) {
+    let loc = branch
+        .latest_location
+        .as_deref()
+        .unwrap_or("Unknown location");
+    let date = branch.latest_game_date.as_deref().unwrap_or("Unknown date");
+    let saves_label = if branch.snapshot_count == 1 {
+        "1 save".to_string()
+    } else {
+        format!("{} saves", branch.snapshot_count)
+    };
+    println!(
+        "     {} {} — {}, {}  ({})",
+        connector, branch.name, loc, date, saves_label
+    );
+}
+
+/// Displays the save picker in the terminal.
+pub fn display_picker(saves: &[SaveFileInfo]) {
+    println!();
+    for (i, save) in saves.iter().enumerate() {
+        println!("  {}. {}", i + 1, save.filename);
+
+        // Separate root branches from child branches
+        let roots: Vec<&SaveBranchDisplay> = save
+            .branches
+            .iter()
+            .filter(|b| b.parent_name.is_none())
+            .collect();
+        let children: Vec<&SaveBranchDisplay> = save
+            .branches
+            .iter()
+            .filter(|b| b.parent_name.is_some())
+            .collect();
+
+        for (j, branch) in roots.iter().enumerate() {
+            let is_last_root = j == roots.len() - 1
+                && children
+                    .iter()
+                    .all(|c| c.parent_name.as_deref() != Some(&branch.name));
+            let connector = if is_last_root && children.is_empty() {
+                "└─"
+            } else {
+                "├─"
+            };
+            print_branch_line(connector, branch);
+
+            // Print children of this root
+            let my_children: Vec<&&SaveBranchDisplay> = children
+                .iter()
+                .filter(|c| c.parent_name.as_deref() == Some(&branch.name))
+                .collect();
+            for (k, child) in my_children.iter().enumerate() {
+                let child_connector = if k == my_children.len() - 1 {
+                    "└─"
+                } else {
+                    "├─"
+                };
+                let indent = if is_last_root { "  " } else { "│ " };
+                print!("     {}", indent);
+                print_branch_line(child_connector, child);
+            }
+        }
+    }
+    println!();
+    println!("  N. New Game");
+    println!();
+}
+
+/// Reads the player's choice from stdin.
+///
+/// Returns `Ok(PickerChoice)` on valid input, or an error message string
+/// for invalid input.
+pub fn read_picker_choice(saves: &[SaveFileInfo]) -> Result<PickerChoice, String> {
+    use std::io::{BufRead, Write};
+    print!("Choose [1-{}, N]: ", saves.len());
+    std::io::stdout().flush().ok();
+
+    let stdin = std::io::stdin();
+    let mut line = String::new();
+    if stdin.lock().read_line(&mut line).is_err() {
+        return Err("Failed to read input.".to_string());
+    }
+
+    let input = line.trim().to_lowercase();
+    if input == "n" || input == "new" {
+        return Ok(PickerChoice::NewGame);
+    }
+
+    match input.parse::<usize>() {
+        Ok(n) if n >= 1 && n <= saves.len() => Ok(PickerChoice::Existing(n - 1)),
+        Ok(_) => Err(format!(
+            "Please enter a number between 1 and {}, or N for new game.",
+            saves.len()
+        )),
+        Err(_) => Err("Please enter a number or N.".to_string()),
+    }
+}
+
+/// Runs the interactive save picker loop until the player makes a valid choice.
+///
+/// Returns the path to the chosen (or newly created) save file.
+pub fn run_picker(saves_dir: &Path, graph: &WorldGraph) -> PathBuf {
+    let saves = discover_saves(saves_dir, graph);
+
+    // If no saves exist, start a new game automatically
+    if saves.is_empty() {
+        let path = new_save_path(saves_dir);
+        println!("Starting new game: {}", path.display());
+        return path;
+    }
+
+    display_picker(&saves);
+
+    loop {
+        match read_picker_choice(&saves) {
+            Ok(PickerChoice::Existing(idx)) => {
+                return saves[idx].path.clone();
+            }
+            Ok(PickerChoice::NewGame) => {
+                let path = new_save_path(saves_dir);
+                println!("Starting new game: {}", path.display());
+                return path;
+            }
+            Err(msg) => {
+                println!("{}", msg);
+            }
+        }
+    }
+}
+
+/// Runs the picker for the `/load` command (mid-game save switching).
+///
+/// Shows the picker and returns the chosen path, or `None` if the player
+/// cancels (enters empty input or the current save).
+pub fn run_load_picker(saves_dir: &Path, graph: &WorldGraph) -> Option<PathBuf> {
+    use std::io::{BufRead, Write};
+
+    let saves = discover_saves(saves_dir, graph);
+
+    if saves.is_empty() {
+        println!("No save files found in {}.", saves_dir.display());
+        return None;
+    }
+
+    display_picker(&saves);
+    print!("Choose [1-{}, or Enter to cancel]: ", saves.len());
+    std::io::stdout().flush().ok();
+
+    let stdin = std::io::stdin();
+    let mut line = String::new();
+    if stdin.lock().read_line(&mut line).is_err() {
+        return None;
+    }
+
+    let input = line.trim();
+    if input.is_empty() {
+        return None;
+    }
+
+    if let Some(choice) = input.to_lowercase().strip_prefix("n")
+        && (choice.is_empty() || choice == "ew")
+    {
+        let path = new_save_path(saves_dir);
+        println!("Starting new game: {}", path.display());
+        return Some(path);
+    }
+
+    match input.parse::<usize>() {
+        Ok(n) if n >= 1 && n <= saves.len() => Some(saves[n - 1].path.clone()),
+        _ => {
+            println!("Invalid choice.");
+            None
+        }
+    }
 }
 
 #[cfg(test)]
