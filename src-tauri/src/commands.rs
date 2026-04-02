@@ -852,43 +852,43 @@ async fn handle_game_input(
 /// Resolves movement to a named location.
 async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHandle) {
     let transport = state.transport.default_mode().clone();
+
+    // Resolve and apply movement within a single lock to prevent TOCTOU races.
+    // Without this, another task could modify the world between resolve and apply,
+    // potentially putting the player at an invalid destination.
     let result = {
-        let world = state.world.lock().await;
-        movement::resolve_movement(target, &world.graph, world.player_location, &transport)
+        let mut world = state.world.lock().await;
+        let mv =
+            movement::resolve_movement(target, &world.graph, world.player_location, &transport);
+        if let MovementResult::Arrived {
+            destination,
+            minutes,
+            ..
+        } = &mv
+        {
+            world.clock.advance(*minutes as i64);
+            world.player_location = *destination;
+
+            // Update legacy locations map (clone data first to avoid borrow conflict)
+            let new_loc = world
+                .graph
+                .get(*destination)
+                .map(|data| parish_core::world::Location {
+                    id: *destination,
+                    name: data.name.clone(),
+                    description: data.description_template.clone(),
+                    indoor: data.indoor,
+                    public: data.public,
+                });
+            if let Some(loc) = new_loc {
+                world.locations.entry(*destination).or_insert(loc);
+            }
+        }
+        mv
     };
 
     match result {
-        MovementResult::Arrived {
-            destination,
-            minutes,
-            narration,
-            ..
-        } => {
-            // Advance clock and update player location
-            {
-                let mut world = state.world.lock().await;
-                world.clock.advance(minutes as i64);
-                world.player_location = destination;
-
-                // Update legacy locations map (clone data first to avoid borrow conflict)
-                let new_loc =
-                    world
-                        .graph
-                        .get(destination)
-                        .map(|data| parish_core::world::Location {
-                            id: destination,
-                            name: data.name.clone(),
-                            description: data.description_template.clone(),
-                            indoor: data.indoor,
-                            public: data.public,
-                            lat: data.lat,
-                            lon: data.lon,
-                        });
-                if let Some(loc) = new_loc {
-                    world.locations.entry(destination).or_insert(loc);
-                }
-            }
-
+        MovementResult::Arrived { narration, .. } => {
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {

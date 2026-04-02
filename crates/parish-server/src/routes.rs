@@ -545,42 +545,41 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
 
 /// Resolves movement to a named location.
 async fn handle_movement(target: &str, state: &Arc<AppState>) {
+    // Resolve and apply movement within a single lock to prevent TOCTOU races.
     let result = {
-        let world = state.world.lock().await;
+        let mut world = state.world.lock().await;
         let transport = state.transport.default_mode();
-        movement::resolve_movement(target, &world.graph, world.player_location, transport)
+        let mv = movement::resolve_movement(target, &world.graph, world.player_location, transport);
+        if let MovementResult::Arrived {
+            destination,
+            minutes,
+            ..
+        } = &mv
+        {
+            world.clock.advance(*minutes as i64);
+            world.player_location = *destination;
+
+            let new_loc = world
+                .graph
+                .get(*destination)
+                .map(|data| parish_core::world::Location {
+                    id: *destination,
+                    name: data.name.clone(),
+                    description: data.description_template.clone(),
+                    indoor: data.indoor,
+                    public: data.public,
+                    lat: data.lat,
+                    lon: data.lon,
+                });
+            if let Some(loc) = new_loc {
+                world.locations.entry(*destination).or_insert(loc);
+            }
+        }
+        mv
     };
 
     match result {
-        MovementResult::Arrived {
-            destination,
-            minutes,
-            narration,
-            ..
-        } => {
-            {
-                let mut world = state.world.lock().await;
-                world.clock.advance(minutes as i64);
-                world.player_location = destination;
-
-                let new_loc =
-                    world
-                        .graph
-                        .get(destination)
-                        .map(|data| parish_core::world::Location {
-                            id: destination,
-                            name: data.name.clone(),
-                            description: data.description_template.clone(),
-                            indoor: data.indoor,
-                            public: data.public,
-                            lat: data.lat,
-                            lon: data.lon,
-                        });
-                if let Some(loc) = new_loc {
-                    world.locations.entry(destination).or_insert(loc);
-                }
-            }
-
+        MovementResult::Arrived { narration, .. } => {
             state.event_bus.emit(
                 "text-log",
                 &TextLogPayload {
@@ -814,11 +813,102 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parish_core::npc::manager::NpcManager;
+    use parish_core::world::transport::TransportConfig;
+    use parish_core::world::{LocationId, WorldState};
 
     #[test]
     fn submit_input_request_deserialization() {
         let json = r#"{"text": "go to church"}"#;
         let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.text, "go to church");
+    }
+
+    /// Helper to build a minimal AppState from the real game data.
+    fn test_app_state() -> Arc<AppState> {
+        let data_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../mods/kilteevan-1820");
+        let world =
+            WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+        let npc_manager = NpcManager::new();
+        let transport = TransportConfig::default();
+        let ui_config = crate::state::UiConfigSnapshot {
+            hints_label: "test".to_string(),
+            default_accent: "#000".to_string(),
+            splash_text: String::new(),
+        };
+        crate::state::build_app_state(
+            world,
+            npc_manager,
+            None,
+            crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                category_provider: [None, None, None],
+                category_model: [None, None, None],
+                category_api_key: [None, None, None],
+                category_base_url: [None, None, None],
+            },
+            None,
+            transport,
+            ui_config,
+        )
+    }
+
+    /// Verifies that handle_movement resolves and applies movement atomically
+    /// (clock advance + player_location update within a single lock scope).
+    #[tokio::test]
+    async fn handle_movement_updates_location_and_clock() {
+        let state = test_app_state();
+
+        let (start_loc, start_time) = {
+            let world = state.world.lock().await;
+            (world.player_location, world.clock.now())
+        };
+
+        // Move to the crossroads (a neighbor of Kilteevan Village, id 15)
+        handle_movement("crossroads", &state).await;
+
+        let world = state.world.lock().await;
+        assert_ne!(
+            world.player_location, start_loc,
+            "player_location should change after movement"
+        );
+        // Clock should have advanced (travel takes > 0 minutes)
+        assert!(
+            world.clock.now() > start_time,
+            "clock should advance during travel"
+        );
+    }
+
+    /// Verifies that moving to an unknown location does not change world state.
+    #[tokio::test]
+    async fn handle_movement_unknown_destination_preserves_state() {
+        let state = test_app_state();
+
+        let (start_loc, start_time) = {
+            let world = state.world.lock().await;
+            (world.player_location, world.clock.now())
+        };
+
+        handle_movement("nonexistent-place-xyz", &state).await;
+
+        let world = state.world.lock().await;
+        assert_eq!(
+            world.player_location, start_loc,
+            "player_location should not change for unknown destination"
+        );
+        assert_eq!(
+            world.clock.now(),
+            start_time,
+            "clock should not advance for unknown destination"
+        );
     }
 }
