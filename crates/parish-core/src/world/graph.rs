@@ -193,105 +193,83 @@ impl WorldGraph {
 
     /// Finds a location by name using case-insensitive fuzzy matching,
     /// with a configurable fuzzy threshold from [`WorldConfig`].
+    ///
+    /// Performance: single pass through all locations, computing `to_lowercase()`
+    /// once per name/alias instead of up to 8× in separate priority-level scans.
+    /// Fuzzy scores are also computed in the same pass to avoid a redundant 9th scan.
     pub fn find_by_name_with_config(&self, name: &str, config: &WorldConfig) -> Option<LocationId> {
         let lower = name.to_lowercase();
         let stripped = strip_articles(&lower);
+        let do_article_strip = stripped != lower;
 
-        // Level 1: Exact match on name (case-insensitive)
-        for (id, loc) in &self.locations {
-            if loc.name.to_lowercase() == lower {
-                return Some(*id);
-            }
-        }
+        // Track best deterministic match: (priority_level, location_id).
+        // Lower level number = higher priority.
+        let mut best: Option<(u8, LocationId)> = None;
+        // Track best fuzzy match as fallback (level 5).
+        let mut best_fuzzy: Option<(f64, LocationId)> = None;
 
-        // Level 1b: Exact match on aliases
         for (id, loc) in &self.locations {
-            for alias in &loc.aliases {
-                if alias.to_lowercase() == lower {
-                    return Some(*id);
-                }
-            }
-        }
-
-        // Level 2: Query contained in location name
-        for (id, loc) in &self.locations {
-            if loc.name.to_lowercase().contains(&lower) {
-                return Some(*id);
-            }
-        }
-
-        // Level 2b: Query contained in an alias
-        for (id, loc) in &self.locations {
-            for alias in &loc.aliases {
-                if alias.to_lowercase().contains(&lower) {
-                    return Some(*id);
-                }
-            }
-        }
-
-        // Level 3: Location name contained in query
-        for (id, loc) in &self.locations {
+            // Lowercase name once per location (was repeated up to 8× across separate scans)
             let loc_lower = loc.name.to_lowercase();
-            if lower.contains(&loc_lower) {
+
+            // Level 1: Exact name match — can't be beaten, return immediately
+            if loc_lower == lower {
                 return Some(*id);
             }
-        }
 
-        // Level 3b: Alias contained in query
-        for (id, loc) in &self.locations {
-            for alias in &loc.aliases {
-                let alias_lower = alias.to_lowercase();
-                if lower.contains(&alias_lower) {
-                    return Some(*id);
+            // Lowercase aliases once per location
+            let aliases_lower: Vec<String> = loc.aliases.iter().map(|a| a.to_lowercase()).collect();
+
+            // Determine this location's best matching priority level
+            let level = if aliases_lower.contains(&lower) {
+                1 // Level 1b: Exact alias
+            } else if loc_lower.contains(&lower) {
+                2 // Level 2: Query in name
+            } else if aliases_lower.iter().any(|a| a.contains(&lower)) {
+                3 // Level 2b: Query in alias
+            } else if lower.contains(loc_lower.as_str()) {
+                4 // Level 3: Name in query
+            } else if aliases_lower.iter().any(|a| lower.contains(a.as_str())) {
+                5 // Level 3b: Alias in query
+            } else if do_article_strip {
+                let loc_stripped = strip_articles(&loc_lower);
+                if loc_stripped.contains(&stripped) || stripped.contains(loc_stripped.as_str()) {
+                    6 // Level 4: Article-stripped name
+                } else if aliases_lower.iter().any(|a| {
+                    let a_stripped = strip_articles(a);
+                    a_stripped.contains(&stripped) || stripped.contains(a_stripped.as_str())
+                }) {
+                    7 // Level 4b: Article-stripped alias
+                } else {
+                    u8::MAX // No deterministic match
+                }
+            } else {
+                u8::MAX // No deterministic match
+            };
+
+            if level < u8::MAX {
+                if best.as_ref().is_none_or(|(best_lvl, _)| level < *best_lvl) {
+                    best = Some((level, *id));
+                }
+            } else {
+                // Level 5: Jaro-Winkler fuzzy — computed using already-lowercased strings
+                let name_score = jaro_winkler(&loc_lower, &stripped);
+                let alias_score = aliases_lower
+                    .iter()
+                    .map(|a| jaro_winkler(a, &stripped))
+                    .fold(0.0_f64, f64::max);
+                let max_score = name_score.max(alias_score);
+                if max_score > best_fuzzy.as_ref().map_or(0.0, |(s, _)| *s) {
+                    best_fuzzy = Some((max_score, *id));
                 }
             }
         }
 
-        // Level 4: Article-stripped match on name
-        if stripped != lower {
-            for (id, loc) in &self.locations {
-                let loc_stripped = strip_articles(&loc.name.to_lowercase());
-                if loc_stripped.contains(&stripped) || stripped.contains(&loc_stripped) {
-                    return Some(*id);
-                }
-            }
-        }
-
-        // Level 4b: Article-stripped match on aliases
-        if stripped != lower {
-            for (id, loc) in &self.locations {
-                for alias in &loc.aliases {
-                    let alias_stripped = strip_articles(&alias.to_lowercase());
-                    if alias_stripped.contains(&stripped) || stripped.contains(&alias_stripped) {
-                        return Some(*id);
-                    }
-                }
-            }
-        }
-
-        // Level 5: Jaro-Winkler fuzzy match — catches typos and near-misses
-        self.find_by_fuzzy_score(&stripped, config.fuzzy_threshold)
-    }
-
-    /// Finds the best fuzzy match across all location names and aliases.
-    ///
-    /// Returns the location whose name or alias has the highest
-    /// Jaro-Winkler similarity to `query`, provided it exceeds `threshold`.
-    fn find_by_fuzzy_score(&self, query: &str, threshold: f64) -> Option<LocationId> {
-        let mut best: Option<(LocationId, f64)> = None;
-        for (id, loc) in &self.locations {
-            let name_score = jaro_winkler(&loc.name.to_lowercase(), query);
-            let alias_score = loc
-                .aliases
-                .iter()
-                .map(|a| jaro_winkler(&a.to_lowercase(), query))
-                .fold(0.0_f64, f64::max);
-            let max_score = name_score.max(alias_score);
-            if max_score > best.as_ref().map_or(0.0, |(_, s)| *s) {
-                best = Some((*id, max_score));
-            }
-        }
-        best.filter(|(_, s)| *s >= threshold).map(|(id, _)| id)
+        best.map(|(_, id)| id).or_else(|| {
+            best_fuzzy
+                .filter(|(score, _)| *score >= config.fuzzy_threshold)
+                .map(|(_, id)| id)
+        })
     }
 
     /// Finds the shortest path between two locations using BFS.
