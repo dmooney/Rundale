@@ -627,6 +627,7 @@ async fn handle_system_command(
                 let provider_name = format!("{:?}", provider).to_lowercase();
                 config.category_provider[idx] = Some(provider_name.clone());
                 config.category_base_url[idx] = Some(provider.default_base_url().to_string());
+                needs_rebuild = true;
                 format!("{} provider changed to {}.", cat.name(), provider_name)
             }
             Err(e) => format!("{}", e),
@@ -662,6 +663,7 @@ async fn handle_system_command(
             let mut config = state.config.lock().await;
             let idx = crate::GameConfig::cat_idx(cat);
             config.category_api_key[idx] = Some(value);
+            needs_rebuild = true;
             format!("{} API key updated.", cat_name)
         }
 
@@ -685,11 +687,87 @@ async fn handle_system_command(
 
         // ── Debug ────────────────────────────────────────────────────────
         Command::Debug(_) => "Debug commands are not available in the GUI.".to_string(),
-        Command::NpcsHere => "Use the sidebar to see NPCs here.".to_string(),
-        Command::Time => "Time info is shown in the status bar.".to_string(),
-        Command::Wait(_) | Command::NewGame | Command::Tick => {
-            "This command is only available in CLI/headless mode.".to_string()
+        Command::NpcsHere => {
+            let world = state.world.lock().await;
+            let npc_mgr = state.npc_manager.lock().await;
+            let npcs = npc_mgr.npcs_at(world.player_location);
+            if npcs.is_empty() {
+                "No one else is here.".to_string()
+            } else {
+                let mut lines = vec!["NPCs here:".to_string()];
+                for npc in &npcs {
+                    let display = npc_mgr.display_name(npc);
+                    let intro = if npc_mgr.is_introduced(npc.id) {
+                        " [introduced]"
+                    } else {
+                        ""
+                    };
+                    lines.push(format!(
+                        "  {} — {} ({}){}",
+                        display, npc.occupation, npc.mood, intro
+                    ));
+                }
+                lines.join("\n")
+            }
         }
+        Command::Time => {
+            use chrono::Timelike;
+            let world = state.world.lock().await;
+            let now = world.clock.now();
+            let tod = world.clock.time_of_day();
+            let season = world.clock.season();
+            let festival = world
+                .clock
+                .check_festival()
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "none".to_string());
+            let paused = if world.clock.is_paused() {
+                " (PAUSED)"
+            } else {
+                ""
+            };
+            format!(
+                "{:02}:{:02} {} — {}{}\nWeather: {}\nSpeed: {}x\nFestival: {}",
+                now.hour(),
+                now.minute(),
+                tod,
+                season,
+                paused,
+                world.weather,
+                world.clock.speed_factor(),
+                festival
+            )
+        }
+        Command::Wait(minutes) => {
+            use chrono::Timelike;
+            let mut world = state.world.lock().await;
+            let mut npc_mgr = state.npc_manager.lock().await;
+            world.clock.advance(minutes as i64);
+            npc_mgr.assign_tiers(&world, &[]);
+            let _events = npc_mgr.tick_schedules(&world.clock, &world.graph);
+            let now = world.clock.now();
+            let tod = world.clock.time_of_day();
+            format!(
+                "You wait for {} minutes...\nIt is now {:02}:{:02} {}.",
+                minutes,
+                now.hour(),
+                now.minute(),
+                tod
+            )
+        }
+        Command::Tick => {
+            let world = state.world.lock().await;
+            let mut npc_mgr = state.npc_manager.lock().await;
+            npc_mgr.assign_tiers(&world, &[]);
+            let events = npc_mgr.tick_schedules(&world.clock, &world.graph);
+            let count = events.len();
+            if count == 0 {
+                "No NPC activity.".to_string()
+            } else {
+                format!("{} schedule event(s) processed.", count)
+            }
+        }
+        Command::NewGame => "New game is not yet available in the GUI.".to_string(),
     };
 
     if needs_rebuild {
@@ -933,6 +1011,7 @@ async fn handle_npc_conversation(
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
+        let config = state.config.lock().await;
 
         let npcs_here = npc_manager.npcs_at(world.player_location);
 
@@ -951,7 +1030,7 @@ async fn handle_npc_conversation(
             let id = npc.id;
             let other_npcs: Vec<&parish_core::npc::Npc> =
                 npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-            let system = ticks::build_enhanced_system_prompt(&npc, false);
+            let system = ticks::build_enhanced_system_prompt(&npc, config.improv_enabled);
             let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
             // Mark NPC as introduced on first conversation
             npc_manager.mark_introduced(id);
