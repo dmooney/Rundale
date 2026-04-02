@@ -337,10 +337,11 @@ pub fn extract_keywords(
             .filter(|c| c.is_alphanumeric())
             .collect::<String>()
             .to_lowercase();
-        if cleaned.len() > 4 && !stop_words.contains(&cleaned.as_str()) {
-            if !keywords.contains(&cleaned) {
-                keywords.push(cleaned);
-            }
+        if cleaned.len() > 4
+            && !stop_words.contains(&cleaned.as_str())
+            && !keywords.contains(&cleaned)
+        {
+            keywords.push(cleaned);
         }
     }
 

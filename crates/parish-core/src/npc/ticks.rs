@@ -7,7 +7,8 @@ use chrono::Utc;
 
 use crate::config::{NpcConfig, RelationshipLabelConfig};
 use crate::inference::openai_client::OpenAiClient;
-use crate::npc::memory::MemoryEntry;
+use crate::npc::gossip::GossipNetwork;
+use crate::npc::memory::{MemoryEntry, try_promote};
 use crate::npc::types::{Tier2Event, Tier2Response};
 use crate::npc::{Npc, NpcId, NpcStreamResponse, build_tier1_context, build_tier1_system_prompt};
 use crate::world::{LocationId, WorldState};
@@ -146,6 +147,35 @@ pub fn build_enhanced_context_with_config(
         context.push_str(&reaction_ctx);
     }
 
+    // Add long-term memory recall (keyword-based)
+    let location = world.current_location();
+    let query_keywords: Vec<&str> = {
+        let mut kw: Vec<&str> = Vec::new();
+        // Extract keywords from player input (words > 4 chars)
+        for word in player_input.split_whitespace() {
+            let trimmed = word.trim_matches(|c: char| !c.is_alphanumeric());
+            if trimmed.len() > 4 {
+                kw.push(trimmed);
+            }
+        }
+        kw.push(&location.name);
+        kw
+    };
+    let ltm_ctx = npc
+        .long_term_memory
+        .recall_context_string(&query_keywords, 3);
+    if !ltm_ctx.is_empty() {
+        context.push_str("\n\n");
+        context.push_str(&ltm_ctx);
+    }
+
+    // Add gossip context
+    let gossip_ctx = world.gossip_network.gossip_context_string(npc.id, 2);
+    if !gossip_ctx.is_empty() {
+        context.push_str("\n\n");
+        context.push_str(&gossip_ctx);
+    }
+
     context
 }
 
@@ -198,12 +228,17 @@ pub fn apply_tier1_response_with_config(
         npc.name,
         truncate_for_memory(&content, config.memory_truncation_event_log)
     ));
-    npc.memory.add(MemoryEntry {
+    let mem_entry = MemoryEntry {
         timestamp: game_time,
         content,
-        participants: vec![npc.id],
+        participants: vec![NpcId(0), npc.id], // NpcId(0) = player
         location: npc.location,
-    });
+    };
+    if let Some(evicted) = npc.memory.add(mem_entry) {
+        let npc_name = npc.name.clone();
+        let loc_name = String::new(); // location name not available here
+        try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], &loc_name);
+    }
 
     events
 }
@@ -369,12 +404,16 @@ pub fn apply_tier2_event_with_config(
     }
     for &participant_id in &event.participants {
         if let Some(npc) = npcs.get_mut(&participant_id) {
-            npc.memory.add(MemoryEntry {
+            let mem_entry = MemoryEntry {
                 timestamp: game_time,
                 content: memory_content.clone(),
                 participants: event.participants.clone(),
                 location: event.location,
-            });
+            };
+            if let Some(evicted) = npc.memory.add(mem_entry) {
+                let npc_name = npc.name.clone();
+                try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+            }
         }
     }
 
@@ -393,6 +432,60 @@ pub fn apply_tier2_event(
     game_time: chrono::DateTime<Utc>,
 ) -> Vec<String> {
     apply_tier2_event_with_config(event, npcs, game_time, &NpcConfig::default())
+}
+
+/// Creates gossip from a Tier 2 event if it is notable.
+///
+/// Notable events are those with significant relationship changes (|delta| > 0.3)
+/// or summaries longer than a trivial threshold. The first participant is treated
+/// as the gossip source.
+pub fn create_gossip_from_tier2_event(
+    event: &Tier2Event,
+    gossip_network: &mut GossipNetwork,
+    game_time: chrono::DateTime<Utc>,
+) {
+    // Create gossip from large relationship changes
+    for rc in &event.relationship_changes {
+        if rc.delta.abs() > 0.3 {
+            gossip_network.create(
+                event.summary.clone(),
+                *event.participants.first().unwrap_or(&NpcId(0)),
+                game_time,
+            );
+            return; // One gossip item per event is enough
+        }
+    }
+
+    // Create gossip from non-trivial dialogue summaries (>30 chars suggests substance)
+    if event.summary.len() > 30 {
+        gossip_network.create(
+            event.summary.clone(),
+            *event.participants.first().unwrap_or(&NpcId(0)),
+            game_time,
+        );
+    }
+}
+
+/// Propagates gossip between NPCs during a Tier 2 group interaction.
+///
+/// For each pair of NPCs at the same location, attempts to propagate
+/// gossip from one to the other. Returns the ids of transmitted items.
+pub fn propagate_gossip_at_location(
+    participant_ids: &[NpcId],
+    gossip_network: &mut GossipNetwork,
+    rng: &mut impl rand::Rng,
+) -> Vec<u32> {
+    let mut all_transmitted = Vec::new();
+    for i in 0..participant_ids.len() {
+        for j in (i + 1)..participant_ids.len() {
+            let transmitted = gossip_network.propagate(participant_ids[i], participant_ids[j], rng);
+            all_transmitted.extend(transmitted);
+            // Also propagate in reverse direction
+            let transmitted = gossip_network.propagate(participant_ids[j], participant_ids[i], rng);
+            all_transmitted.extend(transmitted);
+        }
+    }
+    all_transmitted
 }
 
 /// Truncates a string to a maximum length, adding "..." if truncated.

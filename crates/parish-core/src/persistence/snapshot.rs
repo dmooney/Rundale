@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::npc::gossip::GossipNetwork;
 use crate::npc::memory::{LongTermMemory, ShortTermMemory};
 use crate::npc::types::{DailySchedule, Intelligence, NpcState, Relationship};
 use crate::npc::{Npc, NpcId};
@@ -146,6 +147,9 @@ pub struct GameSnapshot {
     /// Set of location IDs the player has visited (fog-of-war map).
     #[serde(default)]
     pub visited_locations: HashSet<LocationId>,
+    /// Gossip network state.
+    #[serde(default)]
+    pub gossip_network: GossipNetwork,
 }
 
 impl GameSnapshot {
@@ -170,6 +174,7 @@ impl GameSnapshot {
             npcs,
             last_tier2_game_time: npc_manager.last_tier2_game_time(),
             visited_locations: world.visited_locations.clone(),
+            gossip_network: world.gossip_network.clone(),
         }
     }
 
@@ -229,6 +234,9 @@ impl GameSnapshot {
         if let Some(t) = self.last_tier2_game_time {
             npc_manager.record_tier2_tick(t);
         }
+
+        // Restore gossip network
+        world.gossip_network = self.gossip_network;
     }
 }
 

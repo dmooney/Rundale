@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use time::GameClock;
 
 use crate::error::ParishError;
+use crate::npc::gossip::GossipNetwork;
 use events::EventBus;
 use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
@@ -131,6 +132,8 @@ pub struct WorldState {
     pub event_bus: EventBus,
     /// Set of location IDs the player has visited (for fog-of-war map).
     pub visited_locations: HashSet<LocationId>,
+    /// Gossip propagation network tracking information spread among NPCs.
+    pub gossip_network: GossipNetwork,
 }
 
 impl WorldState {
@@ -171,6 +174,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([crossroads_id]),
+            gossip_network: GossipNetwork::new(),
         }
     }
 
@@ -216,6 +220,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([start_location]),
+            gossip_network: GossipNetwork::new(),
         })
     }
 
@@ -272,6 +277,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([start_location]),
+            gossip_network: GossipNetwork::new(),
         })
     }
 

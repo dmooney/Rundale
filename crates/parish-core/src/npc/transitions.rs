@@ -60,9 +60,9 @@ pub fn inflate_npc_context(
         .collect();
     let narrative = summaries.join(" ");
 
-    // Inject as a synthetic memory entry
+    // Inject as a synthetic memory entry (no promotion — recap is synthetic)
     use crate::npc::memory::MemoryEntry;
-    npc.memory.add(MemoryEntry {
+    let _ = npc.memory.add(MemoryEntry {
         timestamp: game_time,
         content: format!("[Context recap] {}", narrative),
         participants: vec![npc.id],

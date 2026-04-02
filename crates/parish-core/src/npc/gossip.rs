@@ -19,7 +19,7 @@ const TRANSMISSION_CHANCE: f64 = 0.60;
 const DISTORTION_CHANCE: f64 = 0.20;
 
 /// A piece of gossip circulating among NPCs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GossipItem {
     /// Unique id for deduplication.
     pub id: u32,
@@ -36,7 +36,7 @@ pub struct GossipItem {
 }
 
 /// Manages all gossip items in the world.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GossipNetwork {
     items: Vec<GossipItem>,
     next_id: u32,
@@ -85,17 +85,18 @@ impl GossipNetwork {
         let mut transmitted = Vec::new();
 
         for item in &mut self.items {
-            if item.known_by.contains(&speaker) && !item.known_by.contains(&listener) {
-                if rng.r#gen::<f64>() < TRANSMISSION_CHANCE {
-                    item.known_by.insert(listener);
+            if item.known_by.contains(&speaker)
+                && !item.known_by.contains(&listener)
+                && rng.r#gen::<f64>() < TRANSMISSION_CHANCE
+            {
+                item.known_by.insert(listener);
 
-                    if rng.r#gen::<f64>() < DISTORTION_CHANCE {
-                        item.content = distort(&item.content, rng);
-                        item.distortion_level = item.distortion_level.saturating_add(1);
-                    }
-
-                    transmitted.push(item.id);
+                if rng.r#gen::<f64>() < DISTORTION_CHANCE {
+                    item.content = distort(&item.content, rng);
+                    item.distortion_level = item.distortion_level.saturating_add(1);
                 }
+
+                transmitted.push(item.id);
             }
         }
 

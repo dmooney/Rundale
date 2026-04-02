@@ -509,6 +509,7 @@ mod tests {
             npcs: Vec::new(),
             last_tier2_game_time: None,
             visited_locations: std::collections::HashSet::from([crate::world::LocationId(1)]),
+            gossip_network: Default::default(),
         }
     }
 
