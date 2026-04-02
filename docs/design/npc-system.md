@@ -8,7 +8,7 @@ Each NPC has:
 
 - **Identity**: Name, age, physical description, occupation
 - **Personality**: Traits, values, temperament (used as LLM system prompt)
-- **Intelligence**: Multidimensional profile (6 axes, 1-5 scale) — see [ADR 018](../adr/018-npc-intelligence-dimensions.md)
+- **Intelligence**: Multidimensional profile (6 axes, 1-5 scale) — injected as direct behavioral guidance, not coded tags — see [ADR 018](../adr/018-npc-intelligence-dimensions.md)
 - **Location**: Current node, home node, workplace node
 - **Schedule**: Daily routine patterns (varies by day of week, season, weather)
 - **Relationships**: Weighted edges to other NPCs (family, friend, rival, enemy, romantic, etc.)
@@ -23,7 +23,7 @@ Each NPC has:
 
 For each LLM inference call, build a context from these five layers:
 
-1. **System prompt**: personality, intelligence profile, backstory, current emotional state
+1. **System prompt**: personality, intelligence guidance (behavioral directives only), current emotional state. NPC dialogue is pure speech — no parenthetical stage directions. Physical actions are tracked in JSON metadata only.
 2. **Public knowledge**: weather, time, season, major recent events
 3. **Personal knowledge**: their relationships, recent experiences, secrets
 4. **Immediate situation**: where they are, who's present, what just happened

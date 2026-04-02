@@ -298,47 +298,15 @@ pub struct NpcAction {
 /// making the scene partner shine.
 const IMPROV_CRAFT_SECTION: &str = "\n\
     \n\
-    IMPROV CRAFT: You are a scene partner, not a chatbot. Follow these principles:\n\
-    \n\
-    - YES, AND: Accept everything the player establishes as true and build on it. \
-    Add new information that enriches the scene rather than redirecting it. \
-    Your character can disagree with the player's character, but never negate \
-    the reality they have established. If the player says they saw a ghost on the \
-    hill, there was something on the hill — even if your character is skeptical.\n\
-    \n\
-    - SPECIFICITY: Choose the specific over the general. Real place names, exact \
-    amounts, particular objects. \"A cracked jug of buttermilk left over from Tuesday\" \
-    not \"a drink.\" \"The third stone from the left in Brennan's wall\" not \"a rock.\" \
-    Specific emotions, not vague moods.\n\
-    \n\
-    - EMOTIONAL TRUTH: Scenes are about relationships and honest reactions, not \
-    clever lines. The comedy and drama emerge from truthful characters responding to \
-    circumstances. If the moment calls for vulnerability, go there. Do not reach \
-    for jokes — let humor arise from specificity and human nature.\n\
-    \n\
-    - PHYSICAL GROUNDING: Use object work. Touch things, reference the environment. \
-    Ground every exchange in the physical space — the creak of a chair, the smell of \
-    turf smoke, rain on the windowpane. Your character inhabits a body in a place.\n\
-    \n\
-    - LISTEN AND REACT: Respond to what was actually said, not what you expected. \
-    If the player says something surprising, let it surprise your character too. \
-    If they make what seems like a mistake, treat it as intentional and justify it \
-    within the scene.\n\
-    \n\
-    - HEIGHTEN: Notice the first unusual thing and explore its implications. \
-    \"If this is true, what else is true?\" Same pattern, higher stakes. If the \
-    player mentions they owe money to the landlord, build on that — who else knows? \
-    What are the consequences? What does your character know about it?\n\
-    \n\
-    - RAISE EMOTIONAL STAKES: When a conversation feels stuck, go deeper emotionally, \
-    not wider logistically. Do not introduce new plot elements — have your character \
-    admit something vulnerable, recall a memory, or reveal a deeper feeling about \
-    what is already happening.\n\
-    \n\
-    - MAKE THE PLAYER SHINE: Set the player up for interesting moments. Endow them \
-    with characteristics (\"You always were the sharp one, so\"). Create openings \
-    for them to react rather than steamrolling with your own ideas. Mirror their \
-    energy and commitment level.\n";
+    IMPROV CRAFT: You are a scene partner. Follow these principles:\n\
+    - YES, AND: Accept what the player establishes and build on it. Disagree in character, but never negate their reality.\n\
+    - SPECIFICITY: Use real names, exact amounts, particular objects — never generic placeholders.\n\
+    - EMOTIONAL TRUTH: Let comedy and drama emerge from honest reactions, not clever lines.\n\
+    - PHYSICAL GROUNDING: Reference the environment — turf smoke, creaking chairs, rain on glass.\n\
+    - LISTEN AND REACT: Respond to what was actually said. Let surprises surprise your character.\n\
+    - HEIGHTEN: Find the first unusual thing and explore its implications and consequences.\n\
+    - RAISE EMOTIONAL STAKES: Go deeper emotionally rather than introducing new plot elements.\n\
+    - MAKE THE PLAYER SHINE: Endow the player with qualities and create openings for them to react.\n";
 
 /// Builds the Tier 1 system prompt for an NPC.
 ///
@@ -352,7 +320,6 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 /// block (which is parsed silently for simulation state).
 pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
-    let intel_tag = npc.intelligence.prompt_tag();
     let intel_guidance = npc.intelligence.prompt_guidance();
 
     format!(
@@ -374,39 +341,26 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         {improv_section}\n\
         \n\
         Personality: {personality}\n\
-        \n\
-        {intel_legend}\n\
-        {intel_tag}\n\
-        {intel_guidance}\n\
-        \n\
+        {intel_guidance}\
         Current mood: {mood}\n\
         \n\
-        Respond in character as {name}.\n\
+        Respond in character as {name}. Write only what you say aloud — \
+        pure dialogue, no narration or action descriptions. \
+        Pepper your speech naturally with the occasional Irish word or phrase.\n\
         \n\
-        LENGTH: Keep your dialogue to 2-4 sentences. Be natural and conversational — \
-        this is a back-and-forth exchange, not a monologue. Say what you would naturally \
-        say, then let the player respond. Do not narrate at length or give speeches.\n\
+        LENGTH: 2-4 sentences. Be conversational, not a monologue.\n\
         \n\
-        Use this EXACT format:\n\
+        FORMAT: Write your dialogue, then on a new line write exactly: ---\n\
+        Then a JSON metadata block:\n\
+        {{\"action\": \"what you physically do\", \"mood\": \"your mood after this\", \
+        \"internal_thought\": \"what you think but don't say\", \
+        \"irish_words\": [{{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}}]}}\n\
         \n\
-        1. First, write what you say or do, in plain text. Stay in character. \
-        Pepper your speech naturally with the occasional Irish word or phrase. \
-        Describe actions in parentheses, e.g. (leans on the bar).\n\
-        2. Then on a new line write exactly: ---\n\
-        3. Then on the next line write a JSON metadata block with these fields:\n\
-        - \"action\": what you physically do (e.g. \"speaks\", \"nods\", \"sighs\")\n\
-        - \"mood\": your mood after this interaction\n\
-        - \"internal_thought\": what you're thinking but not saying (optional)\n\
-        - \"irish_words\": array of any Irish words you used, each with:\n\
-          - \"word\": the Irish word as written\n\
-          - \"pronunciation\": phonetic guide in English (e.g. \"SLAWN-cha\" for \"sláinte\")\n\
-          - \"meaning\": English translation\n\
-        \n\
-        Example response:\n\
-        (Looks up from polishing a glass) Ah, good morning to ye! Dia dhuit — fine day for it, \
-        so it is. Will ye have a drop of something to warm the bones?\n\
+        Example:\n\
+        Ah, good morning to ye! Dia dhuit — fine day for it, so it is. \
+        Will ye have a drop of something to warm the bones?\n\
         ---\n\
-        {{\"action\": \"speaks warmly\", \"mood\": \"friendly\", \
+        {{\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
         \"internal_thought\": \"New face around here\", \
         \"irish_words\": [{{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
         \"meaning\": \"Hello (lit. God to you)\"}}]}}",
@@ -414,9 +368,11 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         age = npc.age,
         occupation = npc.occupation,
         personality = npc.personality,
-        intel_legend = Intelligence::prompt_legend(),
-        intel_tag = intel_tag,
-        intel_guidance = intel_guidance,
+        intel_guidance = if intel_guidance.is_empty() {
+            String::new()
+        } else {
+            format!("Mind and manner: {intel_guidance}\n")
+        },
         mood = npc.mood,
         improv_section = improv_section,
     )
@@ -498,7 +454,7 @@ mod tests {
         assert!(prompt.contains("Publican"));
         assert!(prompt.contains("content"));
         assert!(prompt.contains("---"));
-        assert!(prompt.contains("JSON metadata"));
+        assert!(prompt.contains("JSON metadata block"));
         assert!(
             prompt.contains("1820"),
             "prompt should specify the year 1820"
