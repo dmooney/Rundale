@@ -55,7 +55,7 @@
 	}
 </script>
 
-<div class="chat-panel" data-testid="chat-panel" bind:this={logEl}>
+<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
 	{#each $textLog as entry (entry)}
 		{#if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
@@ -82,8 +82,8 @@
 		{/if}
 	{/each}
 	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming)}
-		<div class="loading-row">
-			<svg class="triquetra-spinner" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+		<div class="loading-row" role="status" aria-label="Generating response">
+			<svg class="triquetra-spinner" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<circle class="knot-circle" pathLength="120"
 					cx="50" cy="50" r="16"
 					fill="none" stroke="var(--color-accent)" stroke-width="3"
