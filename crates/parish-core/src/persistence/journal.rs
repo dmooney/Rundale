@@ -288,6 +288,7 @@ mod tests {
             state: NpcState::Present,
             deflated_summary: None,
             reaction_log: crate::npc::reactions::ReactionLog::default(),
+            last_activity: None,
         });
 
         let events = vec![WorldEvent::NpcMoodChanged {

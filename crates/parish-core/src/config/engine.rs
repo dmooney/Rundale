@@ -308,9 +308,18 @@ pub struct CognitiveTierConfig {
     /// Maximum distance for Tier 2 (nearby).
     #[serde(default = "default_tier2_max_distance")]
     pub tier2_max_distance: u32,
+    /// Maximum distance for Tier 3 (distant but still LLM-simulated).
+    #[serde(default = "default_tier3_max_distance")]
+    pub tier3_max_distance: u32,
     /// Tier 2 simulation tick interval in game-minutes.
     #[serde(default = "default_tier2_tick_interval_minutes")]
     pub tier2_tick_interval_minutes: i64,
+    /// Tier 3 simulation tick interval in game-hours (1 game-day = 24).
+    #[serde(default = "default_tier3_tick_interval_hours")]
+    pub tier3_tick_interval_hours: i64,
+    /// Maximum NPCs per Tier 3 batch LLM call.
+    #[serde(default = "default_tier3_batch_size")]
+    pub tier3_batch_size: usize,
 }
 
 impl Default for CognitiveTierConfig {
@@ -318,7 +327,10 @@ impl Default for CognitiveTierConfig {
         Self {
             tier1_max_distance: 0,
             tier2_max_distance: 2,
+            tier3_max_distance: 5,
             tier2_tick_interval_minutes: 5,
+            tier3_tick_interval_hours: 24,
+            tier3_batch_size: 10,
         }
     }
 }
@@ -331,6 +343,15 @@ fn default_tier2_max_distance() -> u32 {
 }
 fn default_tier2_tick_interval_minutes() -> i64 {
     5
+}
+fn default_tier3_max_distance() -> u32 {
+    5
+}
+fn default_tier3_tick_interval_hours() -> i64 {
+    24
+}
+fn default_tier3_batch_size() -> usize {
+    10
 }
 
 /// Relationship strength thresholds for descriptive labels.

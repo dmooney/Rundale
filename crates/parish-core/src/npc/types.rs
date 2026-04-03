@@ -541,6 +541,52 @@ pub struct Tier2Response {
     pub relationship_changes: Vec<RelationshipChange>,
 }
 
+/// The result of a Tier 3 batch simulation for a single NPC.
+///
+/// Produced by the batch LLM call that simulates many distant NPCs at once.
+/// Each update describes what one NPC did during the simulated period.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tier3Update {
+    /// Which NPC this update is for.
+    pub npc_id: NpcId,
+    /// New location (if NPC moved during the simulated period).
+    #[serde(default)]
+    pub new_location: Option<LocationId>,
+    /// Updated mood string.
+    #[serde(default)]
+    pub mood: String,
+    /// Summary of what the NPC did during the simulated period.
+    #[serde(default)]
+    pub activity_summary: String,
+    /// Relationship changes: (from, to, strength_delta).
+    #[serde(default)]
+    pub relationship_changes: Vec<RelationshipChange>,
+}
+
+/// The full response from a Tier 3 batch LLM call.
+///
+/// Contains an array of updates, one per NPC in the batch.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tier3Response {
+    /// Per-NPC updates from the batch simulation.
+    #[serde(default)]
+    pub updates: Vec<Tier3Update>,
+}
+
+/// Priority levels for inference requests.
+///
+/// Lower values = higher priority. Used to ensure player-facing dialogue
+/// is never delayed by background batch simulation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InferencePriority {
+    /// Tier 1: player-facing dialogue (highest priority).
+    Interactive = 0,
+    /// Tier 2: nearby NPC background simulation.
+    Background = 1,
+    /// Tier 3: distant NPC batch simulation (lowest LLM priority).
+    Batch = 2,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -994,5 +1040,60 @@ mod tests {
             .unwrap();
         assert!(resolved.cuaird);
         assert_eq!(resolved.activity, "cuaird visiting");
+    }
+
+    // --- Tier 3 type tests ---
+
+    #[test]
+    fn test_tier3_update_deserialize_full() {
+        use super::{Tier3Response, Tier3Update};
+
+        let json = r#"{
+            "updates": [{
+                "npc_id": 1,
+                "mood": "content",
+                "activity_summary": "Worked in the field.",
+                "new_location": 5,
+                "relationship_changes": [{"from": 1, "to": 2, "delta": 0.1}]
+            }]
+        }"#;
+        let resp: Tier3Response = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.updates.len(), 1);
+        let u = &resp.updates[0];
+        assert_eq!(u.npc_id, NpcId(1));
+        assert_eq!(u.mood, "content");
+        assert_eq!(u.activity_summary, "Worked in the field.");
+        assert_eq!(u.new_location, Some(LocationId(5)));
+        assert_eq!(u.relationship_changes.len(), 1);
+    }
+
+    #[test]
+    fn test_tier3_update_deserialize_minimal() {
+        use super::Tier3Update;
+
+        let json = r#"{"npc_id": 3}"#;
+        let u: Tier3Update = serde_json::from_str(json).unwrap();
+        assert_eq!(u.npc_id, NpcId(3));
+        assert_eq!(u.mood, "");
+        assert_eq!(u.activity_summary, "");
+        assert!(u.new_location.is_none());
+        assert!(u.relationship_changes.is_empty());
+    }
+
+    #[test]
+    fn test_tier3_response_empty() {
+        use super::Tier3Response;
+
+        let json = r#"{}"#;
+        let resp: Tier3Response = serde_json::from_str(json).unwrap();
+        assert!(resp.updates.is_empty());
+    }
+
+    #[test]
+    fn test_inference_priority_ordering() {
+        use super::InferencePriority;
+
+        assert!(InferencePriority::Interactive < InferencePriority::Background);
+        assert!(InferencePriority::Background < InferencePriority::Batch);
     }
 }

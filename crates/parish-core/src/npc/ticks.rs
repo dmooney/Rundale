@@ -1,16 +1,19 @@
-//! Tier 1 and Tier 2 tick functions for NPC simulation.
+//! Tier 1, Tier 2, and Tier 3 tick functions for NPC simulation.
 //!
 //! Tier 1 ticks run per player interaction (full LLM inference).
 //! Tier 2 ticks run every 5 game-minutes for nearby NPCs (lighter inference).
+//! Tier 3 ticks run every 1 game-day for distant NPCs (batch inference).
 
 use chrono::Utc;
 
 use crate::config::{NpcConfig, RelationshipLabelConfig};
+use crate::error::ParishError;
 use crate::inference::openai_client::OpenAiClient;
 use crate::npc::gossip::GossipNetwork;
 use crate::npc::memory::{MemoryEntry, try_promote};
-use crate::npc::types::{Tier2Event, Tier2Response};
+use crate::npc::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::npc::{Npc, NpcId, NpcStreamResponse, build_tier1_context, build_tier1_system_prompt};
+use crate::world::graph::WorldGraph;
 use crate::world::{LocationId, WorldState};
 
 /// A lightweight snapshot of an NPC's state for Tier 2 inference.
@@ -488,6 +491,269 @@ pub fn propagate_gossip_at_location(
     all_transmitted
 }
 
+// ---------------------------------------------------------------------------
+// Tier 3 — batch inference for distant NPCs
+// ---------------------------------------------------------------------------
+
+/// Default batch size for Tier 3 inference (NPCs per LLM call).
+pub const TIER3_BATCH_SIZE: usize = 10;
+
+/// A lightweight snapshot of an NPC's state for Tier 3 batch inference.
+#[derive(Debug, Clone)]
+pub struct Tier3Snapshot {
+    /// NPC id.
+    pub id: NpcId,
+    /// NPC name.
+    pub name: String,
+    /// Occupation.
+    pub occupation: String,
+    /// Age.
+    pub age: u8,
+    /// Current location id.
+    pub location: LocationId,
+    /// Location name.
+    pub location_name: String,
+    /// Current mood.
+    pub mood: String,
+    /// Deflated summary or last activity.
+    pub context: String,
+    /// Relationship summaries for prompt injection.
+    pub relationship_context: String,
+}
+
+/// Builds a Tier 3 batch prompt for a set of NPC snapshots.
+pub fn build_tier3_prompt(
+    snapshots: &[Tier3Snapshot],
+    time_desc: &str,
+    weather: &str,
+    season: &str,
+    hours: u32,
+) -> String {
+    let npc_summaries: Vec<String> = snapshots
+        .iter()
+        .map(|snap| {
+            let context_line = if snap.context.is_empty() {
+                String::new()
+            } else {
+                format!("\nRecent: {}", snap.context)
+            };
+            let rel_line = if snap.relationship_context.is_empty() {
+                String::new()
+            } else {
+                format!("\nRelationships: {}", snap.relationship_context)
+            };
+            format!(
+                "NPC {id} \"{name}\" ({occupation}, age {age}): At {location}. Mood: {mood}.{context}{rels}",
+                id = snap.id.0,
+                name = snap.name,
+                occupation = snap.occupation,
+                age = snap.age,
+                location = snap.location_name,
+                mood = snap.mood,
+                context = context_line,
+                rels = rel_line,
+            )
+        })
+        .collect();
+
+    format!(
+        "You are simulating background NPC activity in a rural Irish parish in 1820.\n\
+        Given the following NPCs and their current states, simulate {hours} hours of activity.\n\
+        The weather is {weather}. The season is {season}. The time is {time}.\n\n\
+        Return a JSON object with an \"updates\" array. Each update has:\n\
+        - npc_id (integer)\n\
+        - mood (string, one word)\n\
+        - activity_summary (string, 1 sentence)\n\
+        - new_location (integer or null)\n\
+        - relationship_changes (array of {{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}})\n\n\
+        NPCs:\n{npcs}",
+        hours = hours,
+        weather = weather,
+        season = season,
+        time = time_desc,
+        npcs = npc_summaries.join("\n\n"),
+    )
+}
+
+/// Creates a Tier 3 snapshot from an NPC, resolving location names from the graph.
+pub fn tier3_snapshot_from_npc(npc: &Npc, graph: &WorldGraph) -> Tier3Snapshot {
+    let location_name = graph
+        .get(npc.location)
+        .map(|d| d.name.clone())
+        .unwrap_or_else(|| format!("Location {}", npc.location.0));
+
+    let context = if let Some(ref activity) = npc.last_activity {
+        activity.clone()
+    } else if let Some(ref summary) = npc.deflated_summary {
+        summary.recent_activity.first().cloned().unwrap_or_default()
+    } else {
+        String::new()
+    };
+
+    let relationship_context: Vec<String> = npc
+        .relationships
+        .iter()
+        .take(3)
+        .map(|(target_id, rel)| format!("NPC {} ({:.1})", target_id.0, rel.strength))
+        .collect();
+
+    Tier3Snapshot {
+        id: npc.id,
+        name: npc.name.clone(),
+        occupation: npc.occupation.clone(),
+        age: npc.age,
+        location: npc.location,
+        location_name,
+        mood: npc.mood.clone(),
+        context,
+        relationship_context: relationship_context.join(", "),
+    }
+}
+
+/// Context for a Tier 3 batch simulation call.
+pub struct Tier3Context<'a> {
+    /// NPC snapshots to simulate.
+    pub snapshots: &'a [Tier3Snapshot],
+    /// LLM client for inference.
+    pub client: &'a OpenAiClient,
+    /// Model name to use.
+    pub model: &'a str,
+    /// Time description (e.g. "Morning").
+    pub time_desc: &'a str,
+    /// Weather description (e.g. "Overcast").
+    pub weather: &'a str,
+    /// Season (e.g. "Spring").
+    pub season: &'a str,
+    /// Number of game hours to simulate.
+    pub hours: u32,
+    /// Maximum NPCs per batch LLM call.
+    pub batch_size: usize,
+}
+
+/// Runs a Tier 3 batch simulation for distant NPCs.
+///
+/// Builds a single prompt summarizing all provided NPC snapshots and their states,
+/// sends it to the simulation LLM client, and parses the JSON response.
+/// If there are more NPCs than `batch_size`, they are split into multiple
+/// sequential LLM calls.
+pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, ParishError> {
+    let batch_size = if ctx.batch_size == 0 {
+        TIER3_BATCH_SIZE
+    } else {
+        ctx.batch_size
+    };
+
+    let mut all_updates = Vec::new();
+
+    for batch in ctx.snapshots.chunks(batch_size) {
+        let prompt = build_tier3_prompt(batch, ctx.time_desc, ctx.weather, ctx.season, ctx.hours);
+
+        match ctx
+            .client
+            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None)
+            .await
+        {
+            Ok(resp) => {
+                all_updates.extend(resp.updates);
+            }
+            Err(e) => {
+                tracing::warn!("Tier 3 batch inference failed: {}", e);
+                // Continue with other batches rather than failing entirely
+            }
+        }
+    }
+
+    Ok(all_updates)
+}
+
+/// Applies Tier 3 updates to NPCs.
+///
+/// For each update: sets mood, stores activity_summary as `last_activity`,
+/// updates location (if valid in graph), and adjusts relationships.
+///
+/// Returns debug event strings describing what happened.
+pub fn apply_tier3_updates(
+    updates: &[Tier3Update],
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    graph: &WorldGraph,
+    game_time: chrono::DateTime<Utc>,
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
+    for update in updates {
+        let Some(npc) = npcs.get_mut(&update.npc_id) else {
+            tracing::warn!(
+                npc_id = update.npc_id.0,
+                "Tier 3 update for unknown NPC, skipping"
+            );
+            continue;
+        };
+
+        // Update mood
+        if !update.mood.is_empty() && update.mood != npc.mood {
+            debug_events.push(format!(
+                "{} mood: {} -> {} (tier3)",
+                npc.name, npc.mood, update.mood
+            ));
+            npc.mood = update.mood.clone();
+        }
+
+        // Store activity summary
+        if !update.activity_summary.is_empty() {
+            debug_events.push(format!(
+                "{} activity: {} (tier3)",
+                npc.name, update.activity_summary
+            ));
+            npc.last_activity = Some(update.activity_summary.clone());
+
+            // Also record as memory
+            let mem_entry = MemoryEntry {
+                timestamp: game_time,
+                content: update.activity_summary.clone(),
+                participants: vec![update.npc_id],
+                location: npc.location,
+            };
+            if let Some(evicted) = npc.memory.add(mem_entry) {
+                let npc_name = npc.name.clone();
+                try_promote(&mut npc.long_term_memory, &evicted, &[npc_name], "");
+            }
+        }
+
+        // Update location if valid
+        if let Some(new_loc) = update.new_location {
+            if graph.get(new_loc).is_some() {
+                debug_events.push(format!(
+                    "{} moved: {:?} -> {:?} (tier3)",
+                    npc.name, npc.location, new_loc
+                ));
+                npc.location = new_loc;
+            } else {
+                tracing::warn!(
+                    npc_id = update.npc_id.0,
+                    location = new_loc.0,
+                    "Tier 3 update has invalid location, ignoring"
+                );
+            }
+        }
+
+        // Apply relationship changes
+        for rc in &update.relationship_changes {
+            if rc.from == update.npc_id
+                && let Some(npc) = npcs.get_mut(&rc.from)
+                && let Some(rel) = npc.relationships.get_mut(&rc.to)
+            {
+                rel.adjust_strength(rc.delta);
+                debug_events.push(format!(
+                    "NPC {} -> NPC {}: relationship {:.2} (tier3)",
+                    rc.from.0, rc.to.0, rc.delta
+                ));
+            }
+        }
+    }
+
+    debug_events
+}
+
 /// Truncates a string to a maximum length, adding "..." if truncated.
 fn truncate_for_memory(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
@@ -531,6 +797,7 @@ mod tests {
             state: NpcState::default(),
             deflated_summary: None,
             reaction_log: crate::npc::reactions::ReactionLog::default(),
+            last_activity: None,
         }
     }
 
@@ -1124,5 +1391,275 @@ mod tests {
         let events = apply_tier1_response(&mut npc, &response, "hello", game_time);
         assert_eq!(npc.mood, "calm"); // unchanged
         assert!(!events.iter().any(|e| e.contains("mood:")));
+    }
+
+    // --- Tier 3 tests ---
+
+    #[test]
+    fn test_tier3_response_parsing() {
+        let json = r#"{
+            "updates": [
+                {
+                    "npc_id": 1,
+                    "mood": "content",
+                    "activity_summary": "Tended the fields all morning.",
+                    "new_location": null,
+                    "relationship_changes": [{"from": 1, "to": 2, "delta": 0.05}]
+                },
+                {
+                    "npc_id": 2,
+                    "mood": "tired",
+                    "activity_summary": "Mended a fence near the road.",
+                    "new_location": 3,
+                    "relationship_changes": []
+                }
+            ]
+        }"#;
+        let resp: Tier3Response = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.updates.len(), 2);
+        assert_eq!(resp.updates[0].npc_id, NpcId(1));
+        assert_eq!(resp.updates[0].mood, "content");
+        assert_eq!(
+            resp.updates[0].activity_summary,
+            "Tended the fields all morning."
+        );
+        assert!(resp.updates[0].new_location.is_none());
+        assert_eq!(resp.updates[0].relationship_changes.len(), 1);
+        assert_eq!(resp.updates[1].npc_id, NpcId(2));
+        assert_eq!(resp.updates[1].new_location, Some(LocationId(3)));
+    }
+
+    #[test]
+    fn test_tier3_response_partial() {
+        // Missing optional fields should default gracefully
+        let json = r#"{"updates": [{"npc_id": 5}]}"#;
+        let resp: Tier3Response = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.updates.len(), 1);
+        assert_eq!(resp.updates[0].npc_id, NpcId(5));
+        assert_eq!(resp.updates[0].mood, "");
+        assert_eq!(resp.updates[0].activity_summary, "");
+        assert!(resp.updates[0].new_location.is_none());
+        assert!(resp.updates[0].relationship_changes.is_empty());
+    }
+
+    #[test]
+    fn test_tier3_response_empty_updates() {
+        let json = r#"{}"#;
+        let resp: Tier3Response = serde_json::from_str(json).unwrap();
+        assert!(resp.updates.is_empty());
+    }
+
+    #[test]
+    fn test_tier3_prompt_construction() {
+        let snapshots = vec![
+            Tier3Snapshot {
+                id: NpcId(1),
+                name: "Padraig".to_string(),
+                occupation: "Publican".to_string(),
+                age: 58,
+                location: LocationId(2),
+                location_name: "Darcy's Pub".to_string(),
+                mood: "content".to_string(),
+                context: "Served drinks all evening.".to_string(),
+                relationship_context: "NPC 2 (0.5)".to_string(),
+            },
+            Tier3Snapshot {
+                id: NpcId(3),
+                name: "Bridget".to_string(),
+                occupation: "Farmer".to_string(),
+                age: 35,
+                location: LocationId(5),
+                location_name: "O'Brien's Farm".to_string(),
+                mood: "worried".to_string(),
+                context: String::new(),
+                relationship_context: String::new(),
+            },
+        ];
+
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24);
+        assert!(prompt.contains("simulate 24 hours"));
+        assert!(prompt.contains("Overcast"));
+        assert!(prompt.contains("Spring"));
+        assert!(prompt.contains("Morning"));
+        assert!(prompt.contains("NPC 1 \"Padraig\""));
+        assert!(prompt.contains("Publican, age 58"));
+        assert!(prompt.contains("Darcy's Pub"));
+        assert!(prompt.contains("Served drinks all evening."));
+        assert!(prompt.contains("NPC 3 \"Bridget\""));
+        assert!(prompt.contains("Farmer, age 35"));
+        // NPC with no context should not have "Recent:" line
+        assert!(prompt.contains("Mood: worried."));
+        // JSON format instructions
+        assert!(prompt.contains("npc_id"));
+        assert!(prompt.contains("activity_summary"));
+    }
+
+    #[test]
+    fn test_tier3_batching() {
+        // Verify that 25 snapshots would be split into 3 batches of 10, 10, 5
+        let snapshots: Vec<Tier3Snapshot> = (1..=25)
+            .map(|i| Tier3Snapshot {
+                id: NpcId(i),
+                name: format!("NPC {}", i),
+                occupation: "Test".to_string(),
+                age: 30,
+                location: LocationId(1),
+                location_name: "Test".to_string(),
+                mood: "calm".to_string(),
+                context: String::new(),
+                relationship_context: String::new(),
+            })
+            .collect();
+
+        let chunks: Vec<&[Tier3Snapshot]> = snapshots.chunks(TIER3_BATCH_SIZE).collect();
+        assert_eq!(chunks.len(), 3);
+        assert_eq!(chunks[0].len(), 10);
+        assert_eq!(chunks[1].len(), 10);
+        assert_eq!(chunks[2].len(), 5);
+    }
+
+    #[test]
+    fn test_tier3_update_application() {
+        use crate::npc::types::{Relationship, RelationshipKind};
+        use crate::world::graph::WorldGraph;
+
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npc1 = make_test_npc(1, "Padraig", 2);
+        npc1.relationships
+            .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.5));
+        npcs.insert(NpcId(1), npc1);
+        npcs.insert(NpcId(5), make_test_npc(5, "Tommy", 2));
+
+        let graph = WorldGraph::new();
+
+        let updates = vec![Tier3Update {
+            npc_id: NpcId(1),
+            mood: "jovial".to_string(),
+            activity_summary: "Spent the day cleaning the pub.".to_string(),
+            new_location: None,
+            relationship_changes: vec![RelationshipChange {
+                from: NpcId(1),
+                to: NpcId(5),
+                delta: 0.1,
+            }],
+        }];
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        let events = apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+
+        // Mood updated
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().mood, "jovial");
+
+        // Activity stored
+        assert_eq!(
+            npcs.get(&NpcId(1)).unwrap().last_activity.as_deref(),
+            Some("Spent the day cleaning the pub.")
+        );
+
+        // Memory recorded
+        assert!(npcs.get(&NpcId(1)).unwrap().memory.len() > 0);
+
+        // Relationship adjusted
+        let rel = npcs
+            .get(&NpcId(1))
+            .unwrap()
+            .relationships
+            .get(&NpcId(5))
+            .unwrap();
+        assert!((rel.strength - 0.6).abs() < f64::EPSILON);
+
+        // Debug events generated
+        assert!(!events.is_empty());
+        assert!(events.iter().any(|e| e.contains("mood")));
+        assert!(events.iter().any(|e| e.contains("activity")));
+    }
+
+    #[test]
+    fn test_tier3_invalid_location_ignored() {
+        use crate::world::graph::WorldGraph;
+
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+
+        let graph = WorldGraph::new(); // empty graph — no valid locations
+
+        let updates = vec![Tier3Update {
+            npc_id: NpcId(1),
+            mood: "calm".to_string(),
+            activity_summary: "Walked to market.".to_string(),
+            new_location: Some(LocationId(999)), // nonexistent
+            relationship_changes: Vec::new(),
+        }];
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+
+        // Location should NOT have changed
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().location, LocationId(2));
+    }
+
+    #[test]
+    fn test_tier3_unknown_npc_skipped() {
+        use crate::world::graph::WorldGraph;
+
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+
+        let graph = WorldGraph::new();
+
+        let updates = vec![Tier3Update {
+            npc_id: NpcId(99), // does not exist
+            mood: "happy".to_string(),
+            activity_summary: "Ghost NPC.".to_string(),
+            new_location: None,
+            relationship_changes: Vec::new(),
+        }];
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        let events = apply_tier3_updates(&updates, &mut npcs, &graph, game_time);
+
+        // Should produce no events (NPC not found)
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_tier3_snapshot_from_npc_with_last_activity() {
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        npc.last_activity = Some("Tended bar all evening.".to_string());
+
+        let graph = WorldGraph::new();
+        let snap = tier3_snapshot_from_npc(&npc, &graph);
+
+        assert_eq!(snap.id, NpcId(1));
+        assert_eq!(snap.name, "Padraig");
+        assert_eq!(snap.context, "Tended bar all evening.");
+    }
+
+    #[test]
+    fn test_tier3_snapshot_from_npc_with_deflated_summary() {
+        use crate::npc::transitions::NpcSummary;
+
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        npc.deflated_summary = Some(NpcSummary {
+            npc_id: NpcId(1),
+            location: LocationId(2),
+            mood: "calm".to_string(),
+            recent_activity: vec!["Chatted with Tommy.".to_string()],
+            key_relationship_changes: Vec::new(),
+        });
+
+        let graph = WorldGraph::new();
+        let snap = tier3_snapshot_from_npc(&npc, &graph);
+
+        assert_eq!(snap.context, "Chatted with Tommy.");
+    }
+
+    #[test]
+    fn test_tier3_snapshot_from_npc_no_context() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let graph = WorldGraph::new();
+        let snap = tier3_snapshot_from_npc(&npc, &graph);
+
+        assert_eq!(snap.context, "");
     }
 }
