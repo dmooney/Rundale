@@ -19,8 +19,8 @@
 
 	let { onclose }: Props = $props();
 
-	const NODE_R = 5;
-	const PLAYER_R = 8;
+	const NODE_R = 8.75;
+	const PLAYER_R = 14;
 	const LABEL_FONT_SIZE = 11;
 	const MIN_ZOOM = 0.5;
 	const MAX_ZOOM = 4;

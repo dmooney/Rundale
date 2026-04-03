@@ -20,8 +20,8 @@
 	const W = 320;
 	const H = 240;
 	/** Base sizes at the reference scale (W × H viewBox). */
-	const BASE_NODE_R = 6;
-	const BASE_PLAYER_R = 9;
+	const BASE_NODE_R = 10.5;
+	const BASE_PLAYER_R = 15.75;
 	const BASE_FONT_SIZE = 28;
 	/** Only show locations within this many hops on the minimap. */
 	const MINIMAP_HOP_RADIUS = 1;
