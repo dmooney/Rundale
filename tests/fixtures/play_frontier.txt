@@ -1,0 +1,6 @@
+/status
+/map
+go to crossroads
+/map
+go to pub
+/map

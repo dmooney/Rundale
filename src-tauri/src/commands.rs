@@ -864,6 +864,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         {
             world.clock.advance(*minutes as i64);
             world.player_location = *destination;
+            world.mark_visited(*destination);
 
             // Update legacy locations map (clone data first to avoid borrow conflict)
             let new_loc = world

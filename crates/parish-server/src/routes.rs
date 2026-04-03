@@ -567,6 +567,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         {
             world.clock.advance(*minutes as i64);
             world.player_location = *destination;
+            world.mark_visited(*destination);
 
             let new_loc = world
                 .graph
