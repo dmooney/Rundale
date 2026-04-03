@@ -137,10 +137,10 @@ describe('ChatPanel', () => {
 			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
 			const { container } = render(ChatPanel);
 
-			const bubbleRow = container.querySelector('.bubble-row.npc') as HTMLElement;
-			expect(bubbleRow).toBeTruthy();
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			expect(anchor).toBeTruthy();
 
-			await fireEvent.mouseEnter(bubbleRow);
+			await fireEvent.mouseEnter(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
 		});
 
@@ -148,11 +148,11 @@ describe('ChatPanel', () => {
 			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
 			const { container } = render(ChatPanel);
 
-			const bubbleRow = container.querySelector('.bubble-row.npc') as HTMLElement;
-			await fireEvent.mouseEnter(bubbleRow);
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
 
-			await fireEvent.mouseLeave(bubbleRow);
+			await fireEvent.mouseLeave(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
 		});
 
@@ -160,8 +160,8 @@ describe('ChatPanel', () => {
 			textLog.set([{ id: 'msg-1', source: 'player', content: 'Hello' }]);
 			const { container } = render(ChatPanel);
 
-			const bubbleRow = container.querySelector('.bubble-row.player') as HTMLElement;
-			await fireEvent.mouseEnter(bubbleRow);
+			const anchor = container.querySelector('.bubble-row.player .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
 		});
 
@@ -169,8 +169,8 @@ describe('ChatPanel', () => {
 			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Hello...', streaming: true }]);
 			const { container } = render(ChatPanel);
 
-			const bubbleRow = container.querySelector('.bubble-row.npc') as HTMLElement;
-			await fireEvent.mouseEnter(bubbleRow);
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
 		});
 
@@ -178,8 +178,8 @@ describe('ChatPanel', () => {
 			textLog.set([{ source: 'Padraig', content: 'Hello' }]);
 			const { container } = render(ChatPanel);
 
-			const bubbleRow = container.querySelector('.bubble-row.npc') as HTMLElement;
-			await fireEvent.mouseEnter(bubbleRow);
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
 			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
 		});
 
@@ -189,8 +189,8 @@ describe('ChatPanel', () => {
 			const { container } = render(ChatPanel);
 
 			// Hover to show picker
-			const bubbleRow = container.querySelector('.bubble-row.npc') as HTMLElement;
-			await fireEvent.mouseEnter(bubbleRow);
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
 
 			// Click the first reaction button (😊)
 			const buttons = container.querySelectorAll('.reaction-btn');

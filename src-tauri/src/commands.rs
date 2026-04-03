@@ -1082,14 +1082,7 @@ async fn handle_npc_conversation(
 
     // Emit NPC name prefix as the start of the streaming entry
     let display_label = capitalize_first(&npc_name);
-    let _ = app.emit(
-        EVENT_TEXT_LOG,
-        TextLogPayload {
-            id: String::new(),
-            source: display_label,
-            content: String::new(),
-        },
-    );
+    let _ = app.emit(EVENT_TEXT_LOG, text_log(display_label, String::new()));
 
     // Pause the game clock while waiting for the inference response
     // and immediately notify the frontend so it stops interpolating.

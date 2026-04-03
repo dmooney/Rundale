@@ -82,35 +82,37 @@
 				{/if}
 			</div>
 		{:else}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="bubble-row {entryType(entry)}"
-				onmouseenter={() => { if (entryType(entry) === 'npc' && !entry.streaming && entry.id) hoveredMessageId = entry.id ?? null; }}
-				onmouseleave={() => { hoveredMessageId = null; }}
-			>
+			<div class="bubble-row {entryType(entry)}">
 				<div class="bubble-wrapper">
 					<span class="label">{displayLabel(entry)}</span>
-					<div class="bubble">
-						<span class="content"
-							>{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}{#if entry.streaming}<span class="cursor">▋</span
-							>{/if}</span
-						>
-					</div>
-
-					<!-- Reaction picker (on hover, NPC messages only) -->
-					{#if hoveredMessageId && hoveredMessageId === entry.id && entryType(entry) === 'npc'}
-						<div class="reaction-picker" role="toolbar" aria-label="React to message" data-testid="reaction-picker">
-							{#each REACTION_PALETTE as reaction}
-								<button
-									class="reaction-btn"
-									title={reaction.description}
-									onclick={() => handleReaction(entry, reaction.emoji)}
-								>
-									{reaction.emoji}
-								</button>
-							{/each}
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="bubble-anchor"
+						onmouseenter={() => { if (entryType(entry) === 'npc' && !entry.streaming && entry.id) hoveredMessageId = entry.id ?? null; }}
+						onmouseleave={() => { hoveredMessageId = null; }}
+					>
+						<div class="bubble">
+							<span class="content"
+								>{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}{#if entry.streaming}<span class="cursor">▋</span
+								>{/if}</span
+							>
 						</div>
-					{/if}
+
+						<!-- Reaction picker (floats over bubble, NPC messages only) -->
+						{#if hoveredMessageId && hoveredMessageId === entry.id && entryType(entry) === 'npc'}
+							<div class="reaction-picker" role="toolbar" aria-label="React to message" data-testid="reaction-picker">
+								{#each REACTION_PALETTE as reaction}
+									<button
+										class="reaction-btn"
+										title={reaction.description}
+										onclick={() => handleReaction(entry, reaction.emoji)}
+									>
+										{reaction.emoji}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 
 					<!-- Existing reactions -->
 					{#if entry.reactions && entry.reactions.length > 0}
@@ -252,17 +254,26 @@
 		}
 	}
 
-	/* Reaction picker */
+	/* Bubble anchor: positioning context for the floating reaction picker */
+	.bubble-anchor {
+		position: relative;
+		width: fit-content;
+	}
+
+	/* Reaction picker: floats over the bottom edge of the bubble */
 	.reaction-picker {
+		position: absolute;
+		top: calc(100% - 10px);
+		left: 0;
+		z-index: 10;
 		display: flex;
 		gap: 0.15rem;
 		padding: 0.2rem 0.25rem;
 		background: var(--color-panel-bg);
 		border: 1px solid var(--color-border);
 		border-radius: 12px;
-		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 		width: fit-content;
-		margin-top: 0.2rem;
 	}
 
 	.reaction-btn {
