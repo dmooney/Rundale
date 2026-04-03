@@ -45,3 +45,9 @@ tempfile = "3"
 [profile.release]
 opt-level = 3
 lto = true
+
+
+[[bin]]
+name = "parish-npc"
+path = "src/bin/parish_npc/main.rs"
+
