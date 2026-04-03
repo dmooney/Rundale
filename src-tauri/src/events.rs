@@ -29,6 +29,8 @@ pub const EVENT_SAVE_PICKER: &str = "save-picker";
 pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
 /// Event emitted when an NPC reacts to a message with an emoji.
 pub const EVENT_NPC_REACTION: &str = "npc-reaction";
+/// Event emitted when the player begins traveling between locations.
+pub const EVENT_TRAVEL_START: &str = "travel-start";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;

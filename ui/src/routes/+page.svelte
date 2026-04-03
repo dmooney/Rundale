@@ -14,6 +14,7 @@
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
+	import { startTravel } from '../stores/travel';
 	import {
 		getWorldSnapshot,
 		getMap,
@@ -30,7 +31,8 @@
 		onDebugUpdate,
 		onSavePicker,
 		onToggleFullMap,
-		onNpcReaction
+		onNpcReaction,
+		onTravelStart
 	} from '$lib/ipc';
 
 	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
@@ -200,6 +202,10 @@
 
 			onToggleFullMap(() => {
 				fullMapOpen.update((v) => !v);
+			}),
+
+			onTravelStart((payload) => {
+				startTravel(payload);
 			})
 		]);
 

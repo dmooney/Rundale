@@ -18,6 +18,7 @@ import type {
 	NpcReactionPayload,
 	WorldUpdatePayload,
 	LoadingPayload,
+	TravelStartPayload,
 	DebugSnapshot,
 	SaveFileInfo,
 	SaveState
@@ -190,3 +191,6 @@ export const onToggleFullMap = (cb: () => void) =>
 
 export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 	onEvent<NpcReactionPayload>('npc-reaction', cb);
+
+export const onTravelStart = (cb: (payload: TravelStartPayload) => void) =>
+	onEvent<TravelStartPayload>('travel-start', cb);

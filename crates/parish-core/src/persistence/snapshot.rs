@@ -147,6 +147,9 @@ pub struct GameSnapshot {
     /// Set of location IDs the player has visited (fog-of-war map).
     #[serde(default)]
     pub visited_locations: HashSet<LocationId>,
+    /// Edge traversal counts for "worn path" footprints on the map.
+    #[serde(default)]
+    pub edge_traversals: HashMap<(LocationId, LocationId), u32>,
     /// Gossip network state.
     #[serde(default)]
     pub gossip_network: GossipNetwork,
@@ -174,6 +177,7 @@ impl GameSnapshot {
             npcs,
             last_tier2_game_time: npc_manager.last_tier2_game_time(),
             visited_locations: world.visited_locations.clone(),
+            edge_traversals: world.edge_traversals.clone(),
             gossip_network: world.gossip_network.clone(),
         }
     }
@@ -225,6 +229,9 @@ impl GameSnapshot {
         // Restore visited locations; ensure current position is always visited
         world.visited_locations = self.visited_locations;
         world.visited_locations.insert(self.player_location);
+
+        // Restore edge traversal counts
+        world.edge_traversals = self.edge_traversals;
 
         // Restore NPCs
         *npc_manager = crate::npc::manager::NpcManager::new();

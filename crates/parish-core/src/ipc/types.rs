@@ -82,6 +82,13 @@ pub struct MapData {
     pub edges: Vec<(String, String)>,
     /// The player's current location id.
     pub player_location: String,
+    /// Edge traversal counts for footprint rendering.
+    ///
+    /// Each entry is `(source_id, target_id, count)` where the edge is
+    /// canonically ordered (smaller id first). Higher counts render as
+    /// thicker/lighter "worn path" lines on the map.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_traversals: Vec<(String, String, u32)>,
 }
 
 // ── NPC info ────────────────────────────────────────────────────────────────
@@ -193,6 +200,30 @@ pub struct LoadingPayload {
     pub active: bool,
 }
 
+/// A waypoint along a travel path, with screen-friendly coordinates.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TravelWaypoint {
+    /// Location ID at this waypoint.
+    pub id: String,
+    /// WGS-84 latitude.
+    pub lat: f64,
+    /// WGS-84 longitude.
+    pub lon: f64,
+}
+
+/// Payload for `travel-start` events, emitted when the player begins moving.
+///
+/// The frontend uses this to animate a moving dot along the path on the map.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TravelStartPayload {
+    /// Ordered waypoints from origin to destination (including both endpoints).
+    pub waypoints: Vec<TravelWaypoint>,
+    /// Total travel duration in game minutes.
+    pub duration_minutes: u16,
+    /// Destination location ID.
+    pub destination: String,
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -254,6 +285,7 @@ mod tests {
             }],
             edges: vec![("1".to_string(), "2".to_string())],
             player_location: "1".to_string(),
+            edge_traversals: vec![],
         };
         let json = serde_json::to_string(&data).unwrap();
         assert!(json.contains("Church"));

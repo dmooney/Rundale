@@ -157,10 +157,46 @@ pub fn build_map_data(world: &WorldState, speed_m_per_s: f64) -> MapData {
         }
     }
 
+    // Edge traversal counts for footprint rendering
+    let edge_traversals: Vec<(String, String, u32)> = world
+        .edge_traversals
+        .iter()
+        .filter(|((a, b), _)| visible.contains(a) && visible.contains(b))
+        .map(|((a, b), count)| (a.0.to_string(), b.0.to_string(), *count))
+        .collect();
+
     MapData {
         locations,
         edges,
         player_location: player_loc.0.to_string(),
+        edge_traversals,
+    }
+}
+
+/// Builds a [`TravelStartPayload`] from a movement path.
+///
+/// Extracts lat/lon coordinates from the world graph for each waypoint
+/// so the frontend can animate the player's travel along the path.
+pub fn build_travel_start(
+    path: &[crate::world::LocationId],
+    minutes: u16,
+    graph: &crate::world::graph::WorldGraph,
+) -> super::types::TravelStartPayload {
+    let waypoints = path
+        .iter()
+        .filter_map(|id| {
+            graph.get(*id).map(|data| super::types::TravelWaypoint {
+                id: id.0.to_string(),
+                lat: data.lat,
+                lon: data.lon,
+            })
+        })
+        .collect();
+
+    super::types::TravelStartPayload {
+        waypoints,
+        duration_minutes: minutes,
+        destination: path.last().map(|id| id.0.to_string()).unwrap_or_default(),
     }
 }
 
@@ -347,5 +383,57 @@ mod tests {
         assert!(theme.bg.starts_with('#'));
         assert_eq!(theme.bg.len(), 7);
         assert!(theme.fg.starts_with('#'));
+    }
+
+    #[test]
+    fn build_travel_start_basic() {
+        use crate::world::graph::WorldGraph;
+
+        let json = r#"{"locations": [
+            {"id": 1, "name": "A", "description_template": ".", "indoor": false, "public": true, "lat": 53.6, "lon": -8.1, "connections": [{"target": 2, "path_description": "road"}]},
+            {"id": 2, "name": "B", "description_template": ".", "indoor": false, "public": true, "lat": 53.61, "lon": -8.09, "connections": [{"target": 1, "path_description": "back"}]}
+        ]}"#;
+        let graph = WorldGraph::load_from_str(json).unwrap();
+        let path = vec![LocationId(1), LocationId(2)];
+        let payload = build_travel_start(&path, 5, &graph);
+        assert_eq!(payload.waypoints.len(), 2);
+        assert_eq!(payload.waypoints[0].id, "1");
+        assert_eq!(payload.waypoints[1].id, "2");
+        assert_eq!(payload.duration_minutes, 5);
+        assert_eq!(payload.destination, "2");
+        assert!((payload.waypoints[0].lat - 53.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn build_map_data_includes_edge_traversals() {
+        use crate::game_mod::{GameMod, find_default_mod};
+
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let start = world.player_location;
+            let neighbors = world.graph.neighbors(start);
+            if let Some((neighbor_id, _)) = neighbors.first() {
+                // Traverse the edge twice
+                world.record_path_traversal(&[start, *neighbor_id]);
+                world.record_path_traversal(&[start, *neighbor_id]);
+                world.mark_visited(*neighbor_id);
+
+                let map = build_map_data(&world, 1.25);
+                assert!(
+                    !map.edge_traversals.is_empty(),
+                    "should include edge traversals"
+                );
+                // Find the traversal for start<->neighbor
+                let start_str = start.0.to_string();
+                let neighbor_str = neighbor_id.0.to_string();
+                let found = map.edge_traversals.iter().any(|(a, b, count)| {
+                    ((a == &start_str && b == &neighbor_str)
+                        || (a == &neighbor_str && b == &start_str))
+                        && *count == 2
+                });
+                assert!(found, "should find traversal count of 2");
+            }
+        }
     }
 }

@@ -1271,13 +1271,14 @@ fn handle_headless_movement(app: &mut App, target: &str) {
     match result {
         MovementResult::Arrived {
             destination,
+            path,
             minutes,
             narration,
-            ..
         } => {
             println!("{}", narration);
             println!();
 
+            app.world.record_path_traversal(&path);
             app.world.clock.advance(minutes as i64);
             app.world.player_location = destination;
             app.world.mark_visited(destination);

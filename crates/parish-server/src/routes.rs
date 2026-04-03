@@ -564,10 +564,18 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         let mv = movement::resolve_movement(target, &world.graph, world.player_location, transport);
         if let MovementResult::Arrived {
             destination,
+            path,
             minutes,
             ..
         } = &mv
         {
+            // Emit travel-start before changing state so frontend can animate
+            let travel_payload = parish_core::ipc::build_travel_start(path, *minutes, &world.graph);
+            state.event_bus.emit("travel-start", &travel_payload);
+
+            // Record edge traversals for footprints
+            world.record_path_traversal(path);
+
             world.clock.advance(*minutes as i64);
             world.player_location = *destination;
             world.mark_visited(*destination);

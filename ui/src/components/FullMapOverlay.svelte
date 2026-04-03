@@ -1,12 +1,14 @@
 <script lang="ts">
-	import { mapData } from '../stores/game';
+	import { mapData, worldState } from '../stores/game';
+	import { travelState, getTravelPosition } from '../stores/travel';
 	import { submitInput } from '$lib/ipc';
 	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
-	import { projectWorld } from '$lib/map-projection';
+	import { projectWorld, SCALE, REF_CENTER_LAT, REF_CENTER_LON } from '$lib/map-projection';
 	import { getLocationIcon, ICON_PATHS, type LocationIcon } from '$lib/map-icons';
 	import type { MapLocation } from '$lib/types';
 	import type { ProjectedLocation } from '$lib/map-projection';
 	import type { ResolvedLabel } from '$lib/map-labels';
+	import { onMount } from 'svelte';
 
 	/** All unique icon keys used by current locations, for <defs>. */
 	let usedIcons: LocationIcon[] = $derived(
@@ -92,6 +94,90 @@
 		)
 	);
 
+	// ── Time-of-day atmosphere ───────────────────────────────────────────
+	let nightFactor: number = $derived.by(() => {
+		const h = $worldState?.hour ?? 12;
+		if (h >= 7 && h <= 17) return 0;
+		if (h >= 21 || h <= 4) return 1;
+		if (h >= 18 && h <= 20) return (h - 17) / 3;
+		return (7 - h) / 3;
+	});
+
+	const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;
+	function isLit(name: string): boolean {
+		return LIT_PATTERNS.test(name);
+	}
+
+	let weatherTint: string = $derived.by(() => {
+		const w = ($worldState?.weather ?? '').toLowerCase();
+		if (w.includes('rain') || w.includes('storm')) return 'weather-rain';
+		if (w.includes('fog')) return 'weather-fog';
+		return '';
+	});
+
+	// ── Travel animation ────────────────────────────────────────────────
+	let animFrame = $state(0);
+
+	function projectToLocal(lat: number, lon: number): { x: number; y: number } {
+		const cosLat = Math.cos(REF_CENTER_LAT * (Math.PI / 180));
+		const wx = (lon - REF_CENTER_LON) * SCALE * cosLat;
+		const wy = (REF_CENTER_LAT - lat) * SCALE;
+		return { x: wx - bounds.minX, y: wy - bounds.minY };
+	}
+
+	let travelDot: { x: number; y: number; progress: number } | null = $derived.by(() => {
+		const ts = $travelState;
+		if (!ts) return null;
+		const pos = getTravelPosition(ts, animFrame);
+		if (!pos) return null;
+		return { ...projectToLocal(pos.lat, pos.lon), progress: pos.progress };
+	});
+
+	let travelEdgeIds: Set<string> | null = $derived.by(() => {
+		const ts = $travelState;
+		if (!ts || ts.waypoints.length < 2) return null;
+		const set = new Set<string>();
+		for (let i = 0; i < ts.waypoints.length - 1; i++) {
+			const a = ts.waypoints[i].id;
+			const b = ts.waypoints[i + 1].id;
+			set.add(a < b ? `${a}-${b}` : `${b}-${a}`);
+		}
+		return set;
+	});
+
+	function isTravelEdge(src: string, dst: string): boolean {
+		if (!travelEdgeIds) return false;
+		const key = src < dst ? `${src}-${dst}` : `${dst}-${src}`;
+		return travelEdgeIds.has(key);
+	}
+
+	onMount(() => {
+		let raf: number;
+		function tick() {
+			animFrame = performance.now();
+			raf = requestAnimationFrame(tick);
+		}
+		const unsub = travelState.subscribe((ts) => {
+			if (ts) { raf = requestAnimationFrame(tick); }
+			else { cancelAnimationFrame(raf); }
+		});
+		return () => { cancelAnimationFrame(raf); unsub(); };
+	});
+
+	// ── Footprints ─────────────────────────────────────────────────────
+	let maxTraversal: number = $derived(
+		Math.max(1, ...($mapData?.edge_traversals ?? []).map(([, , c]) => c))
+	);
+
+	function edgeTraversalCount(src: string, dst: string): number {
+		const traversals = $mapData?.edge_traversals;
+		if (!traversals) return 0;
+		for (const [a, b, count] of traversals) {
+			if ((a === src && b === dst) || (a === dst && b === src)) return count;
+		}
+		return 0;
+	}
+
 	function isPlayer(loc: MapLocation): boolean {
 		return $mapData?.player_location === loc.id;
 	}
@@ -162,6 +248,7 @@
 				xmlns="http://www.w3.org/2000/svg"
 				role="img"
 				aria-label="Full parish map"
+				class={weatherTint}
 				style="transform: translate({panX}px, {panY}px) scale({zoom}); transform-origin: center;"
 			>
 				<defs>
@@ -170,16 +257,45 @@
 							<path d={ICON_PATHS[icon]} />
 						</symbol>
 					{/each}
+					{#if nightFactor > 0}
+						<filter id="fullmap-glow" x="-50%" y="-50%" width="200%" height="200%">
+							<feGaussianBlur in="SourceGraphic" stdDeviation={5 * nightFactor} result="blur" />
+							<feColorMatrix in="blur" type="matrix"
+								values="1 0 0 0 0.3  0 1 0 0 0.25  0 0 1 0 0.1  0 0 0 0.7 0"
+								result="glow" />
+							<feMerge>
+								<feMergeNode in="glow" />
+								<feMergeNode in="SourceGraphic" />
+							</feMerge>
+						</filter>
+					{/if}
 				</defs>
-				<!-- Edges -->
+
+				<!-- Night overlay -->
+				{#if nightFactor > 0}
+					<rect x="0" y="0" width={svgW} height={svgH}
+						fill="black" opacity={nightFactor * 0.45}
+						pointer-events="none" />
+				{/if}
+
+				<!-- Edges (with footprints and travel highlight) -->
 				{#each $mapData?.edges ?? [] as [src, dst]}
 					{@const a = localProjected.find((p) => p.id === src)}
 					{@const b = localProjected.find((p) => p.id === dst)}
 					{@const srcLoc = ($mapData?.locations ?? []).find((l) => l.id === src)}
 					{@const dstLoc = ($mapData?.locations ?? []).find((l) => l.id === dst)}
 					{@const isFrontierEdge = srcLoc?.visited === false || dstLoc?.visited === false}
+					{@const traversals = edgeTraversalCount(src, dst)}
+					{@const footprintWidth = traversals > 0 ? 1.5 + 2 * (traversals / maxTraversal) : 1.5}
+					{@const traveling = isTravelEdge(src, dst)}
 					{#if a && b}
-						<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" class:frontier-edge={isFrontierEdge} />
+						<line x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+							class="edge"
+							class:frontier-edge={isFrontierEdge}
+							class:travel-edge={traveling}
+							class:footprint={traversals > 0}
+							stroke-width={footprintWidth}
+						/>
 					{/if}
 				{/each}
 
@@ -206,6 +322,7 @@
 					{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
 					{@const icon = getLocationIcon(loc.name)}
 					{@const iconSize = r * 2}
+					{@const lit = nightFactor > 0 && isLit(loc.name) && loc.visited !== false}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<g
@@ -213,6 +330,8 @@
 						class:player={isPlayer(loc)}
 						class:adjacent={loc.adjacent}
 						class:frontier={loc.visited === false}
+						class:lit-node={lit}
+						filter={lit ? 'url(#fullmap-glow)' : undefined}
 						onclick={() => handleClick(loc)}
 						onmouseenter={() => (tooltip = { name: loc.name, indoor: loc.indoor, travel_minutes: loc.travel_minutes, visited: loc.visited })}
 						onmouseleave={() => (tooltip = null)}
@@ -239,6 +358,16 @@
 						{/if}
 					</g>
 				{/each}
+
+				<!-- Travel animation dot -->
+				{#if travelDot}
+					<circle
+						cx={travelDot.x}
+						cy={travelDot.y}
+						r={NODE_R * 0.8}
+						class="travel-dot"
+					/>
+				{/if}
 			</svg>
 		</div>
 		{#if tooltip}
@@ -402,6 +531,47 @@
 	.node.frontier.adjacent .node-icon {
 		opacity: 0.6;
 		cursor: pointer;
+	}
+
+	/* ── Footprints (worn paths) ── */
+	.edge.footprint {
+		opacity: 0.85;
+	}
+
+	/* ── Travel animation ── */
+	.edge.travel-edge {
+		stroke: var(--color-accent);
+		opacity: 0.9;
+	}
+
+	.travel-dot {
+		fill: var(--color-accent);
+		stroke: var(--color-fg);
+		stroke-width: 1.5;
+		animation: travel-pulse 0.6s ease-in-out infinite alternate;
+	}
+
+	@keyframes travel-pulse {
+		from { opacity: 0.8; }
+		to { opacity: 1; }
+	}
+
+	/* ── Night atmosphere ── */
+	.node.lit-node .node-icon {
+		fill: var(--color-accent);
+	}
+
+	.node.lit-node .node-label {
+		fill: var(--color-accent);
+	}
+
+	/* ── Weather tinting ── */
+	svg.weather-rain {
+		filter: saturate(0.85) brightness(0.92);
+	}
+
+	svg.weather-fog {
+		filter: saturate(0.6) contrast(0.85) brightness(1.05);
 	}
 
 	.tooltip-unexplored {

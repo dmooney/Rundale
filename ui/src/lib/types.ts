@@ -35,6 +35,22 @@ export interface MapData {
 	player_location: string;
 	player_lat: number;
 	player_lon: number;
+	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count]. */
+	edge_traversals?: [string, string, number][];
+}
+
+/** A waypoint along a travel path. */
+export interface TravelWaypoint {
+	id: string;
+	lat: number;
+	lon: number;
+}
+
+/** Payload for travel-start events (animated travel on the map). */
+export interface TravelStartPayload {
+	waypoints: TravelWaypoint[];
+	duration_minutes: number;
+	destination: string;
 }
 
 export interface NpcInfo {

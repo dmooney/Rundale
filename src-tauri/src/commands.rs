@@ -23,8 +23,8 @@ use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, NpcReactionPayload,
-    StreamEndPayload, TextLogPayload, spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
+    NpcReactionPayload, StreamEndPayload, TextLogPayload, spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -222,6 +222,7 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
         player_location: core_map.player_location,
         player_lat,
         player_lon,
+        edge_traversals: core_map.edge_traversals,
     })
 }
 
@@ -870,10 +871,18 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             movement::resolve_movement(target, &world.graph, world.player_location, &transport);
         if let MovementResult::Arrived {
             destination,
+            path,
             minutes,
             ..
         } = &mv
         {
+            // Emit travel-start before changing state so frontend can animate
+            let travel_payload = parish_core::ipc::build_travel_start(path, *minutes, &world.graph);
+            let _ = app.emit(EVENT_TRAVEL_START, travel_payload);
+
+            // Record edge traversals for footprints
+            world.record_path_traversal(path);
+
             world.clock.advance(*minutes as i64);
             world.player_location = *destination;
             world.mark_visited(*destination);

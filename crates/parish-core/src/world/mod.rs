@@ -82,7 +82,7 @@ impl fmt::Display for Weather {
 }
 
 /// Unique identifier for a location in the world graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct LocationId(pub u32);
 
@@ -132,6 +132,11 @@ pub struct WorldState {
     pub event_bus: EventBus,
     /// Set of location IDs the player has visited (for fog-of-war map).
     pub visited_locations: HashSet<LocationId>,
+    /// Edge traversal counts for "worn path" footprints on the map.
+    ///
+    /// Keys are canonically ordered `(min_id, max_id)` pairs. The count
+    /// increments each time the player walks along that edge.
+    pub edge_traversals: HashMap<(LocationId, LocationId), u32>,
     /// Gossip propagation network tracking information spread among NPCs.
     pub gossip_network: GossipNetwork,
 }
@@ -174,6 +179,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([crossroads_id]),
+            edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
         }
     }
@@ -220,6 +226,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([start_location]),
+            edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
         })
     }
@@ -277,6 +284,7 @@ impl WorldState {
             text_log: Vec::new(),
             event_bus: EventBus::new(),
             visited_locations: HashSet::from([start_location]),
+            edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
         })
     }
@@ -284,6 +292,21 @@ impl WorldState {
     /// Marks a location as visited for the fog-of-war map.
     pub fn mark_visited(&mut self, id: LocationId) {
         self.visited_locations.insert(id);
+    }
+
+    /// Records a traversal along a path of locations, incrementing edge counts.
+    ///
+    /// Edges are stored in canonical order (smaller ID first) so that
+    /// A→B and B→A are the same edge.
+    pub fn record_path_traversal(&mut self, path: &[LocationId]) {
+        for window in path.windows(2) {
+            let (a, b) = if window[0] < window[1] {
+                (window[0], window[1])
+            } else {
+                (window[1], window[0])
+            };
+            *self.edge_traversals.entry((a, b)).or_insert(0) += 1;
+        }
     }
 
     /// Returns a reference to the player's current location.
@@ -423,5 +446,75 @@ mod tests {
             assert_eq!(data.name, "Kilteevan Village");
             assert!(data.description_template.contains("{time}"));
         }
+    }
+
+    #[test]
+    fn test_record_path_traversal() {
+        let mut world = WorldState::new();
+        assert!(world.edge_traversals.is_empty());
+
+        // Single edge
+        world.record_path_traversal(&[LocationId(1), LocationId(2)]);
+        assert_eq!(
+            *world
+                .edge_traversals
+                .get(&(LocationId(1), LocationId(2)))
+                .unwrap(),
+            1
+        );
+
+        // Same edge again increments
+        world.record_path_traversal(&[LocationId(2), LocationId(1)]);
+        assert_eq!(
+            *world
+                .edge_traversals
+                .get(&(LocationId(1), LocationId(2)))
+                .unwrap(),
+            2
+        );
+
+        // Multi-hop path
+        world.record_path_traversal(&[LocationId(3), LocationId(4), LocationId(5)]);
+        assert_eq!(
+            *world
+                .edge_traversals
+                .get(&(LocationId(3), LocationId(4)))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            *world
+                .edge_traversals
+                .get(&(LocationId(4), LocationId(5)))
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_record_path_traversal_canonical_order() {
+        let mut world = WorldState::new();
+
+        // Forward: (5, 3) should become (3, 5)
+        world.record_path_traversal(&[LocationId(5), LocationId(3)]);
+        assert!(
+            world
+                .edge_traversals
+                .contains_key(&(LocationId(3), LocationId(5)))
+        );
+        assert!(
+            !world
+                .edge_traversals
+                .contains_key(&(LocationId(5), LocationId(3)))
+        );
+    }
+
+    #[test]
+    fn test_record_path_traversal_empty_and_single() {
+        let mut world = WorldState::new();
+        // Empty path and single-element path should be no-ops
+        world.record_path_traversal(&[]);
+        world.record_path_traversal(&[LocationId(1)]);
+        assert!(world.edge_traversals.is_empty());
     }
 }

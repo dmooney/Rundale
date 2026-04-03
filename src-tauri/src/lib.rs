@@ -96,6 +96,9 @@ pub struct MapData {
     pub player_lat: f64,
     /// Player's WGS-84 longitude (for centering the minimap).
     pub player_lon: f64,
+    /// Edge traversal counts for footprint rendering: `(src_id, dst_id, count)`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_traversals: Vec<(String, String, u32)>,
 }
 
 /// Minimal NPC info for the sidebar.
