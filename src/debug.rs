@@ -263,12 +263,19 @@ fn debug_schedule(app: &App, name: Option<&str>) -> Vec<String> {
 
     match &npc.schedule {
         Some(schedule) => {
-            for entry in &schedule.entries {
-                let loc = location_name(entry.location, &app.world.graph);
-                lines.push(format!(
-                    "  {:02}:00-{:02}:00  {}  ({})",
-                    entry.start_hour, entry.end_hour, loc, entry.activity
-                ));
+            let season = app.world.clock.season();
+            let day_type = app.world.clock.day_type();
+            if let Some(entries) = schedule.resolve(season, day_type) {
+                lines.push(format!("  (resolved for {}, {})", season, day_type));
+                for entry in entries {
+                    let loc = location_name(entry.location, &app.world.graph);
+                    lines.push(format!(
+                        "  {:02}:00-{:02}:00  {}  ({})",
+                        entry.start_hour, entry.end_hour, loc, entry.activity
+                    ));
+                }
+            } else {
+                lines.push("  (no matching schedule variant)".to_string());
             }
         }
         None => lines.push("  (no schedule)".to_string()),

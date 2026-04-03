@@ -8,6 +8,7 @@
 //! loaded from a mod's [`FestivalDef`](crate::game_mod::FestivalDef) data.
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Instant;
 
@@ -49,7 +50,8 @@ impl fmt::Display for TimeOfDay {
 }
 
 /// Represents the four seasons of the year.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Season {
     /// March–May
     Spring,
@@ -86,6 +88,42 @@ impl fmt::Display for Season {
             Season::Summer => write!(f, "Summer"),
             Season::Autumn => write!(f, "Autumn"),
             Season::Winter => write!(f, "Winter"),
+        }
+    }
+}
+
+/// The type of day, affecting NPC schedules.
+///
+/// In 1820s rural Ireland, Sunday (Mass day) and market day (Saturday)
+/// had distinctly different rhythms from ordinary weekdays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DayType {
+    /// Monday through Friday — ordinary working days.
+    Weekday,
+    /// Sunday — Mass, socializing, no field work.
+    Sunday,
+    /// Saturday — market day in the nearest town.
+    MarketDay,
+}
+
+impl DayType {
+    /// Determines the day type from a calendar date.
+    pub fn from_date(date: NaiveDate) -> Self {
+        match date.weekday() {
+            chrono::Weekday::Sun => DayType::Sunday,
+            chrono::Weekday::Sat => DayType::MarketDay,
+            _ => DayType::Weekday,
+        }
+    }
+}
+
+impl fmt::Display for DayType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DayType::Weekday => write!(f, "Weekday"),
+            DayType::Sunday => write!(f, "Sunday"),
+            DayType::MarketDay => write!(f, "Market Day"),
         }
     }
 }
@@ -285,6 +323,11 @@ impl GameClock {
     /// Returns the current season.
     pub fn season(&self) -> Season {
         Season::from_date(self.now().date_naive())
+    }
+
+    /// Returns the current day type (weekday, Sunday, or market day).
+    pub fn day_type(&self) -> DayType {
+        DayType::from_date(self.now().date_naive())
     }
 
     /// Checks if today is a festival day using the hardcoded [`Festival`] enum.

@@ -63,6 +63,8 @@
 		<span class="sep">|</span>
 		<span class="time-label">{displayTimeLabel}</span>
 		<span class="sep">|</span>
+		<span class="day-of-week">{$worldState.day_of_week}</span>
+		<span class="sep">|</span>
 		<span class="weather">{$worldState.weather}</span>
 		<span class="sep">|</span>
 		<span class="season">{$worldState.season}</span>

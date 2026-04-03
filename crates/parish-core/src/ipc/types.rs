@@ -36,6 +36,8 @@ pub struct WorldSnapshot {
     pub game_epoch_ms: f64,
     /// Clock speed multiplier (1 real second = speed_factor game seconds).
     pub speed_factor: f64,
+    /// Current day of week (e.g. "Monday", "Saturday").
+    pub day_of_week: String,
 }
 
 // ── Map data ────────────────────────────────────────────────────────────────
@@ -228,6 +230,7 @@ mod tests {
             paused: false,
             game_epoch_ms: 1234567890.0,
             speed_factor: 36.0,
+            day_of_week: "Monday".to_string(),
         };
         let json = serde_json::to_string(&snap).unwrap();
         let deser: WorldSnapshot = serde_json::from_str(&json).unwrap();

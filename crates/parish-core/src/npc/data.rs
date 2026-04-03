@@ -12,10 +12,12 @@ use crate::error::ParishError;
 use crate::npc::memory::{LongTermMemory, ShortTermMemory};
 use crate::npc::reactions::ReactionLog;
 use crate::npc::types::{
-    DailySchedule, Intelligence, NpcState, Relationship, RelationshipKind, ScheduleEntry,
+    Intelligence, NpcState, Relationship, RelationshipKind, ScheduleEntry, ScheduleVariant,
+    SeasonalSchedule,
 };
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
+use crate::world::time::{DayType, Season};
 
 /// Top-level JSON structure for the NPC data file.
 #[derive(Debug, Deserialize)]
@@ -24,6 +26,12 @@ struct NpcFile {
 }
 
 /// A single NPC entry in the data file.
+///
+/// Supports two schedule formats for backward compatibility:
+/// - Legacy: `"schedule": [...]` — flat array of entries, treated as the default variant.
+/// - New: `"seasonal_schedule": [...]` — array of variants with optional season/day_type.
+///
+/// If both are present, `seasonal_schedule` takes priority.
 #[derive(Debug, Deserialize)]
 struct NpcFileEntry {
     id: u32,
@@ -38,7 +46,12 @@ struct NpcFileEntry {
     home: u32,
     workplace: Option<u32>,
     mood: String,
-    schedule: Vec<ScheduleFileEntry>,
+    /// Legacy flat schedule (backward compat).
+    #[serde(default)]
+    schedule: Option<Vec<ScheduleFileEntry>>,
+    /// Season-aware schedule with variants.
+    #[serde(default)]
+    seasonal_schedule: Option<Vec<ScheduleVariantFileEntry>>,
     relationships: Vec<RelationshipFileEntry>,
     #[serde(default)]
     knowledge: Vec<String>,
@@ -89,6 +102,18 @@ struct ScheduleFileEntry {
     end_hour: u8,
     location: u32,
     activity: String,
+    #[serde(default)]
+    cuaird: bool,
+}
+
+/// A schedule variant in the seasonal_schedule data file format.
+#[derive(Debug, Deserialize)]
+struct ScheduleVariantFileEntry {
+    #[serde(default)]
+    season: Option<Season>,
+    #[serde(default)]
+    day_type: Option<DayType>,
+    entries: Vec<ScheduleFileEntry>,
 }
 
 /// A relationship entry in the data file.
@@ -97,6 +122,53 @@ struct RelationshipFileEntry {
     target_id: u32,
     kind: RelationshipKind,
     strength: f64,
+}
+
+/// Converts raw file schedule entries into [`ScheduleEntry`] values.
+fn convert_entries(entries: &[ScheduleFileEntry]) -> Vec<ScheduleEntry> {
+    entries
+        .iter()
+        .map(|s| ScheduleEntry {
+            start_hour: s.start_hour,
+            end_hour: s.end_hour,
+            location: LocationId(s.location),
+            activity: s.activity.clone(),
+            cuaird: s.cuaird,
+        })
+        .collect()
+}
+
+/// Builds a [`SeasonalSchedule`] from an NPC file entry.
+///
+/// Supports two formats:
+/// - `seasonal_schedule`: array of variants with optional season/day_type (preferred).
+/// - `schedule`: legacy flat array, wrapped as a single default variant.
+fn build_seasonal_schedule(entry: &NpcFileEntry) -> SeasonalSchedule {
+    if let Some(variants) = &entry.seasonal_schedule {
+        SeasonalSchedule {
+            variants: variants
+                .iter()
+                .map(|v| ScheduleVariant {
+                    season: v.season,
+                    day_type: v.day_type,
+                    entries: convert_entries(&v.entries),
+                })
+                .collect(),
+        }
+    } else if let Some(flat) = &entry.schedule {
+        // Legacy format: wrap as a single default variant (None, None)
+        SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: convert_entries(flat),
+            }],
+        }
+    } else {
+        SeasonalSchedule {
+            variants: Vec::new(),
+        }
+    }
 }
 
 /// Loads NPCs from a JSON data file.
@@ -125,18 +197,7 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
         .npcs
         .iter()
         .map(|entry| {
-            let schedule = DailySchedule {
-                entries: entry
-                    .schedule
-                    .iter()
-                    .map(|s| ScheduleEntry {
-                        start_hour: s.start_hour,
-                        end_hour: s.end_hour,
-                        location: LocationId(s.location),
-                        activity: s.activity.clone(),
-                    })
-                    .collect(),
-            };
+            let schedule = build_seasonal_schedule(entry);
 
             let relationships: HashMap<NpcId, Relationship> = entry
                 .relationships
@@ -272,7 +333,7 @@ mod tests {
             );
             let schedule = npc.schedule.as_ref().unwrap();
             assert!(
-                !schedule.entries.is_empty(),
+                !schedule.variants.is_empty(),
                 "{} schedule should not be empty",
                 npc.name
             );
@@ -381,5 +442,131 @@ mod tests {
                 npc.name
             );
         }
+    }
+
+    #[test]
+    fn test_legacy_schedule_loaded_as_default_variant() {
+        let json = r#"{
+            "npcs": [{
+                "id": 99,
+                "name": "Legacy NPC",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "schedule": [
+                    {"start_hour": 0, "end_hour": 11, "location": 1, "activity": "sleeping"},
+                    {"start_hour": 12, "end_hour": 23, "location": 2, "activity": "working"}
+                ],
+                "relationships": []
+            }]
+        }"#;
+        let npcs = load_npcs_from_str(json).unwrap();
+        let sched = npcs[0].schedule.as_ref().unwrap();
+        // Legacy format should produce a single default variant
+        assert_eq!(sched.variants.len(), 1);
+        assert!(sched.variants[0].season.is_none());
+        assert!(sched.variants[0].day_type.is_none());
+        assert_eq!(sched.variants[0].entries.len(), 2);
+        // Should resolve for any season/day combination
+        use crate::world::time::{DayType, Season};
+        let loc = sched.location_at(15, Season::Winter, DayType::Sunday);
+        assert_eq!(loc, Some(LocationId(2)));
+    }
+
+    #[test]
+    fn test_seasonal_schedule_loaded_with_variants() {
+        let json = r#"{
+            "npcs": [{
+                "id": 99,
+                "name": "Seasonal NPC",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "seasonal_schedule": [
+                    {
+                        "entries": [
+                            {"start_hour": 0, "end_hour": 23, "location": 1, "activity": "default routine"}
+                        ]
+                    },
+                    {
+                        "season": "winter",
+                        "entries": [
+                            {"start_hour": 0, "end_hour": 23, "location": 2, "activity": "winter routine"}
+                        ]
+                    },
+                    {
+                        "day_type": "sunday",
+                        "entries": [
+                            {"start_hour": 0, "end_hour": 23, "location": 3, "activity": "sunday mass"}
+                        ]
+                    }
+                ],
+                "relationships": []
+            }]
+        }"#;
+        let npcs = load_npcs_from_str(json).unwrap();
+        let sched = npcs[0].schedule.as_ref().unwrap();
+        assert_eq!(sched.variants.len(), 3);
+
+        use crate::world::time::{DayType, Season};
+        // Summer weekday -> default (location 1)
+        assert_eq!(
+            sched.location_at(12, Season::Summer, DayType::Weekday),
+            Some(LocationId(1))
+        );
+        // Winter weekday -> winter variant (location 2)
+        assert_eq!(
+            sched.location_at(12, Season::Winter, DayType::Weekday),
+            Some(LocationId(2))
+        );
+        // Summer sunday -> sunday variant (location 3)
+        assert_eq!(
+            sched.location_at(12, Season::Summer, DayType::Sunday),
+            Some(LocationId(3))
+        );
+    }
+
+    #[test]
+    fn test_cuaird_flag_loaded() {
+        let json = r#"{
+            "npcs": [{
+                "id": 99,
+                "name": "Cuaird NPC",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "seasonal_schedule": [
+                    {
+                        "entries": [
+                            {"start_hour": 0, "end_hour": 18, "location": 1, "activity": "working"},
+                            {"start_hour": 19, "end_hour": 23, "location": 2, "activity": "visiting neighbours", "cuaird": true}
+                        ]
+                    }
+                ],
+                "relationships": []
+            }]
+        }"#;
+        let npcs = load_npcs_from_str(json).unwrap();
+        let sched = npcs[0].schedule.as_ref().unwrap();
+        use crate::world::time::{DayType, Season};
+        let entry = sched
+            .entry_at(20, Season::Summer, DayType::Weekday)
+            .unwrap();
+        assert!(entry.cuaird);
+        assert_eq!(entry.activity, "visiting neighbours");
+
+        let entry = sched
+            .entry_at(10, Season::Summer, DayType::Weekday)
+            .unwrap();
+        assert!(!entry.cuaird);
     }
 }

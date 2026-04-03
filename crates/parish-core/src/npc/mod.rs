@@ -18,13 +18,14 @@ pub mod types;
 
 use std::collections::HashMap;
 
+use crate::world::time::{DayType, Season};
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
 use memory::{LongTermMemory, ShortTermMemory};
 use reactions::ReactionLog;
 use transitions::NpcSummary;
-use types::{DailySchedule, Intelligence, NpcState, Relationship};
+use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 
 /// A pronunciation hint for a word in the setting's secondary language.
 ///
@@ -139,8 +140,8 @@ pub struct Npc {
     pub home: Option<LocationId>,
     /// Workplace location (where the NPC works).
     pub workplace: Option<LocationId>,
-    /// Daily schedule defining where the NPC goes at what time.
-    pub schedule: Option<DailySchedule>,
+    /// Season- and day-aware schedule defining where the NPC goes.
+    pub schedule: Option<SeasonalSchedule>,
     /// Relationships to other NPCs, keyed by their id.
     pub relationships: HashMap<NpcId, Relationship>,
     /// Ring buffer of recent memories.
@@ -205,11 +206,28 @@ impl Npc {
         }
     }
 
-    /// Returns the NPC's desired location based on their schedule and the current hour.
+    /// Returns the NPC's desired location based on their schedule and the current context.
     ///
     /// Returns `None` if the NPC has no schedule or no entry covers the hour.
-    pub fn desired_location(&self, hour: u8) -> Option<LocationId> {
-        self.schedule.as_ref()?.location_at(hour)
+    pub fn desired_location(
+        &self,
+        hour: u8,
+        season: Season,
+        day_type: DayType,
+    ) -> Option<LocationId> {
+        self.schedule.as_ref()?.location_at(hour, season, day_type)
+    }
+
+    /// Returns the active schedule entry for the current context.
+    ///
+    /// Returns `None` if the NPC has no schedule or no entry covers the hour.
+    pub fn schedule_entry(
+        &self,
+        hour: u8,
+        season: Season,
+        day_type: DayType,
+    ) -> Option<&types::ScheduleEntry> {
+        self.schedule.as_ref()?.entry_at(hour, season, day_type)
     }
 }
 

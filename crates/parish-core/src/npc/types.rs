@@ -10,6 +10,7 @@ use std::fmt;
 
 use crate::npc::NpcId;
 use crate::world::LocationId;
+use crate::world::time::{DayType, Season};
 
 /// Multidimensional intelligence profile for an NPC.
 ///
@@ -328,6 +329,13 @@ pub struct ScheduleEntry {
     pub location: LocationId,
     /// What the NPC does during this slot (e.g. "tending bar").
     pub activity: String,
+    /// Whether this is a cuaird (visiting round) slot.
+    ///
+    /// When true, the location rotates among the NPC's friends' homes
+    /// on different days, recreating the 1820s Irish tradition of
+    /// neighbors gathering for storytelling and music.
+    #[serde(default)]
+    pub cuaird: bool,
 }
 
 /// An NPC's daily schedule.
@@ -353,6 +361,93 @@ impl DailySchedule {
     /// Returns the desired location at the given hour.
     pub fn location_at(&self, hour: u8) -> Option<LocationId> {
         self.entry_at(hour).map(|e| e.location)
+    }
+}
+
+/// A single variant of an NPC's schedule, optionally scoped to a season and/or day type.
+///
+/// When both `season` and `day_type` are `None`, this is the default fallback schedule.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScheduleVariant {
+    /// Season this variant applies to, or `None` for any season.
+    #[serde(default)]
+    pub season: Option<Season>,
+    /// Day type this variant applies to, or `None` for any day.
+    #[serde(default)]
+    pub day_type: Option<DayType>,
+    /// The schedule entries for this variant.
+    pub entries: Vec<ScheduleEntry>,
+}
+
+/// Season- and day-aware schedule for an NPC.
+///
+/// Contains named schedule variants scoped by optional `(season, day_type)`.
+/// Resolution order when looking up the active schedule:
+///   1. Exact match: `(Some(season), Some(day_type))`
+///   2. Season only: `(Some(season), None)`
+///   3. Day type only: `(None, Some(day_type))`
+///   4. Default: `(None, None)`
+///
+/// This allows NPCs to declare only the variants that differ from their
+/// default routine. A publican might need only weekday/sunday variants,
+/// while a farmer needs summer/winter × weekday/sunday.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SeasonalSchedule {
+    /// Schedule variants in priority order (resolution searches linearly).
+    pub variants: Vec<ScheduleVariant>,
+}
+
+impl SeasonalSchedule {
+    /// Resolves the best-matching schedule entries for the given context.
+    ///
+    /// Fallback order: exact match → season-only → day-only → default.
+    pub fn resolve(&self, season: Season, day_type: DayType) -> Option<&[ScheduleEntry]> {
+        // 1. Exact match: both season and day_type
+        if let Some(v) = self
+            .variants
+            .iter()
+            .find(|v| v.season == Some(season) && v.day_type == Some(day_type))
+        {
+            return Some(&v.entries);
+        }
+        // 2. Season only (any day)
+        if let Some(v) = self
+            .variants
+            .iter()
+            .find(|v| v.season == Some(season) && v.day_type.is_none())
+        {
+            return Some(&v.entries);
+        }
+        // 3. Day type only (any season)
+        if let Some(v) = self
+            .variants
+            .iter()
+            .find(|v| v.season.is_none() && v.day_type == Some(day_type))
+        {
+            return Some(&v.entries);
+        }
+        // 4. Default (both None)
+        if let Some(v) = self
+            .variants
+            .iter()
+            .find(|v| v.season.is_none() && v.day_type.is_none())
+        {
+            return Some(&v.entries);
+        }
+        None
+    }
+
+    /// Returns the schedule entry active at the given hour for the given context.
+    pub fn entry_at(&self, hour: u8, season: Season, day_type: DayType) -> Option<&ScheduleEntry> {
+        let entries = self.resolve(season, day_type)?;
+        entries
+            .iter()
+            .find(|e| hour >= e.start_hour && hour <= e.end_hour)
+    }
+
+    /// Returns the desired location at the given hour for the given context.
+    pub fn location_at(&self, hour: u8, season: Season, day_type: DayType) -> Option<LocationId> {
+        self.entry_at(hour, season, day_type).map(|e| e.location)
     }
 }
 
@@ -494,18 +589,21 @@ mod tests {
                     end_hour: 11,
                     location: LocationId(2),
                     activity: "opening the pub".to_string(),
+                    cuaird: false,
                 },
                 ScheduleEntry {
                     start_hour: 12,
                     end_hour: 22,
                     location: LocationId(2),
                     activity: "tending bar".to_string(),
+                    cuaird: false,
                 },
                 ScheduleEntry {
                     start_hour: 23,
                     end_hour: 5,
                     location: LocationId(1),
                     activity: "sleeping".to_string(),
+                    cuaird: false,
                 },
             ],
         };
@@ -529,6 +627,7 @@ mod tests {
                 end_hour: 17,
                 location: LocationId(3),
                 activity: "teaching".to_string(),
+                cuaird: false,
             }],
         };
 
@@ -716,5 +815,184 @@ mod tests {
         let a = Intelligence::new(1, 2, 3, 4, 5, 1);
         let b = a; // Copy
         assert_eq!(a, b);
+    }
+
+    // --- SeasonalSchedule tests ---
+
+    fn make_entry(start: u8, end: u8, loc: u32, activity: &str) -> ScheduleEntry {
+        ScheduleEntry {
+            start_hour: start,
+            end_hour: end,
+            location: LocationId(loc),
+            activity: activity.to_string(),
+            cuaird: false,
+        }
+    }
+
+    fn make_variant(
+        season: Option<Season>,
+        day_type: Option<DayType>,
+        entries: Vec<ScheduleEntry>,
+    ) -> ScheduleVariant {
+        ScheduleVariant {
+            season,
+            day_type,
+            entries,
+        }
+    }
+
+    #[test]
+    fn test_seasonal_resolve_exact_match() {
+        let sched = SeasonalSchedule {
+            variants: vec![
+                make_variant(None, None, vec![make_entry(0, 23, 1, "default")]),
+                make_variant(
+                    Some(Season::Winter),
+                    Some(DayType::Sunday),
+                    vec![make_entry(0, 23, 3, "winter sunday mass")],
+                ),
+            ],
+        };
+        let entries = sched.resolve(Season::Winter, DayType::Sunday).unwrap();
+        assert_eq!(entries[0].activity, "winter sunday mass");
+    }
+
+    #[test]
+    fn test_seasonal_resolve_season_only_fallback() {
+        let sched = SeasonalSchedule {
+            variants: vec![
+                make_variant(None, None, vec![make_entry(0, 23, 1, "default")]),
+                make_variant(
+                    Some(Season::Winter),
+                    None,
+                    vec![make_entry(0, 23, 2, "winter routine")],
+                ),
+            ],
+        };
+        // Winter weekday should match season-only variant
+        let entries = sched.resolve(Season::Winter, DayType::Weekday).unwrap();
+        assert_eq!(entries[0].activity, "winter routine");
+    }
+
+    #[test]
+    fn test_seasonal_resolve_day_only_fallback() {
+        let sched = SeasonalSchedule {
+            variants: vec![
+                make_variant(None, None, vec![make_entry(0, 23, 1, "default")]),
+                make_variant(
+                    None,
+                    Some(DayType::Sunday),
+                    vec![make_entry(0, 23, 3, "sunday routine")],
+                ),
+            ],
+        };
+        // Summer sunday should match day-only variant
+        let entries = sched.resolve(Season::Summer, DayType::Sunday).unwrap();
+        assert_eq!(entries[0].activity, "sunday routine");
+    }
+
+    #[test]
+    fn test_seasonal_resolve_default_fallback() {
+        let sched = SeasonalSchedule {
+            variants: vec![make_variant(
+                None,
+                None,
+                vec![make_entry(0, 23, 1, "default")],
+            )],
+        };
+        // Any combination should match the default
+        let entries = sched.resolve(Season::Autumn, DayType::MarketDay).unwrap();
+        assert_eq!(entries[0].activity, "default");
+    }
+
+    #[test]
+    fn test_seasonal_resolve_priority_order() {
+        // Exact match should win over season-only, day-only, and default
+        let sched = SeasonalSchedule {
+            variants: vec![
+                make_variant(None, None, vec![make_entry(0, 23, 1, "default")]),
+                make_variant(
+                    Some(Season::Summer),
+                    None,
+                    vec![make_entry(0, 23, 2, "summer")],
+                ),
+                make_variant(
+                    None,
+                    Some(DayType::Sunday),
+                    vec![make_entry(0, 23, 3, "sunday")],
+                ),
+                make_variant(
+                    Some(Season::Summer),
+                    Some(DayType::Sunday),
+                    vec![make_entry(0, 23, 4, "summer sunday")],
+                ),
+            ],
+        };
+        let entries = sched.resolve(Season::Summer, DayType::Sunday).unwrap();
+        assert_eq!(entries[0].activity, "summer sunday");
+        assert_eq!(entries[0].location, LocationId(4));
+    }
+
+    #[test]
+    fn test_seasonal_resolve_none_when_empty() {
+        let sched = SeasonalSchedule {
+            variants: Vec::new(),
+        };
+        assert!(sched.resolve(Season::Spring, DayType::Weekday).is_none());
+    }
+
+    #[test]
+    fn test_seasonal_location_at() {
+        let sched = SeasonalSchedule {
+            variants: vec![
+                make_variant(
+                    None,
+                    None,
+                    vec![
+                        make_entry(0, 7, 10, "sleeping"),
+                        make_entry(8, 17, 9, "working"),
+                        make_entry(18, 23, 10, "evening"),
+                    ],
+                ),
+                make_variant(
+                    None,
+                    Some(DayType::Sunday),
+                    vec![
+                        make_entry(0, 7, 10, "sleeping"),
+                        make_entry(8, 10, 3, "mass"),
+                        make_entry(11, 23, 2, "pub"),
+                    ],
+                ),
+            ],
+        };
+        // Weekday at 10am -> working at location 9
+        assert_eq!(
+            sched.location_at(10, Season::Spring, DayType::Weekday),
+            Some(LocationId(9))
+        );
+        // Sunday at 10am -> mass at location 3
+        assert_eq!(
+            sched.location_at(10, Season::Spring, DayType::Sunday),
+            Some(LocationId(3))
+        );
+        // Sunday at 20pm -> pub at location 2
+        assert_eq!(
+            sched.location_at(20, Season::Spring, DayType::Sunday),
+            Some(LocationId(2))
+        );
+    }
+
+    #[test]
+    fn test_seasonal_entry_at_returns_cuaird() {
+        let mut entry = make_entry(19, 21, 2, "cuaird visiting");
+        entry.cuaird = true;
+        let sched = SeasonalSchedule {
+            variants: vec![make_variant(None, None, vec![entry])],
+        };
+        let resolved = sched
+            .entry_at(20, Season::Summer, DayType::Weekday)
+            .unwrap();
+        assert!(resolved.cuaird);
+        assert_eq!(resolved.activity, "cuaird visiting");
     }
 }

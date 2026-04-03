@@ -13,6 +13,7 @@ export interface WorldSnapshot {
 	game_epoch_ms: number;
 	speed_factor: number;
 	name_hints: LanguageHint[];
+	day_of_week: string;
 }
 
 export interface MapLocation {
@@ -130,6 +131,8 @@ export interface ClockDebug {
 	weather: string;
 	paused: boolean;
 	speed_factor: number;
+	day_of_week: string;
+	day_type: string;
 }
 
 export interface WorldDebug {
@@ -161,11 +164,18 @@ export interface NpcDebug {
 	mood: string;
 	state: string;
 	tier: string;
-	schedule: ScheduleEntryDebug[];
+	schedule: ScheduleVariantDebug[];
 	relationships: RelationshipDebug[];
 	memories: MemoryDebug[];
 	knowledge: string[];
 	intelligence: IntelligenceDebug;
+}
+
+export interface ScheduleVariantDebug {
+	season: string | null;
+	day_type: string | null;
+	is_active: boolean;
+	entries: ScheduleEntryDebug[];
 }
 
 export interface IntelligenceDebug {
@@ -182,6 +192,7 @@ export interface ScheduleEntryDebug {
 	end_hour: number;
 	location_name: string;
 	activity: string;
+	is_current: boolean;
 }
 
 export interface RelationshipDebug {

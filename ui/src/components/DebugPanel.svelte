@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { debugVisible, debugSnapshot, debugTab, selectedNpcId } from '../stores/debug';
-	import type { NpcDebug } from '$lib/types';
+	import type { NpcDebug, ScheduleVariantDebug } from '$lib/types';
 
 	const tabs = ['Overview', 'NPCs', 'World', 'Events', 'Inference'];
 
@@ -67,7 +67,8 @@
 				<div class="section">
 					<h4>Clock</h4>
 					<div class="field">{snap.clock.game_time}</div>
-					<div class="field">{snap.clock.time_of_day} | {snap.clock.season}</div>
+					<div class="field">{snap.clock.time_of_day} | {snap.clock.day_of_week} | {snap.clock.season}</div>
+					<div class="field muted">Schedule day: {snap.clock.day_type}</div>
 					<div class="field">Weather: {snap.clock.weather}</div>
 					<div class="field">Speed: {snap.clock.speed_factor}x {snap.clock.paused ? '(PAUSED)' : ''}</div>
 					{#if snap.clock.festival}
@@ -121,8 +122,22 @@
 						{#if selectedNpc.schedule.length > 0}
 							<div class="section">
 								<h5>Schedule</h5>
-								{#each selectedNpc.schedule as entry}
-									<div class="field">{String(entry.start_hour).padStart(2, '0')}:00-{String(entry.end_hour).padStart(2, '0')}:00 {entry.location_name} ({entry.activity})</div>
+								{#each selectedNpc.schedule as variant}
+									{@const variantLabel = [variant.season ?? 'All seasons', variant.day_type ?? 'All days'].join(' · ')}
+									<div class="schedule-variant" class:variant-active={variant.is_active}>
+										<div class="variant-label">
+											{variantLabel}
+											{#if variant.is_active}<span class="active-badge">ACTIVE</span>{/if}
+										</div>
+										{#each variant.entries as entry}
+											<div class="schedule-entry" class:entry-current={entry.is_current}>
+												{String(entry.start_hour).padStart(2, '0')}:00–{String(entry.end_hour).padStart(2, '0')}:00
+												{entry.location_name}
+												<span class="muted">({entry.activity})</span>
+												{#if entry.is_current}<span class="now-badge">NOW</span>{/if}
+											</div>
+										{/each}
+									</div>
 								{/each}
 							</div>
 						{/if}
@@ -606,5 +621,61 @@
 		font-size: 0.65rem;
 		margin-top: 0.1rem;
 		word-break: break-word;
+	}
+
+	.schedule-variant {
+		margin-bottom: 0.4rem;
+		border-left: 2px solid var(--color-border);
+		padding-left: 0.4rem;
+	}
+
+	.schedule-variant.variant-active {
+		border-left-color: var(--color-accent);
+	}
+
+	.variant-label {
+		font-size: 0.65rem;
+		color: var(--color-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.15rem;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.schedule-variant.variant-active .variant-label {
+		color: var(--color-accent);
+	}
+
+	.active-badge {
+		font-size: 0.55rem;
+		padding: 0.05rem 0.25rem;
+		background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+		color: var(--color-accent);
+		border-radius: 2px;
+		font-weight: 700;
+	}
+
+	.schedule-entry {
+		font-size: 0.72rem;
+		line-height: 1.4;
+		color: var(--color-fg);
+		padding: 0.05rem 0;
+	}
+
+	.schedule-entry.entry-current {
+		color: var(--color-accent);
+		font-weight: 600;
+	}
+
+	.now-badge {
+		font-size: 0.55rem;
+		padding: 0.05rem 0.25rem;
+		background: color-mix(in srgb, #44cc44 20%, transparent);
+		color: #44cc44;
+		border-radius: 2px;
+		font-weight: 700;
+		margin-left: 0.25rem;
 	}
 </style>
