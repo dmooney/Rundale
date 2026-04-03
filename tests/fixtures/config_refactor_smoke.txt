@@ -1,0 +1,19 @@
+look
+/status
+go to the crossroads
+look
+/npcs
+go to the pub
+look
+/status
+/time
+go to the church
+look
+/wait 30
+/status
+/time
+look
+/npcs
+go to the crossroads
+/status
+look
