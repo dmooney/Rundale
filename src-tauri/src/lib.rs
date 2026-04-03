@@ -788,19 +788,21 @@ pub fn run() {
                             // Tick weather engine
                             let season = world.clock.season();
                             let now = world.clock.now();
-                            let mut rng = rand::thread_rng();
-                            if let Some(new_weather) =
-                                world.weather_engine.tick(now, season, &mut rng)
                             {
-                                let old = world.weather;
-                                world.weather = new_weather;
-                                world.event_bus.publish(
-                                    parish_core::world::events::GameEvent::WeatherChanged {
-                                        new_weather: new_weather.to_string(),
-                                        timestamp: world.clock.now(),
-                                    },
-                                );
-                                tracing::info!(old = %old, new = %new_weather, "Weather changed");
+                                let mut rng = rand::thread_rng();
+                                if let Some(new_weather) =
+                                    world.weather_engine.tick(now, season, &mut rng)
+                                {
+                                    let old = world.weather;
+                                    world.weather = new_weather;
+                                    world.event_bus.publish(
+                                        parish_core::world::events::GameEvent::WeatherChanged {
+                                            new_weather: new_weather.to_string(),
+                                            timestamp: world.clock.now(),
+                                        },
+                                    );
+                                    tracing::info!(old = %old, new = %new_weather, "Weather changed");
+                                }
                             }
 
                             let schedule_events =

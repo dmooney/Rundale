@@ -748,7 +748,7 @@ async fn handle_system_command(
             let mut npc_mgr = state.npc_manager.lock().await;
             world.clock.advance(minutes as i64);
             npc_mgr.assign_tiers(&world, &[]);
-            let _events = npc_mgr.tick_schedules(&world.clock, &world.graph);
+            let _events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
             let now = world.clock.now();
             let tod = world.clock.time_of_day();
             format!(
@@ -763,7 +763,7 @@ async fn handle_system_command(
             let world = state.world.lock().await;
             let mut npc_mgr = state.npc_manager.lock().await;
             npc_mgr.assign_tiers(&world, &[]);
-            let events = npc_mgr.tick_schedules(&world.clock, &world.graph);
+            let events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
             let count = events.len();
             if count == 0 {
                 "No NPC activity.".to_string()
@@ -879,6 +879,8 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                     description: data.description_template.clone(),
                     indoor: data.indoor,
                     public: data.public,
+                    lat: data.lat,
+                    lon: data.lon,
                 });
             if let Some(loc) = new_loc {
                 world.locations.entry(*destination).or_insert(loc);
