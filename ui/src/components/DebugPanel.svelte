@@ -84,8 +84,23 @@
 					<h4>Tiers</h4>
 					<div class="field">T1: {snap.tier_summary.tier1_count} | T2: {snap.tier_summary.tier2_count} | T3: {snap.tier_summary.tier3_count} | T4: {snap.tier_summary.tier4_count}</div>
 					{#if snap.tier_summary.tier1_names.length > 0}
-						<div class="field muted">T1 NPCs: {snap.tier_summary.tier1_names.join(', ')}</div>
+						<div class="field muted">T1: {snap.tier_summary.tier1_names.join(', ')}</div>
 					{/if}
+					{#if snap.tier_summary.tier3_names.length > 0}
+						<div class="field muted">T3: {snap.tier_summary.tier3_names.join(', ')}</div>
+					{/if}
+					<div class="field">T3 batch:
+						{#if snap.tier_summary.tier3_in_flight}
+							<span class="accent">IN FLIGHT</span>
+						{:else}
+							idle
+						{/if}
+						{#if snap.tier_summary.last_tier3_tick}
+							| last: {snap.tier_summary.last_tier3_tick}
+						{:else}
+							| (never run)
+						{/if}
+					</div>
 				</div>
 
 			{:else if tab === 1}
@@ -113,6 +128,13 @@
 							<div class="field">Mood: {selectedNpc.mood}</div>
 							<div class="field">Tier: {selectedNpc.tier} | {selectedNpc.state}</div>
 						</div>
+
+						{#if selectedNpc.last_activity}
+							<div class="section">
+								<h5>Last Batch Activity</h5>
+								<div class="field muted">{selectedNpc.last_activity}</div>
+							</div>
+						{/if}
 
 						<div class="section">
 							<h5>Intelligence</h5>

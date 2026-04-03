@@ -126,6 +126,8 @@ pub struct NpcDebug {
     pub knowledge: Vec<String>,
     /// Intelligence profile dimensions (each 1–5).
     pub intelligence: IntelligenceDebug,
+    /// Last Tier 3 batch activity summary, if this NPC has received one.
+    pub last_activity: Option<String>,
 }
 
 /// Compact intelligence profile for debug display.
@@ -212,6 +214,12 @@ pub struct TierSummary {
     pub tier1_names: Vec<String>,
     /// Names of Tier 2 NPCs (nearby).
     pub tier2_names: Vec<String>,
+    /// Names of Tier 3 NPCs (distant, batch-simulated).
+    pub tier3_names: Vec<String>,
+    /// Whether a Tier 3 batch inference is currently in flight.
+    pub tier3_in_flight: bool,
+    /// Formatted game time of last Tier 3 batch tick, or null if never run.
+    pub last_tier3_tick: Option<String>,
 }
 
 /// A timestamped debug event for the event log.
@@ -511,6 +519,7 @@ fn build_npc_debug_list(
                     wisdom: npc.intelligence.wisdom,
                     creative: npc.intelligence.creative,
                 },
+                last_activity: npc.last_activity.clone(),
             }
         })
         .collect();
@@ -524,26 +533,32 @@ fn build_npc_debug_list(
 fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
     let mut t1 = Vec::new();
     let mut t2 = Vec::new();
-    let mut t3: usize = 0;
+    let mut t3: Vec<String> = Vec::new();
     let mut t4: usize = 0;
 
     for npc in npc_manager.all_npcs() {
         match npc_manager.tier_of(npc.id) {
             Some(CogTier::Tier1) => t1.push(npc.name.clone()),
             Some(CogTier::Tier2) => t2.push(npc.name.clone()),
-            Some(CogTier::Tier3) => t3 += 1,
+            Some(CogTier::Tier3) | None => t3.push(npc.name.clone()),
             Some(CogTier::Tier4) => t4 += 1,
-            None => t3 += 1, // unassigned counts as Tier3
         }
     }
+
+    let last_tier3_tick = npc_manager
+        .last_tier3_game_time()
+        .map(|t| t.format("%H:%M %Y-%m-%d").to_string());
 
     TierSummary {
         tier1_count: t1.len(),
         tier2_count: t2.len(),
-        tier3_count: t3,
+        tier3_count: t3.len(),
         tier4_count: t4,
         tier1_names: t1,
         tier2_names: t2,
+        tier3_names: t3,
+        tier3_in_flight: npc_manager.tier3_in_flight(),
+        last_tier3_tick,
     }
 }
 
