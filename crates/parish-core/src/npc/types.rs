@@ -351,11 +351,19 @@ pub struct DailySchedule {
 impl DailySchedule {
     /// Returns the schedule entry active at the given hour.
     ///
+    /// Handles overnight wraparound: an entry with `start_hour > end_hour`
+    /// (e.g. 22–06) is active when `hour >= start_hour OR hour <= end_hour`.
+    ///
     /// Returns `None` if no entry covers the hour (schedule gap).
     pub fn entry_at(&self, hour: u8) -> Option<&ScheduleEntry> {
-        self.entries
-            .iter()
-            .find(|e| hour >= e.start_hour && hour <= e.end_hour)
+        self.entries.iter().find(|e| {
+            if e.start_hour <= e.end_hour {
+                hour >= e.start_hour && hour <= e.end_hour
+            } else {
+                // Overnight: e.g. 22–06
+                hour >= e.start_hour || hour <= e.end_hour
+            }
+        })
     }
 
     /// Returns the desired location at the given hour.
@@ -438,11 +446,19 @@ impl SeasonalSchedule {
     }
 
     /// Returns the schedule entry active at the given hour for the given context.
+    ///
+    /// Handles overnight wraparound: an entry with `start_hour > end_hour`
+    /// (e.g. 22–06) is active when `hour >= start_hour OR hour <= end_hour`.
     pub fn entry_at(&self, hour: u8, season: Season, day_type: DayType) -> Option<&ScheduleEntry> {
         let entries = self.resolve(season, day_type)?;
-        entries
-            .iter()
-            .find(|e| hour >= e.start_hour && hour <= e.end_hour)
+        entries.iter().find(|e| {
+            if e.start_hour <= e.end_hour {
+                hour >= e.start_hour && hour <= e.end_hour
+            } else {
+                // Overnight: e.g. 22–06
+                hour >= e.start_hour || hour <= e.end_hour
+            }
+        })
     }
 
     /// Returns the desired location at the given hour for the given context.
@@ -614,9 +630,46 @@ mod tests {
         let entry = schedule.entry_at(15).unwrap();
         assert_eq!(entry.activity, "tending bar");
 
-        // Gap — no entry covers hour 5 unless the sleeping entry wraps
-        // Note: for overnight entries (23-5), our simple check won't match hour 3.
-        // This is expected; the data.rs loader should handle wrap-around.
+        // Overnight entry (23-5): hours 23 and 3 should both match.
+        let entry = schedule.entry_at(23).unwrap();
+        assert_eq!(entry.activity, "sleeping");
+
+        let entry = schedule.entry_at(3).unwrap();
+        assert_eq!(entry.activity, "sleeping");
+
+        // Hour 6 is the start of "opening the pub", not covered by the overnight entry.
+        let entry = schedule.entry_at(6).unwrap();
+        assert_eq!(entry.activity, "opening the pub");
+
+        // Hour 5 is covered by the overnight sleeping entry (end_hour=5).
+        let entry = schedule.entry_at(5).unwrap();
+        assert_eq!(entry.activity, "sleeping");
+    }
+
+    #[test]
+    fn test_schedule_entry_at_overnight_only() {
+        // A schedule with a single overnight entry (22–06).
+        let schedule = DailySchedule {
+            entries: vec![ScheduleEntry {
+                start_hour: 22,
+                end_hour: 6,
+                location: LocationId(1),
+                activity: "sleeping".to_string(),
+                cuaird: false,
+            }],
+        };
+
+        // Hours in the evening portion (after midnight rollover)
+        assert!(schedule.entry_at(22).is_some());
+        assert!(schedule.entry_at(23).is_some());
+        // Hours in the early-morning portion (before end_hour)
+        assert!(schedule.entry_at(0).is_some());
+        assert!(schedule.entry_at(3).is_some());
+        assert!(schedule.entry_at(6).is_some());
+        // Hour 7 is outside the range
+        assert!(schedule.entry_at(7).is_none());
+        assert!(schedule.entry_at(12).is_none());
+        assert!(schedule.entry_at(21).is_none());
     }
 
     #[test]

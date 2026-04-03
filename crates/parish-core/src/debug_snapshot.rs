@@ -425,7 +425,7 @@ fn build_npc_debug_list(
                         .iter()
                         .map(|v| {
                             let is_active =
-                                active_entries.map_or(false, |ae| std::ptr::eq(ae, &v.entries[..]));
+                                active_entries.is_some_and(|ae| std::ptr::eq(ae, &v.entries[..]));
                             let entries = v
                                 .entries
                                 .iter()
@@ -796,7 +796,7 @@ mod tests {
         mgr.add_npc(npc);
 
         let graph = WorldGraph::new();
-        let npcs = build_npc_debug_list(&mgr, &graph);
+        let npcs = build_npc_debug_list(&mgr, &graph, 12, Season::Summer, DayType::Weekday);
         assert_eq!(npcs.len(), 1);
         // Relationships should be sorted by strength descending
         assert_eq!(npcs[0].relationships.len(), 2);
