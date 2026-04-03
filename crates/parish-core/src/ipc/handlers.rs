@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use chrono::Timelike;
+use chrono::{Datelike, Timelike};
 
 use crate::npc::manager::NpcManager;
 use crate::world::description::{format_exits, render_description};
@@ -39,6 +39,17 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
         loc.description.clone()
     };
 
+    let day_of_week = match now.weekday() {
+        chrono::Weekday::Mon => "Monday",
+        chrono::Weekday::Tue => "Tuesday",
+        chrono::Weekday::Wed => "Wednesday",
+        chrono::Weekday::Thu => "Thursday",
+        chrono::Weekday::Fri => "Friday",
+        chrono::Weekday::Sat => "Saturday",
+        chrono::Weekday::Sun => "Sunday",
+    }
+    .to_string();
+
     WorldSnapshot {
         location_name: loc.name.clone(),
         location_description: description,
@@ -51,6 +62,7 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
         paused: world.clock.is_paused() || world.clock.is_inference_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
+        day_of_week,
     }
 }
 

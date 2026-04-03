@@ -6,13 +6,14 @@
 
 use std::collections::VecDeque;
 
-use chrono::Timelike;
+use chrono::{Datelike, Timelike};
 use serde::Serialize;
 
 use crate::npc::manager::NpcManager;
 use crate::npc::types::{CogTier, NpcState};
 use crate::world::WorldState;
 use crate::world::graph::WorldGraph;
+use crate::world::time::{DayType, Season};
 
 /// A complete debug snapshot of all game state.
 ///
@@ -52,6 +53,10 @@ pub struct ClockDebug {
     pub paused: bool,
     /// Clock speed multiplier.
     pub speed_factor: f64,
+    /// Full day-of-week name (e.g. "Monday").
+    pub day_of_week: String,
+    /// Schedule day type label (e.g. "Weekday", "Sunday", "Market Day").
+    pub day_type: String,
 }
 
 /// World graph summary for debug display.
@@ -111,8 +116,8 @@ pub struct NpcDebug {
     pub state: String,
     /// Cognitive tier label ("Tier1", "Tier2", etc.).
     pub tier: String,
-    /// Daily schedule entries.
-    pub schedule: Vec<ScheduleEntryDebug>,
+    /// All schedule variants with active/current indicators.
+    pub schedule: Vec<ScheduleVariantDebug>,
     /// Relationships with other NPCs.
     pub relationships: Vec<RelationshipDebug>,
     /// Recent memory entries.
@@ -151,6 +156,21 @@ pub struct ScheduleEntryDebug {
     pub location_name: String,
     /// Activity description.
     pub activity: String,
+    /// Whether this is the currently active entry right now.
+    pub is_current: bool,
+}
+
+/// A schedule variant for debug display (one variant = one season/day-type combination).
+#[derive(Debug, Clone, Serialize)]
+pub struct ScheduleVariantDebug {
+    /// Season this variant applies to ("Spring", "Summer", etc.), or null for any season.
+    pub season: Option<String>,
+    /// Day type this variant applies to ("Weekday", "Sunday", "Market Day"), or null for any.
+    pub day_type: Option<String>,
+    /// Whether this variant is the one currently in use.
+    pub is_active: bool,
+    /// Schedule entries for this variant.
+    pub entries: Vec<ScheduleEntryDebug>,
 }
 
 /// A relationship for debug display.
@@ -268,7 +288,16 @@ pub fn build_debug_snapshot(
 ) -> DebugSnapshot {
     let clock = build_clock_debug(world);
     let world_debug = build_world_debug(world, npc_manager);
-    let npcs = build_npc_debug_list(npc_manager, &world.graph);
+    let current_hour = world.clock.now().hour() as u8;
+    let current_season = world.clock.season();
+    let current_day_type = world.clock.day_type();
+    let npcs = build_npc_debug_list(
+        npc_manager,
+        &world.graph,
+        current_hour,
+        current_season,
+        current_day_type,
+    );
     let tier_summary = build_tier_summary(npc_manager);
     let event_list: Vec<DebugEvent> = events.iter().cloned().collect();
 
@@ -285,6 +314,16 @@ pub fn build_debug_snapshot(
 /// Builds clock debug info from world state.
 fn build_clock_debug(world: &WorldState) -> ClockDebug {
     let now = world.clock.now();
+    let day_of_week = match now.weekday() {
+        chrono::Weekday::Mon => "Monday",
+        chrono::Weekday::Tue => "Tuesday",
+        chrono::Weekday::Wed => "Wednesday",
+        chrono::Weekday::Thu => "Thursday",
+        chrono::Weekday::Fri => "Friday",
+        chrono::Weekday::Sat => "Saturday",
+        chrono::Weekday::Sun => "Sunday",
+    }
+    .to_string();
     ClockDebug {
         game_time: format!(
             "{:02}:{:02} {}",
@@ -298,6 +337,8 @@ fn build_clock_debug(world: &WorldState) -> ClockDebug {
         weather: world.weather.to_string(),
         paused: world.clock.is_paused(),
         speed_factor: world.clock.speed_factor(),
+        day_of_week,
+        day_type: world.clock.day_type().to_string(),
     }
 }
 
@@ -346,7 +387,13 @@ fn loc_name(id: crate::world::LocationId, graph: &WorldGraph) -> String {
 }
 
 /// Builds the NPC debug list with full deep-dive data.
-fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<NpcDebug> {
+fn build_npc_debug_list(
+    npc_manager: &NpcManager,
+    graph: &WorldGraph,
+    current_hour: u8,
+    current_season: Season,
+    current_day_type: DayType,
+) -> Vec<NpcDebug> {
     let mut npcs: Vec<NpcDebug> = npc_manager
         .all_npcs()
         .map(|npc| {
@@ -368,21 +415,39 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
                 }
             };
 
-            let schedule: Vec<ScheduleEntryDebug> = npc
+            let schedule: Vec<ScheduleVariantDebug> = npc
                 .schedule
                 .as_ref()
                 .map(|s| {
-                    // Show the first variant's entries for debug display
+                    // Determine which variant is currently active
+                    let active_entries = s.resolve(current_season, current_day_type);
                     s.variants
-                        .first()
-                        .map(|v| &v.entries)
-                        .unwrap_or(&Vec::new())
                         .iter()
-                        .map(|e| ScheduleEntryDebug {
-                            start_hour: e.start_hour,
-                            end_hour: e.end_hour,
-                            location_name: loc_name(e.location, graph),
-                            activity: e.activity.clone(),
+                        .map(|v| {
+                            let is_active =
+                                active_entries.map_or(false, |ae| std::ptr::eq(ae, &v.entries[..]));
+                            let entries = v
+                                .entries
+                                .iter()
+                                .map(|e| {
+                                    let is_current = is_active
+                                        && current_hour >= e.start_hour
+                                        && current_hour <= e.end_hour;
+                                    ScheduleEntryDebug {
+                                        start_hour: e.start_hour,
+                                        end_hour: e.end_hour,
+                                        location_name: loc_name(e.location, graph),
+                                        activity: e.activity.clone(),
+                                        is_current,
+                                    }
+                                })
+                                .collect();
+                            ScheduleVariantDebug {
+                                season: v.season.map(|s| s.to_string()),
+                                day_type: v.day_type.map(|d| d.to_string()),
+                                is_active,
+                                entries,
+                            }
                         })
                         .collect()
                 })

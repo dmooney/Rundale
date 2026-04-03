@@ -54,6 +54,8 @@ pub struct WorldSnapshot {
     pub speed_factor: f64,
     /// Pronunciation hints for Irish names relevant to the current location.
     pub name_hints: Vec<parish_core::npc::LanguageHint>,
+    /// Current day of week (e.g. "Monday", "Saturday").
+    pub day_of_week: String,
 }
 
 /// A location node in the map data.
