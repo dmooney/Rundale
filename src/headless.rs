@@ -1712,4 +1712,240 @@ mod tests {
         // Exactly 9 chars — just over the threshold
         assert_eq!(mask_api_key("123456789"), "1234...6789");
     }
+
+    // --- Additional headless command tests ---
+
+    #[tokio::test]
+    async fn test_handle_headless_command_wait() {
+        let mut app = App::new();
+        app.world.clock.pause(); // freeze for determinism
+        let hour_before = app.world.clock.now().hour();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Wait(60)).await;
+        assert!(!quit);
+        assert!(!rebuild);
+        // Time should have advanced by 60 minutes
+        let hour_after = app.world.clock.now().hour();
+        assert_eq!((hour_after + 24 - hour_before) % 24, 1);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_debug_none() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Debug(None)).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_debug_with_subcommand() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::Debug(Some("clock".to_string()))).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_toggle_sidebar() {
+        // In headless mode, ToggleSidebar just prints a message (not available)
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleSidebar).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_toggle_improv() {
+        let mut app = App::new();
+        let was_improv = app.improv_enabled;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleImprov).await;
+        assert!(!quit);
+        assert!(!rebuild);
+        assert_ne!(app.improv_enabled, was_improv);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_about() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::About).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_map() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_npcs_here() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::NpcsHere).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_time() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Time).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_invalid_speed() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::InvalidSpeed("bogus".to_string())).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_invalid_branch_name() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::InvalidBranchName("Bad name!".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_log() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Log).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_branches_no_db() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Branches).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_tick() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Tick).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_cloud() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloud).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_cloud_model() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudModel).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_cloud_key() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudKey).await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_set_cloud_model() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::SetCloudModel("claude-sonnet".to_string()),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild); // SetCloudModel doesn't trigger rebuild
+        assert_eq!(app.cloud_model_name.as_deref(), Some("claude-sonnet"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_set_cloud_key() {
+        let mut app = App::new();
+        let (quit, rebuild) =
+            handle_headless_command(&mut app, Command::SetCloudKey("sk-cloud-123".to_string()))
+                .await;
+        assert!(!quit);
+        assert!(rebuild);
+        assert_eq!(app.cloud_api_key.as_deref(), Some("sk-cloud-123"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_category_provider() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::ShowCategoryProvider(InferenceCategory::Dialogue),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_category_model() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::ShowCategoryModel(InferenceCategory::Intent),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[tokio::test]
+    async fn test_handle_headless_command_show_category_key() {
+        let mut app = App::new();
+        let (quit, rebuild) = handle_headless_command(
+            &mut app,
+            Command::ShowCategoryKey(InferenceCategory::Simulation),
+        )
+        .await;
+        assert!(!quit);
+        assert!(!rebuild);
+    }
+
+    #[test]
+    fn test_capitalize_first_normal() {
+        assert_eq!(capitalize_first("hello"), "Hello");
+        assert_eq!(capitalize_first("HELLO"), "HELLO");
+    }
+
+    #[test]
+    fn test_capitalize_first_empty() {
+        assert_eq!(capitalize_first(""), "");
+    }
+
+    #[test]
+    fn test_capitalize_first_single_char() {
+        assert_eq!(capitalize_first("a"), "A");
+    }
+
+    #[test]
+    fn test_default_transport_no_mod() {
+        let app = App::new();
+        let transport = default_transport(&app);
+        assert_eq!(transport.id, "walking");
+        assert!((transport.speed_m_per_s - 1.25).abs() < f64::EPSILON);
+    }
 }

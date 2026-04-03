@@ -810,4 +810,180 @@ mod tests {
         clock.inference_resume(); // second call is a no-op
         assert!(!clock.is_inference_paused());
     }
+
+    // --- Season boundary tests ---
+
+    #[test]
+    fn test_season_boundary_feb_to_mar() {
+        let date = |m: u32, d: u32| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        assert_eq!(Season::from_date(date(2, 28)), Season::Winter);
+        assert_eq!(Season::from_date(date(3, 1)), Season::Spring);
+    }
+
+    #[test]
+    fn test_season_boundary_may_to_jun() {
+        let date = |m: u32, d: u32| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        assert_eq!(Season::from_date(date(5, 31)), Season::Spring);
+        assert_eq!(Season::from_date(date(6, 1)), Season::Summer);
+    }
+
+    #[test]
+    fn test_season_boundary_aug_to_sep() {
+        let date = |m: u32, d: u32| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        assert_eq!(Season::from_date(date(8, 31)), Season::Summer);
+        assert_eq!(Season::from_date(date(9, 1)), Season::Autumn);
+    }
+
+    #[test]
+    fn test_season_boundary_nov_to_dec() {
+        let date = |m: u32, d: u32| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        assert_eq!(Season::from_date(date(11, 30)), Season::Autumn);
+        assert_eq!(Season::from_date(date(12, 1)), Season::Winter);
+    }
+
+    // --- Festival off-by-one tests ---
+
+    #[test]
+    fn test_festival_off_by_one_days() {
+        let date = |m: u32, d: u32| NaiveDate::from_ymd_opt(2026, m, d).unwrap();
+        // Day before and after each festival
+        assert_eq!(Festival::check(date(1, 31)), None);
+        assert_eq!(Festival::check(date(2, 1)), Some(Festival::Imbolc));
+        assert_eq!(Festival::check(date(2, 2)), None);
+
+        assert_eq!(Festival::check(date(4, 30)), None);
+        assert_eq!(Festival::check(date(5, 1)), Some(Festival::Bealtaine));
+        assert_eq!(Festival::check(date(5, 2)), None);
+
+        assert_eq!(Festival::check(date(7, 31)), None);
+        assert_eq!(Festival::check(date(8, 1)), Some(Festival::Lughnasa));
+        assert_eq!(Festival::check(date(8, 2)), None);
+
+        assert_eq!(Festival::check(date(10, 31)), None);
+        assert_eq!(Festival::check(date(11, 1)), Some(Festival::Samhain));
+        assert_eq!(Festival::check(date(11, 2)), None);
+    }
+
+    // --- Large time advances ---
+
+    #[test]
+    fn test_advance_past_midnight() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 23));
+        clock.pause(); // freeze for deterministic testing
+        clock.advance(120); // 2 hours past midnight
+        let now = clock.now();
+        assert_eq!(now.hour(), 1);
+        assert_eq!(now.day(), 16); // next day
+    }
+
+    #[test]
+    fn test_advance_full_day() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.pause();
+        clock.advance(24 * 60); // exactly one day
+        let now = clock.now();
+        assert_eq!(now.day(), 16);
+        assert_eq!(now.hour(), 12);
+    }
+
+    #[test]
+    fn test_advance_multiple_days() {
+        let mut clock = GameClock::new(game_time(2026, 3, 28, 10));
+        clock.pause();
+        clock.advance(5 * 24 * 60); // 5 days
+        let now = clock.now();
+        assert_eq!(now.day(), 2); // April 2
+        assert_eq!(now.month(), 4);
+    }
+
+    #[test]
+    fn test_advance_across_season_boundary() {
+        let mut clock = GameClock::new(game_time(2026, 5, 31, 23));
+        clock.pause();
+        assert_eq!(clock.season(), Season::Spring);
+        clock.advance(120); // 2 hours into June 1
+        assert_eq!(clock.season(), Season::Summer);
+    }
+
+    // --- with_speed ---
+
+    #[test]
+    fn test_with_speed_custom_factor() {
+        let clock = GameClock::with_speed(game_time(2026, 6, 15, 12), 100.0);
+        assert!((clock.speed_factor() - 100.0).abs() < f64::EPSILON);
+        assert_eq!(clock.current_speed(), None); // not a standard preset
+    }
+
+    #[test]
+    fn test_with_speed_matching_preset() {
+        let clock = GameClock::with_speed(game_time(2026, 6, 15, 12), 72.0);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Fast));
+    }
+
+    // --- Display and formatting ---
+
+    #[test]
+    fn test_season_display_all() {
+        assert_eq!(Season::Spring.to_string(), "Spring");
+        assert_eq!(Season::Summer.to_string(), "Summer");
+        assert_eq!(Season::Autumn.to_string(), "Autumn");
+        assert_eq!(Season::Winter.to_string(), "Winter");
+    }
+
+    #[test]
+    fn test_time_of_day_display_all() {
+        assert_eq!(TimeOfDay::Dawn.to_string(), "Dawn");
+        assert_eq!(TimeOfDay::Morning.to_string(), "Morning");
+        assert_eq!(TimeOfDay::Midday.to_string(), "Midday");
+        assert_eq!(TimeOfDay::Afternoon.to_string(), "Afternoon");
+        assert_eq!(TimeOfDay::Dusk.to_string(), "Dusk");
+        assert_eq!(TimeOfDay::Night.to_string(), "Night");
+        assert_eq!(TimeOfDay::Midnight.to_string(), "Midnight");
+    }
+
+    #[test]
+    fn test_festival_display_all() {
+        assert_eq!(Festival::Imbolc.to_string(), "Imbolc");
+        assert_eq!(Festival::Bealtaine.to_string(), "Bealtaine");
+        assert_eq!(Festival::Lughnasa.to_string(), "Lughnasa");
+        assert_eq!(Festival::Samhain.to_string(), "Samhain");
+    }
+
+    // --- Pause idempotency ---
+
+    #[test]
+    fn test_pause_idempotent() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.pause();
+        let t1 = clock.now();
+        clock.pause(); // second call is a no-op
+        assert_eq!(clock.now(), t1);
+    }
+
+    #[test]
+    fn test_resume_when_not_paused_is_noop() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        let t1 = clock.now();
+        clock.resume(); // not paused, should be no-op
+        let t2 = clock.now();
+        let diff = (t2 - t1).num_seconds().abs();
+        assert!(diff < 2);
+    }
+
+    // --- Speed change while set_speed ---
+
+    #[test]
+    fn test_set_speed_to_same_speed() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.set_speed(GameSpeed::Normal);
+        assert!((clock.speed_factor() - 36.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_set_speed_ludicrous() {
+        let mut clock = GameClock::new(game_time(2026, 6, 15, 12));
+        clock.set_speed(GameSpeed::Ludicrous);
+        assert!((clock.speed_factor() - 864.0).abs() < f64::EPSILON);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Ludicrous));
+    }
 }

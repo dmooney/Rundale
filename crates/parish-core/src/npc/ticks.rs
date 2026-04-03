@@ -744,4 +744,281 @@ mod tests {
         let recent = mem.recent(1);
         assert!(recent[0].content.len() <= 40);
     }
+
+    // --- truncate_for_memory edge cases ---
+
+    #[test]
+    fn test_truncate_for_memory_empty_string() {
+        assert_eq!(truncate_for_memory("", 10), "");
+    }
+
+    #[test]
+    fn test_truncate_for_memory_exact_boundary() {
+        assert_eq!(truncate_for_memory("12345", 5), "12345");
+    }
+
+    #[test]
+    fn test_truncate_for_memory_one_over() {
+        let result = truncate_for_memory("123456", 5);
+        assert!(result.ends_with("..."));
+        assert!(result.len() <= 5);
+    }
+
+    #[test]
+    fn test_truncate_for_memory_max_len_zero() {
+        let result = truncate_for_memory("hello", 0);
+        assert_eq!(result, "...");
+    }
+
+    #[test]
+    fn test_truncate_for_memory_max_len_three() {
+        // max_len=3 means only room for "..."
+        let result = truncate_for_memory("hello world", 3);
+        assert_eq!(result, "...");
+    }
+
+    #[test]
+    fn test_truncate_for_memory_multibyte_utf8() {
+        // Ensure truncation doesn't split multi-byte characters
+        let irish = "Dia dhuit, a chara. Cén chaoi a bhfuil tú?";
+        let result = truncate_for_memory(irish, 15);
+        assert!(result.ends_with("..."));
+        assert!(result.len() <= 18); // slightly over due to char boundary
+        // Should be valid UTF-8 (no panic)
+        let _ = result.chars().count();
+    }
+
+    #[test]
+    fn test_truncate_for_memory_very_long_string() {
+        let long = "x".repeat(10000);
+        let result = truncate_for_memory(&long, 50);
+        assert!(result.len() <= 50);
+        assert!(result.ends_with("..."));
+    }
+
+    // --- apply_tier2_event edge cases ---
+
+    #[test]
+    fn test_apply_tier2_event_missing_npc_in_map() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+        // NpcId(99) is NOT in the map
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "Something happened".to_string(),
+            participants: vec![NpcId(1), NpcId(99)],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(99),
+                new_mood: "happy".to_string(),
+            }],
+            relationship_changes: vec![RelationshipChange {
+                from: NpcId(99),
+                to: NpcId(1),
+                delta: 0.1,
+            }],
+        };
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        // Should not panic — missing NPCs are silently skipped
+        let events = apply_tier2_event(&event, &mut npcs, game_time);
+        // Padraig still gets a memory
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().memory.len(), 1);
+        // Some events generated for the NPC that exists
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn test_apply_tier2_event_empty_participants() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "Nothing happened".to_string(),
+            participants: Vec::new(),
+            mood_changes: Vec::new(),
+            relationship_changes: Vec::new(),
+        };
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        let events = apply_tier2_event(&event, &mut npcs, game_time);
+        assert!(events.is_empty());
+        // No memories added
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().memory.len(), 0);
+    }
+
+    #[test]
+    fn test_apply_tier2_event_same_mood_no_debug_event() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        npc.mood = "calm".to_string();
+        npcs.insert(NpcId(1), npc);
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "Padraig sits quietly".to_string(),
+            participants: vec![NpcId(1)],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(1),
+                new_mood: "calm".to_string(), // same as current
+            }],
+            relationship_changes: Vec::new(),
+        };
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        let events = apply_tier2_event(&event, &mut npcs, game_time);
+        // No mood change event since mood didn't actually change
+        assert!(!events.iter().any(|e| e.contains("mood:")));
+        // But memory event should still be there
+        assert!(events.iter().any(|e| e.contains("remembers:")));
+    }
+
+    #[test]
+    fn test_apply_tier2_event_relationship_not_found() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        // Padraig has no relationship with Tommy
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+        npcs.insert(NpcId(5), make_test_npc(5, "Tommy", 2));
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "They chat".to_string(),
+            participants: vec![NpcId(1), NpcId(5)],
+            mood_changes: Vec::new(),
+            relationship_changes: vec![RelationshipChange {
+                from: NpcId(1),
+                to: NpcId(5),
+                delta: 0.1,
+            }],
+        };
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+        // Should not panic — missing relationship is silently skipped
+        let _events = apply_tier2_event(&event, &mut npcs, game_time);
+        // Both still get memories
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().memory.len(), 1);
+        assert_eq!(npcs.get(&NpcId(5)).unwrap().memory.len(), 1);
+    }
+
+    // --- run_tier2_for_group solo NPC ---
+
+    #[tokio::test]
+    async fn test_run_tier2_solo_npc_template() {
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            npcs: vec![NpcSnapshot {
+                id: NpcId(1),
+                name: "Padraig".to_string(),
+                occupation: "Publican".to_string(),
+                personality: "Warm".to_string(),
+                intelligence_tag: "INT[V3 A3 E4 P4 W5 C4]".to_string(),
+                mood: "content".to_string(),
+                relationship_context: String::new(),
+            }],
+        };
+
+        // Solo NPC should get a template event without needing inference
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        let event = run_tier2_for_group(&client, "test", &group, "Morning", "Clear").await;
+        assert!(event.is_some());
+        let event = event.unwrap();
+        assert!(event.summary.contains("Padraig"));
+        assert!(event.summary.contains("Darcy's Pub"));
+        assert_eq!(event.participants, vec![NpcId(1)]);
+        assert!(event.mood_changes.is_empty());
+        assert!(event.relationship_changes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_run_tier2_empty_group_returns_none() {
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            npcs: Vec::new(),
+        };
+
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        let event = run_tier2_for_group(&client, "test", &group, "Morning", "Clear").await;
+        assert!(event.is_none());
+    }
+
+    // --- build_tier2_prompt weather commentary ---
+
+    #[test]
+    fn test_build_tier2_prompt_rain_commentary() {
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "The Crossroads".to_string(),
+            npcs: vec![
+                NpcSnapshot {
+                    id: NpcId(1),
+                    name: "Padraig".to_string(),
+                    occupation: "Publican".to_string(),
+                    personality: "Warm".to_string(),
+                    intelligence_tag: "INT[V3]".to_string(),
+                    mood: "calm".to_string(),
+                    relationship_context: String::new(),
+                },
+                NpcSnapshot {
+                    id: NpcId(2),
+                    name: "Tommy".to_string(),
+                    occupation: "Farmer".to_string(),
+                    personality: "Gruff".to_string(),
+                    intelligence_tag: "INT[V2]".to_string(),
+                    mood: "tired".to_string(),
+                    relationship_context: String::new(),
+                },
+            ],
+        };
+
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Heavy Rain");
+        assert!(prompt.contains("commenting on the weather"));
+
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear");
+        assert!(!prompt.contains("commenting on the weather"));
+    }
+
+    // --- apply_tier1_response same mood no change event ---
+
+    #[test]
+    fn test_apply_tier1_response_same_mood_no_change_event() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "calm".to_string();
+        let response = NpcStreamResponse {
+            dialogue: "Hello.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "speaks".to_string(),
+                mood: "calm".to_string(), // same mood
+                internal_thought: None,
+                language_hints: Vec::new(),
+            }),
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let events = apply_tier1_response(&mut npc, &response, "hello", game_time);
+        // No mood change event
+        assert!(!events.iter().any(|e| e.contains("mood:")));
+        // Memory still recorded
+        assert!(events.iter().any(|e| e.contains("remembers:")));
+    }
+
+    #[test]
+    fn test_apply_tier1_response_empty_mood_no_change() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        npc.mood = "calm".to_string();
+        let response = NpcStreamResponse {
+            dialogue: "Hello.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "speaks".to_string(),
+                mood: String::new(), // empty mood
+                internal_thought: None,
+                language_hints: Vec::new(),
+            }),
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let events = apply_tier1_response(&mut npc, &response, "hello", game_time);
+        assert_eq!(npc.mood, "calm"); // unchanged
+        assert!(!events.iter().any(|e| e.contains("mood:")));
+    }
 }
