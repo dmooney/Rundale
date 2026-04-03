@@ -3,9 +3,15 @@
 	import { submitInput } from '$lib/ipc';
 	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
 	import { projectWorld } from '$lib/map-projection';
+	import { getLocationIcon, ICON_PATHS, type LocationIcon } from '$lib/map-icons';
 	import type { MapLocation } from '$lib/types';
 	import type { ProjectedLocation } from '$lib/map-projection';
 	import type { ResolvedLabel } from '$lib/map-labels';
+
+	/** All unique icon keys used by current locations, for <defs>. */
+	let usedIcons: LocationIcon[] = $derived(
+		[...new Set(($mapData?.locations ?? []).map((l) => getLocationIcon(l.name)))]
+	);
 
 	interface Props {
 		onclose: () => void;
@@ -13,8 +19,8 @@
 
 	let { onclose }: Props = $props();
 
-	const NODE_R = 5;
-	const PLAYER_R = 8;
+	const NODE_R = 8.75;
+	const PLAYER_R = 14;
 	const LABEL_FONT_SIZE = 11;
 	const MIN_ZOOM = 0.5;
 	const MAX_ZOOM = 4;
@@ -151,6 +157,13 @@
 				aria-label="Full parish map"
 				style="transform: translate({panX}px, {panY}px) scale({zoom}); transform-origin: center;"
 			>
+				<defs>
+					{#each usedIcons as icon}
+						<symbol id="fullmap-icon-{icon}" viewBox="0 0 256 256">
+							<path d={ICON_PATHS[icon]} />
+						</symbol>
+					{/each}
+				</defs>
 				<!-- Edges -->
 				{#each $mapData?.edges ?? [] as [src, dst]}
 					{@const a = localProjected.find((p) => p.id === src)}
@@ -180,6 +193,9 @@
 				<!-- Location nodes -->
 				{#each localProjected as loc, i}
 					{@const label = labels[i]}
+					{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
+					{@const icon = getLocationIcon(loc.name)}
+					{@const iconSize = r * 2}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<g
@@ -190,11 +206,16 @@
 						onmouseenter={() => (tooltip = loc.name)}
 						onmouseleave={() => (tooltip = null)}
 					>
-						<circle
-							cx={loc.x}
-							cy={loc.y}
-							r={isPlayer(loc) ? PLAYER_R : NODE_R}
-							class="node-circle"
+						{#if isPlayer(loc)}
+							<circle cx={loc.x} cy={loc.y} r={r} class="node-bg" />
+						{/if}
+						<use
+							href="#fullmap-icon-{icon}"
+							x={loc.x - iconSize / 2}
+							y={loc.y - iconSize / 2}
+							width={iconSize}
+							height={iconSize}
+							class="node-icon"
 						/>
 						{#if label}
 							<text
@@ -305,25 +326,28 @@
 		stroke-dasharray: 2 1;
 	}
 
-	.node-circle {
-		fill: var(--color-panel-bg);
-		stroke: var(--color-muted);
-		stroke-width: 1.5;
+	.node-icon {
+		fill: var(--color-muted);
 		cursor: default;
 	}
 
-	.node.adjacent .node-circle {
-		stroke: var(--color-accent);
+	.node.adjacent .node-icon {
+		fill: var(--color-accent);
 		cursor: pointer;
 	}
 
-	.node.adjacent .node-circle:hover {
-		fill: var(--color-input-bg);
+	.node.adjacent:hover .node-icon {
+		fill: var(--color-fg);
 	}
 
-	.node.player .node-circle {
+	.node.player .node-icon {
+		fill: var(--color-fg);
+	}
+
+	.node-bg {
 		fill: var(--color-accent);
 		stroke: var(--color-fg);
+		stroke-width: 1.5;
 	}
 
 	.node-label {

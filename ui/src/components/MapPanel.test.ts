@@ -30,11 +30,11 @@ describe('MapPanel', () => {
 		expect(container.querySelector('svg')).toBeTruthy();
 	});
 
-	it('renders correct number of node circles for nearby locations', () => {
+	it('renders correct number of node icons for nearby locations', () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
-		const circles = container.querySelectorAll('circle');
-		expect(circles.length).toBe(2);
+		const icons = container.querySelectorAll('use.node-icon');
+		expect(icons.length).toBe(2);
 	});
 
 	it('renders edge lines', () => {
@@ -59,7 +59,7 @@ describe('MapPanel', () => {
 	});
 
 	it('only shows locations within hop radius', () => {
-		// Add a distant location (hops = 5, beyond MINIMAP_HOP_RADIUS of 3)
+		// Add a distant location (hops = 5, beyond MINIMAP_HOP_RADIUS of 1)
 		const mapWithDistant = {
 			...testMap,
 			locations: [
@@ -69,9 +69,9 @@ describe('MapPanel', () => {
 		};
 		mapData.set(mapWithDistant);
 		const { container } = render(MapPanel);
-		const circles = container.querySelectorAll('circle');
-		// Only loc1 (hops=0) and loc2 (hops=1) should be rendered as circles
-		expect(circles.length).toBe(2);
+		const icons = container.querySelectorAll('use.node-icon');
+		// Only loc1 (hops=0) and loc2 (hops=1) should be rendered
+		expect(icons.length).toBe(2);
 	});
 
 	it('shows expand button', () => {

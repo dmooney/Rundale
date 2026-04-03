@@ -4,18 +4,24 @@
 	import { submitInput } from '$lib/ipc';
 	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
 	import { projectWorld } from '$lib/map-projection';
+	import { getLocationIcon, ICON_PATHS, type LocationIcon } from '$lib/map-icons';
 	import type { MapLocation } from '$lib/types';
 	import type { ProjectedLocation } from '$lib/map-projection';
 	import type { ResolvedLabel } from '$lib/map-labels';
 	import { tweened } from 'svelte/motion';
 	import { cubicOut } from 'svelte/easing';
 
+	/** All unique icon keys used by current locations, for <defs>. */
+	let usedIcons: LocationIcon[] = $derived(
+		[...new Set(($mapData?.locations ?? []).map((l) => getLocationIcon(l.name)))]
+	);
+
 	/** Reference dimensions — visual sizes are authored relative to this. */
 	const W = 320;
 	const H = 240;
 	/** Base sizes at the reference scale (W × H viewBox). */
-	const BASE_NODE_R = 6;
-	const BASE_PLAYER_R = 9;
+	const BASE_NODE_R = 10.5;
+	const BASE_PLAYER_R = 15.75;
 	const BASE_FONT_SIZE = 28;
 	/** Only show locations within this many hops on the minimap. */
 	const MINIMAP_HOP_RADIUS = 1;
@@ -179,6 +185,13 @@
 	</div>
 	{#if $mapData}
 		<svg viewBox="0 0 {viewBox.w} {viewBox.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish minimap">
+			<defs>
+				{#each usedIcons as icon}
+					<symbol id="minimap-icon-{icon}" viewBox="0 0 256 256">
+						<path d={ICON_PATHS[icon]} />
+					</symbol>
+				{/each}
+			</defs>
 			<!-- Continuation stubs: short faded lines from nodes with off-map connections -->
 			{#each localProjected as loc}
 				{@const count = offMapCounts.get(loc.id) ?? 0}
@@ -228,6 +241,9 @@
 			<!-- Location nodes -->
 			{#each localProjected as loc, i}
 				{@const label = labels[i]}
+				{@const r = isPlayer(loc) ? playerR : nodeR}
+				{@const icon = getLocationIcon(loc.name)}
+				{@const iconSize = r * 2}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<g
@@ -238,7 +254,17 @@
 					onmouseenter={() => (tooltip = loc.name)}
 					onmouseleave={() => (tooltip = null)}
 				>
-					<circle cx={loc.x} cy={loc.y} r={isPlayer(loc) ? playerR : nodeR} class="node-circle" stroke-width={1.5 * s} />
+					{#if isPlayer(loc)}
+						<circle cx={loc.x} cy={loc.y} r={r} class="node-bg" stroke-width={1.5 * s} />
+					{/if}
+					<use
+						href="#minimap-icon-{icon}"
+						x={loc.x - iconSize / 2}
+						y={loc.y - iconSize / 2}
+						width={iconSize}
+						height={iconSize}
+						class="node-icon"
+					/>
 					{#if label}
 						<text x={label.cx} y={label.cy + fontSize / 2 - 1 * s} class="node-label" font-size={fontSize}>
 							{loc.name}
@@ -318,22 +344,25 @@
 		stroke-dasharray: 1.5 1;
 	}
 
-	.node-circle {
-		fill: var(--color-panel-bg);
-		stroke: var(--color-muted);
+	.node-icon {
+		fill: var(--color-muted);
 		cursor: default;
 	}
 
-	.node.adjacent .node-circle {
-		stroke: var(--color-accent);
+	.node.adjacent .node-icon {
+		fill: var(--color-accent);
 		cursor: pointer;
 	}
 
-	.node.adjacent .node-circle:hover {
-		fill: var(--color-input-bg);
+	.node.adjacent:hover .node-icon {
+		fill: var(--color-fg);
 	}
 
-	.node.player .node-circle {
+	.node.player .node-icon {
+		fill: var(--color-fg);
+	}
+
+	.node-bg {
 		fill: var(--color-accent);
 		stroke: var(--color-fg);
 	}
