@@ -106,6 +106,7 @@ pub fn replay_journal(
         match event {
             WorldEvent::PlayerMoved { to, .. } => {
                 world.player_location = *to;
+                world.visited_locations.insert(*to);
             }
             WorldEvent::NpcMoved { npc_id, to, .. } => {
                 if let Some(npc) = npc_manager.get_mut(*npc_id) {
@@ -221,6 +222,19 @@ mod tests {
         }];
         replay_journal(&mut world, &mut npcs, &events);
         assert_eq!(world.player_location, LocationId(2));
+    }
+
+    #[test]
+    fn test_replay_player_moved_tracks_visited() {
+        let mut world = crate::world::WorldState::new();
+        let mut npcs = crate::npc::manager::NpcManager::new();
+        assert!(!world.visited_locations.contains(&LocationId(2)));
+        let events = vec![WorldEvent::PlayerMoved {
+            from: LocationId(1),
+            to: LocationId(2),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+        assert!(world.visited_locations.contains(&LocationId(2)));
     }
 
     #[test]

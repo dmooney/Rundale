@@ -120,7 +120,7 @@ The map could be more than navigation:
 |-------|-------|--------|
 | ~~**Quick win**~~ | ~~Label collision avoidance (#3) — fix overlap with force-directed nudge~~ | **Done** |
 | ~~**Phase A**~~ | ~~GTA minimap (#1) + `/map` hotkey for full view (#2c — zoomable graph)~~ | **Done** |
-| **Phase B** | Fog of war / progressive disclosure (#4) + hover tooltips (#5) | Medium |
+| ~~**Phase B**~~ | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~ | **Done** |
 | **Phase C** | Animated travel (#7) + time-of-day atmosphere (#6) | Medium |
 | **Phase D** | OSM tile background for full map (#9) + TUI ASCII map (#8) | Large |
 | **Phase E** | Narrative annotations (#10) + NPC trails | Large |

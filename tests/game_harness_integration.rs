@@ -374,3 +374,85 @@ fn test_long_journey_fairy_fort() {
         other => panic!("Unexpected result: {:?}", other),
     }
 }
+
+#[test]
+fn test_fog_of_war_frontier_at_pub() {
+    use parish::ipc::handlers::build_map_data;
+
+    let mut h = GameTestHarness::new();
+    // Start at Kilteevan Village
+    assert_eq!(h.player_location(), "Kilteevan Village");
+
+    // Move to crossroads then pub
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+    assert_eq!(h.player_location(), "Darcy's Pub");
+
+    let map = build_map_data(&h.app.world, 1.25);
+
+    // The player is at the pub
+    assert_eq!(
+        map.player_location,
+        h.app.world.player_location.0.to_string()
+    );
+
+    // We should have visited locations (Kilteevan, Crossroads, Pub) + frontier
+    let visited: Vec<_> = map.locations.iter().filter(|l| l.visited).collect();
+    let frontier: Vec<_> = map.locations.iter().filter(|l| !l.visited).collect();
+
+    assert_eq!(visited.len(), 3, "should have 3 visited locations");
+    assert!(
+        !frontier.is_empty(),
+        "frontier should include unvisited neighbors of visited locations"
+    );
+
+    // Crossroads should be visited and visible
+    assert!(
+        visited.iter().any(|l| l.name == "The Crossroads"),
+        "crossroads should be in visited set"
+    );
+
+    // The pub's other neighbors (besides crossroads) should be in frontier
+    let pub_id = h.app.world.player_location;
+    let pub_neighbors: Vec<_> = h
+        .app
+        .world
+        .graph
+        .neighbors(pub_id)
+        .iter()
+        .map(|(id, _)| *id)
+        .collect();
+    for neighbor_id in &pub_neighbors {
+        if !h.app.world.visited_locations.contains(neighbor_id) {
+            let name = h
+                .app
+                .world
+                .graph
+                .get(*neighbor_id)
+                .map(|d| d.name.as_str())
+                .unwrap_or("?");
+            assert!(
+                frontier.iter().any(|l| l.id == neighbor_id.0.to_string()),
+                "unvisited neighbor '{}' should appear in frontier",
+                name
+            );
+        }
+    }
+
+    // Edges should connect visited to frontier
+    assert!(
+        map.edges.len() >= visited.len() - 1,
+        "should have edges between visited locations and to frontier"
+    );
+
+    eprintln!("=== Map at Pub ===");
+    eprintln!(
+        "Visited: {:?}",
+        visited.iter().map(|l| &l.name).collect::<Vec<_>>()
+    );
+    eprintln!(
+        "Frontier: {:?}",
+        frontier.iter().map(|l| &l.name).collect::<Vec<_>>()
+    );
+    eprintln!("Edges: {}", map.edges.len());
+}

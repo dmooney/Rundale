@@ -158,7 +158,14 @@
 		return counts;
 	});
 
-	let tooltip: string | null = $state(null);
+	interface TooltipInfo {
+		name: string;
+		indoor?: boolean;
+		travel_minutes?: number;
+		visited?: boolean;
+	}
+
+	let tooltip: TooltipInfo | null = $state(null);
 
 	function isPlayer(loc: MapLocation): boolean {
 		return $mapData?.player_location === loc.id;
@@ -215,8 +222,11 @@
 			{#each visibleEdges as [src, dst]}
 				{@const a = localProjected.find((p) => p.id === src)}
 				{@const b = localProjected.find((p) => p.id === dst)}
+				{@const srcLoc = ($mapData?.locations ?? []).find((l) => l.id === src)}
+				{@const dstLoc = ($mapData?.locations ?? []).find((l) => l.id === dst)}
+				{@const isFrontierEdge = srcLoc?.visited === false || dstLoc?.visited === false}
 				{#if a && b}
-					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" stroke-width={1 * s} />
+					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} class="edge" class:frontier-edge={isFrontierEdge} stroke-width={1 * s} />
 				{/if}
 			{/each}
 
@@ -250,8 +260,9 @@
 					class="node"
 					class:player={isPlayer(loc)}
 					class:adjacent={loc.adjacent}
+					class:frontier={loc.visited === false}
 					onclick={() => handleClick(loc)}
-					onmouseenter={() => (tooltip = loc.name)}
+					onmouseenter={() => (tooltip = { name: loc.name, indoor: loc.indoor, travel_minutes: loc.travel_minutes, visited: loc.visited })}
 					onmouseleave={() => (tooltip = null)}
 				>
 					{#if isPlayer(loc)}
@@ -276,7 +287,19 @@
 			<!-- Off-screen indicators removed: confusing at tight zoom -->
 		</svg>
 		{#if tooltip}
-			<div class="tooltip">{tooltip}</div>
+			<div class="tooltip">
+				<div class="tooltip-name">{tooltip.name}</div>
+				{#if tooltip.visited === false}
+					<div class="tooltip-detail tooltip-unexplored">Unexplored</div>
+				{:else}
+					{#if tooltip.indoor !== undefined}
+						<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
+					{/if}
+					{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
+						<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
+					{/if}
+				{/if}
+			</div>
 		{/if}
 	{:else}
 		<div class="empty">Loading map&hellip;</div>
@@ -333,6 +356,11 @@
 		stroke: var(--color-border);
 	}
 
+	.edge.frontier-edge {
+		stroke-dasharray: 4 3;
+		opacity: 0.4;
+	}
+
 	.continuation-stub {
 		stroke: var(--color-muted);
 		opacity: 0.4;
@@ -377,6 +405,23 @@
 		fill: var(--color-fg);
 	}
 
+	.node.frontier .node-icon {
+		opacity: 0.4;
+	}
+
+	.node.frontier .node-label {
+		opacity: 0.5;
+		font-style: italic;
+	}
+
+	.node.frontier.adjacent .node-icon {
+		opacity: 0.6;
+		cursor: pointer;
+	}
+
+	.tooltip-unexplored {
+		font-style: italic;
+	}
 
 	.tooltip {
 		position: absolute;
@@ -385,10 +430,20 @@
 		background: var(--color-input-bg);
 		border: 1px solid var(--color-border);
 		color: var(--color-fg);
-		padding: 0.2rem 0.5rem;
-		font-size: 0.8rem;
+		padding: 0.25rem 0.5rem;
+		font-size: 0.75rem;
 		border-radius: 3px;
 		pointer-events: none;
+		line-height: 1.3;
+	}
+
+	.tooltip-name {
+		font-weight: 600;
+	}
+
+	.tooltip-detail {
+		color: var(--color-muted);
+		font-size: 0.65rem;
 	}
 
 	.empty {

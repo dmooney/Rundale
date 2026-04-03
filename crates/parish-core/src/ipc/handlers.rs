@@ -54,9 +54,15 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
     }
 }
 
-/// Builds the full [`MapData`] with all locations, edges, and player position.
-pub fn build_map_data(world: &WorldState) -> MapData {
+/// Builds the [`MapData`] with fog-of-war: visited locations plus the frontier.
+///
+/// Visited locations are fully enriched. The "frontier" — unvisited locations
+/// adjacent to any visited location — also appears so the player can see
+/// where they could explore next. Frontier locations are marked with
+/// `visited: false` and have limited tooltip data.
+pub fn build_map_data(world: &WorldState, speed_m_per_s: f64) -> MapData {
     let player_loc = world.player_location;
+    let visited = &world.visited_locations;
 
     let adjacent_ids: HashSet<LocationId> = world
         .graph
@@ -67,25 +73,73 @@ pub fn build_map_data(world: &WorldState) -> MapData {
 
     let hop_map = world.graph.hop_distances(player_loc);
 
-    let locations: Vec<MapLocation> = world
+    // Frontier: unvisited locations that neighbor at least one visited location
+    let mut frontier: HashSet<LocationId> = HashSet::new();
+    for &v in visited {
+        for (neighbor_id, _) in world.graph.neighbors(v) {
+            if !visited.contains(&neighbor_id) {
+                frontier.insert(neighbor_id);
+            }
+        }
+    }
+
+    // Build visited locations (fully enriched)
+    let mut locations: Vec<MapLocation> = world
         .graph
         .location_ids()
         .into_iter()
+        .filter(|id| visited.contains(id))
         .filter_map(|id| world.graph.get(id).map(|data| (id, data)))
-        .map(|(id, data)| MapLocation {
-            id: id.0.to_string(),
-            name: data.name.clone(),
-            lat: data.lat,
-            lon: data.lon,
-            adjacent: adjacent_ids.contains(&id) || id == player_loc,
-            hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+        .map(|(id, data)| {
+            let travel_minutes = if id == player_loc {
+                None
+            } else {
+                world
+                    .graph
+                    .shortest_path(player_loc, id)
+                    .map(|path| world.graph.path_travel_time(&path, speed_m_per_s))
+            };
+
+            MapLocation {
+                id: id.0.to_string(),
+                name: data.name.clone(),
+                lat: data.lat,
+                lon: data.lon,
+                adjacent: adjacent_ids.contains(&id) || id == player_loc,
+                hops: *hop_map.get(&id).unwrap_or(&u32::MAX),
+                indoor: Some(data.indoor),
+                travel_minutes,
+                visited: true,
+            }
         })
         .collect();
 
+    // Append frontier locations (limited info)
+    for id in &frontier {
+        if let Some(data) = world.graph.get(*id) {
+            locations.push(MapLocation {
+                id: id.0.to_string(),
+                name: data.name.clone(),
+                lat: data.lat,
+                lon: data.lon,
+                adjacent: adjacent_ids.contains(id),
+                hops: *hop_map.get(id).unwrap_or(&u32::MAX),
+                indoor: None,
+                travel_minutes: None,
+                visited: false,
+            });
+        }
+    }
+
+    // Edges: between any two locations that are both visible (visited or frontier)
+    let visible: HashSet<LocationId> = visited.union(&frontier).copied().collect();
     let mut edges: Vec<(String, String)> = Vec::new();
     for loc_id in world.graph.location_ids() {
+        if !visible.contains(&loc_id) {
+            continue;
+        }
         for (neighbor_id, _conn) in world.graph.neighbors(loc_id) {
-            if loc_id.0 < neighbor_id.0 {
+            if loc_id.0 < neighbor_id.0 && visible.contains(&neighbor_id) {
                 edges.push((loc_id.0.to_string(), neighbor_id.0.to_string()));
             }
         }
@@ -179,12 +233,91 @@ mod tests {
     #[test]
     fn build_map_data_from_default_world() {
         let world = WorldState::new();
-        let map = build_map_data(&world);
+        let map = build_map_data(&world, 1.25);
         assert!(!map.player_location.is_empty());
         // At least the player's location should exist
         assert!(
             map.locations.iter().any(|l| l.id == map.player_location) || map.locations.is_empty()
         );
+    }
+
+    #[test]
+    fn fog_of_war_shows_frontier() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let start = world.player_location;
+            let neighbor_count = world.graph.neighbors(start).len();
+
+            let map = build_map_data(&world, 1.25);
+
+            // Start location (visited) + its neighbors (frontier)
+            assert_eq!(
+                map.locations.len(),
+                1 + neighbor_count,
+                "should show start + frontier neighbors"
+            );
+
+            // The start location is visited
+            let start_loc = map
+                .locations
+                .iter()
+                .find(|l| l.id == map.player_location)
+                .unwrap();
+            assert!(start_loc.visited);
+            assert!(start_loc.indoor.is_some());
+            assert!(start_loc.travel_minutes.is_none());
+
+            // Frontier locations are not visited and have limited info
+            let frontier: Vec<_> = map.locations.iter().filter(|l| !l.visited).collect();
+            assert_eq!(frontier.len(), neighbor_count);
+            for f in &frontier {
+                assert!(f.indoor.is_none(), "frontier should not reveal indoor flag");
+                assert!(
+                    f.travel_minutes.is_none(),
+                    "frontier should not reveal travel time"
+                );
+            }
+
+            // Edges should connect start to each frontier neighbor
+            assert_eq!(map.edges.len(), neighbor_count);
+        }
+    }
+
+    #[test]
+    fn fog_of_war_reveals_after_visit() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let start = world.player_location;
+            // Visit a neighbor
+            let neighbors = world.graph.neighbors(start);
+            if let Some((neighbor_id, _)) = neighbors.first() {
+                world.mark_visited(*neighbor_id);
+                let map = build_map_data(&world, 1.25);
+
+                // Visited locations should have visited=true
+                let visited: Vec<_> = map.locations.iter().filter(|l| l.visited).collect();
+                assert_eq!(visited.len(), 2);
+
+                // The non-player visited location should have travel_minutes
+                let other = visited
+                    .iter()
+                    .find(|l| l.id != map.player_location)
+                    .unwrap();
+                assert!(other.travel_minutes.is_some());
+                assert!(other.indoor.is_some());
+
+                // Frontier locations exist for unvisited neighbors of both visited locs
+                let frontier: Vec<_> = map.locations.iter().filter(|l| !l.visited).collect();
+                assert!(
+                    !frontier.is_empty() || map.locations.len() == 2,
+                    "frontier should appear unless all neighbors are visited"
+                );
+            }
+        }
     }
 
     #[test]
