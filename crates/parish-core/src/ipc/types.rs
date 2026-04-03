@@ -56,6 +56,19 @@ pub struct MapLocation {
     /// Number of graph hops from the player's current location.
     #[serde(default)]
     pub hops: u32,
+    /// Whether this location is indoors (for tooltip display).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indoor: Option<bool>,
+    /// Estimated walking time from the player's current location, in minutes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub travel_minutes: Option<u16>,
+    /// Whether the player has visited this location (false = fog-of-war frontier).
+    #[serde(default = "default_true")]
+    pub visited: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// The full map graph sent to the frontend.
@@ -206,6 +219,9 @@ mod tests {
                 lon: -7.0,
                 adjacent: true,
                 hops: 0,
+                indoor: Some(true),
+                travel_minutes: Some(5),
+                visited: true,
             }],
             edges: vec![("1".to_string(), "2".to_string())],
             player_location: "1".to_string(),

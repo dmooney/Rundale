@@ -1280,6 +1280,7 @@ fn handle_headless_movement(app: &mut App, target: &str) {
 
             app.world.clock.advance(minutes as i64);
             app.world.player_location = destination;
+            app.world.mark_visited(destination);
 
             if let Some(data) = app.world.graph.get(destination) {
                 app.world

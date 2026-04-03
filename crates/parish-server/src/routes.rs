@@ -41,10 +41,14 @@ pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<Worl
     Json(parish_core::ipc::snapshot_from_world(&world, transport))
 }
 
-/// `GET /api/map` — returns the map with all locations and edges.
+/// `GET /api/map` — returns visited locations, edges, and player position.
 pub async fn get_map(State(state): State<Arc<AppState>>) -> Json<MapData> {
     let world = state.world.lock().await;
-    Json(parish_core::ipc::build_map_data(&world))
+    let transport = state.transport.default_mode();
+    Json(parish_core::ipc::build_map_data(
+        &world,
+        transport.speed_m_per_s,
+    ))
 }
 
 /// `GET /api/npcs-here` — returns NPCs at the player's current location.

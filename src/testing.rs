@@ -985,6 +985,7 @@ impl GameTestHarness {
 
                 self.app.world.clock.advance(minutes as i64);
                 self.app.world.player_location = destination;
+                self.app.world.mark_visited(destination);
 
                 // Update legacy locations map
                 if let Some(data) = self.app.world.graph.get(destination) {

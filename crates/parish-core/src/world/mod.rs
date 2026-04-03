@@ -15,7 +15,7 @@ pub mod time;
 pub mod transport;
 pub mod weather;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::Path;
 
@@ -129,6 +129,8 @@ pub struct WorldState {
     pub text_log: Vec<String>,
     /// Cross-tier event bus for publishing and subscribing to game events.
     pub event_bus: EventBus,
+    /// Set of location IDs the player has visited (for fog-of-war map).
+    pub visited_locations: HashSet<LocationId>,
 }
 
 impl WorldState {
@@ -168,6 +170,7 @@ impl WorldState {
             weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
+            visited_locations: HashSet::from([crossroads_id]),
         }
     }
 
@@ -212,6 +215,7 @@ impl WorldState {
             weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
+            visited_locations: HashSet::from([start_location]),
         })
     }
 
@@ -267,7 +271,13 @@ impl WorldState {
             weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
+            visited_locations: HashSet::from([start_location]),
         })
+    }
+
+    /// Marks a location as visited for the fog-of-war map.
+    pub fn mark_visited(&mut self, id: LocationId) {
+        self.visited_locations.insert(id);
     }
 
     /// Returns a reference to the player's current location.
@@ -343,6 +353,25 @@ mod tests {
     fn test_default() {
         let world = WorldState::default();
         assert_eq!(world.player_location, LocationId(1));
+    }
+
+    #[test]
+    fn test_visited_initialized_with_start() {
+        let world = WorldState::new();
+        assert!(world.visited_locations.contains(&LocationId(1)));
+        assert_eq!(world.visited_locations.len(), 1);
+    }
+
+    #[test]
+    fn test_mark_visited() {
+        let mut world = WorldState::new();
+        world.mark_visited(LocationId(5));
+        assert!(world.visited_locations.contains(&LocationId(5)));
+        assert!(world.visited_locations.contains(&LocationId(1)));
+        assert_eq!(world.visited_locations.len(), 2);
+        // Idempotent
+        world.mark_visited(LocationId(5));
+        assert_eq!(world.visited_locations.len(), 2);
     }
 
     #[test]

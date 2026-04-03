@@ -22,6 +22,10 @@ export interface MapLocation {
 	lon: number;
 	adjacent: boolean;
 	hops: number;
+	indoor?: boolean;
+	travel_minutes?: number;
+	/** Whether the player has visited this location (false = fog-of-war frontier). */
+	visited?: boolean;
 }
 
 export interface MapData {
