@@ -251,6 +251,9 @@ pub struct NpcConfig {
     /// Relationship strength label thresholds.
     #[serde(default)]
     pub relationship_labels: RelationshipLabelConfig,
+    /// Number of recent player reactions included in dialogue context.
+    #[serde(default = "default_reaction_context_count")]
+    pub reaction_context_count: usize,
 }
 
 impl Default for NpcConfig {
@@ -265,8 +268,13 @@ impl Default for NpcConfig {
             event_summary_debug_truncation: 50,
             cognitive_tiers: CognitiveTierConfig::default(),
             relationship_labels: RelationshipLabelConfig::default(),
+            reaction_context_count: 5,
         }
     }
+}
+
+fn default_reaction_context_count() -> usize {
+    5
 }
 
 fn default_memory_capacity() -> usize {

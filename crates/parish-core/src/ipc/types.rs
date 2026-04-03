@@ -152,10 +152,36 @@ pub struct StreamEndPayload {
 /// Payload for `text-log` events.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TextLogPayload {
+    /// Unique message ID for reaction targeting.
+    #[serde(default)]
+    pub id: String,
     /// Who produced this text: "player", "system", or the NPC's name.
     pub source: String,
     /// The log entry text.
     pub content: String,
+}
+
+/// Payload for `npc-reaction` events.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct NpcReactionPayload {
+    /// ID of the message being reacted to.
+    pub message_id: String,
+    /// The reaction emoji.
+    pub emoji: String,
+    /// Who reacted (NPC name).
+    pub source: String,
+}
+
+/// Request body for the react-to-message endpoint.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ReactRequest {
+    /// Name of the NPC whose message is being reacted to.
+    pub npc_name: String,
+    /// First ~80 chars of the message being reacted to.
+    pub message_snippet: String,
+    /// The reaction emoji.
+    pub emoji: String,
 }
 
 /// Payload for `loading` events.
@@ -252,6 +278,7 @@ mod tests {
         assert!(json.contains("hello"));
 
         let log = TextLogPayload {
+            id: "msg-1".to_string(),
             source: "system".to_string(),
             content: "Welcome".to_string(),
         };

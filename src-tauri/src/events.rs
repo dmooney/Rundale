@@ -27,6 +27,8 @@ pub const EVENT_DEBUG_UPDATE: &str = "debug-update";
 pub const EVENT_SAVE_PICKER: &str = "save-picker";
 /// Event emitted to toggle the full map overlay.
 pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
+/// Event emitted when an NPC reacts to a message with an emoji.
+pub const EVENT_NPC_REACTION: &str = "npc-reaction";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;
@@ -50,10 +52,24 @@ pub struct StreamEndPayload {
 /// Payload for `text-log` events.
 #[derive(serde::Serialize, Clone)]
 pub struct TextLogPayload {
+    /// Unique message ID for reaction targeting.
+    #[serde(default)]
+    pub id: String,
     /// Who produced this text: "player", "system", or the NPC's name.
     pub source: String,
     /// The log entry text.
     pub content: String,
+}
+
+/// Payload for `npc-reaction` events.
+#[derive(serde::Serialize, Clone)]
+pub struct NpcReactionPayload {
+    /// ID of the message being reacted to.
+    pub message_id: String,
+    /// The reaction emoji.
+    pub emoji: String,
+    /// Who reacted (NPC name).
+    pub source: String,
 }
 
 /// Payload for `loading` events.

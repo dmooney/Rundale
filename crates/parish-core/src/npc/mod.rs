@@ -10,6 +10,7 @@ pub mod manager;
 pub mod memory;
 pub mod mood;
 pub mod overhear;
+pub mod reactions;
 pub mod ticks;
 pub mod transitions;
 pub mod types;
@@ -20,6 +21,7 @@ use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
 
 use memory::ShortTermMemory;
+use reactions::ReactionLog;
 use transitions::NpcSummary;
 use types::{DailySchedule, Intelligence, NpcState, Relationship};
 
@@ -151,6 +153,8 @@ pub struct Npc {
     /// Set when the NPC drops to a lower cognitive tier; cleared when
     /// they are inflated back to a higher tier.
     pub deflated_summary: Option<NpcSummary>,
+    /// Log of recent player reactions (emoji) toward this NPC.
+    pub reaction_log: ReactionLog,
 }
 
 impl Npc {
@@ -181,6 +185,7 @@ impl Npc {
             knowledge: Vec::new(),
             state: NpcState::default(),
             deflated_summary: None,
+            reaction_log: ReactionLog::default(),
         }
     }
 

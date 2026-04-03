@@ -69,10 +69,17 @@ export interface UiConfig {
 	splash_text: string;
 }
 
+export interface Reaction {
+	emoji: string;
+	source: string;
+}
+
 export interface TextLogEntry {
+	id?: string;
 	source: string;
 	content: string;
 	streaming?: boolean;
+	reactions?: Reaction[];
 }
 
 export interface StreamTokenPayload {
@@ -84,8 +91,15 @@ export interface StreamEndPayload {
 }
 
 export interface TextLogPayload {
+	id?: string;
 	source: string;
 	content: string;
+}
+
+export interface NpcReactionPayload {
+	message_id: string;
+	emoji: string;
+	source: string;
 }
 
 export type WorldUpdatePayload = WorldSnapshot;

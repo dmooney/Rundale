@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::error::ParishError;
 use crate::npc::memory::ShortTermMemory;
+use crate::npc::reactions::ReactionLog;
 use crate::npc::types::{
     DailySchedule, Intelligence, NpcState, Relationship, RelationshipKind, ScheduleEntry,
 };
@@ -179,6 +180,7 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 knowledge: entry.knowledge.clone(),
                 state: NpcState::default(),
                 deflated_summary: None,
+                reaction_log: ReactionLog::default(),
             }
         })
         .collect();

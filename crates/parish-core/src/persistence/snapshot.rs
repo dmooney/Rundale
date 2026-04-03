@@ -114,6 +114,7 @@ impl NpcSnapshot {
             knowledge: self.knowledge,
             state: self.state,
             deflated_summary: None,
+            reaction_log: crate::npc::reactions::ReactionLog::default(),
         }
     }
 }
@@ -255,6 +256,7 @@ mod tests {
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,
+            reaction_log: crate::npc::reactions::ReactionLog::default(),
         }
     }
 

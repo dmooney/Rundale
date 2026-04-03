@@ -15,6 +15,7 @@ import type {
 	StreamTokenPayload,
 	StreamEndPayload,
 	TextLogPayload,
+	NpcReactionPayload,
 	WorldUpdatePayload,
 	LoadingPayload,
 	DebugSnapshot,
@@ -80,6 +81,11 @@ export const newSaveFile = () => command<void>('new_save_file');
 export const newGame = () => command<void>('new_game');
 
 export const getSaveState = () => command<SaveState>('get_save_state');
+
+// ── Reaction commands ──────────────────────────────────────────────────────
+
+export const reactToMessage = (npcName: string, messageSnippet: string, emoji: string) =>
+	command<void>('react_to_message', { npcName, messageSnippet, emoji });
 
 // ── Events ──────────────────────────────────────────────────────────────────
 
@@ -181,3 +187,6 @@ export const onSavePicker = (cb: () => void) =>
 
 export const onToggleFullMap = (cb: () => void) =>
 	onEvent<void>('toggle-full-map', () => cb());
+
+export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
+	onEvent<NpcReactionPayload>('npc-reaction', cb);

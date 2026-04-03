@@ -10,7 +10,7 @@
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, addReaction } from '../stores/game';
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
@@ -29,7 +29,8 @@
 		onThemeUpdate,
 		onDebugUpdate,
 		onSavePicker,
-		onToggleFullMap
+		onToggleFullMap,
+		onNpcReaction
 	} from '$lib/ipc';
 
 	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
@@ -116,7 +117,11 @@
 					payload.source === 'player' && payload.content.startsWith('> ')
 						? payload.content.slice(2)
 						: payload.content;
-				textLog.update((log) => [...log, { source: payload.source, content }]);
+				textLog.update((log) => [...log, { id: payload.id, source: payload.source, content }]);
+			}),
+
+			onNpcReaction((payload) => {
+				addReaction(payload.message_id, payload.emoji, payload.source);
 			}),
 
 			onStreamToken((payload) => {

@@ -559,6 +559,7 @@ pub fn run() {
             commands::new_save_file,
             commands::new_game,
             commands::get_save_state,
+            commands::react_to_message,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

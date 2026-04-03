@@ -207,6 +207,16 @@ impl NpcManager {
             .copied()
     }
 
+    /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
+    ///
+    /// Returns a mutable reference for updating reaction logs, mood, etc.
+    pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut Npc> {
+        let lower = name.to_lowercase();
+        self.npcs
+            .values_mut()
+            .find(|n| n.name.to_lowercase() == lower)
+    }
+
     /// Returns an iterator over all NPCs.
     pub fn all_npcs(&self) -> impl Iterator<Item = &Npc> {
         self.npcs.values()
@@ -616,6 +626,7 @@ mod tests {
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,
+            reaction_log: crate::npc::reactions::ReactionLog::default(),
         }
     }
 

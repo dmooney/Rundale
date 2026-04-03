@@ -137,6 +137,15 @@ pub fn build_enhanced_context_with_config(
         context.push_str(&memory_ctx);
     }
 
+    // Add recent player reactions (emoji feedback)
+    let reaction_ctx = npc
+        .reaction_log
+        .context_string(config.reaction_context_count);
+    if !reaction_ctx.is_empty() {
+        context.push_str("\n\n");
+        context.push_str(&reaction_ctx);
+    }
+
     context
 }
 
@@ -427,6 +436,7 @@ mod tests {
             knowledge: Vec::new(),
             state: NpcState::default(),
             deflated_summary: None,
+            reaction_log: crate::npc::reactions::ReactionLog::default(),
         }
     }
 

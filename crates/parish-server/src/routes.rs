@@ -17,10 +17,11 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
 use parish_core::ipc::{
-    LoadingPayload, MapData, NpcInfo, StreamEndPayload, TextLogPayload, ThemePalette,
-    WorldSnapshot, capitalize_first,
+    LoadingPayload, MapData, NpcInfo, NpcReactionPayload, ReactRequest, StreamEndPayload,
+    TextLogPayload, ThemePalette, WorldSnapshot, capitalize_first,
 };
 use parish_core::npc::parse_npc_stream_response;
+use parish_core::npc::reactions;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
 use parish_core::world::movement::{self, MovementResult};
@@ -31,6 +32,18 @@ use crate::state::{AppState, GameConfig};
 
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Monotonically increasing message ID counter for text-log entries.
+static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Creates a [`TextLogPayload`] with an auto-generated unique message ID.
+fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        source: source.into(),
+        content: content.into(),
+    }
+}
 
 // ── Query endpoints ─────────────────────────────────────────────────────────
 
@@ -118,20 +131,19 @@ pub async fn submit_input(
     }
 
     // Emit the player's own text as a log entry
-    state.event_bus.emit(
-        "text-log",
-        &TextLogPayload {
-            source: "player".to_string(),
-            content: format!("> {}", text),
-        },
-    );
+    let player_msg = text_log("player", format!("> {}", text));
+    let player_msg_id = player_msg.id.clone();
+    state.event_bus.emit("text-log", &player_msg);
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, &state).await;
         }
         InputResult::GameInput(raw) => {
+            let raw_for_reactions = raw.clone();
             handle_game_input(raw, &state).await;
+            // Generate rule-based NPC reactions to the player's message
+            emit_npc_reactions(&player_msg_id, &raw_for_reactions, &state).await;
         }
     }
 
@@ -490,13 +502,9 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     }
 
     if !response.is_empty() {
-        state.event_bus.emit(
-            "text-log",
-            &TextLogPayload {
-                source: "system".to_string(),
-                content: response,
-            },
-        );
+        state
+            .event_bus
+            .emit("text-log", &text_log("system", response));
     }
 
     let world = state.world.lock().await;
@@ -530,10 +538,7 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
         } else {
             state.event_bus.emit(
                 "text-log",
-                &TextLogPayload {
-                    source: "system".to_string(),
-                    content: "And where would ye be off to?".to_string(),
-                },
+                &text_log("system", "And where would ye be off to?"),
             );
         }
         return;
@@ -584,13 +589,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
 
     match result {
         MovementResult::Arrived { narration, .. } => {
-            state.event_bus.emit(
-                "text-log",
-                &TextLogPayload {
-                    source: "system".to_string(),
-                    content: narration,
-                },
-            );
+            state
+                .event_bus
+                .emit("text-log", &text_log("system", narration));
 
             handle_look(state).await;
 
@@ -604,10 +605,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         MovementResult::AlreadyHere => {
             state.event_bus.emit(
                 "text-log",
-                &TextLogPayload {
-                    source: "system".to_string(),
-                    content: "Sure, you're already standing right here.".to_string(),
-                },
+                &text_log("system", "Sure, you're already standing right here."),
             );
         }
         MovementResult::NotFound(name) => {
@@ -621,13 +619,13 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             );
             state.event_bus.emit(
                 "text-log",
-                &TextLogPayload {
-                    source: "system".to_string(),
-                    content: format!(
+                &text_log(
+                    "system",
+                    format!(
                         "You haven't the faintest notion how to reach \"{}\". {}",
                         name, exits
                     ),
-                },
+                ),
             );
         }
     }
@@ -662,10 +660,7 @@ async fn handle_look(state: &Arc<AppState>) {
 
     state.event_bus.emit(
         "text-log",
-        &TextLogPayload {
-            source: "system".to_string(),
-            content: format!("{}\n{}", desc, exits),
-        },
+        &text_log("system", format!("{}\n{}", desc, exits)),
     );
 }
 
@@ -720,13 +715,9 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
             let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % idle_messages.len();
             idle_messages[idx].to_string()
         };
-        state.event_bus.emit(
-            "text-log",
-            &TextLogPayload {
-                source: "system".to_string(),
-                content,
-            },
-        );
+        state
+            .event_bus
+            .emit("text-log", &text_log("system", content));
         return;
     };
 
@@ -743,13 +734,9 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
     let display_label = capitalize_first(&npc_name);
-    state.event_bus.emit(
-        "text-log",
-        &TextLogPayload {
-            source: display_label,
-            content: String::new(),
-        },
-    );
+    state
+        .event_bus
+        .emit("text-log", &text_log(display_label, String::new()));
 
     match queue
         .send(
@@ -812,6 +799,58 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
     state
         .event_bus
         .emit("loading", &LoadingPayload { active: false });
+}
+
+// ── Reaction endpoint ──────────────────────────────────────────────────────
+
+/// `POST /api/react-to-message` — player reacts to an NPC message with an emoji.
+pub async fn react_to_message(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ReactRequest>,
+) -> impl IntoResponse {
+    // Validate emoji is in the palette
+    if reactions::reaction_description(&body.emoji).is_none() {
+        return StatusCode::BAD_REQUEST;
+    }
+
+    // Store the reaction in the target NPC's reaction log
+    let mut npc_manager = state.npc_manager.lock().await;
+    if let Some(npc) = npc_manager.find_by_name_mut(&body.npc_name) {
+        let now = chrono::Utc::now();
+        npc.reaction_log
+            .add(&body.emoji, &body.message_snippet, now);
+    }
+
+    StatusCode::OK
+}
+
+/// Generates rule-based NPC reactions to a player message and emits events.
+///
+/// Called after processing player input. Each NPC at the player's location
+/// has a chance to react with an emoji based on keyword matching.
+async fn emit_npc_reactions(player_msg_id: &str, player_input: &str, state: &Arc<AppState>) {
+    let npc_names: Vec<String> = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        npc_manager
+            .npcs_at(world.player_location)
+            .iter()
+            .map(|n| n.name.clone())
+            .collect()
+    };
+
+    for name in npc_names {
+        if let Some(emoji) = reactions::generate_rule_reaction(player_input) {
+            state.event_bus.emit(
+                "npc-reaction",
+                &NpcReactionPayload {
+                    message_id: player_msg_id.to_string(),
+                    emoji,
+                    source: capitalize_first(&name),
+                },
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -914,5 +953,21 @@ mod tests {
             start_time,
             "clock should not advance for unknown destination"
         );
+    }
+
+    #[test]
+    fn text_log_generates_unique_ids() {
+        let a = text_log("system", "hello");
+        let b = text_log("system", "world");
+        assert_ne!(a.id, b.id);
+        assert!(a.id.starts_with("msg-"));
+    }
+
+    #[test]
+    fn react_request_deserialization() {
+        let json = r#"{"npcName": "Padraig", "messageSnippet": "Hello", "emoji": "😊"}"#;
+        let req: ReactRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.npc_name, "Padraig");
+        assert_eq!(req.emoji, "😊");
     }
 }

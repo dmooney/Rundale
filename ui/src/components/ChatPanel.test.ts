@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/svelte';
 import { textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor } from '../stores/game';
 import ChatPanel from './ChatPanel.svelte';
+
+// Mock the IPC layer
+vi.mock('$lib/ipc', () => ({
+	reactToMessage: vi.fn(() => Promise.resolve())
+}));
 
 describe('ChatPanel', () => {
 	beforeEach(() => {
@@ -124,6 +129,116 @@ describe('ChatPanel', () => {
 			const emote = container.querySelector('.emote');
 			expect(emote).toBeTruthy();
 			expect(emote?.textContent).toBe('tip your hat');
+		});
+	});
+
+	describe('emoji reactions', () => {
+		it('shows reaction picker on NPC message hover', async () => {
+			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			expect(anchor).toBeTruthy();
+
+			await fireEvent.mouseEnter(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
+		});
+
+		it('hides reaction picker on mouseleave', async () => {
+			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeTruthy();
+
+			await fireEvent.mouseLeave(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+		});
+
+		it('does not show reaction picker on player messages', async () => {
+			textLog.set([{ id: 'msg-1', source: 'player', content: 'Hello' }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.player .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+		});
+
+		it('does not show reaction picker on streaming messages', async () => {
+			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Hello...', streaming: true }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+		});
+
+		it('does not show reaction picker on messages without id', async () => {
+			textLog.set([{ source: 'Padraig', content: 'Hello' }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+			expect(container.querySelector('[data-testid="reaction-picker"]')).toBeFalsy();
+		});
+
+		it('clicking reaction adds to entry reactions and calls IPC', async () => {
+			const { reactToMessage } = await import('$lib/ipc');
+			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'The rent was raised.' }]);
+			const { container } = render(ChatPanel);
+
+			// Hover to show picker
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+
+			// Click the first reaction button (😊)
+			const buttons = container.querySelectorAll('.reaction-btn');
+			expect(buttons.length).toBe(12);
+			await fireEvent.click(buttons[0]);
+
+			// Reaction bar should appear with the badge
+			expect(container.querySelector('[data-testid="reaction-bar"]')).toBeTruthy();
+			const badge = container.querySelector('.reaction-badge');
+			expect(badge?.textContent).toContain('😊');
+
+			// IPC should be called
+			expect(reactToMessage).toHaveBeenCalledWith('Padraig', 'The rent was raised.', '😊');
+		});
+
+		it('renders reaction bar when entry has reactions', () => {
+			textLog.set([{
+				id: 'msg-1',
+				source: 'Padraig',
+				content: 'Hello',
+				reactions: [
+					{ emoji: '😊', source: 'player' },
+					{ emoji: '😂', source: 'Siobhan' }
+				]
+			}]);
+			const { container } = render(ChatPanel);
+
+			const bar = container.querySelector('[data-testid="reaction-bar"]');
+			expect(bar).toBeTruthy();
+
+			const badges = container.querySelectorAll('.reaction-badge');
+			expect(badges.length).toBe(2);
+
+			// NPC reactions show source name
+			const source = container.querySelector('.reaction-source');
+			expect(source?.textContent).toBe('Siobhan');
+		});
+
+		it('player reactions do not show source label', () => {
+			textLog.set([{
+				id: 'msg-1',
+				source: 'Padraig',
+				content: 'Hello',
+				reactions: [{ emoji: '😊', source: 'player' }]
+			}]);
+			const { container } = render(ChatPanel);
+
+			expect(container.querySelector('.reaction-source')).toBeFalsy();
 		});
 	});
 });

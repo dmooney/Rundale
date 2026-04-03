@@ -15,6 +15,7 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
 use parish_core::npc::parse_npc_stream_response;
+use parish_core::npc::reactions;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
 use parish_core::world::movement::{self, MovementResult};
@@ -22,8 +23,8 @@ use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, StreamEndPayload,
-    TextLogPayload, spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_WORLD_UPDATE, NpcReactionPayload,
+    StreamEndPayload, TextLogPayload, spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -38,6 +39,18 @@ fn capitalize_first(s: &str) -> String {
 
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Monotonically increasing message ID counter for text-log entries.
+static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Creates a [`TextLogPayload`] with an auto-generated unique message ID.
+fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        source: source.into(),
+        content: content.into(),
+    }
+}
 
 // ── Helper: build a WorldSnapshot from locked world state ────────────────────
 
@@ -300,20 +313,19 @@ pub async fn submit_input(
     }
 
     // Emit the player's own text as a log entry
-    let _ = app.emit(
-        EVENT_TEXT_LOG,
-        TextLogPayload {
-            source: "player".to_string(),
-            content: format!("> {}", text),
-        },
-    );
+    let player_msg = text_log("player", format!("> {}", text));
+    let player_msg_id = player_msg.id.clone();
+    let _ = app.emit(EVENT_TEXT_LOG, player_msg);
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, &state, &app).await;
         }
         InputResult::GameInput(raw) => {
-            handle_game_input(raw, state, app).await;
+            let raw_for_reactions = raw.clone();
+            handle_game_input(raw, state.clone(), app.clone()).await;
+            // Generate rule-based NPC reactions to the player's message
+            emit_npc_reactions(&player_msg_id, &raw_for_reactions, &state, &app).await;
         }
     }
 
@@ -763,6 +775,7 @@ async fn handle_system_command(
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
+            id: String::new(),
             source: "system".to_string(),
             content: response,
         },
@@ -808,6 +821,7 @@ async fn handle_game_input(
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
+                    id: String::new(),
                     source: "system".to_string(),
                     content: "And where would ye be off to?".to_string(),
                 },
@@ -876,6 +890,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
+                    id: String::new(),
                     source: "system".to_string(),
                     content: narration,
                 },
@@ -922,6 +937,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
+                    id: String::new(),
                     source: "system".to_string(),
                     content: "Sure, you're already standing right here.".to_string(),
                 },
@@ -938,6 +954,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
+                    id: String::new(),
                     source: "system".to_string(),
                     content: format!(
                         "You haven't the faintest notion how to reach \"{}\". {}",
@@ -979,6 +996,7 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
+            id: String::new(),
             source: "system".to_string(),
             content: format!("{}\n{}", desc, exits),
         },
@@ -1042,6 +1060,7 @@ async fn handle_npc_conversation(
         let _ = app.emit(
             EVENT_TEXT_LOG,
             TextLogPayload {
+                id: String::new(),
                 source: "system".to_string(),
                 content: idle_messages[idx].to_string(),
             },
@@ -1063,13 +1082,7 @@ async fn handle_npc_conversation(
 
     // Emit NPC name prefix as the start of the streaming entry
     let display_label = capitalize_first(&npc_name);
-    let _ = app.emit(
-        EVENT_TEXT_LOG,
-        TextLogPayload {
-            source: display_label,
-            content: String::new(),
-        },
-    );
+    let _ = app.emit(EVENT_TEXT_LOG, text_log(display_label, String::new()));
 
     // Pause the game clock while waiting for the inference response
     // and immediately notify the frontend so it stops interpolating.
@@ -1157,6 +1170,7 @@ async fn handle_npc_conversation(
                     let _ = app.emit(
                         EVENT_TEXT_LOG,
                         TextLogPayload {
+                            id: String::new(),
                             source: "system".to_string(),
                             content: canned[idx].to_string(),
                         },
@@ -1193,6 +1207,7 @@ async fn handle_npc_conversation(
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
+                    id: String::new(),
                     source: "system".to_string(),
                     content: "The parish storyteller has wandered off. Try again in a moment."
                         .to_string(),
@@ -1357,6 +1372,7 @@ pub async fn load_branch(
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
+            id: String::new(),
             source: "system".to_string(),
             content: format!("Loaded {} (branch: {}).", filename, branch_name),
         },
@@ -1511,6 +1527,7 @@ pub async fn new_game(
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
+            id: String::new(),
             source: "system".to_string(),
             content: "A new chapter begins in the parish...".to_string(),
         },
@@ -1593,4 +1610,59 @@ async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
         lines.push(format!("  {}. {} (game: {})", i + 1, time, info.game_time));
     }
     Ok(lines.join("\n"))
+}
+
+// ── Reaction commands ──────────────────────────────────────────────────────
+
+/// Player reacts to an NPC message with an emoji.
+#[tauri::command]
+pub async fn react_to_message(
+    npc_name: String,
+    message_snippet: String,
+    emoji: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    // Validate emoji is in the palette
+    if reactions::reaction_description(&emoji).is_none() {
+        return Err("Unknown reaction emoji.".to_string());
+    }
+
+    let mut npc_manager = state.npc_manager.lock().await;
+    if let Some(npc) = npc_manager.find_by_name_mut(&npc_name) {
+        let now = chrono::Utc::now();
+        npc.reaction_log.add(&emoji, &message_snippet, now);
+    }
+
+    Ok(())
+}
+
+/// Generates rule-based NPC reactions to a player message and emits events.
+async fn emit_npc_reactions(
+    player_msg_id: &str,
+    player_input: &str,
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) {
+    let npc_names: Vec<String> = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        npc_manager
+            .npcs_at(world.player_location)
+            .iter()
+            .map(|n| n.name.clone())
+            .collect()
+    };
+
+    for name in npc_names {
+        if let Some(emoji) = reactions::generate_rule_reaction(player_input) {
+            let _ = app.emit(
+                crate::events::EVENT_NPC_REACTION,
+                NpcReactionPayload {
+                    message_id: player_msg_id.to_string(),
+                    emoji,
+                    source: capitalize_first(&name),
+                },
+            );
+        }
+    }
 }
