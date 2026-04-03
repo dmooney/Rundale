@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
-use chrono::{DateTime, Duration, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
 use crate::config::CognitiveTierConfig;
 use crate::error::ParishError;
@@ -390,7 +390,24 @@ impl NpcManager {
     ) -> Vec<ScheduleEvent> {
         let now = clock.now();
         let current_hour = now.hour() as u8;
+        let season = clock.season();
+        let day_type = clock.day_type();
         let mut events = Vec::new();
+
+        // Pre-collect cuaird targets: for each NPC, gather friend home locations.
+        let cuaird_targets: HashMap<NpcId, Vec<LocationId>> = self
+            .npcs
+            .iter()
+            .map(|(id, npc)| {
+                let friends: Vec<LocationId> = npc
+                    .relationships
+                    .iter()
+                    .filter(|(_, r)| r.strength > 0.3)
+                    .filter_map(|(friend_id, _)| self.npcs.get(friend_id).and_then(|f| f.home))
+                    .collect();
+                (*id, friends)
+            })
+            .collect();
 
         let npc_ids: Vec<NpcId> = self.npcs.keys().copied().collect();
 
@@ -401,7 +418,17 @@ impl NpcManager {
 
             match &npc.state {
                 NpcState::Present => {
-                    if let Some(mut desired) = npc.desired_location(current_hour) {
+                    if let Some(mut desired) = npc.desired_location(current_hour, season, day_type)
+                    {
+                        // Cuaird override: rotate visiting location by day-of-year
+                        if let Some(entry) = npc.schedule_entry(current_hour, season, day_type)
+                            && entry.cuaird
+                            && let Some(friends) = cuaird_targets.get(&id)
+                            && !friends.is_empty()
+                        {
+                            let day_of_year = now.ordinal() as usize;
+                            desired = friends[day_of_year % friends.len()];
+                        }
                         // Weather shelter override: NPCs seek indoor locations in bad weather
                         let dominated_by_rain = matches!(
                             weather,
@@ -604,7 +631,7 @@ fn tier_rank(tier: CogTier) -> u8 {
 mod tests {
     use super::*;
     use crate::npc::memory::{LongTermMemory, ShortTermMemory};
-    use crate::npc::types::{DailySchedule, ScheduleEntry};
+    use crate::npc::types::{ScheduleEntry, ScheduleVariant, SeasonalSchedule};
     use chrono::TimeZone;
 
     fn make_test_npc(id: u32, location: u32) -> Npc {
@@ -633,27 +660,34 @@ mod tests {
 
     fn make_scheduled_npc(id: u32, home: u32, work: u32) -> Npc {
         let mut npc = make_test_npc(id, home);
-        npc.schedule = Some(DailySchedule {
-            entries: vec![
-                ScheduleEntry {
-                    start_hour: 0,
-                    end_hour: 7,
-                    location: LocationId(home),
-                    activity: "sleeping".to_string(),
-                },
-                ScheduleEntry {
-                    start_hour: 8,
-                    end_hour: 17,
-                    location: LocationId(work),
-                    activity: "working".to_string(),
-                },
-                ScheduleEntry {
-                    start_hour: 18,
-                    end_hour: 23,
-                    location: LocationId(home),
-                    activity: "evening rest".to_string(),
-                },
-            ],
+        npc.schedule = Some(SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![
+                    ScheduleEntry {
+                        start_hour: 0,
+                        end_hour: 7,
+                        location: LocationId(home),
+                        activity: "sleeping".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 8,
+                        end_hour: 17,
+                        location: LocationId(work),
+                        activity: "working".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 18,
+                        end_hour: 23,
+                        location: LocationId(home),
+                        activity: "evening rest".to_string(),
+                        cuaird: false,
+                    },
+                ],
+            }],
         });
         npc
     }

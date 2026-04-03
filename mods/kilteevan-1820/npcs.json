@@ -7,21 +7,174 @@
             "age": 58,
             "occupation": "Publican",
             "personality": "A gruff but warm-hearted publican who has run Darcy's Pub for thirty years. Known for his dry wit, encyclopedic knowledge of local history, and tendency to offer unsolicited advice. He speaks with a thick Roscommon accent and peppers his speech with Irish phrases. Fiercely protective of his daughter Niamh, though he struggles to understand her restlessness.",
-            "intelligence": {"verbal": 3, "analytical": 3, "emotional": 4, "practical": 4, "wisdom": 5, "creative": 4},
+            "intelligence": {
+                "verbal": 3,
+                "analytical": 3,
+                "emotional": 4,
+                "practical": 4,
+                "wisdom": 5,
+                "creative": 4
+            },
             "home": 2,
             "workplace": 2,
             "mood": "content",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 6, "location": 2, "activity": "sleeping in the rooms above the pub"},
-                {"start_hour": 7, "end_hour": 8, "location": 1, "activity": "taking a morning walk at the crossroads"},
-                {"start_hour": 9, "end_hour": 22, "location": 2, "activity": "tending bar at the pub"},
-                {"start_hour": 23, "end_hour": 23, "location": 2, "activity": "closing up the pub"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 2,
+                            "activity": "sleeping in the rooms above the pub"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 1,
+                            "activity": "taking the morning air at the crossroads, greeting early risers"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 11,
+                            "location": 2,
+                            "activity": "opening up, sweeping the floor, rolling barrels up from the cellar"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 13,
+                            "location": 2,
+                            "activity": "serving the midday trade — farmers in from the fields for a quick pint"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 17,
+                            "location": 2,
+                            "activity": "minding the bar, quiet afternoon trade"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 22,
+                            "location": 2,
+                            "activity": "the busy evening — pouring pints, settling arguments, holding court"
+                        },
+                        {
+                            "start_hour": 23,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "closing up, banking the fire, locking the door"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 2,
+                            "activity": "sleeping above the pub, the fire banked low"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 2,
+                            "activity": "stirring the fire, a slow breakfast of stirabout and buttermilk"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 11,
+                            "location": 2,
+                            "activity": "opening up — little trade before noon in winter"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 16,
+                            "location": 2,
+                            "activity": "tending bar, the dark afternoons bring folk in early from the cold"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "the evening rush — a full house by the fire, stories and song"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "closing up early, the winter night pressing in"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 2,
+                            "activity": "sleeping late on the Lord's day"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass at St. Brigid's"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 11,
+                            "location": 1,
+                            "activity": "lingering at the crossroads after Mass, catching up on the week's news"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 13,
+                            "location": 2,
+                            "activity": "the after-Mass crowd — the busiest dinner trade of the week"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 17,
+                            "location": 2,
+                            "activity": "a quieter Sunday afternoon, folk visiting family"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "Sunday evening session — music, singing, the week's stories retold"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "closing up for the night"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 8, "kind": "Family", "strength": 0.9},
-                {"target_id": 5, "kind": "Friend", "strength": 0.7},
-                {"target_id": 4, "kind": "Professional", "strength": 0.5},
-                {"target_id": 7, "kind": "Friend", "strength": 0.4}
+                {
+                    "target_id": 8,
+                    "kind": "Family",
+                    "strength": 0.9
+                },
+                {
+                    "target_id": 5,
+                    "kind": "Friend",
+                    "strength": 0.7
+                },
+                {
+                    "target_id": 4,
+                    "kind": "Professional",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 7,
+                    "kind": "Friend",
+                    "strength": 0.4
+                }
             ],
             "knowledge": [
                 "Knows every family in the parish and their histories going back three generations.",
@@ -37,23 +190,259 @@
             "age": 45,
             "occupation": "Farmer",
             "personality": "A practical, no-nonsense farmer who runs Murphy's Farm with quiet efficiency after her husband's passing three years ago. Respected for her hard work and fair dealing. She has little patience for gossip or idle talk, but shows unexpected tenderness with children and animals. Speaks plainly and directly.",
-            "intelligence": {"verbal": 2, "analytical": 3, "emotional": 3, "practical": 5, "wisdom": 4, "creative": 2},
+            "intelligence": {
+                "verbal": 2,
+                "analytical": 3,
+                "emotional": 3,
+                "practical": 5,
+                "wisdom": 4,
+                "creative": 2
+            },
             "home": 9,
             "workplace": 9,
             "mood": "determined",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 4, "location": 9, "activity": "sleeping at the farmhouse"},
-                {"start_hour": 5, "end_hour": 11, "location": 9, "activity": "working the farm — feeding livestock and tending fields"},
-                {"start_hour": 12, "end_hour": 13, "location": 13, "activity": "buying supplies at Connolly's Shop"},
-                {"start_hour": 14, "end_hour": 18, "location": 9, "activity": "afternoon farm work"},
-                {"start_hour": 19, "end_hour": 20, "location": 2, "activity": "having a quiet drink at Darcy's Pub"},
-                {"start_hour": 21, "end_hour": 23, "location": 9, "activity": "evening chores and rest"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 4,
+                            "location": 9,
+                            "activity": "sleeping at the farmhouse"
+                        },
+                        {
+                            "start_hour": 5,
+                            "end_hour": 5,
+                            "location": 9,
+                            "activity": "rising at dawn — milking the cow, feeding the pigs and chickens"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 6,
+                            "location": 9,
+                            "activity": "breakfast of stirabout and buttermilk, fetching water from the well"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 11,
+                            "location": 9,
+                            "activity": "working the fields — planting, weeding, tending the potato ridges"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 12,
+                            "location": 9,
+                            "activity": "dinner — boiled potatoes and buttermilk at the farmhouse"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 15,
+                            "location": 12,
+                            "activity": "cutting turf on the bog, stacking it to dry in the summer sun"
+                        },
+                        {
+                            "start_hour": 16,
+                            "end_hour": 18,
+                            "location": 9,
+                            "activity": "evening farm work — bringing in the cattle, mending fences"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "a quiet drink at Darcy's Pub after a long day",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 9,
+                            "activity": "evening chores, churning butter, then to bed"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 9,
+                            "activity": "sleeping at the farmhouse, huddled under blankets against the cold"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 7,
+                            "location": 9,
+                            "activity": "rising in the dark — milking, feeding livestock, tending the fire"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 8,
+                            "location": 9,
+                            "activity": "breakfast of stirabout by the fire"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 12,
+                            "location": 9,
+                            "activity": "indoor work — spinning wool, mending clothes, repairing tools"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 15,
+                            "location": 9,
+                            "activity": "what outdoor work the short day allows — mucking out, hauling turf"
+                        },
+                        {
+                            "start_hour": 16,
+                            "end_hour": 17,
+                            "location": 9,
+                            "activity": "bringing the animals in, securing the farmyard before dark"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 19,
+                            "location": 9,
+                            "activity": "supper of potatoes and milk by the fire"
+                        },
+                        {
+                            "start_hour": 20,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "visiting neighbours or a drink at the pub",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 9,
+                            "activity": "banking the fire and retiring for the night"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 9,
+                            "activity": "sleeping at the farmhouse"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 7,
+                            "location": 9,
+                            "activity": "rising — feeding livestock even on Sunday, they do not rest"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "walking to Mass at St. Brigid's Church"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "socialising at the crossroads after Mass, catching up on parish news"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 9,
+                            "activity": "Sunday dinner — the best meal of the week, perhaps a bit of salt fish"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 10,
+                            "activity": "visiting the O'Briens, as neighbours do on a Sunday"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "Sunday evening at Darcy's Pub"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 9,
+                            "activity": "home for the night, preparing for the week ahead"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "market_day",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 9,
+                            "activity": "sleeping at the farmhouse"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 9,
+                            "activity": "morning chores, preparing butter and eggs for market"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 11,
+                            "location": 13,
+                            "activity": "at Connolly's Shop, selling butter and eggs, buying supplies"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 12,
+                            "location": 15,
+                            "activity": "dinner in Kilteevan Village on market day"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 17,
+                            "location": 9,
+                            "activity": "afternoon farm work"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "a drink at the pub after market day"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 9,
+                            "activity": "home for the evening"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 5, "kind": "Neighbor", "strength": 0.6},
-                {"target_id": 4, "kind": "Professional", "strength": 0.4},
-                {"target_id": 6, "kind": "Friend", "strength": 0.5},
-                {"target_id": 3, "kind": "Professional", "strength": 0.3}
+                {
+                    "target_id": 5,
+                    "kind": "Neighbor",
+                    "strength": 0.6
+                },
+                {
+                    "target_id": 4,
+                    "kind": "Professional",
+                    "strength": 0.4
+                },
+                {
+                    "target_id": 6,
+                    "kind": "Friend",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 3,
+                    "kind": "Professional",
+                    "strength": 0.3
+                }
             ],
             "knowledge": [
                 "Knows the land better than anyone — which fields drain well, which are prone to blight.",
@@ -69,25 +458,204 @@
             "age": 62,
             "occupation": "Parish Priest",
             "personality": "A kind, thoughtful priest who has served the parish for twenty-five years. Educated at Maynooth, he walks the line between Church doctrine and the practical realities of his flock's lives. Known for his gentle sermons, his fondness for poetry, and his habit of quoting scripture in both Irish and Latin. He turns a diplomatic blind eye to hedge-school teaching and old customs.",
-            "intelligence": {"verbal": 5, "analytical": 4, "emotional": 4, "practical": 3, "wisdom": 5, "creative": 3},
+            "intelligence": {
+                "verbal": 5,
+                "analytical": 4,
+                "emotional": 4,
+                "practical": 3,
+                "wisdom": 5,
+                "creative": 3
+            },
             "home": 3,
             "workplace": 3,
             "mood": "contemplative",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 5, "location": 3, "activity": "sleeping in the parish house beside the church"},
-                {"start_hour": 6, "end_hour": 7, "location": 3, "activity": "saying morning Mass"},
-                {"start_hour": 8, "end_hour": 10, "location": 15, "activity": "visiting parishioners in Kilteevan Village"},
-                {"start_hour": 11, "end_hour": 13, "location": 3, "activity": "reading and parish correspondence"},
-                {"start_hour": 14, "end_hour": 16, "location": 1, "activity": "walking the parish roads, checking on the elderly"},
-                {"start_hour": 17, "end_hour": 18, "location": 3, "activity": "evening prayers"},
-                {"start_hour": 19, "end_hour": 21, "location": 2, "activity": "a quiet evening at Darcy's Pub"},
-                {"start_hour": 22, "end_hour": 23, "location": 3, "activity": "reading by candlelight"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 4,
+                            "location": 3,
+                            "activity": "sleeping in the parish house beside the church"
+                        },
+                        {
+                            "start_hour": 5,
+                            "end_hour": 6,
+                            "location": 3,
+                            "activity": "rising early, morning prayers and breviary"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 3,
+                            "activity": "saying morning Mass for the few who attend on weekdays"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 11,
+                            "location": 15,
+                            "activity": "visiting parishioners in Kilteevan Village — the sick, the elderly, the troubled"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 13,
+                            "location": 3,
+                            "activity": "dinner at the parish house, reading correspondence from the diocese"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 16,
+                            "location": 1,
+                            "activity": "walking the parish roads in the long summer light, checking on outlying families"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 18,
+                            "location": 3,
+                            "activity": "evening prayers and parish accounts"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "a quiet evening at Darcy's Pub — pastoral duty, he would say"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 3,
+                            "activity": "reading by candlelight — poetry, theology, letters from Maynooth"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 3,
+                            "activity": "sleeping in the parish house"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 3,
+                            "activity": "morning prayers by candlelight, the church cold as a tomb"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 9,
+                            "location": 3,
+                            "activity": "saying morning Mass"
+                        },
+                        {
+                            "start_hour": 10,
+                            "end_hour": 12,
+                            "location": 3,
+                            "activity": "reading, writing letters, parish correspondence by the fire"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 15,
+                            "activity": "visiting the sick in Kilteevan — shorter rounds in winter"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 3,
+                            "activity": "afternoon prayers, preparing Sunday's sermon"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "an evening at Darcy's Pub, warming himself by the fire"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 3,
+                            "activity": "reading and prayer before bed"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 3,
+                            "activity": "sleeping in the parish house"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 3,
+                            "activity": "preparing for the Sunday Mass — vestments, sermon notes, the altar"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "celebrating Sunday Mass — the whole parish gathered together"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "at the crossroads after Mass, speaking with parishioners, settling small disputes"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 3,
+                            "activity": "Sunday dinner at the parish house"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 11,
+                            "activity": "a contemplative walk to the fairy fort — he prays there, though he would not call it that"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "Sunday evening at the pub, the most social night of the week"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 3,
+                            "activity": "evening prayers and early to bed"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 1, "kind": "Friend", "strength": 0.6},
-                {"target_id": 6, "kind": "Professional", "strength": 0.5},
-                {"target_id": 7, "kind": "Friend", "strength": 0.3},
-                {"target_id": 2, "kind": "Professional", "strength": 0.4}
+                {
+                    "target_id": 1,
+                    "kind": "Friend",
+                    "strength": 0.6
+                },
+                {
+                    "target_id": 6,
+                    "kind": "Professional",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 7,
+                    "kind": "Friend",
+                    "strength": 0.3
+                },
+                {
+                    "target_id": 2,
+                    "kind": "Professional",
+                    "strength": 0.4
+                }
             ],
             "knowledge": [
                 "Receives letters from other parishes about the political situation in Dublin.",
@@ -103,23 +671,239 @@
             "age": 38,
             "occupation": "Shopkeeper",
             "personality": "An ambitious and sharp-minded shopkeeper who runs Connolly's Shop with her mother. She dreams of expanding the business and establishing a proper trading post. Roisin has a talent for negotiation, a keen eye for opportunity, and a warm smile that masks a calculating mind. She collects news and gossip as currency.",
-            "intelligence": {"verbal": 4, "analytical": 5, "emotional": 3, "practical": 4, "wisdom": 3, "creative": 4},
+            "intelligence": {
+                "verbal": 4,
+                "analytical": 5,
+                "emotional": 3,
+                "practical": 4,
+                "wisdom": 3,
+                "creative": 4
+            },
             "home": 13,
             "workplace": 13,
             "mood": "alert",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 6, "location": 13, "activity": "sleeping above the shop"},
-                {"start_hour": 7, "end_hour": 8, "location": 13, "activity": "opening up and arranging stock"},
-                {"start_hour": 9, "end_hour": 17, "location": 13, "activity": "minding the shop"},
-                {"start_hour": 18, "end_hour": 19, "location": 1, "activity": "taking the evening air at the crossroads"},
-                {"start_hour": 20, "end_hour": 21, "location": 2, "activity": "socialising at Darcy's Pub"},
-                {"start_hour": 22, "end_hour": 23, "location": 13, "activity": "doing the accounts"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 13,
+                            "activity": "sleeping above the shop"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 13,
+                            "activity": "opening up, arranging stock, sweeping the doorstep"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 12,
+                            "location": 13,
+                            "activity": "minding the shop — summer brings more trade, tinkers and travellers"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 13,
+                            "location": 13,
+                            "activity": "a quick dinner of potatoes behind the counter"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 17,
+                            "location": 13,
+                            "activity": "afternoon trade, weighing flour, measuring cloth, tallying debts"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 19,
+                            "location": 1,
+                            "activity": "taking the evening air at the crossroads, collecting the day's news"
+                        },
+                        {
+                            "start_hour": 20,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "socialising at Darcy's Pub"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 13,
+                            "activity": "doing the accounts by candlelight"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 13,
+                            "activity": "sleeping above the shop"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 13,
+                            "activity": "opening up, lighting the lamp — dark mornings"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 12,
+                            "location": 13,
+                            "activity": "minding the shop — slower trade in winter, but folk need candles and meal"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 16,
+                            "location": 13,
+                            "activity": "afternoon in the shop, mending stock, writing orders for the Athlone merchants"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 18,
+                            "location": 13,
+                            "activity": "closing up early in the winter dark"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "an evening at Darcy's Pub by the fire"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 13,
+                            "activity": "accounts and correspondence, then to bed"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 13,
+                            "activity": "sleeping late — the shop is closed on the Lord's day"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass at St. Brigid's — wearing her best shawl"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "the crossroads after Mass — prime territory for news and negotiation"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 13,
+                            "activity": "Sunday dinner with her mother above the shop"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 15,
+                            "activity": "visiting in Kilteevan Village, trading gossip and favours"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "Sunday evening at the pub — the social highlight of the week"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 13,
+                            "activity": "home to bed"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "market_day",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 13,
+                            "activity": "sleeping above the shop"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 6,
+                            "location": 13,
+                            "activity": "up early, preparing the shop for the busiest day of the week"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 12,
+                            "location": 13,
+                            "activity": "market day trade — farmers selling butter and eggs, buying supplies"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 13,
+                            "location": 13,
+                            "activity": "a quick dinner between customers"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 17,
+                            "location": 13,
+                            "activity": "afternoon market trade, settling accounts, extending credit"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 19,
+                            "location": 1,
+                            "activity": "at the crossroads, winding down from market day"
+                        },
+                        {
+                            "start_hour": 20,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "a well-earned drink at the pub"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 13,
+                            "activity": "counting the day's takings"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 1, "kind": "Professional", "strength": 0.5},
-                {"target_id": 2, "kind": "Professional", "strength": 0.4},
-                {"target_id": 8, "kind": "Friend", "strength": 0.6},
-                {"target_id": 6, "kind": "Neighbor", "strength": 0.3}
+                {
+                    "target_id": 1,
+                    "kind": "Professional",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 2,
+                    "kind": "Professional",
+                    "strength": 0.4
+                },
+                {
+                    "target_id": 8,
+                    "kind": "Friend",
+                    "strength": 0.6
+                },
+                {
+                    "target_id": 6,
+                    "kind": "Neighbor",
+                    "strength": 0.3
+                }
             ],
             "knowledge": [
                 "Keeps track of every debt owed in the parish — knows who can pay and who cannot.",
@@ -135,24 +919,188 @@
             "age": 70,
             "occupation": "Retired Farmer",
             "personality": "A legendary storyteller and the oldest man in the parish. Tommy has farmed O'Brien's land his whole life, now largely leaving the work to his sons. He holds the oral history of the parish in his memory — every ghost story, fairy tale, and family scandal. His mind is sharp even as his body slows. He speaks in long, winding stories that always have a point, eventually.",
-            "intelligence": {"verbal": 5, "analytical": 2, "emotional": 3, "practical": 3, "wisdom": 5, "creative": 5},
+            "intelligence": {
+                "verbal": 5,
+                "analytical": 2,
+                "emotional": 3,
+                "practical": 3,
+                "wisdom": 5,
+                "creative": 5
+            },
             "home": 10,
             "workplace": null,
             "mood": "reflective",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 6, "location": 10, "activity": "sleeping at the farmhouse"},
-                {"start_hour": 7, "end_hour": 9, "location": 10, "activity": "a slow breakfast and morning pipe"},
-                {"start_hour": 10, "end_hour": 12, "location": 1, "activity": "sitting at the crossroads watching the world go by"},
-                {"start_hour": 13, "end_hour": 14, "location": 2, "activity": "a midday pint and conversation at the pub"},
-                {"start_hour": 15, "end_hour": 17, "location": 11, "activity": "walking to the fairy fort, as he has done since boyhood"},
-                {"start_hour": 18, "end_hour": 20, "location": 2, "activity": "evening storytelling at Darcy's Pub"},
-                {"start_hour": 21, "end_hour": 23, "location": 10, "activity": "settling in for the night"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 10,
+                            "activity": "sleeping at the farmhouse"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 10,
+                            "activity": "a slow breakfast and morning pipe on the half-door"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 11,
+                            "location": 1,
+                            "activity": "sitting at the crossroads watching the world go by, greeting passers-by"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 13,
+                            "location": 2,
+                            "activity": "a midday pint and conversation at the pub"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 16,
+                            "location": 11,
+                            "activity": "walking to the fairy fort, as he has done since boyhood"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 18,
+                            "location": 7,
+                            "activity": "sitting by Lough Ree, watching the light on the water"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "evening storytelling at Darcy's Pub — the seanchai holds court",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 10,
+                            "activity": "settling in for the night at the farmhouse"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 10,
+                            "activity": "sleeping at the farmhouse, old bones aching in the cold"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 9,
+                            "location": 10,
+                            "activity": "a slow breakfast by the fire, pipe and tea"
+                        },
+                        {
+                            "start_hour": 10,
+                            "end_hour": 12,
+                            "location": 2,
+                            "activity": "to the pub for warmth and company — too cold for the crossroads"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 10,
+                            "activity": "home for dinner, a rest by the fire"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 10,
+                            "activity": "dozing by the fire, whittling, telling stories to the grandchildren"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "the evening cuaird — storytelling by firelight at the pub",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 10,
+                            "activity": "home early, the winter dark presses close"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 10,
+                            "activity": "sleeping at the farmhouse"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass — he sits in the same spot he has sat for sixty years"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "holding court at the crossroads after Mass, everyone stops to hear Tommy"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 2,
+                            "activity": "Sunday dinner pint at the pub"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 11,
+                            "activity": "his Sunday walk to the fairy fort — a lifelong ritual"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "Sunday evening session at the pub — the best stories of the week"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 10,
+                            "activity": "home for the night"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 1, "kind": "Friend", "strength": 0.7},
-                {"target_id": 2, "kind": "Neighbor", "strength": 0.6},
-                {"target_id": 7, "kind": "Friend", "strength": 0.5},
-                {"target_id": 3, "kind": "Friend", "strength": 0.4}
+                {
+                    "target_id": 1,
+                    "kind": "Friend",
+                    "strength": 0.7
+                },
+                {
+                    "target_id": 2,
+                    "kind": "Neighbor",
+                    "strength": 0.6
+                },
+                {
+                    "target_id": 7,
+                    "kind": "Friend",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 3,
+                    "kind": "Friend",
+                    "strength": 0.4
+                }
             ],
             "knowledge": [
                 "Knows every fairy story and ghost tale in the parish — where the banshee was last heard, where the pooka runs.",
@@ -168,24 +1116,188 @@
             "age": 29,
             "occupation": "Hedge School Teacher",
             "personality": "An idealistic young teacher who runs the hedge school with fierce dedication. Educated by her father (a schoolmaster before her), she teaches reading, writing, arithmetic, and Irish to the children of the parish — all technically illegal under the Penal Laws. She is passionate about preserving Irish language and culture, brave to the point of recklessness, and carries a quiet anger about the injustices she sees.",
-            "intelligence": {"verbal": 5, "analytical": 4, "emotional": 4, "practical": 2, "wisdom": 3, "creative": 4},
+            "intelligence": {
+                "verbal": 5,
+                "analytical": 4,
+                "emotional": 4,
+                "practical": 2,
+                "wisdom": 3,
+                "creative": 4
+            },
             "home": 15,
             "workplace": 6,
             "mood": "passionate",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 5, "location": 15, "activity": "sleeping at her lodgings in Kilteevan"},
-                {"start_hour": 6, "end_hour": 7, "location": 15, "activity": "preparing lessons"},
-                {"start_hour": 8, "end_hour": 14, "location": 6, "activity": "teaching at the hedge school"},
-                {"start_hour": 15, "end_hour": 16, "location": 7, "activity": "walking by Lough Ree to clear her head"},
-                {"start_hour": 17, "end_hour": 18, "location": 15, "activity": "marking work and preparing for tomorrow"},
-                {"start_hour": 19, "end_hour": 20, "location": 2, "activity": "an evening at Darcy's Pub"},
-                {"start_hour": 21, "end_hour": 23, "location": 15, "activity": "reading by the fire"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 15,
+                            "activity": "sleeping at her lodgings in Kilteevan"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 15,
+                            "activity": "preparing lessons by the morning light, copying texts"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 13,
+                            "location": 6,
+                            "activity": "teaching at the hedge school — the long summer days allow more lessons"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 14,
+                            "location": 6,
+                            "activity": "dinner with the children before they scatter home"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 16,
+                            "location": 7,
+                            "activity": "walking by Lough Ree to clear her head and compose her thoughts"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 18,
+                            "location": 15,
+                            "activity": "marking work and preparing for tomorrow"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "an evening at Darcy's Pub, debating with anyone who will listen",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "reading by the fire — poetry, pamphlets, whatever she can find"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 15,
+                            "activity": "sleeping at her lodgings in Kilteevan"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 15,
+                            "activity": "preparing lessons by rushlight, the mornings dark and bitter"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 13,
+                            "location": 6,
+                            "activity": "teaching at the hedge school — shorter hours in winter, the children shivering"
+                        },
+                        {
+                            "start_hour": 14,
+                            "end_hour": 15,
+                            "location": 15,
+                            "activity": "home for dinner and marking work"
+                        },
+                        {
+                            "start_hour": 16,
+                            "end_hour": 18,
+                            "location": 15,
+                            "activity": "reading and writing by the fire, too dark for walking"
+                        },
+                        {
+                            "start_hour": 19,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "the evening cuaird — visiting or the pub",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "reading late into the night, her one indulgence"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 15,
+                            "activity": "sleeping late — no school on the Lord's day"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass at St. Brigid's Church"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "at the crossroads after Mass, speaking with parents about their children"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 15,
+                            "activity": "Sunday dinner at her lodgings"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 7,
+                            "activity": "a long Sunday walk by Lough Ree, composing poetry in Irish"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "Sunday evening at the pub — music and conversation"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "home to bed, the week ahead in her mind"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 8, "kind": "Friend", "strength": 0.7},
-                {"target_id": 3, "kind": "Professional", "strength": 0.5},
-                {"target_id": 2, "kind": "Friend", "strength": 0.5},
-                {"target_id": 4, "kind": "Neighbor", "strength": 0.3}
+                {
+                    "target_id": 8,
+                    "kind": "Friend",
+                    "strength": 0.7
+                },
+                {
+                    "target_id": 3,
+                    "kind": "Professional",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 2,
+                    "kind": "Friend",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 4,
+                    "kind": "Neighbor",
+                    "strength": 0.3
+                }
             ],
             "knowledge": [
                 "Knows the hedge school could be shut down at any time by the authorities.",
@@ -201,24 +1313,187 @@
             "age": 65,
             "occupation": "Retired Constable",
             "personality": "A retired constable who served in the local barracks for thirty years. Mick walks a careful line — he was a Catholic man enforcing Protestant law, and not everyone has forgiven him for it. He is deeply observant, notices everything, and keeps his own counsel. Despite his past role, he is fundamentally decent and now spends his days watching, walking, and occasionally offering cryptic warnings to those he trusts.",
-            "intelligence": {"verbal": 2, "analytical": 4, "emotional": 2, "practical": 4, "wisdom": 4, "creative": 2},
+            "intelligence": {
+                "verbal": 2,
+                "analytical": 4,
+                "emotional": 2,
+                "practical": 4,
+                "wisdom": 4,
+                "creative": 2
+            },
             "home": 15,
             "workplace": null,
             "mood": "watchful",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 6, "location": 15, "activity": "sleeping at his cottage in Kilteevan"},
-                {"start_hour": 7, "end_hour": 9, "location": 15, "activity": "morning routine and breakfast"},
-                {"start_hour": 10, "end_hour": 12, "location": 12, "activity": "walking the Bog Road, old patrol habit"},
-                {"start_hour": 13, "end_hour": 14, "location": 14, "activity": "sitting by the lime kiln, thinking"},
-                {"start_hour": 15, "end_hour": 17, "location": 1, "activity": "watching the crossroads from the wall"},
-                {"start_hour": 18, "end_hour": 20, "location": 2, "activity": "nursing a pint at Darcy's Pub"},
-                {"start_hour": 21, "end_hour": 23, "location": 15, "activity": "home for the evening"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 15,
+                            "activity": "sleeping at his cottage in Kilteevan"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 15,
+                            "activity": "morning routine — tea, pipe, watching the lane from his half-door"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 12,
+                            "activity": "walking the Bog Road — old patrol routes die hard"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 14,
+                            "activity": "sitting by the lime kiln, watching who comes and goes"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 15,
+                            "activity": "home for dinner"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 1,
+                            "activity": "watching the crossroads from the wall, the habit of a lifetime"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "nursing a pint at Darcy's Pub, listening more than talking"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "home for the evening, a last pipe at the door in the long twilight"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 15,
+                            "activity": "sleeping at his cottage, the fire kept alive through the night"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 9,
+                            "location": 15,
+                            "activity": "morning routine — slow in winter, the cold in his joints"
+                        },
+                        {
+                            "start_hour": 10,
+                            "end_hour": 12,
+                            "location": 2,
+                            "activity": "to the pub for warmth — walks are shorter in the cold months"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 15,
+                            "activity": "home for dinner"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 1,
+                            "activity": "a short watch at the crossroads if the weather allows, otherwise the pub"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "the evening at the pub, listening to the talk",
+                            "cuaird": true
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "home early, the dark pressing in"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 15,
+                            "activity": "sleeping at his cottage"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass — he sits near the back, old habit"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "at the crossroads after Mass, observing the gathered parish"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 2,
+                            "activity": "Sunday dinner pint at the pub"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 12,
+                            "activity": "his Sunday walk along the Bog Road, thinking of old cases"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 20,
+                            "location": 2,
+                            "activity": "Sunday evening at the pub"
+                        },
+                        {
+                            "start_hour": 21,
+                            "end_hour": 23,
+                            "location": 15,
+                            "activity": "home for the night"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 1, "kind": "Friend", "strength": 0.4},
-                {"target_id": 5, "kind": "Friend", "strength": 0.5},
-                {"target_id": 3, "kind": "Friend", "strength": 0.3},
-                {"target_id": 4, "kind": "Rival", "strength": -0.2}
+                {
+                    "target_id": 1,
+                    "kind": "Friend",
+                    "strength": 0.4
+                },
+                {
+                    "target_id": 5,
+                    "kind": "Friend",
+                    "strength": 0.5
+                },
+                {
+                    "target_id": 3,
+                    "kind": "Friend",
+                    "strength": 0.3
+                },
+                {
+                    "target_id": 4,
+                    "kind": "Rival",
+                    "strength": -0.2
+                }
             ],
             "knowledge": [
                 "Knows every smuggling route, poteen still, and hidden meeting place in the parish.",
@@ -234,24 +1509,186 @@
             "age": 22,
             "occupation": "Publican's Daughter",
             "personality": "Padraig's daughter, restless and bright, torn between duty to her father and a longing for the wider world. She helps at the pub but dreams of Dublin, or even America. She reads everything she can get her hands on, asks too many questions, and chafes at the limitations of parish life. Beneath her frustration is a deep love for the land and its people that she has not yet recognised in herself.",
-            "intelligence": {"verbal": 4, "analytical": 3, "emotional": 4, "practical": 2, "wisdom": 2, "creative": 5},
+            "intelligence": {
+                "verbal": 4,
+                "analytical": 3,
+                "emotional": 4,
+                "practical": 2,
+                "wisdom": 2,
+                "creative": 5
+            },
             "home": 2,
             "workplace": 2,
             "mood": "restless",
-            "schedule": [
-                {"start_hour": 0, "end_hour": 6, "location": 2, "activity": "sleeping at the pub"},
-                {"start_hour": 7, "end_hour": 8, "location": 8, "activity": "walking by Hodson Bay, watching the boats"},
-                {"start_hour": 9, "end_hour": 12, "location": 2, "activity": "helping her father at the pub"},
-                {"start_hour": 13, "end_hour": 15, "location": 6, "activity": "visiting the hedge school to borrow books"},
-                {"start_hour": 16, "end_hour": 17, "location": 7, "activity": "reading by Lough Ree"},
-                {"start_hour": 18, "end_hour": 21, "location": 2, "activity": "serving at the pub in the evening"},
-                {"start_hour": 22, "end_hour": 23, "location": 2, "activity": "reading upstairs after closing"}
+            "seasonal_schedule": [
+                {
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 5,
+                            "location": 2,
+                            "activity": "sleeping at the pub"
+                        },
+                        {
+                            "start_hour": 6,
+                            "end_hour": 7,
+                            "location": 8,
+                            "activity": "walking by Hodson Bay in the early light, watching the boats on the Shannon"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 11,
+                            "location": 2,
+                            "activity": "helping her father open up — sweeping, stocking, the morning chores"
+                        },
+                        {
+                            "start_hour": 12,
+                            "end_hour": 12,
+                            "location": 2,
+                            "activity": "serving the midday trade"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 15,
+                            "location": 6,
+                            "activity": "visiting the hedge school to borrow books from Aoife"
+                        },
+                        {
+                            "start_hour": 16,
+                            "end_hour": 17,
+                            "location": 7,
+                            "activity": "reading by Lough Ree, the one place she feels free"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 22,
+                            "location": 2,
+                            "activity": "serving at the pub through the long summer evening"
+                        },
+                        {
+                            "start_hour": 23,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "reading upstairs by rushlight after closing"
+                        }
+                    ]
+                },
+                {
+                    "season": "winter",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 6,
+                            "location": 2,
+                            "activity": "sleeping at the pub"
+                        },
+                        {
+                            "start_hour": 7,
+                            "end_hour": 8,
+                            "location": 2,
+                            "activity": "helping with breakfast and morning chores — no walk in the winter dark"
+                        },
+                        {
+                            "start_hour": 9,
+                            "end_hour": 12,
+                            "location": 2,
+                            "activity": "minding the pub through the quiet winter morning"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 6,
+                            "activity": "visiting Aoife at the hedge school to return and borrow books"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 16,
+                            "location": 13,
+                            "activity": "browsing at Connolly's Shop, chatting with Roisin"
+                        },
+                        {
+                            "start_hour": 17,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "serving at the pub — the early dark brings folk in sooner"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "reading upstairs, dreaming of elsewhere"
+                        }
+                    ]
+                },
+                {
+                    "day_type": "sunday",
+                    "entries": [
+                        {
+                            "start_hour": 0,
+                            "end_hour": 7,
+                            "location": 2,
+                            "activity": "sleeping late on Sunday"
+                        },
+                        {
+                            "start_hour": 8,
+                            "end_hour": 10,
+                            "location": 3,
+                            "activity": "attending Mass with her father"
+                        },
+                        {
+                            "start_hour": 11,
+                            "end_hour": 12,
+                            "location": 1,
+                            "activity": "at the crossroads after Mass, talking with Aoife and Roisin"
+                        },
+                        {
+                            "start_hour": 13,
+                            "end_hour": 14,
+                            "location": 2,
+                            "activity": "helping with the after-Mass dinner rush"
+                        },
+                        {
+                            "start_hour": 15,
+                            "end_hour": 17,
+                            "location": 7,
+                            "activity": "a long Sunday walk by Lough Ree, her favourite escape"
+                        },
+                        {
+                            "start_hour": 18,
+                            "end_hour": 21,
+                            "location": 2,
+                            "activity": "Sunday evening at the pub — the liveliest night of the week"
+                        },
+                        {
+                            "start_hour": 22,
+                            "end_hour": 23,
+                            "location": 2,
+                            "activity": "reading upstairs after closing"
+                        }
+                    ]
+                }
             ],
             "relationships": [
-                {"target_id": 1, "kind": "Family", "strength": 0.9},
-                {"target_id": 6, "kind": "Friend", "strength": 0.7},
-                {"target_id": 4, "kind": "Friend", "strength": 0.6},
-                {"target_id": 5, "kind": "Friend", "strength": 0.3}
+                {
+                    "target_id": 1,
+                    "kind": "Family",
+                    "strength": 0.9
+                },
+                {
+                    "target_id": 6,
+                    "kind": "Friend",
+                    "strength": 0.7
+                },
+                {
+                    "target_id": 4,
+                    "kind": "Friend",
+                    "strength": 0.6
+                },
+                {
+                    "target_id": 5,
+                    "kind": "Friend",
+                    "strength": 0.3
+                }
             ],
             "knowledge": [
                 "Has read pamphlets about Catholic Emancipation smuggled in from Dublin.",

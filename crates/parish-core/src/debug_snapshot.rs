@@ -372,7 +372,11 @@ fn build_npc_debug_list(npc_manager: &NpcManager, graph: &WorldGraph) -> Vec<Npc
                 .schedule
                 .as_ref()
                 .map(|s| {
-                    s.entries
+                    // Show the first variant's entries for debug display
+                    s.variants
+                        .first()
+                        .map(|v| &v.entries)
+                        .unwrap_or(&Vec::new())
                         .iter()
                         .map(|e| ScheduleEntryDebug {
                             start_hour: e.start_hour,

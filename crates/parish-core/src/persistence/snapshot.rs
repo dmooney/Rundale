@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::npc::gossip::GossipNetwork;
 use crate::npc::memory::{LongTermMemory, ShortTermMemory};
-use crate::npc::types::{DailySchedule, Intelligence, NpcState, Relationship};
+use crate::npc::types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 use crate::npc::{Npc, NpcId};
 use crate::world::LocationId;
 
@@ -60,8 +60,8 @@ pub struct NpcSnapshot {
     pub home: Option<LocationId>,
     /// Workplace location.
     pub workplace: Option<LocationId>,
-    /// Daily schedule.
-    pub schedule: Option<DailySchedule>,
+    /// Season-aware schedule.
+    pub schedule: Option<SeasonalSchedule>,
     /// Relationships to other NPCs.
     pub relationships: HashMap<NpcId, Relationship>,
     /// Short-term memory ring buffer.
