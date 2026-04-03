@@ -438,7 +438,7 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 | Reply-to context | Medium | Medium | Build later |
 | Inline rich preview | Medium | Low-Med | Nice to have |
 | Tone indicator | Medium | Low-Med | Nice to have |
-| Tab-complete nouns | Medium | Medium | Build later |
+| Tab-complete nouns | Medium | Medium | **Shipped (Wave 2)** — derived noun store + Tab cycling |
 | Voice range modifiers | Med-High | High | Build later — great emergent gameplay |
 | Contextual suggestions | High | High | Build later — needs LLM or rules |
 | Streamer mode | Very High | Niche | Someday/maybe |

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { streamingActive, npcsHere, mapData } from '../stores/game';
+import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
@@ -422,6 +423,215 @@ describe('InputField', () => {
 			streamingActive.set(true);
 			const { container } = render(InputField);
 			expect(container.querySelector('.travel-chips')).toBeFalsy();
+		});
+	});
+
+	// ── findMatches utility ─────────────────────────────────────────────
+
+	describe('findMatches', () => {
+		const testNouns: KnownNoun[] = [
+			{ text: "Darcy's Pub", category: 'location', priority: 0 },
+			{ text: 'The Crossroads', category: 'location', priority: 0 },
+			{ text: 'The Church', category: 'location', priority: 2 },
+			{ text: 'Padraig Darcy', category: 'npc', priority: 1 },
+			{ text: 'Siobhan Murphy', category: 'npc', priority: 1 }
+		];
+
+		it('matches start of any word in the noun', () => {
+			const matches = findMatches('pub', testNouns);
+			expect(matches.length).toBe(1);
+			expect(matches[0].text).toBe("Darcy's Pub");
+		});
+
+		it('matches NPC name prefix', () => {
+			const matches = findMatches('padr', testNouns);
+			expect(matches.length).toBe(1);
+			expect(matches[0].text).toBe('Padraig Darcy');
+		});
+
+		it('matches start of full noun text', () => {
+			const matches = findMatches('the', testNouns);
+			expect(matches.length).toBe(2);
+			expect(matches.map((m) => m.text)).toContain('The Crossroads');
+			expect(matches.map((m) => m.text)).toContain('The Church');
+		});
+
+		it('returns empty for no matches', () => {
+			expect(findMatches('xyz', testNouns)).toEqual([]);
+		});
+
+		it('returns empty for empty prefix', () => {
+			expect(findMatches('', testNouns)).toEqual([]);
+		});
+
+		it('is case-insensitive', () => {
+			const matches = findMatches('PUB', testNouns);
+			expect(matches.length).toBe(1);
+			expect(matches[0].text).toBe("Darcy's Pub");
+		});
+
+		it('matches word after apostrophe', () => {
+			const matches = findMatches('darcy', testNouns);
+			expect(matches.length).toBe(2);
+			expect(matches.map((m) => m.text)).toContain("Darcy's Pub");
+			expect(matches.map((m) => m.text)).toContain('Padraig Darcy');
+		});
+	});
+
+	// ── Tab-completion ──────────────────────────────────────────────────
+
+	describe('tab-completion', () => {
+		const testMapData = {
+			locations: [
+				{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: true, hops: 1, visited: true },
+				{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1, visited: true },
+				{ id: 'church', name: 'The Church', lat: 0.2, lon: 0.2, adjacent: false, hops: 2, visited: true },
+				{ id: 'mill', name: 'The Mill', lat: 0.3, lon: 0.3, adjacent: false, hops: 3, visited: false }
+			],
+			edges: [
+				['crossroads', 'pub'],
+				['crossroads', 'church']
+			] as [string, string][],
+			player_location: 'crossroads',
+			player_lat: 0,
+			player_lon: 0
+		};
+
+		const testNpcs = [
+			{
+				name: 'Padraig Darcy',
+				occupation: 'Publican',
+				mood: 'content',
+				introduced: true,
+				mood_emoji: '😌'
+			}
+		];
+
+		function typeIntoEditor(editor: HTMLElement, text: string) {
+			editor.textContent = text;
+			const range = document.createRange();
+			const sel = window.getSelection();
+			if (editor.firstChild) {
+				range.setStart(editor.firstChild, text.length);
+			} else {
+				range.setStart(editor, 0);
+			}
+			range.collapse(true);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		beforeEach(() => {
+			mapData.set(testMapData);
+			npcsHere.set(testNpcs);
+		});
+
+		it('Tab completes a matching prefix', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, 'go to pub');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			expect(editor.textContent).toContain("Darcy's Pub");
+		});
+
+		it('Tab does nothing when no matches', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, 'go to xyz');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			expect(editor.textContent).toBe('go to xyz');
+		});
+
+		it('Tab cycles through all visited locations on empty input', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			const first = editor.textContent ?? '';
+			expect(first.length).toBeGreaterThan(0);
+
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			const second = editor.textContent ?? '';
+			expect(second).not.toBe(first);
+		});
+
+		it('Tab completes unvisited (frontier) locations with lower priority', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, 'mill');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			// "The Mill" is unvisited but visible (frontier) — should complete
+			expect(editor.textContent).toContain('The Mill');
+		});
+
+		it('Tab cycles through multiple matches', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			// "the" matches "The Crossroads" and "The Church"
+			typeIntoEditor(editor, 'the');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			const firstMatch = editor.textContent;
+			expect(firstMatch === 'The Crossroads' || firstMatch === 'The Church').toBe(true);
+
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			const secondMatch = editor.textContent;
+			expect(secondMatch).not.toBe(firstMatch);
+			expect(secondMatch === 'The Crossroads' || secondMatch === 'The Church').toBe(true);
+		});
+
+		it('typing resets completion state', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, 'pub');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			expect(editor.textContent).toContain("Darcy's Pub");
+
+			// Type something — should accept completion and reset
+			await fireEvent.input(editor);
+
+			// Now a new Tab should start fresh
+			typeIntoEditor(editor, 'cross');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			expect(editor.textContent).toContain('The Crossroads');
+		});
+
+		it('mention dropdown Tab takes priority over noun completion', async () => {
+			npcsHere.set([
+				{
+					name: 'Padraig Darcy',
+					occupation: 'Publican',
+					mood: 'content',
+					introduced: true,
+					mood_emoji: '😌'
+				}
+			]);
+			const { getByRole, queryByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '@P');
+			await fireEvent.input(editor);
+			expect(queryByRole('listbox')).toBeTruthy();
+
+			// Tab should select the mention, not trigger noun completion
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+			const chip = editor.querySelector('.mention-chip');
+			expect(chip).toBeTruthy();
+			expect(chip?.textContent).toBe('@Padraig Darcy');
 		});
 	});
 });

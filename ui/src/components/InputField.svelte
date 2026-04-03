@@ -2,6 +2,8 @@
 	import { streamingActive, npcsHere, mapData } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
+	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
+	import { get } from 'svelte/store';
 
 	let editorEl: HTMLDivElement;
 
@@ -44,10 +46,107 @@
 
 	// ── Adjacent locations for quick-travel ─────────────────────────────────
 	const adjacentLocations = $derived(
-		($mapData?.locations ?? []).filter(
-			(loc) => loc.adjacent && loc.id !== $mapData?.player_location
-		)
+		($mapData?.locations ?? [])
+			.filter((loc) => loc.adjacent && loc.id !== $mapData?.player_location)
+			.sort((a, b) => a.name.localeCompare(b.name))
 	);
+
+	// ── Tab-completion state ────────────────────────────────────────────────
+	interface CompletionState {
+		active: boolean;
+		prefix: string;
+		matches: KnownNoun[];
+		currentIndex: number;
+		prefixStart: number;
+		replacedLength: number;
+	}
+
+	let completion = $state<CompletionState>({
+		active: false,
+		prefix: '',
+		matches: [],
+		currentIndex: 0,
+		prefixStart: 0,
+		replacedLength: 0
+	});
+
+	function resetCompletion() {
+		completion = {
+			active: false,
+			prefix: '',
+			matches: [],
+			currentIndex: 0,
+			prefixStart: 0,
+			replacedLength: 0
+		};
+	}
+
+	/** Extract the word being typed from the cursor position backward. */
+	function extractPrefix(): { prefix: string; start: number; node: Text } | null {
+		if (!editorEl) return null;
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return null;
+
+		const range = sel.getRangeAt(0);
+		const node = range.startContainer;
+		if (node.nodeType !== Node.TEXT_NODE) return null;
+
+		const fullText = node.textContent ?? '';
+		const cursorPos = range.startOffset;
+
+		// Walk backward from cursor to find word start
+		let start = cursorPos;
+		while (start > 0 && fullText[start - 1] !== ' ' && fullText[start - 1] !== '\n' && fullText[start - 1] !== '\u00A0') {
+			start--;
+		}
+
+		const prefix = fullText.slice(start, cursorPos);
+		if (prefix.length === 0) return null;
+
+		return { prefix, start, node: node as Text };
+	}
+
+	/** Replace the prefix text in the editor with the selected completion. */
+	function applyCompletion() {
+		if (!editorEl || !completion.active) return;
+
+		const match = completion.matches[completion.currentIndex];
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) return;
+
+		const range = sel.getRangeAt(0);
+		const node = range.startContainer;
+
+		// Empty editor — no text node yet, insert one
+		if (node.nodeType !== Node.TEXT_NODE) {
+			const textNode = document.createTextNode(match.text);
+			editorEl.innerHTML = '';
+			editorEl.appendChild(textNode);
+			completion.replacedLength = match.text.length;
+			const newRange = document.createRange();
+			newRange.setStart(textNode, match.text.length);
+			newRange.collapse(true);
+			sel.removeAllRanges();
+			sel.addRange(newRange);
+			return;
+		}
+
+		const text = node.textContent ?? '';
+		const replaceLen = completion.replacedLength > 0 ? completion.replacedLength : completion.prefix.length;
+		const before = text.slice(0, completion.prefixStart);
+		const after = text.slice(completion.prefixStart + replaceLen);
+
+		node.textContent = before + match.text + after;
+		completion.replacedLength = match.text.length;
+
+		// Place cursor after completed text
+		const cursorPos = completion.prefixStart + match.text.length;
+		const newRange = document.createRange();
+		newRange.setStart(node, Math.min(cursorPos, node.textContent!.length));
+		newRange.collapse(true);
+		sel.removeAllRanges();
+		sel.addRange(newRange);
+	}
 
 	// ── Focus management ────────────────────────────────────────────────────
 	$effect(() => {
@@ -394,6 +493,63 @@
 			}
 		}
 
+		// Tab-completion for known nouns (only when no dropdown is open)
+		if (e.key === 'Tab' && dropdownMode === null) {
+			e.preventDefault();
+
+			if (completion.active) {
+				// Already cycling — advance to next match
+				completion.currentIndex =
+					(completion.currentIndex + 1) % completion.matches.length;
+				applyCompletion();
+				return;
+			}
+
+			// Start new completion
+			const nouns = get(knownNouns);
+			const extracted = extractPrefix();
+
+			if (!extracted) {
+				// No word typed yet — cycle through all explored locations
+				const locationNouns = nouns.filter((n) => n.category === 'location');
+				if (locationNouns.length === 0) return;
+				const sel2 = window.getSelection();
+				if (!sel2 || sel2.rangeCount === 0) return;
+				const range2 = sel2.getRangeAt(0);
+				const prefixStart =
+					range2.startContainer.nodeType === Node.TEXT_NODE ? range2.startOffset : 0;
+				completion = {
+					active: true,
+					prefix: '',
+					matches: locationNouns,
+					currentIndex: 0,
+					prefixStart,
+					replacedLength: 0
+				};
+				applyCompletion();
+				return;
+			}
+
+			const matches = findMatches(extracted.prefix, nouns);
+			if (matches.length === 0) return;
+
+			completion = {
+				active: true,
+				prefix: extracted.prefix,
+				matches,
+				currentIndex: 0,
+				prefixStart: extracted.start,
+				replacedLength: 0
+			};
+			applyCompletion();
+			return;
+		}
+
+		// Any other key while completing → accept and reset
+		if (completion.active && e.key !== 'Shift' && e.key !== 'Tab') {
+			resetCompletion();
+		}
+
 		// Input history (only when no dropdown is open)
 		if (dropdownMode === null && e.key === 'ArrowUp' && isCursorOnFirstLine()) {
 			if (history.length > 0) {
@@ -491,6 +647,10 @@
 		// Reset history browsing on any typed input
 		if (historyIndex >= 0) {
 			historyIndex = -1;
+		}
+		// Reset tab-completion on any typed input
+		if (completion.active) {
+			resetCompletion();
 		}
 		detectMention();
 		if (dropdownMode !== 'mention') {
