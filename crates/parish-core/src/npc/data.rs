@@ -243,6 +243,7 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 state: NpcState::default(),
                 deflated_summary: None,
                 reaction_log: ReactionLog::default(),
+                last_activity: None,
             }
         })
         .collect();

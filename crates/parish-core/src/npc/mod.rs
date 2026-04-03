@@ -159,6 +159,11 @@ pub struct Npc {
     pub deflated_summary: Option<NpcSummary>,
     /// Log of recent player reactions (emoji) toward this NPC.
     pub reaction_log: ReactionLog,
+    /// Last activity summary from Tier 3 batch simulation.
+    ///
+    /// Used in deflated context and Tier 3 prompt construction.
+    /// Updated each time a Tier 3 tick processes this NPC.
+    pub last_activity: Option<String>,
 }
 
 impl Npc {
@@ -191,6 +196,7 @@ impl Npc {
             state: NpcState::default(),
             deflated_summary: None,
             reaction_log: ReactionLog::default(),
+            last_activity: None,
         }
     }
 

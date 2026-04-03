@@ -102,6 +102,10 @@ pub struct NpcManager {
     tier_assignments: HashMap<NpcId, CogTier>,
     /// Game time of the last Tier 2 tick (None if never ticked).
     last_tier2_game_time: Option<DateTime<Utc>>,
+    /// Game time of the last Tier 3 tick (None if never ticked).
+    last_tier3_game_time: Option<DateTime<Utc>>,
+    /// Whether a Tier 3 batch inference is currently in-flight.
+    tier3_in_flight: bool,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
 }
@@ -113,6 +117,8 @@ impl NpcManager {
             npcs: HashMap::new(),
             tier_assignments: HashMap::new(),
             last_tier2_game_time: None,
+            last_tier3_game_time: None,
+            tier3_in_flight: false,
             introduced_npcs: HashSet::new(),
         }
     }
@@ -269,14 +275,15 @@ impl NpcManager {
             let new_tier = match distance {
                 Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
                 Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
-                _ => CogTier::Tier3,
+                Some(d) if d <= config.tier3_max_distance => CogTier::Tier3,
+                _ => CogTier::Tier4,
             };
 
             let old_tier = self
                 .tier_assignments
                 .get(&npc.id)
                 .copied()
-                .unwrap_or(CogTier::Tier3);
+                .unwrap_or(CogTier::Tier4);
 
             if new_tier != old_tier {
                 changes.push((npc.id, old_tier, new_tier));
@@ -570,6 +577,58 @@ impl NpcManager {
         self.last_tier2_game_time = Some(time);
     }
 
+    /// Returns the ids of all NPCs assigned to Tier 3.
+    pub fn tier3_npcs(&self) -> Vec<NpcId> {
+        self.tier_assignments
+            .iter()
+            .filter(|(_, tier)| **tier == CogTier::Tier3)
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 3 tick.
+    ///
+    /// Tier 3 ticks every 1 in-game day (24 game-hours).
+    pub fn needs_tier3_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+        self.needs_tier3_tick_with_config(current_game_time, &CognitiveTierConfig::default())
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 3 tick,
+    /// using the given cognitive tier config for the tick interval.
+    pub fn needs_tier3_tick_with_config(
+        &self,
+        current_game_time: DateTime<Utc>,
+        config: &CognitiveTierConfig,
+    ) -> bool {
+        match self.last_tier3_game_time {
+            None => true,
+            Some(last) => {
+                let elapsed = current_game_time.signed_duration_since(last);
+                elapsed.num_hours() >= config.tier3_tick_interval_hours
+            }
+        }
+    }
+
+    /// Returns the game time of the last Tier 3 tick, if any.
+    pub fn last_tier3_game_time(&self) -> Option<DateTime<Utc>> {
+        self.last_tier3_game_time
+    }
+
+    /// Records that a Tier 3 tick has been performed at the given game time.
+    pub fn record_tier3_tick(&mut self, time: DateTime<Utc>) {
+        self.last_tier3_game_time = Some(time);
+    }
+
+    /// Returns whether a Tier 3 tick is currently in-flight.
+    pub fn tier3_in_flight(&self) -> bool {
+        self.tier3_in_flight
+    }
+
+    /// Sets whether a Tier 3 tick is currently in-flight.
+    pub fn set_tier3_in_flight(&mut self, in_flight: bool) {
+        self.tier3_in_flight = in_flight;
+    }
+
     /// Groups Tier 2 NPCs by their current location.
     ///
     /// Returns a map of location id to the NPC ids at that location.
@@ -655,6 +714,7 @@ mod tests {
             state: NpcState::Present,
             deflated_summary: None,
             reaction_log: crate::npc::reactions::ReactionLog::default(),
+            last_activity: None,
         }
     }
 
@@ -804,8 +864,10 @@ mod tests {
         // Fairy fort distance depends on graph topology
         let fairy_tier = mgr.tier_of(NpcId(3)).unwrap();
         assert!(
-            fairy_tier == CogTier::Tier2 || fairy_tier == CogTier::Tier3,
-            "fairy fort should be Tier2 or Tier3 based on distance"
+            fairy_tier == CogTier::Tier2
+                || fairy_tier == CogTier::Tier3
+                || fairy_tier == CogTier::Tier4,
+            "fairy fort should be Tier2, Tier3, or Tier4 based on distance"
         );
     }
 
@@ -1123,9 +1185,8 @@ mod tests {
         mgr.record_tier2_tick(t0);
 
         let config = CognitiveTierConfig {
-            tier1_max_distance: 0,
-            tier2_max_distance: 2,
             tier2_tick_interval_minutes: 10,
+            ..CognitiveTierConfig::default()
         };
 
         // 5 minutes later: not enough (interval is 10)
@@ -1143,9 +1204,8 @@ mod tests {
         let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
 
         let config = CognitiveTierConfig {
-            tier1_max_distance: 0,
-            tier2_max_distance: 2,
             tier2_tick_interval_minutes: 10,
+            ..CognitiveTierConfig::default()
         };
 
         // First time should always need a tick regardless of config
@@ -1218,5 +1278,137 @@ mod tests {
             "Farmer should tolerate light rain and head to outdoor work, got {:?}",
             npc.state
         );
+    }
+
+    // --- Tier 3 / Tier 4 assignment tests ---
+
+    /// Builds a linear chain graph: 0 - 1 - 2 - ... - n for testing.
+    fn make_chain_graph(n: u32) -> WorldGraph {
+        let locations: Vec<serde_json::Value> = (0..=n)
+            .map(|i| {
+                let mut conns = Vec::new();
+                if i > 0 {
+                    conns.push(serde_json::json!({
+                        "target": i - 1,
+                        "path_description": "a path"
+                    }));
+                }
+                if i < n {
+                    conns.push(serde_json::json!({
+                        "target": i + 1,
+                        "path_description": "a path"
+                    }));
+                }
+                serde_json::json!({
+                    "id": i,
+                    "name": format!("Loc {}", i),
+                    "description_template": "Test",
+                    "indoor": false,
+                    "public": true,
+                    "connections": conns
+                })
+            })
+            .collect();
+        let json = serde_json::json!({"locations": locations}).to_string();
+        WorldGraph::load_from_str(&json).unwrap()
+    }
+
+    #[test]
+    fn test_tier_assignment_3_vs_4() {
+        let graph = make_chain_graph(6);
+
+        let mut mgr = NpcManager::new();
+        // Place NPCs at various distances from player (at location 0)
+        for i in 0..=6 {
+            mgr.add_npc(make_test_npc(i + 10, i));
+        }
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+
+        mgr.assign_tiers(&world, &[]);
+
+        // Distance 0 → Tier 1
+        assert_eq!(mgr.tier_of(NpcId(10)), Some(CogTier::Tier1));
+        // Distance 1 → Tier 2
+        assert_eq!(mgr.tier_of(NpcId(11)), Some(CogTier::Tier2));
+        // Distance 2 → Tier 2
+        assert_eq!(mgr.tier_of(NpcId(12)), Some(CogTier::Tier2));
+        // Distance 3 → Tier 3
+        assert_eq!(mgr.tier_of(NpcId(13)), Some(CogTier::Tier3));
+        // Distance 4 → Tier 3
+        assert_eq!(mgr.tier_of(NpcId(14)), Some(CogTier::Tier3));
+        // Distance 5 → Tier 3
+        assert_eq!(mgr.tier_of(NpcId(15)), Some(CogTier::Tier3));
+        // Distance 6 → Tier 4
+        assert_eq!(mgr.tier_of(NpcId(16)), Some(CogTier::Tier4));
+    }
+
+    #[test]
+    fn test_tier3_npcs() {
+        let graph = make_chain_graph(5);
+
+        let mut mgr = NpcManager::new();
+        // NPC at distance 3 = Tier 3, NPC at distance 4 = Tier 3
+        mgr.add_npc(make_test_npc(1, 3));
+        mgr.add_npc(make_test_npc(2, 4));
+        // NPC at distance 1 = Tier 2
+        mgr.add_npc(make_test_npc(3, 1));
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+
+        mgr.assign_tiers(&world, &[]);
+
+        let tier3 = mgr.tier3_npcs();
+        assert_eq!(tier3.len(), 2);
+        assert!(tier3.contains(&NpcId(1)));
+        assert!(tier3.contains(&NpcId(2)));
+    }
+
+    #[test]
+    fn test_tier3_tick_interval() {
+        let config = CognitiveTierConfig::default();
+        let mgr = NpcManager::new();
+
+        // Never ticked → needs tick
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        assert!(mgr.needs_tier3_tick_with_config(now, &config));
+    }
+
+    #[test]
+    fn test_tier3_tick_not_yet_due() {
+        let config = CognitiveTierConfig::default();
+        let mut mgr = NpcManager::new();
+        let t0 = Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap();
+        mgr.record_tier3_tick(t0);
+
+        // 12 hours later → not yet (need 24)
+        let t1 = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        assert!(!mgr.needs_tier3_tick_with_config(t1, &config));
+    }
+
+    #[test]
+    fn test_tier3_tick_due() {
+        let config = CognitiveTierConfig::default();
+        let mut mgr = NpcManager::new();
+        let t0 = Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap();
+        mgr.record_tier3_tick(t0);
+
+        // 24 hours later → due
+        let t1 = Utc.with_ymd_and_hms(1820, 3, 21, 0, 0, 0).unwrap();
+        assert!(mgr.needs_tier3_tick_with_config(t1, &config));
+    }
+
+    #[test]
+    fn test_tier3_in_flight_tracking() {
+        let mut mgr = NpcManager::new();
+        assert!(!mgr.tier3_in_flight());
+        mgr.set_tier3_in_flight(true);
+        assert!(mgr.tier3_in_flight());
+        mgr.set_tier3_in_flight(false);
+        assert!(!mgr.tier3_in_flight());
     }
 }

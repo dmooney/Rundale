@@ -185,6 +185,7 @@ export interface NpcDebug {
 	memories: MemoryDebug[];
 	knowledge: string[];
 	intelligence: IntelligenceDebug;
+	last_activity: string | null;
 }
 
 export interface ScheduleVariantDebug {
@@ -231,6 +232,9 @@ export interface TierSummary {
 	tier4_count: number;
 	tier1_names: string[];
 	tier2_names: string[];
+	tier3_names: string[];
+	tier3_in_flight: boolean;
+	last_tier3_tick: string | null;
 }
 
 export interface DebugEvent {
