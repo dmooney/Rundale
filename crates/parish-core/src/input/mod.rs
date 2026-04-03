@@ -1494,4 +1494,251 @@ mod tests {
             ))
         );
     }
+
+    // --- /debug command tests ---
+
+    #[test]
+    fn test_parse_debug_bare() {
+        assert_eq!(parse_system_command("/debug"), Some(Command::Debug(None)));
+    }
+
+    #[test]
+    fn test_parse_debug_with_subcommand() {
+        assert_eq!(
+            parse_system_command("/debug npcs"),
+            Some(Command::Debug(Some("npcs".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/debug memory Padraig"),
+            Some(Command::Debug(Some("memory Padraig".to_string())))
+        );
+    }
+
+    #[test]
+    fn test_parse_debug_with_empty_trailing_space() {
+        assert_eq!(
+            parse_system_command("/debug   "),
+            Some(Command::Debug(None))
+        );
+    }
+
+    #[test]
+    fn test_parse_debug_case_insensitive() {
+        assert_eq!(parse_system_command("/DEBUG"), Some(Command::Debug(None)));
+        assert_eq!(
+            parse_system_command("/DEBUG npcs"),
+            Some(Command::Debug(Some("npcs".to_string())))
+        );
+    }
+
+    // --- /spinner command tests ---
+
+    #[test]
+    fn test_parse_spinner_bare() {
+        assert_eq!(parse_system_command("/spinner"), Some(Command::Spinner(30)));
+    }
+
+    #[test]
+    fn test_parse_spinner_with_duration() {
+        assert_eq!(
+            parse_system_command("/spinner 10"),
+            Some(Command::Spinner(10))
+        );
+        assert_eq!(
+            parse_system_command("/spinner 120"),
+            Some(Command::Spinner(120))
+        );
+    }
+
+    #[test]
+    fn test_parse_spinner_invalid_duration() {
+        // Non-numeric falls back to 30
+        assert_eq!(
+            parse_system_command("/spinner abc"),
+            Some(Command::Spinner(30))
+        );
+    }
+
+    // --- category command tests ---
+
+    #[test]
+    fn test_parse_category_model_dialogue_show() {
+        assert_eq!(
+            parse_system_command("/model.dialogue"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Dialogue))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_model_dialogue_set() {
+        assert_eq!(
+            parse_system_command("/model.dialogue gpt-4"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Dialogue,
+                "gpt-4".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_model_simulation() {
+        assert_eq!(
+            parse_system_command("/model.simulation"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Simulation))
+        );
+        assert_eq!(
+            parse_system_command("/model.simulation qwen3:8b"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Simulation,
+                "qwen3:8b".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_model_intent() {
+        assert_eq!(
+            parse_system_command("/model.intent"),
+            Some(Command::ShowCategoryModel(InferenceCategory::Intent))
+        );
+        assert_eq!(
+            parse_system_command("/model.intent qwen3:1.5b"),
+            Some(Command::SetCategoryModel(
+                InferenceCategory::Intent,
+                "qwen3:1.5b".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_provider_show_set() {
+        assert_eq!(
+            parse_system_command("/provider.dialogue"),
+            Some(Command::ShowCategoryProvider(InferenceCategory::Dialogue))
+        );
+        assert_eq!(
+            parse_system_command("/provider.intent openrouter"),
+            Some(Command::SetCategoryProvider(
+                InferenceCategory::Intent,
+                "openrouter".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_key_show_set() {
+        assert_eq!(
+            parse_system_command("/key.dialogue"),
+            Some(Command::ShowCategoryKey(InferenceCategory::Dialogue))
+        );
+        assert_eq!(
+            parse_system_command("/key.simulation sk-test"),
+            Some(Command::SetCategoryKey(
+                InferenceCategory::Simulation,
+                "sk-test".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_category_invalid_category_returns_none() {
+        // Invalid category name should not match
+        assert_eq!(parse_system_command("/model.bogus"), None);
+        assert_eq!(parse_system_command("/provider.bogus"), None);
+        assert_eq!(parse_system_command("/key.bogus"), None);
+    }
+
+    // --- /load edge cases ---
+
+    #[test]
+    fn test_parse_load_empty_shows_picker() {
+        assert_eq!(
+            parse_system_command("/load"),
+            Some(Command::Load(String::new()))
+        );
+        assert_eq!(
+            parse_system_command("/load  "),
+            Some(Command::Load(String::new()))
+        );
+    }
+
+    #[test]
+    fn test_load_with_invalid_branch_name() {
+        assert_eq!(
+            parse_system_command("/load ../../etc"),
+            Some(Command::InvalidBranchName(
+                "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
+                    .to_string()
+            ))
+        );
+    }
+
+    // --- /cloud edge cases ---
+
+    #[test]
+    fn test_parse_cloud_provider_show_bare() {
+        // "/cloud provider" without a name shows cloud info
+        assert_eq!(
+            parse_system_command("/cloud provider"),
+            Some(Command::ShowCloud)
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_provider_empty_name() {
+        // "/cloud provider  " with only whitespace shows cloud info
+        assert_eq!(
+            parse_system_command("/cloud provider  "),
+            Some(Command::ShowCloud)
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_model_empty_name() {
+        assert_eq!(
+            parse_system_command("/cloud model  "),
+            Some(Command::ShowCloudModel)
+        );
+    }
+
+    #[test]
+    fn test_parse_cloud_key_empty_name() {
+        assert_eq!(
+            parse_system_command("/cloud key  "),
+            Some(Command::ShowCloudKey)
+        );
+    }
+
+    // --- validate_branch_name edge cases ---
+
+    #[test]
+    fn test_validate_branch_name_at_max_length() {
+        let name = "a".repeat(255);
+        assert!(validate_branch_name(&name).is_ok());
+    }
+
+    #[test]
+    fn test_validate_branch_name_just_over_max() {
+        let name = "a".repeat(256);
+        let err = validate_branch_name(&name).unwrap_err();
+        assert!(err.contains("max 255"));
+    }
+
+    #[test]
+    fn test_validate_branch_name_with_special_chars() {
+        assert!(validate_branch_name("save!game").is_err());
+        assert!(validate_branch_name("save@game").is_err());
+        assert!(validate_branch_name("save#game").is_err());
+        assert!(validate_branch_name("save.game").is_err());
+    }
+
+    // --- /speed ludicrous ---
+
+    #[test]
+    fn test_parse_speed_ludicrous() {
+        assert_eq!(
+            parse_system_command("/speed ludicrous"),
+            Some(Command::SetSpeed(GameSpeed::Ludicrous))
+        );
+    }
 }

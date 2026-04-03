@@ -474,6 +474,92 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_tiers_empty() {
+        let app = App::new();
+        let lines = debug_tiers(&app);
+        assert!(lines[0].contains("DEBUG TIERS"));
+        assert!(lines[1].contains("Player at:"));
+        // All tiers should show (none)
+        assert!(lines[2..].iter().all(|l| l.contains("(none)")));
+    }
+
+    #[test]
+    fn test_debug_here() {
+        let app = App::new();
+        let lines = debug_here(&app);
+        assert!(lines[0].contains("DEBUG HERE"));
+        // Should show indoor/public info
+        assert!(lines.iter().any(|l| l.contains("Indoor:")));
+        // Should show exits
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("Exits:") || l.contains("NPCs:"))
+        );
+    }
+
+    #[test]
+    fn test_debug_relationships_no_name() {
+        let app = App::new();
+        let lines = debug_relationships(&app, None);
+        assert!(lines[0].contains("Usage:"));
+    }
+
+    #[test]
+    fn test_debug_relationships_not_found() {
+        let app = App::new();
+        let lines = debug_relationships(&app, Some("nobody"));
+        assert!(lines[0].contains("NPC not found"));
+    }
+
+    #[test]
+    fn test_debug_memory_no_name() {
+        let app = App::new();
+        let lines = debug_memory(&app, None);
+        assert!(lines[0].contains("Usage:"));
+    }
+
+    #[test]
+    fn test_debug_schedule_not_found() {
+        let app = App::new();
+        let lines = debug_schedule(&app, Some("nobody"));
+        assert!(lines[0].contains("NPC not found"));
+    }
+
+    #[test]
+    fn test_handle_debug_all_subcommands() {
+        let app = App::new();
+        // Each valid subcommand should return without panicking
+        for sub in &["npcs", "tiers", "clock", "here", "help"] {
+            let lines = handle_debug(Some(sub), &app);
+            assert!(
+                !lines.is_empty(),
+                "Debug subcommand '{}' returned empty",
+                sub
+            );
+        }
+    }
+
+    #[test]
+    fn test_handle_debug_rels_alias() {
+        let app = App::new();
+        let lines = handle_debug(Some("rels"), &app);
+        assert!(lines[0].contains("Usage:"));
+    }
+
+    #[test]
+    fn test_strength_bar_midpoints() {
+        assert_eq!(strength_bar(0.5), "[#######...]");
+        assert_eq!(strength_bar(-0.5), "[##........]");
+    }
+
+    #[test]
+    fn test_tier_counts_empty() {
+        let mgr = NpcManager::new();
+        assert_eq!(tier_counts(&mgr), (0, 0, 0));
+    }
+
+    #[test]
     fn test_location_name_unknown() {
         let graph = crate::world::graph::WorldGraph::new();
         assert_eq!(location_name(LocationId(999), &graph), "Location(999)");
