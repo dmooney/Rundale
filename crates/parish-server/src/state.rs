@@ -1,5 +1,6 @@
 //! Shared application state and event bus for the web server.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::sync::{Mutex, broadcast};
@@ -19,6 +20,17 @@ pub struct UiConfigSnapshot {
     pub default_accent: String,
     /// Splash text displayed on game start (Zork-style).
     pub splash_text: String,
+}
+
+/// Current save state for display in the StatusBar.
+#[derive(serde::Serialize, Clone)]
+pub struct SaveState {
+    /// Filename of the current save file (e.g. "parish_001.db"), or None.
+    pub filename: Option<String>,
+    /// Current branch database id, or None.
+    pub branch_id: Option<i64>,
+    /// Current branch name, or None.
+    pub branch_name: Option<String>,
 }
 
 /// Shared mutable game state for the web server.
@@ -44,6 +56,16 @@ pub struct AppState {
     pub transport: TransportConfig,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
+    /// Directory where save files are stored.
+    pub saves_dir: PathBuf,
+    /// Directory containing game data files (world.json, npcs.json, etc.).
+    pub data_dir: PathBuf,
+    /// Path to the currently active save file.
+    pub save_path: Mutex<Option<PathBuf>>,
+    /// Current branch database id.
+    pub current_branch_id: Mutex<Option<i64>>,
+    /// Current branch name.
+    pub current_branch_name: Mutex<Option<String>>,
 }
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
@@ -144,6 +166,9 @@ impl EventBus {
 }
 
 /// Creates the shared [`AppState`] from game data.
+// AppState is a flat bundle of all server-wide singletons; a builder pattern
+// would add complexity without benefit, so the many-argument constructor is intentional.
+#[allow(clippy::too_many_arguments)]
 pub fn build_app_state(
     world: WorldState,
     npc_manager: NpcManager,
@@ -152,6 +177,8 @@ pub fn build_app_state(
     cloud_client: Option<OpenAiClient>,
     transport: TransportConfig,
     ui_config: UiConfigSnapshot,
+    saves_dir: PathBuf,
+    data_dir: PathBuf,
 ) -> Arc<AppState> {
     Arc::new(AppState {
         world: Mutex::new(world),
@@ -163,6 +190,11 @@ pub fn build_app_state(
         event_bus: EventBus::new(256),
         transport,
         ui_config,
+        saves_dir,
+        data_dir,
+        save_path: Mutex::new(None),
+        current_branch_id: Mutex::new(None),
+        current_branch_name: Mutex::new(None),
     })
 }
 

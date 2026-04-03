@@ -71,6 +71,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         splash_text,
     };
 
+    let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
     let state = build_app_state(
         world,
         npc_manager,
@@ -79,6 +80,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         cloud_client,
         transport,
         ui_config,
+        saves_dir,
+        data_dir.clone(),
     );
 
     // Initialize inference queue
@@ -103,6 +106,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/react-to-message", post(routes::react_to_message))
+        .route("/api/discover-save-files", get(routes::discover_save_files))
+        .route("/api/save-game", get(routes::save_game))
+        .route("/api/load-branch", post(routes::load_branch))
+        .route("/api/create-branch", post(routes::create_branch))
+        .route("/api/new-save-file", get(routes::new_save_file))
+        .route("/api/new-game", get(routes::new_game))
+        .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
         .with_state(state);
