@@ -2,7 +2,7 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: Implemented**
 >
 > **Depends on:** Phase 5A (event bus for gossip-triggering events)
 > **Depended on by:** 5D (Tier 3 uses long-term memory context), 5E (Tier 4 life events become gossip)

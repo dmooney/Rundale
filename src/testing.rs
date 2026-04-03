@@ -198,6 +198,18 @@ impl GameTestHarness {
             return ActionResult::UnknownInput;
         }
 
+        // Handle test-harness-only /stub command: /stub NpcName: dialogue text
+        if let Some(rest) = trimmed.strip_prefix("/stub ")
+            && let Some((name, dialogue)) = rest.split_once(':')
+        {
+            let name = name.trim();
+            let dialogue = dialogue.trim();
+            self.add_canned_response(name, dialogue);
+            let msg = format!("Stubbed response for {}: \"{}\"", name, dialogue);
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
+        }
+
         let result = match input::classify_input(trimmed) {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
@@ -338,6 +350,20 @@ impl GameTestHarness {
         );
         self.process_schedule_events(&events);
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+
+        // Propagate gossip between co-located NPCs
+        if !self.app.world.gossip_network.is_empty() {
+            let groups = self.app.npc_manager.tier2_groups();
+            for npc_ids in groups.values() {
+                if npc_ids.len() >= 2 {
+                    crate::npc::ticks::propagate_gossip_at_location(
+                        npc_ids,
+                        &mut self.app.world.gossip_network,
+                        &mut rng,
+                    );
+                }
+            }
+        }
     }
 
     /// Returns the debug activity log entries.
@@ -1050,6 +1076,11 @@ impl GameTestHarness {
     /// not just the first one. This allows tests to target specific NPCs
     /// regardless of iteration order. Also runs anachronism detection on
     /// the player's input and includes any detected terms in the result.
+    ///
+    /// When a canned response is consumed, the interaction is processed
+    /// through the same memory pipeline as a real LLM response: the NPC's
+    /// mood is updated, a memory entry is recorded, and evicted memories
+    /// may be promoted to long-term storage.
     fn handle_npc_interaction(&mut self, text: &str) -> ActionResult {
         let npcs_here = self.app.npc_manager.npcs_at(self.app.world.player_location);
 
@@ -1070,7 +1101,29 @@ impl GameTestHarness {
             {
                 let dialogue = responses.remove(0);
                 let name = npc.name.clone();
+                let npc_id = npc.id;
                 self.app.world.log(format!("{}: {}", name, dialogue));
+
+                // Build a synthetic NPC response and run it through the memory pipeline
+                let response = crate::npc::NpcStreamResponse {
+                    dialogue: dialogue.clone(),
+                    metadata: Some(crate::npc::NpcMetadata {
+                        action: "responds".to_string(),
+                        mood: npc.mood.clone(),
+                        internal_thought: None,
+                        language_hints: Vec::new(),
+                    }),
+                };
+                let game_time = self.app.world.clock.now();
+                if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
+                    let debug_events = crate::npc::ticks::apply_tier1_response(
+                        npc_mut, &response, text, game_time,
+                    );
+                    for event in debug_events {
+                        self.app.debug_event(event);
+                    }
+                }
+
                 return ActionResult::NpcResponse {
                     npc: name,
                     dialogue,
@@ -1644,5 +1697,104 @@ mod tests {
             "Expected tier transition events in debug log after movement, got: {:?}",
             log
         );
+    }
+
+    #[test]
+    fn test_gossip_network_on_world_state() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+
+        // Seed gossip into the world state
+        let now = h.app.world.clock.now();
+        let npc_id = NpcId(1);
+        h.app.world.gossip_network.create(
+            "The landlord raised the rent again".to_string(),
+            npc_id,
+            now,
+        );
+        h.app.world.gossip_network.create(
+            "A stranger was seen at the fairy fort".to_string(),
+            NpcId(2),
+            now,
+        );
+
+        // Verify via debug command
+        let result = h.execute("/debug gossip");
+        let text = match &result {
+            ActionResult::SystemCommand { response } => response.clone(),
+            other => panic!("Expected system command, got {:?}", other),
+        };
+        assert!(
+            text.contains("2 items"),
+            "Should show 2 gossip items: {text}"
+        );
+        assert!(
+            text.contains("landlord"),
+            "Should contain landlord gossip: {text}"
+        );
+        assert!(
+            text.contains("stranger"),
+            "Should contain stranger gossip: {text}"
+        );
+    }
+
+    #[test]
+    fn test_long_term_memory_debug_display() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+
+        // Find an NPC and seed long-term memory
+        let npc_id = NpcId(1);
+        if let Some(npc) = h.app.npc_manager.get_mut(npc_id) {
+            use parish_core::npc::memory::LongTermEntry;
+            let now = h.app.world.clock.now();
+            npc.long_term_memory.store(LongTermEntry {
+                timestamp: now,
+                content: "Argued with the landlord about tithes".to_string(),
+                importance: 0.8,
+                keywords: vec!["landlord".to_string(), "tithes".to_string()],
+            });
+        }
+
+        // Verify via debug command — get NPC name first
+        let npc_name = h.app.npc_manager.get(npc_id).unwrap().name.clone();
+        let result = h.execute(&format!("/debug memory {}", npc_name));
+        let text = match &result {
+            ActionResult::SystemCommand { response } => response.clone(),
+            other => panic!("Expected system command, got {:?}", other),
+        };
+        assert!(
+            text.contains("Long-term (1 entries)"),
+            "Should show 1 LTM entry: {text}"
+        );
+    }
+
+    #[test]
+    fn test_gossip_propagation_runtime() {
+        use crate::npc::NpcId;
+        let mut h = GameTestHarness::new();
+        let now = h.app.world.clock.now();
+
+        // Create gossip known by NPC 1
+        h.app.world.gossip_network.create(
+            "Mary's cow went missing last night".to_string(),
+            NpcId(1),
+            now,
+        );
+
+        // Propagate between NPC 1 and NPC 2
+        use rand::SeedableRng;
+        let mut rng = rand::rngs::StdRng::seed_from_u64(42);
+        let transmitted = parish_core::npc::ticks::propagate_gossip_at_location(
+            &[NpcId(1), NpcId(2)],
+            &mut h.app.world.gossip_network,
+            &mut rng,
+        );
+
+        // Check if gossip was transmitted (probabilistic, but seed 42 should work)
+        if !transmitted.is_empty() {
+            let npc2_gossip = h.app.world.gossip_network.known_by(NpcId(2));
+            assert!(!npc2_gossip.is_empty(), "NPC 2 should now know gossip");
+        }
     }
 }

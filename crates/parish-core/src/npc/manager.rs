@@ -603,7 +603,7 @@ fn tier_rank(tier: CogTier) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::npc::memory::ShortTermMemory;
+    use crate::npc::memory::{LongTermMemory, ShortTermMemory};
     use crate::npc::types::{DailySchedule, ScheduleEntry};
     use chrono::TimeZone;
 
@@ -623,6 +623,7 @@ mod tests {
             schedule: None,
             relationships: HashMap::new(),
             memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
             knowledge: Vec::new(),
             state: NpcState::Present,
             deflated_summary: None,

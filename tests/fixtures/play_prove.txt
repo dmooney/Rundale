@@ -1,0 +1,68 @@
+# Phase 5C Prove: NPC Long-Term Memory & Gossip Propagation
+
+# --- Go to crossroads and wait for Padraig to arrive ---
+go to crossroads
+/wait 15
+/npcs
+
+# --- Stub 22 canned responses (enough to overflow the 20-entry STM buffer) ---
+/stub Padraig Darcy: Ah, good morning to ye! Dia dhuit.
+/stub Padraig Darcy: The landlord was angry about the tithes, so he was.
+/stub Padraig Darcy: A stranger was seen near the fairy fort last night.
+/stub Padraig Darcy: Aye, the secret is that old Tommy buried gold under the oak.
+/stub Padraig Darcy: The weather's been fierce mild this spring.
+/stub Padraig Darcy: My daughter Niamh wants to go to Galway. I worry about her.
+/stub Padraig Darcy: Fr. Tierney gave a powerful sermon about forgiveness.
+/stub Padraig Darcy: The Murphy farm lost three sheep to the bog last week.
+/stub Padraig Darcy: There's talk of a new road being built through the parish.
+/stub Padraig Darcy: Old Tommy hasn't been well. His cough is getting worse.
+/stub Padraig Darcy: The price of grain is gone through the roof entirely.
+/stub Padraig Darcy: Roisin's shop got a delivery of cloth from Athlone.
+/stub Padraig Darcy: I remember when this pub had a thatched roof, years ago.
+/stub Padraig Darcy: The fair at Roscommon is next month. Everyone will be there.
+/stub Padraig Darcy: A tinker family passed through yesterday selling pots.
+/stub Padraig Darcy: The river flooded last autumn and took out the bridge.
+/stub Padraig Darcy: My grandfather built this pub with his own two hands.
+/stub Padraig Darcy: They say the fairy fort is cursed. I wouldn't go near it.
+/stub Padraig Darcy: The English garrison has new soldiers arrived.
+/stub Padraig Darcy: Siobhan Murphy makes the best butter in the parish.
+/stub Padraig Darcy: Sure, the old days were better. Everything's changing now.
+/stub Padraig Darcy: Did I ever tell ye about the death of old Seamus? Terrible grief.
+
+# --- 1st conversation: basic greeting ---
+Hello Padraig
+/debug memory Padraig Darcy
+
+# --- Fill the 20-entry STM buffer (conversations 2-20) ---
+Tell me about the landlord
+What news?
+Tell me a secret
+How's the weather?
+Tell me about Niamh
+What about the sermon?
+What about the sheep?
+Any talk of a road?
+How's Tommy?
+What about grain?
+Tell me about Roisin
+The roof?
+The fair?
+Tell me about the tinkers
+The flood?
+Your grandfather?
+The fairy fort?
+The soldiers?
+What about Siobhan?
+
+# --- STM should be full (20 entries). Check state ---
+/debug memory Padraig Darcy
+
+# --- Conversations 21-22: overflow the buffer, forcing evictions ---
+What's changed?
+Tell me about Seamus
+
+# --- Critical check: evicted memories should be promoted to LTM ---
+/debug memory Padraig Darcy
+
+# --- Check gossip ---
+/debug gossip
