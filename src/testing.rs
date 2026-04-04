@@ -20,10 +20,9 @@ use crate::app::App;
 use crate::input::{self, Command, InputResult, IntentKind};
 use crate::npc::Npc;
 use crate::npc::manager::NpcManager;
+use crate::world::LocationId;
 use crate::world::description::{format_exits, render_description};
-use crate::world::movement::{self, MovementResult};
 use crate::world::time::{Season, TimeOfDay};
-use crate::world::{Location, LocationId};
 use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -990,94 +989,69 @@ impl GameTestHarness {
     }
 
     /// Handles movement, advancing the clock and updating location.
+    ///
+    /// Delegates all post-movement logic to [`parish_core::game_session::apply_movement`]
+    /// so the test harness stays in sync with the other backends automatically.
     fn handle_movement(&mut self, target: &str) -> ActionResult {
+        use parish_core::game_session::apply_movement;
+
         let transport = self.default_transport();
-        let result = movement::resolve_movement(
+        let reaction_templates = self
+            .app
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.reactions.clone())
+            .unwrap_or_default();
+
+        let effects = apply_movement(
+            &mut self.app.world,
+            &mut self.app.npc_manager,
+            &reaction_templates,
             target,
-            &self.app.world.graph,
-            self.app.world.player_location,
             &transport,
         );
 
-        match result {
-            MovementResult::Arrived {
-                destination,
+        // Log tier transitions to the debug log (mirrors Tauri/server behaviour)
+        for tt in &effects.tier_transitions {
+            let direction = if tt.promoted { "promoted" } else { "demoted" };
+            self.app.debug_event(format!(
+                "[tier] {} {} {:?} → {:?}",
+                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+            ));
+        }
+
+        if effects.world_changed {
+            let loc_name = self.app.world.current_location().name.clone();
+            // Retrieve travel time from the first system message (narration contains minutes)
+            // We need minutes for ActionResult — reconstruct from the travel_start payload.
+            let minutes = effects
+                .travel_start
+                .as_ref()
+                .map(|ts| ts.duration_minutes)
+                .unwrap_or(0);
+            let narration = effects
+                .messages
+                .first()
+                .map(|m| m.text.clone())
+                .unwrap_or_default();
+            ActionResult::Moved {
+                to: loc_name,
                 minutes,
                 narration,
-                ..
-            } => {
-                self.app.world.log(narration.clone());
-                self.app.world.log(String::new());
-
-                self.app.world.clock.advance(minutes as i64);
-                self.app.world.player_location = destination;
-                self.app.world.mark_visited(destination);
-
-                // Update legacy locations map
-                if let Some(data) = self.app.world.graph.get(destination) {
-                    self.app
-                        .world
-                        .locations
-                        .entry(destination)
-                        .or_insert_with(|| Location {
-                            id: destination,
-                            name: data.name.clone(),
-                            description: data.description_template.clone(),
-                            indoor: data.indoor,
-                            public: data.public,
-                            lat: data.lat,
-                            lon: data.lon,
-                        });
-                }
-
-                // Log arrival
-                let loc_name = self.app.world.current_location().name.clone();
-                self.app.world.log(format!("— {} —", loc_name));
-                let desc = self.render_current_location();
-                self.app.world.log(desc);
-                let exits = format_exits(
-                    self.app.world.player_location,
-                    &self.app.world.graph,
-                    transport.speed_m_per_s,
-                    &transport.label,
-                );
-                self.app.world.log(exits);
-                self.app.world.log(String::new());
-
-                // Resolve any NPCs whose transit completed during travel, so
-                // emit_arrival_reactions sees them as Present rather than InTransit.
-                let schedule_events = self.app.npc_manager.tick_schedules(
-                    &self.app.world.clock,
-                    &self.app.world.graph,
-                    self.app.world.weather,
-                );
-                self.process_schedule_events(&schedule_events);
-
-                // NPC arrival reactions (canned text, no LLM)
-                self.emit_arrival_reactions();
-
-                ActionResult::Moved {
-                    to: loc_name,
-                    minutes,
-                    narration,
-                }
             }
-            MovementResult::AlreadyHere => {
-                self.app.world.log("You are already here.".to_string());
-                ActionResult::AlreadyHere
-            }
-            MovementResult::NotFound(name) => {
-                self.app
-                    .world
-                    .log(format!("You don't know how to get to \"{}\".", name));
-                let exits = format_exits(
-                    self.app.world.player_location,
-                    &self.app.world.graph,
-                    transport.speed_m_per_s,
-                    &transport.label,
-                );
-                self.app.world.log(exits);
+        } else {
+            // Check which variant based on message content
+            let msg = effects
+                .messages
+                .first()
+                .map(|m| m.text.as_str())
+                .unwrap_or("");
+            if msg.contains("faintest notion") || msg.contains("You haven't") {
+                // Extract target name from the message
+                let name = target.to_string();
                 ActionResult::NotFound { target: name }
+            } else {
+                ActionResult::AlreadyHere
             }
         }
     }
@@ -1145,51 +1119,6 @@ impl GameTestHarness {
         }
 
         ActionResult::NpcNotAvailable
-    }
-
-    /// Generates NPC arrival reactions (canned text only, no LLM) and logs them.
-    fn emit_arrival_reactions(&mut self) {
-        use parish_core::config::ReactionConfig;
-        use parish_core::dice;
-        use parish_core::npc::reactions::generate_arrival_reactions;
-
-        let npcs = self.app.npc_manager.npcs_at(self.app.world.player_location);
-        if npcs.is_empty() {
-            return;
-        }
-        let loc_data = match self.app.world.current_location_data() {
-            Some(d) => d.clone(),
-            None => return,
-        };
-        let tod = self.app.world.clock.time_of_day();
-        let weather = self.app.world.weather.to_string();
-        let introduced = self.app.npc_manager.introduced_set();
-        let templates = self
-            .app
-            .game_mod
-            .as_ref()
-            .map(|gm| gm.reactions.clone())
-            .unwrap_or_default();
-        let config = ReactionConfig::default();
-        let roll_dice = dice::roll_n(npcs.len() * 2);
-
-        let reactions = generate_arrival_reactions(
-            &npcs,
-            &introduced,
-            &loc_data,
-            tod,
-            &weather,
-            &templates,
-            &config,
-            &roll_dice,
-        );
-
-        for reaction in &reactions {
-            self.app.world.log(reaction.canned_text.clone());
-            if reaction.introduces {
-                self.app.npc_manager.mark_introduced(reaction.npc_id);
-            }
-        }
     }
 
     /// Renders the current location description.

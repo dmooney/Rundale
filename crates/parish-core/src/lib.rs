@@ -10,6 +10,7 @@ pub mod debug_snapshot;
 pub mod dice;
 pub mod error;
 pub mod game_mod;
+pub mod game_session;
 pub mod inference;
 pub mod input;
 pub mod ipc;

@@ -10,6 +10,41 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::npc::gossip::GossipNetwork;
+
+/// Serde helpers for `edge_traversals: HashMap<(LocationId, LocationId), u32>`.
+///
+/// JSON map keys must be strings, but `(LocationId, LocationId)` is a tuple.
+/// We serialize as a list of `[from, to, count]` arrays instead.
+mod edge_traversals_serde {
+    use crate::world::LocationId;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::HashMap;
+
+    pub fn serialize<S>(
+        map: &HashMap<(LocationId, LocationId), u32>,
+        s: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let list: Vec<[u32; 3]> = map
+            .iter()
+            .map(|((a, b), count)| [a.0, b.0, *count])
+            .collect();
+        list.serialize(s)
+    }
+
+    pub fn deserialize<'de, D>(d: D) -> Result<HashMap<(LocationId, LocationId), u32>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let list: Vec<[u32; 3]> = Vec::deserialize(d)?;
+        Ok(list
+            .into_iter()
+            .map(|[a, b, count]| ((LocationId(a), LocationId(b)), count))
+            .collect())
+    }
+}
 use crate::npc::memory::{LongTermMemory, ShortTermMemory};
 use crate::npc::types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 use crate::npc::{Npc, NpcId};
@@ -149,7 +184,7 @@ pub struct GameSnapshot {
     #[serde(default)]
     pub visited_locations: HashSet<LocationId>,
     /// Edge traversal counts for "worn path" footprints on the map.
-    #[serde(default)]
+    #[serde(default, with = "edge_traversals_serde")]
     pub edge_traversals: HashMap<(LocationId, LocationId), u32>,
     /// Gossip network state.
     #[serde(default)]
