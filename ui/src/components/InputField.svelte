@@ -760,17 +760,19 @@
 	.input-field {
 		background: var(--color-input-bg);
 		border: 1px solid var(--color-border);
+		border-radius: 2px;
 		color: var(--color-fg);
 		padding: 0.5rem 0.75rem;
 		font-size: 0.95rem;
-		font-family: inherit;
-		border-radius: 4px;
+		font-family: var(--font-body);
+		font-style: italic;
 		outline: none;
 		max-height: 6em;
 		overflow-y: auto;
 		white-space: pre-wrap;
 		word-wrap: break-word;
 		overflow-wrap: break-word;
+		transition: border-color 0.2s;
 	}
 
 	.input-field:focus {
@@ -807,11 +809,13 @@
 		background: var(--color-accent);
 		color: var(--color-bg);
 		border: none;
-		padding: 0.5rem 1rem;
-		font-size: 0.85rem;
-		font-family: inherit;
+		padding: 0.5rem 1.1rem;
+		font-size: 0.65rem;
+		font-family: var(--font-display);
 		font-weight: 600;
-		border-radius: 4px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		border-radius: 2px;
 		cursor: pointer;
 		transition: opacity 0.15s;
 	}
@@ -882,20 +886,23 @@
 	}
 
 	.travel-chip {
-		background: var(--color-border);
-		color: var(--color-fg);
-		border: none;
-		border-radius: 12px;
-		padding: 0.25rem 0.6rem;
-		font-size: 0.8rem;
-		font-family: inherit;
+		background: transparent;
+		color: var(--color-muted);
+		border: 1px solid var(--color-border);
+		border-radius: 2px;
+		padding: 0.2rem 0.65rem;
+		font-size: 0.64rem;
+		font-family: var(--font-display);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 		cursor: pointer;
-		transition: background 0.15s, color 0.15s;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
 	}
 
 	.travel-chip:hover:not(:disabled) {
 		background: var(--color-accent);
 		color: var(--color-bg);
+		border-color: var(--color-accent);
 	}
 
 	.travel-chip:disabled {

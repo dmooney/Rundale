@@ -71,10 +71,11 @@
 	}
 
 	summary {
-		padding: 0.5rem 0.75rem;
-		font-size: 0.75rem;
+		padding: 0.55rem 0.75rem;
+		font-family: var(--font-display);
+		font-size: 0.62rem;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.13em;
 		color: var(--color-muted);
 		cursor: pointer;
 		user-select: none;
@@ -86,12 +87,13 @@
 	}
 
 	summary::before {
-		content: '▶ ';
-		font-size: 0.6rem;
+		content: '▸ ';
+		font-size: 0.55rem;
+		opacity: 0.7;
 	}
 
 	details[open] summary::before {
-		content: '▼ ';
+		content: '▾ ';
 	}
 
 	.npc-list,
@@ -121,8 +123,8 @@
 
 	.npc-name {
 		color: var(--color-accent);
-		font-weight: 600;
-		font-size: 0.85rem;
+		font-style: italic;
+		font-size: 0.9rem;
 	}
 
 	.npc-detail {
