@@ -18,7 +18,6 @@ use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
-use parish_core::world::movement::{self, MovementResult};
 use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
@@ -858,207 +857,66 @@ async fn handle_game_input(
     handle_npc_conversation(dialogue, target_name, state, app).await;
 }
 
-/// Resolves movement to a named location.
+/// Resolves movement to a named location using the shared movement pipeline.
+///
+/// Delegates all state mutation and message generation to
+/// [`parish_core::game_session::apply_movement`], then emits the returned
+/// effects to the frontend.
 async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHandle) {
+    use parish_core::game_session::apply_movement;
+
     let transport = state.transport.default_mode().clone();
 
-    // Resolve and apply movement within a single lock to prevent TOCTOU races.
-    // Without this, another task could modify the world between resolve and apply,
-    // potentially putting the player at an invalid destination.
-    let result = {
-        let mut world = state.world.lock().await;
-        let mv =
-            movement::resolve_movement(target, &world.graph, world.player_location, &transport);
-        if let MovementResult::Arrived {
-            destination,
-            path,
-            minutes,
-            ..
-        } = &mv
-        {
-            // Emit travel-start before changing state so frontend can animate
-            let travel_payload = parish_core::ipc::build_travel_start(path, *minutes, &world.graph);
-            let _ = app.emit(EVENT_TRAVEL_START, travel_payload);
-
-            // Record edge traversals for footprints
-            world.record_path_traversal(path);
-
-            world.clock.advance(*minutes as i64);
-            world.player_location = *destination;
-            world.mark_visited(*destination);
-
-            // Update legacy locations map (clone data first to avoid borrow conflict)
-            let new_loc = world
-                .graph
-                .get(*destination)
-                .map(|data| parish_core::world::Location {
-                    id: *destination,
-                    name: data.name.clone(),
-                    description: data.description_template.clone(),
-                    indoor: data.indoor,
-                    public: data.public,
-                    lat: data.lat,
-                    lon: data.lon,
-                });
-            if let Some(loc) = new_loc {
-                world.locations.entry(*destination).or_insert(loc);
-            }
-        }
-        mv
-    };
-
-    match result {
-        MovementResult::Arrived { narration, .. } => {
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    source: "system".to_string(),
-                    content: narration,
-                },
-            );
-
-            // Reassign tiers after movement
-            {
-                let world = state.world.lock().await;
-                let mut npc_manager = state.npc_manager.lock().await;
-                let tier_transitions = npc_manager.assign_tiers(&world, &[]);
-                if !tier_transitions.is_empty() {
-                    let mut debug_events = state.debug_events.lock().await;
-                    for tt in &tier_transitions {
-                        if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {
-                            debug_events.pop_front();
-                        }
-                        let direction = if tt.promoted { "promoted" } else { "demoted" };
-                        debug_events.push_back(DebugEvent {
-                            timestamp: String::new(),
-                            category: "tier".to_string(),
-                            message: format!(
-                                "{} {} {:?} → {:?}",
-                                tt.npc_name, direction, tt.old_tier, tt.new_tier,
-                            ),
-                        });
-                    }
-                }
-            }
-
-            // Emit arrival description
-            handle_look(state, app).await;
-
-            // Emit NPC arrival reactions (tick schedules first so in-transit
-            // NPCs whose arrival time has passed are resolved to Present)
-            emit_arrival_reactions(state, app).await;
-
-            // Emit updated world snapshot
-            {
-                let world = state.world.lock().await;
-                let npc_manager = state.npc_manager.lock().await;
-                let mut snapshot = snapshot_from_world(&world, &transport);
-                snapshot.name_hints =
-                    compute_name_hints(&world, &npc_manager, &state.pronunciations);
-                let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
-            }
-        }
-        MovementResult::AlreadyHere => {
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    source: "system".to_string(),
-                    content: "Sure, you're already standing right here.".to_string(),
-                },
-            );
-        }
-        MovementResult::NotFound(name) => {
-            let world = state.world.lock().await;
-            let exits = format_exits(
-                world.player_location,
-                &world.graph,
-                transport.speed_m_per_s,
-                &transport.label,
-            );
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    source: "system".to_string(),
-                    content: format!(
-                        "You haven't the faintest notion how to reach \"{}\". {}",
-                        name, exits
-                    ),
-                },
-            );
-        }
-    }
-}
-
-/// Emits NPC arrival reactions (canned text greetings) after the player moves.
-///
-/// Ticks NPC schedules first so any NPCs whose transit completed during travel
-/// are resolved to `Present` before checking who's here.
-async fn emit_arrival_reactions(state: &Arc<AppState>, app: &tauri::AppHandle) {
-    use parish_core::config::ReactionConfig;
-    use parish_core::dice;
-    use parish_core::npc::reactions::generate_arrival_reactions;
-
-    let (reactions_to_emit, introduce_ids) = {
+    // Apply all movement state changes within a single lock scope to prevent
+    // TOCTOU races.
+    let effects = {
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
-
-        // Resolve any NPCs whose transit completed during travel
-        let schedule_events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
-        drop(schedule_events); // side-effects applied; events not needed here
-
-        let npcs = npc_manager.npcs_at(world.player_location);
-        if npcs.is_empty() {
-            return;
-        }
-        let loc_data = match world.current_location_data() {
-            Some(d) => d.clone(),
-            None => return,
-        };
-        let tod = world.clock.time_of_day();
-        let weather = world.weather.to_string();
-        let introduced = npc_manager.introduced_set();
-        let config = ReactionConfig::default();
-        let roll_dice = dice::roll_n(npcs.len() * 2);
-        let reactions = generate_arrival_reactions(
-            &npcs,
-            &introduced,
-            &loc_data,
-            tod,
-            &weather,
+        apply_movement(
+            &mut world,
+            &mut npc_manager,
             &state.reaction_templates,
-            &config,
-            &roll_dice,
-        );
-
-        let introduce_ids: Vec<_> = reactions
-            .iter()
-            .filter(|r| r.introduces)
-            .map(|r| r.npc_id)
-            .collect();
-
-        // Log reaction text into world event log (for persistence)
-        for r in &reactions {
-            world.log(r.canned_text.clone());
-        }
-
-        let texts: Vec<String> = reactions.into_iter().map(|r| r.canned_text).collect();
-        (texts, introduce_ids)
+            target,
+            &transport,
+        )
     };
 
-    // Mark introductions (needs separate lock scope)
-    {
-        let mut npc_manager = state.npc_manager.lock().await;
-        for id in introduce_ids {
-            npc_manager.mark_introduced(id);
+    // Emit travel-start animation payload first
+    if let Some(travel_payload) = &effects.travel_start {
+        let _ = app.emit(EVENT_TRAVEL_START, travel_payload);
+    }
+
+    // Emit all player-visible messages in order
+    for msg in &effects.messages {
+        let _ = app.emit(EVENT_TEXT_LOG, text_log(msg.source, &msg.text));
+    }
+
+    // Record tier transitions in the debug event log
+    if !effects.tier_transitions.is_empty() {
+        let mut debug_events = state.debug_events.lock().await;
+        for tt in &effects.tier_transitions {
+            if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                debug_events.pop_front();
+            }
+            let direction = if tt.promoted { "promoted" } else { "demoted" };
+            debug_events.push_back(DebugEvent {
+                timestamp: String::new(),
+                category: "tier".to_string(),
+                message: format!(
+                    "{} {} {:?} → {:?}",
+                    tt.npc_name, direction, tt.old_tier, tt.new_tier,
+                ),
+            });
         }
     }
 
-    // Emit each reaction to the frontend
-    for text in reactions_to_emit {
-        let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", text));
+    // Emit updated world snapshot after a successful move
+    if effects.world_changed {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = snapshot_from_world(&world, &transport);
+        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
     }
 }
 

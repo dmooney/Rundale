@@ -24,7 +24,6 @@ use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks;
 use parish_core::world::description::{format_exits, render_description};
-use parish_core::world::movement::{self, MovementResult};
 
 use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
 use parish_core::persistence::Database;
@@ -556,91 +555,52 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
 }
 
 /// Resolves movement to a named location.
+///
+/// Delegates all state mutation and message generation to
+/// [`parish_core::game_session::apply_movement`], then emits the returned
+/// effects over the event bus.
 async fn handle_movement(target: &str, state: &Arc<AppState>) {
-    // Resolve and apply movement within a single lock to prevent TOCTOU races.
-    let result = {
+    use parish_core::game_session::apply_movement;
+
+    let transport = state.transport.default_mode().clone();
+    let reaction_templates = state
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.reactions.clone())
+        .unwrap_or_default();
+
+    // Apply movement within a single lock scope to prevent TOCTOU races.
+    let effects = {
         let mut world = state.world.lock().await;
-        let transport = state.transport.default_mode();
-        let mv = movement::resolve_movement(target, &world.graph, world.player_location, transport);
-        if let MovementResult::Arrived {
-            destination,
-            path,
-            minutes,
-            ..
-        } = &mv
-        {
-            // Emit travel-start before changing state so frontend can animate
-            let travel_payload = parish_core::ipc::build_travel_start(path, *minutes, &world.graph);
-            state.event_bus.emit("travel-start", &travel_payload);
-
-            // Record edge traversals for footprints
-            world.record_path_traversal(path);
-
-            world.clock.advance(*minutes as i64);
-            world.player_location = *destination;
-            world.mark_visited(*destination);
-
-            let new_loc = world
-                .graph
-                .get(*destination)
-                .map(|data| parish_core::world::Location {
-                    id: *destination,
-                    name: data.name.clone(),
-                    description: data.description_template.clone(),
-                    indoor: data.indoor,
-                    public: data.public,
-                    lat: data.lat,
-                    lon: data.lon,
-                });
-            if let Some(loc) = new_loc {
-                world.locations.entry(*destination).or_insert(loc);
-            }
-        }
-        mv
+        let mut npc_manager = state.npc_manager.lock().await;
+        apply_movement(
+            &mut world,
+            &mut npc_manager,
+            &reaction_templates,
+            target,
+            &transport,
+        )
     };
 
-    match result {
-        MovementResult::Arrived { narration, .. } => {
-            state
-                .event_bus
-                .emit("text-log", &text_log("system", narration));
+    // Emit travel-start animation payload before text messages
+    if let Some(travel_payload) = &effects.travel_start {
+        state.event_bus.emit("travel-start", travel_payload);
+    }
 
-            handle_look(state).await;
-            emit_arrival_reactions(state).await;
+    // Emit each player-visible message
+    for msg in &effects.messages {
+        state
+            .event_bus
+            .emit("text-log", &text_log(msg.source, &msg.text));
+    }
 
-            let world = state.world.lock().await;
-            let transport = state.transport.default_mode();
-            state.event_bus.emit(
-                "world-update",
-                &parish_core::ipc::snapshot_from_world(&world, transport),
-            );
-        }
-        MovementResult::AlreadyHere => {
-            state.event_bus.emit(
-                "text-log",
-                &text_log("system", "Sure, you're already standing right here."),
-            );
-        }
-        MovementResult::NotFound(name) => {
-            let world = state.world.lock().await;
-            let transport = state.transport.default_mode();
-            let exits = format_exits(
-                world.player_location,
-                &world.graph,
-                transport.speed_m_per_s,
-                &transport.label,
-            );
-            state.event_bus.emit(
-                "text-log",
-                &text_log(
-                    "system",
-                    format!(
-                        "You haven't the faintest notion how to reach \"{}\". {}",
-                        name, exits
-                    ),
-                ),
-            );
-        }
+    // Emit updated world snapshot after a successful move
+    if effects.world_changed {
+        let world = state.world.lock().await;
+        state.event_bus.emit(
+            "world-update",
+            &parish_core::ipc::snapshot_from_world(&world, &transport),
+        );
     }
 }
 
@@ -1200,91 +1160,6 @@ pub async fn get_save_state(State(state): State<Arc<AppState>>) -> Json<SaveStat
         branch_id: *branch_id,
         branch_name: branch_name.clone(),
     })
-}
-
-/// Generates NPC arrival reactions and emits them as text-log events.
-async fn emit_arrival_reactions(state: &Arc<AppState>) {
-    use parish_core::config::ReactionConfig;
-    use parish_core::dice;
-    use parish_core::npc::reactions::{generate_arrival_reactions, resolve_llm_greeting};
-
-    let (npcs_data, loc_data, tod, weather, introduced) = {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        let npcs = npc_manager.npcs_at(world.player_location);
-        if npcs.is_empty() {
-            return;
-        }
-        let loc_data = match world.current_location_data() {
-            Some(d) => d.clone(),
-            None => return,
-        };
-        let npcs_data: Vec<parish_core::npc::Npc> = npcs.into_iter().cloned().collect();
-        let tod = world.clock.time_of_day();
-        let weather = world.weather.to_string();
-        let introduced = npc_manager.introduced_set();
-        (npcs_data, loc_data, tod, weather, introduced)
-    };
-
-    let templates = state
-        .game_mod
-        .as_ref()
-        .map(|gm| gm.reactions.clone())
-        .unwrap_or_default();
-    let config = ReactionConfig::default();
-    let roll_dice = dice::roll_n(npcs_data.len() * 2);
-    let npc_refs: Vec<&parish_core::npc::Npc> = npcs_data.iter().collect();
-
-    let reactions = generate_arrival_reactions(
-        &npc_refs,
-        &introduced,
-        &loc_data,
-        tod,
-        &weather,
-        &templates,
-        &config,
-        &roll_dice,
-    );
-
-    let reaction_client = state.reaction_client.lock().await;
-    let reaction_model = state.reaction_model.lock().await;
-
-    for reaction in &reactions {
-        let text = if reaction.use_llm {
-            if let Some(client) = reaction_client.as_ref() {
-                let npc = npcs_data.iter().find(|n| n.id == reaction.npc_id);
-                if let Some(npc) = npc {
-                    let at_workplace = npc.workplace.is_some_and(|wp| wp == loc_data.id);
-                    resolve_llm_greeting(
-                        reaction,
-                        npc,
-                        &loc_data.name,
-                        tod,
-                        &weather,
-                        introduced.contains(&reaction.npc_id),
-                        at_workplace,
-                        client,
-                        &reaction_model,
-                        config.llm_timeout_secs,
-                    )
-                    .await
-                } else {
-                    reaction.canned_text.clone()
-                }
-            } else {
-                reaction.canned_text.clone()
-            }
-        } else {
-            reaction.canned_text.clone()
-        };
-
-        state.event_bus.emit("text-log", &text_log("npc", text));
-
-        if reaction.introduces {
-            let mut npc_manager = state.npc_manager.lock().await;
-            npc_manager.mark_introduced(reaction.npc_id);
-        }
-    }
 }
 
 #[cfg(test)]
