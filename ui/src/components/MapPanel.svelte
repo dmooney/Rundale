@@ -468,10 +468,11 @@
 	}
 
 	.map-title {
-		font-size: 0.75rem;
+		font-family: var(--font-display);
+		font-size: 0.62rem;
 		color: var(--color-muted);
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.13em;
 	}
 
 	.expand-btn {

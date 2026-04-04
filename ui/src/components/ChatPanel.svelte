@@ -164,13 +164,25 @@
 		background: var(--color-bg);
 	}
 
-	/* System messages: full-width, no bubble */
+	/* System messages: narrative prose */
 	.entry.system {
-		line-height: 1.6;
+		line-height: 1.75;
 		font-size: 1.05rem;
 		color: var(--color-fg);
 		white-space: pre-wrap;
-		padding: 0.25rem 0;
+		padding: 0.65rem 0;
+	}
+
+	/* Title card: splash message with <strong> title */
+	.entry.system :global(strong) {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		letter-spacing: 0.06em;
+		display: block;
+		color: var(--color-accent);
+		font-weight: 600;
+		margin-bottom: 0.4rem;
+		text-align: center;
 	}
 
 	/* Bubble row: flex container controlling left/right alignment */
@@ -194,44 +206,52 @@
 		max-width: 75%;
 	}
 
-	/* Name label above the bubble */
+	/* Name labels — Cinzel small caps */
 	.label {
-		font-size: 0.8rem;
+		font-family: var(--font-display);
+		font-size: 0.66rem;
 		font-weight: 600;
+		letter-spacing: 0.1em;
 		margin-bottom: 0.2rem;
-		padding: 0 0.5rem;
 	}
 
 	.npc .label {
 		color: var(--color-accent);
 		text-align: left;
+		padding-left: 0.75rem;
 	}
 
 	.player .label {
 		color: var(--color-muted);
 		text-align: right;
+		padding-right: 0.5rem;
 	}
 
-	/* Message bubble */
-	.bubble {
-		padding: 0.6rem 0.9rem;
-		border-radius: 1rem;
+	/* NPC message: dialogue leaf — left accent border, no rounded top-left */
+	.npc .bubble {
+		background: var(--color-panel-bg);
+		color: var(--color-fg);
+		border-radius: 0 0.85rem 0.85rem 0.15rem;
+		border-left: 3px solid var(--color-accent);
+		font-style: italic;
+		padding: 0.6rem 0.9rem 0.6rem 0.85rem;
 		font-size: 1.1rem;
-		line-height: 1.5;
+		line-height: 1.6;
 		white-space: pre-wrap;
 		word-wrap: break-word;
 	}
 
-	.npc .bubble {
-		background: var(--color-border);
-		color: var(--color-fg);
-		border-top-left-radius: 0.25rem;
-	}
-
+	/* Player message: italic, no rounded top-right */
 	.player .bubble {
 		background: var(--color-accent);
 		color: var(--color-bg);
-		border-top-right-radius: 0.25rem;
+		border-radius: 0.85rem 0 0.15rem 0.85rem;
+		font-style: italic;
+		padding: 0.6rem 0.9rem;
+		font-size: 1.05rem;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-wrap: break-word;
 	}
 
 	.emote {
@@ -319,14 +339,16 @@
 	.loading-row {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.25rem 0;
-		font-size: 1.1rem;
-		animation: fade-in 0.3s ease-in;
+		gap: 0.65rem;
+		padding: 0.5rem 0;
+		font-size: 1.05rem;
+		animation: fade-in 0.4s ease-in;
 	}
 
 	.loading-phrase {
 		font-style: italic;
+		font-family: var(--font-body);
+		letter-spacing: 0.01em;
 		transition: color 0.5s ease;
 	}
 

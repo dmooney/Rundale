@@ -60,25 +60,25 @@
 <div class="status-bar" data-testid="status-bar">
 	{#if $worldState}
 		<span class="location">{$worldState.location_name}</span>
-		<span class="sep">|</span>
+		<span class="sep">·</span>
 		<span class="time-label">{displayTimeLabel}</span>
-		<span class="sep">|</span>
+		<span class="sep">·</span>
 		<span class="day-of-week">{$worldState.day_of_week}</span>
-		<span class="sep">|</span>
+		<span class="sep">·</span>
 		<span class="weather">{$worldState.weather}</span>
-		<span class="sep">|</span>
+		<span class="sep">·</span>
 		<span class="season">{$worldState.season}</span>
 		{#if $worldState.festival}
-			<span class="sep">|</span>
-			<span class="festival">🎉 {$worldState.festival}</span>
+			<span class="sep">·</span>
+			<span class="festival">✦ {$worldState.festival}</span>
 		{/if}
 		{#if $worldState.paused}
-			<span class="sep">|</span>
+			<span class="sep">·</span>
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
-		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">LEDGER</button>
-		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">DBG</button>
+		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
+		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
 		<span class="muted">Loading…</span>
@@ -89,12 +89,14 @@
 	.status-bar {
 		background: var(--color-panel-bg);
 		border-bottom: 1px solid var(--color-border);
-		padding: 0.4rem 1rem;
-		font-size: 1rem;
+		padding: 0.32rem 1rem;
+		font-family: var(--font-display);
+		font-size: 0.7rem;
+		letter-spacing: 0.07em;
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		color: var(--color-fg);
+		gap: 0.55rem;
+		color: var(--color-muted);
 		white-space: nowrap;
 		overflow: hidden;
 	}
@@ -106,11 +108,17 @@
 	.clock {
 		display: inline-flex;
 		align-items: baseline;
+		background: var(--color-input-bg);
+		border: 1px solid var(--color-border);
+		padding: 0.1rem 0.5rem;
+		letter-spacing: 0.1em;
+		font-size: 0.78rem;
+		color: var(--color-fg);
 	}
 
 	.digit {
 		display: inline-block;
-		width: 0.5em;
+		width: 0.55em;
 		text-align: center;
 	}
 
@@ -122,11 +130,25 @@
 
 	.sep {
 		color: var(--color-border);
+		font-size: 0.7rem;
+		letter-spacing: 0;
+		opacity: 0.8;
 	}
 
 	.location {
+		font-family: var(--font-body);
+		font-style: italic;
+		font-size: 1.05rem;
+		font-weight: normal;
 		color: var(--color-accent);
-		font-weight: 600;
+		letter-spacing: 0.02em;
+	}
+
+	.time-label,
+	.weather,
+	.season,
+	.day-of-week {
+		color: var(--color-muted);
 	}
 
 	.festival {
@@ -148,11 +170,11 @@
 		border: 1px solid var(--color-border);
 		color: var(--color-muted);
 		font-size: 0.6rem;
-		padding: 0.1rem 0.35rem;
+		padding: 0.1rem 0.45rem;
 		cursor: pointer;
-		font-family: monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		font-family: var(--font-display);
+		letter-spacing: 0.1em;
+		transition: color 0.2s, border-color 0.2s;
 	}
 
 	.save-toggle:hover {
@@ -170,11 +192,11 @@
 		border: 1px solid var(--color-border);
 		color: var(--color-muted);
 		font-size: 0.6rem;
-		padding: 0.1rem 0.35rem;
+		padding: 0.1rem 0.45rem;
 		cursor: pointer;
-		font-family: monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		font-family: var(--font-display);
+		letter-spacing: 0.1em;
+		transition: color 0.2s, border-color 0.2s;
 	}
 
 	.debug-toggle:hover {
