@@ -1007,7 +1007,7 @@ mod tests {
             return;
         }
         let mgr = NpcManager::load_from_file(path).unwrap();
-        assert_eq!(mgr.npc_count(), 8);
+        assert_eq!(mgr.npc_count(), 23);
     }
 
     #[test]
