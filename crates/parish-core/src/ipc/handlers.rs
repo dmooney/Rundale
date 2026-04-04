@@ -334,9 +334,13 @@ pub fn prepare_npc_conversation(
     let display_name = npc_manager.display_name(&npc).to_string();
     let npc_id = npc.id;
 
+    let npc_names: std::collections::HashMap<NpcId, String> = npc_manager
+        .all_npcs()
+        .map(|n| (n.id, n.name.clone()))
+        .collect();
     let other_npcs: Vec<&Npc> = npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled);
-    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs);
+    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
+    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs, &npc_names);
 
     // Check for anachronisms in player input and inject alert into context
     let anachronisms = anachronism::check_input(raw);

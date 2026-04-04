@@ -72,31 +72,33 @@ pub fn relationship_label(strength: f64) -> &'static str {
 
 /// Builds an enhanced system prompt for Tier 1 interactions using the given config.
 ///
-/// Extends the base system prompt with relationship summaries and
-/// knowledge entries for richer, more contextual NPC dialogue.
+/// Extends the base system prompt with relationship summaries (using real names)
+/// and knowledge entries for richer, more contextual NPC dialogue.
 pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
     config: &NpcConfig,
+    npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
     let mut prompt = build_tier1_system_prompt(npc, improv);
 
-    // Add relationship context
+    // Add relationship context with names instead of IDs
     if !npc.relationships.is_empty() {
-        prompt.push_str("\n\nRELATIONSHIPS:\n");
+        prompt.push_str("\n\nPEOPLE IN YOUR LIFE:\n");
         for (target_id, rel) in &npc.relationships {
+            let name = npc_names
+                .get(target_id)
+                .map(|s| s.as_str())
+                .unwrap_or("someone");
             let strength_desc =
                 relationship_label_with_config(rel.strength, &config.relationship_labels);
-            prompt.push_str(&format!(
-                "- NPC #{}: {} relationship, {} (strength {:.1})\n",
-                target_id.0, rel.kind, strength_desc, rel.strength
-            ));
+            prompt.push_str(&format!("- {}: {} ({})\n", name, rel.kind, strength_desc));
         }
     }
 
-    // Add knowledge
+    // Add knowledge as natural thoughts rather than bullet points
     if !npc.knowledge.is_empty() {
-        prompt.push_str("\nTHINGS YOU KNOW:\n");
+        prompt.push_str("\nWHAT'S ON YOUR MIND:\n");
         for item in &npc.knowledge {
             prompt.push_str(&format!("- {}\n", item));
         }
@@ -109,8 +111,12 @@ pub fn build_enhanced_system_prompt_with_config(
 ///
 /// Extends the base system prompt with relationship summaries and
 /// knowledge entries for richer, more contextual NPC dialogue.
-pub fn build_enhanced_system_prompt(npc: &Npc, improv: bool) -> String {
-    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default())
+pub fn build_enhanced_system_prompt(
+    npc: &Npc,
+    improv: bool,
+    npc_names: &std::collections::HashMap<NpcId, String>,
+) -> String {
+    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names)
 }
 
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
@@ -123,15 +129,45 @@ pub fn build_enhanced_context_with_config(
     player_input: &str,
     other_npcs: &[&Npc],
     config: &NpcConfig,
+    _npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
     let mut context = build_tier1_context(world, player_input);
 
-    // Add other NPCs present
+    // Add other NPCs present with relationship context
     if !other_npcs.is_empty() {
-        context.push_str("\n\nAlso present here:");
+        context.push_str("\n\nAlso present:");
         for other in other_npcs {
-            context.push_str(&format!("\n- {} ({})", other.name, other.occupation));
+            let relationship_note = npc
+                .relationships
+                .get(&other.id)
+                .map(|rel| {
+                    let label =
+                        relationship_label_with_config(rel.strength, &config.relationship_labels);
+                    format!(" \u{2014} {} to you, {}", rel.kind, label)
+                })
+                .unwrap_or_default();
+            context.push_str(&format!(
+                "\n- {}, the {}{}",
+                other.name, other.occupation, relationship_note
+            ));
         }
+    }
+
+    // Add recent conversation history at this location
+    let conv_ctx = world
+        .conversation_log
+        .context_string(world.player_location, npc.id, 3);
+    if !conv_ctx.is_empty() {
+        context.push_str("\n\nWhat's been said here:\n");
+        context.push_str(&conv_ctx);
+    }
+
+    // Add scene continuity cue
+    if world
+        .conversation_log
+        .has_recent_exchange_with(world.player_location, npc.id, 2)
+    {
+        context.push_str("\n\nYou are already in conversation with this traveller. Do not re-introduce yourself or greet them again.");
     }
 
     // Add recent memories
@@ -191,8 +227,16 @@ pub fn build_enhanced_context(
     world: &WorldState,
     player_input: &str,
     other_npcs: &[&Npc],
+    npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
-    build_enhanced_context_with_config(npc, world, player_input, other_npcs, &NpcConfig::default())
+    build_enhanced_context_with_config(
+        npc,
+        world,
+        player_input,
+        other_npcs,
+        &NpcConfig::default(),
+        npc_names,
+    )
 }
 
 /// Processes a Tier 1 NPC response using the given config, updating mood and recording a memory.
@@ -266,6 +310,63 @@ pub fn apply_tier1_response(
         game_time,
         &NpcConfig::default(),
     )
+}
+
+/// Records witness memories for NPCs who overheard a player-NPC conversation.
+///
+/// When the player speaks to one NPC, other NPCs at the same location
+/// witness the exchange and store it in their short-term memory. This
+/// gives bystander NPCs awareness of what's been said around them.
+pub fn record_witness_memories(
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    speaker_id: NpcId,
+    speaker_name: &str,
+    player_input: &str,
+    npc_dialogue: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: LocationId,
+) -> Vec<String> {
+    let mut debug_events = Vec::new();
+
+    let truncated_input = truncate_for_memory(player_input, 60);
+    let truncated_dialogue = truncate_for_memory(npc_dialogue, 60);
+
+    let content = format!(
+        "Overheard: a traveller said '{}' and {} replied '{}'",
+        truncated_input, speaker_name, truncated_dialogue,
+    );
+
+    // Collect witness IDs first to avoid borrow issues
+    let witness_ids: Vec<NpcId> = npcs
+        .values()
+        .filter(|npc| npc.location == location && npc.id != speaker_id)
+        .filter(|npc| matches!(npc.state, crate::npc::types::NpcState::Present))
+        .map(|npc| npc.id)
+        .collect();
+
+    for witness_id in witness_ids {
+        let mem_entry = MemoryEntry {
+            timestamp: game_time,
+            content: content.clone(),
+            participants: vec![NpcId(0), speaker_id, witness_id],
+            location,
+        };
+
+        if let Some(witness) = npcs.get_mut(&witness_id) {
+            debug_events.push(format!(
+                "{} overheard: {}",
+                witness.name,
+                truncate_for_memory(&content, 80),
+            ));
+
+            if let Some(evicted) = witness.memory.add(mem_entry) {
+                let witness_name = witness.name.clone();
+                try_promote(&mut witness.long_term_memory, &evicted, &[witness_name], "");
+            }
+        }
+    }
+
+    debug_events
 }
 
 /// Builds the system prompt for a Tier 2 interaction between NPCs at a location.
@@ -809,19 +910,22 @@ mod tests {
             .insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.8));
         npc.knowledge = vec!["Knows local history".to_string()];
 
-        let prompt = build_enhanced_system_prompt(&npc, false);
-        assert!(prompt.contains("RELATIONSHIPS:"));
+        let npc_names: HashMap<NpcId, String> =
+            [(NpcId(2), "Brigid".to_string())].into_iter().collect();
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
+        assert!(prompt.contains("PEOPLE IN YOUR LIFE:"));
         assert!(prompt.contains("very close"));
-        assert!(prompt.contains("THINGS YOU KNOW:"));
+        assert!(prompt.contains("WHAT'S ON YOUR MIND:"));
         assert!(prompt.contains("Knows local history"));
     }
 
     #[test]
     fn test_enhanced_system_prompt_without_relationships() {
         let npc = make_test_npc(1, "Padraig", 2);
-        let prompt = build_enhanced_system_prompt(&npc, false);
-        assert!(!prompt.contains("RELATIONSHIPS:"));
-        assert!(!prompt.contains("THINGS YOU KNOW:"));
+        let npc_names: HashMap<NpcId, String> = HashMap::new();
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
+        assert!(!prompt.contains("PEOPLE IN YOUR LIFE:"));
+        assert!(!prompt.contains("WHAT'S ON YOUR MIND:"));
     }
 
     #[test]
@@ -830,9 +934,11 @@ mod tests {
         let other = make_test_npc(2, "Tommy", 1);
         let world = WorldState::new();
 
-        let context = build_enhanced_context(&npc, &world, "greets everyone", &[&other]);
-        assert!(context.contains("Also present here:"));
-        assert!(context.contains("Tommy (Test)"));
+        let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
+        let context =
+            build_enhanced_context(&npc, &world, "greets everyone", &[&other], &npc_names);
+        assert!(context.contains("Also present:"));
+        assert!(context.contains("Tommy, the Test"));
     }
 
     #[test]
@@ -846,7 +952,8 @@ mod tests {
         });
         let world = WorldState::new();
 
-        let context = build_enhanced_context(&npc, &world, "says hello", &[]);
+        let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
+        let context = build_enhanced_context(&npc, &world, "says hello", &[], &npc_names);
         assert!(context.contains("Recent memories:"));
         assert!(context.contains("Saw a stranger at the crossroads"));
     }
@@ -985,7 +1092,13 @@ mod tests {
         npc.relationships
             .insert(NpcId(3), Relationship::new(RelationshipKind::Enemy, -0.8));
 
-        let prompt = build_enhanced_system_prompt(&npc, false);
+        let npc_names: HashMap<NpcId, String> = [
+            (NpcId(2), "Siobhan".to_string()),
+            (NpcId(3), "Cormac".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
         assert!(prompt.contains("very close") || prompt.contains("hostile"));
     }
 
@@ -1034,7 +1147,9 @@ mod tests {
             },
             ..NpcConfig::default()
         };
-        let prompt = build_enhanced_system_prompt_with_config(&npc, false, &config);
+        let npc_names: HashMap<NpcId, String> =
+            [(NpcId(2), "Brigid".to_string())].into_iter().collect();
+        let prompt = build_enhanced_system_prompt_with_config(&npc, false, &config, &npc_names);
         // 0.8 is below 0.9 threshold, so should be "friendly" not "very close"
         assert!(prompt.contains("friendly"));
         assert!(!prompt.contains("very close"));
@@ -1058,7 +1173,9 @@ mod tests {
             memory_context_count: 2,
             ..NpcConfig::default()
         };
-        let context = build_enhanced_context_with_config(&npc, &world, "hello", &[], &config);
+        let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
+        let context =
+            build_enhanced_context_with_config(&npc, &world, "hello", &[], &config, &npc_names);
         assert!(context.contains("Memory 9"));
         assert!(context.contains("Memory 8"));
         assert!(!context.contains("Memory 7"));
