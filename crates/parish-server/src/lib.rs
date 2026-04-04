@@ -271,6 +271,11 @@ async fn basic_auth_middleware(req: Request, next: Next) -> Response {
         return next.run(req).await;
     };
 
+    // Allow Railway (and other load balancers) to reach the health check without credentials.
+    if req.uri().path() == "/api/ui-config" {
+        return next.run(req).await;
+    }
+
     let authorized = req
         .headers()
         .get(header::AUTHORIZATION)
