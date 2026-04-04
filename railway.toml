@@ -1,0 +1,9 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# /api/ui-config is a lightweight endpoint — good for health checks
+healthcheckPath = "/api/ui-config"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"

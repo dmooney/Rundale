@@ -14,6 +14,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
+use axum::extract::Request;
+use axum::http::{StatusCode, header};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 
@@ -115,6 +119,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
+        .layer(middleware::from_fn(basic_auth_middleware))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);
@@ -240,6 +245,68 @@ fn build_cloud_client() -> Option<OpenAiClient> {
         .map(|key| OpenAiClient::new(&base_url, Some(key)))
 }
 
+/// Cache the `AUTH_PASSWORD` env var so we only read it once.
+static AUTH_PASSWORD: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+fn get_auth_password() -> Option<&'static str> {
+    AUTH_PASSWORD
+        .get_or_init(|| {
+            std::env::var("AUTH_PASSWORD")
+                .ok()
+                .filter(|s| !s.is_empty())
+        })
+        .as_deref()
+}
+
+/// Axum middleware that enforces HTTP Basic Auth when `AUTH_PASSWORD` is set.
+///
+/// If `AUTH_PASSWORD` is not set (local dev), all requests pass through. When
+/// set, any request without a valid `Authorization: Basic ...` header receives
+/// a 401 with a `WWW-Authenticate` challenge, prompting the browser to show a
+/// login dialog.
+///
+/// The username may be anything; only the password is checked.
+async fn basic_auth_middleware(req: Request, next: Next) -> Response {
+    let Some(expected) = get_auth_password() else {
+        return next.run(req).await;
+    };
+
+    let authorized = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Basic "))
+        .map(|b64| verify_basic_auth_password(b64, expected))
+        .unwrap_or(false);
+
+    if authorized {
+        next.run(req).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, r#"Basic realm="Parish""#)],
+        )
+            .into_response()
+    }
+}
+
+/// Decodes a Base64 Basic Auth credential string and checks the password.
+///
+/// The credential format is `username:password`; only the password is compared.
+fn verify_basic_auth_password(b64: &str, expected_password: &str) -> bool {
+    use base64::Engine;
+    let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(b64.trim()) else {
+        return false;
+    };
+    let Ok(creds) = std::str::from_utf8(&decoded) else {
+        return false;
+    };
+    creds
+        .splitn(2, ':')
+        .nth(1)
+        .map_or(false, |p| p == expected_password)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,5 +316,27 @@ mod tests {
         // In test env, PARISH_PROVIDER is usually not set → defaults to "ollama"
         let (_client, config) = build_client_and_config();
         assert_eq!(config.provider_name, "ollama");
+    }
+
+    #[test]
+    fn verify_basic_auth_password_correct() {
+        // Base64("user:secret") = "dXNlcjpzZWNyZXQ="
+        assert!(verify_basic_auth_password("dXNlcjpzZWNyZXQ=", "secret"));
+    }
+
+    #[test]
+    fn verify_basic_auth_password_wrong() {
+        assert!(!verify_basic_auth_password("dXNlcjpzZWNyZXQ=", "wrong"));
+    }
+
+    #[test]
+    fn verify_basic_auth_password_invalid_base64() {
+        assert!(!verify_basic_auth_password("!!!notbase64!!!", "secret"));
+    }
+
+    #[test]
+    fn verify_basic_auth_password_no_colon() {
+        // Base64("nocolon") = "bm9jb2xvbg=="
+        assert!(!verify_basic_auth_password("bm9jb2xvbg==", "secret"));
     }
 }
