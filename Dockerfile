@@ -7,7 +7,7 @@ COPY ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
-FROM rust:1.86-slim-bookworm AS builder
+FROM rust:1.88-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
