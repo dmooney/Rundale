@@ -60,7 +60,7 @@ struct TomlConfig {
 /// parish-core and passed in as `ProviderConfig`. Serde ignores unknown keys.
 #[derive(Debug, Deserialize, Default)]
 struct TomlProvider {
-    /// Per-category overrides: `[provider.dialogue]`, `[provider.simulation]`, `[provider.intent]`.
+    /// Per-category overrides: `[provider.dialogue]`, `[provider.simulation]`, `[provider.intent]`, `[provider.reaction]`.
     #[serde(default)]
     dialogue: Option<TomlCategoryOverride>,
     /// Per-category override for simulation.
@@ -69,6 +69,9 @@ struct TomlProvider {
     /// Per-category override for intent parsing.
     #[serde(default)]
     intent: Option<TomlCategoryOverride>,
+    /// Per-category override for NPC arrival reactions.
+    #[serde(default)]
+    reaction: Option<TomlCategoryOverride>,
 }
 
 /// Per-category provider override in TOML (e.g. `[provider.dialogue]`).
@@ -124,6 +127,7 @@ pub fn resolve_category_configs(
             InferenceCategory::Dialogue => toml_cfg.provider.dialogue.clone(),
             InferenceCategory::Simulation => toml_cfg.provider.simulation.clone(),
             InferenceCategory::Intent => toml_cfg.provider.intent.clone(),
+            InferenceCategory::Reaction => toml_cfg.provider.reaction.clone(),
         };
 
         // Get CLI overrides for this category

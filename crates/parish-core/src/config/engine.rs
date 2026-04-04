@@ -254,6 +254,9 @@ pub struct NpcConfig {
     /// Number of recent player reactions included in dialogue context.
     #[serde(default = "default_reaction_context_count")]
     pub reaction_context_count: usize,
+    /// NPC arrival reaction tuning.
+    #[serde(default)]
+    pub reactions: ReactionConfig,
 }
 
 impl Default for NpcConfig {
@@ -269,6 +272,7 @@ impl Default for NpcConfig {
             cognitive_tiers: CognitiveTierConfig::default(),
             relationship_labels: RelationshipLabelConfig::default(),
             reaction_context_count: 5,
+            reactions: ReactionConfig::default(),
         }
     }
 }
@@ -400,6 +404,72 @@ fn default_cool() -> f64 {
 }
 fn default_strained() -> f64 {
     -0.7
+}
+
+// ---------------------------------------------------------------------------
+// Reactions
+// ---------------------------------------------------------------------------
+
+/// Tuning for NPC arrival reactions (greetings, nods, introductions).
+#[derive(Debug, Deserialize, Clone)]
+pub struct ReactionConfig {
+    /// Base probability that an NPC reacts when the player arrives.
+    #[serde(default = "default_reaction_base_chance")]
+    pub base_chance: f64,
+    /// Bonus when NPC is at their workplace.
+    #[serde(default = "default_reaction_workplace_bonus")]
+    pub workplace_bonus: f64,
+    /// Bonus when location is indoors.
+    #[serde(default = "default_reaction_indoor_bonus")]
+    pub indoor_bonus: f64,
+    /// Bonus when NPC has high emotional intelligence (≥4).
+    #[serde(default = "default_reaction_empathy_bonus")]
+    pub empathy_bonus: f64,
+    /// Penalty when NPC has a negative mood.
+    #[serde(default = "default_reaction_negative_mood_penalty")]
+    pub negative_mood_penalty: f64,
+    /// Penalty at night or midnight.
+    #[serde(default = "default_reaction_night_penalty")]
+    pub night_penalty: f64,
+    /// LLM timeout for reaction greeting calls (seconds).
+    #[serde(default = "default_reaction_llm_timeout_secs")]
+    pub llm_timeout_secs: u64,
+}
+
+impl Default for ReactionConfig {
+    fn default() -> Self {
+        Self {
+            base_chance: 0.55,
+            workplace_bonus: 0.35,
+            indoor_bonus: 0.10,
+            empathy_bonus: 0.05,
+            negative_mood_penalty: 0.20,
+            night_penalty: 0.15,
+            llm_timeout_secs: 5,
+        }
+    }
+}
+
+fn default_reaction_base_chance() -> f64 {
+    0.55
+}
+fn default_reaction_workplace_bonus() -> f64 {
+    0.35
+}
+fn default_reaction_indoor_bonus() -> f64 {
+    0.10
+}
+fn default_reaction_empathy_bonus() -> f64 {
+    0.05
+}
+fn default_reaction_negative_mood_penalty() -> f64 {
+    0.20
+}
+fn default_reaction_night_penalty() -> f64 {
+    0.15
+}
+fn default_reaction_llm_timeout_secs() -> u64 {
+    5
 }
 
 // ---------------------------------------------------------------------------

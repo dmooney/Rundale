@@ -176,23 +176,24 @@ pub struct GameConfig {
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
     /// Per-category provider name overrides (None = inherits base).
-    pub category_provider: [Option<String>; 3],
+    pub category_provider: [Option<String>; 4],
     /// Per-category model name overrides (None = inherits base).
-    pub category_model: [Option<String>; 3],
+    pub category_model: [Option<String>; 4],
     /// Per-category API key overrides (None = inherits base).
-    pub category_api_key: [Option<String>; 3],
+    pub category_api_key: [Option<String>; 4],
     /// Per-category base URL overrides (None = inherits base).
-    pub category_base_url: [Option<String>; 3],
+    pub category_base_url: [Option<String>; 4],
 }
 
 impl GameConfig {
-    /// Returns the array index for a category (Dialogue=0, Simulation=1, Intent=2).
+    /// Returns the array index for a category (Dialogue=0, Simulation=1, Intent=2, Reaction=3).
     fn cat_idx(cat: parish_core::config::InferenceCategory) -> usize {
         use parish_core::config::InferenceCategory;
         match cat {
             InferenceCategory::Dialogue => 0,
             InferenceCategory::Simulation => 1,
             InferenceCategory::Intent => 2,
+            InferenceCategory::Reaction => 3,
         }
     }
 }
@@ -540,10 +541,10 @@ pub fn run() {
             cloud_api_key: cloud_env.api_key,
             cloud_base_url: cloud_env.base_url,
             improv_enabled: false,
-            category_provider: [None, None, None],
-            category_model: [None, None, None],
-            category_api_key: [None, None, None],
-            category_base_url: [None, None, None],
+            category_provider: [None, None, None, None],
+            category_model: [None, None, None, None],
+            category_api_key: [None, None, None, None],
+            category_base_url: [None, None, None, None],
         }),
     });
 

@@ -168,6 +168,11 @@ impl InferenceClients {
         self.client_for(crate::config::InferenceCategory::Intent)
     }
 
+    /// Returns the client and model to use for NPC arrival reactions.
+    pub fn reaction_client(&self) -> (&OpenAiClient, &str) {
+        self.client_for(crate::config::InferenceCategory::Reaction)
+    }
+
     /// Whether the dialogue category uses a different provider than the base.
     pub fn has_custom_dialogue(&self) -> bool {
         self.overrides

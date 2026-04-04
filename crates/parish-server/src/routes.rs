@@ -606,6 +606,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
                 .emit("text-log", &text_log("system", narration));
 
             handle_look(state).await;
+            emit_arrival_reactions(state).await;
 
             let world = state.world.lock().await;
             let transport = state.transport.default_mode();
@@ -1199,6 +1200,91 @@ pub async fn get_save_state(State(state): State<Arc<AppState>>) -> Json<SaveStat
         branch_id: *branch_id,
         branch_name: branch_name.clone(),
     })
+}
+
+/// Generates NPC arrival reactions and emits them as text-log events.
+async fn emit_arrival_reactions(state: &Arc<AppState>) {
+    use parish_core::config::ReactionConfig;
+    use parish_core::dice;
+    use parish_core::npc::reactions::{generate_arrival_reactions, resolve_llm_greeting};
+
+    let (npcs_data, loc_data, tod, weather, introduced) = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let npcs = npc_manager.npcs_at(world.player_location);
+        if npcs.is_empty() {
+            return;
+        }
+        let loc_data = match world.current_location_data() {
+            Some(d) => d.clone(),
+            None => return,
+        };
+        let npcs_data: Vec<parish_core::npc::Npc> = npcs.into_iter().cloned().collect();
+        let tod = world.clock.time_of_day();
+        let weather = world.weather.to_string();
+        let introduced = npc_manager.introduced_set();
+        (npcs_data, loc_data, tod, weather, introduced)
+    };
+
+    let templates = state
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.reactions.clone())
+        .unwrap_or_default();
+    let config = ReactionConfig::default();
+    let roll_dice = dice::roll_n(npcs_data.len() * 2);
+    let npc_refs: Vec<&parish_core::npc::Npc> = npcs_data.iter().collect();
+
+    let reactions = generate_arrival_reactions(
+        &npc_refs,
+        &introduced,
+        &loc_data,
+        tod,
+        &weather,
+        &templates,
+        &config,
+        &roll_dice,
+    );
+
+    let reaction_client = state.reaction_client.lock().await;
+    let reaction_model = state.reaction_model.lock().await;
+
+    for reaction in &reactions {
+        let text = if reaction.use_llm {
+            if let Some(client) = reaction_client.as_ref() {
+                let npc = npcs_data.iter().find(|n| n.id == reaction.npc_id);
+                if let Some(npc) = npc {
+                    let at_workplace = npc.workplace.is_some_and(|wp| wp == loc_data.id);
+                    resolve_llm_greeting(
+                        reaction,
+                        npc,
+                        &loc_data.name,
+                        tod,
+                        &weather,
+                        introduced.contains(&reaction.npc_id),
+                        at_workplace,
+                        client,
+                        &reaction_model,
+                        config.llm_timeout_secs,
+                    )
+                    .await
+                } else {
+                    reaction.canned_text.clone()
+                }
+            } else {
+                reaction.canned_text.clone()
+            }
+        } else {
+            reaction.canned_text.clone()
+        };
+
+        state.event_bus.emit("text-log", &text_log("npc", text));
+
+        if reaction.introduces {
+            let mut npc_manager = state.npc_manager.lock().await;
+            npc_manager.mark_introduced(reaction.npc_id);
+        }
+    }
 }
 
 #[cfg(test)]

@@ -103,6 +103,11 @@ pub async fn run_headless(
     app.simulation_client = Some(sim_cl.clone());
     app.simulation_model = sim_mdl.to_string();
 
+    // Set reaction client/model
+    let (react_cl, react_mdl) = clients.reaction_client();
+    app.reaction_client = Some(react_cl.clone());
+    app.reaction_model = react_mdl.to_string();
+
     // Initialize per-category provider metadata from config
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
         app.intent_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
@@ -113,6 +118,11 @@ pub async fn run_headless(
         app.simulation_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
         app.simulation_api_key = cat_cfg.api_key.clone();
         app.simulation_base_url = Some(cat_cfg.base_url.clone());
+    }
+    if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Reaction) {
+        app.reaction_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.reaction_api_key = cat_cfg.api_key.clone();
+        app.reaction_base_url = Some(cat_cfg.base_url.clone());
     }
 
     // Set cloud/dialogue fields if configured
@@ -164,6 +174,7 @@ pub async fn run_headless(
 
     // Show initial location
     print_location_arrival(&app);
+    print_arrival_reactions(&mut app).await;
 
     let mut request_id: u64 = 0;
     let stdin = std::io::stdin();
@@ -602,6 +613,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                         app.save_file_path = Some(new_path);
                         app.last_autosave = Some(std::time::Instant::now());
                         print_location_arrival(app);
+                        print_arrival_reactions(app).await;
                     }
                     Err(e) => eprintln!("Failed to open save file: {}", e),
                 }
@@ -964,6 +976,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("A new day dawns in the parish.");
             println!();
             print_location_arrival(app);
+            print_arrival_reactions(app).await;
         }
         Command::Tick => {
             app.npc_manager.assign_tiers(&app.world, &[]);
@@ -1001,7 +1014,7 @@ async fn handle_headless_game_input(
     match intent.intent {
         crate::input::IntentKind::Move => {
             if let Some(target) = &intent.target {
-                handle_headless_movement(app, target);
+                handle_headless_movement(app, target).await;
             } else {
                 println!("And where would ye be off to?");
             }
@@ -1223,6 +1236,85 @@ fn print_location_arrival(app: &App) {
     println!();
 }
 
+/// Generates and prints NPC arrival reactions (greetings, nods, introductions).
+///
+/// For reactions flagged `use_llm`, attempts a short-timeout LLM call for a
+/// richer greeting, falling back to canned text on timeout or error.
+async fn print_arrival_reactions(app: &mut App) {
+    use parish_core::config::ReactionConfig;
+    use parish_core::dice;
+    use parish_core::npc::reactions::{generate_arrival_reactions, resolve_llm_greeting};
+
+    let npcs = app.npc_manager.npcs_at(app.world.player_location);
+    if npcs.is_empty() {
+        return;
+    }
+
+    let loc_data = match app.world.current_location_data() {
+        Some(d) => d.clone(),
+        None => return,
+    };
+
+    let tod = app.world.clock.time_of_day();
+    let weather = app.world.weather.to_string();
+    let introduced = app.npc_manager.introduced_set();
+    let templates = app
+        .game_mod
+        .as_ref()
+        .map(|gm| &gm.reactions)
+        .cloned()
+        .unwrap_or_default();
+    let config = ReactionConfig::default();
+    let roll_dice = dice::roll_n(npcs.len() * 2);
+
+    let reactions = generate_arrival_reactions(
+        &npcs,
+        &introduced,
+        &loc_data,
+        tod,
+        &weather,
+        &templates,
+        &config,
+        &roll_dice,
+    );
+
+    for reaction in &reactions {
+        let text = if reaction.use_llm {
+            if let Some(client) = &app.reaction_client {
+                let npc = app.npc_manager.get(reaction.npc_id);
+                if let Some(npc) = npc {
+                    let at_workplace = npc.workplace.is_some_and(|wp| wp == loc_data.id);
+                    resolve_llm_greeting(
+                        reaction,
+                        npc,
+                        &loc_data.name,
+                        tod,
+                        &weather,
+                        introduced.contains(&reaction.npc_id),
+                        at_workplace,
+                        client,
+                        &app.reaction_model.clone(),
+                        config.llm_timeout_secs,
+                    )
+                    .await
+                } else {
+                    reaction.canned_text.clone()
+                }
+            } else {
+                reaction.canned_text.clone()
+            }
+        } else {
+            reaction.canned_text.clone()
+        };
+
+        println!("{}", text);
+
+        if reaction.introduces {
+            app.npc_manager.mark_introduced(reaction.npc_id);
+        }
+    }
+}
+
 /// Returns the default transport mode from the game mod, or walking.
 fn default_transport(app: &App) -> TransportMode {
     app.game_mod
@@ -1259,7 +1351,7 @@ fn print_location_description(app: &App) {
 }
 
 /// Handles movement in headless mode.
-fn handle_headless_movement(app: &mut App, target: &str) {
+async fn handle_headless_movement(app: &mut App, target: &str) {
     let transport = default_transport(app);
     let result = movement::resolve_movement(
         target,
@@ -1299,6 +1391,7 @@ fn handle_headless_movement(app: &mut App, target: &str) {
             }
 
             print_location_arrival(app);
+            print_arrival_reactions(app).await;
         }
         MovementResult::AlreadyHere => {
             println!("Sure, you're already standing right here.");

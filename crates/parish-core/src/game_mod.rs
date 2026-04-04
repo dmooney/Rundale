@@ -82,6 +82,9 @@ pub struct FileRefs {
     /// Transport modes TOML file (optional; defaults to walking only).
     #[serde(default)]
     pub transport: Option<String>,
+    /// NPC arrival reaction templates JSON file (optional; defaults to hardcoded bank).
+    #[serde(default)]
+    pub reactions: Option<String>,
 }
 
 /// Relative paths to prompt template text files.
@@ -305,6 +308,8 @@ pub struct GameMod {
     pub pronunciations: Vec<PronunciationEntry>,
     /// Transport modes configuration.
     pub transport: TransportConfig,
+    /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
+    pub reactions: crate::npc::reactions::ReactionTemplates,
 }
 
 impl GameMod {
@@ -401,6 +406,16 @@ impl GameMod {
             TransportConfig::default()
         };
 
+        // -- reactions (optional) -----------------------------------------------
+        let reactions = if let Some(ref reactions_file) = manifest.files.reactions {
+            let reactions_json = read_json(reactions_file)?;
+            serde_json::from_str(&reactions_json).map_err(|e| {
+                ParishError::Config(format!("failed to parse {reactions_file}: {e}"))
+            })?
+        } else {
+            crate::npc::reactions::ReactionTemplates::default()
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -412,6 +427,7 @@ impl GameMod {
             ui,
             pronunciations,
             transport,
+            reactions,
         })
     }
 

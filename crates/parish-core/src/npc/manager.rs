@@ -133,6 +133,11 @@ impl NpcManager {
         self.introduced_npcs.contains(&id)
     }
 
+    /// Returns a clone of the set of introduced NPC ids.
+    pub fn introduced_set(&self) -> HashSet<NpcId> {
+        self.introduced_npcs.clone()
+    }
+
     /// Returns the display name for an NPC: their name if introduced,
     /// or their brief description if not yet met.
     pub fn display_name<'a>(&self, npc: &'a Npc) -> &'a str {

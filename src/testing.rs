@@ -1044,6 +1044,18 @@ impl GameTestHarness {
                 self.app.world.log(exits);
                 self.app.world.log(String::new());
 
+                // Resolve any NPCs whose transit completed during travel, so
+                // emit_arrival_reactions sees them as Present rather than InTransit.
+                let schedule_events = self.app.npc_manager.tick_schedules(
+                    &self.app.world.clock,
+                    &self.app.world.graph,
+                    self.app.world.weather,
+                );
+                self.process_schedule_events(&schedule_events);
+
+                // NPC arrival reactions (canned text, no LLM)
+                self.emit_arrival_reactions();
+
                 ActionResult::Moved {
                     to: loc_name,
                     minutes,
@@ -1133,6 +1145,51 @@ impl GameTestHarness {
         }
 
         ActionResult::NpcNotAvailable
+    }
+
+    /// Generates NPC arrival reactions (canned text only, no LLM) and logs them.
+    fn emit_arrival_reactions(&mut self) {
+        use parish_core::config::ReactionConfig;
+        use parish_core::dice;
+        use parish_core::npc::reactions::generate_arrival_reactions;
+
+        let npcs = self.app.npc_manager.npcs_at(self.app.world.player_location);
+        if npcs.is_empty() {
+            return;
+        }
+        let loc_data = match self.app.world.current_location_data() {
+            Some(d) => d.clone(),
+            None => return,
+        };
+        let tod = self.app.world.clock.time_of_day();
+        let weather = self.app.world.weather.to_string();
+        let introduced = self.app.npc_manager.introduced_set();
+        let templates = self
+            .app
+            .game_mod
+            .as_ref()
+            .map(|gm| gm.reactions.clone())
+            .unwrap_or_default();
+        let config = ReactionConfig::default();
+        let roll_dice = dice::roll_n(npcs.len() * 2);
+
+        let reactions = generate_arrival_reactions(
+            &npcs,
+            &introduced,
+            &loc_data,
+            tod,
+            &weather,
+            &templates,
+            &config,
+            &roll_dice,
+        );
+
+        for reaction in &reactions {
+            self.app.world.log(reaction.canned_text.clone());
+            if reaction.introduces {
+                self.app.npc_manager.mark_introduced(reaction.npc_id);
+            }
+        }
     }
 
     /// Renders the current location description.

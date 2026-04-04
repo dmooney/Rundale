@@ -135,14 +135,17 @@ pub enum InferenceCategory {
     Simulation,
     /// Player input intent parsing (JSON, low-latency).
     Intent,
+    /// NPC arrival reactions/greetings (short timeout, fast model).
+    Reaction,
 }
 
 impl InferenceCategory {
     /// All defined inference categories.
-    pub const ALL: [InferenceCategory; 3] = [
+    pub const ALL: [InferenceCategory; 4] = [
         InferenceCategory::Dialogue,
         InferenceCategory::Simulation,
         InferenceCategory::Intent,
+        InferenceCategory::Reaction,
     ];
 
     /// Returns the lowercase name used in TOML keys, env var prefixes, and CLI flags.
@@ -151,6 +154,7 @@ impl InferenceCategory {
             InferenceCategory::Dialogue => "dialogue",
             InferenceCategory::Simulation => "simulation",
             InferenceCategory::Intent => "intent",
+            InferenceCategory::Reaction => "reaction",
         }
     }
 
@@ -160,6 +164,7 @@ impl InferenceCategory {
             "dialogue" => Some(InferenceCategory::Dialogue),
             "simulation" => Some(InferenceCategory::Simulation),
             "intent" => Some(InferenceCategory::Intent),
+            "reaction" => Some(InferenceCategory::Reaction),
             _ => None,
         }
     }
@@ -170,6 +175,7 @@ impl InferenceCategory {
             InferenceCategory::Dialogue => "PARISH_DIALOGUE",
             InferenceCategory::Simulation => "PARISH_SIMULATION",
             InferenceCategory::Intent => "PARISH_INTENT",
+            InferenceCategory::Reaction => "PARISH_REACTION",
         }
     }
 }

@@ -165,6 +165,16 @@ pub struct App {
     pub simulation_api_key: Option<String>,
     /// Base URL for simulation category.
     pub simulation_base_url: Option<String>,
+    /// The LLM client for NPC arrival reactions (may differ from base client).
+    pub reaction_client: Option<OpenAiClient>,
+    /// The model name for reactions.
+    pub reaction_model: String,
+    /// Provider name for reaction category (None = inherits base).
+    pub reaction_provider_name: Option<String>,
+    /// API key for reaction category.
+    pub reaction_api_key: Option<String>,
+    /// Base URL for reaction category.
+    pub reaction_base_url: Option<String>,
     /// Loaded game mod data (None if no mod directory was found or specified).
     pub game_mod: Option<GameMod>,
 }
@@ -215,6 +225,11 @@ impl App {
             simulation_provider_name: None,
             simulation_api_key: None,
             simulation_base_url: None,
+            reaction_client: None,
+            reaction_model: String::new(),
+            reaction_provider_name: None,
+            reaction_api_key: None,
+            reaction_base_url: None,
             game_mod: None,
         }
     }
@@ -225,6 +240,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
             InferenceCategory::Simulation => self.simulation_provider_name.as_deref(),
             InferenceCategory::Intent => self.intent_provider_name.as_deref(),
+            InferenceCategory::Reaction => self.reaction_provider_name.as_deref(),
         }
     }
 
@@ -234,6 +250,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
             InferenceCategory::Simulation => &self.simulation_model,
             InferenceCategory::Intent => &self.intent_model,
+            InferenceCategory::Reaction => &self.reaction_model,
         }
     }
 
@@ -243,6 +260,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
             InferenceCategory::Simulation => self.simulation_api_key.as_deref(),
             InferenceCategory::Intent => self.intent_api_key.as_deref(),
+            InferenceCategory::Reaction => self.reaction_api_key.as_deref(),
         }
     }
 
@@ -252,6 +270,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
             InferenceCategory::Simulation => self.simulation_base_url.as_deref(),
             InferenceCategory::Intent => self.intent_base_url.as_deref(),
+            InferenceCategory::Reaction => self.reaction_base_url.as_deref(),
         }
     }
 
@@ -261,6 +280,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_client.as_ref(),
             InferenceCategory::Simulation => self.simulation_client.as_ref(),
             InferenceCategory::Intent => self.intent_client.as_ref(),
+            InferenceCategory::Reaction => self.reaction_client.as_ref(),
         }
     }
 
@@ -270,6 +290,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
             InferenceCategory::Simulation => self.simulation_provider_name = Some(name),
             InferenceCategory::Intent => self.intent_provider_name = Some(name),
+            InferenceCategory::Reaction => self.reaction_provider_name = Some(name),
         }
     }
 
@@ -282,6 +303,7 @@ impl App {
             }
             InferenceCategory::Simulation => self.simulation_model = model,
             InferenceCategory::Intent => self.intent_model = model,
+            InferenceCategory::Reaction => self.reaction_model = model,
         }
     }
 
@@ -291,6 +313,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
             InferenceCategory::Simulation => self.simulation_api_key = Some(key),
             InferenceCategory::Intent => self.intent_api_key = Some(key),
+            InferenceCategory::Reaction => self.reaction_api_key = Some(key),
         }
     }
 
@@ -300,6 +323,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
             InferenceCategory::Simulation => self.simulation_base_url = Some(url),
             InferenceCategory::Intent => self.intent_base_url = Some(url),
+            InferenceCategory::Reaction => self.reaction_base_url = Some(url),
         }
     }
 
@@ -309,6 +333,7 @@ impl App {
             InferenceCategory::Dialogue => self.cloud_client = Some(client),
             InferenceCategory::Simulation => self.simulation_client = Some(client),
             InferenceCategory::Intent => self.intent_client = Some(client),
+            InferenceCategory::Reaction => self.reaction_client = Some(client),
         }
     }
 

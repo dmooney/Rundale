@@ -55,9 +55,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
 
     let transport = TransportConfig::default();
 
-    // Build splash text (matches Tauri's format)
-    let game_title = find_default_mod()
-        .and_then(|dir| GameMod::load(&dir).ok())
+    // Load game mod (if available) for splash text and reaction templates
+    let game_mod = find_default_mod().and_then(|dir| GameMod::load(&dir).ok());
+    let game_title = game_mod
+        .as_ref()
         .and_then(|gm| gm.manifest.meta.title.clone())
         .unwrap_or_else(|| "Parish".to_string());
     let splash_text = format!(
@@ -82,6 +83,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         ui_config,
         saves_dir,
         data_dir.clone(),
+        game_mod,
     );
 
     // Initialize inference queue
@@ -218,10 +220,10 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
         cloud_api_key: None,
         cloud_base_url: None,
         improv_enabled: false,
-        category_provider: [None, None, None],
-        category_model: [None, None, None],
-        category_api_key: [None, None, None],
-        category_base_url: [None, None, None],
+        category_provider: [None, None, None, None],
+        category_model: [None, None, None, None],
+        category_api_key: [None, None, None, None],
+        category_base_url: [None, None, None, None],
     };
 
     (client, config)

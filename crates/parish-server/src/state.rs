@@ -66,6 +66,12 @@ pub struct AppState {
     pub current_branch_id: Mutex<Option<i64>>,
     /// Current branch name.
     pub current_branch_name: Mutex<Option<String>>,
+    /// LLM client for NPC arrival reactions (None if not configured).
+    pub reaction_client: Mutex<Option<OpenAiClient>>,
+    /// Model name for reaction inference.
+    pub reaction_model: Mutex<String>,
+    /// Loaded game mod data (for reaction templates, etc.).
+    pub game_mod: Option<parish_core::game_mod::GameMod>,
 }
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
@@ -89,13 +95,13 @@ pub struct GameConfig {
     /// Whether improv craft mode is enabled.
     pub improv_enabled: bool,
     /// Per-category provider name overrides (Dialogue=0, Simulation=1, Intent=2).
-    pub category_provider: [Option<String>; 3],
+    pub category_provider: [Option<String>; 4],
     /// Per-category model name overrides.
-    pub category_model: [Option<String>; 3],
+    pub category_model: [Option<String>; 4],
     /// Per-category API key overrides.
-    pub category_api_key: [Option<String>; 3],
+    pub category_api_key: [Option<String>; 4],
     /// Per-category base URL overrides.
-    pub category_base_url: [Option<String>; 3],
+    pub category_base_url: [Option<String>; 4],
 }
 
 impl GameConfig {
@@ -106,6 +112,7 @@ impl GameConfig {
             InferenceCategory::Dialogue => 0,
             InferenceCategory::Simulation => 1,
             InferenceCategory::Intent => 2,
+            InferenceCategory::Reaction => 3,
         }
     }
 }
@@ -179,7 +186,10 @@ pub fn build_app_state(
     ui_config: UiConfigSnapshot,
     saves_dir: PathBuf,
     data_dir: PathBuf,
+    game_mod: Option<parish_core::game_mod::GameMod>,
 ) -> Arc<AppState> {
+    // Reaction client defaults to the base client (can be overridden later).
+    let reaction_client = client.clone();
     Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -195,6 +205,9 @@ pub fn build_app_state(
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
+        reaction_client: Mutex::new(reaction_client),
+        reaction_model: Mutex::new(String::new()),
+        game_mod,
     })
 }
 
