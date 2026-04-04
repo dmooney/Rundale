@@ -1,16 +1,14 @@
 //! Connection generation — builds edges between location nodes using road network data.
 //!
-//! Uses the OSM road network to determine which locations are connected
-//! and calculates traversal times from real distances. Ensures the
-//! resulting graph is connected and all edges are bidirectional.
+//! Uses the OSM road network to determine which locations are connected.
+//! Ensures the resulting graph is connected and all edges are bidirectional.
+//! Traversal times are calculated at runtime from coordinates by parish-core.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use tracing::{debug, info, warn};
 
-use super::osm_model::{
-    GeoFeature, LatLon, OverpassResponse, haversine_distance, meters_to_traversal_minutes,
-};
+use super::osm_model::{GeoFeature, LatLon, OverpassResponse, haversine_distance};
 
 /// A generated connection between two features.
 #[derive(Debug, Clone)]
@@ -19,12 +17,6 @@ pub struct GeneratedConnection {
     pub from_idx: usize,
     /// Target feature index.
     pub to_idx: usize,
-    /// Distance in meters.
-    #[allow(dead_code)] // Used in summary output and debugging
-    pub distance_meters: f64,
-    /// Traversal time in game minutes (retained for summary/debug output).
-    #[allow(dead_code)]
-    pub traversal_minutes: u16,
     /// Generated path description.
     pub path_description: String,
     /// Reverse path description (for bidirectional edge).
@@ -80,15 +72,14 @@ pub fn generate_connections(
             // Check if a road connects these features
             let road_dist = find_road_distance(&features[i], &features[j], &road_segments);
 
-            let (distance, desc, rev_desc) = if let Some((dist, segment)) = road_dist {
+            let (desc, rev_desc) = if let Some((_, segment)) = road_dist {
                 let desc = generate_path_description(&segment, &features[i], &features[j]);
                 let rev_desc = generate_path_description(&segment, &features[j], &features[i]);
-                (dist, desc, rev_desc)
+                (desc, rev_desc)
             } else {
-                // Use direct distance with generic description
                 let desc = generate_direct_description(&features[i], &features[j]);
                 let rev_desc = generate_direct_description(&features[j], &features[i]);
-                (direct_dist, desc, rev_desc)
+                (desc, rev_desc)
             };
 
             let pair = (i.min(j), i.max(j));
@@ -96,8 +87,6 @@ pub fn generate_connections(
                 connections.push(GeneratedConnection {
                     from_idx: i,
                     to_idx: j,
-                    distance_meters: distance,
-                    traversal_minutes: meters_to_traversal_minutes(distance),
                     path_description: desc,
                     reverse_path_description: rev_desc,
                 });
@@ -336,8 +325,6 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
         connections.push(GeneratedConnection {
             from_idx: best_pair.0,
             to_idx: best_pair.1,
-            distance_meters: best_dist,
-            traversal_minutes: meters_to_traversal_minutes(best_dist),
             path_description: generate_direct_description(
                 &features[best_pair.0],
                 &features[best_pair.1],
@@ -384,7 +371,6 @@ mod tests {
         assert_eq!(conns.len(), 1);
         assert_eq!(conns[0].from_idx, 0);
         assert_eq!(conns[0].to_idx, 1);
-        assert!(conns[0].traversal_minutes >= 1);
     }
 
     #[test]
@@ -410,8 +396,6 @@ mod tests {
         let mut connections = vec![GeneratedConnection {
             from_idx: 0,
             to_idx: 1,
-            distance_meters: 100.0,
-            traversal_minutes: 2,
             path_description: "test".to_string(),
             reverse_path_description: "test".to_string(),
         }];
@@ -433,8 +417,6 @@ mod tests {
         let mut connections = vec![GeneratedConnection {
             from_idx: 0,
             to_idx: 1,
-            distance_meters: 11.0,
-            traversal_minutes: 1,
             path_description: "test".to_string(),
             reverse_path_description: "test".to_string(),
         }];
