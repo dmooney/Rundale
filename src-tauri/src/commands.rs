@@ -945,6 +945,10 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             // Emit arrival description
             handle_look(state, app).await;
 
+            // Emit NPC arrival reactions (tick schedules first so in-transit
+            // NPCs whose arrival time has passed are resolved to Present)
+            emit_arrival_reactions(state, app).await;
+
             // Emit updated world snapshot
             {
                 let world = state.world.lock().await;
@@ -985,6 +989,76 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                 },
             );
         }
+    }
+}
+
+/// Emits NPC arrival reactions (canned text greetings) after the player moves.
+///
+/// Ticks NPC schedules first so any NPCs whose transit completed during travel
+/// are resolved to `Present` before checking who's here.
+async fn emit_arrival_reactions(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    use parish_core::config::ReactionConfig;
+    use parish_core::dice;
+    use parish_core::npc::reactions::generate_arrival_reactions;
+
+    let (reactions_to_emit, introduce_ids) = {
+        let mut world = state.world.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
+
+        // Resolve any NPCs whose transit completed during travel
+        let schedule_events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+        drop(schedule_events); // side-effects applied; events not needed here
+
+        let npcs = npc_manager.npcs_at(world.player_location);
+        if npcs.is_empty() {
+            return;
+        }
+        let loc_data = match world.current_location_data() {
+            Some(d) => d.clone(),
+            None => return,
+        };
+        let tod = world.clock.time_of_day();
+        let weather = world.weather.to_string();
+        let introduced = npc_manager.introduced_set();
+        let config = ReactionConfig::default();
+        let roll_dice = dice::roll_n(npcs.len() * 2);
+        let reactions = generate_arrival_reactions(
+            &npcs,
+            &introduced,
+            &loc_data,
+            tod,
+            &weather,
+            &state.reaction_templates,
+            &config,
+            &roll_dice,
+        );
+
+        let introduce_ids: Vec<_> = reactions
+            .iter()
+            .filter(|r| r.introduces)
+            .map(|r| r.npc_id)
+            .collect();
+
+        // Log reaction text into world event log (for persistence)
+        for r in &reactions {
+            world.log(r.canned_text.clone());
+        }
+
+        let texts: Vec<String> = reactions.into_iter().map(|r| r.canned_text).collect();
+        (texts, introduce_ids)
+    };
+
+    // Mark introductions (needs separate lock scope)
+    {
+        let mut npc_manager = state.npc_manager.lock().await;
+        for id in introduce_ids {
+            npc_manager.mark_introduced(id);
+        }
+    }
+
+    // Emit each reaction to the frontend
+    for text in reactions_to_emit {
+        let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", text));
     }
 }
 

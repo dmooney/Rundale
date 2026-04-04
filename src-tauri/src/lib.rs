@@ -21,6 +21,7 @@ use parish_core::inference::{
     InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
 };
 use parish_core::npc::manager::NpcManager;
+use parish_core::npc::reactions::ReactionTemplates;
 use parish_core::world::palette::{RawColor, RawPalette, compute_palette};
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
@@ -251,6 +252,8 @@ pub struct AppState {
     pub ui_config: UiConfigSnapshot,
     /// Name pronunciation entries from the loaded game mod.
     pub pronunciations: Vec<PronunciationEntry>,
+    /// NPC arrival reaction templates from the loaded game mod.
+    pub reaction_templates: ReactionTemplates,
     /// Path to the currently active save database file (None if unsaved).
     pub save_path: Mutex<Option<PathBuf>>,
     /// Branch id within the current save file.
@@ -515,6 +518,12 @@ pub fn run() {
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
 
+    // Extract reaction templates from the game mod
+    let reaction_templates = game_mod
+        .as_ref()
+        .map(|gm| gm.reactions.clone())
+        .unwrap_or_default();
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -527,6 +536,7 @@ pub fn run() {
         inference_log: new_inference_log(),
         ui_config,
         pronunciations,
+        reaction_templates,
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
