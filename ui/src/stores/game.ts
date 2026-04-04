@@ -9,6 +9,15 @@ export const npcsHere = writable<NpcInfo[]>([]);
 
 export const textLog = writable<TextLogEntry[]>([]);
 
+/** Maximum number of entries kept in the text log before trimming old ones. */
+const MAX_TEXT_LOG_SIZE = 500;
+
+/** Trims the text log to MAX_TEXT_LOG_SIZE, removing oldest entries first. */
+export function trimTextLog(log: TextLogEntry[]): TextLogEntry[] {
+	if (log.length <= MAX_TEXT_LOG_SIZE) return log;
+	return log.slice(log.length - MAX_TEXT_LOG_SIZE);
+}
+
 export const streamingActive = writable<boolean>(false);
 
 /// Current loading spinner character (e.g. "✛").
