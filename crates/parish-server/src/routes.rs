@@ -594,6 +594,72 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             .emit("text-log", &text_log(msg.source, &msg.text));
     }
 
+    // Emit NPC arrival reactions — upgrade to LLM text where available
+    if !effects.arrival_reactions.is_empty() {
+        use parish_core::npc::reactions::resolve_llm_greeting;
+
+        let reaction_client = state.reaction_client.lock().await;
+        let reaction_model = state.reaction_model.lock().await;
+
+        // Collect NPC context needed for LLM calls before locking world again
+        let (loc_name, tod, weather, introduced) = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let loc_name = world
+                .current_location_data()
+                .map(|d| d.name.clone())
+                .unwrap_or_default();
+            let tod = world.clock.time_of_day();
+            let weather = world.weather.to_string();
+            let introduced = npc_manager.introduced_set();
+            (loc_name, tod, weather, introduced)
+        };
+
+        let llm_timeout = parish_core::config::ReactionConfig::default().llm_timeout_secs;
+
+        for reaction in &effects.arrival_reactions {
+            let text = if reaction.use_llm {
+                if let Some(client) = reaction_client.as_ref() {
+                    // Fetch NPC data for the LLM call
+                    let npc_data = {
+                        let npc_manager = state.npc_manager.lock().await;
+                        npc_manager
+                            .all_npcs()
+                            .find(|n| n.id == reaction.npc_id)
+                            .cloned()
+                    };
+                    if let Some(npc) = npc_data {
+                        let world = state.world.lock().await;
+                        let at_workplace = npc.workplace.is_some_and(|wp| {
+                            world.current_location_data().is_some_and(|d| d.id == wp)
+                        });
+                        drop(world);
+                        resolve_llm_greeting(
+                            reaction,
+                            &npc,
+                            &loc_name,
+                            tod,
+                            &weather,
+                            introduced.contains(&reaction.npc_id),
+                            at_workplace,
+                            client,
+                            &reaction_model,
+                            llm_timeout,
+                        )
+                        .await
+                    } else {
+                        reaction.canned_text.clone()
+                    }
+                } else {
+                    reaction.canned_text.clone()
+                }
+            } else {
+                reaction.canned_text.clone()
+            };
+            state.event_bus.emit("text-log", &text_log("npc", text));
+        }
+    }
+
     // Emit updated world snapshot after a successful move
     if effects.world_changed {
         let world = state.world.lock().await;

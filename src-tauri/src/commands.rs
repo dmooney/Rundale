@@ -891,6 +891,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         let _ = app.emit(EVENT_TEXT_LOG, text_log(msg.source, &msg.text));
     }
 
+    // Emit NPC arrival reactions (canned text; Tauri has no reaction LLM client)
+    for reaction in &effects.arrival_reactions {
+        let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", &reaction.canned_text));
+    }
+
     // Record tier transitions in the debug event log
     if !effects.tier_transitions.is_empty() {
         let mut debug_events = state.debug_events.lock().await;

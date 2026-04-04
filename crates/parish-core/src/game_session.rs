@@ -14,7 +14,7 @@ use crate::config::ReactionConfig;
 use crate::dice;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
-use crate::npc::reactions::{ReactionTemplates, generate_arrival_reactions};
+use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{MovementResult, resolve_movement};
 use crate::world::transport::TransportMode;
@@ -38,16 +38,25 @@ pub struct GameMessage {
 /// The side-effects produced by a single call to [`apply_movement`].
 ///
 /// The caller is responsible for forwarding these to its own event bus or
-/// IPC channel. [`WorldState::log`] has already been called for every
-/// message, so test harnesses that only read from the log need not inspect
-/// this struct at all.
+/// IPC channel. [`WorldState::log`] has already been called for the canned
+/// text of every reaction, so test harnesses that only read from the log need
+/// not inspect `arrival_reactions` at all.
+///
+/// Backends with an LLM reaction client should iterate `arrival_reactions`,
+/// upgrade any entry where `use_llm` is true via `resolve_llm_greeting`, and
+/// emit the result. Canned text is always the safe fallback.
 #[derive(Debug, Default)]
 pub struct GameEffects {
     /// Payload for a travel-start animation event, present only when the
     /// player actually moved (i.e. not `AlreadyHere` / `NotFound`).
     pub travel_start: Option<TravelStartPayload>,
-    /// All player-visible messages in emission order.
+    /// Narration and look-description messages in emission order.
+    /// Does NOT include arrival reactions — those are in `arrival_reactions`.
     pub messages: Vec<GameMessage>,
+    /// Raw NPC arrival reactions. Canned text is pre-logged to `world.log()`.
+    /// Backends with an LLM client may upgrade `use_llm` entries; others
+    /// should emit `reaction.canned_text` directly.
+    pub arrival_reactions: Vec<NpcReaction>,
     /// `true` when the world state changed (player moved).
     pub world_changed: bool,
     /// Cognitive-tier reassignments that occurred after movement.
@@ -126,11 +135,13 @@ pub fn apply_movement(
             let _schedule_events =
                 npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
 
-            // Generate arrival reactions (canned text, no LLM)
-            let reaction_texts =
+            // Generate arrival reactions; canned text is logged to world.log.
+            // Raw reactions are returned so backends with an LLM client can
+            // upgrade use_llm entries via resolve_llm_greeting.
+            let arrival_reactions =
                 apply_arrival_reactions_inner(world, npc_manager, reaction_templates);
 
-            // Build message list in emission order
+            // Build system message list (narration + look only — NOT reactions)
             let mut messages: Vec<GameMessage> = Vec::new();
 
             // Narration (travel description)
@@ -148,18 +159,10 @@ pub fn apply_movement(
                 text: look_text,
             });
 
-            // NPC arrival reactions
-            for text in reaction_texts {
-                world.log(text.clone());
-                messages.push(GameMessage {
-                    source: "npc",
-                    text,
-                });
-            }
-
             GameEffects {
                 travel_start: Some(travel_start),
                 messages,
+                arrival_reactions,
                 world_changed: true,
                 tier_transitions,
             }
@@ -203,15 +206,16 @@ pub fn apply_movement(
 /// Generates NPC arrival reactions for the player's current location and
 /// applies their side-effects (marking introductions, logging to world).
 ///
-/// Returns the reaction texts. Callers that only need the reactions without
-/// the full movement pipeline (e.g. a `/look` command that re-generates
-/// reactions) can use this standalone function.
+/// Returns the raw [`NpcReaction`] structs. Callers that only need the
+/// reactions without the full movement pipeline can use this standalone
+/// function. Canned text is logged to `world.log()`; backends with an LLM
+/// client may upgrade `use_llm` entries via `resolve_llm_greeting`.
 pub fn apply_arrival_reactions(
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
     templates: &ReactionTemplates,
     config: &ReactionConfig,
-) -> Vec<String> {
+) -> Vec<NpcReaction> {
     let npcs = npc_manager.npcs_at(world.player_location);
     if npcs.is_empty() {
         return Vec::new();
@@ -236,14 +240,13 @@ pub fn apply_arrival_reactions(
         &roll_dice,
     );
 
-    let mut texts = Vec::new();
     for reaction in &reactions {
         if reaction.introduces {
             npc_manager.mark_introduced(reaction.npc_id);
         }
-        texts.push(reaction.canned_text.clone());
+        world.log(reaction.canned_text.clone());
     }
-    texts
+    reactions
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -279,11 +282,14 @@ fn build_look_text(
 }
 
 /// Inner helper: generate reactions and apply side-effects, returning texts.
+/// Generates reactions, marks introductions, logs canned text to world.log,
+/// and returns the raw [`NpcReaction`] structs so backends can optionally
+/// upgrade `use_llm` entries via an LLM call.
 fn apply_arrival_reactions_inner(
     world: &mut WorldState,
     npc_manager: &mut NpcManager,
     templates: &ReactionTemplates,
-) -> Vec<String> {
+) -> Vec<NpcReaction> {
     let npcs = npc_manager.npcs_at(world.player_location);
     if npcs.is_empty() {
         return Vec::new();
@@ -309,14 +315,15 @@ fn apply_arrival_reactions_inner(
         &roll_dice,
     );
 
-    let mut texts = Vec::new();
     for reaction in &reactions {
         if reaction.introduces {
             npc_manager.mark_introduced(reaction.npc_id);
         }
-        texts.push(reaction.canned_text.clone());
+        // Log canned text as the persistent record; backends may emit LLM
+        // text to the frontend instead but the world log always has canned.
+        world.log(reaction.canned_text.clone());
     }
-    texts
+    reactions
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
