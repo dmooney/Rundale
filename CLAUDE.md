@@ -48,6 +48,7 @@ Playwright auto-starts the axum server via `cargo run -- --web 3099`.
 
 - All new code must have accompanying unit tests. No `#[allow]` without a justifying comment.
 - Coverage must stay above **90%** (`cargo tarpaulin`).
+- When creating PRs, make sure the PR content makes it into a design doc.ß
 
 ### Play-Test Verification
 
@@ -230,7 +231,7 @@ Custom slash commands defined in `.claude/skills/`:
 | `/game-test [script]` | Run GameTestHarness to verify game behavior |
 | `/verify` | Full pre-push checklist (quality gate + harness) |
 | `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
-| `/fix-issue <N>` | End-to-end GitHub issue workflow |
+| `/fix-issue` | End-to-end GitHub issue workflow |
 | `/chrome-test` | Live Chrome browser testing session via Claude-in-Chrome MCP |
 | `/play [scenario]` | Play-test the game via script harness |
 | `/prove <feature>` | Prove a gameplay feature works at runtime (required after implementing features) |

@@ -10,15 +10,27 @@
 //! [`GameEffects`] value describing what the caller must then broadcast
 //! to its own frontend or event bus.
 
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::config::ReactionConfig;
+use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
+use crate::inference::InferenceLog;
+use crate::inference::openai_client::OpenAiClient;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
+use crate::npc::{Npc, NpcId};
+
+/// Monotonically increasing request ID counter for reaction inference calls.
+/// Starts at 100_000 to stay visually distinct from the dialogue queue IDs.
+static REACTION_REQ_ID: AtomicU64 = AtomicU64::new(100_000);
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{MovementResult, resolve_movement};
+use crate::world::time::TimeOfDay;
 use crate::world::transport::TransportMode;
-use crate::world::{Location, WorldState};
+use crate::world::{Location, LocationId, WorldState};
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
@@ -324,6 +336,125 @@ fn apply_arrival_reactions_inner(
         world.log(reaction.canned_text.clone());
     }
     reactions
+}
+
+/// Resolves NPC arrival reaction texts, upgrading `use_llm` entries via the
+/// provided LLM client when available, and logging each call to `inference_log`
+/// if one is supplied.
+///
+/// Returns one `String` per reaction in the same order as `reactions`. Each
+/// text is either the LLM-generated greeting (on success) or the pre-computed
+/// `canned_text` fallback. Backends call this after [`apply_movement`] to get
+/// the final display text before emitting to their respective frontends.
+///
+/// # Parameters
+/// - `reactions` — raw reactions from `GameEffects::arrival_reactions`
+/// - `all_npcs` — full NPC roster (used to look up each reacting NPC's data)
+/// - `current_location_id` — player's current location (for workplace check)
+/// - `loc_name` — display name of the current location
+/// - `tod` — current time of day
+/// - `weather` — current weather string
+/// - `introduced` — set of NPC IDs the player has already met
+/// - `client` — LLM client, or `None` to always use canned text
+/// - `model` — model name passed to the LLM
+/// - `inference_log` — optional log to record each call for the debug panel
+#[allow(clippy::too_many_arguments)]
+pub async fn resolve_reaction_texts(
+    reactions: &[NpcReaction],
+    all_npcs: &[Npc],
+    current_location_id: LocationId,
+    loc_name: &str,
+    tod: TimeOfDay,
+    weather: &str,
+    introduced: &HashSet<NpcId>,
+    client: Option<&OpenAiClient>,
+    model: &str,
+    inference_log: Option<&InferenceLog>,
+) -> Vec<String> {
+    use crate::npc::reactions::build_reaction_prompt;
+
+    let timeout_secs = ReactionConfig::default().llm_timeout_secs;
+    let mut texts = Vec::with_capacity(reactions.len());
+
+    for reaction in reactions {
+        let text = if reaction.use_llm {
+            if let Some(c) = client {
+                let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
+                if let Some(npc) = npc {
+                    let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
+                    let is_introduced = introduced.contains(&reaction.npc_id);
+                    let (system, context) = build_reaction_prompt(
+                        npc,
+                        loc_name,
+                        tod,
+                        weather,
+                        is_introduced,
+                        at_workplace,
+                    );
+                    let prompt_len = context.len();
+                    let req_id = REACTION_REQ_ID.fetch_add(1, Ordering::Relaxed);
+                    let started = std::time::Instant::now();
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(timeout_secs),
+                        c.generate(model, &context, Some(&system), Some(100)),
+                    )
+                    .await;
+                    let elapsed_ms = started.elapsed().as_millis() as u64;
+
+                    let (text, error) = match result {
+                        Ok(Ok(t)) => {
+                            let trimmed = t.trim();
+                            let cleaned = trimmed
+                                .split("---")
+                                .next()
+                                .unwrap_or(trimmed)
+                                .trim()
+                                .to_string();
+                            if cleaned.is_empty() {
+                                (reaction.canned_text.clone(), None)
+                            } else {
+                                (cleaned, None)
+                            }
+                        }
+                        Ok(Err(e)) => (reaction.canned_text.clone(), Some(e.to_string())),
+                        Err(_) => (reaction.canned_text.clone(), Some("timeout".to_string())),
+                    };
+
+                    if let Some(log) = inference_log {
+                        let entry = InferenceLogEntry {
+                            request_id: req_id,
+                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                            model: model.to_string(),
+                            streaming: false,
+                            duration_ms: elapsed_ms,
+                            prompt_len,
+                            response_len: text.len(),
+                            error,
+                            system_prompt: Some(system),
+                            prompt_text: context,
+                            response_text: text.clone(),
+                            max_tokens: Some(100),
+                        };
+                        let mut log_guard = log.lock().await;
+                        if log_guard.len() >= log_guard.capacity().max(1) {
+                            log_guard.pop_front();
+                        }
+                        log_guard.push_back(entry);
+                    }
+
+                    text
+                } else {
+                    reaction.canned_text.clone()
+                }
+            } else {
+                reaction.canned_text.clone()
+            }
+        } else {
+            reaction.canned_text.clone()
+        };
+        texts.push(text);
+    }
+    texts
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────

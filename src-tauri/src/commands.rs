@@ -891,9 +891,47 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         let _ = app.emit(EVENT_TEXT_LOG, text_log(msg.source, &msg.text));
     }
 
-    // Emit NPC arrival reactions (canned text; Tauri has no reaction LLM client)
-    for reaction in &effects.arrival_reactions {
-        let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", &reaction.canned_text));
+    // Emit NPC arrival reactions — upgrade to LLM text where available
+    if !effects.arrival_reactions.is_empty() {
+        use parish_core::game_session::resolve_reaction_texts;
+
+        let (all_npcs, current_location_id, loc_name, tod, weather, introduced, model) = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let config = state.config.lock().await;
+            (
+                npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
+                world.player_location,
+                world
+                    .current_location_data()
+                    .map(|d| d.name.clone())
+                    .unwrap_or_default(),
+                world.clock.time_of_day(),
+                world.weather.to_string(),
+                npc_manager.introduced_set(),
+                config.model_name.clone(),
+            )
+        };
+
+        let client_guard = state.client.lock().await;
+        let texts = resolve_reaction_texts(
+            &effects.arrival_reactions,
+            &all_npcs,
+            current_location_id,
+            &loc_name,
+            tod,
+            &weather,
+            &introduced,
+            client_guard.as_ref(),
+            &model,
+            Some(&state.inference_log),
+        )
+        .await;
+        drop(client_guard);
+
+        for text in texts {
+            let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", &text));
+        }
     }
 
     // Record tier transitions in the debug event log
