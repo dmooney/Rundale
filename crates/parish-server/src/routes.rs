@@ -12,11 +12,12 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use tokio::sync::mpsc;
 
+use parish_core::config::InferenceCategory;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
+use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
 use parish_core::ipc::{
-    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
+    GameConfig, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
     NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, ThemePalette,
     WorldSnapshot, capitalize_first, text_log,
 };
@@ -292,9 +293,33 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     state.event_bus.emit("world-update", &ws);
 }
 
-/// Handles free-form game input: parses intent then dispatches.
+/// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 async fn handle_game_input(raw: String, state: &Arc<AppState>) {
-    let intent = parse_intent_local(&raw);
+    // Resolve the intent client and model (Intent category override, or base).
+    let (client, model) = {
+        let config = state.config.lock().await;
+        let idx = GameConfig::cat_idx(InferenceCategory::Intent);
+        let model = config.category_model[idx]
+            .clone()
+            .unwrap_or_else(|| config.model_name.clone());
+        let client = state.client.lock().await.clone();
+        (client, model)
+    };
+
+    // Parse intent: tries local keywords first, then LLM for ambiguous input.
+    let intent = if let Some(client) = &client {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+        drop(world);
+        let result = parse_intent(client, &raw, &model).await;
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
+        drop(world);
+        result.ok()
+    } else {
+        // No client configured — use local keyword parsing only.
+        parish_core::input::parse_intent_local(&raw)
+    };
 
     let is_move = intent
         .as_ref()

@@ -9,12 +9,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Emitter;
 use tokio::sync::mpsc;
 
+use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
+use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
 use parish_core::ipc::{
-    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first, compute_name_hints, text_log,
+    GameConfig, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first, compute_name_hints,
+    text_log,
 };
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
@@ -393,14 +395,37 @@ async fn handle_system_command(
     }
 }
 
-/// Handles free-form game input: parses intent then dispatches.
+/// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 async fn handle_game_input(
     raw: String,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
-    // Use local keyword-based parser first (no LLM latency)
-    let intent = parse_intent_local(&raw);
+    // Resolve the intent client and model (Intent category override, or base).
+    let (client, model) = {
+        let config = state.config.lock().await;
+        let idx = GameConfig::cat_idx(InferenceCategory::Intent);
+        let model = config.category_model[idx]
+            .clone()
+            .unwrap_or_else(|| config.model_name.clone());
+        let client = state.client.lock().await.clone();
+        (client, model)
+    };
+
+    // Parse intent: tries local keywords first, then LLM for ambiguous input.
+    let intent = if let Some(client) = &client {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+        drop(world);
+        let result = parse_intent(client, &raw, &model).await;
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
+        drop(world);
+        result.ok()
+    } else {
+        // No client configured — use local keyword parsing only.
+        parish_core::input::parse_intent_local(&raw)
+    };
 
     let is_move = intent
         .as_ref()
