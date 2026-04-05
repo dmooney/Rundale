@@ -10,3 +10,5 @@ node_modules/
 logs/
 .claude/worktrees
 ui/dist/
+claude/*
+.worktrees
