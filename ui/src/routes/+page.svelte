@@ -10,7 +10,7 @@
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, addReaction } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, addReaction, trimTextLog } from '../stores/game';
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
@@ -122,7 +122,7 @@
 					payload.source === 'player' && payload.content.startsWith('> ')
 						? payload.content.slice(2)
 						: payload.content;
-				textLog.update((log) => [...log, { id: payload.id, source: payload.source, content }]);
+				textLog.update((log) => trimTextLog([...log, { id: payload.id, source: payload.source, content }]));
 			}),
 
 			onNpcReaction((payload) => {
@@ -156,7 +156,7 @@
 						last && last.source !== 'player' && last.source !== 'system'
 							? last.source
 							: 'NPC';
-					return [...log, { source: npcSource, content: payload.token, streaming: true }];
+					return trimTextLog([...log, { source: npcSource, content: payload.token, streaming: true }]);
 				});
 			}),
 

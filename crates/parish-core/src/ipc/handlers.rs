@@ -566,12 +566,12 @@ mod tests {
             let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
             let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
             let start = world.player_location;
-            let neighbors = world.graph.neighbors(start);
-            if let Some((neighbor_id, _)) = neighbors.first() {
+            let neighbor_id = world.graph.neighbors(start).first().map(|(id, _)| *id);
+            if let Some(neighbor_id) = neighbor_id {
                 // Traverse the edge twice
-                world.record_path_traversal(&[start, *neighbor_id]);
-                world.record_path_traversal(&[start, *neighbor_id]);
-                world.mark_visited(*neighbor_id);
+                world.record_path_traversal(&[start, neighbor_id]);
+                world.record_path_traversal(&[start, neighbor_id]);
+                world.mark_visited(neighbor_id);
 
                 let map = build_map_data(&world, 1.25);
                 assert!(
