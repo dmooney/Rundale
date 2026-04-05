@@ -105,8 +105,9 @@
 			debugSnapshot.set(debugSnap);
 		} catch (_) {}
 
-		const unlisten = await Promise.all([
-			onWorldUpdate(async (snap) => {
+		const listeners: Array<() => void> = [];
+		try {
+			listeners.push(await onWorldUpdate(async (snap) => {
 				worldState.set(snap);
 				if (snap.name_hints) nameHints.set(snap.name_hints);
 				try {
@@ -114,22 +115,22 @@
 					mapData.set(map);
 					npcsHere.set(npcs);
 				} catch (_) {}
-			}),
+			}));
 
-			onTextLog((payload) => {
+			listeners.push(await onTextLog((payload) => {
 				// Strip "> " prefix from player messages — bubble alignment shows speaker
 				const content =
 					payload.source === 'player' && payload.content.startsWith('> ')
 						? payload.content.slice(2)
 						: payload.content;
 				textLog.update((log) => trimTextLog([...log, { id: payload.id, source: payload.source, content }]));
-			}),
+			}));
 
-			onNpcReaction((payload) => {
+			listeners.push(await onNpcReaction((payload) => {
 				addReaction(payload.message_id, payload.emoji, payload.source);
-			}),
+			}));
 
-			onStreamToken((payload) => {
+			listeners.push(await onStreamToken((payload) => {
 				textLog.update((log) => {
 					if (log.length > 0 && log[log.length - 1].streaming) {
 						const last = log[log.length - 1];
@@ -158,9 +159,9 @@
 							: 'NPC';
 					return trimTextLog([...log, { source: npcSource, content: payload.token, streaming: true }]);
 				});
-			}),
+			}));
 
-			onStreamEnd((payload) => {
+			listeners.push(await onStreamEnd((payload) => {
 				// Finalize the streaming entry
 				textLog.update((log) => {
 					if (log.length > 0 && log[log.length - 1].streaming) {
@@ -171,9 +172,9 @@
 				});
 				languageHints.set(payload.hints);
 				streamingActive.set(false);
-			}),
+			}));
 
-			onLoading((payload) => {
+			listeners.push(await onLoading((payload) => {
 				const wasActive = get(streamingActive);
 				streamingActive.set(payload.active);
 				if (payload.active) {
@@ -193,32 +194,33 @@
 						});
 					}
 				}
-			}),
+			}));
 
-			onThemeUpdate((p) => {
+			listeners.push(await onThemeUpdate((p) => {
 				palette.apply(p);
-			}),
+			}));
 
-			onDebugUpdate((snap) => {
+			listeners.push(await onDebugUpdate((snap) => {
 				debugSnapshot.set(snap);
-			}),
+			}));
 
-			onToggleFullMap(() => {
+			listeners.push(await onToggleFullMap(() => {
 				fullMapOpen.update((v) => !v);
-			}),
+			}));
 
-			onTravelStart((payload) => {
+			listeners.push(await onTravelStart((payload) => {
 				startTravel(payload);
-			})
-		]);
+			}));
 
-		const unlistenSavePicker = await onSavePicker(() => {
-			savePickerVisible.set(true);
-		});
+			listeners.push(await onSavePicker(() => {
+				savePickerVisible.set(true);
+			}));
+		} catch (e) {
+			console.warn('Failed to set up some event listeners:', e);
+		}
 
 		return () => {
-			unlisten.forEach((fn) => fn());
-			unlistenSavePicker();
+			listeners.forEach((fn) => fn());
 		};
 	});
 </script>
