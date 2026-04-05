@@ -4,12 +4,14 @@
 
 ## Active
 
-### 4. NPC conversation memory not wired into LLM prompts
-**Severity:** Medium
-**Description:** Phase 3 added `ShortTermMemory` (20-entry ring buffer) to each NPC, but the memory entries are not yet included in `build_tier1_context()`. Each LLM interaction is effectively stateless — the NPC has no context about prior exchanges.
-**Expected:** `build_tier1_context()` should inject recent memory entries into the prompt so NPCs recall earlier conversation.
+*No active issues.*
 
 ## Resolved
+
+### 4. NPC conversation memory not wired into LLM prompts
+**Severity:** Medium — **Fixed 2026-04-03**
+**Description:** Phase 3 added `ShortTermMemory` (20-entry ring buffer) to each NPC, but the memory entries were not included in `build_tier1_context()`. Each LLM interaction was effectively stateless.
+**Fix:** `build_enhanced_context_with_config()` in `npc/ticks.rs` now injects recent short-term memories (up to 5), long-term memory recall (keyword-based, up to 3), and gossip context (up to 2) into every Tier 1 prompt.
 
 ### 3. Inline separator metadata leaks into NPC dialogue
 **Severity:** Medium — **Fixed 2026-03-20**
