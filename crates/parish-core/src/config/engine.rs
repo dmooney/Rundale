@@ -324,6 +324,9 @@ pub struct CognitiveTierConfig {
     /// Maximum NPCs per Tier 3 batch LLM call.
     #[serde(default = "default_tier3_batch_size")]
     pub tier3_batch_size: usize,
+    /// Tier 4 rules-engine tick interval in game-days (1 season ≈ 90 days).
+    #[serde(default = "default_tier4_tick_interval_days")]
+    pub tier4_tick_interval_days: i64,
 }
 
 impl Default for CognitiveTierConfig {
@@ -335,6 +338,7 @@ impl Default for CognitiveTierConfig {
             tier2_tick_interval_minutes: 5,
             tier3_tick_interval_hours: 24,
             tier3_batch_size: 10,
+            tier4_tick_interval_days: 90,
         }
     }
 }
@@ -356,6 +360,9 @@ fn default_tier3_tick_interval_hours() -> i64 {
 }
 fn default_tier3_batch_size() -> usize {
     10
+}
+fn default_tier4_tick_interval_days() -> i64 {
+    90
 }
 
 /// Relationship strength thresholds for descriptive labels.

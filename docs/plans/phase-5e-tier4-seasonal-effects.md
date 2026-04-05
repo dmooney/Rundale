@@ -2,7 +2,7 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: Done**
 >
 > **Depends on:** Phase 5A (event bus), Phase 5B (weather for weather-driven rules), Phase 5D (tier assignment split)
 > **Depended on by:** None (terminal sub-phase)

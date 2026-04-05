@@ -106,6 +106,8 @@ pub struct NpcManager {
     last_tier3_game_time: Option<DateTime<Utc>>,
     /// Whether a Tier 3 batch inference is currently in-flight.
     tier3_in_flight: bool,
+    /// Game time of the last Tier 4 tick (None if never ticked).
+    last_tier4_game_time: Option<DateTime<Utc>>,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
 }
@@ -119,6 +121,7 @@ impl NpcManager {
             last_tier2_game_time: None,
             last_tier3_game_time: None,
             tier3_in_flight: false,
+            last_tier4_game_time: None,
             introduced_npcs: HashSet::new(),
         }
     }
@@ -634,6 +637,203 @@ impl NpcManager {
         self.tier3_in_flight = in_flight;
     }
 
+    /// Returns the ids of all NPCs assigned to Tier 4.
+    pub fn tier4_npcs(&self) -> Vec<NpcId> {
+        self.tier_assignments
+            .iter()
+            .filter(|(_, tier)| **tier == CogTier::Tier4)
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 4 tick.
+    pub fn needs_tier4_tick(&self, current_game_time: DateTime<Utc>) -> bool {
+        self.needs_tier4_tick_with_config(current_game_time, &CognitiveTierConfig::default())
+    }
+
+    /// Returns whether enough game time has elapsed for a Tier 4 tick,
+    /// using the given cognitive tier config for the tick interval.
+    pub fn needs_tier4_tick_with_config(
+        &self,
+        current_game_time: DateTime<Utc>,
+        config: &CognitiveTierConfig,
+    ) -> bool {
+        match self.last_tier4_game_time {
+            None => true,
+            Some(last) => {
+                let elapsed = current_game_time.signed_duration_since(last).num_days();
+                elapsed >= config.tier4_tick_interval_days
+            }
+        }
+    }
+
+    /// Records that a Tier 4 tick has been performed at the given game time.
+    pub fn record_tier4_tick(&mut self, time: DateTime<Utc>) {
+        self.last_tier4_game_time = Some(time);
+    }
+
+    /// Applies the results of a Tier 4 tick to NPC state.
+    ///
+    /// Returns a list of `GameEvent`s to publish on the event bus.
+    pub fn apply_tier4_events(
+        &mut self,
+        events: &[crate::npc::tier4::Tier4Event],
+        timestamp: DateTime<Utc>,
+    ) -> Vec<GameEvent> {
+        use crate::npc::tier4::Tier4Event;
+
+        let mut game_events = Vec::new();
+
+        for event in events {
+            match event {
+                Tier4Event::Illness { npc_id } => {
+                    if let Some(npc) = self.npcs.get_mut(npc_id) {
+                        npc.is_ill = true;
+                        npc.mood = "unwell".to_string();
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: format!("{} has fallen ill.", npc.name),
+                            timestamp,
+                        });
+                        game_events.push(GameEvent::MoodChanged {
+                            npc_id: *npc_id,
+                            new_mood: "unwell".to_string(),
+                            timestamp,
+                        });
+                    }
+                }
+                Tier4Event::Recovery { npc_id } => {
+                    if let Some(npc) = self.npcs.get_mut(npc_id) {
+                        npc.is_ill = false;
+                        npc.mood = "content".to_string();
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: format!("{} has recovered from illness.", npc.name),
+                            timestamp,
+                        });
+                        game_events.push(GameEvent::MoodChanged {
+                            npc_id: *npc_id,
+                            new_mood: "content".to_string(),
+                            timestamp,
+                        });
+                    }
+                }
+                Tier4Event::Death { npc_id } => {
+                    let name = self
+                        .npcs
+                        .get(npc_id)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_default();
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: *npc_id,
+                        description: format!("{name} has passed away."),
+                        timestamp,
+                    });
+                    self.npcs.remove(npc_id);
+                    self.tier_assignments.remove(npc_id);
+                }
+                Tier4Event::Birth { parent_ids } => {
+                    let parent_a_name = self
+                        .npcs
+                        .get(&parent_ids.0)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_default();
+                    let parent_b_name = self
+                        .npcs
+                        .get(&parent_ids.1)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_default();
+                    // For now, just publish the event — NPC creation is future work.
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: parent_ids.0,
+                        description: format!(
+                            "A child has been born to {parent_a_name} and {parent_b_name}."
+                        ),
+                        timestamp,
+                    });
+                }
+                Tier4Event::SeasonalShift {
+                    npc_id,
+                    new_schedule_desc,
+                } => {
+                    if let Some(npc) = self.npcs.get(npc_id) {
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: format!("{}: {}", npc.name, new_schedule_desc),
+                            timestamp,
+                        });
+                    }
+                }
+                Tier4Event::TradeCompleted { buyer, seller } => {
+                    // Boost relationship between buyer and seller by +0.1
+                    let buyer_name = self
+                        .npcs
+                        .get(buyer)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_default();
+                    let seller_name = self
+                        .npcs
+                        .get(seller)
+                        .map(|n| n.name.clone())
+                        .unwrap_or_default();
+
+                    if let Some(buyer_npc) = self.npcs.get_mut(buyer)
+                        && let Some(rel) = buyer_npc.relationships.get_mut(seller)
+                    {
+                        rel.adjust_strength(0.1);
+                    }
+                    if let Some(seller_npc) = self.npcs.get_mut(seller)
+                        && let Some(rel) = seller_npc.relationships.get_mut(buyer)
+                    {
+                        rel.adjust_strength(0.1);
+                    }
+
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: *buyer,
+                        description: format!("{buyer_name} completed a trade with {seller_name}."),
+                        timestamp,
+                    });
+                    game_events.push(GameEvent::RelationshipChanged {
+                        npc_a: *buyer,
+                        npc_b: *seller,
+                        delta: 0.1,
+                        timestamp,
+                    });
+                }
+                Tier4Event::FestivalDetected { festival } => {
+                    game_events.push(GameEvent::FestivalStarted {
+                        name: festival.to_string(),
+                        timestamp,
+                    });
+                }
+                Tier4Event::FestivalBond {
+                    npc_a,
+                    npc_b,
+                    festival: _,
+                } => {
+                    if let Some(npc) = self.npcs.get_mut(npc_a)
+                        && let Some(rel) = npc.relationships.get_mut(npc_b)
+                    {
+                        rel.adjust_strength(0.05);
+                    }
+                    if let Some(npc) = self.npcs.get_mut(npc_b)
+                        && let Some(rel) = npc.relationships.get_mut(npc_a)
+                    {
+                        rel.adjust_strength(0.05);
+                    }
+                    game_events.push(GameEvent::RelationshipChanged {
+                        npc_a: *npc_a,
+                        npc_b: *npc_b,
+                        delta: 0.05,
+                        timestamp,
+                    });
+                }
+            }
+        }
+
+        game_events
+    }
+
     /// Groups Tier 2 NPCs by their current location.
     ///
     /// Returns a map of location id to the NPC ids at that location.
@@ -720,6 +920,7 @@ mod tests {
             deflated_summary: None,
             reaction_log: crate::npc::reactions::ReactionLog::default(),
             last_activity: None,
+            is_ill: false,
         }
     }
 

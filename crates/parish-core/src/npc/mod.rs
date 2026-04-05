@@ -13,6 +13,7 @@ pub mod mood;
 pub mod overhear;
 pub mod reactions;
 pub mod ticks;
+pub mod tier4;
 pub mod transitions;
 pub mod types;
 
@@ -164,6 +165,8 @@ pub struct Npc {
     /// Used in deflated context and Tier 3 prompt construction.
     /// Updated each time a Tier 3 tick processes this NPC.
     pub last_activity: Option<String>,
+    /// Whether the NPC is currently ill. Set by Tier 4 rules engine.
+    pub is_ill: bool,
 }
 
 impl Npc {
@@ -197,6 +200,7 @@ impl Npc {
             deflated_summary: None,
             reaction_log: ReactionLog::default(),
             last_activity: None,
+            is_ill: false,
         }
     }
 

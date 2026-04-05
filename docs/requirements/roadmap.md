@@ -125,12 +125,12 @@
 
 > [Detailed plan](../plans/phase-5e-tier4-seasonal-effects.md) | Depends on: 5A, 5B, 5D
 
-- [ ] `Tier4Event` enum and `tick_tier4` CPU-only rules engine
-- [ ] Life event probabilities (illness, death, birth, trade)
-- [ ] Seasonal schedule overrides (farmers, teachers, publicans)
-- [ ] Festival event hooks (Imbolc, Bealtaine, Lughnasa, Samhain)
-- [ ] NPC health state tracking
-- [ ] Run on `spawn_blocking`
+- [x] `Tier4Event` enum and `tick_tier4` CPU-only rules engine
+- [x] Life event probabilities (illness, death, birth, trade)
+- [x] Seasonal schedule overrides (farmers, teachers, publicans)
+- [x] Festival event hooks (Imbolc, Bealtaine, Lughnasa, Samhain)
+- [x] NPC health state tracking
+- [x] Run on `spawn_blocking`
 
 ### Phase 5F — World Graph Expansion
 
