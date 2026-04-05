@@ -1475,7 +1475,7 @@ mod tests {
         clock.pause();
 
         // With LightRain, farmer should still go to work (tolerate light rain)
-        let events = mgr.tick_schedules(&clock, &graph, crate::world::Weather::LightRain);
+        let _events = mgr.tick_schedules(&clock, &graph, crate::world::Weather::LightRain);
 
         let npc = mgr.get(NpcId(1)).unwrap();
         // Farmer should be in transit to the farm
