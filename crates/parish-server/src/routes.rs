@@ -132,16 +132,15 @@ pub async fn submit_input(
         return StatusCode::BAD_REQUEST;
     }
 
-    // Emit the player's own text as a log entry
-    let player_msg = text_log("player", format!("> {}", text));
-    let player_msg_id = player_msg.id.clone();
-    state.event_bus.emit("text-log", &player_msg);
-
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, &state).await;
         }
         InputResult::GameInput(raw) => {
+            // Emit the player's own text as a dialogue bubble only for actual dialogue
+            let player_msg = text_log("player", format!("> {}", raw));
+            let player_msg_id = player_msg.id.clone();
+            state.event_bus.emit("text-log", &player_msg);
             let raw_for_reactions = raw.clone();
             handle_game_input(raw, &state).await;
             // Generate rule-based NPC reactions to the player's message
