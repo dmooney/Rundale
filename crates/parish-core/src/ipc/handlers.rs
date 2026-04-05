@@ -4,16 +4,19 @@
 //! server, keeping game-logic → IPC-type mapping in a single place.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{Datelike, Timelike};
 
 use crate::npc::manager::NpcManager;
+use crate::npc::ticks;
+use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::palette::compute_palette;
 use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
 
-use super::types::{MapData, MapLocation, NpcInfo, ThemePalette, WorldSnapshot};
+use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, ThemePalette, WorldSnapshot};
 
 /// Builds a [`WorldSnapshot`] from the current world state.
 pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> WorldSnapshot {
@@ -62,6 +65,7 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
         paused: world.clock.is_paused() || world.clock.is_inference_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
+        name_hints: vec![],
         day_of_week,
     }
 }
@@ -237,6 +241,29 @@ pub fn capitalize_first(s: &str) -> String {
     }
 }
 
+/// Monotonically increasing message ID counter for text-log entries.
+static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Creates a [`TextLogPayload`] with an auto-generated unique message ID.
+pub fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        source: source.into(),
+        content: content.into(),
+    }
+}
+
+/// Atmospheric messages displayed when no NPC is present at the current location.
+pub const IDLE_MESSAGES: &[&str] = &[
+    "The wind stirs, but nothing else.",
+    "Only the sound of a distant crow.",
+    "A dog barks somewhere beyond the hill.",
+    "The clouds shift. The parish carries on.",
+    "Somewhere nearby, a door creaks shut.",
+    "A wren hops along the stone wall and vanishes.",
+    "The smell of turf smoke drifts from a cottage chimney.",
+];
+
 /// Helper to mask an API key for display (shows first 4 and last 4 chars).
 pub fn mask_key(key: &str) -> String {
     if key.len() > 8 {
@@ -244,6 +271,69 @@ pub fn mask_key(key: &str) -> String {
     } else {
         "(set, too short to mask)".to_string()
     }
+}
+
+// ── NPC conversation setup ──────────────────────────────────────────────────
+
+/// Data needed to start an NPC conversation, returned by [`prepare_npc_conversation`].
+#[derive(Debug, Clone)]
+pub struct NpcConversationSetup {
+    /// Display name of the NPC (for UI labels).
+    pub display_name: String,
+    /// NPC's unique ID.
+    pub npc_id: NpcId,
+    /// The assembled system prompt for the LLM.
+    pub system_prompt: String,
+    /// The assembled context string for the LLM.
+    pub context: String,
+}
+
+/// Prepares an NPC conversation: finds the NPC, builds prompts, and marks them
+/// as introduced. All backends call this before submitting to the inference queue.
+///
+/// If `target_name` is provided (from an `@mention`), the matching NPC is
+/// selected; otherwise falls back to the first NPC at the player's location.
+///
+/// Returns `None` if no NPC is present at the player's location.
+pub fn prepare_npc_conversation(
+    world: &WorldState,
+    npc_manager: &mut NpcManager,
+    raw: &str,
+    target_name: Option<&str>,
+    improv_enabled: bool,
+) -> Option<NpcConversationSetup> {
+    let npcs_here = npc_manager.npcs_at(world.player_location);
+    if npcs_here.is_empty() {
+        return None;
+    }
+
+    // If an @mention was provided, try to find that NPC; otherwise first NPC
+    let npc: Option<Npc> = if let Some(name) = target_name {
+        npc_manager
+            .find_by_name(name, world.player_location)
+            .cloned()
+            .or_else(|| npcs_here.first().cloned().cloned())
+    } else {
+        npcs_here.first().cloned().cloned()
+    };
+
+    let npc = npc?;
+    let display_name = npc_manager.display_name(&npc).to_string();
+    let npc_id = npc.id;
+
+    let other_npcs: Vec<&Npc> = npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
+    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled);
+    let context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs);
+
+    // Mark NPC as introduced on first conversation
+    npc_manager.mark_introduced(npc_id);
+
+    Some(NpcConversationSetup {
+        display_name,
+        npc_id,
+        system_prompt,
+        context,
+    })
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

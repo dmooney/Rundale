@@ -13,9 +13,9 @@ use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebu
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
+use parish_core::ipc::{IDLE_MESSAGES, capitalize_first, text_log};
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
-use parish_core::npc::ticks;
 use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
@@ -25,29 +25,8 @@ use crate::events::{
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
-/// Capitalizes the first character of a string slice.
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
-
-/// Monotonically increasing message ID counter for text-log entries.
-static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
-
-/// Creates a [`TextLogPayload`] with an auto-generated unique message ID.
-fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
-    TextLogPayload {
-        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
-        source: source.into(),
-        content: content.into(),
-    }
-}
 
 // ── Helper: build a WorldSnapshot from locked world state ────────────────────
 
@@ -69,61 +48,27 @@ pub fn get_world_snapshot_inner(
     snapshot
 }
 
+/// Converts a core [`parish_core::ipc::WorldSnapshot`] into the Tauri-specific
+/// [`WorldSnapshot`] (which includes additional fields like `name_hints`).
 fn snapshot_from_world(
     world: &parish_core::world::WorldState,
     transport: &TransportMode,
 ) -> WorldSnapshot {
-    use chrono::{Datelike, Timelike};
-    use parish_core::world::description::{format_exits, render_description};
-
-    let now = world.clock.now();
-    let hour = now.hour() as u8;
-    let minute = now.minute() as u8;
-    let tod = world.clock.time_of_day();
-    let season = world.clock.season();
-    let festival = world.clock.check_festival().map(|f| f.to_string());
-    let weather_str = world.weather.to_string();
-
-    let loc = world.current_location();
-    // Render the description template with current game state + exits
-    let description = if let Some(data) = world.current_location_data() {
-        let desc = render_description(data, tod, &weather_str, &[]);
-        let exits = format_exits(
-            world.player_location,
-            &world.graph,
-            transport.speed_m_per_s,
-            &transport.label,
-        );
-        format!("{}\n\n{}", desc, exits)
-    } else {
-        loc.description.clone()
-    };
-
-    let day_of_week = match now.weekday() {
-        chrono::Weekday::Mon => "Monday",
-        chrono::Weekday::Tue => "Tuesday",
-        chrono::Weekday::Wed => "Wednesday",
-        chrono::Weekday::Thu => "Thursday",
-        chrono::Weekday::Fri => "Friday",
-        chrono::Weekday::Sat => "Saturday",
-        chrono::Weekday::Sun => "Sunday",
-    }
-    .to_string();
-
+    let core = parish_core::ipc::snapshot_from_world(world, transport);
     WorldSnapshot {
-        location_name: loc.name.clone(),
-        location_description: description,
-        time_label: tod.to_string(),
-        hour,
-        minute,
-        weather: weather_str,
-        season: season.to_string(),
-        festival,
-        paused: world.clock.is_paused() || world.clock.is_inference_paused(),
-        game_epoch_ms: now.timestamp_millis() as f64,
-        speed_factor: world.clock.speed_factor(),
+        location_name: core.location_name,
+        location_description: core.location_description,
+        time_label: core.time_label,
+        hour: core.hour,
+        minute: core.minute,
+        weather: core.weather,
+        season: core.season,
+        festival: core.festival,
+        paused: core.paused,
+        game_epoch_ms: core.game_epoch_ms,
+        speed_factor: core.speed_factor,
         name_hints: vec![],
-        day_of_week,
+        day_of_week: core.day_of_week,
     }
 }
 
@@ -668,60 +613,39 @@ async fn handle_npc_conversation(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
-    let (npc_name, npc_id, system_prompt, context, queue) = {
+    let (setup, queue) = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
         let config = state.config.lock().await;
 
-        let npcs_here = npc_manager.npcs_at(world.player_location);
-
-        // If an @mention was provided, try to find that NPC; otherwise first NPC
-        let npc = if let Some(ref name) = target_name {
-            npc_manager
-                .find_by_name(name, world.player_location)
-                .cloned()
-                .or_else(|| npcs_here.first().cloned().cloned())
-        } else {
-            npcs_here.first().cloned().cloned()
-        };
-
-        if let (Some(npc), Some(q)) = (npc, queue.clone()) {
-            let display = npc_manager.display_name(&npc).to_string();
-            let id = npc.id;
-            let other_npcs: Vec<&parish_core::npc::Npc> =
-                npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-            let system = ticks::build_enhanced_system_prompt(&npc, config.improv_enabled);
-            let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
-            // Mark NPC as introduced on first conversation
-            npc_manager.mark_introduced(id);
-            (Some(display), Some(id), Some(system), Some(ctx), Some(q))
-        } else {
-            (None, None, None, None, None)
-        }
+        let setup = parish_core::ipc::prepare_npc_conversation(
+            &world,
+            &mut npc_manager,
+            &raw,
+            target_name.as_deref(),
+            config.improv_enabled,
+        );
+        (setup, queue.clone())
     };
 
-    let (Some(npc_name), Some(_npc_id), Some(system_prompt), Some(context), Some(queue)) =
-        (npc_name, npc_id, system_prompt, context, queue)
-    else {
+    let (Some(setup), Some(queue)) = (setup, queue) else {
         // No NPC present or no inference queue — show idle message
-        let idle_messages = [
-            "The wind stirs, but nothing else.",
-            "Only the sound of a distant crow.",
-            "A dog barks somewhere beyond the hill.",
-            "The clouds shift. The parish carries on.",
-        ];
-        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % idle_messages.len();
+        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
         let _ = app.emit(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
                 source: "system".to_string(),
-                content: idle_messages[idx].to_string(),
+                content: IDLE_MESSAGES[idx].to_string(),
             },
         );
         return;
     };
+
+    let npc_name = setup.display_name;
+    let system_prompt = setup.system_prompt;
+    let context = setup.context;
 
     let model = {
         let config = state.config.lock().await;

@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::npc::LanguageHint;
+
 use crate::npc::IrishWordHint;
 use crate::world::palette::{RawColor, RawPalette};
 
@@ -36,6 +38,9 @@ pub struct WorldSnapshot {
     pub game_epoch_ms: f64,
     /// Clock speed multiplier (1 real second = speed_factor game seconds).
     pub speed_factor: f64,
+    /// Pronunciation hints for Irish names relevant to the current location.
+    #[serde(default)]
+    pub name_hints: Vec<LanguageHint>,
     /// Current day of week (e.g. "Monday", "Saturday").
     pub day_of_week: String,
 }

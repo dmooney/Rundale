@@ -16,12 +16,11 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
 use parish_core::ipc::{
-    LoadingPayload, MapData, NpcInfo, NpcReactionPayload, ReactRequest, StreamEndPayload,
-    StreamTokenPayload, TextLogPayload, ThemePalette, WorldSnapshot, capitalize_first,
+    IDLE_MESSAGES, LoadingPayload, MapData, NpcInfo, NpcReactionPayload, ReactRequest,
+    StreamEndPayload, StreamTokenPayload, ThemePalette, WorldSnapshot, capitalize_first, text_log,
 };
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
-use parish_core::npc::ticks;
 
 use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
 use parish_core::persistence::Database;
@@ -32,18 +31,6 @@ use crate::state::{AppState, SaveState};
 
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
-
-/// Monotonically increasing message ID counter for text-log entries.
-static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
-
-/// Creates a [`TextLogPayload`] with an auto-generated unique message ID.
-fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
-    TextLogPayload {
-        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
-        source: source.into(),
-        content: content.into(),
-    }
-}
 
 // ── Query endpoints ─────────────────────────────────────────────────────────
 
@@ -410,60 +397,42 @@ async fn handle_look(state: &Arc<AppState>) {
 
 /// Routes input to the NPC at the player's location, or shows idle message.
 async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
-    let (npc_name, npc_id, system_prompt, context, queue, npc_present) = {
+    let (setup, queue, npc_present) = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
         let config = state.config.lock().await;
 
-        let npcs_here = npc_manager.npcs_at(world.player_location);
-        let npc_present = !npcs_here.is_empty();
-        let npc = npcs_here.first().cloned().cloned();
-
-        if let (Some(npc), Some(q)) = (npc, queue.clone()) {
-            let display = npc_manager.display_name(&npc).to_string();
-            let id = npc.id;
-            let other_npcs: Vec<&parish_core::npc::Npc> =
-                npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-            let system = ticks::build_enhanced_system_prompt(&npc, config.improv_enabled);
-            let ctx = ticks::build_enhanced_context(&npc, &world, &raw, &other_npcs);
-            npc_manager.mark_introduced(id);
-            (
-                Some(display),
-                Some(id),
-                Some(system),
-                Some(ctx),
-                Some(q),
-                npc_present,
-            )
-        } else {
-            (None, None, None, None, None, npc_present)
-        }
+        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
+        let setup = parish_core::ipc::prepare_npc_conversation(
+            &world,
+            &mut npc_manager,
+            &raw,
+            None,
+            config.improv_enabled,
+        );
+        (setup, queue.clone(), npc_present)
     };
 
-    let (Some(npc_name), Some(_npc_id), Some(system_prompt), Some(context), Some(queue)) =
-        (npc_name, npc_id, system_prompt, context, queue)
-    else {
+    let (Some(setup), Some(queue)) = (setup, queue) else {
         // If an NPC is present but inference isn't configured, give a clear message.
         // Otherwise show a generic idle message.
         let content = if npc_present {
             "There's someone here, but the LLM is not configured — set a provider with /provider."
                 .to_string()
         } else {
-            let idle_messages = [
-                "The wind stirs, but nothing else.",
-                "Only the sound of a distant crow.",
-                "A dog barks somewhere beyond the hill.",
-                "The clouds shift. The parish carries on.",
-            ];
-            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % idle_messages.len();
-            idle_messages[idx].to_string()
+            let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
+            IDLE_MESSAGES[idx].to_string()
         };
         state
             .event_bus
             .emit("text-log", &text_log("system", content));
         return;
     };
+
+    let npc_name = setup.display_name;
+    let system_prompt = setup.system_prompt;
+    let context = setup.context;
 
     let model = {
         let config = state.config.lock().await;

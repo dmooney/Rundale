@@ -23,19 +23,11 @@ use crate::npc::manager::NpcManager;
 use crate::world::LocationId;
 use crate::world::description::{format_exits, render_description};
 use crate::world::time::{Season, TimeOfDay};
+use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-
-/// Capitalizes the first character of a string slice.
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
 
 /// The result of executing a command through the test harness.
 ///

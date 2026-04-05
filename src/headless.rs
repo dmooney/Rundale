@@ -12,13 +12,11 @@ use crate::input::{Command, InputResult, classify_input, parse_intent};
 use crate::loading::LoadingAnimation;
 use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
-use crate::npc::ticks;
-use crate::npc::{
-    SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary, parse_npc_stream_response,
-};
+use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
+use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -295,27 +293,6 @@ pub async fn run_headless(
     println!("Safe home to ye. May the road rise to meet you.");
     Ok(())
 }
-
-/// Capitalizes the first character of a string slice.
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
-/// Handles a system command in headless mode. Returns true if the game should exit.
-/// Atmospheric idle messages shown when no NPC is present for conversation.
-const HEADLESS_IDLE_MESSAGES: &[&str] = &[
-    "The wind stirs, but nothing else.",
-    "Only the sound of a distant crow.",
-    "A dog barks somewhere beyond the hill.",
-    "The clouds shift. The parish carries on.",
-    "Somewhere nearby, a door creaks shut.",
-    "A wren hops along the stone wall and vanishes.",
-    "The smell of turf smoke drifts from a cottage chimney.",
-];
 
 /// Restores game state from a database, loading the "main" branch snapshot.
 ///
@@ -709,25 +686,22 @@ async fn handle_headless_game_input(
         }
         _ => {
             // Route to NPC conversation if one is present
-            let npcs_here = app.npc_manager.npcs_at(app.world.player_location);
-            let npc = npcs_here.first().cloned().cloned();
-
-            if let Some(npc) = npc {
-                let other_npcs: Vec<_> = app
-                    .npc_manager
-                    .npcs_at(app.world.player_location)
-                    .into_iter()
-                    .filter(|n| n.id != npc.id)
-                    .collect();
-                let system_prompt = ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
-                let mut context =
-                    ticks::build_enhanced_context(&npc, &app.world, text, &other_npcs);
-
+            if let Some(mut setup) = parish_core::ipc::prepare_npc_conversation(
+                &app.world,
+                &mut app.npc_manager,
+                text,
+                None,
+                app.improv_enabled,
+            ) {
                 // Check for anachronisms in player input and inject alert
                 let anachronisms = anachronism::check_input(text);
                 if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-                    context.push_str(&alert);
+                    setup.context.push_str(&alert);
                 }
+
+                let _npc_id = setup.npc_id;
+                let system_prompt = setup.system_prompt;
+                let context = setup.context;
 
                 if let Some(queue) = &app.inference_queue {
                     // Pause the game clock during NPC dialogue inference
@@ -735,9 +709,9 @@ async fn handle_headless_game_input(
 
                     *request_id += 1;
 
-                    let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+                    let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
-                    let npc_display_name = app.npc_manager.display_name(&npc).to_string();
+                    let npc_display_name = setup.display_name;
                     print!("{}: ", capitalize_first(&npc_display_name));
                     std::io::stdout().flush().ok();
 
@@ -778,54 +752,14 @@ async fn handle_headless_game_input(
                     {
                         Ok(rx) => {
                             let stream_handle = tokio::spawn(async move {
-                                let mut accumulated = String::new();
-                                let mut displayed_len: usize = 0;
-                                let mut separator_found = false;
-                                let mut anim_cancelled = false;
-
-                                while let Some(token) = token_rx.recv().await {
-                                    accumulated.push_str(&token);
-
-                                    // Cancel loading animation on first displayable content
-                                    if !anim_cancelled {
+                                let accumulated =
+                                    parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                                        // Cancel loading animation on first token
                                         cancel_for_stream.notify_one();
-                                        anim_cancelled = true;
-                                    }
-
-                                    if separator_found {
-                                        continue;
-                                    }
-
-                                    if let Some((dialogue_end, _meta_start)) =
-                                        find_response_separator(&accumulated)
-                                    {
-                                        if dialogue_end > displayed_len {
-                                            let new_text =
-                                                &accumulated[displayed_len..dialogue_end];
-                                            print!("{}", new_text);
-                                            std::io::stdout().flush().ok();
-                                        }
-                                        separator_found = true;
-                                        continue;
-                                    }
-
-                                    let raw_end =
-                                        accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
-                                    let safe_end = floor_char_boundary(&accumulated, raw_end);
-                                    if safe_end > displayed_len {
-                                        let new_text = &accumulated[displayed_len..safe_end];
-                                        print!("{}", new_text);
+                                        print!("{}", batch);
                                         std::io::stdout().flush().ok();
-                                        displayed_len = safe_end;
-                                    }
-                                }
-
-                                if !separator_found && displayed_len < accumulated.len() {
-                                    let remaining = &accumulated[displayed_len..];
-                                    print!("{}", remaining);
-                                    std::io::stdout().flush().ok();
-                                }
-
+                                    })
+                                    .await;
                                 println!();
                                 accumulated
                             });
@@ -841,8 +775,6 @@ async fn handle_headless_game_input(
                                             err
                                         );
                                     } else {
-                                        // Mark the NPC as introduced after their first response
-                                        app.npc_manager.mark_introduced(npc.id);
                                         let parsed = parse_npc_stream_response(&response.text);
                                         if let Some(meta) = &parsed.metadata {
                                             tracing::debug!(
@@ -875,7 +807,7 @@ async fn handle_headless_game_input(
                 let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 println!(
                     "{}",
-                    HEADLESS_IDLE_MESSAGES[idx % HEADLESS_IDLE_MESSAGES.len()]
+                    parish_core::ipc::IDLE_MESSAGES[idx % parish_core::ipc::IDLE_MESSAGES.len()]
                 );
             }
         }
@@ -1686,22 +1618,6 @@ mod tests {
         .await;
         assert!(!quit);
         assert!(!rebuild);
-    }
-
-    #[test]
-    fn test_capitalize_first_normal() {
-        assert_eq!(capitalize_first("hello"), "Hello");
-        assert_eq!(capitalize_first("HELLO"), "HELLO");
-    }
-
-    #[test]
-    fn test_capitalize_first_empty() {
-        assert_eq!(capitalize_first(""), "");
-    }
-
-    #[test]
-    fn test_capitalize_first_single_char() {
-        assert_eq!(capitalize_first("a"), "A");
     }
 
     #[test]
