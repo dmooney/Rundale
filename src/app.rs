@@ -344,6 +344,75 @@ impl App {
         }
         self.debug_log.push_back(msg);
     }
+
+    /// Creates a [`GameConfig`] snapshot from this App's flat config fields.
+    ///
+    /// Used to pass config state to the shared [`parish_core::ipc::handle_command`]
+    /// function without migrating all App fields to a nested GameConfig struct.
+    pub fn snapshot_config(&self) -> parish_core::ipc::GameConfig {
+        use parish_core::ipc::GameConfig;
+
+        let mut cfg = GameConfig {
+            provider_name: self.provider_name.clone(),
+            base_url: self.base_url.clone(),
+            api_key: self.api_key.clone(),
+            model_name: self.model_name.clone(),
+            cloud_provider_name: self.cloud_provider_name.clone(),
+            cloud_model_name: self.cloud_model_name.clone(),
+            cloud_api_key: self.cloud_api_key.clone(),
+            cloud_base_url: self.cloud_base_url.clone(),
+            improv_enabled: self.improv_enabled,
+            ..GameConfig::default()
+        };
+
+        // Copy per-category overrides
+        for cat in InferenceCategory::ALL {
+            let idx = GameConfig::cat_idx(cat);
+            cfg.category_provider[idx] = self.category_provider_name(cat).map(|s| s.to_string());
+            let model = self.category_model(cat);
+            cfg.category_model[idx] = if model.is_empty() {
+                None
+            } else {
+                Some(model.to_string())
+            };
+            cfg.category_api_key[idx] = self.category_api_key(cat).map(|s| s.to_string());
+            cfg.category_base_url[idx] = self.category_base_url(cat).map(|s| s.to_string());
+        }
+
+        cfg
+    }
+
+    /// Applies changes from a [`GameConfig`] back to this App's flat fields.
+    ///
+    /// Called after [`parish_core::ipc::handle_command`] mutates the config.
+    pub fn apply_config(&mut self, cfg: &parish_core::ipc::GameConfig) {
+        self.provider_name = cfg.provider_name.clone();
+        self.base_url = cfg.base_url.clone();
+        self.api_key = cfg.api_key.clone();
+        self.model_name = cfg.model_name.clone();
+        self.cloud_provider_name = cfg.cloud_provider_name.clone();
+        self.cloud_model_name = cfg.cloud_model_name.clone();
+        self.cloud_api_key = cfg.cloud_api_key.clone();
+        self.cloud_base_url = cfg.cloud_base_url.clone();
+        self.improv_enabled = cfg.improv_enabled;
+
+        // Apply per-category overrides
+        for cat in InferenceCategory::ALL {
+            let idx = parish_core::ipc::GameConfig::cat_idx(cat);
+            if let Some(ref p) = cfg.category_provider[idx] {
+                self.set_category_provider_name(cat, p.clone());
+            }
+            if let Some(ref m) = cfg.category_model[idx] {
+                self.set_category_model(cat, m.clone());
+            }
+            if let Some(ref k) = cfg.category_api_key[idx] {
+                self.set_category_api_key(cat, k.clone());
+            }
+            if let Some(ref u) = cfg.category_base_url[idx] {
+                self.set_category_base_url(cat, u.clone());
+            }
+        }
+    }
 }
 
 impl Default for App {

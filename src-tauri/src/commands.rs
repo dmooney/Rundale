@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Emitter;
 use tokio::sync::mpsc;
 
-use parish_core::config::Provider;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
@@ -17,7 +16,6 @@ use parish_core::input::{InputResult, classify_input, extract_mention, parse_int
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks;
-use parish_core::world::description::{format_exits, render_description};
 use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
@@ -345,15 +343,6 @@ pub async fn submit_input(
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 
-/// Helper to mask an API key for display, hiding length information for short keys.
-fn mask_key(key: &str) -> String {
-    if key.len() > 8 {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
-    } else {
-        "****".to_string()
-    }
-}
-
 /// Rebuilds the inference pipeline after a provider/key/client change.
 ///
 /// Replaces the client and respawns the inference worker so subsequent
@@ -375,424 +364,110 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     *iq = Some(queue);
 }
 
-/// Handles `/command` inputs (pause, resume, status, help, etc.).
+/// Handles `/command` inputs using the shared command handler.
 async fn handle_system_command(
     cmd: parish_core::input::Command,
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) {
-    use parish_core::input::Command;
+    use parish_core::ipc::{CommandEffect, handle_command};
 
-    let mut needs_rebuild = false;
-
-    let response = match cmd {
-        Command::Pause => {
-            let mut world = state.world.lock().await;
-            world.clock.pause();
-            "The clocks of the parish stand still.".to_string()
-        }
-        Command::Resume => {
-            let mut world = state.world.lock().await;
-            world.clock.resume();
-            "Time stirs again in the parish.".to_string()
-        }
-        Command::Status => {
-            let world = state.world.lock().await;
-            let tod = world.clock.time_of_day();
-            let season = world.clock.season();
-            let loc = world.current_location().name.clone();
-            let paused = if world.clock.is_paused() {
-                " (paused)"
-            } else {
-                ""
-            };
-            format!("Location: {} | {} | {}{}", loc, tod, season, paused)
-        }
-        Command::Help => [
-            "A few things ye might say:",
-            "  /branches — List save branches",
-            "  /cloud    — Show or change cloud dialogue provider",
-            "  /fork <n> — Fork a new timeline branch",
-            "  /about    — About the game and credits",
-            "  /help     — Show this help",
-            "  /improv   — Toggle improv craft for NPC dialogue",
-            "  /irish    — Toggle Irish words sidebar",
-            "  /key      — Show or change base API key",
-            "  /key.<cat>      — Show or change API key for a category",
-            "  /load <n> — Load a saved branch",
-            "  /log      — Show snapshot history",
-            "  /map      — Toggle full parish map overlay (or press M)",
-            "  /model    — Show or change base model name",
-            "  /model.<cat>    — Show or change model for a category",
-            "  /pause    — Hold time still",
-            "  /provider — Show or change base LLM provider",
-            "  /provider.<cat> — Show or change provider for a category",
-            "  /quit     — Take your leave",
-            "  /resume   — Let time flow again",
-            "  /save     — Save game",
-            "  /speed    — Show or change game speed (slow/normal/fast/fastest/ludicrous)",
-            "  /status   — Where am I?",
-            "",
-            "  <cat> = dialogue, simulation, or intent",
-        ]
-        .join("\n"),
-        Command::Quit => {
-            app.exit(0);
-            return;
-        }
-        Command::ShowSpeed => {
-            let world = state.world.lock().await;
-            let s = world
-                .clock
-                .current_speed()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("Custom ({}x)", world.clock.speed_factor()));
-            format!("Speed: {}", s)
-        }
-        Command::SetSpeed(speed) => {
-            let mut world = state.world.lock().await;
-            world.clock.set_speed(speed);
-            speed.activation_message().to_string()
-        }
-        Command::InvalidSpeed(name) => {
-            format!(
-                "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
-                name
-            )
-        }
-        Command::InvalidBranchName(msg) => msg,
-
-        Command::About => [
-            "Parish — A text adventure set in 1820s rural Ireland.",
-            "Explore a living village powered by AI-driven NPCs.",
-            // TODO: add credits (contributors, libraries, etc.)
-            "",
-            "Type /help for available commands.",
-        ]
-        .join("\n"),
-
-        // ── Sidebar & Improv ─────────────────────────────────────────────
-        Command::ToggleSidebar => {
-            // The GUI sidebar is always visible; this is a no-op with a message.
-            "The Irish words panel is managed by the sidebar in the GUI.".to_string()
-        }
-        Command::ToggleImprov => {
-            let mut config = state.config.lock().await;
-            config.improv_enabled = !config.improv_enabled;
-            if config.improv_enabled {
-                "The characters loosen up — improv craft engaged.".to_string()
-            } else {
-                "The characters settle back to their usual selves.".to_string()
-            }
-        }
-
-        // ── Base provider/model/key ──────────────────────────────────────
-        Command::ShowProvider => {
-            let config = state.config.lock().await;
-            format!("Provider: {}", config.provider_name)
-        }
-        Command::SetProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let mut config = state.config.lock().await;
-                config.base_url = provider.default_base_url().to_string();
-                config.provider_name = format!("{:?}", provider).to_lowercase();
-                needs_rebuild = true;
-                format!("Provider changed to {}.", config.provider_name)
-            }
-            Err(e) => format!("{}", e),
-        },
-        Command::ShowModel => {
-            let config = state.config.lock().await;
-            if config.model_name.is_empty() {
-                "Model: (auto-detect)".to_string()
-            } else {
-                format!("Model: {}", config.model_name)
-            }
-        }
-        Command::SetModel(name) => {
-            let mut config = state.config.lock().await;
-            config.model_name = name.clone();
-            format!("Model changed to {}.", name)
-        }
-        Command::ShowKey => {
-            let config = state.config.lock().await;
-            match &config.api_key {
-                Some(key) => format!("API key: {}", mask_key(key)),
-                None => "API key: (not set)".to_string(),
-            }
-        }
-        Command::SetKey(value) => {
-            let mut config = state.config.lock().await;
-            config.api_key = Some(value);
-            needs_rebuild = true;
-            "API key updated.".to_string()
-        }
-
-        // ── Cloud provider ───────────────────────────────────────────────
-        Command::ShowCloud => {
-            let config = state.config.lock().await;
-            if let Some(ref provider) = config.cloud_provider_name {
-                let model = config.cloud_model_name.as_deref().unwrap_or("(none)");
-                format!("Cloud: {} | Model: {}", provider, model)
-            } else {
-                "No cloud provider configured. Set PARISH_CLOUD_* env vars or use /cloud provider <name>.".to_string()
-            }
-        }
-        Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let mut config = state.config.lock().await;
-                let base_url = provider.default_base_url().to_string();
-                let provider_name = format!("{:?}", provider).to_lowercase();
-                config.cloud_provider_name = Some(provider_name.clone());
-                config.cloud_base_url = Some(base_url.clone());
-                // Rebuild cloud client
-                let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(OpenAiClient::new(
-                    &base_url,
-                    config.cloud_api_key.as_deref(),
-                ));
-                format!("Cloud provider changed to {}.", provider_name)
-            }
-            Err(e) => format!("{}", e),
-        },
-        Command::ShowCloudModel => {
-            let config = state.config.lock().await;
-            match &config.cloud_model_name {
-                Some(model) => format!("Cloud model: {}", model),
-                None => "Cloud model: (not set)".to_string(),
-            }
-        }
-        Command::SetCloudModel(name) => {
-            let mut config = state.config.lock().await;
-            config.cloud_model_name = Some(name.clone());
-            format!("Cloud model changed to {}.", name)
-        }
-        Command::ShowCloudKey => {
-            let config = state.config.lock().await;
-            match &config.cloud_api_key {
-                Some(key) => format!("Cloud API key: {}", mask_key(key)),
-                None => "Cloud API key: (not set)".to_string(),
-            }
-        }
-        Command::SetCloudKey(value) => {
-            let mut config = state.config.lock().await;
-            config.cloud_api_key = Some(value);
-            let base_url = config
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://openrouter.ai/api")
-                .to_string();
-            let mut cloud_guard = state.cloud_client.lock().await;
-            *cloud_guard = Some(OpenAiClient::new(
-                &base_url,
-                config.cloud_api_key.as_deref(),
-            ));
-            "Cloud API key updated.".to_string()
-        }
-
-        // ── Persistence ──────────────────────────────────────────────────
-        Command::Save => match do_save_game(state).await {
-            Ok(msg) => msg,
-            Err(e) => format!("Save failed: {}", e),
-        },
-        Command::Load(_) => {
-            // Emit event to open the save picker in the frontend
-            let _ = app.emit(EVENT_SAVE_PICKER, ());
-            "Opening save picker...".to_string()
-        }
-        Command::Fork(name) => {
-            let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
-            match do_create_branch(state, &name, parent_id).await {
-                Ok(msg) => msg,
-                Err(e) => format!("Fork failed: {}", e),
-            }
-        }
-        Command::Branches => match do_list_branches_text(state).await {
-            Ok(text) => text,
-            Err(e) => format!("Failed to list branches: {}", e),
-        },
-        Command::Log => match do_branch_log_text(state).await {
-            Ok(text) => text,
-            Err(e) => format!("Failed to show log: {}", e),
-        },
-
-        // ── Per-category provider/model/key ──────────────────────────────
-        Command::ShowCategoryProvider(cat) => {
-            let config = state.config.lock().await;
-            let idx = crate::GameConfig::cat_idx(cat);
-            match &config.category_provider[idx] {
-                Some(p) => format!("{} provider: {}", cat.name(), p),
-                None => format!(
-                    "{} provider: (inherits base: {})",
-                    cat.name(),
-                    config.provider_name
-                ),
-            }
-        }
-        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let mut config = state.config.lock().await;
-                let idx = crate::GameConfig::cat_idx(cat);
-                let provider_name = format!("{:?}", provider).to_lowercase();
-                config.category_provider[idx] = Some(provider_name.clone());
-                config.category_base_url[idx] = Some(provider.default_base_url().to_string());
-                needs_rebuild = true;
-                format!("{} provider changed to {}.", cat.name(), provider_name)
-            }
-            Err(e) => format!("{}", e),
-        },
-        Command::ShowCategoryModel(cat) => {
-            let config = state.config.lock().await;
-            let idx = crate::GameConfig::cat_idx(cat);
-            match &config.category_model[idx] {
-                Some(m) => format!("{} model: {}", cat.name(), m),
-                None => format!(
-                    "{} model: (inherits base: {})",
-                    cat.name(),
-                    config.model_name
-                ),
-            }
-        }
-        Command::SetCategoryModel(cat, name) => {
-            let mut config = state.config.lock().await;
-            let idx = crate::GameConfig::cat_idx(cat);
-            config.category_model[idx] = Some(name.clone());
-            format!("{} model changed to {}.", cat.name(), name)
-        }
-        Command::ShowCategoryKey(cat) => {
-            let config = state.config.lock().await;
-            let idx = crate::GameConfig::cat_idx(cat);
-            match &config.category_api_key[idx] {
-                Some(key) => format!("{} API key: {}", cat.name(), mask_key(key)),
-                None => format!("{} API key: (not set)", cat.name()),
-            }
-        }
-        Command::SetCategoryKey(cat, value) => {
-            let cat_name = cat.name().to_string();
-            let mut config = state.config.lock().await;
-            let idx = crate::GameConfig::cat_idx(cat);
-            config.category_api_key[idx] = Some(value);
-            needs_rebuild = true;
-            format!("{} API key updated.", cat_name)
-        }
-
-        // ── Spinner (debug/preview) ──────────────────────────────────────
-        Command::Spinner(secs) => {
-            let app_handle = app.clone();
-            let cancel = tokio_util::sync::CancellationToken::new();
-            spawn_loading_animation(app_handle.clone(), cancel.clone());
-            tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
-                cancel.cancel();
-            });
-            format!("Showing spinner for {} seconds…", secs)
-        }
-
-        // ── Map overlay ──────────────────────────────────────────────────
-        Command::Map => {
-            let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
-            return; // No text log for map toggle
-        }
-
-        // ── Debug ────────────────────────────────────────────────────────
-        Command::Debug(_) => "Debug commands are not available in the GUI.".to_string(),
-        Command::NpcsHere => {
-            let world = state.world.lock().await;
-            let npc_mgr = state.npc_manager.lock().await;
-            let npcs = npc_mgr.npcs_at(world.player_location);
-            if npcs.is_empty() {
-                "No one else is here.".to_string()
-            } else {
-                let mut lines = vec!["NPCs here:".to_string()];
-                for npc in &npcs {
-                    let display = npc_mgr.display_name(npc);
-                    let intro = if npc_mgr.is_introduced(npc.id) {
-                        " [introduced]"
-                    } else {
-                        ""
-                    };
-                    lines.push(format!(
-                        "  {} — {} ({}){}",
-                        display, npc.occupation, npc.mood, intro
-                    ));
-                }
-                lines.join("\n")
-            }
-        }
-        Command::Time => {
-            use chrono::Timelike;
-            let world = state.world.lock().await;
-            let now = world.clock.now();
-            let tod = world.clock.time_of_day();
-            let season = world.clock.season();
-            let festival = world
-                .clock
-                .check_festival()
-                .map(|f| f.to_string())
-                .unwrap_or_else(|| "none".to_string());
-            let paused = if world.clock.is_paused() {
-                " (PAUSED)"
-            } else {
-                ""
-            };
-            format!(
-                "{:02}:{:02} {} — {}{}\nWeather: {}\nSpeed: {}x\nFestival: {}",
-                now.hour(),
-                now.minute(),
-                tod,
-                season,
-                paused,
-                world.weather,
-                world.clock.speed_factor(),
-                festival
-            )
-        }
-        Command::Wait(minutes) => {
-            use chrono::Timelike;
-            let mut world = state.world.lock().await;
-            let mut npc_mgr = state.npc_manager.lock().await;
-            world.clock.advance(minutes as i64);
-            npc_mgr.assign_tiers(&world, &[]);
-            let _events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
-            let now = world.clock.now();
-            let tod = world.clock.time_of_day();
-            format!(
-                "You wait for {} minutes...\nIt is now {:02}:{:02} {}.",
-                minutes,
-                now.hour(),
-                now.minute(),
-                tod
-            )
-        }
-        Command::Tick => {
-            let world = state.world.lock().await;
-            let mut npc_mgr = state.npc_manager.lock().await;
-            npc_mgr.assign_tiers(&world, &[]);
-            let events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
-            let count = events.len();
-            if count == 0 {
-                "No NPC activity.".to_string()
-            } else {
-                format!("{} schedule event(s) processed.", count)
-            }
-        }
-        Command::NewGame => "New game is not yet available in the GUI.".to_string(),
+    // Run shared handler with all locks held.
+    let result = {
+        let mut world = state.world.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
+        let mut config = state.config.lock().await;
+        handle_command(cmd, &mut world, &mut npc_manager, &mut config)
     };
 
-    if needs_rebuild {
-        rebuild_inference(state).await;
+    // Handle mode-specific side effects.
+    let mut extra_response: Option<String> = None;
+    for effect in &result.effects {
+        match effect {
+            CommandEffect::RebuildInference => rebuild_inference(state).await,
+            CommandEffect::RebuildCloudClient => {
+                let config = state.config.lock().await;
+                let base_url = config
+                    .cloud_base_url
+                    .as_deref()
+                    .unwrap_or("https://openrouter.ai/api")
+                    .to_string();
+                let api_key = config.cloud_api_key.clone();
+                drop(config);
+                let mut cloud_guard = state.cloud_client.lock().await;
+                *cloud_guard = Some(OpenAiClient::new(&base_url, api_key.as_deref()));
+            }
+            CommandEffect::Quit => {
+                app.exit(0);
+                return;
+            }
+            CommandEffect::ToggleMap => {
+                let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
+                return; // No text log for map toggle
+            }
+            CommandEffect::SaveGame => {
+                extra_response = Some(match do_save_game(state).await {
+                    Ok(msg) => msg,
+                    Err(e) => format!("Save failed: {}", e),
+                });
+            }
+            CommandEffect::ForkBranch(name) => {
+                let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
+                extra_response = Some(match do_create_branch(state, name, parent_id).await {
+                    Ok(msg) => msg,
+                    Err(e) => format!("Fork failed: {}", e),
+                });
+            }
+            CommandEffect::LoadBranch(_) => {
+                let _ = app.emit(EVENT_SAVE_PICKER, ());
+                extra_response = Some("Opening save picker...".to_string());
+            }
+            CommandEffect::ListBranches => {
+                extra_response = Some(match do_list_branches_text(state).await {
+                    Ok(text) => text,
+                    Err(e) => format!("Failed to list branches: {}", e),
+                });
+            }
+            CommandEffect::ShowLog => {
+                extra_response = Some(match do_branch_log_text(state).await {
+                    Ok(text) => text,
+                    Err(e) => format!("Failed to show log: {}", e),
+                });
+            }
+            CommandEffect::Debug(_) => {
+                extra_response = Some("Debug commands are not available in the GUI.".to_string());
+            }
+            CommandEffect::ShowSpinner(secs) => {
+                let app_handle = app.clone();
+                let cancel = tokio_util::sync::CancellationToken::new();
+                spawn_loading_animation(app_handle, cancel.clone());
+                let secs = *secs;
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+                    cancel.cancel();
+                });
+                extra_response = Some(format!("Showing spinner for {} seconds…", secs));
+            }
+            CommandEffect::NewGame => {
+                extra_response = Some("New game is not yet available in the GUI.".to_string());
+            }
+        }
     }
 
-    let _ = app.emit(
-        EVENT_TEXT_LOG,
-        TextLogPayload {
-            id: String::new(),
-            source: "system".to_string(),
-            content: response,
-        },
-    );
+    // Emit the command response text (shared response or mode-specific override).
+    let response = extra_response.unwrap_or(result.response);
+    if !response.is_empty() {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: response,
+            },
+        );
+    }
 
-    // Emit updated world state for status bar
+    // Emit updated world state for status bar.
     {
         let world = state.world.lock().await;
         let transport = state.transport.default_mode();
@@ -966,35 +641,19 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
-
-    let desc = if let Some(loc_data) = world.current_location_data() {
-        let tod = world.clock.time_of_day();
-        let weather = world.weather.to_string();
-        let npc_display: Vec<String> = npc_manager
-            .npcs_at(world.player_location)
-            .iter()
-            .map(|n| npc_manager.display_name(n).to_string())
-            .collect();
-        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
-        render_description(loc_data, tod, &weather, &npc_names)
-    } else {
-        world.current_location().description.clone()
-    };
-
     let transport = state.transport.default_mode();
-    let exits = format_exits(
-        world.player_location,
-        &world.graph,
+    let text = parish_core::ipc::render_look_text(
+        &world,
+        &npc_manager,
         transport.speed_m_per_s,
         &transport.label,
     );
-
     let _ = app.emit(
         EVENT_TEXT_LOG,
         TextLogPayload {
             id: String::new(),
             source: "system".to_string(),
-            content: format!("{}\n{}", desc, exits),
+            content: text,
         },
     );
 }

@@ -408,470 +408,19 @@ impl GameTestHarness {
     }
 
     /// Handles a system command, returning a structured result.
+    ///
+    /// Delegates most commands to [`parish_core::ipc::handle_command`] and
+    /// dispatches any returned [`CommandEffect`]s locally. Wait and Tick are
+    /// handled locally because the test harness needs weather ticking and
+    /// schedule-event processing that the shared handler doesn't perform.
     fn handle_system_command(&mut self, cmd: Command) -> ActionResult {
-        match cmd {
-            Command::Quit => {
-                self.app.should_quit = true;
-                ActionResult::Quit
-            }
-            Command::Pause => {
-                self.app.world.clock.pause();
-                self.app.world.log("[Time paused]".to_string());
-                ActionResult::SystemCommand {
-                    response: "Time paused".to_string(),
-                }
-            }
-            Command::Resume => {
-                self.app.world.clock.resume();
-                self.app.world.log("[Time resumed]".to_string());
-                ActionResult::SystemCommand {
-                    response: "Time resumed".to_string(),
-                }
-            }
-            Command::ShowSpeed => {
-                let speed_name = self
-                    .app
-                    .world
-                    .clock
-                    .current_speed()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| {
-                        format!("Custom ({}x)", self.app.world.clock.speed_factor())
-                    });
-                let msg = format!("Speed: {}", speed_name);
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::SetSpeed(speed) => {
-                self.app.world.clock.set_speed(speed);
-                let msg = format!("Speed changed to {}.", speed);
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::InvalidSpeed(name) => {
-                let msg = format!(
-                    "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
-                    name
-                );
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::InvalidBranchName(msg) => {
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Status => {
-                let time = self.app.world.clock.time_of_day();
-                let season = self.app.world.clock.season();
-                let loc = self.app.world.current_location().name.clone();
-                let paused = if self.app.world.clock.is_paused() {
-                    " (paused)"
-                } else {
-                    ""
-                };
-                let status = format!("Location: {} | {} | {}{}", loc, time, season, paused);
-                self.app.world.log(status.clone());
-                ActionResult::SystemCommand { response: status }
-            }
-            Command::Help => {
-                self.app
-                    .world
-                    .log("Commands: /quit, /pause, /resume, /status, /save, /fork, /load, /branches, /log, /help".to_string());
-                ActionResult::SystemCommand {
-                    response: "Help displayed".to_string(),
-                }
-            }
-            Command::Save => {
-                if let Some(ref db_sync) = self.db_sync {
-                    let snapshot = crate::persistence::GameSnapshot::capture(
-                        &self.app.world,
-                        &self.app.npc_manager,
-                    );
-                    match db_sync.save_snapshot(self.app.active_branch_id, &snapshot) {
-                        Ok(snap_id) => {
-                            let _ = db_sync.clear_journal(
-                                self.app.active_branch_id,
-                                self.app.latest_snapshot_id,
-                            );
-                            self.app.latest_snapshot_id = snap_id;
-                            self.app.world.log("Game saved.".to_string());
-                            ActionResult::SystemCommand {
-                                response: "Game saved.".to_string(),
-                            }
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to save: {}", e);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                    }
-                } else {
-                    self.app.world.log("Persistence not available.".to_string());
-                    ActionResult::SystemCommand {
-                        response: "Persistence not available.".to_string(),
-                    }
-                }
-            }
-            Command::Fork(name) => {
-                if let Some(ref db_sync) = self.db_sync {
-                    // Save current branch
-                    let snapshot = crate::persistence::GameSnapshot::capture(
-                        &self.app.world,
-                        &self.app.npc_manager,
-                    );
-                    let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
+        use chrono::Timelike;
+        use parish_core::ipc::commands::{CommandEffect, handle_command};
 
-                    match db_sync.create_branch(&name, Some(self.app.active_branch_id)) {
-                        Ok(new_branch_id) => {
-                            match db_sync.save_snapshot(new_branch_id, &snapshot) {
-                                Ok(snap_id) => {
-                                    self.app.active_branch_id = new_branch_id;
-                                    self.app.latest_snapshot_id = snap_id;
-                                    let msg = format!("Forked to branch '{}'.", name);
-                                    self.app.world.log(msg.clone());
-                                    ActionResult::SystemCommand { response: msg }
-                                }
-                                Err(e) => {
-                                    let msg = format!("Failed to save fork: {}", e);
-                                    self.app.world.log(msg.clone());
-                                    ActionResult::SystemCommand { response: msg }
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to fork: {}", e);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                    }
-                } else {
-                    self.app.world.log("Persistence not available.".to_string());
-                    ActionResult::SystemCommand {
-                        response: "Persistence not available.".to_string(),
-                    }
-                }
-            }
-            Command::Load(ref name) if name.is_empty() => {
-                let msg = "Save picker not available in test mode.".to_string();
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Load(name) => {
-                if let Some(ref db_sync) = self.db_sync {
-                    match db_sync.find_branch(&name) {
-                        Ok(Some(branch)) => {
-                            // Auto-save current branch only when switching branches
-                            if branch.id != self.app.active_branch_id {
-                                let snapshot = crate::persistence::GameSnapshot::capture(
-                                    &self.app.world,
-                                    &self.app.npc_manager,
-                                );
-                                let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
-                            }
-                            match db_sync.load_latest_snapshot(branch.id) {
-                                Ok(Some((snap_id, loaded_snapshot))) => {
-                                    let events = db_sync
-                                        .events_since_snapshot(branch.id, snap_id)
-                                        .unwrap_or_default();
-                                    loaded_snapshot
-                                        .restore(&mut self.app.world, &mut self.app.npc_manager);
-                                    crate::persistence::replay_journal(
-                                        &mut self.app.world,
-                                        &mut self.app.npc_manager,
-                                        &events,
-                                    );
-                                    self.app.active_branch_id = branch.id;
-                                    self.app.latest_snapshot_id = snap_id;
-                                    self.app.npc_manager.assign_tiers(&self.app.world, &[]);
-                                    let time = self.app.world.clock.time_of_day();
-                                    let season = self.app.world.clock.season();
-                                    let msg =
-                                        format!("Loaded branch '{}'. {}, {}.", name, season, time);
-                                    self.app.world.log(msg.clone());
-                                    ActionResult::SystemCommand { response: msg }
-                                }
-                                Ok(None) => {
-                                    let msg = format!("Branch '{}' has no saves.", name);
-                                    self.app.world.log(msg.clone());
-                                    ActionResult::SystemCommand { response: msg }
-                                }
-                                Err(e) => {
-                                    let msg = format!("Failed to load: {}", e);
-                                    self.app.world.log(msg.clone());
-                                    ActionResult::SystemCommand { response: msg }
-                                }
-                            }
-                        }
-                        Ok(None) => {
-                            let msg = format!("No branch named '{}'.", name);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to find branch: {}", e);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                    }
-                } else {
-                    self.app.world.log("Persistence not available.".to_string());
-                    ActionResult::SystemCommand {
-                        response: "Persistence not available.".to_string(),
-                    }
-                }
-            }
-            Command::Branches => {
-                if let Some(ref db_sync) = self.db_sync {
-                    match db_sync.list_branches() {
-                        Ok(branches) => {
-                            let mut lines = vec!["Save branches:".to_string()];
-                            for b in &branches {
-                                let marker = if b.id == self.app.active_branch_id {
-                                    " *"
-                                } else {
-                                    ""
-                                };
-                                lines.push(format!(
-                                    "  {}{} (created {})",
-                                    b.name,
-                                    marker,
-                                    crate::persistence::format_timestamp(&b.created_at)
-                                ));
-                            }
-                            let msg = lines.join("\n");
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to list branches: {}", e);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                    }
-                } else {
-                    self.app.world.log("Persistence not available.".to_string());
-                    ActionResult::SystemCommand {
-                        response: "Persistence not available.".to_string(),
-                    }
-                }
-            }
-            Command::Log => {
-                if let Some(ref db_sync) = self.db_sync {
-                    match db_sync.branch_log(self.app.active_branch_id) {
-                        Ok(snapshots) => {
-                            let msg = if snapshots.is_empty() {
-                                "No snapshots on this branch yet.".to_string()
-                            } else {
-                                let mut lines =
-                                    vec!["Snapshot history (most recent first):".to_string()];
-                                for s in &snapshots {
-                                    lines.push(format!(
-                                        "  #{} — game: {} | saved: {}",
-                                        s.id,
-                                        s.game_time,
-                                        crate::persistence::format_timestamp(&s.real_time)
-                                    ));
-                                }
-                                lines.join("\n")
-                            };
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                        Err(e) => {
-                            let msg = format!("Failed to get branch log: {}", e);
-                            self.app.world.log(msg.clone());
-                            ActionResult::SystemCommand { response: msg }
-                        }
-                    }
-                } else {
-                    self.app.world.log("Persistence not available.".to_string());
-                    ActionResult::SystemCommand {
-                        response: "Persistence not available.".to_string(),
-                    }
-                }
-            }
-            Command::ToggleSidebar | Command::ToggleImprov => {
-                self.app
-                    .world
-                    .log("[Not available in test mode]".to_string());
-                ActionResult::SystemCommand {
-                    response: "Not available in test mode".to_string(),
-                }
-            }
-            Command::ShowProvider => {
-                let msg = format!("Provider: {}", self.app.provider_name);
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::SetProvider(name) => {
-                use crate::config::Provider;
-                match Provider::from_str_loose(&name) {
-                    Ok(provider) => {
-                        self.app.base_url = provider.default_base_url().to_string();
-                        self.app.provider_name = format!("{:?}", provider).to_lowercase();
-                        let msg = format!("Provider changed to {}.", self.app.provider_name);
-                        self.app.world.log(msg.clone());
-                        ActionResult::SystemCommand { response: msg }
-                    }
-                    Err(e) => {
-                        let msg = format!("{}", e);
-                        self.app.world.log(msg.clone());
-                        ActionResult::SystemCommand { response: msg }
-                    }
-                }
-            }
-            Command::ShowModel => {
-                let msg = if self.app.model_name.is_empty() {
-                    "Model: (auto-detect)".to_string()
-                } else {
-                    format!("Model: {}", self.app.model_name)
-                };
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::SetModel(name) => {
-                self.app.model_name = name.clone();
-                let msg = format!("Model changed to {}.", name);
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::ShowKey => {
-                let msg = match &self.app.api_key {
-                    Some(key) if key.len() > 8 => {
-                        format!("API key: {}...{}", &key[..4], &key[key.len() - 4..])
-                    }
-                    Some(_) => "API key: (set, too short to mask)".to_string(),
-                    None => "API key: (not set)".to_string(),
-                };
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::SetKey(value) => {
-                self.app.api_key = Some(value);
-                let msg = "API key updated.".to_string();
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Debug(sub) => {
-                let lines = crate::debug::handle_debug(sub.as_deref(), &self.app);
-                for line in &lines {
-                    self.app.world.log(line.clone());
-                }
-                ActionResult::SystemCommand {
-                    response: lines.join("\n"),
-                }
-            }
-            Command::About => {
-                let msg = "Parish — A text adventure set in 1820s rural Ireland.\nExplore a living village powered by AI-driven NPCs.".to_string();
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::ShowCloud
-            | Command::SetCloudProvider(_)
-            | Command::ShowCloudModel
-            | Command::SetCloudModel(_)
-            | Command::ShowCloudKey
-            | Command::SetCloudKey(_)
-            | Command::ShowCategoryProvider(_)
-            | Command::SetCategoryProvider(_, _)
-            | Command::ShowCategoryModel(_)
-            | Command::SetCategoryModel(_, _)
-            | Command::ShowCategoryKey(_)
-            | Command::SetCategoryKey(_, _) => {
-                let msg = "Cloud commands not available in test mode.".to_string();
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Spinner(secs) => {
-                let msg = format!("Spinner preview ({secs}s) — GUI only.");
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Map => {
-                let player_loc = self.app.world.player_location;
-                let mut lines = vec!["=== Parish Map ===".to_string()];
-                for node_id in self.app.world.graph.location_ids() {
-                    if let Some(data) = self.app.world.graph.get(node_id) {
-                        let marker = if node_id == player_loc { " * " } else { "   " };
-                        lines.push(format!("{}{}", marker, data.name));
-                    }
-                }
-                lines.push(String::new());
-                lines.push("Connections:".to_string());
-                for node_id in self.app.world.graph.location_ids() {
-                    if let Some(data) = self.app.world.graph.get(node_id) {
-                        for (neighbor_id, _) in self.app.world.graph.neighbors(node_id) {
-                            if node_id.0 < neighbor_id.0 {
-                                let neighbor_name = self
-                                    .app
-                                    .world
-                                    .graph
-                                    .get(neighbor_id)
-                                    .map(|d| d.name.as_str())
-                                    .unwrap_or("???");
-                                lines.push(format!("  {} — {}", data.name, neighbor_name));
-                            }
-                        }
-                    }
-                }
-                let msg = lines.join("\n");
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::NpcsHere => {
-                let npcs = self.app.npc_manager.npcs_at(self.app.world.player_location);
-                let msg = if npcs.is_empty() {
-                    "No one else is here.".to_string()
-                } else {
-                    let mut lines = vec!["NPCs here:".to_string()];
-                    for npc in &npcs {
-                        let display = self.app.npc_manager.display_name(npc);
-                        let intro = if self.app.npc_manager.is_introduced(npc.id) {
-                            " [introduced]"
-                        } else {
-                            ""
-                        };
-                        lines.push(format!(
-                            "  {} — {} ({}){}",
-                            display, npc.occupation, npc.mood, intro
-                        ));
-                    }
-                    lines.join("\n")
-                };
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::Time => {
-                use chrono::Timelike;
-                let now = self.app.world.clock.now();
-                let hour = now.hour();
-                let minute = now.minute();
-                let tod = self.app.world.clock.time_of_day();
-                let season = self.app.world.clock.season();
-                let festival = self
-                    .app
-                    .world
-                    .clock
-                    .check_festival()
-                    .map(|f| f.to_string())
-                    .unwrap_or_else(|| "none".to_string());
-                let paused = if self.app.world.clock.is_paused() {
-                    " (PAUSED)"
-                } else {
-                    ""
-                };
-                let lines = [
-                    format!("{:02}:{:02} {} — {}{}", hour, minute, tod, season, paused),
-                    format!("Weather: {}", self.app.world.weather),
-                    format!("Speed: {}x", self.app.world.clock.speed_factor()),
-                    format!("Festival: {}", festival),
-                ];
-                let msg = lines.join("\n");
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
+        // Wait and Tick need test-harness-specific behavior (weather ticks,
+        // schedule event processing, gossip propagation via advance_time).
+        match cmd {
             Command::Wait(minutes) => {
-                use chrono::Timelike;
                 self.advance_time(minutes as i64);
                 let now = self.app.world.clock.now();
                 let tod = self.app.world.clock.time_of_day();
@@ -883,46 +432,10 @@ impl GameTestHarness {
                     tod
                 );
                 self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
-            }
-            Command::NewGame => {
-                // Re-initialize from GameTestHarness::new() logic
-                let game_mod = parish_core::game_mod::find_default_mod()
-                    .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
-
-                if let Some(ref gm) = game_mod
-                    && let Ok(world) = crate::world::WorldState::from_mod(gm)
-                {
-                    self.app.world = world;
-                } else {
-                    let parish_path = Path::new("data/parish.json");
-                    if parish_path.exists()
-                        && let Ok(world) =
-                            crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
-                    {
-                        self.app.world = world;
-                    }
-                }
-
-                let npcs_path = if let Some(ref gm) = game_mod {
-                    gm.npcs_path()
-                } else {
-                    std::path::PathBuf::from("data/npcs.json")
-                };
-                if npcs_path.exists()
-                    && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
-                {
-                    self.app.npc_manager = mgr;
-                }
-                self.app.game_mod = game_mod;
-                self.app.npc_manager.assign_tiers(&self.app.world, &[]);
-
-                let msg = "New game started.".to_string();
-                self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
+                return ActionResult::SystemCommand { response: msg };
             }
             Command::Tick => {
-                // Tick weather engine
+                // Tick weather engine (shared handler doesn't do this)
                 let season = self.app.world.clock.season();
                 let now = self.app.world.clock.now();
                 let mut rng = rand::thread_rng();
@@ -945,9 +458,352 @@ impl GameTestHarness {
                     format!("{} schedule event(s) processed.", count)
                 };
                 self.app.world.log(msg.clone());
-                ActionResult::SystemCommand { response: msg }
+                return ActionResult::SystemCommand { response: msg };
+            }
+            _ => {} // fall through to shared handler
+        }
+
+        // Delegate to shared handler
+        let mut config = self.app.snapshot_config();
+        let result = handle_command(
+            cmd,
+            &mut self.app.world,
+            &mut self.app.npc_manager,
+            &mut config,
+        );
+        self.app.apply_config(&config);
+
+        // Log and dispatch effects
+        if !result.response.is_empty() {
+            self.app.world.log(result.response.clone());
+        }
+
+        for effect in &result.effects {
+            match effect {
+                CommandEffect::Quit => {
+                    self.app.should_quit = true;
+                    return ActionResult::Quit;
+                }
+                CommandEffect::SaveGame => {
+                    return self.handle_save_effect();
+                }
+                CommandEffect::ForkBranch(name) => {
+                    return self.handle_fork_effect(name);
+                }
+                CommandEffect::LoadBranch(name) => {
+                    return self.handle_load_effect(name);
+                }
+                CommandEffect::ListBranches => {
+                    return self.handle_list_branches_effect();
+                }
+                CommandEffect::ShowLog => {
+                    return self.handle_show_log_effect();
+                }
+                CommandEffect::ToggleMap => {
+                    return self.handle_map_effect();
+                }
+                CommandEffect::Debug(sub) => {
+                    let lines = crate::debug::handle_debug(sub.as_deref(), &self.app);
+                    for line in &lines {
+                        self.app.world.log(line.clone());
+                    }
+                    return ActionResult::SystemCommand {
+                        response: lines.join("\n"),
+                    };
+                }
+                CommandEffect::ShowSpinner(secs) => {
+                    let msg = format!("Spinner preview ({secs}s) — GUI only.");
+                    self.app.world.log(msg.clone());
+                    return ActionResult::SystemCommand { response: msg };
+                }
+                CommandEffect::NewGame => {
+                    return self.handle_new_game_effect();
+                }
+                CommandEffect::RebuildInference | CommandEffect::RebuildCloudClient => {
+                    // No-op in test mode — no real inference clients
+                }
             }
         }
+
+        ActionResult::SystemCommand {
+            response: result.response,
+        }
+    }
+
+    /// Handles the SaveGame effect.
+    fn handle_save_effect(&mut self) -> ActionResult {
+        if let Some(ref db_sync) = self.db_sync {
+            let snapshot =
+                crate::persistence::GameSnapshot::capture(&self.app.world, &self.app.npc_manager);
+            match db_sync.save_snapshot(self.app.active_branch_id, &snapshot) {
+                Ok(snap_id) => {
+                    let _ = db_sync
+                        .clear_journal(self.app.active_branch_id, self.app.latest_snapshot_id);
+                    self.app.latest_snapshot_id = snap_id;
+                    self.app.world.log("Game saved.".to_string());
+                    ActionResult::SystemCommand {
+                        response: "Game saved.".to_string(),
+                    }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to save: {}", e);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+            }
+        } else {
+            self.app.world.log("Persistence not available.".to_string());
+            ActionResult::SystemCommand {
+                response: "Persistence not available.".to_string(),
+            }
+        }
+    }
+
+    /// Handles the ForkBranch effect.
+    fn handle_fork_effect(&mut self, name: &str) -> ActionResult {
+        if let Some(ref db_sync) = self.db_sync {
+            let snapshot =
+                crate::persistence::GameSnapshot::capture(&self.app.world, &self.app.npc_manager);
+            let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
+
+            match db_sync.create_branch(name, Some(self.app.active_branch_id)) {
+                Ok(new_branch_id) => match db_sync.save_snapshot(new_branch_id, &snapshot) {
+                    Ok(snap_id) => {
+                        self.app.active_branch_id = new_branch_id;
+                        self.app.latest_snapshot_id = snap_id;
+                        let msg = format!("Forked to branch '{}'.", name);
+                        self.app.world.log(msg.clone());
+                        ActionResult::SystemCommand { response: msg }
+                    }
+                    Err(e) => {
+                        let msg = format!("Failed to save fork: {}", e);
+                        self.app.world.log(msg.clone());
+                        ActionResult::SystemCommand { response: msg }
+                    }
+                },
+                Err(e) => {
+                    let msg = format!("Failed to fork: {}", e);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+            }
+        } else {
+            self.app.world.log("Persistence not available.".to_string());
+            ActionResult::SystemCommand {
+                response: "Persistence not available.".to_string(),
+            }
+        }
+    }
+
+    /// Handles the LoadBranch effect.
+    fn handle_load_effect(&mut self, name: &str) -> ActionResult {
+        if name.is_empty() {
+            let msg = "Save picker not available in test mode.".to_string();
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
+        }
+        if let Some(ref db_sync) = self.db_sync {
+            match db_sync.find_branch(name) {
+                Ok(Some(branch)) => {
+                    if branch.id != self.app.active_branch_id {
+                        let snapshot = crate::persistence::GameSnapshot::capture(
+                            &self.app.world,
+                            &self.app.npc_manager,
+                        );
+                        let _ = db_sync.save_snapshot(self.app.active_branch_id, &snapshot);
+                    }
+                    match db_sync.load_latest_snapshot(branch.id) {
+                        Ok(Some((snap_id, loaded_snapshot))) => {
+                            let events = db_sync
+                                .events_since_snapshot(branch.id, snap_id)
+                                .unwrap_or_default();
+                            loaded_snapshot.restore(&mut self.app.world, &mut self.app.npc_manager);
+                            crate::persistence::replay_journal(
+                                &mut self.app.world,
+                                &mut self.app.npc_manager,
+                                &events,
+                            );
+                            self.app.active_branch_id = branch.id;
+                            self.app.latest_snapshot_id = snap_id;
+                            self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+                            let time = self.app.world.clock.time_of_day();
+                            let season = self.app.world.clock.season();
+                            let msg = format!("Loaded branch '{}'. {}, {}.", name, season, time);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        Ok(None) => {
+                            let msg = format!("Branch '{}' has no saves.", name);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                        Err(e) => {
+                            let msg = format!("Failed to load: {}", e);
+                            self.app.world.log(msg.clone());
+                            ActionResult::SystemCommand { response: msg }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    let msg = format!("No branch named '{}'.", name);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to find branch: {}", e);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+            }
+        } else {
+            self.app.world.log("Persistence not available.".to_string());
+            ActionResult::SystemCommand {
+                response: "Persistence not available.".to_string(),
+            }
+        }
+    }
+
+    /// Handles the ListBranches effect.
+    fn handle_list_branches_effect(&mut self) -> ActionResult {
+        if let Some(ref db_sync) = self.db_sync {
+            match db_sync.list_branches() {
+                Ok(branches) => {
+                    let mut lines = vec!["Save branches:".to_string()];
+                    for b in &branches {
+                        let marker = if b.id == self.app.active_branch_id {
+                            " *"
+                        } else {
+                            ""
+                        };
+                        lines.push(format!(
+                            "  {}{} (created {})",
+                            b.name,
+                            marker,
+                            crate::persistence::format_timestamp(&b.created_at)
+                        ));
+                    }
+                    let msg = lines.join("\n");
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to list branches: {}", e);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+            }
+        } else {
+            self.app.world.log("Persistence not available.".to_string());
+            ActionResult::SystemCommand {
+                response: "Persistence not available.".to_string(),
+            }
+        }
+    }
+
+    /// Handles the ShowLog effect.
+    fn handle_show_log_effect(&mut self) -> ActionResult {
+        if let Some(ref db_sync) = self.db_sync {
+            match db_sync.branch_log(self.app.active_branch_id) {
+                Ok(snapshots) => {
+                    let msg = if snapshots.is_empty() {
+                        "No snapshots on this branch yet.".to_string()
+                    } else {
+                        let mut lines = vec!["Snapshot history (most recent first):".to_string()];
+                        for s in &snapshots {
+                            lines.push(format!(
+                                "  #{} — game: {} | saved: {}",
+                                s.id,
+                                s.game_time,
+                                crate::persistence::format_timestamp(&s.real_time)
+                            ));
+                        }
+                        lines.join("\n")
+                    };
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+                Err(e) => {
+                    let msg = format!("Failed to get branch log: {}", e);
+                    self.app.world.log(msg.clone());
+                    ActionResult::SystemCommand { response: msg }
+                }
+            }
+        } else {
+            self.app.world.log("Persistence not available.".to_string());
+            ActionResult::SystemCommand {
+                response: "Persistence not available.".to_string(),
+            }
+        }
+    }
+
+    /// Handles the ToggleMap effect — renders a text map for the test harness.
+    fn handle_map_effect(&mut self) -> ActionResult {
+        let player_loc = self.app.world.player_location;
+        let mut lines = vec!["=== Parish Map ===".to_string()];
+        for node_id in self.app.world.graph.location_ids() {
+            if let Some(data) = self.app.world.graph.get(node_id) {
+                let marker = if node_id == player_loc { " * " } else { "   " };
+                lines.push(format!("{}{}", marker, data.name));
+            }
+        }
+        lines.push(String::new());
+        lines.push("Connections:".to_string());
+        for node_id in self.app.world.graph.location_ids() {
+            if let Some(data) = self.app.world.graph.get(node_id) {
+                for (neighbor_id, _) in self.app.world.graph.neighbors(node_id) {
+                    if node_id.0 < neighbor_id.0 {
+                        let neighbor_name = self
+                            .app
+                            .world
+                            .graph
+                            .get(neighbor_id)
+                            .map(|d| d.name.as_str())
+                            .unwrap_or("???");
+                        lines.push(format!("  {} — {}", data.name, neighbor_name));
+                    }
+                }
+            }
+        }
+        let msg = lines.join("\n");
+        self.app.world.log(msg.clone());
+        ActionResult::SystemCommand { response: msg }
+    }
+
+    /// Handles the NewGame effect — reinitializes world and NPCs.
+    fn handle_new_game_effect(&mut self) -> ActionResult {
+        let game_mod = parish_core::game_mod::find_default_mod()
+            .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
+
+        if let Some(ref gm) = game_mod
+            && let Ok(world) = crate::world::WorldState::from_mod(gm)
+        {
+            self.app.world = world;
+        } else {
+            let parish_path = Path::new("data/parish.json");
+            if parish_path.exists()
+                && let Ok(world) =
+                    crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
+            {
+                self.app.world = world;
+            }
+        }
+
+        let npcs_path = if let Some(ref gm) = game_mod {
+            gm.npcs_path()
+        } else {
+            std::path::PathBuf::from("data/npcs.json")
+        };
+        if npcs_path.exists()
+            && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
+        {
+            self.app.npc_manager = mgr;
+        }
+        self.app.game_mod = game_mod;
+        self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+
+        let msg = "New game started.".to_string();
+        self.app.world.log(msg.clone());
+        ActionResult::SystemCommand { response: msg }
     }
 
     /// Handles game input (movement, look, NPC interaction).
@@ -1627,7 +1483,7 @@ mod tests {
         let result = h.execute("/speed fast");
         if let ActionResult::SystemCommand { response } = result {
             assert!(
-                response.contains("Fast"),
+                response.contains("quickens"),
                 "Should confirm speed change, got: {}",
                 response
             );

@@ -74,48 +74,8 @@ pub struct AppState {
     pub game_mod: Option<parish_core::game_mod::GameMod>,
 }
 
-/// Mutable runtime configuration for provider, model, and cloud settings.
-pub struct GameConfig {
-    /// Display name of the current base provider.
-    pub provider_name: String,
-    /// Base URL for the current provider API.
-    pub base_url: String,
-    /// API key for the current provider.
-    pub api_key: Option<String>,
-    /// Model name for NPC dialogue inference.
-    pub model_name: String,
-    /// Cloud provider name for dialogue.
-    pub cloud_provider_name: Option<String>,
-    /// Cloud model name for dialogue.
-    pub cloud_model_name: Option<String>,
-    /// Cloud API key.
-    pub cloud_api_key: Option<String>,
-    /// Cloud base URL.
-    pub cloud_base_url: Option<String>,
-    /// Whether improv craft mode is enabled.
-    pub improv_enabled: bool,
-    /// Per-category provider name overrides (Dialogue=0, Simulation=1, Intent=2).
-    pub category_provider: [Option<String>; 4],
-    /// Per-category model name overrides.
-    pub category_model: [Option<String>; 4],
-    /// Per-category API key overrides.
-    pub category_api_key: [Option<String>; 4],
-    /// Per-category base URL overrides.
-    pub category_base_url: [Option<String>; 4],
-}
-
-impl GameConfig {
-    /// Returns the array index for a category.
-    pub fn cat_idx(cat: parish_core::config::InferenceCategory) -> usize {
-        use parish_core::config::InferenceCategory;
-        match cat {
-            InferenceCategory::Dialogue => 0,
-            InferenceCategory::Simulation => 1,
-            InferenceCategory::Intent => 2,
-            InferenceCategory::Reaction => 3,
-        }
-    }
-}
+// GameConfig is now shared across all backends via parish-core.
+pub use parish_core::ipc::GameConfig;
 
 /// A JSON-serializable server event pushed to WebSocket clients.
 #[derive(Clone, Debug, serde::Serialize)]

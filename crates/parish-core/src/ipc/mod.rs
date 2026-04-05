@@ -4,8 +4,14 @@
 //! any UI layer (Tauri desktop, axum web server, etc.), plus pure functions
 //! that build those types from game state.
 
+pub mod commands;
+pub mod config;
 pub mod handlers;
+pub mod streaming;
 pub mod types;
 
+pub use commands::{CommandEffect, CommandResult, handle_command, render_look_text};
+pub use config::GameConfig;
 pub use handlers::*;
+pub use streaming::{stream_npc_tokens, strip_trailing_json};
 pub use types::*;
