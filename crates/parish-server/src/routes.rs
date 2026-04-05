@@ -530,9 +530,16 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
         .emit("text-log", &text_log(display_label, String::new()));
 
     // Pause the game clock while waiting for the inference response
+    // and immediately notify the frontend so it stops interpolating.
     {
         let mut world = state.world.lock().await;
         world.clock.inference_pause();
+        let npc_manager = state.npc_manager.lock().await;
+        let transport = state.transport.default_mode();
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        state.event_bus.emit("world-update", &ws);
     }
 
     match queue
@@ -619,10 +626,16 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
         }
     }
 
-    // Resume the game clock
+    // Resume the game clock and notify frontend of updated time.
     {
         let mut world = state.world.lock().await;
         world.clock.inference_resume();
+        let npc_manager = state.npc_manager.lock().await;
+        let transport = state.transport.default_mode();
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        state.event_bus.emit("world-update", &ws);
     }
 
     // Cancel loading animation (emits final active: false)

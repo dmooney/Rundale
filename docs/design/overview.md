@@ -302,11 +302,13 @@ streaming, and NPC conversation setup across backends.
   EventBus, stdout, test assertions).
 - **`config.rs`** — `GameConfig` struct holding mutable runtime configuration
   (provider, model, API key, cloud settings, per-category overrides).
+  `resolve_category_client()` builds the correct `OpenAiClient` + model for any
+  inference category, respecting per-category provider/key/URL overrides.
 - **`handlers.rs`** — Pure functions: `snapshot_from_world`, `build_map_data`,
   `build_theme`, `build_npcs_here`, `build_travel_start`, `text_log`,
   `capitalize_first`, `prepare_npc_conversation` (includes anachronism checking),
-  `compute_name_hints`, `mask_key`. Shared constants: `IDLE_MESSAGES`,
-  `INFERENCE_FAILURE_MESSAGES` (Irish-themed canned fallbacks for inference errors).
+  `compute_name_hints`, `mask_key`, `render_look_text`. Shared constants:
+  `IDLE_MESSAGES`, `INFERENCE_FAILURE_MESSAGES` (Irish-themed canned fallbacks).
 - **`streaming.rs`** — `stream_npc_tokens()` with separator holdback and
   callback-based token emission; `strip_trailing_json()` for weak models.
 - **`types.rs`** — Serializable IPC types: `WorldSnapshot`, `MapData`, `NpcInfo`,
@@ -318,11 +320,24 @@ streaming, and NPC conversation setup across backends.
 
 All backends share these features through core:
 - NPC conversations with anachronism checking and pronunciation hints
+- LLM-based intent parsing (local keywords first, LLM fallback for ambiguous input)
+- Per-category inference client/model resolution (dialogue, simulation, intent, reaction)
 - System command handling via `CommandEffect` dispatch
 - Token streaming with separator holdback
-- Loading animation (Celtic cross spinner + Irish phrases)
-- Game clock pause/resume during inference
+- Loading animation (Celtic cross spinner + Irish phrases) including `/spinner` command
+- Game clock pause/resume during inference (with world-update notification)
 - Weather ticking, NPC schedule ticking, tier assignment
 - Gossip propagation between co-located Tier 2 NPCs
-- Autosave (60-second periodic snapshots)
+- Autosave (periodic snapshots)
 - Save/load/branch persistence commands
+- `@mention` NPC targeting for multi-NPC locations
+- Shared view helpers: `build_npcs_here`, `build_theme`, `render_look_text`
+
+#### Intentional backend differences
+
+- **Headless** uses `resolve_movement()` (older API) with custom arrival reactions
+  including LLM-generated greetings; Tauri/server use `apply_movement()` with
+  `MoveEffects`. Headless also prints NPC schedule events to stdout.
+- **Debug commands** are CLI-only; GUI/web backends show a message.
+- **Persistence** uses `spawn_blocking` in the server (async runtime constraint)
+  but inline calls in Tauri/headless.

@@ -499,7 +499,25 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 }
             }
             CommandEffect::ShowSpinner(secs) => {
-                println!("Showing spinner for {} seconds (GUI only).", secs);
+                let secs = *secs;
+                println!("Showing spinner for {} seconds...", secs);
+                let mut anim = LoadingAnimation::new();
+                let end = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+                while std::time::Instant::now() < end {
+                    anim.tick();
+                    let (r, g, b) = anim.current_color_rgb();
+                    print!(
+                        "\r  \x1b[38;2;{};{};{}m{} {}\x1b[0m\x1b[K",
+                        r,
+                        g,
+                        b,
+                        anim.spinner_char(),
+                        anim.phrase()
+                    );
+                    std::io::stdout().flush().ok();
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                }
+                println!("\r\x1b[K");
             }
             CommandEffect::NewGame => {
                 handle_headless_new_game(app).await;
@@ -941,29 +959,14 @@ fn default_transport(app: &App) -> TransportMode {
 
 /// Prints current location description and exits (headless /look).
 fn print_location_description(app: &App) {
-    if let Some(loc_data) = app.world.current_location_data() {
-        let tod = app.world.clock.time_of_day();
-        let npc_display: Vec<String> = app
-            .npc_manager
-            .npcs_at(app.world.player_location)
-            .iter()
-            .map(|n| app.npc_manager.display_name(n).to_string())
-            .collect();
-        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
-        let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
-        println!("{}", desc);
-    } else {
-        println!("{}", app.world.current_location().description);
-    }
-
     let transport = default_transport(app);
-    let exits = format_exits(
-        app.world.player_location,
-        &app.world.graph,
+    let text = parish_core::ipc::render_look_text(
+        &app.world,
+        &app.npc_manager,
         transport.speed_m_per_s,
         &transport.label,
     );
-    println!("{}", exits);
+    println!("{}", text);
 }
 
 /// Handles movement in headless mode.

@@ -19,7 +19,6 @@ use parish_core::ipc::{
 };
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
-use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
@@ -139,35 +138,14 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
 pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec<NpcInfo>, String> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
-    let npcs = npc_manager.npcs_at(world.player_location);
-    Ok(npcs
-        .into_iter()
-        .map(|npc| {
-            let introduced = npc_manager.is_introduced(npc.id);
-            NpcInfo {
-                name: npc_manager.display_name(npc).to_string(),
-                occupation: npc.occupation.clone(),
-                mood_emoji: parish_core::npc::mood::mood_emoji(&npc.mood).to_string(),
-                mood: npc.mood.clone(),
-                introduced,
-            }
-        })
-        .collect())
+    Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
 /// Returns the current time-of-day theme palette as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
-    use chrono::Timelike;
     let world = state.world.lock().await;
-    let now = world.clock.now();
-    let raw = compute_palette(
-        now.hour(),
-        now.minute(),
-        world.clock.season(),
-        world.weather,
-    );
-    Ok(ThemePalette::from(raw))
+    Ok(parish_core::ipc::build_theme(&world))
 }
 
 /// Returns a debug snapshot of all game state for the debug panel.
@@ -614,12 +592,13 @@ async fn handle_npc_conversation(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
-    let (setup, queue) = {
+    let (setup, queue, npc_present) = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let queue = state.inference_queue.lock().await;
         let config = state.config.lock().await;
 
+        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
         let setup = parish_core::ipc::prepare_npc_conversation(
             &world,
             &mut npc_manager,
@@ -627,18 +606,23 @@ async fn handle_npc_conversation(
             target_name.as_deref(),
             config.improv_enabled,
         );
-        (setup, queue.clone())
+        (setup, queue.clone(), npc_present)
     };
 
     let (Some(setup), Some(queue)) = (setup, queue) else {
-        // No NPC present or no inference queue — show idle message
-        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
+        let content = if npc_present {
+            "There's someone here, but the LLM is not configured — set a provider with /provider."
+                .to_string()
+        } else {
+            let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
+            IDLE_MESSAGES[idx].to_string()
+        };
         let _ = app.emit(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
                 source: "system".to_string(),
-                content: IDLE_MESSAGES[idx].to_string(),
+                content,
             },
         );
         return;
