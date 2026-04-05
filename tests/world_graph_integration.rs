@@ -36,7 +36,7 @@ fn test_parish_json_loads() {
 #[test]
 fn test_parish_json_location_count() {
     let graph = load_parish_graph();
-    assert_eq!(graph.location_count(), 15);
+    assert_eq!(graph.location_count(), 22);
 }
 
 #[test]
