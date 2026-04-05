@@ -249,8 +249,20 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
         })
         .collect();
 
+    // Validate referential integrity: all relationship targets must exist
+    let valid_ids: std::collections::HashSet<NpcId> = npcs.iter().map(|n| n.id).collect();
+    for npc in &npcs {
+        for target_id in npc.relationships.keys() {
+            if !valid_ids.contains(target_id) {
+                return Err(ParishError::Setup(format!(
+                    "{} has relationship with NPC {} but that NPC doesn't exist",
+                    npc.name, target_id.0
+                )));
+            }
+        }
+    }
+
     // Second pass: ensure bidirectional relationships
-    // Collect relationship additions needed
     let mut additions: Vec<(NpcId, NpcId, RelationshipKind, f64)> = Vec::new();
     for npc in &npcs {
         for (target_id, rel) in &npc.relationships {
@@ -570,5 +582,37 @@ mod tests {
             .entry_at(10, Season::Summer, DayType::Weekday)
             .unwrap();
         assert!(!entry.cuaird);
+    }
+
+    #[test]
+    fn test_invalid_relationship_target_returns_error() {
+        let json = r#"{
+            "npcs": [{
+                "id": 1,
+                "name": "Alice",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "schedule": [
+                    {"start_hour": 0, "end_hour": 23, "location": 1, "activity": "resting"}
+                ],
+                "relationships": [
+                    {"target_id": 999, "kind": "Friend", "strength": 0.5}
+                ]
+            }]
+        }"#;
+        let result = load_npcs_from_str(json);
+        assert!(
+            result.is_err(),
+            "should error on invalid relationship target"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("999"),
+            "error should mention the invalid NPC id: {err_msg}"
+        );
     }
 }
