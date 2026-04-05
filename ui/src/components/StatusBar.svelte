@@ -208,4 +208,42 @@
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
+
+	/* ── Mobile: compact status bar ── */
+	@media (max-width: 768px) {
+		.status-bar {
+			padding: 0.3rem 0.6rem;
+			gap: 0.35rem;
+			font-size: 0.6rem;
+		}
+
+		/* Hide non-essential items to prevent overflow */
+		.day-of-week,
+		.season,
+		.weather {
+			display: none;
+		}
+
+		/* Also hide separators adjacent to hidden items — CSS can't target those
+		   individually, so we hide all seps and re-show the one between location
+		   and time-label via the adjacent sibling combinator. */
+		.sep {
+			display: none;
+		}
+
+		.location + .sep {
+			display: inline;
+		}
+
+		.save-toggle,
+		.debug-toggle {
+			font-size: 0.55rem;
+			padding: 0.15rem 0.35rem;
+		}
+
+		.clock {
+			font-size: 0.7rem;
+			padding: 0.08rem 0.35rem;
+		}
+	}
 </style>

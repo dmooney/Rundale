@@ -11,6 +11,9 @@
 	import SavePicker from '../components/SavePicker.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, addReaction } from '../stores/game';
+
+	/** Which mobile-only panel is open (if any). Desktop ignores this. */
+	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
@@ -228,8 +231,23 @@
 
 <div class="app-shell" class:debug-open={$debugVisible}>
 	<StatusBar />
+
+	<!-- Mobile-only toggle toolbar -->
+	<div class="mobile-toolbar">
+		<button
+			class="mobile-btn"
+			class:active={mobilePanel === 'map'}
+			onclick={() => mobilePanel = mobilePanel === 'map' ? 'none' : 'map'}
+		>Map</button>
+		<button
+			class="mobile-btn"
+			class:active={mobilePanel === 'sidebar'}
+			onclick={() => mobilePanel = mobilePanel === 'sidebar' ? 'none' : 'sidebar'}
+		>NPCs &amp; Hints</button>
+	</div>
+
 	<div class="main-area">
-		<div class="chat-col">
+		<div class="chat-col" class:mobile-hidden={mobilePanel !== 'none'}>
 			<ChatPanel />
 			<InputField />
 		</div>
@@ -238,6 +256,21 @@
 			<Sidebar />
 		</div>
 	</div>
+
+	<!-- Mobile-only panel (replaces chat area when open) -->
+	{#if mobilePanel !== 'none'}
+		<div class="mobile-panel">
+			{#if mobilePanel === 'map'}
+				<div class="mobile-panel-inner">
+					<MapPanel />
+				</div>
+			{:else}
+				<div class="mobile-panel-inner">
+					<Sidebar />
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <DebugPanel />
@@ -274,5 +307,72 @@
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
+	}
+
+	/* ── Mobile toolbar ── */
+	.mobile-toolbar {
+		display: none;
+	}
+
+	/* ── Mobile panel (shown when a toolbar button is active) ── */
+	.mobile-panel {
+		display: none;
+	}
+
+	@media (max-width: 768px) {
+		.main-area {
+			grid-template-columns: 1fr;
+		}
+
+		/* Hide the desktop right column entirely on mobile */
+		.right-col {
+			display: none;
+		}
+
+		/* Hide chat when a mobile panel is open */
+		.chat-col.mobile-hidden {
+			display: none;
+		}
+
+		.mobile-toolbar {
+			display: flex;
+			gap: 0.5rem;
+			padding: 0.35rem 0.75rem;
+			background: var(--color-panel-bg);
+			border-bottom: 1px solid var(--color-border);
+		}
+
+		.mobile-btn {
+			background: none;
+			border: 1px solid var(--color-border);
+			color: var(--color-muted);
+			font-family: var(--font-display);
+			font-size: 0.65rem;
+			letter-spacing: 0.1em;
+			padding: 0.25rem 0.6rem;
+			cursor: pointer;
+			transition: color 0.2s, border-color 0.2s;
+		}
+
+		.mobile-btn:hover,
+		.mobile-btn.active {
+			color: var(--color-accent);
+			border-color: var(--color-accent);
+		}
+
+		.mobile-panel {
+			display: flex;
+			flex: 1;
+			min-height: 0;
+			overflow: hidden;
+		}
+
+		.mobile-panel-inner {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			overflow-y: auto;
+			background: var(--color-bg);
+		}
 	}
 </style>

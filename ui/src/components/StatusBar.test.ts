@@ -55,7 +55,7 @@ describe('StatusBar', () => {
 	it('shows festival badge when festival is set', () => {
 		worldState.set({ ...snapshot, festival: 'Samhain' });
 		const { getByText } = render(StatusBar);
-		expect(getByText('🎉 Samhain')).toBeTruthy();
+		expect(getByText('✦ Samhain')).toBeTruthy();
 	});
 
 	it('shows paused indicator when paused', () => {

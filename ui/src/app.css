@@ -84,3 +84,21 @@ body::before {
 ::-webkit-scrollbar-thumb:hover {
 	background: var(--color-muted);
 }
+
+/* ── Mobile adjustments ── */
+@media (max-width: 768px) {
+	html, body {
+		font-size: 15px;
+	}
+
+	/* Ensure chat panel still fills space on mobile */
+	.chat-panel {
+		flex: 1 1 0 !important;
+		min-height: 0 !important;
+	}
+
+	/* Slightly larger touch targets for input */
+	.input-wrapper {
+		padding: 0.5rem !important;
+	}
+}
