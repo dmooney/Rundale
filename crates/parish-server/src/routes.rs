@@ -17,7 +17,7 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
 use parish_core::ipc::{
-    GameConfig, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
+    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
     NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, ThemePalette,
     WorldSnapshot, capitalize_first, text_log,
 };
@@ -298,12 +298,8 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
         let config = state.config.lock().await;
-        let idx = GameConfig::cat_idx(InferenceCategory::Intent);
-        let model = config.category_model[idx]
-            .clone()
-            .unwrap_or_else(|| config.model_name.clone());
-        let client = state.client.lock().await.clone();
-        (client, model)
+        let base_client = state.client.lock().await;
+        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
     };
 
     // Parse intent: tries local keywords first, then LLM for ambiguous input.
@@ -404,9 +400,22 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
     if !effects.arrival_reactions.is_empty() {
         use parish_core::game_session::resolve_reaction_texts;
 
-        let (all_npcs, current_location_id, loc_name, tod, weather, introduced) = {
+        let (
+            all_npcs,
+            current_location_id,
+            loc_name,
+            tod,
+            weather,
+            introduced,
+            reaction_client,
+            reaction_model,
+        ) = {
             let world = state.world.lock().await;
             let npc_manager = state.npc_manager.lock().await;
+            let config = state.config.lock().await;
+            let base_client = state.client.lock().await;
+            let (rc, rm) =
+                config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             (
                 npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
                 world.player_location,
@@ -417,11 +426,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
                 world.clock.time_of_day(),
                 world.weather.to_string(),
                 npc_manager.introduced_set(),
+                rc,
+                rm,
             )
         };
 
-        let reaction_client = state.reaction_client.lock().await;
-        let reaction_model = state.reaction_model.lock().await;
         let texts = resolve_reaction_texts(
             &effects.arrival_reactions,
             &all_npcs,
@@ -435,8 +444,6 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             None,
         )
         .await;
-        drop(reaction_client);
-        drop(reaction_model);
 
         for text in texts {
             state.event_bus.emit("text-log", &text_log("npc", text));

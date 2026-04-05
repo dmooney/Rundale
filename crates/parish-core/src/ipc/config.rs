@@ -51,6 +51,45 @@ impl GameConfig {
             InferenceCategory::Reaction => 3,
         }
     }
+
+    /// Resolves the client and model for a given inference category.
+    ///
+    /// If the category has per-category overrides (provider/key/URL), builds a
+    /// new [`OpenAiClient`] from those settings. Otherwise falls back to the
+    /// supplied `base_client`. The model falls back to `self.model_name` if no
+    /// per-category model is set.
+    ///
+    /// Returns `None` if no client is available (base is `None` and no
+    /// category override is configured).
+    pub fn resolve_category_client(
+        &self,
+        cat: InferenceCategory,
+        base_client: Option<&crate::inference::openai_client::OpenAiClient>,
+    ) -> (
+        Option<crate::inference::openai_client::OpenAiClient>,
+        String,
+    ) {
+        let idx = Self::cat_idx(cat);
+        let model = self.category_model[idx]
+            .clone()
+            .unwrap_or_else(|| self.model_name.clone());
+
+        // Build a per-category client if the provider or URL is overridden.
+        let client =
+            if self.category_base_url[idx].is_some() || self.category_api_key[idx].is_some() {
+                let url = self.category_base_url[idx]
+                    .as_deref()
+                    .unwrap_or(&self.base_url);
+                let key = self.category_api_key[idx]
+                    .as_deref()
+                    .or(self.api_key.as_deref());
+                Some(crate::inference::openai_client::OpenAiClient::new(url, key))
+            } else {
+                base_client.cloned()
+            };
+
+        (client, model)
+    }
 }
 
 impl Default for GameConfig {
@@ -91,5 +130,45 @@ mod tests {
         assert_eq!(GameConfig::cat_idx(InferenceCategory::Simulation), 1);
         assert_eq!(GameConfig::cat_idx(InferenceCategory::Intent), 2);
         assert_eq!(GameConfig::cat_idx(InferenceCategory::Reaction), 3);
+    }
+
+    #[test]
+    fn resolve_category_client_inherits_base() {
+        use crate::inference::openai_client::OpenAiClient;
+        let cfg = GameConfig {
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let base = OpenAiClient::new("http://localhost:11434", None);
+        let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
+        assert!(client.is_some());
+        assert_eq!(model, "base-model");
+    }
+
+    #[test]
+    fn resolve_category_client_uses_override() {
+        use crate::inference::openai_client::OpenAiClient;
+        let mut cfg = GameConfig {
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
+        cfg.category_model[idx] = Some("reaction-model".to_string());
+        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
+        cfg.category_api_key[idx] = Some("sk-test".to_string());
+
+        let base = OpenAiClient::new("http://localhost:11434", None);
+        let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
+        assert!(client.is_some());
+        assert_eq!(model, "reaction-model");
+    }
+
+    #[test]
+    fn resolve_category_client_none_without_base() {
+        let cfg = GameConfig::default();
+        let (client, _model) = cfg.resolve_category_client(InferenceCategory::Intent, None);
+        assert!(client.is_none());
     }
 }

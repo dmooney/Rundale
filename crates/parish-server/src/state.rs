@@ -67,10 +67,6 @@ pub struct AppState {
     pub current_branch_id: Mutex<Option<i64>>,
     /// Current branch name.
     pub current_branch_name: Mutex<Option<String>>,
-    /// LLM client for NPC arrival reactions (None if not configured).
-    pub reaction_client: Mutex<Option<OpenAiClient>>,
-    /// Model name for reaction inference.
-    pub reaction_model: Mutex<String>,
     /// Loaded game mod data (for reaction templates, etc.).
     pub game_mod: Option<parish_core::game_mod::GameMod>,
     /// Name pronunciation entries from the game mod.
@@ -156,8 +152,6 @@ pub fn build_app_state(
         .as_ref()
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
-    // Reaction client defaults to the base client (can be overridden later).
-    let reaction_client = client.clone();
     Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -173,8 +167,6 @@ pub fn build_app_state(
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
-        reaction_client: Mutex::new(reaction_client),
-        reaction_model: Mutex::new(String::new()),
         game_mod,
         pronunciations,
     })
