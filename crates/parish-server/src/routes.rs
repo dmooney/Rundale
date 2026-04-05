@@ -12,6 +12,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use tokio::sync::mpsc;
 
+use parish_core::backend_init::{NpcFallback, load_world_and_npcs};
 use parish_core::config::Provider;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
@@ -1126,21 +1127,13 @@ pub async fn new_save_file(
 pub async fn new_game(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    use parish_core::npc::manager::NpcManager;
-    use parish_core::world::{LocationId, WorldState};
-
     let data_dir = state.data_dir.clone();
-
-    let fresh_world = WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15))
-        .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to load world: {}", e),
-        )
-    })?;
-
-    let fresh_npcs = NpcManager::load_from_file(&data_dir.join("npcs.json"))
-        .unwrap_or_else(|_| NpcManager::new());
+    let (fresh_world, fresh_npcs) = load_world_and_npcs(
+        None,
+        &data_dir,
+        parish_core::world::LocationId(15),
+        NpcFallback::Empty,
+    );
 
     let snapshot = {
         let mut world = state.world.lock().await;

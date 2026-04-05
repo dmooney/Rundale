@@ -13,6 +13,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::Mutex;
 
+use parish_core::backend_init::{NpcFallback, bootstrap_default_mod_or_data};
 use parish_core::config::Provider;
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
@@ -428,52 +429,10 @@ pub fn run() {
             })
     };
 
-    // Try to load game mod (auto-detect from workspace root)
-    let game_mod = parish_core::game_mod::find_default_mod().and_then(|dir| {
-        match parish_core::game_mod::GameMod::load(&dir) {
-            Ok(gm) => {
-                tracing::info!(
-                    "Loaded game mod: {} ({})",
-                    gm.manifest.meta.name,
-                    dir.display()
-                );
-                Some(gm)
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
-                None
-            }
-        }
-    });
-
-    // Load world — prefer mod data, fall back to legacy data/ directory
-    let world = if let Some(ref gm) = game_mod {
-        WorldState::from_mod(gm).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load world from mod: {}. Using default.", e);
-            WorldState::new()
-        })
-    } else {
-        WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15)).unwrap_or_else(
-            |e| {
-                tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
-                WorldState::new()
-            },
-        )
-    };
-
-    // Load NPCs — prefer mod data, fall back to legacy data/ directory
-    let npcs_path = if let Some(ref gm) = game_mod {
-        gm.npcs_path()
-    } else {
-        data_dir.join("npcs.json")
-    };
-    let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
-        tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
-        NpcManager::new()
-    });
-
-    // Initial tier assignment
-    npc_manager.assign_tiers(&world, &[]);
+    let bootstrap = bootstrap_default_mod_or_data(&data_dir, LocationId(15), NpcFallback::Empty);
+    let game_mod = bootstrap.game_mod;
+    let world = bootstrap.world;
+    let npc_manager = bootstrap.npc_manager;
 
     // Read provider config from env vars (optional)
     let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();

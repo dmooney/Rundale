@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tauri::Emitter;
 use tokio::sync::mpsc;
 
+use parish_core::backend_init::{NpcFallback, load_world_and_npcs};
 use parish_core::config::Provider;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
@@ -1483,18 +1484,13 @@ pub async fn new_game(
 ) -> Result<(), String> {
     let data_dir = crate::find_data_dir();
 
-    // Reload fresh world and NPCs from data files
-    let fresh_world = parish_core::world::WorldState::from_parish_file(
-        &data_dir.join("parish.json"),
+    // Reload fresh world and NPCs from shared backend bootstrap helpers
+    let (fresh_world, fresh_npcs) = load_world_and_npcs(
+        None,
+        &data_dir,
         parish_core::world::LocationId(15),
-    )
-    .map_err(|e| format!("Failed to load parish.json: {}", e))?;
-
-    let mut fresh_npcs =
-        parish_core::npc::manager::NpcManager::load_from_file(&data_dir.join("npcs.json"))
-            .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
-
-    fresh_npcs.assign_tiers(&fresh_world, &[]);
+        NpcFallback::Empty,
+    );
 
     // Replace live state
     let mut world = state.world.lock().await;

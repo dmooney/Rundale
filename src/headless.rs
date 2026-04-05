@@ -20,6 +20,7 @@ use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
 use chrono::Timelike;
+use parish_core::backend_init::{NpcFallback, load_world_and_npcs};
 use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -64,25 +65,17 @@ pub async fn run_headless(
     let _worker = inference::spawn_inference_worker(dial_client.clone(), rx, inference_log.clone());
     let queue = InferenceQueue::new(tx);
 
-    // Initialize app state — prefer mod data, fall back to legacy parish.json
+    // Initialize app state from shared backend bootstrap helpers
     let mut app = App::new();
-    if let Some(ref gm) = game_mod {
-        match crate::world::WorldState::from_mod(gm) {
-            Ok(world) => app.world = world,
-            Err(e) => eprintln!("Warning: Failed to load world from mod: {}", e),
-        }
-    } else {
-        let parish_path = Path::new("data/parish.json");
-        if parish_path.exists() {
-            match crate::world::WorldState::from_parish_file(
-                parish_path,
-                crate::world::LocationId(15),
-            ) {
-                Ok(world) => app.world = world,
-                Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
-            }
-        }
-    }
+    let data_dir = Path::new("data");
+    let (world, npc_manager) = load_world_and_npcs(
+        game_mod.as_ref(),
+        data_dir,
+        crate::world::LocationId(15),
+        NpcFallback::Empty,
+    );
+    app.world = world;
+    app.npc_manager = npc_manager;
     app.game_mod = game_mod;
     app.inference_queue = Some(queue);
     app.client = Some(clients.base.clone());
@@ -138,22 +131,6 @@ pub async fn run_headless(
         app.cloud_api_key = cc.api_key.clone();
         app.cloud_base_url = Some(cc.base_url.clone());
     }
-
-    // Load NPCs — prefer mod data, fall back to legacy data/ directory
-    let npcs_path = if let Some(ref gm) = app.game_mod {
-        gm.npcs_path()
-    } else {
-        std::path::PathBuf::from("data/npcs.json")
-    };
-    if npcs_path.exists() {
-        match NpcManager::load_from_file(&npcs_path) {
-            Ok(mgr) => app.npc_manager = mgr,
-            Err(e) => eprintln!("Warning: Failed to load NPC data: {}", e),
-        }
-    }
-
-    // Initial tier assignment
-    app.npc_manager.assign_tiers(&app.world, &[]);
 
     // Initialize persistence — Papers Please-style save picker
     let saves_dir = crate::persistence::picker::ensure_saves_dir();
@@ -922,43 +899,14 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             println!("It is now {:02}:{:02} {}.", now.hour(), now.minute(), tod);
         }
         Command::NewGame => {
-            // Re-initialize world from mod or data files
-            if let Some(ref gm) = app.game_mod {
-                match crate::world::WorldState::from_mod(gm) {
-                    Ok(world) => app.world = world,
-                    Err(e) => {
-                        eprintln!("Failed to reset world: {}", e);
-                        return (false, false);
-                    }
-                }
-            } else {
-                let parish_path = Path::new("data/parish.json");
-                if parish_path.exists() {
-                    match crate::world::WorldState::from_parish_file(
-                        parish_path,
-                        crate::world::LocationId(15),
-                    ) {
-                        Ok(world) => app.world = world,
-                        Err(e) => {
-                            eprintln!("Failed to reset world: {}", e);
-                            return (false, false);
-                        }
-                    }
-                }
-            }
-            // Re-initialize NPCs
-            let npcs_path = if let Some(ref gm) = app.game_mod {
-                gm.npcs_path()
-            } else {
-                std::path::PathBuf::from("data/npcs.json")
-            };
-            if npcs_path.exists() {
-                match NpcManager::load_from_file(&npcs_path) {
-                    Ok(mgr) => app.npc_manager = mgr,
-                    Err(e) => eprintln!("Warning: Failed to reload NPCs: {}", e),
-                }
-            }
-            app.npc_manager.assign_tiers(&app.world, &[]);
+            let (world, npc_manager) = load_world_and_npcs(
+                app.game_mod.as_ref(),
+                Path::new("data"),
+                crate::world::LocationId(15),
+                NpcFallback::Empty,
+            );
+            app.world = world;
+            app.npc_manager = npc_manager;
 
             // Reset persistence
             if let Some(ref db) = app.db

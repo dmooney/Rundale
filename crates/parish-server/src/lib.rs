@@ -17,12 +17,11 @@ use axum::Router;
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 
+use parish_core::backend_init::{NpcFallback, bootstrap_default_mod_or_data};
 use parish_core::game_mod::{GameMod, find_default_mod};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
-use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
-use parish_core::world::{LocationId, WorldState};
 
 use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 
@@ -34,20 +33,13 @@ use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    // Load world
-    let world = WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15))
-        .unwrap_or_else(|e| {
-            tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
-            WorldState::new()
-        });
-
-    // Load NPCs
-    let mut npc_manager =
-        NpcManager::load_from_file(&data_dir.join("npcs.json")).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
-            NpcManager::new()
-        });
-    npc_manager.assign_tiers(&world, &[]);
+    let bootstrap = bootstrap_default_mod_or_data(
+        &data_dir,
+        parish_core::world::LocationId(15),
+        NpcFallback::Empty,
+    );
+    let world = bootstrap.world;
+    let npc_manager = bootstrap.npc_manager;
 
     // Build client from env
     let (client, config) = build_client_and_config();
@@ -56,7 +48,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let transport = TransportConfig::default();
 
     // Load game mod (if available) for splash text and reaction templates
-    let game_mod = find_default_mod().and_then(|dir| GameMod::load(&dir).ok());
+    let game_mod = bootstrap
+        .game_mod
+        .or_else(|| find_default_mod().and_then(|dir| GameMod::load(&dir).ok()));
     let game_title = game_mod
         .as_ref()
         .and_then(|gm| gm.manifest.meta.title.clone())

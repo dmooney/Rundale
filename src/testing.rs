@@ -18,11 +18,10 @@
 
 use crate::app::App;
 use crate::input::{self, Command, InputResult, IntentKind};
-use crate::npc::Npc;
-use crate::npc::manager::NpcManager;
 use crate::world::LocationId;
 use crate::world::description::{format_exits, render_description};
 use crate::world::time::{Season, TimeOfDay};
+use parish_core::backend_init::{NpcFallback, bootstrap_default_mod_or_data};
 use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -122,45 +121,11 @@ impl GameTestHarness {
     /// falls back to `data/parish.json`. Adds NPCs from the mod or data directory.
     pub fn new() -> Self {
         let mut app = App::new();
-
-        // Try to load game mod
-        let game_mod = parish_core::game_mod::find_default_mod()
-            .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
-
-        // Load world — prefer mod, fall back to legacy data/parish.json
-        if let Some(ref gm) = game_mod {
-            match crate::world::WorldState::from_mod(gm) {
-                Ok(world) => app.world = world,
-                Err(e) => eprintln!("Warning: Failed to load world from mod: {}", e),
-            }
-        } else {
-            let parish_path = Path::new("data/parish.json");
-            if parish_path.exists() {
-                match crate::world::WorldState::from_parish_file(parish_path, LocationId(15)) {
-                    Ok(world) => app.world = world,
-                    Err(e) => eprintln!("Warning: Failed to load parish data: {}", e),
-                }
-            }
-        }
-
-        // Load NPCs — prefer mod, fall back to legacy data/npcs.json, then test NPC
-        let npcs_path = if let Some(ref gm) = game_mod {
-            gm.npcs_path()
-        } else {
-            std::path::PathBuf::from("data/npcs.json")
-        };
-        if npcs_path.exists() {
-            match NpcManager::load_from_file(&npcs_path) {
-                Ok(mgr) => app.npc_manager = mgr,
-                Err(_) => app.npc_manager.add_npc(Npc::new_test_npc()),
-            }
-        } else {
-            app.npc_manager.add_npc(Npc::new_test_npc());
-        }
-        app.game_mod = game_mod;
-
-        // Initial tier assignment
-        app.npc_manager.assign_tiers(&app.world, &[]);
+        let bootstrap =
+            bootstrap_default_mod_or_data(Path::new("data"), LocationId(15), NpcFallback::TestNpc);
+        app.world = bootstrap.world;
+        app.npc_manager = bootstrap.npc_manager;
+        app.game_mod = bootstrap.game_mod;
 
         // Initialize in-memory persistence for test harness
         let db_sync = crate::persistence::Database::open_memory().ok();
@@ -886,36 +851,14 @@ impl GameTestHarness {
                 ActionResult::SystemCommand { response: msg }
             }
             Command::NewGame => {
-                // Re-initialize from GameTestHarness::new() logic
-                let game_mod = parish_core::game_mod::find_default_mod()
-                    .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
-
-                if let Some(ref gm) = game_mod
-                    && let Ok(world) = crate::world::WorldState::from_mod(gm)
-                {
-                    self.app.world = world;
-                } else {
-                    let parish_path = Path::new("data/parish.json");
-                    if parish_path.exists()
-                        && let Ok(world) =
-                            crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
-                    {
-                        self.app.world = world;
-                    }
-                }
-
-                let npcs_path = if let Some(ref gm) = game_mod {
-                    gm.npcs_path()
-                } else {
-                    std::path::PathBuf::from("data/npcs.json")
-                };
-                if npcs_path.exists()
-                    && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
-                {
-                    self.app.npc_manager = mgr;
-                }
-                self.app.game_mod = game_mod;
-                self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+                let bootstrap = bootstrap_default_mod_or_data(
+                    Path::new("data"),
+                    LocationId(15),
+                    NpcFallback::TestNpc,
+                );
+                self.app.world = bootstrap.world;
+                self.app.npc_manager = bootstrap.npc_manager;
+                self.app.game_mod = bootstrap.game_mod;
 
                 let msg = "New game started.".to_string();
                 self.app.world.log(msg.clone());

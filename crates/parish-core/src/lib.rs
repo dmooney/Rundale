@@ -5,6 +5,7 @@
 //! Consumed by the CLI binary (headless), the Tauri desktop frontend,
 //! and the axum web server.
 
+pub mod backend_init;
 pub mod config;
 pub mod debug_snapshot;
 pub mod dice;
