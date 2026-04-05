@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::npc::LanguageHint;
+
 use crate::npc::IrishWordHint;
 use crate::world::palette::{RawColor, RawPalette};
 
@@ -36,6 +38,9 @@ pub struct WorldSnapshot {
     pub game_epoch_ms: f64,
     /// Clock speed multiplier (1 real second = speed_factor game seconds).
     pub speed_factor: f64,
+    /// Pronunciation hints for Irish names relevant to the current location.
+    #[serde(default)]
+    pub name_hints: Vec<LanguageHint>,
     /// Current day of week (e.g. "Monday", "Saturday").
     pub day_of_week: String,
 }
@@ -104,6 +109,8 @@ pub struct NpcInfo {
     pub mood: String,
     /// Whether the player has been introduced to this NPC.
     pub introduced: bool,
+    /// Emoji representation of the mood.
+    pub mood_emoji: String,
 }
 
 // ── Theme palette ───────────────────────────────────────────────────────────
@@ -194,10 +201,23 @@ pub struct ReactRequest {
 }
 
 /// Payload for `loading` events.
+///
+/// When `active` is `true`, the payload may include an animated spinner
+/// character, a fun Irish-themed loading phrase, and an RGB colour —
+/// driven by [`crate::loading::LoadingAnimation`].
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LoadingPayload {
     /// Whether the loading indicator should be shown.
     pub active: bool,
+    /// Current Celtic-cross spinner character (e.g. `"✛"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spinner: Option<String>,
+    /// Current fun loading phrase (e.g. `"Consulting the sheep..."`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phrase: Option<String>,
+    /// Spinner colour as `[R, G, B]`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<[u8; 3]>,
 }
 
 /// A waypoint along a travel path, with screen-friendly coordinates.

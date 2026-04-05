@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, broadcast};
 
+use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::InferenceQueue;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::npc::manager::NpcManager;
@@ -66,56 +67,14 @@ pub struct AppState {
     pub current_branch_id: Mutex<Option<i64>>,
     /// Current branch name.
     pub current_branch_name: Mutex<Option<String>>,
-    /// LLM client for NPC arrival reactions (None if not configured).
-    pub reaction_client: Mutex<Option<OpenAiClient>>,
-    /// Model name for reaction inference.
-    pub reaction_model: Mutex<String>,
     /// Loaded game mod data (for reaction templates, etc.).
     pub game_mod: Option<parish_core::game_mod::GameMod>,
+    /// Name pronunciation entries from the game mod.
+    pub pronunciations: Vec<PronunciationEntry>,
 }
 
-/// Mutable runtime configuration for provider, model, and cloud settings.
-pub struct GameConfig {
-    /// Display name of the current base provider.
-    pub provider_name: String,
-    /// Base URL for the current provider API.
-    pub base_url: String,
-    /// API key for the current provider.
-    pub api_key: Option<String>,
-    /// Model name for NPC dialogue inference.
-    pub model_name: String,
-    /// Cloud provider name for dialogue.
-    pub cloud_provider_name: Option<String>,
-    /// Cloud model name for dialogue.
-    pub cloud_model_name: Option<String>,
-    /// Cloud API key.
-    pub cloud_api_key: Option<String>,
-    /// Cloud base URL.
-    pub cloud_base_url: Option<String>,
-    /// Whether improv craft mode is enabled.
-    pub improv_enabled: bool,
-    /// Per-category provider name overrides (Dialogue=0, Simulation=1, Intent=2).
-    pub category_provider: [Option<String>; 4],
-    /// Per-category model name overrides.
-    pub category_model: [Option<String>; 4],
-    /// Per-category API key overrides.
-    pub category_api_key: [Option<String>; 4],
-    /// Per-category base URL overrides.
-    pub category_base_url: [Option<String>; 4],
-}
-
-impl GameConfig {
-    /// Returns the array index for a category.
-    pub fn cat_idx(cat: parish_core::config::InferenceCategory) -> usize {
-        use parish_core::config::InferenceCategory;
-        match cat {
-            InferenceCategory::Dialogue => 0,
-            InferenceCategory::Simulation => 1,
-            InferenceCategory::Intent => 2,
-            InferenceCategory::Reaction => 3,
-        }
-    }
-}
+// GameConfig is now shared across all backends via parish-core.
+pub use parish_core::ipc::GameConfig;
 
 /// A JSON-serializable server event pushed to WebSocket clients.
 #[derive(Clone, Debug, serde::Serialize)]
@@ -188,8 +147,11 @@ pub fn build_app_state(
     data_dir: PathBuf,
     game_mod: Option<parish_core::game_mod::GameMod>,
 ) -> Arc<AppState> {
-    // Reaction client defaults to the base client (can be overridden later).
-    let reaction_client = client.clone();
+    // Extract pronunciations from game mod before moving it.
+    let pronunciations = game_mod
+        .as_ref()
+        .map(|gm| gm.pronunciations.clone())
+        .unwrap_or_default();
     Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -205,9 +167,8 @@ pub fn build_app_state(
         save_path: Mutex::new(None),
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
-        reaction_client: Mutex::new(reaction_client),
-        reaction_model: Mutex::new(String::new()),
         game_mod,
+        pronunciations,
     })
 }
 

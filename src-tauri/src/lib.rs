@@ -22,7 +22,7 @@ use parish_core::inference::{
 };
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::reactions::ReactionTemplates;
-use parish_core::world::palette::{RawColor, RawPalette, compute_palette};
+use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
@@ -102,102 +102,8 @@ pub struct MapData {
     pub edge_traversals: Vec<(String, String, u32)>,
 }
 
-/// Minimal NPC info for the sidebar.
-#[derive(serde::Serialize, Clone)]
-pub struct NpcInfo {
-    /// Display name (full name if introduced, brief description otherwise).
-    pub name: String,
-    /// NPC's occupation.
-    pub occupation: String,
-    /// NPC's current mood.
-    pub mood: String,
-    /// Whether the player has been introduced to this NPC.
-    pub introduced: bool,
-    /// Emoji representation of the mood.
-    pub mood_emoji: String,
-}
-
-/// CSS hex-string theme palette derived from `RawPalette`.
-#[derive(serde::Serialize, Clone)]
-pub struct ThemePalette {
-    /// Main background colour (`"#rrggbb"`).
-    pub bg: String,
-    /// Foreground (text) colour.
-    pub fg: String,
-    /// Accent colour for highlights and the status bar.
-    pub accent: String,
-    /// Slightly offset panel background.
-    pub panel_bg: String,
-    /// Input field background.
-    pub input_bg: String,
-    /// Border/separator colour.
-    pub border: String,
-    /// Muted colour for secondary text.
-    pub muted: String,
-}
-
-impl From<RawPalette> for ThemePalette {
-    fn from(raw: RawPalette) -> Self {
-        let hex = |c: RawColor| format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b);
-        ThemePalette {
-            bg: hex(raw.bg),
-            fg: hex(raw.fg),
-            accent: hex(raw.accent),
-            panel_bg: hex(raw.panel_bg),
-            input_bg: hex(raw.input_bg),
-            border: hex(raw.border),
-            muted: hex(raw.muted),
-        }
-    }
-}
-
-// ── Application state ────────────────────────────────────────────────────────
-
-/// Mutable runtime configuration for provider, model, and cloud settings.
-///
-/// Wrapped in a `Mutex` on [`AppState`] so `/provider`, `/model`, `/key`,
-/// `/cloud`, and `/improv` commands can update it at runtime.
-pub struct GameConfig {
-    /// Display name of the current base provider (e.g. "ollama", "openrouter").
-    pub provider_name: String,
-    /// Base URL for the current provider API.
-    pub base_url: String,
-    /// API key for the current provider (None for keyless providers like Ollama).
-    pub api_key: Option<String>,
-    /// Model name for NPC dialogue inference.
-    pub model_name: String,
-    /// Cloud provider name for dialogue (None = local only).
-    pub cloud_provider_name: Option<String>,
-    /// Cloud model name for dialogue.
-    pub cloud_model_name: Option<String>,
-    /// Cloud API key.
-    pub cloud_api_key: Option<String>,
-    /// Cloud base URL.
-    pub cloud_base_url: Option<String>,
-    /// Whether improv craft mode is enabled for NPC dialogue.
-    pub improv_enabled: bool,
-    /// Per-category provider name overrides (None = inherits base).
-    pub category_provider: [Option<String>; 4],
-    /// Per-category model name overrides (None = inherits base).
-    pub category_model: [Option<String>; 4],
-    /// Per-category API key overrides (None = inherits base).
-    pub category_api_key: [Option<String>; 4],
-    /// Per-category base URL overrides (None = inherits base).
-    pub category_base_url: [Option<String>; 4],
-}
-
-impl GameConfig {
-    /// Returns the array index for a category (Dialogue=0, Simulation=1, Intent=2, Reaction=3).
-    fn cat_idx(cat: parish_core::config::InferenceCategory) -> usize {
-        use parish_core::config::InferenceCategory;
-        match cat {
-            InferenceCategory::Dialogue => 0,
-            InferenceCategory::Simulation => 1,
-            InferenceCategory::Intent => 2,
-            InferenceCategory::Reaction => 3,
-        }
-    }
-}
+// NpcInfo and ThemePalette are defined in parish-core and re-exported here.
+pub use parish_core::ipc::{GameConfig, NpcInfo, ThemePalette};
 
 /// Current save state for display in the StatusBar.
 #[derive(serde::Serialize, Clone)]
@@ -861,6 +767,21 @@ pub fn run() {
                                             tt.npc_name, direction, tt.old_tier, tt.new_tier,
                                         ),
                                     });
+                                }
+                            }
+
+                            // Propagate gossip between co-located Tier 2 NPCs
+                            if !world.gossip_network.is_empty() {
+                                let groups = npc_mgr.tier2_groups();
+                                let mut rng = rand::thread_rng();
+                                for npc_ids in groups.values() {
+                                    if npc_ids.len() >= 2 {
+                                        parish_core::npc::ticks::propagate_gossip_at_location(
+                                            npc_ids,
+                                            &mut world.gossip_network,
+                                            &mut rng,
+                                        );
+                                    }
                                 }
                             }
                         }

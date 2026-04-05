@@ -5,21 +5,17 @@
 //! Runs by default or with `--headless` on the command line.
 
 use crate::app::App;
-use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, Provider, ProviderConfig};
+use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
-use crate::input::{Command, InputResult, classify_input, parse_intent};
+use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
 use crate::loading::LoadingAnimation;
-use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
-use crate::npc::ticks;
-use crate::npc::{
-    SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary, parse_npc_stream_response,
-};
+use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
-use chrono::Timelike;
+use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -297,36 +293,6 @@ pub async fn run_headless(
     Ok(())
 }
 
-/// Masks an API key for display, hiding length information for short keys.
-fn mask_api_key(key: &str) -> String {
-    if key.len() > 8 {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
-    } else {
-        "****".to_string()
-    }
-}
-
-/// Capitalizes the first character of a string slice.
-fn capitalize_first(s: &str) -> String {
-    let mut chars = s.chars();
-    match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-    }
-}
-
-/// Handles a system command in headless mode. Returns true if the game should exit.
-/// Atmospheric idle messages shown when no NPC is present for conversation.
-const HEADLESS_IDLE_MESSAGES: &[&str] = &[
-    "The wind stirs, but nothing else.",
-    "Only the sound of a distant crow.",
-    "A dog barks somewhere beyond the hill.",
-    "The clouds shift. The parish carries on.",
-    "Somewhere nearby, a door creaks shut.",
-    "A wren hops along the stone wall and vanishes.",
-    "The smell of turf smoke drifts from a cottage chimney.",
-];
-
 /// Restores game state from a database, loading the "main" branch snapshot.
 ///
 /// Finds the "main" branch, loads the latest snapshot, replays any journal
@@ -364,637 +330,350 @@ static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
 ///
 /// Returns `(should_quit, rebuild_inference)`.
 async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
+    use parish_core::ipc::{CommandEffect, handle_command};
+
+    // Snapshot config, run shared handler, apply changes back.
+    let mut config = app.snapshot_config();
+    let result = handle_command(cmd, &mut app.world, &mut app.npc_manager, &mut config);
+    app.apply_config(&config);
+
     let mut rebuild = false;
-    match cmd {
-        Command::Quit => {
-            // Autosave before quitting
-            if let Some(ref db) = app.db {
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                    Ok(snap_id) => {
-                        app.latest_snapshot_id = snap_id;
-                        println!("Saved and farewell.");
-                    }
-                    Err(e) => eprintln!("Warning: Failed to save on quit: {}", e),
-                }
-            }
-            app.should_quit = true;
-            return (true, false);
-        }
-        Command::Pause => {
-            app.world.clock.pause();
-            println!("The clocks of the parish stand still.");
-        }
-        Command::Resume => {
-            app.world.clock.resume();
-            println!("Time stirs again in the parish.");
-        }
-        Command::ShowSpeed => {
-            let speed_name = app
-                .world
-                .clock
-                .current_speed()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("Custom ({}x)", app.world.clock.speed_factor()));
-            println!("The parish moves at {} pace.", speed_name);
-        }
-        Command::SetSpeed(speed) => {
-            app.world.clock.set_speed(speed);
-            println!("{}", speed.activation_message());
-        }
-        Command::InvalidSpeed(name) => {
-            println!(
-                "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
-                name
-            );
-        }
-        Command::InvalidBranchName(msg) => {
-            println!("{}", msg);
-        }
-        Command::Status => {
-            let time = app.world.clock.time_of_day();
-            let season = app.world.clock.season();
-            let loc = app.world.current_location().name.clone();
-            let paused = if app.world.clock.is_paused() {
-                " (paused)"
-            } else {
-                ""
-            };
-            println!("Location: {} | {} | {}{}", loc, time, season, paused);
-        }
-        Command::Help => {
-            println!("A few things ye might say:");
-            println!("  /quit     - Take your leave");
-            println!("  /pause    - Hold time still");
-            println!("  /resume   - Let time flow again");
-            println!(
-                "  /speed    - Show or change game speed (slow/normal/fast/fastest/ludicrous)"
-            );
-            println!("  /status   - Where am I?");
-            println!("  /where    - Alias for /status");
-            println!("  /map      - Show the parish map");
-            println!("  /npcs     - Who's here?");
-            println!("  /time     - Detailed time and weather");
-            println!("  /wait [n] - Wait in place (default 15 minutes)");
-            println!("  /tick     - Advance NPC schedules");
-            println!("  /new      - Start a fresh game");
-            println!("  /irish    - Toggle Irish words sidebar (TUI only)");
-            println!("  /improv   - Toggle improv craft for NPC dialogue");
-            println!("  /provider - Show or change base LLM provider");
-            println!("  /model    - Show or change base model name");
-            println!("  /key      - Show or change base API key");
-            println!("  /cloud    - Show or change cloud dialogue provider (legacy)");
-            println!(
-                "  /model.<cat>    - Show or change model for a category (dialogue/simulation/intent)"
-            );
-            println!("  /provider.<cat> - Show or change provider for a category");
-            println!("  /key.<cat>      - Show or change API key for a category");
-            println!("  /help     - Show this help");
-            println!("  /about    - About the game and credits");
-            println!("  /save     - Save game");
-            println!("  /fork <n> - Fork a new timeline branch");
-            println!("  /load     - Show save picker (switch save file)");
-            println!("  /load <n> - Load a named branch in current save");
-            println!("  /branches - List save branches");
-            println!("  /log      - Show snapshot history");
-        }
-        Command::About => {
-            println!("Parish — A text adventure set in 1820s rural Ireland.");
-            println!("Explore a living village powered by AI-driven NPCs.");
-            // TODO: add credits (contributors, libraries, etc.)
-            println!();
-            println!("Type /help for available commands.");
-        }
-        Command::ToggleSidebar => {
-            println!("The pronunciation sidebar is only available in TUI mode.");
-        }
-        Command::ToggleImprov => {
-            app.improv_enabled = !app.improv_enabled;
-            if app.improv_enabled {
-                println!("The characters loosen up — improv craft engaged.");
-            } else {
-                println!("The characters settle back to their usual selves.");
-            }
-        }
-        Command::ShowProvider => {
-            println!("Base: {}", app.provider_name);
-            for cat in InferenceCategory::ALL {
-                if let Some(provider) = app.category_provider_name(cat) {
-                    println!("  {}: {}", cat.name(), provider);
-                }
-            }
-        }
-        Command::SetProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                app.base_url = provider.default_base_url().to_string();
-                app.provider_name = format!("{:?}", provider).to_lowercase();
+    let mut should_quit = false;
+
+    // Handle mode-specific side effects.
+    for effect in &result.effects {
+        match effect {
+            CommandEffect::RebuildInference => {
                 app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
                 rebuild = true;
-                println!("Provider changed to {}.", app.provider_name);
             }
-            Err(e) => {
-                println!("{}", e);
+            CommandEffect::RebuildCloudClient => {
+                let base_url = app
+                    .cloud_base_url
+                    .as_deref()
+                    .unwrap_or("https://openrouter.ai/api");
+                app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
+                rebuild = true;
             }
-        },
-        Command::ShowModel => {
-            if app.model_name.is_empty() {
-                println!("Base model: (auto-detect)");
-            } else {
-                println!("Base model: {}", app.model_name);
-            }
-            for cat in InferenceCategory::ALL {
-                let model = app.category_model(cat);
-                if !model.is_empty() {
-                    println!("  {}: {}", cat.name(), model);
-                }
-            }
-        }
-        Command::SetModel(name) => {
-            app.model_name = name.clone();
-            println!("Model changed to {}.", name);
-        }
-        Command::ShowKey => match &app.api_key {
-            Some(key) => {
-                println!("API key: {}", mask_api_key(key));
-            }
-            None => {
-                println!("API key: (not set)");
-            }
-        },
-        Command::SetKey(value) => {
-            app.api_key = Some(value);
-            app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
-            rebuild = true;
-            println!("API key updated.");
-        }
-        Command::Save => {
-            if let Some(ref db) = app.db {
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                    Ok(snap_id) => {
-                        // Clear old journal and start fresh from this snapshot
-                        let _ = db
-                            .clear_journal(app.active_branch_id, app.latest_snapshot_id)
-                            .await;
-                        app.latest_snapshot_id = snap_id;
-                        app.last_autosave = Some(std::time::Instant::now());
-                        println!("Game saved.");
+            CommandEffect::Quit => {
+                // Autosave before quitting
+                if let Some(ref db) = app.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    match db.save_snapshot(app.active_branch_id, &snapshot).await {
+                        Ok(snap_id) => {
+                            app.latest_snapshot_id = snap_id;
+                            println!("Saved and farewell.");
+                        }
+                        Err(e) => eprintln!("Warning: Failed to save on quit: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to save: {}", e),
                 }
-            } else {
-                println!("Persistence not available.");
+                app.should_quit = true;
+                should_quit = true;
             }
-        }
-        Command::Fork(name) => {
-            if let Some(ref db) = app.db {
-                // Save current branch first
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-
-                // Create new branch
-                match db.create_branch(&name, Some(app.active_branch_id)).await {
-                    Ok(new_branch_id) => {
-                        // Save snapshot under new branch
-                        match db.save_snapshot(new_branch_id, &snapshot).await {
-                            Ok(snap_id) => {
-                                app.active_branch_id = new_branch_id;
-                                app.latest_snapshot_id = snap_id;
-                                app.last_autosave = Some(std::time::Instant::now());
-                                println!("Forked to branch '{}'.", name);
+            CommandEffect::ToggleMap => {
+                println!("=== Parish Map ===");
+                let player_loc = app.world.player_location;
+                for node_id in app.world.graph.location_ids() {
+                    if let Some(data) = app.world.graph.get(node_id) {
+                        let marker = if node_id == player_loc { " * " } else { "   " };
+                        println!("{}{}", marker, data.name);
+                    }
+                }
+                println!();
+                println!("Connections:");
+                for node_id in app.world.graph.location_ids() {
+                    if let Some(data) = app.world.graph.get(node_id) {
+                        for (neighbor_id, _) in app.world.graph.neighbors(node_id) {
+                            if node_id.0 < neighbor_id.0 {
+                                let neighbor_name = app
+                                    .world
+                                    .graph
+                                    .get(neighbor_id)
+                                    .map(|d| d.name.as_str())
+                                    .unwrap_or("???");
+                                println!("  {} — {}", data.name, neighbor_name);
                             }
-                            Err(e) => eprintln!("Failed to save fork snapshot: {}", e),
                         }
                     }
-                    Err(e) => eprintln!("Failed to create branch '{}': {}", name, e),
                 }
-            } else {
-                println!("Persistence not available.");
             }
-        }
-        Command::Load(name) if name.is_empty() => {
-            // Bare /load — show save picker for switching save files
-            let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
-            if let Some(new_path) =
-                crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
-            {
-                // Autosave current state before switching
+            CommandEffect::SaveGame => {
+                if let Some(ref db) = app.db {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    match db.save_snapshot(app.active_branch_id, &snapshot).await {
+                        Ok(snap_id) => {
+                            let _ = db
+                                .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                                .await;
+                            app.latest_snapshot_id = snap_id;
+                            app.last_autosave = Some(std::time::Instant::now());
+                            println!("Game saved.");
+                        }
+                        Err(e) => eprintln!("Failed to save: {}", e),
+                    }
+                } else {
+                    println!("Persistence not available.");
+                }
+            }
+            CommandEffect::ForkBranch(name) => {
                 if let Some(ref db) = app.db {
                     let snapshot =
                         crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
                     let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-                }
-
-                // Reload parish data for a clean base state
-                let parish_path = Path::new("data/parish.json");
-                if parish_path.exists()
-                    && let Ok(world) = crate::world::WorldState::from_parish_file(
-                        parish_path,
-                        crate::world::LocationId(15),
-                    )
-                {
-                    app.world = world;
-                }
-                let npcs_path = Path::new("data/npcs.json");
-                if npcs_path.exists()
-                    && let Ok(mgr) = NpcManager::load_from_file(npcs_path)
-                {
-                    app.npc_manager = mgr;
-                }
-
-                match crate::persistence::Database::open(&new_path) {
-                    Ok(new_db) => {
-                        let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
-                        restore_from_db(app, &async_db).await;
-                        app.db = Some(async_db);
-                        app.save_file_path = Some(new_path);
-                        app.last_autosave = Some(std::time::Instant::now());
-                        print_location_arrival(app);
-                        print_arrival_reactions(app).await;
+                    match db.create_branch(name, Some(app.active_branch_id)).await {
+                        Ok(new_branch_id) => {
+                            match db.save_snapshot(new_branch_id, &snapshot).await {
+                                Ok(snap_id) => {
+                                    app.active_branch_id = new_branch_id;
+                                    app.latest_snapshot_id = snap_id;
+                                    app.last_autosave = Some(std::time::Instant::now());
+                                    println!("Forked to branch '{}'.", name);
+                                }
+                                Err(e) => eprintln!("Failed to save fork snapshot: {}", e),
+                            }
+                        }
+                        Err(e) => eprintln!("Failed to create branch '{}': {}", name, e),
                     }
-                    Err(e) => eprintln!("Failed to open save file: {}", e),
+                } else {
+                    println!("Persistence not available.");
                 }
             }
-        }
-        Command::Load(name) => {
-            // /load <branch_name> — switch branch within current save
-            if let Some(ref db) = app.db {
-                match db.find_branch(&name).await {
-                    Ok(Some(branch)) => {
-                        // Auto-save current branch only when switching branches
-                        if branch.id != app.active_branch_id {
-                            let snapshot = crate::persistence::GameSnapshot::capture(
-                                &app.world,
-                                &app.npc_manager,
-                            );
-                            let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-                        }
-                        match db.load_latest_snapshot(branch.id).await {
-                            Ok(Some((snap_id, loaded_snapshot))) => {
-                                // Replay journal events
-                                let events = db
-                                    .events_since_snapshot(branch.id, snap_id)
-                                    .await
-                                    .unwrap_or_default();
-                                loaded_snapshot.restore(&mut app.world, &mut app.npc_manager);
-                                crate::persistence::replay_journal(
-                                    &mut app.world,
-                                    &mut app.npc_manager,
-                                    &events,
-                                );
-
-                                app.active_branch_id = branch.id;
-                                app.latest_snapshot_id = snap_id;
-                                app.last_autosave = Some(std::time::Instant::now());
-
-                                // Reassign tiers after loading
-                                app.npc_manager.assign_tiers(&app.world, &[]);
-
-                                let time = app.world.clock.time_of_day();
-                                let season = app.world.clock.season();
-                                let loc = app.world.current_location().name.clone();
+            CommandEffect::LoadBranch(name) => {
+                handle_headless_load(app, name).await;
+            }
+            CommandEffect::ListBranches => {
+                if let Some(ref db) = app.db {
+                    match db.list_branches().await {
+                        Ok(branches) => {
+                            println!("Save branches:");
+                            for b in &branches {
+                                let marker = if b.id == app.active_branch_id {
+                                    " *"
+                                } else {
+                                    ""
+                                };
                                 println!(
-                                    "Loaded branch '{}'. {} — {}, {}.",
-                                    name, loc, season, time
+                                    "  {}{} (created {})",
+                                    b.name,
+                                    marker,
+                                    crate::persistence::format_timestamp(&b.created_at)
                                 );
                             }
-                            Ok(None) => println!("Branch '{}' has no saves yet.", name),
-                            Err(e) => eprintln!("Failed to load branch '{}': {}", name, e),
                         }
+                        Err(e) => eprintln!("Failed to list branches: {}", e),
                     }
-                    Ok(None) => println!("No branch named '{}' found.", name),
-                    Err(e) => eprintln!("Failed to find branch '{}': {}", name, e),
+                } else {
+                    println!("Persistence not available.");
                 }
-            } else {
-                println!("Persistence not available.");
             }
-        }
-        Command::Branches => {
-            if let Some(ref db) = app.db {
-                match db.list_branches().await {
-                    Ok(branches) => {
-                        println!("Save branches:");
-                        for b in &branches {
-                            let marker = if b.id == app.active_branch_id {
-                                " *"
+            CommandEffect::ShowLog => {
+                if let Some(ref db) = app.db {
+                    match db.branch_log(app.active_branch_id).await {
+                        Ok(snapshots) => {
+                            if snapshots.is_empty() {
+                                println!("No snapshots on this branch yet.");
                             } else {
-                                ""
-                            };
-                            println!(
-                                "  {}{} (created {})",
-                                b.name,
-                                marker,
-                                crate::persistence::format_timestamp(&b.created_at)
-                            );
-                        }
-                    }
-                    Err(e) => eprintln!("Failed to list branches: {}", e),
-                }
-            } else {
-                println!("Persistence not available.");
-            }
-        }
-        Command::Log => {
-            if let Some(ref db) = app.db {
-                match db.branch_log(app.active_branch_id).await {
-                    Ok(snapshots) => {
-                        if snapshots.is_empty() {
-                            println!("No snapshots on this branch yet.");
-                        } else {
-                            println!("Snapshot history (most recent first):");
-                            for s in &snapshots {
-                                println!(
-                                    "  #{} — game: {} | saved: {}",
-                                    s.id,
-                                    s.game_time,
-                                    crate::persistence::format_timestamp(&s.real_time)
-                                );
+                                println!("Snapshot history (most recent first):");
+                                for s in &snapshots {
+                                    println!(
+                                        "  #{} — game: {} | saved: {}",
+                                        s.id,
+                                        s.game_time,
+                                        crate::persistence::format_timestamp(&s.real_time)
+                                    );
+                                }
                             }
                         }
+                        Err(e) => eprintln!("Failed to get branch log: {}", e),
                     }
-                    Err(e) => eprintln!("Failed to get branch log: {}", e),
-                }
-            } else {
-                println!("Persistence not available.");
-            }
-        }
-        Command::Debug(sub) => {
-            let lines = crate::debug::handle_debug(sub.as_deref(), app);
-            for line in lines {
-                println!("{}", line);
-            }
-        }
-        Command::ShowCloud => {
-            if let Some(ref provider) = app.cloud_provider_name {
-                let model = app.cloud_model_name.as_deref().unwrap_or("(none)");
-                println!("Cloud: {} | Model: {}", provider, model);
-            } else {
-                println!(
-                    "No cloud provider configured. Use --cloud-provider or parish.toml [cloud]."
-                );
-            }
-        }
-        Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let base_url = provider.default_base_url().to_string();
-                let provider_name = format!("{:?}", provider).to_lowercase();
-                app.cloud_provider_name = Some(provider_name.clone());
-                app.cloud_base_url = Some(base_url.clone());
-                app.cloud_client = Some(OpenAiClient::new(&base_url, app.cloud_api_key.as_deref()));
-                rebuild = true;
-                println!("Cloud provider changed to {}.", provider_name);
-            }
-            Err(e) => {
-                println!("{}", e);
-            }
-        },
-        Command::ShowCloudModel => {
-            if let Some(ref model) = app.cloud_model_name {
-                println!("Cloud model: {}", model);
-            } else {
-                println!("Cloud model: (not set)");
-            }
-        }
-        Command::SetCloudModel(name) => {
-            app.cloud_model_name = Some(name.clone());
-            app.dialogue_model = name.clone();
-            println!("Cloud model changed to {}.", name);
-        }
-        Command::ShowCloudKey => match &app.cloud_api_key {
-            Some(key) => {
-                println!("Cloud API key: {}", mask_api_key(key));
-            }
-            None => {
-                println!("Cloud API key: (not set)");
-            }
-        },
-        Command::SetCloudKey(value) => {
-            app.cloud_api_key = Some(value);
-            let base_url = app
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://openrouter.ai/api");
-            app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
-            rebuild = true;
-            println!("Cloud API key updated.");
-        }
-        Command::ShowCategoryProvider(cat) => {
-            let name = cat.name();
-            if let Some(provider) = app.category_provider_name(cat) {
-                println!("{} provider: {}", name, provider);
-            } else {
-                println!("{} provider: (inherits base: {})", name, app.provider_name);
-            }
-        }
-        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let base_url = provider.default_base_url().to_string();
-                let provider_name = format!("{:?}", provider).to_lowercase();
-                let api_key = app.category_api_key(cat).map(|s| s.to_string());
-                app.set_category_provider_name(cat, provider_name.clone());
-                app.set_category_base_url(cat, base_url.clone());
-                app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
-                rebuild = true;
-                println!("{} provider changed to {}.", cat.name(), provider_name);
-            }
-            Err(e) => {
-                println!("{}", e);
-            }
-        },
-        Command::ShowCategoryModel(cat) => {
-            let model = app.category_model(cat);
-            if model.is_empty() {
-                println!("{} model: (inherits base: {})", cat.name(), app.model_name);
-            } else {
-                println!("{} model: {}", cat.name(), model);
-            }
-        }
-        Command::SetCategoryModel(cat, name) => {
-            let cat_name = cat.name();
-            app.set_category_model(cat, name.clone());
-            println!("{} model changed to {}.", cat_name, name);
-        }
-        Command::ShowCategoryKey(cat) => match app.category_api_key(cat) {
-            Some(key) => {
-                println!("{} API key: {}", cat.name(), mask_api_key(key));
-            }
-            None => {
-                println!("{} API key: (not set)", cat.name());
-            }
-        },
-        Command::SetCategoryKey(cat, value) => {
-            let cat_name = cat.name();
-            app.set_category_api_key(cat, value);
-            let base_url = app
-                .category_base_url(cat)
-                .unwrap_or(&app.base_url)
-                .to_string();
-            let api_key = app.category_api_key(cat).map(|s| s.to_string());
-            app.set_category_client(cat, OpenAiClient::new(&base_url, api_key.as_deref()));
-            rebuild = true;
-            println!("{} API key updated.", cat_name);
-        }
-        Command::Spinner(secs) => {
-            println!("Showing spinner for {} seconds (GUI only).", secs);
-        }
-        Command::Map => {
-            println!("=== Parish Map ===");
-            let player_loc = app.world.player_location;
-            for node_id in app.world.graph.location_ids() {
-                if let Some(data) = app.world.graph.get(node_id) {
-                    let marker = if node_id == player_loc { " * " } else { "   " };
-                    println!("{}{}", marker, data.name);
+                } else {
+                    println!("Persistence not available.");
                 }
             }
-            println!();
-            println!("Connections:");
-            for node_id in app.world.graph.location_ids() {
-                if let Some(data) = app.world.graph.get(node_id) {
-                    for (neighbor_id, _) in app.world.graph.neighbors(node_id) {
-                        // Print each edge once (only when from < to)
-                        if node_id.0 < neighbor_id.0 {
-                            let neighbor_name = app
-                                .world
-                                .graph
-                                .get(neighbor_id)
-                                .map(|d| d.name.as_str())
-                                .unwrap_or("???");
-                            println!("  {} — {}", data.name, neighbor_name);
-                        }
-                    }
+            CommandEffect::Debug(sub) => {
+                let lines = crate::debug::handle_debug(sub.as_deref(), app);
+                for line in lines {
+                    println!("{}", line);
                 }
             }
-        }
-        Command::NpcsHere => {
-            let npcs = app.npc_manager.npcs_at(app.world.player_location);
-            if npcs.is_empty() {
-                println!("No one else is here.");
-            } else {
-                println!("NPCs here:");
-                for npc in &npcs {
-                    let display = app.npc_manager.display_name(npc);
-                    let intro = if app.npc_manager.is_introduced(npc.id) {
-                        " [introduced]"
-                    } else {
-                        ""
-                    };
-                    println!("  {} — {} ({}){}", display, npc.occupation, npc.mood, intro);
+            CommandEffect::ShowSpinner(secs) => {
+                let secs = *secs;
+                println!("Showing spinner for {} seconds...", secs);
+                let mut anim = LoadingAnimation::new();
+                let end = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+                while std::time::Instant::now() < end {
+                    anim.tick();
+                    let (r, g, b) = anim.current_color_rgb();
+                    print!(
+                        "\r  \x1b[38;2;{};{};{}m{} {}\x1b[0m\x1b[K",
+                        r,
+                        g,
+                        b,
+                        anim.spinner_char(),
+                        anim.phrase()
+                    );
+                    std::io::stdout().flush().ok();
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
                 }
+                println!("\r\x1b[K");
             }
-        }
-        Command::Time => {
-            let now = app.world.clock.now();
-            let hour = now.hour();
-            let minute = now.minute();
-            let tod = app.world.clock.time_of_day();
-            let season = app.world.clock.season();
-            let festival = app
-                .world
-                .clock
-                .check_festival()
-                .map(|f| f.to_string())
-                .unwrap_or_else(|| "none".to_string());
-            let paused = if app.world.clock.is_paused() {
-                " (PAUSED)"
-            } else {
-                ""
-            };
-            println!("{:02}:{:02} {} — {}{}", hour, minute, tod, season, paused);
-            println!("Weather: {}", app.world.weather);
-            println!("Speed: {}x", app.world.clock.speed_factor());
-            println!("Festival: {}", festival);
-        }
-        Command::Wait(minutes) => {
-            println!("You wait for {} minutes...", minutes);
-            app.world.clock.advance(minutes as i64);
-            app.npc_manager.assign_tiers(&app.world, &[]);
-            let schedule_events = app.npc_manager.tick_schedules(
-                &app.world.clock,
-                &app.world.graph,
-                app.world.weather,
-            );
-            process_headless_schedule_events(app, &schedule_events);
-            let now = app.world.clock.now();
-            let tod = app.world.clock.time_of_day();
-            println!("It is now {:02}:{:02} {}.", now.hour(), now.minute(), tod);
-        }
-        Command::NewGame => {
-            // Re-initialize world from mod or data files
-            if let Some(ref gm) = app.game_mod {
-                match crate::world::WorldState::from_mod(gm) {
-                    Ok(world) => app.world = world,
-                    Err(e) => {
-                        eprintln!("Failed to reset world: {}", e);
-                        return (false, false);
-                    }
-                }
-            } else {
-                let parish_path = Path::new("data/parish.json");
-                if parish_path.exists() {
-                    match crate::world::WorldState::from_parish_file(
-                        parish_path,
-                        crate::world::LocationId(15),
-                    ) {
-                        Ok(world) => app.world = world,
-                        Err(e) => {
-                            eprintln!("Failed to reset world: {}", e);
-                            return (false, false);
-                        }
-                    }
-                }
-            }
-            // Re-initialize NPCs
-            let npcs_path = if let Some(ref gm) = app.game_mod {
-                gm.npcs_path()
-            } else {
-                std::path::PathBuf::from("data/npcs.json")
-            };
-            if npcs_path.exists() {
-                match NpcManager::load_from_file(&npcs_path) {
-                    Ok(mgr) => app.npc_manager = mgr,
-                    Err(e) => eprintln!("Warning: Failed to reload NPCs: {}", e),
-                }
-            }
-            app.npc_manager.assign_tiers(&app.world, &[]);
-
-            // Reset persistence
-            if let Some(ref db) = app.db
-                && let Ok(branch_id) = db.create_branch("main", None).await
-            {
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                if let Ok(snap_id) = db.save_snapshot(branch_id, &snapshot).await {
-                    app.active_branch_id = branch_id;
-                    app.latest_snapshot_id = snap_id;
-                    app.last_autosave = Some(std::time::Instant::now());
-                }
-            }
-
-            println!("A new day dawns in the parish.");
-            println!();
-            print_location_arrival(app);
-            print_arrival_reactions(app).await;
-        }
-        Command::Tick => {
-            app.npc_manager.assign_tiers(&app.world, &[]);
-            let schedule_events = app.npc_manager.tick_schedules(
-                &app.world.clock,
-                &app.world.graph,
-                app.world.weather,
-            );
-            let count = schedule_events.len();
-            process_headless_schedule_events(app, &schedule_events);
-            if count == 0 {
-                println!("No NPC activity.");
-            } else {
-                println!("{} schedule event(s) processed.", count);
+            CommandEffect::NewGame => {
+                handle_headless_new_game(app).await;
             }
         }
     }
-    (false, rebuild)
+
+    // Print the shared handler's response text.
+    if !result.response.is_empty() {
+        // The shared handler returns Help as a fallback; override with headless-specific help.
+        if result.effects.is_empty()
+            || !result
+                .effects
+                .iter()
+                .any(|e| matches!(e, CommandEffect::Quit))
+        {
+            println!("{}", result.response);
+        }
+    }
+
+    (should_quit, rebuild)
+}
+
+/// Handles /load in headless mode (both bare /load and /load <branch_name>).
+async fn handle_headless_load(app: &mut App, name: &str) {
+    if name.is_empty() {
+        // Bare /load — show save picker for switching save files
+        let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
+        if let Some(new_path) =
+            crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
+        {
+            if let Some(ref db) = app.db {
+                let snapshot =
+                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+            }
+            let parish_path = Path::new("data/parish.json");
+            if parish_path.exists()
+                && let Ok(world) = crate::world::WorldState::from_parish_file(
+                    parish_path,
+                    crate::world::LocationId(15),
+                )
+            {
+                app.world = world;
+            }
+            let npcs_path = Path::new("data/npcs.json");
+            if npcs_path.exists()
+                && let Ok(mgr) = NpcManager::load_from_file(npcs_path)
+            {
+                app.npc_manager = mgr;
+            }
+            match crate::persistence::Database::open(&new_path) {
+                Ok(new_db) => {
+                    let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
+                    restore_from_db(app, &async_db).await;
+                    app.db = Some(async_db);
+                    app.save_file_path = Some(new_path);
+                    app.last_autosave = Some(std::time::Instant::now());
+                    print_location_arrival(app);
+                    print_arrival_reactions(app).await;
+                }
+                Err(e) => eprintln!("Failed to open save file: {}", e),
+            }
+        }
+    } else if let Some(ref db) = app.db {
+        match db.find_branch(name).await {
+            Ok(Some(branch)) => {
+                if branch.id != app.active_branch_id {
+                    let snapshot =
+                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+                    let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
+                }
+                match db.load_latest_snapshot(branch.id).await {
+                    Ok(Some((snap_id, loaded_snapshot))) => {
+                        let events = db
+                            .events_since_snapshot(branch.id, snap_id)
+                            .await
+                            .unwrap_or_default();
+                        loaded_snapshot.restore(&mut app.world, &mut app.npc_manager);
+                        crate::persistence::replay_journal(
+                            &mut app.world,
+                            &mut app.npc_manager,
+                            &events,
+                        );
+                        app.active_branch_id = branch.id;
+                        app.latest_snapshot_id = snap_id;
+                        app.last_autosave = Some(std::time::Instant::now());
+                        app.npc_manager.assign_tiers(&app.world, &[]);
+                        let time = app.world.clock.time_of_day();
+                        let season = app.world.clock.season();
+                        let loc = app.world.current_location().name.clone();
+                        println!("Loaded branch '{}'. {} — {}, {}.", name, loc, season, time);
+                    }
+                    Ok(None) => println!("Branch '{}' has no saves yet.", name),
+                    Err(e) => eprintln!("Failed to load branch '{}': {}", name, e),
+                }
+            }
+            Ok(None) => println!("No branch named '{}' found.", name),
+            Err(e) => eprintln!("Failed to find branch '{}': {}", name, e),
+        }
+    } else {
+        println!("Persistence not available.");
+    }
+}
+
+/// Handles /new in headless mode — resets world and NPCs.
+async fn handle_headless_new_game(app: &mut App) {
+    if let Some(ref gm) = app.game_mod {
+        match crate::world::WorldState::from_mod(gm) {
+            Ok(world) => app.world = world,
+            Err(e) => {
+                eprintln!("Failed to reset world: {}", e);
+                return;
+            }
+        }
+    } else {
+        let parish_path = Path::new("data/parish.json");
+        if parish_path.exists() {
+            match crate::world::WorldState::from_parish_file(
+                parish_path,
+                crate::world::LocationId(15),
+            ) {
+                Ok(world) => app.world = world,
+                Err(e) => {
+                    eprintln!("Failed to reset world: {}", e);
+                    return;
+                }
+            }
+        }
+    }
+    let npcs_path = if let Some(ref gm) = app.game_mod {
+        gm.npcs_path()
+    } else {
+        std::path::PathBuf::from("data/npcs.json")
+    };
+    if npcs_path.exists() {
+        match NpcManager::load_from_file(&npcs_path) {
+            Ok(mgr) => app.npc_manager = mgr,
+            Err(e) => eprintln!("Warning: Failed to reload NPCs: {}", e),
+        }
+    }
+    app.npc_manager.assign_tiers(&app.world, &[]);
+    if let Some(ref db) = app.db
+        && let Ok(branch_id) = db.create_branch("main", None).await
+    {
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        if let Ok(snap_id) = db.save_snapshot(branch_id, &snapshot).await {
+            app.active_branch_id = branch_id;
+            app.latest_snapshot_id = snap_id;
+            app.last_autosave = Some(std::time::Instant::now());
+        }
+    }
+    println!("A new day dawns in the parish.");
+    println!();
+    print_location_arrival(app);
+    print_arrival_reactions(app).await;
 }
 
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
@@ -1023,26 +702,23 @@ async fn handle_headless_game_input(
             print_location_description(app);
         }
         _ => {
+            // Extract @mention for NPC targeting, if present
+            let (target_name, dialogue) = match extract_mention(text) {
+                Some(mention) => (Some(mention.name), mention.remaining),
+                None => (None, text.to_string()),
+            };
+
             // Route to NPC conversation if one is present
-            let npcs_here = app.npc_manager.npcs_at(app.world.player_location);
-            let npc = npcs_here.first().cloned().cloned();
-
-            if let Some(npc) = npc {
-                let other_npcs: Vec<_> = app
-                    .npc_manager
-                    .npcs_at(app.world.player_location)
-                    .into_iter()
-                    .filter(|n| n.id != npc.id)
-                    .collect();
-                let system_prompt = ticks::build_enhanced_system_prompt(&npc, app.improv_enabled);
-                let mut context =
-                    ticks::build_enhanced_context(&npc, &app.world, text, &other_npcs);
-
-                // Check for anachronisms in player input and inject alert
-                let anachronisms = anachronism::check_input(text);
-                if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-                    context.push_str(&alert);
-                }
+            if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
+                &app.world,
+                &mut app.npc_manager,
+                &dialogue,
+                target_name.as_deref(),
+                app.improv_enabled,
+            ) {
+                let _npc_id = setup.npc_id;
+                let system_prompt = setup.system_prompt;
+                let context = setup.context;
 
                 if let Some(queue) = &app.inference_queue {
                     // Pause the game clock during NPC dialogue inference
@@ -1050,9 +726,9 @@ async fn handle_headless_game_input(
 
                     *request_id += 1;
 
-                    let (token_tx, mut token_rx) = mpsc::unbounded_channel::<String>();
+                    let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
-                    let npc_display_name = app.npc_manager.display_name(&npc).to_string();
+                    let npc_display_name = setup.display_name;
                     print!("{}: ", capitalize_first(&npc_display_name));
                     std::io::stdout().flush().ok();
 
@@ -1093,54 +769,14 @@ async fn handle_headless_game_input(
                     {
                         Ok(rx) => {
                             let stream_handle = tokio::spawn(async move {
-                                let mut accumulated = String::new();
-                                let mut displayed_len: usize = 0;
-                                let mut separator_found = false;
-                                let mut anim_cancelled = false;
-
-                                while let Some(token) = token_rx.recv().await {
-                                    accumulated.push_str(&token);
-
-                                    // Cancel loading animation on first displayable content
-                                    if !anim_cancelled {
+                                let accumulated =
+                                    parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                                        // Cancel loading animation on first token
                                         cancel_for_stream.notify_one();
-                                        anim_cancelled = true;
-                                    }
-
-                                    if separator_found {
-                                        continue;
-                                    }
-
-                                    if let Some((dialogue_end, _meta_start)) =
-                                        find_response_separator(&accumulated)
-                                    {
-                                        if dialogue_end > displayed_len {
-                                            let new_text =
-                                                &accumulated[displayed_len..dialogue_end];
-                                            print!("{}", new_text);
-                                            std::io::stdout().flush().ok();
-                                        }
-                                        separator_found = true;
-                                        continue;
-                                    }
-
-                                    let raw_end =
-                                        accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
-                                    let safe_end = floor_char_boundary(&accumulated, raw_end);
-                                    if safe_end > displayed_len {
-                                        let new_text = &accumulated[displayed_len..safe_end];
-                                        print!("{}", new_text);
+                                        print!("{}", batch);
                                         std::io::stdout().flush().ok();
-                                        displayed_len = safe_end;
-                                    }
-                                }
-
-                                if !separator_found && displayed_len < accumulated.len() {
-                                    let remaining = &accumulated[displayed_len..];
-                                    print!("{}", remaining);
-                                    std::io::stdout().flush().ok();
-                                }
-
+                                    })
+                                    .await;
                                 println!();
                                 accumulated
                             });
@@ -1156,8 +792,6 @@ async fn handle_headless_game_input(
                                             err
                                         );
                                     } else {
-                                        // Mark the NPC as introduced after their first response
-                                        app.npc_manager.mark_introduced(npc.id);
                                         let parsed = parse_npc_stream_response(&response.text);
                                         if let Some(meta) = &parsed.metadata {
                                             tracing::debug!(
@@ -1190,7 +824,7 @@ async fn handle_headless_game_input(
                 let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 println!(
                     "{}",
-                    HEADLESS_IDLE_MESSAGES[idx % HEADLESS_IDLE_MESSAGES.len()]
+                    parish_core::ipc::IDLE_MESSAGES[idx % parish_core::ipc::IDLE_MESSAGES.len()]
                 );
             }
         }
@@ -1325,29 +959,14 @@ fn default_transport(app: &App) -> TransportMode {
 
 /// Prints current location description and exits (headless /look).
 fn print_location_description(app: &App) {
-    if let Some(loc_data) = app.world.current_location_data() {
-        let tod = app.world.clock.time_of_day();
-        let npc_display: Vec<String> = app
-            .npc_manager
-            .npcs_at(app.world.player_location)
-            .iter()
-            .map(|n| app.npc_manager.display_name(n).to_string())
-            .collect();
-        let npc_names: Vec<&str> = npc_display.iter().map(|s| s.as_str()).collect();
-        let desc = render_description(loc_data, tod, &app.world.weather.to_string(), &npc_names);
-        println!("{}", desc);
-    } else {
-        println!("{}", app.world.current_location().description);
-    }
-
     let transport = default_transport(app);
-    let exits = format_exits(
-        app.world.player_location,
-        &app.world.graph,
+    let text = parish_core::ipc::render_look_text(
+        &app.world,
+        &app.npc_manager,
         transport.speed_m_per_s,
         &transport.label,
     );
-    println!("{}", exits);
+    println!("{}", text);
 }
 
 /// Handles movement in headless mode.
@@ -1445,6 +1064,7 @@ mod tests {
     use super::*;
     use crate::app::App;
     use crate::world::time::GameSpeed;
+    use chrono::Timelike;
 
     #[tokio::test]
     async fn test_handle_headless_command_quit() {
@@ -1790,24 +1410,6 @@ mod tests {
         assert!(!quit);
     }
 
-    #[test]
-    fn test_mask_api_key_long() {
-        assert_eq!(mask_api_key("sk-1234567890abcdef"), "sk-1...cdef");
-    }
-
-    #[test]
-    fn test_mask_api_key_short_hides_length() {
-        // Short keys should not reveal length information
-        assert_eq!(mask_api_key("abc"), "****");
-        assert_eq!(mask_api_key("12345678"), "****");
-    }
-
-    #[test]
-    fn test_mask_api_key_boundary() {
-        // Exactly 9 chars — just over the threshold
-        assert_eq!(mask_api_key("123456789"), "1234...6789");
-    }
-
     // --- Additional headless command tests ---
 
     #[tokio::test]
@@ -2018,22 +1620,6 @@ mod tests {
         .await;
         assert!(!quit);
         assert!(!rebuild);
-    }
-
-    #[test]
-    fn test_capitalize_first_normal() {
-        assert_eq!(capitalize_first("hello"), "Hello");
-        assert_eq!(capitalize_first("HELLO"), "HELLO");
-    }
-
-    #[test]
-    fn test_capitalize_first_empty() {
-        assert_eq!(capitalize_first(""), "");
-    }
-
-    #[test]
-    fn test_capitalize_first_single_char() {
-        assert_eq!(capitalize_first("a"), "A");
     }
 
     #[test]

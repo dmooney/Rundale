@@ -6,7 +6,6 @@
 
 pub mod routes;
 pub mod state;
-pub mod streaming;
 pub mod ws;
 
 use std::path::PathBuf;
@@ -139,8 +138,14 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(5)).await;
             {
                 let world = state_tick.world.lock().await;
+                let npc_manager = state_tick.npc_manager.lock().await;
                 let transport = state_tick.transport.default_mode();
-                let snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+                let mut snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+                snapshot.name_hints = parish_core::ipc::compute_name_hints(
+                    &world,
+                    &npc_manager,
+                    &state_tick.pronunciations,
+                );
                 state_tick.event_bus.emit("world-update", &snapshot);
             }
             {
@@ -163,9 +168,40 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                     tracing::info!(old = %old, new = %new_weather, "Weather changed");
                 }
 
-                let events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
-                if !events.is_empty() {
-                    tracing::debug!("NPC schedule tick: {} events", events.len());
+                // Tick NPC schedules and assign tiers
+                let schedule_events =
+                    npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
+                let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
+
+                if !schedule_events.is_empty() || !tier_transitions.is_empty() {
+                    for evt in &schedule_events {
+                        tracing::debug!("NPC schedule: {}", evt.debug_string());
+                    }
+                    for tt in &tier_transitions {
+                        let direction = if tt.promoted { "promoted" } else { "demoted" };
+                        tracing::debug!(
+                            "NPC tier: {} {} {:?} → {:?}",
+                            tt.npc_name,
+                            direction,
+                            tt.old_tier,
+                            tt.new_tier,
+                        );
+                    }
+                }
+
+                // Propagate gossip between co-located Tier 2 NPCs
+                if !world.gossip_network.is_empty() {
+                    let groups = npc_mgr.tier2_groups();
+                    let mut rng = rand::thread_rng();
+                    for npc_ids in groups.values() {
+                        if npc_ids.len() >= 2 {
+                            parish_core::npc::ticks::propagate_gossip_at_location(
+                                npc_ids,
+                                &mut world.gossip_network,
+                                &mut rng,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -182,17 +218,44 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             state_theme.event_bus.emit("theme-update", &palette);
         }
     });
+
+    // Autosave tick: save snapshot every 60 seconds (if a save file is active)
+    let state_autosave = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+
+            let save_path = state_autosave.save_path.lock().await.clone();
+            let branch_id = *state_autosave.current_branch_id.lock().await;
+
+            if let (Some(path), Some(bid)) = (save_path, branch_id) {
+                let world = state_autosave.world.lock().await;
+                let npc_manager = state_autosave.npc_manager.lock().await;
+                let snapshot =
+                    parish_core::persistence::snapshot::GameSnapshot::capture(&world, &npc_manager);
+                drop(npc_manager);
+                drop(world);
+
+                match parish_core::persistence::Database::open(&path) {
+                    Ok(db) => match db.save_snapshot(bid, &snapshot) {
+                        Ok(_) => tracing::debug!("Autosave complete"),
+                        Err(e) => tracing::warn!("Autosave failed: {}", e),
+                    },
+                    Err(e) => tracing::warn!("Autosave DB open failed: {}", e),
+                }
+            }
+        }
+    });
 }
 
 /// Builds the local LLM client and config from environment variables.
 fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
     let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "ollama".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
-    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| match provider.as_str() {
-        "ollama" => "http://localhost:11434".to_string(),
-        "lmstudio" => "http://localhost:1234".to_string(),
-        "openrouter" => "https://openrouter.ai/api".to_string(),
-        _ => "http://localhost:11434".to_string(),
+    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
+        parish_core::config::Provider::from_str_loose(&provider)
+            .map(|p| p.default_base_url().to_string())
+            .unwrap_or_else(|_| "http://localhost:11434".to_string())
     });
     let api_key = std::env::var("PARISH_API_KEY")
         .ok()
