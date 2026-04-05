@@ -37,8 +37,12 @@ static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 /// `GET /api/world-snapshot` — returns the current world snapshot.
 pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<WorldSnapshot> {
     let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
     let transport = state.transport.default_mode();
-    Json(parish_core::ipc::snapshot_from_world(&world, transport))
+    let mut snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+    snapshot.name_hints =
+        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    Json(snapshot)
 }
 
 /// `GET /api/map` — returns visited locations, edges, and player position.
@@ -244,11 +248,12 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
 
     // Emit updated world snapshot.
     let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
     let transport = state.transport.default_mode();
-    state.event_bus.emit(
-        "world-update",
-        &parish_core::ipc::snapshot_from_world(&world, transport),
-    );
+    let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+    ws.name_hints =
+        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    state.event_bus.emit("world-update", &ws);
 }
 
 /// Handles free-form game input: parses intent then dispatches.
@@ -374,10 +379,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
     // Emit updated world snapshot after a successful move
     if effects.world_changed {
         let world = state.world.lock().await;
-        state.event_bus.emit(
-            "world-update",
-            &parish_core::ipc::snapshot_from_world(&world, &transport),
-        );
+        let npc_manager = state.npc_manager.lock().await;
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, &transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        state.event_bus.emit("world-update", &ws);
     }
 }
 
@@ -703,7 +709,9 @@ pub async fn load_branch(
         npc_manager.assign_tiers(&world, &[]);
 
         let transport = state.transport.default_mode();
-        let ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         drop(npc_manager);
         drop(world);
         state.event_bus.emit("world-update", &ws);
@@ -877,8 +885,11 @@ pub async fn new_game(
 
     {
         let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
         let transport = state.transport.default_mode();
-        let ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         state.event_bus.emit("world-update", &ws);
     }
 

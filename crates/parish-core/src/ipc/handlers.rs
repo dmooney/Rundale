@@ -8,9 +8,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::{Datelike, Timelike};
 
+use crate::game_mod::PronunciationEntry;
 use crate::npc::manager::NpcManager;
 use crate::npc::ticks;
-use crate::npc::{Npc, NpcId};
+use crate::npc::{LanguageHint, Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::palette::compute_palette;
 use crate::world::transport::TransportMode;
@@ -334,6 +335,47 @@ pub fn prepare_npc_conversation(
         system_prompt,
         context,
     })
+}
+
+// ── Pronunciation hints ────────────────────────────────────────────────────
+
+/// Computes contextual name pronunciation hints for the current location.
+///
+/// Matches pronunciation entries against the current location name and
+/// any introduced NPC names present at the player's location.
+pub fn compute_name_hints(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    pronunciations: &[PronunciationEntry],
+) -> Vec<LanguageHint> {
+    if pronunciations.is_empty() {
+        tracing::debug!("compute_name_hints: no pronunciation entries loaded");
+        return vec![];
+    }
+    let loc = world.current_location();
+    let mut names: Vec<&str> = vec![&loc.name];
+    let npcs = npc_manager.npcs_at(world.player_location);
+    let npc_names: Vec<String> = npcs
+        .iter()
+        .filter(|n| npc_manager.is_introduced(n.id))
+        .map(|n| n.name.clone())
+        .collect();
+    for name in &npc_names {
+        names.push(name);
+    }
+    let hints: Vec<LanguageHint> = pronunciations
+        .iter()
+        .filter(|entry| entry.matches_any(&names))
+        .map(|entry| entry.to_hint())
+        .collect();
+    tracing::debug!(
+        location = %loc.name,
+        npc_names = ?npc_names,
+        pronunciation_count = pronunciations.len(),
+        matched_hints = hints.len(),
+        "compute_name_hints"
+    );
+    hints
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────

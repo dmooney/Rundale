@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, broadcast};
 
+use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::InferenceQueue;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::npc::manager::NpcManager;
@@ -72,6 +73,8 @@ pub struct AppState {
     pub reaction_model: Mutex<String>,
     /// Loaded game mod data (for reaction templates, etc.).
     pub game_mod: Option<parish_core::game_mod::GameMod>,
+    /// Name pronunciation entries from the game mod.
+    pub pronunciations: Vec<PronunciationEntry>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -148,6 +151,11 @@ pub fn build_app_state(
     data_dir: PathBuf,
     game_mod: Option<parish_core::game_mod::GameMod>,
 ) -> Arc<AppState> {
+    // Extract pronunciations from game mod before moving it.
+    let pronunciations = game_mod
+        .as_ref()
+        .map(|gm| gm.pronunciations.clone())
+        .unwrap_or_default();
     // Reaction client defaults to the base client (can be overridden later).
     let reaction_client = client.clone();
     Arc::new(AppState {
@@ -168,6 +176,7 @@ pub fn build_app_state(
         reaction_client: Mutex::new(reaction_client),
         reaction_model: Mutex::new(String::new()),
         game_mod,
+        pronunciations,
     })
 }
 

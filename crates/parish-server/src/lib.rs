@@ -138,8 +138,14 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             tokio::time::sleep(Duration::from_secs(5)).await;
             {
                 let world = state_tick.world.lock().await;
+                let npc_manager = state_tick.npc_manager.lock().await;
                 let transport = state_tick.transport.default_mode();
-                let snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+                let mut snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+                snapshot.name_hints = parish_core::ipc::compute_name_hints(
+                    &world,
+                    &npc_manager,
+                    &state_tick.pronunciations,
+                );
                 state_tick.event_bus.emit("world-update", &snapshot);
             }
             {
@@ -187,11 +193,10 @@ fn spawn_background_ticks(state: Arc<AppState>) {
 fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
     let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "ollama".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
-    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| match provider.as_str() {
-        "ollama" => "http://localhost:11434".to_string(),
-        "lmstudio" => "http://localhost:1234".to_string(),
-        "openrouter" => "https://openrouter.ai/api".to_string(),
-        _ => "http://localhost:11434".to_string(),
+    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
+        parish_core::config::Provider::from_str_loose(&provider)
+            .map(|p| p.default_base_url().to_string())
+            .unwrap_or_else(|_| "http://localhost:11434".to_string())
     });
     let api_key = std::env::var("PARISH_API_KEY")
         .ok()

@@ -13,7 +13,7 @@ use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebu
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
-use parish_core::ipc::{IDLE_MESSAGES, capitalize_first, text_log};
+use parish_core::ipc::{IDLE_MESSAGES, capitalize_first, compute_name_hints, text_log};
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::world::palette::compute_palette;
@@ -72,44 +72,7 @@ fn snapshot_from_world(
     }
 }
 
-/// Computes contextual name pronunciation hints for the current location.
-///
-/// Matches pronunciation entries against the current location name and
-/// any NPC names present at the player's location.
-fn compute_name_hints(
-    world: &parish_core::world::WorldState,
-    npc_manager: &parish_core::npc::manager::NpcManager,
-    pronunciations: &[parish_core::game_mod::PronunciationEntry],
-) -> Vec<parish_core::npc::LanguageHint> {
-    if pronunciations.is_empty() {
-        tracing::debug!("compute_name_hints: no pronunciation entries loaded");
-        return vec![];
-    }
-    let loc = world.current_location();
-    let mut names: Vec<&str> = vec![&loc.name];
-    let npcs = npc_manager.npcs_at(world.player_location);
-    let npc_names: Vec<String> = npcs
-        .iter()
-        .filter(|n| npc_manager.is_introduced(n.id))
-        .map(|n| n.name.clone())
-        .collect();
-    for name in &npc_names {
-        names.push(name);
-    }
-    let hints: Vec<parish_core::npc::LanguageHint> = pronunciations
-        .iter()
-        .filter(|entry| entry.matches_any(&names))
-        .map(|entry| entry.to_hint())
-        .collect();
-    tracing::debug!(
-        location = %loc.name,
-        npc_names = ?npc_names,
-        pronunciation_count = pronunciations.len(),
-        matched_hints = hints.len(),
-        "compute_name_hints"
-    );
-    hints
-}
+// compute_name_hints is now shared via parish_core::ipc::compute_name_hints
 
 // ── Commands ─────────────────────────────────────────────────────────────────
 
