@@ -222,17 +222,6 @@ pub fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     EARTH_RADIUS_M * c
 }
 
-/// Convert a real-world distance in meters to game traversal minutes.
-///
-/// Assumes walking speed of ~4.5 km/h (75 m/min) with a small constant
-/// overhead for "getting going" (1 minute minimum).
-pub fn meters_to_traversal_minutes(meters: f64) -> u16 {
-    const WALKING_SPEED_M_PER_MIN: f64 = 75.0;
-    let minutes = meters / WALKING_SPEED_M_PER_MIN;
-    // Minimum 1 minute, maximum 120 minutes (2 hours walk)
-    (minutes.ceil() as u16).clamp(1, 120)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,29 +237,6 @@ mod tests {
     fn test_haversine_same_point() {
         let dist = haversine_distance(53.5, -8.0, 53.5, -8.0);
         assert!(dist.abs() < 0.001);
-    }
-
-    #[test]
-    fn test_meters_to_minutes_short() {
-        // 75m = 1 minute
-        assert_eq!(meters_to_traversal_minutes(75.0), 1);
-    }
-
-    #[test]
-    fn test_meters_to_minutes_medium() {
-        // 300m = 4 minutes
-        assert_eq!(meters_to_traversal_minutes(300.0), 4);
-    }
-
-    #[test]
-    fn test_meters_to_minutes_minimum() {
-        assert_eq!(meters_to_traversal_minutes(1.0), 1);
-    }
-
-    #[test]
-    fn test_meters_to_minutes_maximum() {
-        // Very long distance capped at 120
-        assert_eq!(meters_to_traversal_minutes(100_000.0), 120);
     }
 
     #[test]

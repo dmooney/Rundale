@@ -281,8 +281,6 @@ mod tests {
         let connections = vec![super::super::connections::GeneratedConnection {
             from_idx: 0,
             to_idx: 1,
-            distance_meters: 111.0,
-            traversal_minutes: 2,
             path_description: "a path to the pub".to_string(),
             reverse_path_description: "a path to the church".to_string(),
         }];
