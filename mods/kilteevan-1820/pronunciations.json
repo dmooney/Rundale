@@ -41,6 +41,102 @@
             "pronunciation": "lock REE",
             "meaning": "Loch Rí — lake of kings",
             "matches": ["Lough Ree"]
+        },
+        {
+            "word": "Séamus",
+            "pronunciation": "SHAY-mus",
+            "meaning": "Irish form of James",
+            "matches": ["Seamus"]
+        },
+        {
+            "word": "Máire",
+            "pronunciation": "MOY-ra",
+            "meaning": "Irish form of Mary",
+            "matches": ["Maire"]
+        },
+        {
+            "word": "Cormac",
+            "pronunciation": "KOR-mak",
+            "meaning": "charioteer, son of defilement",
+            "matches": ["Cormac"]
+        },
+        {
+            "word": "Nóra",
+            "pronunciation": "NOR-ah",
+            "meaning": "Irish form of Nora/Honora",
+            "matches": ["Nora"]
+        },
+        {
+            "word": "Bréandán",
+            "pronunciation": "BREN-dawn",
+            "meaning": "Irish form of Brendan — prince",
+            "matches": ["Brendan"]
+        },
+        {
+            "word": "Éamon",
+            "pronunciation": "AY-mun",
+            "meaning": "Irish form of Edmund — protector",
+            "matches": ["Eamon"]
+        },
+        {
+            "word": "Caitlín",
+            "pronunciation": "KAT-leen",
+            "meaning": "Irish form of Catherine",
+            "matches": ["Kathleen"]
+        },
+        {
+            "word": "Ciarán",
+            "pronunciation": "KEER-awn",
+            "meaning": "little dark one",
+            "matches": ["Ciaran"]
+        },
+        {
+            "word": "Liam",
+            "pronunciation": "LEE-um",
+            "meaning": "strong-willed warrior — short for Uilliam (William)",
+            "matches": ["Liam"]
+        },
+        {
+            "word": "Bríd",
+            "pronunciation": "BREED",
+            "meaning": "exalted one — the goddess Brigid",
+            "matches": ["Brigid"]
+        },
+        {
+            "word": "Ní Fhatharta",
+            "pronunciation": "nee AH-har-ta",
+            "meaning": "daughter of Faherty",
+            "matches": ["Ni Fhatharta"]
+        },
+        {
+            "word": "Úna",
+            "pronunciation": "OO-na",
+            "meaning": "lamb, unity",
+            "matches": ["Una"]
+        },
+        {
+            "word": "Seán Ruadh",
+            "pronunciation": "shawn ROO-ah",
+            "meaning": "Red John — ruadh means red-haired",
+            "matches": ["Sean Ruadh"]
+        },
+        {
+            "word": "Peig",
+            "pronunciation": "peg",
+            "meaning": "Irish form of Peg/Margaret",
+            "matches": ["Peig"]
+        },
+        {
+            "word": "Curraghboy",
+            "pronunciation": "KUR-ah-boy",
+            "meaning": "Curach Buí — yellow marsh",
+            "matches": ["Curraghboy"]
+        },
+        {
+            "word": "Knockcroghery",
+            "pronunciation": "knock-CROG-er-ee",
+            "meaning": "Cnoc an Chrócaire — hill of the hangman",
+            "matches": ["Knockcroghery"]
         }
     ]
 }

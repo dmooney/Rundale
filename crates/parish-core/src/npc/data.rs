@@ -282,7 +282,7 @@ mod tests {
             return;
         }
         let npcs = load_npcs_from_file(path).unwrap();
-        assert_eq!(npcs.len(), 8, "expected 8 NPCs in data file");
+        assert_eq!(npcs.len(), 23, "expected 23 NPCs in data file");
     }
 
     #[test]
