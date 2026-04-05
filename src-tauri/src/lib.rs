@@ -820,6 +820,21 @@ pub fn run() {
                                     });
                                 }
                             }
+
+                            // Propagate gossip between co-located Tier 2 NPCs
+                            if !world.gossip_network.is_empty() {
+                                let groups = npc_mgr.tier2_groups();
+                                let mut rng = rand::thread_rng();
+                                for npc_ids in groups.values() {
+                                    if npc_ids.len() >= 2 {
+                                        parish_core::npc::ticks::propagate_gossip_at_location(
+                                            npc_ids,
+                                            &mut world.gossip_network,
+                                            &mut rng,
+                                        );
+                                    }
+                                }
+                            }
                         }
                     }
                 });

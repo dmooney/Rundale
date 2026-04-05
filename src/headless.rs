@@ -10,7 +10,6 @@ use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, parse_intent};
 use crate::loading::LoadingAnimation;
-use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
 use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
@@ -686,19 +685,13 @@ async fn handle_headless_game_input(
         }
         _ => {
             // Route to NPC conversation if one is present
-            if let Some(mut setup) = parish_core::ipc::prepare_npc_conversation(
+            if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
                 &app.world,
                 &mut app.npc_manager,
                 text,
                 None,
                 app.improv_enabled,
             ) {
-                // Check for anachronisms in player input and inject alert
-                let anachronisms = anachronism::check_input(text);
-                if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-                    setup.context.push_str(&alert);
-                }
-
                 let _npc_id = setup.npc_id;
                 let system_prompt = setup.system_prompt;
                 let context = setup.context;

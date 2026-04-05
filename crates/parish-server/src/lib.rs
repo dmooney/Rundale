@@ -168,9 +168,40 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                     tracing::info!(old = %old, new = %new_weather, "Weather changed");
                 }
 
-                let events = npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
-                if !events.is_empty() {
-                    tracing::debug!("NPC schedule tick: {} events", events.len());
+                // Tick NPC schedules and assign tiers
+                let schedule_events =
+                    npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
+                let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
+
+                if !schedule_events.is_empty() || !tier_transitions.is_empty() {
+                    for evt in &schedule_events {
+                        tracing::debug!("NPC schedule: {}", evt.debug_string());
+                    }
+                    for tt in &tier_transitions {
+                        let direction = if tt.promoted { "promoted" } else { "demoted" };
+                        tracing::debug!(
+                            "NPC tier: {} {} {:?} → {:?}",
+                            tt.npc_name,
+                            direction,
+                            tt.old_tier,
+                            tt.new_tier,
+                        );
+                    }
+                }
+
+                // Propagate gossip between co-located Tier 2 NPCs
+                if !world.gossip_network.is_empty() {
+                    let groups = npc_mgr.tier2_groups();
+                    let mut rng = rand::thread_rng();
+                    for npc_ids in groups.values() {
+                        if npc_ids.len() >= 2 {
+                            parish_core::npc::ticks::propagate_gossip_at_location(
+                                npc_ids,
+                                &mut world.gossip_network,
+                                &mut rng,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -185,6 +216,34 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             let world = state_theme.world.lock().await;
             let palette = parish_core::ipc::build_theme(&world);
             state_theme.event_bus.emit("theme-update", &palette);
+        }
+    });
+
+    // Autosave tick: save snapshot every 60 seconds (if a save file is active)
+    let state_autosave = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+
+            let save_path = state_autosave.save_path.lock().await.clone();
+            let branch_id = *state_autosave.current_branch_id.lock().await;
+
+            if let (Some(path), Some(bid)) = (save_path, branch_id) {
+                let world = state_autosave.world.lock().await;
+                let npc_manager = state_autosave.npc_manager.lock().await;
+                let snapshot =
+                    parish_core::persistence::snapshot::GameSnapshot::capture(&world, &npc_manager);
+                drop(npc_manager);
+                drop(world);
+
+                match parish_core::persistence::Database::open(&path) {
+                    Ok(db) => match db.save_snapshot(bid, &snapshot) {
+                        Ok(_) => tracing::debug!("Autosave complete"),
+                        Err(e) => tracing::warn!("Autosave failed: {}", e),
+                    },
+                    Err(e) => tracing::warn!("Autosave DB open failed: {}", e),
+                }
+            }
         }
     });
 }

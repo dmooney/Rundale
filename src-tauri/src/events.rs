@@ -70,25 +70,8 @@ pub struct NpcReactionPayload {
     pub source: String,
 }
 
-/// Payload for `loading` events.
-///
-/// When `active` is `true`, the payload includes an animated spinner character,
-/// a fun Irish-themed loading phrase, and an RGB colour for the spinner —
-/// driven by [`parish_core::loading::LoadingAnimation`].
-#[derive(serde::Serialize, Clone)]
-pub struct LoadingPayload {
-    /// Whether the loading indicator should be shown.
-    pub active: bool,
-    /// Current Celtic-cross spinner character (e.g. `"✛"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub spinner: Option<String>,
-    /// Current fun loading phrase (e.g. `"Consulting the sheep..."`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub phrase: Option<String>,
-    /// Spinner colour as `[R, G, B]`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub color: Option<[u8; 3]>,
-}
+// LoadingPayload is now shared via parish_core::ipc::LoadingPayload
+pub use parish_core::ipc::LoadingPayload;
 
 // ── Loading animation bridge ─────────────────────────────────────────────
 

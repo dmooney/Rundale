@@ -16,8 +16,9 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent_local};
 use parish_core::ipc::{
-    IDLE_MESSAGES, LoadingPayload, MapData, NpcInfo, NpcReactionPayload, ReactRequest,
-    StreamEndPayload, StreamTokenPayload, ThemePalette, WorldSnapshot, capitalize_first, text_log,
+    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
+    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, ThemePalette,
+    WorldSnapshot, capitalize_first, text_log,
 };
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::parse_npc_stream_response;
@@ -454,8 +455,6 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
     };
 
     let (Some(setup), Some(queue)) = (setup, queue) else {
-        // If an NPC is present but inference isn't configured, give a clear message.
-        // Otherwise show a generic idle message.
         let content = if npc_present {
             "There's someone here, but the LLM is not configured — set a provider with /provider."
                 .to_string()
@@ -479,9 +478,9 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
     };
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
 
-    state
-        .event_bus
-        .emit("loading", &LoadingPayload { active: true });
+    // Spawn animated loading indicator (fun Irish phrases)
+    let loading_cancel = tokio_util::sync::CancellationToken::new();
+    spawn_loading_animation(Arc::clone(state), loading_cancel.clone());
 
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
@@ -489,6 +488,12 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
     state
         .event_bus
         .emit("text-log", &text_log(display_label, String::new()));
+
+    // Pause the game clock while waiting for the inference response
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+    }
 
     match queue
         .send(
@@ -502,12 +507,13 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
         .await
     {
         Ok(mut response_rx) => {
-            let bus = &state.event_bus;
-
             let stream_handle = tokio::spawn({
                 let state_clone = Arc::clone(state);
+                let cancel = loading_cancel.clone();
                 async move {
                     parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                        // Cancel loading animation on first token
+                        cancel.cancel();
                         state_clone.event_bus.emit(
                             "stream-token",
                             &StreamTokenPayload {
@@ -537,6 +543,14 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
             let hints = if let Some(resp) = full_response {
                 if resp.error.is_some() {
                     tracing::warn!("Inference error: {:?}", resp.error);
+
+                    // Show a canned Irish-themed failure message
+                    let idx = resp.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+                    state.event_bus.emit(
+                        "text-log",
+                        &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
+                    );
+
                     vec![]
                 } else {
                     let parsed = parse_npc_stream_response(&resp.text);
@@ -549,16 +563,83 @@ async fn handle_npc_conversation(raw: String, state: &Arc<AppState>) {
                 vec![]
             };
 
-            bus.emit("stream-end", &StreamEndPayload { hints });
+            state
+                .event_bus
+                .emit("stream-end", &StreamEndPayload { hints });
         }
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
+            state.event_bus.emit(
+                "text-log",
+                &text_log(
+                    "system",
+                    "The parish storyteller has wandered off. Try again.",
+                ),
+            );
         }
     }
 
-    state
-        .event_bus
-        .emit("loading", &LoadingPayload { active: false });
+    // Resume the game clock
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
+    }
+
+    // Cancel loading animation (emits final active: false)
+    loading_cancel.cancel();
+}
+
+/// Spawns a background task that emits rich [`LoadingPayload`] events with
+/// cycling Irish phrases while the player waits for NPC inference.
+fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::CancellationToken) {
+    tokio::spawn(async move {
+        use parish_core::loading::LoadingAnimation;
+
+        let mut anim = LoadingAnimation::new();
+
+        // Emit an initial frame immediately
+        anim.tick();
+        let (r, g, b) = anim.current_color_rgb();
+        state.event_bus.emit(
+            "loading",
+            &LoadingPayload {
+                active: true,
+                spinner: Some(anim.spinner_char().to_string()),
+                phrase: Some(anim.phrase().to_string()),
+                color: Some([r, g, b]),
+            },
+        );
+
+        loop {
+            tokio::select! {
+                _ = cancel.cancelled() => break,
+                _ = tokio::time::sleep(std::time::Duration::from_millis(300)) => {
+                    anim.tick();
+                    let (r, g, b) = anim.current_color_rgb();
+                    state.event_bus.emit(
+                        "loading",
+                        &LoadingPayload {
+                            active: true,
+                            spinner: Some(anim.spinner_char().to_string()),
+                            phrase: Some(anim.phrase().to_string()),
+                            color: Some([r, g, b]),
+                        },
+                    );
+                }
+            }
+        }
+
+        // Final "off" event
+        state.event_bus.emit(
+            "loading",
+            &LoadingPayload {
+                active: false,
+                spinner: None,
+                phrase: None,
+                color: None,
+            },
+        );
+    });
 }
 
 // ── Reaction endpoint ──────────────────────────────────────────────────────

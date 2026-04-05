@@ -13,7 +13,9 @@ use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebu
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent_local};
-use parish_core::ipc::{IDLE_MESSAGES, capitalize_first, compute_name_hints, text_log};
+use parish_core::ipc::{
+    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first, compute_name_hints, text_log,
+};
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::world::palette::compute_palette;
@@ -699,22 +701,13 @@ async fn handle_npc_conversation(
                     });
 
                     // Show a funny canned message to the player
-                    let canned = [
-                        "A sudden fog rolls in and swallows the conversation whole.",
-                        "A crow lands between you, caws loudly, and the moment is lost.",
-                        "The wind picks up and carries their words clean away.",
-                        "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
-                        "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
-                        "They stare at you blankly, as if the thought simply left their head.",
-                        "A strange silence falls over the parish. Even the birds have stopped.",
-                    ];
-                    let idx = resp.id as usize % canned.len();
+                    let idx = resp.id as usize % INFERENCE_FAILURE_MESSAGES.len();
                     let _ = app.emit(
                         EVENT_TEXT_LOG,
                         TextLogPayload {
                             id: String::new(),
                             source: "system".to_string(),
-                            content: canned[idx].to_string(),
+                            content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
                         },
                     );
 

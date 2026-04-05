@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use chrono::{Datelike, Timelike};
 
 use crate::game_mod::PronunciationEntry;
+use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
 use crate::npc::ticks;
 use crate::npc::{LanguageHint, Npc, NpcId};
@@ -254,6 +255,19 @@ pub fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLo
     }
 }
 
+/// Irish-themed canned messages shown when NPC inference fails.
+///
+/// Indexed by `request_id % len` so different attempts get different messages.
+pub const INFERENCE_FAILURE_MESSAGES: &[&str] = &[
+    "A sudden fog rolls in and swallows the conversation whole.",
+    "A crow lands between you, caws loudly, and the moment is lost.",
+    "The wind picks up and carries their words clean away.",
+    "They open their mouth to speak, but a donkey brays so loud neither of ye can hear a thing.",
+    "A clap of thunder rattles the sky and ye both forget what ye were talking about.",
+    "They stare at you blankly, as if the thought simply left their head.",
+    "A strange silence falls over the parish. Even the birds have stopped.",
+];
+
 /// Atmospheric messages displayed when no NPC is present at the current location.
 pub const IDLE_MESSAGES: &[&str] = &[
     "The wind stirs, but nothing else.",
@@ -324,7 +338,13 @@ pub fn prepare_npc_conversation(
 
     let other_npcs: Vec<&Npc> = npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
     let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled);
-    let context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs);
+    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs);
+
+    // Check for anachronisms in player input and inject alert into context
+    let anachronisms = anachronism::check_input(raw);
+    if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
+        context.push_str(&alert);
+    }
 
     // Mark NPC as introduced on first conversation
     npc_manager.mark_introduced(npc_id);
