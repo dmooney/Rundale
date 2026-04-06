@@ -320,23 +320,35 @@ pub fn prepare_npc_conversation(
         return None;
     }
 
-    // If an @mention was provided, try to find that NPC; otherwise first NPC
+    // If an @mention was provided, try to find that NPC by name.
+    // Otherwise default to the last NPC spoken to at this location (if still
+    // present), falling back to the first NPC in the list.
     let npc: Option<Npc> = if let Some(name) = target_name {
         npc_manager
             .find_by_name(name, world.player_location)
             .cloned()
             .or_else(|| npcs_here.first().cloned().cloned())
     } else {
-        npcs_here.first().cloned().cloned()
+        let last_spoken_to = world
+            .conversation_log
+            .last_speaker_at(world.player_location)
+            .and_then(|id| npc_manager.get(id))
+            .filter(|npc| npcs_here.iter().any(|n| n.id == npc.id))
+            .cloned();
+        last_spoken_to.or_else(|| npcs_here.first().cloned().cloned())
     };
 
     let npc = npc?;
     let display_name = npc_manager.display_name(&npc).to_string();
     let npc_id = npc.id;
 
+    let npc_names: std::collections::HashMap<NpcId, String> = npc_manager
+        .all_npcs()
+        .map(|n| (n.id, n.name.clone()))
+        .collect();
     let other_npcs: Vec<&Npc> = npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled);
-    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs);
+    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
+    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs, &npc_names);
 
     // Check for anachronisms in player input and inject alert into context
     let anachronisms = anachronism::check_input(raw);
@@ -478,8 +490,20 @@ mod tests {
                 );
             }
 
-            // Edges should connect start to each frontier neighbor
-            assert_eq!(map.edges.len(), neighbor_count);
+            // Edges must include start→frontier neighbors; may also include
+            // edges between frontier nodes that are connected to each other.
+            let start_str = start.0.to_string();
+            for f in &frontier {
+                let connected = map.edges.iter().any(|(a, b)| {
+                    (a == &start_str && b == &f.id) || (a == &f.id && b == &start_str)
+                });
+                assert!(
+                    connected,
+                    "start should be connected to frontier node {}",
+                    f.id
+                );
+            }
+            assert!(map.edges.len() >= neighbor_count);
         }
     }
 

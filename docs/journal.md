@@ -6,6 +6,26 @@ Notes, observations, and recommendations carried between sessions.
 
 ---
 
+## 2026-04-04 — Prompt Immersion: Conversation Awareness System
+
+Major NPC immersion feature: NPCs now hear and remember conversations happening around them.
+
+**Conversation Witness System**: When the player talks to NPC A at a location where NPCs B and C are present, B and C each get a short-term memory entry recording what they overheard. Next time the player talks to B, their context includes "Overheard: a traveller said '...' and Padraig replied '...'".
+
+**Conversation Log**: New `ConversationLog` struct (ring buffer of 30 exchanges) tracks recent player-NPC exchanges per location. Injected into context prompts as "What's been said here" — gives NPCs awareness of the ongoing scene, not just their own isolated exchange.
+
+**Scene Continuity**: If the player recently spoke to the same NPC, a cue prevents re-greeting: "You are already in conversation with this traveller."
+
+**Prompt Quality Overhaul**: Relationships now reference NPCs by name ("Niamh Darcy: Family, very close") instead of IDs. "Also present" includes relationship context. Knowledge section reframed as "WHAT'S ON YOUR MIND".
+
+**Pre-existing Gap Fixed**: Server, headless CLI, and Tauri modes were not calling `apply_tier1_response` after NPC conversations — NPCs never updated mood or recorded speaker memories in production modes. Only the test harness did. Fixed across all modes.
+
+**Mode Parity Audit**: All 4 modes verified to have identical post-response wiring: `apply_tier1_response` + `conversation_log.add()` + `record_witness_memories()`.
+
+Play-tested at Darcy's Pub: after 3 exchanges between player/Padraig/Niamh, Padraig had 3 memories (2 spoken, 1 overheard) and Niamh had 3 memories (1 spoken, 2 overheard). Feature proven live.
+
+---
+
 ## 2026-03-27 — Celtic Triquetra Loading Spinner
 
 Replaced the generic rotating circle CSS spinner in `ChatPanel.svelte` with an inline SVG Celtic triquetra (Trinity knot) animation. The three interlocking lobes draw and erase themselves sequentially using `stroke-dasharray`/`stroke-dashoffset`, with staggered delays and a slow rotation overlay. Uses `var(--color-accent)` so it adapts to time-of-day palette changes. Pure CSS animation, no JS libraries. Thematically consistent with the game's 1820s Irish setting.

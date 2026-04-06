@@ -916,6 +916,8 @@ mod tests {
             state: NpcState::Present,
             deflated_summary: None,
             reaction_log: ReactionLog::default(),
+            last_activity: None,
+            is_ill: false,
         }
     }
 

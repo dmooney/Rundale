@@ -5,6 +5,7 @@
 //! scales with distance from the player (4 LOD tiers).
 
 pub mod anachronism;
+pub mod conversation;
 pub mod data;
 pub mod gossip;
 pub mod manager;
@@ -415,40 +416,40 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
     )
 }
 
+/// Builds the action line for an NPC prompt from raw player input.
+///
+/// Detects `*emote*` syntax (input fully wrapped in asterisks) and
+/// formats it as a physical action. All other input is treated as speech.
+pub fn build_action_line(player_input: &str) -> String {
+    if let Some(inner) = player_input
+        .strip_prefix('*')
+        .and_then(|s| s.strip_suffix('*'))
+        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
+    {
+        return format!(
+            "The traveller performs an action: {inner}\n\
+            (The traveller is emoting rather than speaking. \
+            Respond to their physical action naturally.)"
+        );
+    }
+    format!("The traveller says: \"{player_input}\"")
+}
+
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
-/// Includes the current location, time of day, weather, season,
-/// and the player's action, giving the LLM full situational context.
-pub fn build_tier1_context(world: &WorldState, player_input: &str) -> String {
+/// Includes the current location, time of day, weather, and season.
+/// The player's action is intentionally omitted here so callers can
+/// append it at the end of the full context (after memory, history, etc.).
+pub fn build_tier1_context(world: &WorldState) -> String {
     let location = world.current_location();
     let time_of_day = world.clock.time_of_day();
     let season = world.clock.season();
-
-    // Detect *emote* actions: input fully wrapped in asterisks
-    let action_line = if let Some(inner) = player_input
-        .strip_prefix('*')
-        .and_then(|s| s.strip_suffix('*'))
-    {
-        if !inner.is_empty() && !inner.contains('*') {
-            format!(
-                "The player performs an action: {inner}\n\
-                (The player is emoting rather than speaking. \
-                Respond to their physical action naturally.)"
-            )
-        } else {
-            format!("The player {player_input}")
-        }
-    } else {
-        format!("The player {player_input}")
-    };
 
     format!(
         "Your Location: {loc_name} — {loc_desc}\n\
         Time: {time}\n\
         Season: {season}\n\
-        Weather: {weather}\n\
-        \n\
-        {action_line}",
+        Weather: {weather}",
         loc_name = location.name,
         loc_desc = location.description,
         time = time_of_day,
@@ -514,55 +515,51 @@ mod tests {
     fn test_build_context() {
         let _npc = Npc::new_test_npc();
         let world = WorldState::new();
-        let context = build_tier1_context(&world, "says hello");
+        let context = build_tier1_context(&world);
         assert!(context.contains("The Crossroads"));
         assert!(context.contains("Morning"));
         assert!(context.contains("Spring"));
         assert!(context.contains("Clear"));
         assert!(context.contains("Your Location:"));
         assert!(!context.contains("is here"));
-        assert!(context.contains("says hello"));
     }
 
     #[test]
-    fn test_build_context_emote_action() {
-        let world = WorldState::new();
-        let context = build_tier1_context(&world, "*tips hat*");
+    fn test_build_action_line_emote() {
+        let line = build_action_line("*tips hat*");
         assert!(
-            context.contains("performs an action: tips hat"),
+            line.contains("performs an action: tips hat"),
             "emote should strip asterisks and use action phrasing"
         );
         assert!(
-            context.contains("emoting rather than speaking"),
+            line.contains("emoting rather than speaking"),
             "emote should include action-mode instruction"
         );
         assert!(
-            !context.contains("The player *tips hat*"),
+            !line.contains("The traveller *tips hat*"),
             "emote should not pass raw asterisks through"
         );
     }
 
     #[test]
-    fn test_build_context_normal_input_not_emote() {
-        let world = WorldState::new();
-        let context = build_tier1_context(&world, "hello there");
+    fn test_build_action_line_normal_input() {
+        let line = build_action_line("hello there");
         assert!(
-            context.contains("The player hello there"),
+            line.contains("The traveller says: \"hello there\""),
             "normal input should use standard phrasing"
         );
         assert!(
-            !context.contains("performs an action"),
+            !line.contains("performs an action"),
             "normal input should not trigger action phrasing"
         );
     }
 
     #[test]
-    fn test_build_context_partial_asterisks_not_emote() {
-        let world = WorldState::new();
+    fn test_build_action_line_partial_asterisks() {
         // Single leading asterisk — not a complete emote
-        let context = build_tier1_context(&world, "*incomplete");
+        let line = build_action_line("*incomplete");
         assert!(
-            context.contains("The player *incomplete"),
+            line.contains("The traveller says: \"*incomplete\""),
             "partial asterisks should pass through as normal input"
         );
     }

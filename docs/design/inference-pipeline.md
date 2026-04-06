@@ -40,6 +40,22 @@ Player natural language input is also sent to Ollama for intent parsing. The LLM
 
 If the LLM can't resolve intent, the game asks for clarification in-character.
 
+## NPC Context Construction (Tier 1)
+
+The enhanced context sent to the LLM for Tier 1 NPC dialogue is built from multiple layers:
+
+1. **System prompt** (`build_enhanced_system_prompt`): Identity, historical context, cultural guidelines, personality, intelligence guidance, mood, relationships (by name), knowledge, improv craft (optional)
+2. **Context prompt** (`build_enhanced_context`): Location + description, time/season/weather, who else is present (with relationship context), recent conversation history at this location (last 3 exchanges), scene continuity cue (if already in conversation), short-term memories, player reactions, long-term memory recall, gossip context
+3. **Player input**: The raw text the player typed
+
+### Post-Response Processing
+
+After the LLM responds, all modes execute the same pipeline:
+
+1. `apply_tier1_response` — updates NPC mood, records speaker's own memory
+2. `conversation_log.add()` — records the exchange in the per-location conversation log
+3. `record_witness_memories()` — creates "Overheard" memory entries for all other NPCs at the location
+
 ## Multi-Provider Support
 
 The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, etc.) via `OpenAiClient`. Per-category provider routing allows different models for different tasks:

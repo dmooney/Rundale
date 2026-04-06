@@ -9,6 +9,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::npc::conversation::ConversationLog;
 use crate::npc::gossip::GossipNetwork;
 
 /// Serde helpers for `edge_traversals: HashMap<(LocationId, LocationId), u32>`.
@@ -190,6 +191,9 @@ pub struct GameSnapshot {
     /// Gossip network state.
     #[serde(default)]
     pub gossip_network: GossipNetwork,
+    /// Recent conversation exchanges for scene awareness.
+    #[serde(default)]
+    pub conversation_log: ConversationLog,
 }
 
 impl GameSnapshot {
@@ -216,6 +220,7 @@ impl GameSnapshot {
             visited_locations: world.visited_locations.clone(),
             edge_traversals: world.edge_traversals.clone(),
             gossip_network: world.gossip_network.clone(),
+            conversation_log: world.conversation_log.clone(),
         }
     }
 
@@ -281,6 +286,9 @@ impl GameSnapshot {
 
         // Restore gossip network
         world.gossip_network = self.gossip_network;
+
+        // Restore conversation log
+        world.conversation_log = self.conversation_log;
     }
 }
 

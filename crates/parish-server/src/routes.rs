@@ -506,6 +506,7 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
         return;
     };
 
+    let npc_id = setup.npc_id;
     let npc_name = setup.display_name;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
@@ -585,7 +586,7 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
                 }
             };
 
-            let hints = if let Some(resp) = full_response {
+            let (hints, parsed_response) = if let Some(resp) = full_response {
                 if resp.error.is_some() {
                     tracing::warn!("Inference error: {:?}", resp.error);
 
@@ -596,17 +597,63 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
                         &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
                     );
 
-                    vec![]
+                    (vec![], None)
                 } else {
                     let parsed = parse_npc_stream_response(&resp.text);
-                    parsed
+                    let hints = parsed
                         .metadata
-                        .map(|m| m.language_hints)
-                        .unwrap_or_default()
+                        .as_ref()
+                        .map(|m| m.language_hints.clone())
+                        .unwrap_or_default();
+                    (hints, Some(parsed))
                 }
             } else {
-                vec![]
+                (vec![], None)
             };
+
+            // Apply response effects and record conversation exchange
+            if let Some(ref parsed) = parsed_response {
+                let mut world = state.world.lock().await;
+                let mut npc_manager = state.npc_manager.lock().await;
+                let game_time = world.clock.now();
+                let location = world.player_location;
+
+                // Update NPC mood and record speaker's own memory
+                if let Some(npc_mut) = npc_manager.get_mut(npc_id) {
+                    let debug_events = parish_core::npc::ticks::apply_tier1_response(
+                        npc_mut, parsed, &raw, game_time,
+                    );
+                    for event in &debug_events {
+                        tracing::debug!("{}", event);
+                    }
+                }
+
+                // Record conversation exchange for scene awareness
+                world
+                    .conversation_log
+                    .add(parish_core::npc::conversation::ConversationExchange {
+                        timestamp: game_time,
+                        speaker_id: npc_id,
+                        speaker_name: npc_name.clone(),
+                        player_input: raw.clone(),
+                        npc_dialogue: parsed.dialogue.clone(),
+                        location,
+                    });
+
+                // Record witness memories for bystander NPCs
+                let witness_events = parish_core::npc::ticks::record_witness_memories(
+                    npc_manager.npcs_mut(),
+                    npc_id,
+                    &npc_name,
+                    &raw,
+                    &parsed.dialogue,
+                    game_time,
+                    location,
+                );
+                for event in &witness_events {
+                    tracing::debug!("{}", event);
+                }
+            }
 
             state
                 .event_bus
@@ -1232,16 +1279,17 @@ mod tests {
                 cloud_api_key: None,
                 cloud_base_url: None,
                 improv_enabled: false,
-                category_provider: [None, None, None],
-                category_model: [None, None, None],
-                category_api_key: [None, None, None],
-                category_base_url: [None, None, None],
+                category_provider: [None, None, None, None],
+                category_model: [None, None, None, None],
+                category_api_key: [None, None, None, None],
+                category_base_url: [None, None, None, None],
             },
             None,
             transport,
             ui_config,
             saves_dir,
             data_dir,
+            None,
         )
     }
 

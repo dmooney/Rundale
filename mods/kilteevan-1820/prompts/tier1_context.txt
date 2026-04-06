@@ -2,5 +2,5 @@ Your Location: {location_name} — {location_description}
 Time: {time}
 Season: {season}
 Weather: {weather}
-
-The player {player_action}
+{scene_context}
+The traveller says: "{player_action}"

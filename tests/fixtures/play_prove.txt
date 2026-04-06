@@ -1,21 +1,46 @@
-# Prove: NPC arrival reactions and greetings system
-/status
-/wait 120
-/status
+# Prove: NPC conversation awareness — witness memories and conversation log
+# Goal: Talk to one NPC while another is present, then verify
+# the bystander has a memory of the overheard conversation.
 
-# Check NPC positions before going to pub
-/debug tiers
+# Go to Darcy's Pub — Padraig and Niamh are both there
+go to Darcy's Pub
 
-# First pub visit — Padraig should introduce himself on arrival
-go to pub
+# Confirm both NPCs are here
 /npcs
 
-# Second pub visit — Padraig should give a welcome (not re-introduce)
-go to crossroads
-go to pub
-/npcs
+# Check initial memory state — should be empty
+/debug memory Padraig Darcy
+/debug memory Niamh Darcy
 
-# Shop visit — Roisin should introduce herself on first visit
-go to crossroads
-go to shop
-/npcs
+# Stub a response for Padraig (first NPC at location)
+/stub Padraig Darcy: Ah, dia dhuit! A fine soft day, isn't it? The roads are quiet this morning.
+
+# Talk to Padraig — Niamh should overhear this
+Tell me about the morning
+
+# CRITICAL CHECK: Niamh should now have an "Overheard" witness memory
+/debug memory Niamh Darcy
+
+# And Padraig should have his own memory of the conversation
+/debug memory Padraig Darcy
+
+# Now stub a response for Niamh and talk to her
+/stub Niamh Darcy: You've met my father already? He does love to talk. Welcome to Kilteevan!
+
+# Talk to Niamh — she should reference what she overheard
+Tell me about yourself
+
+# CRITICAL CHECK: Padraig should now have a witness memory of this exchange
+/debug memory Padraig Darcy
+
+# And Niamh should have both: her witness memory AND her own conversation memory
+/debug memory Niamh Darcy
+
+# Third exchange: stub Padraig again — he should be in continuity
+/stub Padraig Darcy: She's a sharp one, my Niamh. But she's right — what brings ye here?
+
+Hello again Padraig
+
+# Final memory check — both should have rich memory logs
+/debug memory Padraig Darcy
+/debug memory Niamh Darcy
