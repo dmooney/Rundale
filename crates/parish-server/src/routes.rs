@@ -53,10 +53,7 @@ pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<Worl
 pub async fn get_map(State(state): State<Arc<AppState>>) -> Json<MapData> {
     let world = state.world.lock().await;
     let transport = state.transport.default_mode();
-    Json(parish_core::ipc::build_map_data(
-        &world,
-        transport.speed_m_per_s,
-    ))
+    Json(parish_core::ipc::build_map_data(&world, transport))
 }
 
 /// `GET /api/npcs-here` — returns NPCs at the player's current location.
@@ -471,6 +468,7 @@ async fn handle_look(state: &Arc<AppState>) {
         &npc_manager,
         transport.speed_m_per_s,
         &transport.label,
+        false,
     );
     state.event_bus.emit("text-log", &text_log("system", text));
 }

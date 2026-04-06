@@ -407,6 +407,7 @@ pub fn render_look_text(
     npc_manager: &NpcManager,
     speed_m_per_s: f64,
     transport_label: &str,
+    include_exits: bool,
 ) -> String {
     use crate::world::description::{format_exits, render_description};
 
@@ -424,14 +425,17 @@ pub fn render_look_text(
         world.current_location().description.clone()
     };
 
-    let exits = format_exits(
-        world.player_location,
-        &world.graph,
-        speed_m_per_s,
-        transport_label,
-    );
-
-    format!("{}\n{}", desc, exits)
+    if include_exits {
+        let exits = format_exits(
+            world.player_location,
+            &world.graph,
+            speed_m_per_s,
+            transport_label,
+        );
+        format!("{}\n{}", desc, exits)
+    } else {
+        desc
+    }
 }
 
 // ── Tests ────────���──────────────────────────────────────────────────────────
@@ -550,7 +554,7 @@ mod tests {
     fn render_look_text_basic() {
         let world = WorldState::new();
         let npc = NpcManager::new();
-        let text = render_look_text(&world, &npc, 1.25, "on foot");
+        let text = render_look_text(&world, &npc, 1.25, "on foot", true);
         assert!(!text.is_empty());
     }
 }

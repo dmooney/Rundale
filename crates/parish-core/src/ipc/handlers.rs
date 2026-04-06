@@ -14,7 +14,7 @@ use crate::npc::manager::NpcManager;
 use crate::npc::mood::mood_emoji;
 use crate::npc::ticks;
 use crate::npc::{LanguageHint, Npc, NpcId};
-use crate::world::description::{format_exits, render_description};
+use crate::world::description::render_description;
 use crate::world::palette::compute_palette;
 use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
@@ -22,7 +22,7 @@ use crate::world::{LocationId, WorldState};
 use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, ThemePalette, WorldSnapshot};
 
 /// Builds a [`WorldSnapshot`] from the current world state.
-pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> WorldSnapshot {
+pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> WorldSnapshot {
     let now = world.clock.now();
     let hour = now.hour() as u8;
     let minute = now.minute() as u8;
@@ -33,14 +33,7 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
 
     let loc = world.current_location();
     let description = if let Some(data) = world.current_location_data() {
-        let desc = render_description(data, tod, &weather_str, &[]);
-        let exits = format_exits(
-            world.player_location,
-            &world.graph,
-            transport.speed_m_per_s,
-            &transport.label,
-        );
-        format!("{}\n\n{}", desc, exits)
+        render_description(data, tod, &weather_str, &[])
     } else {
         loc.description.clone()
     };
@@ -79,7 +72,8 @@ pub fn snapshot_from_world(world: &WorldState, transport: &TransportMode) -> Wor
 /// adjacent to any visited location — also appears so the player can see
 /// where they could explore next. Frontier locations are marked with
 /// `visited: false` and have limited tooltip data.
-pub fn build_map_data(world: &WorldState, speed_m_per_s: f64) -> MapData {
+pub fn build_map_data(world: &WorldState, transport: &TransportMode) -> MapData {
+    let speed_m_per_s = transport.speed_m_per_s;
     let player_loc = world.player_location;
     let visited = &world.visited_locations;
 
@@ -177,6 +171,8 @@ pub fn build_map_data(world: &WorldState, speed_m_per_s: f64) -> MapData {
         edges,
         player_location: player_loc.0.to_string(),
         edge_traversals,
+        transport_label: transport.label.clone(),
+        transport_id: transport.id.clone(),
     }
 }
 
@@ -435,7 +431,7 @@ mod tests {
     #[test]
     fn build_map_data_from_default_world() {
         let world = WorldState::new();
-        let map = build_map_data(&world, 1.25);
+        let map = build_map_data(&world, &TransportMode::walking());
         assert!(!map.player_location.is_empty());
         // At least the player's location should exist
         assert!(
@@ -452,7 +448,7 @@ mod tests {
             let start = world.player_location;
             let neighbor_count = world.graph.neighbors(start).len();
 
-            let map = build_map_data(&world, 1.25);
+            let map = build_map_data(&world, &TransportMode::walking());
 
             // Start location (visited) + its neighbors (frontier)
             assert_eq!(
@@ -498,7 +494,7 @@ mod tests {
             let neighbors = world.graph.neighbors(start);
             if let Some((neighbor_id, _)) = neighbors.first() {
                 world.mark_visited(*neighbor_id);
-                let map = build_map_data(&world, 1.25);
+                let map = build_map_data(&world, &TransportMode::walking());
 
                 // Visited locations should have visited=true
                 let visited: Vec<_> = map.locations.iter().filter(|l| l.visited).collect();
@@ -573,7 +569,7 @@ mod tests {
                 world.record_path_traversal(&[start, *neighbor_id]);
                 world.mark_visited(*neighbor_id);
 
-                let map = build_map_data(&world, 1.25);
+                let map = build_map_data(&world, &TransportMode::walking());
                 assert!(
                     !map.edge_traversals.is_empty(),
                     "should include edge traversals"
