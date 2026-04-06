@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use parish_core::config::InferenceCategory;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
+use parish_core::input::{InputResult, classify_input, extract_all_mentions, parse_intent};
 use parish_core::ipc::{
     IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
     NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, ThemePalette,
@@ -344,13 +344,22 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
         return;
     }
 
-    // Extract @mention for NPC targeting, if present
-    let (target_name, dialogue) = match extract_mention(&raw) {
-        Some(mention) => (Some(mention.name), mention.remaining),
-        None => (None, raw),
+    // Extract all @mentions for NPC targeting, if any
+    let (target_names, dialogue) = extract_all_mentions(&raw);
+    let targets: Vec<Option<String>> = if target_names.is_empty() {
+        vec![None]
+    } else {
+        target_names.into_iter().map(Some).collect()
     };
 
-    handle_npc_conversation(dialogue, target_name, state).await;
+    for target in &targets {
+        handle_single_npc_turn(dialogue.clone(), target.as_deref(), state).await;
+    }
+
+    // After two or more NPCs respond, optionally run NPC-to-NPC follow-up turns
+    if targets.len() >= 2 {
+        run_npc_followup_turns(state).await;
+    }
 }
 
 /// Resolves movement to a named location.
@@ -473,8 +482,8 @@ async fn handle_look(state: &Arc<AppState>) {
     state.event_bus.emit("text-log", &text_log("system", text));
 }
 
-/// Routes input to the NPC at the player's location, or shows idle message.
-async fn handle_npc_conversation(raw: String, target_name: Option<String>, state: &Arc<AppState>) {
+/// Runs a single NPC conversation turn, streaming the response to the frontend.
+async fn handle_single_npc_turn(raw: String, target_name: Option<&str>, state: &Arc<AppState>) {
     let (setup, queue, npc_present) = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
@@ -486,7 +495,7 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
             &world,
             &mut npc_manager,
             &raw,
-            target_name.as_deref(),
+            target_name,
             config.improv_enabled,
         );
         (setup, queue.clone(), npc_present)
@@ -685,6 +694,51 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
 
     // Cancel loading animation (emits final active: false)
     loading_cancel.cancel();
+}
+
+/// Optionally runs 1–2 additional NPC-to-NPC follow-up turns after a
+/// multi-NPC player exchange. Uses millisecond timing for probability gating.
+async fn run_npc_followup_turns(state: &Arc<AppState>) {
+    fn subsec_millis() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_millis() as u64
+    }
+
+    let thresholds = [70u64, 40u64]; // % chance for 1st and 2nd follow-up
+    for threshold in thresholds {
+        if subsec_millis() % 100 >= threshold {
+            break;
+        }
+
+        // Pick the NPC at the player's location who didn't speak last
+        let (target_name, has_npcs) = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let npcs = npc_manager.npcs_at(world.player_location);
+            let last = world
+                .conversation_log
+                .last_speaker_at(world.player_location);
+            let other = npcs.iter().find(|n| Some(n.id) != last);
+            let name = other.map(|n| n.name.clone());
+            (name, !npcs.is_empty())
+        };
+
+        if !has_npcs {
+            break;
+        }
+        let Some(name) = target_name else { break };
+
+        handle_single_npc_turn("".to_string(), Some(name.as_str()), state).await;
+    }
+}
+
+/// `POST /api/trigger-ambient-speech` — triggers unprompted NPC speech at the
+/// player's location. Called by the frontend after a period of player inactivity.
+pub async fn trigger_ambient_speech(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    handle_single_npc_turn("(speaks unprompted)".to_string(), None, &state).await;
+    StatusCode::OK
 }
 
 /// Spawns a background task that emits rich [`LoadingPayload`] events with

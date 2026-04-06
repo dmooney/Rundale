@@ -486,6 +486,7 @@ pub fn run() {
             commands::new_game,
             commands::get_save_state,
             commands::react_to_message,
+            commands::trigger_ambient_speech,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -13,7 +13,7 @@ use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
+use parish_core::input::{InputResult, classify_input, extract_all_mentions, parse_intent};
 use parish_core::ipc::{
     IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first, compute_name_hints, text_log,
 };
@@ -436,14 +436,28 @@ async fn handle_game_input(
         return;
     }
 
-    // Extract @mention for NPC targeting, if present
-    let (target_name, dialogue) = match extract_mention(&raw) {
-        Some(mention) => (Some(mention.name), mention.remaining),
-        None => (None, raw),
+    // Extract all @mentions for NPC targeting, if any
+    let (target_names, dialogue) = extract_all_mentions(&raw);
+    let targets: Vec<Option<String>> = if target_names.is_empty() {
+        vec![None]
+    } else {
+        target_names.into_iter().map(Some).collect()
     };
 
-    // Try NPC conversation
-    handle_npc_conversation(dialogue, target_name, state, app).await;
+    for target in &targets {
+        handle_single_npc_turn(
+            dialogue.clone(),
+            target.as_deref(),
+            state.clone(),
+            app.clone(),
+        )
+        .await;
+    }
+
+    // After two or more NPCs respond, optionally run NPC-to-NPC follow-up turns
+    if targets.len() >= 2 {
+        run_npc_followup_turns(Arc::clone(&*state), app.clone()).await;
+    }
 }
 
 /// Resolves movement to a named location using the shared movement pipeline.
@@ -587,11 +601,13 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
 
 /// Routes input to the NPC at the player's location, or shows idle message.
 ///
+/// Runs a single NPC conversation turn, streaming the response to the frontend.
+///
 /// If `target_name` is provided (from an `@mention`), the matching NPC
 /// is selected. Otherwise falls back to the first NPC at the location.
-async fn handle_npc_conversation(
+async fn handle_single_npc_turn(
     raw: String,
-    target_name: Option<String>,
+    target_name: Option<&str>,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
@@ -606,7 +622,7 @@ async fn handle_npc_conversation(
             &world,
             &mut npc_manager,
             &raw,
-            target_name.as_deref(),
+            target_name,
             config.improv_enabled,
         );
         (setup, queue.clone(), npc_present)
@@ -829,6 +845,230 @@ async fn handle_npc_conversation(
 
     // Stop the animated loading indicator (emits active: false)
     loading_cancel.cancel();
+}
+
+/// Optionally runs 1–2 additional NPC-to-NPC follow-up turns after a
+/// multi-NPC player exchange. Uses millisecond timing for probability gating.
+async fn run_npc_followup_turns(state: Arc<AppState>, app: tauri::AppHandle) {
+    fn subsec_millis() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_millis() as u64
+    }
+
+    let thresholds = [70u64, 40u64]; // % chance for 1st and 2nd follow-up
+    for threshold in thresholds {
+        if subsec_millis() % 100 >= threshold {
+            break;
+        }
+
+        // Pick the NPC at the player's location who didn't speak last
+        let (target_name, has_npcs) = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let npcs = npc_manager.npcs_at(world.player_location);
+            let last = world
+                .conversation_log
+                .last_speaker_at(world.player_location);
+            let other = npcs.iter().find(|n| Some(n.id) != last);
+            let name = other.map(|n| n.name.clone());
+            (name, !npcs.is_empty())
+        };
+
+        if !has_npcs {
+            break;
+        }
+        let Some(name) = target_name else { break };
+
+        // Wrap state in a temporary Tauri-compatible handle via Arc
+        // handle_single_npc_turn needs tauri::State, so we call the inner logic directly
+        handle_single_npc_arc("".to_string(), Some(name.as_str()), &state, app.clone()).await;
+    }
+}
+
+/// Inner NPC turn logic that works with `Arc<AppState>` directly (used by
+/// follow-up turns and ambient speech which don't have a `tauri::State` handle).
+async fn handle_single_npc_arc(
+    raw: String,
+    target_name: Option<&str>,
+    state: &Arc<AppState>,
+    app: tauri::AppHandle,
+) {
+    let (setup, queue, npc_present) = {
+        let world = state.world.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
+        let queue = state.inference_queue.lock().await;
+        let config = state.config.lock().await;
+
+        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
+        let setup = parish_core::ipc::prepare_npc_conversation(
+            &world,
+            &mut npc_manager,
+            &raw,
+            target_name,
+            config.improv_enabled,
+        );
+        (setup, queue.clone(), npc_present)
+    };
+
+    let (Some(setup), Some(queue)) = (setup, queue) else {
+        if npc_present {
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    source: "system".to_string(),
+                    content:
+                        "There's someone here, but the LLM is not configured — set a provider with /provider."
+                            .to_string(),
+                },
+            );
+        }
+        return;
+    };
+
+    let npc_id = setup.npc_id;
+    let npc_name = setup.display_name;
+    let system_prompt = setup.system_prompt;
+    let context = setup.context;
+
+    let model = {
+        let config = state.config.lock().await;
+        config.model_name.clone()
+    };
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+
+    let loading_cancel = tokio_util::sync::CancellationToken::new();
+    spawn_loading_animation(app.clone(), loading_cancel.clone());
+
+    let (token_tx, token_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+    let display_label = capitalize_first(&npc_name);
+    let _ = app.emit(EVENT_TEXT_LOG, text_log(display_label, String::new()));
+
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+        let transport = state.transport.default_mode();
+        let npc_manager = state.npc_manager.lock().await;
+        let mut snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+    }
+
+    match queue
+        .send(
+            req_id,
+            model,
+            context,
+            Some(system_prompt),
+            Some(token_tx),
+            None,
+        )
+        .await
+    {
+        Ok(mut response_rx) => {
+            let app_clone = app.clone();
+            let stream_handle = tokio::spawn(async move {
+                crate::events::stream_npc_response(app_clone, token_rx).await
+            });
+
+            let full_response = loop {
+                match response_rx.try_recv() {
+                    Ok(resp) => {
+                        let _ = stream_handle.await;
+                        break Some(resp);
+                    }
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                    }
+                    Err(tokio::sync::oneshot::error::TryRecvError::Closed) => break None,
+                }
+            };
+
+            let (hints, parsed_response) = if let Some(resp) = full_response {
+                if resp.error.is_some() {
+                    (vec![], None)
+                } else {
+                    let parsed = parish_core::npc::parse_npc_stream_response(&resp.text);
+                    let hints = parsed
+                        .metadata
+                        .as_ref()
+                        .map(|m| m.language_hints.clone())
+                        .unwrap_or_default();
+                    (hints, Some(parsed))
+                }
+            } else {
+                (vec![], None)
+            };
+
+            if let Some(ref parsed) = parsed_response {
+                let mut world = state.world.lock().await;
+                let mut npc_manager = state.npc_manager.lock().await;
+                let game_time = world.clock.now();
+                let location = world.player_location;
+
+                if let Some(npc_mut) = npc_manager.get_mut(npc_id) {
+                    parish_core::npc::ticks::apply_tier1_response(npc_mut, parsed, &raw, game_time);
+                }
+
+                world
+                    .conversation_log
+                    .add(parish_core::npc::conversation::ConversationExchange {
+                        timestamp: game_time,
+                        speaker_id: npc_id,
+                        speaker_name: npc_name.clone(),
+                        player_input: raw.clone(),
+                        npc_dialogue: parsed.dialogue.clone(),
+                        location,
+                    });
+
+                parish_core::npc::ticks::record_witness_memories(
+                    npc_manager.npcs_mut(),
+                    npc_id,
+                    &npc_name,
+                    &raw,
+                    &parsed.dialogue,
+                    game_time,
+                    location,
+                );
+            }
+
+            let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints });
+        }
+        Err(e) => {
+            tracing::error!("Failed to submit inference request: {}", e);
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    source: "system".to_string(),
+                    content: "The parish storyteller has wandered off. Try again in a moment."
+                        .to_string(),
+                },
+            );
+        }
+    }
+
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
+    }
+    loading_cancel.cancel();
+}
+
+/// Triggers an unprompted NPC utterance at the player's current location.
+///
+/// Called by the frontend after a period of player inactivity to simulate
+/// spontaneous NPC speech.
+#[tauri::command]
+pub async fn trigger_ambient_speech(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    handle_single_npc_arc("(speaks unprompted)".to_string(), None, &*state, app).await;
+    Ok(())
 }
 
 // ── Persistence commands ────────────────────────────────────────────────────

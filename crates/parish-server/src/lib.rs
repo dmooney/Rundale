@@ -114,6 +114,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/new-save-file", get(routes::new_save_file))
         .route("/api/new-game", get(routes::new_game))
         .route("/api/save-state", get(routes::get_save_state))
+        .route(
+            "/api/trigger-ambient-speech",
+            post(routes::trigger_ambient_speech),
+        )
         .route("/api/ws", get(ws::ws_handler))
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
         .with_state(state);

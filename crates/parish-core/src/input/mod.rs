@@ -659,6 +659,32 @@ pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
     Some(MentionExtraction { name, remaining })
 }
 
+/// Extracts all `@Name` mentions from input text, returning the names in order
+/// and the remaining dialogue with all mentions stripped.
+///
+/// # Examples
+///
+/// ```
+/// use parish_core::input::extract_all_mentions;
+///
+/// let (names, dialogue) = extract_all_mentions("@Brigid @Seamus good morning");
+/// assert_eq!(names, vec!["Brigid", "Seamus"]);
+/// assert_eq!(dialogue, "good morning");
+///
+/// let (names, dialogue) = extract_all_mentions("no mentions here");
+/// assert!(names.is_empty());
+/// assert_eq!(dialogue, "no mentions here");
+/// ```
+pub fn extract_all_mentions(raw: &str) -> (Vec<String>, String) {
+    let mut names = Vec::new();
+    let mut text = raw.to_string();
+    while let Some(m) = extract_mention(&text) {
+        names.push(m.name);
+        text = m.remaining;
+    }
+    (names, text.trim().to_string())
+}
+
 /// Parses natural language input into a structured `PlayerIntent`.
 ///
 /// First tries local keyword matching for common commands (movement, look).

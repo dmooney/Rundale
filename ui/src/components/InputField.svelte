@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { streamingActive, npcsHere, mapData } from '../stores/game';
-	import { submitInput } from '$lib/ipc';
+	import { submitInput, triggerAmbientSpeech } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
@@ -50,6 +50,66 @@
 			.filter((loc) => loc.adjacent && loc.id !== $mapData?.player_location)
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
+
+	// ── NPC chip state ──────────────────────────────────────────────────────
+	let mentionedNpcNames = $state(new Set<string>());
+
+	function syncMentionedNpcs() {
+		if (!editorEl) return;
+		const chips = editorEl.querySelectorAll<HTMLElement>('.mention-chip[data-npc]');
+		mentionedNpcNames = new Set(Array.from(chips).map((c) => c.dataset.npc ?? ''));
+	}
+
+	function insertNpcMention(npcName: string) {
+		if ($streamingActive || !editorEl) return;
+		editorEl.focus();
+
+		const chip = document.createElement('span');
+		chip.className = 'mention-chip';
+		chip.contentEditable = 'false';
+		chip.dataset.npc = npcName;
+		chip.textContent = `@${npcName}`;
+
+		const space = document.createTextNode('\u00a0');
+		editorEl.appendChild(chip);
+		editorEl.appendChild(space);
+
+		const range = document.createRange();
+		const sel = window.getSelection();
+		range.setStartAfter(space);
+		range.collapse(true);
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+
+		syncMentionedNpcs();
+		editorEl.dispatchEvent(new Event('input', { bubbles: true }));
+	}
+
+	// ── Inactivity timers ────────────────────────────────────────────────────
+	let lastActivityAt = $state(Date.now());
+
+	$effect(() => {
+		const spontaneous = setInterval(async () => {
+			if ($streamingActive) return;
+			if (Date.now() - lastActivityAt > 12_000) {
+				lastActivityAt = Date.now();
+				await triggerAmbientSpeech();
+			}
+		}, 2_000);
+
+		const autoPause = setInterval(async () => {
+			if ($streamingActive) return;
+			if (Date.now() - lastActivityAt > 60_000) {
+				lastActivityAt = Date.now();
+				await submitInput('/pause');
+			}
+		}, 10_000);
+
+		return () => {
+			clearInterval(spontaneous);
+			clearInterval(autoPause);
+		};
+	});
 
 	// ── Tab-completion state ────────────────────────────────────────────────
 	interface CompletionState {
@@ -207,6 +267,7 @@
 		if (editorEl) {
 			editorEl.innerHTML = '';
 		}
+		syncMentionedNpcs();
 	}
 
 	/** Sets the editor's plain-text content and places cursor at end. */
@@ -457,6 +518,7 @@
 		}
 		const trimmed = getPlainText().trim();
 		if (!trimmed || $streamingActive) return;
+		lastActivityAt = Date.now();
 		clearEditor();
 		dropdownMode = null;
 
@@ -669,6 +731,8 @@
 		if (dropdownMode !== 'mention') {
 			detectSlash();
 		}
+		syncMentionedNpcs();
+		lastActivityAt = Date.now();
 	}
 
 	// Prevent pasting rich content — only plain text
@@ -736,6 +800,21 @@
 							{/if}
 						</span>
 					{/if}
+				</button>
+			{/each}
+		</div>
+	{/if}
+	{#if $npcsHere.length > 0 && !$streamingActive}
+		<div class="npc-chips">
+			<span class="npc-chips-label">Speak To</span>
+			{#each $npcsHere as npc}
+				<button
+					class="npc-chip"
+					class:active={mentionedNpcNames.has(npc.name)}
+					onclick={() => insertNpcMention(npc.name)}
+					disabled={$streamingActive}
+				>
+					<span class="npc-chip-mood">{npc.mood_emoji}</span>{npc.name}
 				</button>
 			{/each}
 		</div>
@@ -961,5 +1040,64 @@
 		height: 0.75rem;
 		fill: currentColor;
 		vertical-align: middle;
+	}
+
+	/* ── NPC speak-to chips ──────────────────────────────────────────────────── */
+
+	.npc-chips {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.4rem 0.75rem;
+		background: var(--color-panel-bg);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.npc-chips-label {
+		color: var(--color-muted);
+		font-size: 0.6rem;
+		font-family: var(--font-display);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		opacity: 0.7;
+		flex-shrink: 0;
+	}
+
+	.npc-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		background: transparent;
+		color: var(--color-accent);
+		border: 1px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+		border-radius: 12px;
+		padding: 0.18rem 0.6rem;
+		font-size: 0.72rem;
+		font-family: var(--font-body);
+		cursor: pointer;
+		transition:
+			background 0.15s,
+			border-color 0.15s;
+	}
+
+	.npc-chip:hover:not(:disabled) {
+		background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+		border-color: var(--color-accent);
+	}
+
+	.npc-chip.active {
+		background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+		border-color: var(--color-accent);
+	}
+
+	.npc-chip:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.npc-chip-mood {
+		font-size: 0.85em;
+		line-height: 1;
 	}
 </style>

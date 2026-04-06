@@ -7,7 +7,8 @@ import InputField from './InputField.svelte';
 // Mock ipc submitInput
 const mockSubmitInput = vi.fn(async (_text: string) => {});
 vi.mock('$lib/ipc', () => ({
-	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
+	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
+	triggerAmbientSpeech: vi.fn(async () => {})
 }));
 
 describe('InputField', () => {

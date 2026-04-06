@@ -88,6 +88,8 @@ export const getSaveState = () => command<SaveState>('get_save_state');
 export const reactToMessage = (npcName: string, messageSnippet: string, emoji: string) =>
 	command<void>('react_to_message', { npcName, messageSnippet, emoji });
 
+export const triggerAmbientSpeech = () => command<void>('trigger_ambient_speech');
+
 // ── Events ──────────────────────────────────────────────────────────────────
 
 type UnlistenFn = () => void;
