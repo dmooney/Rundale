@@ -37,6 +37,10 @@ export interface MapData {
 	player_lon: number;
 	/** Edge traversal counts for footprint rendering: [src_id, dst_id, count]. */
 	edge_traversals?: [string, string, number][];
+	/** Human-readable transport mode label (e.g. "on foot"). */
+	transport_label?: string;
+	/** Machine identifier for the active transport mode (e.g. "walking"). */
+	transport_id?: string;
 }
 
 /** A waypoint along a travel path. */

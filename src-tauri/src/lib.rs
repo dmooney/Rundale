@@ -100,6 +100,10 @@ pub struct MapData {
     /// Edge traversal counts for footprint rendering: `(src_id, dst_id, count)`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edge_traversals: Vec<(String, String, u32)>,
+    /// Human-readable transport mode label (e.g. `"on foot"`).
+    pub transport_label: String,
+    /// Machine identifier for the active transport mode (e.g. `"walking"`).
+    pub transport_id: String,
 }
 
 // NpcInfo and ThemePalette are defined in parish-core and re-exported here.

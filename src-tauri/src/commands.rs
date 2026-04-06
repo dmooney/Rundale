@@ -99,8 +99,8 @@ pub async fn get_world_snapshot(
 #[tauri::command]
 pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, String> {
     let world = state.world.lock().await;
-    let speed = state.transport.default_mode().speed_m_per_s;
-    let core_map = parish_core::ipc::build_map_data(&world, speed);
+    let transport = state.transport.default_mode();
+    let core_map = parish_core::ipc::build_map_data(&world, transport);
 
     let player_loc = world.player_location;
     let (player_lat, player_lon) = world
@@ -130,6 +130,8 @@ pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, 
         player_lat,
         player_lon,
         edge_traversals: core_map.edge_traversals,
+        transport_label: core_map.transport_label,
+        transport_id: core_map.transport_id,
     })
 }
 
@@ -571,6 +573,7 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
         &npc_manager,
         transport.speed_m_per_s,
         &transport.label,
+        false,
     );
     let _ = app.emit(
         EVENT_TEXT_LOG,

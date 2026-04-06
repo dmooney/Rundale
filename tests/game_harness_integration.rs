@@ -388,7 +388,10 @@ fn test_fog_of_war_frontier_at_pub() {
     h.execute("go to pub");
     assert_eq!(h.player_location(), "Darcy's Pub");
 
-    let map = build_map_data(&h.app.world, 1.25);
+    let map = build_map_data(
+        &h.app.world,
+        &parish_core::world::transport::TransportMode::walking(),
+    );
 
     // The player is at the pub
     assert_eq!(

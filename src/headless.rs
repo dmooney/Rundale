@@ -965,6 +965,7 @@ fn print_location_description(app: &App) {
         &app.npc_manager,
         transport.speed_m_per_s,
         &transport.label,
+        true,
     );
     println!("{}", text);
 }
