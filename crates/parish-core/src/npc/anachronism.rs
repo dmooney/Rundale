@@ -450,7 +450,7 @@ const ANACHRONISM_DICT: &[DictEntry] = &[
 /// # Examples
 ///
 /// ```
-/// use parish::npc::anachronism::check_input;
+/// use parish_core::npc::anachronism::check_input;
 ///
 /// let hits = check_input("Can I take the telephone to call someone?");
 /// assert_eq!(hits.len(), 1);
@@ -522,7 +522,7 @@ fn has_word_match(haystack: &str, needle: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use parish::npc::anachronism::{check_input, format_context_alert};
+/// use parish_core::npc::anachronism::{check_input, format_context_alert};
 ///
 /// let hits = check_input("I want to take a photograph");
 /// let alert = format_context_alert(&hits);

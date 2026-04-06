@@ -37,6 +37,8 @@ The core innovation is a cognitive level-of-detail (LOD) system: NPCs near the p
 Player Input → Command Detection → [System Command OR Game Input]
                                           ↓
                                    World State Context + NPC Context
+                                   (relationships by name, scene history,
+                                    witness memories, continuity cues)
                                           ↓
                                    Inference Queue (Tokio channel)
                                           ↓
@@ -45,6 +47,8 @@ Player Input → Command Detection → [System Command OR Game Input]
                                    Structured JSON Response
                                           ↓
                                    World State Update
+                                   (mood, speaker memory, witness memories,
+                                    conversation log recording)
                                           ↓
                                    Text Rendering → Headless REPL / GUI
 ```
@@ -108,14 +112,18 @@ src/
 │   ├── encounter.rs     # En-route encounter system
 │   └── description.rs   # Dynamic location description templates
 ├── npc/
-│   ├── mod.rs           # Npc struct, NpcId
+│   ├── mod.rs           # Npc struct, NpcId, prompt builders
 │   ├── types.rs         # Relationship, DailySchedule, NpcState, CogTier
 │   ├── manager.rs       # NpcManager (tier assignment, tick dispatch)
-│   ├── ticks.rs         # Tier 1 & 2 inference ticks
-│   ├── memory.rs        # ShortTermMemory (ring buffer)
+│   ├── ticks.rs         # Tier 1 & 2 inference ticks, witness memories, response processing
+│   ├── memory.rs        # ShortTermMemory (ring buffer), LongTermMemory (keyword retrieval)
+│   ├── conversation.rs  # ConversationLog (per-location exchange history for scene awareness)
 │   ├── overhear.rs      # Atmospheric overhear messages for nearby Tier 2
+│   ├── gossip.rs        # GossipNetwork (probabilistic propagation)
 │   ├── anachronism.rs   # Anachronism detection for player input (1820 period)
 │   ├── mood.rs          # Mood-to-emoji mapping for NPC emotional state display
+│   ├── reactions.rs     # Emoji reaction log for player feedback
+│   ├── transitions.rs   # NPC tier transition summaries (inflate/deflate)
 │   └── data.rs          # NPC data loader (JSON)
 ├── inference/
 │   ├── mod.rs           # Inference queue, worker task

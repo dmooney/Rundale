@@ -811,7 +811,7 @@ mod tests {
         mgr.add_npc(npc);
 
         let graph = WorldGraph::new();
-        let npcs = build_npc_debug_list(&mgr, &graph, 12, Season::Summer, DayType::Weekday);
+        let npcs = build_npc_debug_list(&mgr, &graph, 10, Season::Spring, DayType::Weekday);
         assert_eq!(npcs.len(), 1);
         // Relationships should be sorted by strength descending
         assert_eq!(npcs[0].relationships.len(), 2);

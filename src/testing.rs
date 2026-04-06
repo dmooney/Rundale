@@ -958,6 +958,33 @@ impl GameTestHarness {
                     }
                 }
 
+                // Record conversation exchange for scene awareness
+                let location = self.app.world.player_location;
+                self.app.world.conversation_log.add(
+                    crate::npc::conversation::ConversationExchange {
+                        timestamp: game_time,
+                        speaker_id: npc_id,
+                        speaker_name: name.clone(),
+                        player_input: text.to_string(),
+                        npc_dialogue: dialogue.clone(),
+                        location,
+                    },
+                );
+
+                // Record witness memories for bystander NPCs
+                let witness_events = crate::npc::ticks::record_witness_memories(
+                    self.app.npc_manager.npcs_mut(),
+                    npc_id,
+                    &name,
+                    text,
+                    &dialogue,
+                    game_time,
+                    location,
+                );
+                for event in witness_events {
+                    self.app.debug_event(event);
+                }
+
                 return ActionResult::NpcResponse {
                     npc: name,
                     dialogue,
@@ -1629,6 +1656,122 @@ mod tests {
         if !transmitted.is_empty() {
             let npc2_gossip = h.app.world.gossip_network.known_by(NpcId(2));
             assert!(!npc2_gossip.is_empty(), "NPC 2 should now know gossip");
+        }
+    }
+
+    // ── Conversation awareness integration tests ─────────────────────
+
+    #[test]
+    fn test_witness_memory_via_harness() {
+        let mut h = GameTestHarness::new();
+
+        // Move to a location with multiple NPCs
+        // First find a location with 2+ NPCs
+        let loc = h.location_id();
+        let npcs_here = h.npcs_here();
+
+        if npcs_here.len() >= 2 {
+            // Stub a response for the first NPC
+            let first_npc_name = npcs_here[0].to_string();
+            let second_npc_name = npcs_here[1].to_string();
+            h.add_canned_response(&first_npc_name, "Ah sure, grand weather today!");
+
+            // Talk to the first NPC
+            let result = h.execute("Tell me about the weather");
+            assert!(matches!(result, ActionResult::NpcResponse { .. }));
+
+            // Check that the second NPC has a witness memory
+            let second_npc = h
+                .app
+                .npc_manager
+                .npcs_at(loc)
+                .into_iter()
+                .find(|n| n.name == second_npc_name)
+                .cloned();
+            if let Some(witness) = second_npc {
+                assert!(
+                    !witness.memory.is_empty(),
+                    "Witness NPC should have a memory of the overheard conversation"
+                );
+                let memories = witness.memory.recent(1);
+                assert!(
+                    memories[0].content.contains("Overheard"),
+                    "Witness memory should mention overhearing: {}",
+                    memories[0].content
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_conversation_log_recorded_via_harness() {
+        let mut h = GameTestHarness::new();
+        let npcs_here = h.npcs_here();
+
+        if !npcs_here.is_empty() {
+            let npc_name = npcs_here[0].to_string();
+            h.add_canned_response(&npc_name, "Dia dhuit, a chara!");
+
+            h.execute("Hello there");
+
+            // Check that the conversation log has an entry
+            let loc = h.location_id();
+            let recent = h.app.world.conversation_log.recent_at(loc, 5);
+            assert_eq!(
+                recent.len(),
+                1,
+                "Conversation log should have 1 entry after 1 exchange"
+            );
+            assert_eq!(recent[0].speaker_name, npc_name);
+            assert!(recent[0].player_input.contains("Hello"));
+            assert!(recent[0].npc_dialogue.contains("Dia dhuit"));
+        }
+    }
+
+    #[test]
+    fn test_conversation_continuity_after_multiple_exchanges() {
+        let mut h = GameTestHarness::new();
+        let npcs_here = h.npcs_here();
+
+        if !npcs_here.is_empty() {
+            let npc_name = npcs_here[0].to_string();
+            h.add_canned_response(&npc_name, "Good morning to ye!");
+
+            let result = h.execute("Good morning");
+            assert!(
+                matches!(result, ActionResult::NpcResponse { .. }),
+                "First exchange should succeed"
+            );
+
+            let loc = h.location_id();
+            let recent = h.app.world.conversation_log.recent_at(loc, 5);
+            assert_eq!(
+                recent.len(),
+                1,
+                "Conversation log should have 1 entry after first exchange"
+            );
+
+            // If the NPC is still here after ticks, try a second exchange
+            let npcs_still_here = h.npcs_here();
+            if npcs_still_here.contains(&npc_name.as_str()) {
+                h.add_canned_response(&npc_name, "The weather is grand, so it is.");
+                let result2 = h.execute("How is the weather?");
+                if matches!(result2, ActionResult::NpcResponse { .. }) {
+                    let recent2 = h.app.world.conversation_log.recent_at(loc, 5);
+                    assert_eq!(
+                        recent2.len(),
+                        2,
+                        "Conversation log should have 2 entries after 2 exchanges"
+                    );
+
+                    // Verify continuity tracking
+                    assert!(h.app.world.conversation_log.has_recent_exchange_with(
+                        loc,
+                        recent2[0].speaker_id,
+                        5
+                    ));
+                }
+            }
         }
     }
 }

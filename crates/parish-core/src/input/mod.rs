@@ -583,12 +583,12 @@ pub struct MentionExtraction {
 
 /// Extracts an `@mention` from the beginning of player input.
 ///
-/// Recognises `@Name` at the start of input. The name runs from the `@`
-/// until the next punctuation, double-space, or end of string — so both
-/// single-word names (`@Padraig`) and multi-word names (`@Padraig Darcy`)
-/// are supported.
+/// Recognises `@Name` anywhere in input where `@` appears at the start or
+/// after whitespace. The name runs from the `@` until the next punctuation,
+/// double-space, or end of string — so both single-word names (`@Padraig`)
+/// and multi-word names (`@Padraig Darcy`) are supported.
 ///
-/// Returns `None` if the input does not start with `@`.
+/// Returns `None` if no valid `@mention` is found.
 ///
 /// # Examples
 ///
@@ -599,7 +599,10 @@ pub struct MentionExtraction {
 /// assert_eq!(result.unwrap().name, "Padraig");
 ///
 /// let result = extract_mention("hello @Padraig");
-/// assert!(result.is_none()); // only matches at start
+/// assert_eq!(result.unwrap().name, "Padraig"); // also matches after whitespace
+///
+/// let result = extract_mention("no mention here");
+/// assert!(result.is_none());
 /// ```
 pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
     let trimmed = raw.trim();

@@ -716,7 +716,7 @@ async fn handle_headless_game_input(
                 target_name.as_deref(),
                 app.improv_enabled,
             ) {
-                let _npc_id = setup.npc_id;
+                let npc_id = setup.npc_id;
                 let system_prompt = setup.system_prompt;
                 let context = setup.context;
 
@@ -799,6 +799,47 @@ async fn handle_headless_game_input(
                                                 meta.action,
                                                 meta.mood
                                             );
+                                        }
+
+                                        // Update NPC mood and record speaker's own memory
+                                        let game_time = app.world.clock.now();
+                                        if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
+                                            let debug_events =
+                                                parish_core::npc::ticks::apply_tier1_response(
+                                                    npc_mut, &parsed, text, game_time,
+                                                );
+                                            for event in &debug_events {
+                                                app.debug_event(event.clone());
+                                            }
+                                        }
+
+                                        // Record conversation exchange
+                                        let game_time = app.world.clock.now();
+                                        let location = app.world.player_location;
+                                        app.world.conversation_log.add(
+                                            parish_core::npc::conversation::ConversationExchange {
+                                                timestamp: game_time,
+                                                speaker_id: npc_id,
+                                                speaker_name: npc_display_name.clone(),
+                                                player_input: text.to_string(),
+                                                npc_dialogue: parsed.dialogue.clone(),
+                                                location,
+                                            },
+                                        );
+
+                                        // Record witness memories for bystander NPCs
+                                        let witness_events =
+                                            parish_core::npc::ticks::record_witness_memories(
+                                                app.npc_manager.npcs_mut(),
+                                                npc_id,
+                                                &npc_display_name,
+                                                text,
+                                                &parsed.dialogue,
+                                                game_time,
+                                                location,
+                                            );
+                                        for event in &witness_events {
+                                            app.debug_event(event.clone());
                                         }
                                     }
                                 }

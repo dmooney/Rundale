@@ -95,6 +95,9 @@ Parish/
 │       │   ├── encounter.rs # En-route encounter system (hardcoded + mod-driven)
 │       │   └── description.rs # Dynamic location description templates
 │       ├── npc/         #   NPC data model, behavior, cognition tiers
+│       │   ├── conversation.rs # ConversationLog (per-location exchange history, witness awareness)
+│       │   ├── ticks.rs  #     Prompt builders, witness memories, response processing
+│       │   ├── memory.rs #     Short-term ring buffer, long-term keyword retrieval
 │       │   └── anachronism.rs # Anachronism detection (hardcoded + mod-driven)
 │       ├── inference/   #   LLM client (OpenAI-compatible), queue, Ollama bootstrap
 │       └── persistence/ #   SQLite save/load, WAL journal, save picker

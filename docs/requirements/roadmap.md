@@ -109,6 +109,12 @@
 - [x] `GossipNetwork` with probabilistic propagation (60% transfer, 20% distortion)
 - [x] Gossip creation from world events
 - [x] Gossip injection into Tier 1 dialogue context
+- [x] `ConversationLog` for per-location exchange history (scene awareness)
+- [x] Witness memory system — bystander NPCs overhear conversations
+- [x] Named relationships in prompts (by name, not NPC ID)
+- [x] Scene continuity cues (no re-greeting mid-conversation)
+- [x] `apply_tier1_response` wired in all modes (mood + memory updates)
+- [x] Conversation log persisted in `GameSnapshot`
 
 ### Phase 5D — Tier 3 Batch Inference
 

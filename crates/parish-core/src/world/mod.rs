@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use time::GameClock;
 
 use crate::error::ParishError;
+use crate::npc::conversation::ConversationLog;
 use crate::npc::gossip::GossipNetwork;
 use events::EventBus;
 use graph::{LocationData, WorldGraph};
@@ -139,6 +140,8 @@ pub struct WorldState {
     pub edge_traversals: HashMap<(LocationId, LocationId), u32>,
     /// Gossip propagation network tracking information spread among NPCs.
     pub gossip_network: GossipNetwork,
+    /// Recent conversation exchanges for scene awareness and NPC memory.
+    pub conversation_log: ConversationLog,
 }
 
 impl WorldState {
@@ -181,6 +184,7 @@ impl WorldState {
             visited_locations: HashSet::from([crossroads_id]),
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
+            conversation_log: ConversationLog::new(),
         }
     }
 
@@ -228,6 +232,7 @@ impl WorldState {
             visited_locations: HashSet::from([start_location]),
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
+            conversation_log: ConversationLog::new(),
         })
     }
 
@@ -286,6 +291,7 @@ impl WorldState {
             visited_locations: HashSet::from([start_location]),
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
+            conversation_log: ConversationLog::new(),
         })
     }
 

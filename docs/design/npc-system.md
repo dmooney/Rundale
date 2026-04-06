@@ -21,13 +21,39 @@ Each NPC has:
 
 ## NPC Context Construction
 
-For each LLM inference call, build a context from these five layers:
+For each LLM inference call, build a context from these layers:
 
 1. **System prompt**: personality, intelligence guidance (behavioral directives only), current emotional state. NPC dialogue is pure speech — no parenthetical stage directions. Physical actions are tracked in JSON metadata only.
 2. **Public knowledge**: weather, time, season, major recent events
-3. **Personal knowledge**: their relationships, recent experiences, secrets
-4. **Immediate situation**: where they are, who's present, what just happened
-5. **Conversation history** (if in dialogue)
+3. **Personal knowledge**: their relationships (by name), recent experiences, secrets
+4. **Immediate situation**: where they are, who's present (with relationship context), what just happened
+5. **Conversation history**: recent exchanges at this location (last 3), with scene continuity cues
+6. **Witness awareness**: overheard conversations from bystander memory
+
+## Conversation Awareness
+
+NPCs are aware of conversations happening around them, not just conversations directed at them.
+
+### Witness Memory System
+
+When the player talks to NPC A at a location where NPCs B and C are also present:
+- B and C each receive a short-term memory entry: `"Overheard: a traveller said '...' and {A} replied '...'"`
+- These memories appear in B's and C's context when the player talks to them next
+- This creates natural conversational flow: "I heard what you said to Padraig..."
+
+### Conversation Log
+
+A per-location ring buffer (`ConversationLog` on `WorldState`) tracks the last 30 exchanges globally. Recent exchanges at the current location are injected into the context prompt under "What's been said here", giving NPCs awareness of what's been discussed.
+
+### Scene Continuity
+
+If the player has recently spoken to the same NPC, a cue is injected: "You are already in conversation with this traveller. Do not re-introduce yourself." This prevents NPCs from re-greeting on every utterance.
+
+### Prompt Quality
+
+- Relationships reference NPCs by name ("Niamh Darcy: Family, very close") not by ID
+- "Also present" includes relationship context ("Niamh Darcy, the Publican's Daughter — Family to you")
+- Knowledge framed as "WHAT'S ON YOUR MIND" for natural grounding
 
 ## Gossip & Information Propagation
 
@@ -59,4 +85,7 @@ All LLM responses for NPC behavior should be structured JSON:
 
 ## Source Modules
 
-- [`src/npc/`](../../src/npc/) — NPC data model, behavior, cognition tiers
+- [`crates/parish-core/src/npc/`](../../crates/parish-core/src/npc/) — NPC data model, behavior, cognition tiers
+- [`crates/parish-core/src/npc/conversation.rs`](../../crates/parish-core/src/npc/conversation.rs) — ConversationLog, ConversationExchange
+- [`crates/parish-core/src/npc/ticks.rs`](../../crates/parish-core/src/npc/ticks.rs) — Prompt builders, witness memories, response processing
+- [`crates/parish-core/src/npc/memory.rs`](../../crates/parish-core/src/npc/memory.rs) — Short-term and long-term memory
