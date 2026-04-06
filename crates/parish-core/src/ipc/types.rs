@@ -94,6 +94,10 @@ pub struct MapData {
     /// thicker/lighter "worn path" lines on the map.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edge_traversals: Vec<(String, String, u32)>,
+    /// Human-readable transport mode label (e.g. `"on foot"`).
+    pub transport_label: String,
+    /// Machine identifier for the active transport mode (e.g. `"walking"`).
+    pub transport_id: String,
 }
 
 // ── NPC info ────────────────────────────────────────────────────────────────
@@ -306,6 +310,8 @@ mod tests {
             edges: vec![("1".to_string(), "2".to_string())],
             player_location: "1".to_string(),
             edge_traversals: vec![],
+            transport_label: "on foot".to_string(),
+            transport_id: "walking".to_string(),
         };
         let json = serde_json::to_string(&data).unwrap();
         assert!(json.contains("Church"));
