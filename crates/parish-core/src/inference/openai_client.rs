@@ -133,10 +133,20 @@ impl OpenAiClient {
             .build()
             .expect("failed to build streaming reqwest client");
 
+        // Normalize the base URL: strip a trailing slash, and also strip a
+        // trailing `/v1` (with or without slash) because the endpoint paths
+        // below unconditionally append `/v1/chat/completions`. Users who set
+        // `PARISH_BASE_URL=https://api.groq.com/openai/v1` would otherwise get
+        // `https://api.groq.com/openai/v1/v1/chat/completions` (404).
+        let normalized = {
+            let trimmed = base_url.trim_end_matches('/');
+            trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
+        };
+
         Self {
             client,
             streaming_client,
-            base_url: base_url.trim_end_matches('/').to_string(),
+            base_url: normalized,
             api_key: api_key.map(|s| s.to_string()),
         }
     }

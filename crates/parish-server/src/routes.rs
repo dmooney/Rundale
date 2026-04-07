@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
+use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
 use parish_core::ipc::{
     IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
@@ -82,6 +82,8 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
     let events = std::collections::VecDeque::new();
+    let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+        state.inference_log.lock().await.iter().cloned().collect();
     let inference = InferenceDebug {
         provider_name: config.provider_name.clone(),
         model_name: config.model_name.clone(),
@@ -90,7 +92,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
         cloud_model: config.cloud_model_name.clone(),
         has_queue: state.inference_queue.lock().await.is_some(),
         improv_enabled: config.improv_enabled,
-        call_log: Vec::new(),
+        call_log,
     };
     Json(debug_snapshot::build_debug_snapshot(
         &world,
@@ -159,7 +161,7 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel(32);
-    let _worker = spawn_inference_worker(new_client, rx, new_inference_log());
+    let _worker = spawn_inference_worker(new_client, rx, state.inference_log.clone());
     let queue = InferenceQueue::new(tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
@@ -524,9 +526,9 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
     let display_label = capitalize_first(&npc_name);
-    state
-        .event_bus
-        .emit("text-log", &text_log(display_label, String::new()));
+    // Note: the empty NPC name placeholder is intentionally NOT emitted here.
+    // It is emitted lazily on the first streamed token (see below) so that a
+    // failed inference call leaves no orphaned empty talk bubble in the chat.
 
     // Pause the game clock while waiting for the inference response
     // and immediately notify the frontend so it stops interpolating.
@@ -556,10 +558,21 @@ async fn handle_npc_conversation(raw: String, target_name: Option<String>, state
             let stream_handle = tokio::spawn({
                 let state_clone = Arc::clone(state);
                 let cancel = loading_cancel.clone();
+                let label = display_label.clone();
                 async move {
+                    let mut first_token = true;
                     parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
                         // Cancel loading animation on first token
                         cancel.cancel();
+                        if first_token {
+                            // Emit the empty NPC name bubble lazily, so a
+                            // failed inference call never produces an
+                            // orphaned empty talk bubble.
+                            state_clone
+                                .event_bus
+                                .emit("text-log", &text_log(label.clone(), String::new()));
+                            first_token = false;
+                        }
                         state_clone.event_bus.emit(
                             "stream-token",
                             &StreamTokenPayload {

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, broadcast};
 
 use parish_core::game_mod::PronunciationEntry;
-use parish_core::inference::InferenceQueue;
 use parish_core::inference::openai_client::OpenAiClient;
+use parish_core::inference::{InferenceLog, InferenceQueue};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::WorldState;
 use parish_core::world::transport::TransportConfig;
@@ -45,6 +45,8 @@ pub struct AppState {
     pub npc_manager: Mutex<NpcManager>,
     /// Inference request queue (None if no provider configured).
     pub inference_queue: Mutex<Option<InferenceQueue>>,
+    /// Shared ring buffer of recent inference calls (for the debug panel).
+    pub inference_log: InferenceLog,
     /// Local LLM client (None if no provider is configured).
     pub client: Mutex<Option<OpenAiClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
@@ -156,6 +158,7 @@ pub fn build_app_state(
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
+        inference_log: parish_core::inference::new_inference_log(),
         client: Mutex::new(client),
         cloud_client: Mutex::new(cloud_client),
         config: Mutex::new(config),

@@ -18,7 +18,7 @@ use tower_http::services::ServeDir;
 
 use parish_core::game_mod::{GameMod, find_default_mod};
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, new_inference_log, spawn_inference_worker};
+use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
@@ -49,8 +49,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     npc_manager.assign_tiers(&world, &[]);
 
     // Build client from env
-    let (client, config) = build_client_and_config();
-    let cloud_client = build_cloud_client();
+    let (client, mut config) = build_client_and_config();
+    let cloud_env = build_cloud_client_from_env();
+    let cloud_client = cloud_env.client;
+    config.cloud_provider_name = cloud_env.provider_name;
+    config.cloud_model_name = cloud_env.model_name;
+    config.cloud_api_key = cloud_env.api_key;
+    config.cloud_base_url = cloud_env.base_url;
 
     let transport = TransportConfig::default();
 
@@ -60,10 +65,17 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .as_ref()
         .and_then(|gm| gm.manifest.meta.title.clone())
         .unwrap_or_else(|| "Parish".to_string());
+    // Railway injects RAILWAY_GIT_COMMIT_SHA at runtime; also accept a
+    // generic PARISH_COMMIT_SHA override. Short-hash for display.
+    let commit_sha = std::env::var("RAILWAY_GIT_COMMIT_SHA")
+        .or_else(|_| std::env::var("PARISH_COMMIT_SHA"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    let short_sha: String = commit_sha.chars().take(7).collect();
     let splash_text = format!(
-        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
+        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {} - build {}",
         game_title,
         chrono::Local::now().format("%Y-%m-%d %H:%M"),
+        short_sha,
     );
     let ui_config = UiConfigSnapshot {
         hints_label: "Language Hints".to_string(),
@@ -88,7 +100,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     // Initialize inference queue
     if let Some(ref client) = client {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
-        let _worker = spawn_inference_worker(client.clone(), rx, new_inference_log());
+        let _worker = spawn_inference_worker(client.clone(), rx, state.inference_log.clone());
         let queue = InferenceQueue::new(tx);
         let mut iq = state.inference_queue.lock().await;
         *iq = Some(queue);
@@ -292,17 +304,50 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
     (client, config)
 }
 
-/// Builds the cloud LLM client from environment variables.
-fn build_cloud_client() -> Option<OpenAiClient> {
-    let base_url = std::env::var("PARISH_CLOUD_BASE_URL")
-        .unwrap_or_else(|_| "https://openrouter.ai/api".to_string());
+/// Cloud LLM environment configuration loaded from `PARISH_CLOUD_*` vars.
+struct CloudEnvConfig {
+    client: Option<OpenAiClient>,
+    provider_name: Option<String>,
+    model_name: Option<String>,
+    api_key: Option<String>,
+    base_url: Option<String>,
+}
+
+/// Builds the cloud LLM client and associated config from environment variables.
+///
+/// Without populating `cloud_provider_name`/`cloud_model_name` on the
+/// `GameConfig`, `resolve_category_client` would never route Dialogue
+/// inference to the cloud client — so even with `PARISH_CLOUD_API_KEY` set,
+/// no requests would actually be sent (e.g. on Railway with Groq configured).
+fn build_cloud_client_from_env() -> CloudEnvConfig {
+    let provider = std::env::var("PARISH_CLOUD_PROVIDER")
+        .ok()
+        .filter(|s| !s.is_empty());
+    let base_url = std::env::var("PARISH_CLOUD_BASE_URL").unwrap_or_else(|_| {
+        provider
+            .as_deref()
+            .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
+            .map(|p| p.default_base_url().to_string())
+            .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
+    });
     let api_key = std::env::var("PARISH_CLOUD_API_KEY")
         .ok()
         .filter(|s| !s.is_empty());
+    let model = std::env::var("PARISH_CLOUD_MODEL")
+        .ok()
+        .filter(|s| !s.is_empty());
 
-    api_key
+    let client = api_key
         .as_deref()
-        .map(|key| OpenAiClient::new(&base_url, Some(key)))
+        .map(|key| OpenAiClient::new(&base_url, Some(key)));
+
+    CloudEnvConfig {
+        client,
+        provider_name: provider.or_else(|| api_key.as_ref().map(|_| "openrouter".to_string())),
+        model_name: model,
+        api_key,
+        base_url: Some(base_url),
+    }
 }
 
 #[cfg(test)]
