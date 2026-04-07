@@ -462,7 +462,8 @@ impl NpcManager {
                                 | crate::world::Weather::Storm
                         );
                         if dominated_by_rain {
-                            let is_farmer = npc.occupation.to_lowercase() == "farmer";
+                            // Avoid per-tick String allocation: ascii-case compare in place.
+                            let is_farmer = npc.occupation.eq_ignore_ascii_case("farmer");
                             let dest_is_outdoor =
                                 graph.get(desired).map(|d| !d.indoor).unwrap_or(false);
 
