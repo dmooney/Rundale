@@ -61,6 +61,28 @@
 		}
 	}
 
+	// Poll the debug snapshot while the debug panel is visible.
+	//
+	// The Tauri backend pushes `debug-update` events whenever state changes,
+	// but the web server has no equivalent push channel for the snapshot —
+	// so without polling, the panel only sees whatever was current at the
+	// moment it was opened (e.g. an empty inference call_log). 1s polling
+	// is cheap (the snapshot is just JSON over HTTP) and only runs while
+	// the panel is actually visible.
+	let debugPollHandle: ReturnType<typeof setInterval> | null = null;
+	$: {
+		if ($debugVisible && debugPollHandle === null) {
+			debugPollHandle = setInterval(() => {
+				getDebugSnapshot()
+					.then((s) => debugSnapshot.set(s))
+					.catch(() => {});
+			}, 1000);
+		} else if (!$debugVisible && debugPollHandle !== null) {
+			clearInterval(debugPollHandle);
+			debugPollHandle = null;
+		}
+	}
+
 	onMount(async () => {
 		// Initial data fetch (theme first to avoid color flash)
 		try {
