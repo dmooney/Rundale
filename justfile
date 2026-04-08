@@ -65,21 +65,21 @@ setup:
 
     # Install frontend dependencies
     echo "Installing frontend dependencies..."
-    cd ui && npm install
+    cd apps/ui && npm install
 
     echo "Setup complete."
 
 # Install frontend dependencies only
 ui-install:
-    eval "$(fnm env)" && cd ui && npm install
+    eval "$(fnm env)" && cd apps/ui && npm install
 
 # ─── Build ───────────────────────────────────────────────────────────────────
 
-# Build in debug mode
+# Build the workspace in debug mode
 build:
     cargo build
 
-# Build in release mode (optimized, LTO enabled)
+# Build the workspace in release mode (optimized, LTO enabled)
 build-release:
     cargo build --release
 
@@ -91,22 +91,18 @@ clean:
 
 # Run the game (Tauri desktop GUI) — installs frontend deps if missing
 run:
-    @eval "$(fnm env)" && test -d ui/node_modules || (echo "Installing frontend dependencies..." && cd ui && npm install)
+    @eval "$(fnm env)" && test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
     eval "$(fnm env)" && cargo tauri dev
-
-# Run the game in TUI mode (terminal interface)
-run-tui:
-    cargo run -- --tui
 
 # Run the game in headless REPL mode (plain stdin/stdout)
 run-headless:
-    cargo run -- --headless
+    cargo run -p parish -- --headless
 
-# Run in release mode (TUI)
-run-release:
-    cargo run --release -- --tui
+# Run the axum web server (serves the Svelte UI in a browser)
+web PORT="3001":
+    cargo run -p parish -- --web {{PORT}}
 
-# ─── Tauri GUI ───────────────────────────────────────────────────────────────
+# ─── Tauri & Frontend ────────────────────────────────────────────────────────
 
 # Start the Tauri desktop app in dev mode (frontend + backend)
 tauri-dev:
@@ -118,35 +114,31 @@ tauri-build:
 
 # Run the Svelte frontend dev server standalone (no Tauri backend)
 ui-dev:
-    eval "$(fnm env)" && cd ui && npm run dev
+    eval "$(fnm env)" && cd apps/ui && npm run dev
 
 # Build the Svelte frontend for production
 ui-build:
-    eval "$(fnm env)" && cd ui && npm run build
+    eval "$(fnm env)" && cd apps/ui && npm run build
 
 # Run svelte-check (TypeScript + Svelte validation)
 ui-check:
-    eval "$(fnm env)" && cd ui && npm run check
-
-# Run svelte-check in watch mode
-ui-check-watch:
-    eval "$(fnm env)" && cd ui && npm run check:watch
+    eval "$(fnm env)" && cd apps/ui && npm run check
 
 # Run frontend component tests (vitest)
 ui-test:
-    eval "$(fnm env)" && cd ui && npx vitest run
+    eval "$(fnm env)" && cd apps/ui && npx vitest run
 
 # Run Playwright E2E tests (headless Chromium, mocked Tauri IPC)
 ui-e2e:
-    cd ui && npx playwright test
+    cd apps/ui && npx playwright test
 
 # Update Playwright visual regression baselines
 ui-e2e-update:
-    cd ui && npx playwright test --update-snapshots
+    cd apps/ui && npx playwright test --update-snapshots
 
 # Regenerate GUI screenshots via Playwright (outputs to docs/screenshots/)
 screenshots:
-    cd ui && npx playwright test e2e/screenshots.spec.ts
+    cd apps/ui && npx playwright test e2e/screenshots.spec.ts
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 
@@ -170,24 +162,24 @@ coverage:
 
 # Run the main game walkthrough test script
 game-test:
-    cargo run -- --script tests/fixtures/test_walkthrough.txt
+    cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt
 
 # Run a specific test fixture by name (without path/extension)
 game-test-one NAME:
-    cargo run -- --script tests/fixtures/{{NAME}}.txt
+    cargo run -p parish -- --script testing/fixtures/{{NAME}}.txt
 
 # Run all test fixtures
 game-test-all:
-    @for f in tests/fixtures/*.txt; do \
+    @for f in testing/fixtures/*.txt; do \
         echo "=== Running $f ==="; \
-        cargo run -- --script "$f" > /dev/null && echo "  PASS" || echo "  FAIL"; \
+        cargo run -p parish -- --script "$f" > /dev/null && echo "  PASS" || echo "  FAIL"; \
     done
 
 # List available test fixtures
 game-test-list:
-    @ls tests/fixtures/*.txt | sed 's|tests/fixtures/||; s|\.txt||'
+    @ls testing/fixtures/*.txt | sed 's|testing/fixtures/||; s|\.txt||'
 
-# ─── Lint & Format ──────────────────────────────────────────────────────────
+# ─── Lint, Format & Quality Gates ────────────────────────────────────────────
 
 # Check formatting (no changes)
 fmt-check:
@@ -199,47 +191,31 @@ fmt:
 
 # Run clippy linter (warnings are errors)
 clippy:
-    cargo clippy -- -D warnings
+    cargo clippy --workspace -- -D warnings
 
 # Run clippy and auto-fix what it can
 clippy-fix:
     cargo clippy --fix --allow-dirty -- -D warnings
 
-# Run all checks: format, lint, and tests
+# Pre-commit gate: format, lint, tests
 check: fmt-check clippy test
 
-# Full pre-push verification: quality gates + game harness walkthrough
+# Pre-push gate: check + game harness walkthrough
 verify: fmt-check clippy test game-test
-
-# ─── Pre-commit ──────────────────────────────────────────────────────────────
-
-# Full pre-commit suite: format, lint, test
-pre-commit: fmt clippy test
-    @echo "All checks passed."
 
 # ─── Geo Tool ────────────────────────────────────────────────────────────────
 
 # Run the geo-tool to extract OSM data for an area
 geo-tool AREA:
-    cargo run --bin geo-tool -- --area "{{AREA}}"
+    cargo run -p geo-tool -- --area "{{AREA}}"
 
 # Run the geo-tool with dry-run (preview queries only)
 geo-tool-dry-run AREA:
-    cargo run --bin geo-tool -- --area "{{AREA}}" --dry-run
+    cargo run -p geo-tool -- --area "{{AREA}}" --dry-run
 
-# Run the geo-tool and merge into existing parish.json
+# Run the geo-tool and merge into the active mod's world.json
 geo-tool-merge AREA:
-    cargo run --bin geo-tool -- --area "{{AREA}}" --merge data/parish.json
-
-# ─── Documentation ───────────────────────────────────────────────────────────
-
-# Generate and open Rust documentation
-doc:
-    cargo doc --open --no-deps
-
-# Generate docs without opening browser
-doc-build:
-    cargo doc --no-deps
+    cargo run -p geo-tool -- --area "{{AREA}}" --merge mods/kilteevan-1820/world.json
 
 # ─── Dependencies ────────────────────────────────────────────────────────────
 
@@ -255,27 +231,13 @@ audit:
 update:
     cargo update
 
-# ─── Docker / Container ─────────────────────────────────────────────────────
-
-# Build the dev container image
-docker-build:
-    docker build -t parish-dev -f .devcontainer/Dockerfile .
-
-# Run the game inside the dev container
-docker-run:
-    docker run -it --rm parish-dev
-
-# Start a shell inside the dev container
-docker-shell:
-    docker run -it --rm parish-dev bash
-
 # ─── Ollama ──────────────────────────────────────────────────────────────────
 
-# Start the Ollama server
+# Start the Ollama server in the background
 ollama-start:
     ollama serve &
 
-# Pull the default model (qwen3:14b)
+# Pull a model (default: qwen3:14b)
 ollama-pull MODEL="qwen3:14b":
     ollama pull {{MODEL}}
 
@@ -283,50 +245,6 @@ ollama-pull MODEL="qwen3:14b":
 ollama-status:
     @curl -sf http://localhost:11434/api/tags > /dev/null && echo "Ollama is running" || echo "Ollama is not running"
 
-# List available Ollama models
+# List installed Ollama models
 ollama-models:
     ollama list
-
-# ─── Agency Agents ─────────────────────────────────────────────────────
-
-# Update Claude Code agents from github.com/msitarzewski/agency-agents
-update-agents:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    TMPDIR="$(mktemp -d)"
-    trap 'rm -rf "$TMPDIR"' EXIT
-    echo "Cloning agency-agents..."
-    git clone --depth 1 https://github.com/msitarzewski/agency-agents.git "$TMPDIR/agency-agents" 2>&1 | tail -1
-    DEST=".claude/agents"
-    rm -rf "$DEST"
-    mkdir -p "$DEST"
-    count=0
-    for dir in academic design engineering game-development marketing paid-media \
-               product project-management sales spatial-computing specialized \
-               strategy support testing; do
-        srcdir="$TMPDIR/agency-agents/$dir"
-        [ -d "$srcdir" ] || continue
-        for f in "$srcdir"/*.md; do
-            [ -f "$f" ] || continue
-            head -1 "$f" | grep -q '^---$' && cp "$f" "$DEST/" && count=$((count + 1))
-        done
-    done
-    echo "Installed $count agents to $DEST"
-
-# ─── Utilities ───────────────────────────────────────────────────────────────
-
-# Count lines of Rust source code
-loc:
-    @find src crates/parish-core/src src-tauri/src -name '*.rs' | xargs wc -l | tail -1
-
-# Show project tree (source only)
-tree:
-    @find src crates/parish-core/src src-tauri/src ui/src -type f \( -name '*.rs' -o -name '*.ts' -o -name '*.svelte' \) | sort | sed 's|[^/]*/|  |g'
-
-# Watch for changes and rebuild (requires cargo-watch)
-watch:
-    cargo watch -x build
-
-# Watch for changes and run tests (requires cargo-watch)
-watch-test:
-    cargo watch -x test

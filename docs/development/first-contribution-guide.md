@@ -8,9 +8,9 @@ Parish is a Rust workspace built around a shared core engine plus multiple runti
 
 - `crates/parish-core` → engine and simulation logic (shared)
 - root crate (`src/`) → CLI/headless runtime and app bootstrapping
-- `src-tauri/` → desktop backend
+- `crates/parish-tauri/` → desktop backend
 - `crates/parish-server/` → web server backend
-- `ui/` → Svelte frontend with a dual transport layer
+- `apps/ui/` → Svelte frontend with a dual transport layer
 
 When in doubt: if logic should work in more than one mode, put it in `parish-core`.
 
@@ -34,7 +34,7 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
    - Config loading and override wiring
    - Test harness orchestration
 
-3. **Desktop app (`src-tauri/`)**
+3. **Desktop app (`crates/parish-tauri/`)**
    - Tauri command handlers
    - Event emission wiring
    - Integration with core IPC payloads
@@ -43,14 +43,14 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
    - Axum routes and WebSocket flow
    - Browser-compatible endpoints mirroring desktop behavior
 
-5. **UI (`ui/src/`)**
+5. **UI (`apps/ui/src/`)**
    - Main screen composition
    - Typed API wrappers over IPC
    - Runtime auto-switch between Tauri and browser transports
 
 ### Runtime boot flow (high level)
 
-`src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
+`crates/parish-cli/src/main.rs` chooses a mode (`--script`, `--web`, or headless default), resolves provider/config layering, and then starts the corresponding runtime path.
 
 ### Core simulation triangle to understand early
 
@@ -69,9 +69,9 @@ If you only study three subsystems first, make them:
 Start in input classification and command dispatch, then wire each runtime surface:
 
 - shared parse/intent behavior in `parish-core`
-- headless dispatch path in `src/headless.rs`
+- headless dispatch path in `crates/parish-cli/src/headless.rs`
 - web command endpoint in `crates/parish-server/src/routes.rs`
-- desktop command wiring in `src-tauri/src/`
+- desktop command wiring in `crates/parish-tauri/src/`
 
 **Rule of thumb:** keep command semantics shared; keep transport-specific glue local.
 
@@ -93,8 +93,8 @@ Suggested sequence:
 
 Primary frontend files:
 
-- `ui/src/routes/+page.svelte` for composition
-- `ui/src/lib/ipc.ts` for typed API wrappers
+- `apps/ui/src/routes/+page.svelte` for composition
+- `apps/ui/src/lib/ipc.ts` for typed API wrappers
 
 If backend work is required, mirror behavior across Tauri + web to preserve mode parity.
 
@@ -105,7 +105,7 @@ Use this pattern:
 1. Add shared payload mapping/handler in `parish-core/src/ipc/`.
 2. Expose on desktop (Tauri command/event).
 3. Expose on web (`parish-server` route/ws).
-4. Add frontend wrapper in `ui/src/lib/ipc.ts`.
+4. Add frontend wrapper in `apps/ui/src/lib/ipc.ts`.
 
 ### 5) Content-only contribution (easiest first PR)
 
@@ -142,10 +142,10 @@ Read these in order:
 1. `README.md`
 2. `docs/index.md`
 3. `docs/design/overview.md`
-4. `src/main.rs` (startup + mode routing)
-5. `src/headless.rs` (single-turn runtime flow)
+4. `crates/parish-cli/src/main.rs` (startup + mode routing)
+5. `crates/parish-cli/src/headless.rs` (single-turn runtime flow)
 6. `crates/parish-core/src/world/`, `npc/`, and `inference/`
-7. `src/testing.rs` (GameTestHarness for controlled iteration)
+7. `crates/parish-cli/src/testing.rs` (GameTestHarness for controlled iteration)
 
 ---
 

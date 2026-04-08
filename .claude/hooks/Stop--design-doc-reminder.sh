@@ -14,7 +14,7 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
 # Code file extensions to track
 CODE_PATTERNS=('*.rs' '*.ts' '*.svelte' '*.js' '*.json' '*.toml')
 # Exclude patterns (lockfiles, generated files, test fixtures)
-EXCLUDE_PATTERNS=('package-lock.json' 'Cargo.lock' '*.snap' 'tests/fixtures/*')
+EXCLUDE_PATTERNS=('package-lock.json' 'Cargo.lock' '*.snap' 'testing/fixtures/*')
 
 # Determine the merge base with main/master to scope the check to this branch
 BASE_BRANCH="main"

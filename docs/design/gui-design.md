@@ -2,7 +2,7 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
-> **Note:** The desktop GUI has been migrated from egui to **Tauri 2 + Svelte 5**. See [Phase 8 plan](../plans/phase-8-tauri-gui.md) and [ADR 016](../adr/016-tauri-svelte-gui.md) for the Tauri architecture. The Svelte component source lives in `ui/src/components/`. The egui documentation below is retained for historical reference.
+> **Note:** The desktop GUI has been migrated from egui to **Tauri 2 + Svelte 5**. See [Phase 8 plan](../plans/phase-8-tauri-gui.md) and [ADR 016](../adr/016-tauri-svelte-gui.md) for the Tauri architecture. The Svelte component source lives in `apps/ui/src/components/`. The egui documentation below is retained for historical reference.
 
 ## Tauri / Svelte — Loading Spinner
 
@@ -225,7 +225,7 @@ cargo run
 The `run_gui()` function in `src/gui/mod.rs`:
 
 1. Initializes the inference pipeline (tokio channel + worker)
-2. Loads world data from `data/parish.json` and NPCs from `data/npcs.json`
+2. Loads world data from `mods/kilteevan-1820/world.json` and NPCs from `mods/kilteevan-1820/npcs.json`
 3. Creates a `GuiApp` with the tokio runtime handle
 4. Launches `eframe::run_native()` with a 1200x800 window (min 800x500)
 

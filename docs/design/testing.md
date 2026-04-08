@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `GameTestHarness` (`src/testing.rs`) provides a programmatic, synchronous
+The `GameTestHarness` (`crates/parish-cli/src/testing.rs`) provides a programmatic, synchronous
 API for driving the game without a TUI or LLM. It enables:
 
 - **Automated regression testing** via `cargo test`
@@ -78,7 +78,7 @@ Lines starting with `#` are comments. Empty lines are skipped.
 
 ## CLI-GUI Parity Commands
 
-The headless CLI (`src/headless.rs`) and test harness (`src/testing.rs`) support
+The headless CLI (`crates/parish-cli/src/headless.rs`) and test harness (`crates/parish-cli/src/testing.rs`) support
 commands that mirror GUI-only features, enabling full play-testing without Tauri:
 
 | Command | Description | Handler Source |
@@ -138,7 +138,7 @@ time, and verifying schedule-driven NPC behavior.
 
 ## Test Fixtures
 
-Test scripts live in `tests/fixtures/`:
+Test scripts live in `testing/fixtures/`:
 
 | File | Purpose |
 |------|---------|
@@ -173,7 +173,7 @@ use std::path::Path;
 
 #[test]
 fn test_example_with_assertions() {
-    let results = run_script_captured(Path::new("tests/fixtures/test_grand_tour.txt")).unwrap();
+    let results = run_script_captured(Path::new("testing/fixtures/test_grand_tour.txt")).unwrap();
 
     // Assert every movement succeeded
     for r in &results {
@@ -238,7 +238,7 @@ time progression, NPC data, debug output, error handling, and more.
 
 ## E2E GUI Testing (Playwright)
 
-The Svelte frontend has Playwright E2E tests in `ui/e2e/` that run against
+The Svelte frontend has Playwright E2E tests in `apps/ui/e2e/` that run against
 the Vite dev server with Tauri IPC fully mocked. This enables:
 
 - **Real browser rendering** — headless Chromium, no X11/GDK/xvfb required
@@ -248,7 +248,7 @@ the Vite dev server with Tauri IPC fully mocked. This enables:
 
 ### How the Mock Works
 
-`ui/e2e/fixtures.ts` uses `page.addInitScript()` to install a fake
+`apps/ui/e2e/fixtures.ts` uses `page.addInitScript()` to install a fake
 `window.__TAURI_INTERNALS__` before any app code runs. This provides:
 
 - `invoke()` — returns mock data for `get_world_snapshot`, `get_map`, etc.
@@ -279,7 +279,7 @@ cd ui && npx playwright test --update-snapshots       # or: just ui-e2e-update
 
 ### Visual Regression Baselines
 
-Baseline images live in `ui/e2e/screenshots/baseline/`. When UI changes are
+Baseline images live in `apps/ui/e2e/screenshots/baseline/`. When UI changes are
 intentional, update them with `npx playwright test --update-snapshots`.
 
 ## Query APIs

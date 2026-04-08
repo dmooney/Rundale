@@ -18,7 +18,7 @@ This enables scaling from the current 15 hand-authored locations to thousands or
 
 ## Architecture
 
-The geo-tool is a separate binary (`src/bin/geo_tool/`) that shares types with the main game crate.
+The geo-tool is a separate binary (`crates/geo-tool/src/`) that shares types with the main game crate.
 
 ```
 src/bin/geo_tool/
@@ -48,7 +48,7 @@ cargo run --bin geo-tool -- --area "Roscommon" --level county
 cargo run --bin geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
 
 # Merge with existing hand-authored data
-cargo run --bin geo-tool -- --area "Kiltoom" --merge data/parish.json
+cargo run --bin geo-tool -- --area "Kiltoom" --merge mods/kilteevan-1820/world.json
 
 # Dry run — show Overpass queries without executing
 cargo run --bin geo-tool -- --area "Kiltoom" --dry-run

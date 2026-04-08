@@ -1,0 +1,38 @@
+[package]
+name = "parish"
+version = "0.1.0"
+edition = "2024"
+description = "An Irish Living World Text Adventure — CLI / headless / web entry point"
+license = "LicenseRef-Proprietary"
+default-run = "parish"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "parish"
+path = "src/main.rs"
+
+[dependencies]
+parish-core = { path = "../parish-core" }
+parish-server = { path = "../parish-server" }
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+chrono = { version = "0.4", features = ["serde"] }
+toml = "0.8"
+dotenvy = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+strsim = "0.11"
+rand = "0.8"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"

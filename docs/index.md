@@ -191,5 +191,5 @@ Skill definitions live in `.claude/skills/`.
 | Document | Description |
 |----------|-------------|
 | [CLAUDE.md](../CLAUDE.md) | Build commands, code style, gotchas, dependencies |
-| [DESIGN.md](../DESIGN.md) | Original monolithic design document (archival — superseded by `docs/design/`) |
+| [DESIGN.md](archive/DESIGN.md) | Original monolithic design document (archival — superseded by `docs/design/`) |
 | [README.md](../README.md) | Project overview, quick start |

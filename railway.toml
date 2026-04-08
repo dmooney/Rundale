@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "deploy/Dockerfile"
 
 [deploy]
 # /api/ui-config is a lightweight endpoint — good for health checks

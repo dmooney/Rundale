@@ -421,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_from_parish_file() {
-        let path = Path::new("data/parish.json");
+        let path = Path::new("../../mods/kilteevan-1820/world.json");
         if path.exists() {
             let world = WorldState::from_parish_file(path, LocationId(15)).unwrap();
             assert_eq!(world.player_location, LocationId(15));
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_current_location_data() {
-        let path = Path::new("data/parish.json");
+        let path = Path::new("../../mods/kilteevan-1820/world.json");
         if path.exists() {
             let world = WorldState::from_parish_file(path, LocationId(15)).unwrap();
             let data = world.current_location_data().unwrap();
