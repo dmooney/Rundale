@@ -13,12 +13,15 @@ use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceQueue, spawn_inference_worker};
-use parish_core::input::{InputResult, classify_input, extract_mention, parse_intent};
+use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
-    IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first, compute_name_hints, text_log,
+    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first,
+    compute_name_hints, text_log,
 };
+use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
+use parish_core::npc::ticks::apply_tier1_response;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
@@ -213,6 +216,8 @@ pub async fn submit_input(
         return Err("Input too long (max 2000 characters).".to_string());
     }
 
+    touch_player_activity(&state).await;
+
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, &state, &app).await;
@@ -253,6 +258,32 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     let queue = InferenceQueue::new(tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
+}
+
+async fn touch_player_activity(state: &Arc<AppState>) {
+    let mut conversation = state.conversation.lock().await;
+    let now = std::time::Instant::now();
+    conversation.last_player_activity = now;
+    conversation.last_spoken_at = now;
+}
+
+async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let world = state.world.lock().await;
+    let transport = state.transport.default_mode();
+    let npc_manager = state.npc_manager.lock().await;
+    let mut snapshot = snapshot_from_world(&world, transport);
+    snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+}
+
+fn build_turn_order(targets: &[NpcId], max_follow_up_turns: usize) -> Vec<(NpcId, bool)> {
+    let mut turns: Vec<(NpcId, bool)> = targets.iter().copied().map(|id| (id, false)).collect();
+    if targets.len() >= 2 {
+        for idx in 0..max_follow_up_turns {
+            turns.push((targets[idx % targets.len()], true));
+        }
+    }
+    turns
 }
 
 /// Handles `/command` inputs using the shared command handler.
@@ -339,7 +370,7 @@ async fn handle_system_command(
                 });
                 extra_response = Some(format!("Showing spinner for {} seconds…", secs));
             }
-            CommandEffect::NewGame => match do_new_game(&state, &app).await {
+            CommandEffect::NewGame => match do_new_game(state, app).await {
                 Ok(()) => {
                     extra_response = Some("A new chapter begins in the parish...".to_string());
                 }
@@ -436,14 +467,13 @@ async fn handle_game_input(
         return;
     }
 
-    // Extract @mention for NPC targeting, if present
-    let (target_name, dialogue) = match extract_mention(&raw) {
-        Some(mention) => (Some(mention.name), mention.remaining),
-        None => (None, raw),
+    let mentions = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    // Try NPC conversation
-    handle_npc_conversation(dialogue, target_name, state, app).await;
+    handle_npc_conversation(mentions.remaining, mentions.names, state, app).await;
 }
 
 /// Resolves movement to a named location using the shared movement pipeline.
@@ -555,6 +585,15 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
     // Emit updated world snapshot after a successful move
     if effects.world_changed {
+        let current_location = {
+            let world = state.world.lock().await;
+            world.player_location
+        };
+        let mut conversation = state.conversation.lock().await;
+        conversation.sync_location(current_location);
+        conversation.last_spoken_at = std::time::Instant::now();
+        drop(conversation);
+
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
         let mut snapshot = snapshot_from_world(&world, &transport);
@@ -589,216 +628,59 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
 ///
 /// If `target_name` is provided (from an `@mention`), the matching NPC
 /// is selected. Otherwise falls back to the first NPC at the location.
-async fn handle_npc_conversation(
-    raw: String,
-    target_name: Option<String>,
-    state: tauri::State<'_, Arc<AppState>>,
-    app: tauri::AppHandle,
-) {
-    let (setup, queue, npc_present) = {
+struct TurnOutcome {
+    line: Option<ConversationLine>,
+}
+
+async fn run_npc_turn(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    queue: &InferenceQueue,
+    model: &str,
+    speaker_id: NpcId,
+    prompt_input: &str,
+    transcript: &[ConversationLine],
+) -> Option<TurnOutcome> {
+    let setup = {
         let world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
-        let queue = state.inference_queue.lock().await;
         let config = state.config.lock().await;
-
-        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
-        let setup = parish_core::ipc::prepare_npc_conversation(
+        parish_core::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
-            &raw,
-            target_name.as_deref(),
+            prompt_input,
+            speaker_id,
+            transcript,
             config.improv_enabled,
-        );
-        (setup, queue.clone(), npc_present)
-    };
+        )
+    }?;
 
-    let (Some(setup), Some(queue)) = (setup, queue) else {
-        let content = if npc_present {
-            "There's someone here, but the LLM is not configured — set a provider with /provider."
-                .to_string()
-        } else {
-            let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
-            IDLE_MESSAGES[idx].to_string()
-        };
-        let _ = app.emit(
-            EVENT_TEXT_LOG,
-            TextLogPayload {
-                id: String::new(),
-                source: "system".to_string(),
-                content,
-            },
-        );
-        return;
-    };
-
-    let npc_id = setup.npc_id;
-    let npc_name = setup.display_name;
-    let system_prompt = setup.system_prompt;
-    let context = setup.context;
-
-    let model = {
-        let config = state.config.lock().await;
-        config.model_name.clone()
-    };
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
-
-    // Spawn the animated loading indicator (fun Irish phrases)
     let loading_cancel = tokio_util::sync::CancellationToken::new();
     spawn_loading_animation(app.clone(), loading_cancel.clone());
 
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
+    let display_label = capitalize_first(&setup.display_name);
+    let _ = app.emit(
+        EVENT_TEXT_LOG,
+        text_log(display_label.clone(), String::new()),
+    );
 
-    // Emit NPC name prefix as the start of the streaming entry
-    let display_label = capitalize_first(&npc_name);
-    let _ = app.emit(EVENT_TEXT_LOG, text_log(display_label, String::new()));
-
-    // Pause the game clock while waiting for the inference response
-    // and immediately notify the frontend so it stops interpolating.
-    {
-        let mut world = state.world.lock().await;
-        world.clock.inference_pause();
-        let transport = state.transport.default_mode();
-        let npc_manager = state.npc_manager.lock().await;
-        let mut snapshot = snapshot_from_world(&world, transport);
-        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
-        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
-    }
-
-    match queue
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    let send_result = queue
         .send(
             req_id,
-            model,
-            context,
-            Some(system_prompt),
+            model.to_string(),
+            setup.context,
+            Some(setup.system_prompt),
             Some(token_tx),
             None,
         )
-        .await
-    {
-        Ok(mut response_rx) => {
-            let app_clone = app.clone();
+        .await;
 
-            // Stream tokens to the frontend
-            let stream_handle = tokio::spawn(async move {
-                crate::events::stream_npc_response(app_clone, token_rx).await
-            });
-
-            // Wait for the complete response
-            let full_response = match response_rx.try_recv() {
-                Ok(resp) => {
-                    let _ = stream_handle.await;
-                    Some(resp)
-                }
-                Err(_) => {
-                    // Poll until done
-                    loop {
-                        match response_rx.try_recv() {
-                            Ok(resp) => {
-                                let _ = stream_handle.await;
-                                break Some(resp);
-                            }
-                            Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
-                                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                            }
-                            Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
-                                break None;
-                            }
-                        }
-                    }
-                }
-            };
-
-            // Parse Irish word hints from the complete response
-            let (hints, parsed_response) = if let Some(resp) = full_response {
-                if let Some(ref err) = resp.error {
-                    tracing::warn!("Inference error: {:?}", err);
-
-                    // Log actual error to the debug events panel
-                    let mut events = state.debug_events.lock().await;
-                    if events.len() >= crate::DEBUG_EVENT_CAPACITY {
-                        events.pop_front();
-                    }
-                    events.push_back(DebugEvent {
-                        timestamp: String::new(),
-                        category: "inference".to_string(),
-                        message: format!("Dialogue error: {err}"),
-                    });
-
-                    // Show a funny canned message to the player
-                    let idx = resp.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-                    let _ = app.emit(
-                        EVENT_TEXT_LOG,
-                        TextLogPayload {
-                            id: String::new(),
-                            source: "system".to_string(),
-                            content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
-                        },
-                    );
-
-                    (vec![], None)
-                } else {
-                    let parsed = parse_npc_stream_response(&resp.text);
-                    let hints = parsed
-                        .metadata
-                        .as_ref()
-                        .map(|m| m.language_hints.clone())
-                        .unwrap_or_default();
-                    (hints, Some(parsed))
-                }
-            } else {
-                (vec![], None)
-            };
-
-            // Apply response effects and record conversation exchange
-            if let Some(ref parsed) = parsed_response {
-                let mut world = state.world.lock().await;
-                let mut npc_manager = state.npc_manager.lock().await;
-                let game_time = world.clock.now();
-                let location = world.player_location;
-
-                // Update NPC mood and record speaker's own memory
-                if let Some(npc_mut) = npc_manager.get_mut(npc_id) {
-                    let debug_events = parish_core::npc::ticks::apply_tier1_response(
-                        npc_mut, parsed, &raw, game_time,
-                    );
-                    for event in &debug_events {
-                        tracing::debug!("{}", event);
-                    }
-                }
-
-                // Record conversation exchange for scene awareness
-                world
-                    .conversation_log
-                    .add(parish_core::npc::conversation::ConversationExchange {
-                        timestamp: game_time,
-                        speaker_id: npc_id,
-                        speaker_name: npc_name.clone(),
-                        player_input: raw.clone(),
-                        npc_dialogue: parsed.dialogue.clone(),
-                        location,
-                    });
-
-                // Record witness memories for bystander NPCs
-                let witness_events = parish_core::npc::ticks::record_witness_memories(
-                    npc_manager.npcs_mut(),
-                    npc_id,
-                    &npc_name,
-                    &raw,
-                    &parsed.dialogue,
-                    game_time,
-                    location,
-                );
-                for event in &witness_events {
-                    tracing::debug!("{}", event);
-                }
-            }
-
-            let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints });
-        }
+    let response_rx = match send_result {
+        Ok(rx) => rx,
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
-
-            // Log to debug events
             let mut events = state.debug_events.lock().await;
             if events.len() >= crate::DEBUG_EVENT_CAPACITY {
                 events.pop_front();
@@ -808,7 +690,6 @@ async fn handle_npc_conversation(
                 category: "inference".to_string(),
                 message: format!("Queue submit failed: {e}"),
             });
-
             let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
@@ -818,17 +699,354 @@ async fn handle_npc_conversation(
                         .to_string(),
                 },
             );
+            loading_cancel.cancel();
+            return None;
+        }
+    };
+
+    let stream_handle = tokio::spawn({
+        let app_clone = app.clone();
+        async move { crate::events::stream_npc_response(app_clone, token_rx).await }
+    });
+
+    let response = response_rx.await.ok();
+    let _ = stream_handle.await;
+    loading_cancel.cancel();
+
+    let Some(response) = response else {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: "The storyteller has wandered off mid-tale.".to_string(),
+            },
+        );
+        let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints: vec![] });
+        return None;
+    };
+
+    if let Some(ref err) = response.error {
+        tracing::warn!("Inference error: {:?}", err);
+        let mut events = state.debug_events.lock().await;
+        if events.len() >= crate::DEBUG_EVENT_CAPACITY {
+            events.pop_front();
+        }
+        events.push_back(DebugEvent {
+            timestamp: String::new(),
+            category: "inference".to_string(),
+            message: format!("Dialogue error: {err}"),
+        });
+        let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
+            },
+        );
+        let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints: vec![] });
+        return None;
+    }
+
+    let parsed = parse_npc_stream_response(&response.text);
+    let hints = parsed
+        .metadata
+        .as_ref()
+        .map(|meta| meta.language_hints.clone())
+        .unwrap_or_default();
+
+    {
+        let world = state.world.lock().await;
+        let game_time = world.clock.now();
+        let mut npc_manager = state.npc_manager.lock().await;
+        if let Some(npc) = npc_manager.get_mut(speaker_id) {
+            let _ = apply_tier1_response(npc, &parsed, prompt_input, game_time);
         }
     }
 
-    // Resume the game clock now that inference is complete
+    let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints });
+
+    let line = if parsed.dialogue.trim().is_empty() {
+        None
+    } else {
+        Some(ConversationLine {
+            speaker: display_label,
+            text: parsed.dialogue,
+        })
+    };
+
+    Some(TurnOutcome { line })
+}
+
+async fn set_conversation_running(state: &Arc<AppState>, running: bool) {
+    let mut conversation = state.conversation.lock().await;
+    conversation.conversation_in_progress = running;
+}
+
+async fn handle_npc_conversation(
+    raw: String,
+    target_names: Vec<String>,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) {
+    let trimmed = raw.trim().to_string();
+    let (npc_present, player_location, queue, model, max_follow_up_turns, targets) = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let queue = state.inference_queue.lock().await;
+        let config = state.config.lock().await;
+        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
+        let targets = parish_core::ipc::resolve_npc_targets(&world, &npc_manager, &target_names);
+        (
+            npc_present,
+            world.player_location,
+            queue.clone(),
+            config.model_name.clone(),
+            config.max_follow_up_turns,
+            targets,
+        )
+    };
+
+    if !npc_present {
+        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: IDLE_MESSAGES[idx].to_string(),
+            },
+        );
+        return;
+    }
+
+    if trimmed.is_empty() {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: "There are ears enough for ye here, but say something first.".to_string(),
+            },
+        );
+        return;
+    }
+
+    let Some(queue) = queue else {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content:
+                    "There's someone here, but the LLM is not configured — set a provider with /provider."
+                        .to_string(),
+            },
+        );
+        return;
+    };
+
+    if targets.is_empty() {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content: "No one here answers to that name just now.".to_string(),
+            },
+        );
+        return;
+    }
+
+    let mut transcript = {
+        let mut conversation = state.conversation.lock().await;
+        conversation.sync_location(player_location);
+        conversation.push_line(ConversationLine {
+            speaker: "You".to_string(),
+            text: trimmed.clone(),
+        });
+        conversation.transcript.iter().cloned().collect::<Vec<_>>()
+    };
+
+    set_conversation_running(&state, true).await;
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+    }
+    emit_world_update(&state, &app).await;
+
+    for (speaker_id, follow_up) in build_turn_order(&targets, max_follow_up_turns) {
+        let prompt = if follow_up {
+            "listens while the nearby conversation continues"
+        } else {
+            trimmed.as_str()
+        };
+        let Some(outcome) = run_npc_turn(
+            &state,
+            &app,
+            &queue,
+            &model,
+            speaker_id,
+            prompt,
+            &transcript,
+        )
+        .await
+        else {
+            break;
+        };
+
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+    }
+
     {
         let mut world = state.world.lock().await;
         world.clock.inference_resume();
     }
+    set_conversation_running(&state, false).await;
+    emit_world_update(&state, &app).await;
+}
 
-    // Stop the animated loading indicator (emits active: false)
-    loading_cancel.cancel();
+async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let (queue, model, player_location, max_follow_up_turns, speakers) = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        let queue = state.inference_queue.lock().await;
+        let config = state.config.lock().await;
+
+        let mut speakers = npc_manager.npcs_at_ids(world.player_location);
+        speakers.sort_by_key(|id| id.0);
+        speakers.truncate(2);
+
+        (
+            queue.clone(),
+            config.model_name.clone(),
+            world.player_location,
+            config.max_follow_up_turns.min(2),
+            speakers,
+        )
+    };
+
+    let Some(queue) = queue else {
+        return;
+    };
+    if speakers.is_empty() {
+        return;
+    }
+
+    let mut transcript = {
+        let mut conversation = state.conversation.lock().await;
+        conversation.sync_location(player_location);
+        conversation.transcript.iter().cloned().collect::<Vec<_>>()
+    };
+
+    set_conversation_running(state, true).await;
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_pause();
+    }
+    emit_world_update(state, app).await;
+
+    for (speaker_id, follow_up) in build_turn_order(&speakers, max_follow_up_turns) {
+        let prompt = if follow_up {
+            "answers the nearby remark and keeps the local chatter going"
+        } else {
+            "breaks the silence with a natural nearby remark"
+        };
+        let Some(outcome) =
+            run_npc_turn(state, app, &queue, &model, speaker_id, prompt, &transcript).await
+        else {
+            break;
+        };
+
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+    }
+
+    {
+        let mut world = state.world.lock().await;
+        world.clock.inference_resume();
+    }
+    set_conversation_running(state, false).await;
+    emit_world_update(state, app).await;
+}
+
+pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let (last_player_activity, last_spoken_at, running, idle_after, auto_pause_after) = {
+        let conversation = state.conversation.lock().await;
+        let config = state.config.lock().await;
+        (
+            conversation.last_player_activity,
+            conversation.last_spoken_at,
+            conversation.conversation_in_progress,
+            config.idle_banter_after_secs,
+            config.auto_pause_after_secs,
+        )
+    };
+
+    if running {
+        return;
+    }
+
+    let world_state = {
+        let world = state.world.lock().await;
+        (
+            world.clock.is_paused(),
+            world.clock.is_inference_paused(),
+            world.player_location,
+        )
+    };
+
+    if world_state.0 || world_state.1 {
+        return;
+    }
+
+    {
+        let mut conversation = state.conversation.lock().await;
+        conversation.sync_location(world_state.2);
+    }
+
+    let now = std::time::Instant::now();
+    let player_idle = now.duration_since(last_player_activity).as_secs();
+    let speech_idle = now.duration_since(last_spoken_at).as_secs();
+
+    if player_idle >= auto_pause_after {
+        {
+            let mut world = state.world.lock().await;
+            if world.clock.is_paused() || world.clock.is_inference_paused() {
+                return;
+            }
+            world.clock.pause();
+        }
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                source: "system".to_string(),
+                content:
+                    "The parish falls quiet after a full minute of silence. Time is now paused."
+                        .to_string(),
+            },
+        );
+        emit_world_update(state, app).await;
+        let mut conversation = state.conversation.lock().await;
+        conversation.last_spoken_at = now;
+        return;
+    }
+
+    if player_idle >= idle_after && speech_idle >= idle_after {
+        run_idle_banter(state, app).await;
+    }
 }
 
 // ── Persistence commands ────────────────────────────────────────────────────

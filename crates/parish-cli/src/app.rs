@@ -362,6 +362,9 @@ impl App {
             cloud_api_key: self.cloud_api_key.clone(),
             cloud_base_url: self.cloud_base_url.clone(),
             improv_enabled: self.improv_enabled,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
             ..GameConfig::default()
         };
 

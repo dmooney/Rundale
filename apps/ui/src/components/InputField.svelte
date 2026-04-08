@@ -4,6 +4,7 @@
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
+	import MoodIcon from './MoodIcon.svelte';
 
 	let editorEl: HTMLDivElement;
 
@@ -50,6 +51,16 @@
 			.filter((loc) => loc.adjacent && loc.id !== $mapData?.player_location)
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
+
+	let selectedNpcNames = $state<string[]>([]);
+
+	$effect(() => {
+		const visible = new Set($npcsHere.map((npc) => npc.name));
+		const pruned = selectedNpcNames.filter((name) => visible.has(name));
+		if (pruned.length !== selectedNpcNames.length || pruned.some((name, i) => name !== selectedNpcNames[i])) {
+			selectedNpcNames = pruned;
+		}
+	});
 
 	// ── Tab-completion state ────────────────────────────────────────────────
 	interface CompletionState {
@@ -438,8 +449,25 @@
 
 	async function quickTravel(locationName: string) {
 		if ($streamingActive) return;
+		selectedNpcNames = [];
 		clearEditor();
 		await submitInput(`go to ${locationName}`);
+	}
+
+	function toggleNpcSelection(npcName: string) {
+		if ($streamingActive) return;
+		if (selectedNpcNames.includes(npcName)) {
+			selectedNpcNames = selectedNpcNames.filter((name) => name !== npcName);
+		} else {
+			selectedNpcNames = [...selectedNpcNames, npcName];
+		}
+		editorEl?.focus();
+	}
+
+	function buildSubmittedText(trimmed: string): string {
+		if (selectedNpcNames.length === 0) return trimmed;
+		const mentions = selectedNpcNames.map((name) => `@${name}`).join(' ');
+		return `${mentions} ${trimmed}`.trim();
 	}
 
 	// ── Submit ──────────────────────────────────────────────────────────────
@@ -467,7 +495,9 @@
 		}
 		historyIndex = -1;
 
-		await submitInput(trimmed);
+		const submitted = buildSubmittedText(trimmed);
+		selectedNpcNames = [];
+		await submitInput(submitted);
 	}
 
 	// ── Keyboard handling ───────────────────────────────────────────────────
@@ -716,6 +746,27 @@
 			{/each}
 		</ul>
 	{/if}
+	{#if $npcsHere.length > 0 && !$streamingActive}
+		<div class="npc-chips" data-testid="npc-chips">
+			<span class="npc-label">Speak To</span>
+			{#each $npcsHere as npc}
+				<button
+					class="npc-chip"
+					class:selected={selectedNpcNames.includes(npc.name)}
+					aria-pressed={selectedNpcNames.includes(npc.name)}
+					onclick={() => toggleNpcSelection(npc.name)}
+				>
+					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
+					<span class="npc-chip-copy">
+						<span class="npc-chip-name">{npc.name}</span>
+						{#if npc.introduced}
+							<span class="npc-chip-detail">{npc.occupation}</span>
+						{/if}
+					</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
 	{#if adjacentLocations.length > 0 && !$streamingActive}
 		<div class="travel-chips">
 			<span class="travel-label">Go To</span>
@@ -899,6 +950,78 @@
 	}
 
 	/* ── Quick-travel chips ────────────────────────────────────────────────── */
+
+	.npc-chips {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.45rem;
+		padding: 0.45rem 0.75rem;
+		background:
+			linear-gradient(180deg, color-mix(in srgb, var(--color-panel-bg) 88%, var(--color-accent) 12%), var(--color-panel-bg));
+		border-top: 1px solid var(--color-border);
+	}
+
+	.npc-label {
+		color: var(--color-muted);
+		font-size: 0.6rem;
+		font-family: var(--font-display);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		opacity: 0.8;
+		flex-shrink: 0;
+	}
+
+	.npc-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-width: 0;
+		padding: 0.35rem 0.55rem;
+		border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--color-panel-bg) 80%, var(--color-bg));
+		color: var(--color-fg);
+		cursor: pointer;
+		text-align: left;
+		transition: background 0.15s, border-color 0.15s, transform 0.15s, color 0.15s;
+	}
+
+	.npc-chip:hover {
+		border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+		transform: translateY(-1px);
+	}
+
+	.npc-chip.selected {
+		background: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel-bg));
+		border-color: var(--color-accent);
+		color: var(--color-accent);
+	}
+
+	.npc-chip-mood {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1rem;
+		flex-shrink: 0;
+	}
+
+	.npc-chip-copy {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.npc-chip-name {
+		font-size: 0.78rem;
+		line-height: 1.1;
+	}
+
+	.npc-chip-detail {
+		font-size: 0.62rem;
+		color: var(--color-muted);
+		line-height: 1.1;
+	}
 
 	.travel-chips {
 		display: flex;

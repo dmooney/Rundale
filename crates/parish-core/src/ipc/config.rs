@@ -30,6 +30,12 @@ pub struct GameConfig {
     pub cloud_base_url: Option<String>,
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
+    /// Maximum number of autonomous NPC follow-up turns after the initial reply pass.
+    pub max_follow_up_turns: usize,
+    /// Real-time silence threshold before nearby NPCs may start banter.
+    pub idle_banter_after_secs: u64,
+    /// Real-time inactivity threshold before the game auto-pauses.
+    pub auto_pause_after_secs: u64,
     /// Per-category provider name overrides (None = inherits base).
     /// Index: Dialogue=0, Simulation=1, Intent=2, Reaction=3.
     pub category_provider: [Option<String>; 4],
@@ -104,6 +110,9 @@ impl Default for GameConfig {
             cloud_api_key: None,
             cloud_base_url: None,
             improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
             category_provider: Default::default(),
             category_model: Default::default(),
             category_api_key: Default::default(),
@@ -122,6 +131,9 @@ mod tests {
         assert_eq!(c.provider_name, "ollama");
         assert!(!c.improv_enabled);
         assert!(c.api_key.is_none());
+        assert_eq!(c.max_follow_up_turns, 2);
+        assert_eq!(c.idle_banter_after_secs, 25);
+        assert_eq!(c.auto_pause_after_secs, 60);
     }
 
     #[test]

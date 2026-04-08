@@ -285,8 +285,8 @@ mod tests {
             paused: false,
             game_epoch_ms: 1234567890.0,
             speed_factor: 36.0,
-            day_of_week: "Monday".to_string(),
             name_hints: vec![],
+            day_of_week: "Monday".to_string(),
         };
         let json = serde_json::to_string(&snap).unwrap();
         let deser: WorldSnapshot = serde_json::from_str(&json).unwrap();
@@ -325,7 +325,7 @@ mod tests {
             occupation: "Farmer".to_string(),
             mood: "content".to_string(),
             introduced: true,
-            mood_emoji: String::new(),
+            mood_emoji: "😌".to_string(),
         };
         let json = serde_json::to_string(&info).unwrap();
         let deser: NpcInfo = serde_json::from_str(&json).unwrap();

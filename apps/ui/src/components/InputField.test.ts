@@ -10,13 +10,29 @@ vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
 }));
 
+const localStore: Record<string, string> = {};
+if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+	Object.defineProperty(globalThis, 'localStorage', {
+		configurable: true,
+		value: {
+			getItem: (key: string) => localStore[key] ?? null,
+			setItem: (key: string, value: string) => {
+				localStore[key] = value;
+			},
+			clear: () => {
+				for (const key of Object.keys(localStore)) delete localStore[key];
+			}
+		}
+	});
+}
+
 describe('InputField', () => {
 	beforeEach(() => {
 		streamingActive.set(false);
 		npcsHere.set([]);
 		mapData.set(null);
 		mockSubmitInput.mockClear();
-		localStorage.clear();
+		localStorage.clear?.();
 	});
 
 	it('renders an editable input area', () => {
@@ -376,6 +392,71 @@ describe('InputField', () => {
 	});
 
 	// ── Location quick-travel chips ─────────────────────────────────────
+
+	describe('npc selection buttons', () => {
+		const testNpcs = [
+			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'an older man behind the bar', occupation: 'Publican', mood: 'wary', introduced: false, mood_emoji: '😐' },
+			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' }
+		];
+
+		function typeIntoEditor(editor: HTMLElement, text: string) {
+			editor.textContent = text;
+			const range = document.createRange();
+			const sel = window.getSelection();
+			if (editor.firstChild) {
+				range.setStart(editor.firstChild, text.length);
+			} else {
+				range.setStart(editor, 0);
+			}
+			range.collapse(true);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		beforeEach(() => {
+			npcsHere.set(testNpcs);
+		});
+
+		it('renders npc buttons and hides occupation for unintroduced npcs', () => {
+			const { container, getByText } = render(InputField);
+			expect(container.querySelectorAll('.npc-chip').length).toBe(3);
+			expect(getByText('Padraig Darcy')).toBeTruthy();
+			expect(getByText('Publican')).toBeTruthy();
+			expect((container.querySelectorAll('.npc-chip')[1] as HTMLElement).textContent).not.toContain('Publican');
+		});
+
+		it('toggles persistent npc selection', async () => {
+			const { container } = render(InputField);
+			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
+			await fireEvent.click(chip);
+			expect(chip.getAttribute('aria-pressed')).toBe('true');
+			await fireEvent.click(chip);
+			expect(chip.getAttribute('aria-pressed')).toBe('false');
+		});
+
+		it('submits selected npcs in selection order and clears selection', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+			const chips = container.querySelectorAll('.npc-chip');
+			await fireEvent.click(chips[2] as HTMLButtonElement);
+			await fireEvent.click(chips[0] as HTMLButtonElement);
+
+			typeIntoEditor(editor, 'Any news?');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('@Siobhan Murphy @Padraig Darcy Any news?');
+			expect((chips[2] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+			expect((chips[0] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+		});
+
+		it('hides npc buttons during streaming', () => {
+			streamingActive.set(true);
+			const { container } = render(InputField);
+			expect(container.querySelector('.npc-chips')).toBeFalsy();
+		});
+	});
 
 	describe('quick-travel chips', () => {
 		const testMapData = {
