@@ -359,9 +359,17 @@ async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<A
         .as_ref()
         .map(|i| matches!(i.intent, parish_core::input::IntentKind::Look))
         .unwrap_or(false);
+    let is_talk = intent
+        .as_ref()
+        .map(|i| matches!(i.intent, parish_core::input::IntentKind::Talk))
+        .unwrap_or(false);
     let move_target = intent
         .as_ref()
         .filter(|_i| is_move)
+        .and_then(|i| i.target.clone());
+    let talk_target = intent
+        .as_ref()
+        .filter(|_i| is_talk)
         .and_then(|i| i.target.clone());
 
     if is_move {
@@ -378,6 +386,23 @@ async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<A
 
     if is_look {
         handle_look(state).await;
+        return;
+    }
+
+    // `talk to <name>` / `speak to <name>` — bypass @mention parsing and
+    // route directly to the multi-target dispatch loop with this single
+    // addressee. The chip-selection list still gets prepended below.
+    if is_talk && let Some(target) = talk_target {
+        let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + 1);
+        for name in addressed_to {
+            if !targets.iter().any(|t| t == &name) {
+                targets.push(name);
+            }
+        }
+        if !targets.iter().any(|t| t == &target) {
+            targets.push(target);
+        }
+        handle_npc_conversation(String::new(), targets, state).await;
         return;
     }
 
