@@ -2,15 +2,17 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 
 use tokio::sync::{Mutex, broadcast};
 
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceLog, InferenceQueue};
+use parish_core::ipc::ConversationLine;
 use parish_core::npc::manager::NpcManager;
-use parish_core::world::WorldState;
 use parish_core::world::transport::TransportConfig;
+use parish_core::world::{LocationId, WorldState};
 
 /// UI configuration snapshot returned by the `/api/ui-config` endpoint.
 #[derive(serde::Serialize, Clone)]
@@ -34,6 +36,56 @@ pub struct SaveState {
     pub branch_name: Option<String>,
 }
 
+/// Runtime conversation/session state used for multi-NPC continuity and idle timers.
+pub struct ConversationRuntimeState {
+    /// Player location associated with the current transcript.
+    pub location: Option<LocationId>,
+    /// Recent dialogue at the current location.
+    pub transcript: std::collections::VecDeque<ConversationLine>,
+    /// Last wall-clock moment when the player submitted input.
+    pub last_player_activity: Instant,
+    /// Last wall-clock moment when anyone said something in the local conversation.
+    pub last_spoken_at: Instant,
+    /// Whether a player- or idle-triggered NPC exchange is currently running.
+    pub conversation_in_progress: bool,
+}
+
+impl Default for ConversationRuntimeState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ConversationRuntimeState {
+    pub fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            location: None,
+            transcript: std::collections::VecDeque::with_capacity(16),
+            last_player_activity: now,
+            last_spoken_at: now,
+            conversation_in_progress: false,
+        }
+    }
+
+    pub fn sync_location(&mut self, location: LocationId) {
+        if self.location != Some(location) {
+            self.location = Some(location);
+            self.transcript.clear();
+        }
+    }
+
+    pub fn push_line(&mut self, line: ConversationLine) {
+        if line.text.trim().is_empty() {
+            return;
+        }
+        if self.transcript.len() >= 12 {
+            self.transcript.pop_front();
+        }
+        self.transcript.push_back(line);
+    }
+}
+
 /// Shared mutable game state for the web server.
 ///
 /// Mirrors the Tauri `AppState` but uses an [`EventBus`] for push events
@@ -53,6 +105,8 @@ pub struct AppState {
     pub cloud_client: Mutex<Option<OpenAiClient>>,
     /// Mutable runtime configuration.
     pub config: Mutex<GameConfig>,
+    /// Local conversation transcript and inactivity tracking.
+    pub conversation: Mutex<ConversationRuntimeState>,
     /// Broadcast channel for pushing events to WebSocket clients.
     pub event_bus: EventBus,
     /// Transport mode configuration from the loaded game mod.
@@ -162,6 +216,7 @@ pub fn build_app_state(
         client: Mutex::new(client),
         cloud_client: Mutex::new(cloud_client),
         config: Mutex::new(config),
+        conversation: Mutex::new(ConversationRuntimeState::new()),
         event_bus: EventBus::new(256),
         transport,
         ui_config,

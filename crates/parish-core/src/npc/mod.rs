@@ -5,6 +5,7 @@
 //! scales with distance from the player (4 LOD tiers).
 
 pub mod anachronism;
+pub mod autonomous;
 pub mod conversation;
 pub mod data;
 pub mod gossip;

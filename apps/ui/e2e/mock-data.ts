@@ -121,8 +121,8 @@ export const MAP_DATA: MapData = {
 // ── NPCs ────────────────────────────────────────────────────────────────────
 
 export const NPCS: NpcInfo[] = [
-	{ name: 'Séamas Ó Briain', occupation: 'Publican', mood: 'cheerful', introduced: true, mood_emoji: '😊' },
-	{ name: 'Aoife Ní Cheallaigh', occupation: 'Scholar', mood: 'pensive', introduced: true, mood_emoji: '🤔' }
+	{ name: 'Séamas Ó Briain', real_name: 'Séamas Ó Briain', occupation: 'Publican', mood: 'cheerful', introduced: true, mood_emoji: '😊' },
+	{ name: 'Aoife Ní Cheallaigh', real_name: 'Aoife Ní Cheallaigh', occupation: 'Scholar', mood: 'pensive', introduced: true, mood_emoji: '🤔' }
 ];
 
 // ── Irish word hints ────────────────────────────────────────────────────────

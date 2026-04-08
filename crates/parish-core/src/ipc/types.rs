@@ -107,6 +107,9 @@ pub struct MapData {
 pub struct NpcInfo {
     /// Display name (full name if introduced, brief description otherwise).
     pub name: String,
+    /// Canonical real name, used as a stable id for chip dispatch.
+    #[serde(default)]
+    pub real_name: String,
     /// NPC's occupation.
     pub occupation: String,
     /// NPC's current mood.
@@ -285,8 +288,8 @@ mod tests {
             paused: false,
             game_epoch_ms: 1234567890.0,
             speed_factor: 36.0,
-            day_of_week: "Monday".to_string(),
             name_hints: vec![],
+            day_of_week: "Monday".to_string(),
         };
         let json = serde_json::to_string(&snap).unwrap();
         let deser: WorldSnapshot = serde_json::from_str(&json).unwrap();
@@ -322,14 +325,16 @@ mod tests {
     fn npc_info_serialization() {
         let info = NpcInfo {
             name: "Seán".to_string(),
+            real_name: "Seán Ó Briain".to_string(),
             occupation: "Farmer".to_string(),
             mood: "content".to_string(),
             introduced: true,
-            mood_emoji: String::new(),
+            mood_emoji: "😌".to_string(),
         };
         let json = serde_json::to_string(&info).unwrap();
         let deser: NpcInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.name, "Seán");
+        assert_eq!(deser.real_name, "Seán Ó Briain");
     }
 
     #[test]

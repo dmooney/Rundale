@@ -13,7 +13,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
-const SCREENSHOT_DIR = path.resolve(__dirname, '../../docs/screenshots');
+// Path is relative to apps/ui/e2e/screenshots.spec.ts → repo root → docs/screenshots/.
+const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 
 test.describe('Screenshot generation', () => {
 	for (const time of TIMES_OF_DAY) {

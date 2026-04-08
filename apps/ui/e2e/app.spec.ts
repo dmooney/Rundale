@@ -37,9 +37,13 @@ test.describe('App layout', () => {
 		await expect(circles).toHaveCount(MAP_DATA.locations.length);
 	});
 
-	test('sidebar shows NPCs at current location', async ({ page }) => {
+	test('NPC chip row shows NPCs at current location', async ({ page }) => {
+		// NPCs are now rendered as a clickable chip row above the input field,
+		// not in the sidebar.
 		for (const npc of NPCS) {
-			await expect(page.getByText(npc.name)).toBeVisible();
+			await expect(
+				page.locator('.npc-chip', { hasText: npc.name })
+			).toBeVisible();
 		}
 	});
 

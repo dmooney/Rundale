@@ -9,6 +9,7 @@ pub mod events;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
 use tauri::Emitter;
 use tokio::sync::Mutex;
@@ -20,6 +21,7 @@ use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{
     InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
 };
+use parish_core::ipc::ConversationLine;
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::reactions::ReactionTemplates;
 use parish_core::world::palette::compute_palette;
@@ -137,6 +139,56 @@ pub struct UiConfigSnapshot {
     pub splash_text: String,
 }
 
+/// Runtime conversation/session state used for continuity and inactivity timers.
+pub struct ConversationRuntimeState {
+    /// Player location associated with the current transcript.
+    pub location: Option<LocationId>,
+    /// Recent dialogue at the current location.
+    pub transcript: std::collections::VecDeque<ConversationLine>,
+    /// Last wall-clock moment when the player submitted input.
+    pub last_player_activity: Instant,
+    /// Last wall-clock moment when anyone spoke at this location.
+    pub last_spoken_at: Instant,
+    /// Whether an NPC conversation sequence is currently active.
+    pub conversation_in_progress: bool,
+}
+
+impl Default for ConversationRuntimeState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ConversationRuntimeState {
+    pub fn new() -> Self {
+        let now = Instant::now();
+        Self {
+            location: None,
+            transcript: std::collections::VecDeque::with_capacity(16),
+            last_player_activity: now,
+            last_spoken_at: now,
+            conversation_in_progress: false,
+        }
+    }
+
+    pub fn sync_location(&mut self, location: LocationId) {
+        if self.location != Some(location) {
+            self.location = Some(location);
+            self.transcript.clear();
+        }
+    }
+
+    pub fn push_line(&mut self, line: ConversationLine) {
+        if line.text.trim().is_empty() {
+            return;
+        }
+        if self.transcript.len() >= 12 {
+            self.transcript.pop_front();
+        }
+        self.transcript.push_back(line);
+    }
+}
+
 /// Shared mutable game state managed by Tauri.
 ///
 /// Wrapped in `Arc` so background tasks can hold references without
@@ -154,6 +206,8 @@ pub struct AppState {
     pub cloud_client: Mutex<Option<OpenAiClient>>,
     /// Mutable runtime configuration (provider, model, cloud, improv).
     pub config: Mutex<GameConfig>,
+    /// Local conversation transcript and inactivity tracking.
+    pub conversation: Mutex<ConversationRuntimeState>,
     /// Rolling debug event log for the debug panel.
     pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
     /// Shared inference call log for the debug panel.
@@ -440,6 +494,7 @@ pub fn run() {
         inference_queue: Mutex::new(None),
         client: Mutex::new(client.clone()),
         cloud_client: Mutex::new(cloud_env.client),
+        conversation: Mutex::new(ConversationRuntimeState::new()),
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
@@ -461,6 +516,9 @@ pub fn run() {
             cloud_api_key: cloud_env.api_key,
             cloud_base_url: cloud_env.base_url,
             improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
             category_provider: [None, None, None, None],
             category_model: [None, None, None, None],
             category_api_key: [None, None, None, None],
@@ -809,6 +867,16 @@ pub fn run() {
                         );
                         let palette = ThemePalette::from(raw);
                         let _ = handle_theme.emit(events::EVENT_THEME_UPDATE, palette);
+                    }
+                });
+
+                // Inactivity tick: drive idle banter and auto-pause.
+                let state_idle = Arc::clone(&state_setup);
+                let handle_idle = handle.clone();
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        crate::commands::tick_inactivity(&state_idle, &handle_idle).await;
                     }
                 });
 

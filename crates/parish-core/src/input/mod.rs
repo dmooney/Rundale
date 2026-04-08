@@ -566,6 +566,26 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         });
     }
 
+    // Talk patterns — "talk to <name>" / "speak to <name>" addresses an NPC by
+    // name without going through the LLM intent classifier. We deliberately do
+    // NOT include `tell ` or `say to ` because they're ambiguous with dialogue
+    // (and the existing test_local_parse_no_match pins `tell Mary hello` as a
+    // non-match so the LLM can decide).
+    let talk_phrases = ["talk to ", "speak to "];
+    for prefix in &talk_phrases {
+        if let Some(target) = lower.strip_prefix(prefix) {
+            let target = target.trim();
+            if !target.is_empty() {
+                return Some(PlayerIntent {
+                    intent: IntentKind::Talk,
+                    target: Some(target.to_string()),
+                    dialogue: None,
+                    raw: raw_input.to_string(),
+                });
+            }
+        }
+    }
+
     None
 }
 
@@ -890,6 +910,41 @@ mod tests {
         assert!(parse_intent_local("tell Mary hello").is_none());
         assert!(parse_intent_local("pick up the stone").is_none());
         assert!(parse_intent_local("hello there").is_none());
+    }
+
+    #[test]
+    fn test_local_parse_talk_to_single_word() {
+        let intent = parse_intent_local("talk to Padraig").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, Some("padraig".to_string()));
+    }
+
+    #[test]
+    fn test_local_parse_talk_to_multi_word() {
+        let intent = parse_intent_local("talk to Father Callahan").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, Some("father callahan".to_string()));
+    }
+
+    #[test]
+    fn test_local_parse_talk_to_case_insensitive() {
+        let intent = parse_intent_local("TALK TO PADRAIG").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, Some("padraig".to_string()));
+    }
+
+    #[test]
+    fn test_local_parse_speak_to() {
+        let intent = parse_intent_local("speak to Siobhan").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, Some("siobhan".to_string()));
+    }
+
+    #[test]
+    fn test_local_parse_talk_no_target_no_match() {
+        // Bare "talk to " with no target should fall through.
+        assert!(parse_intent_local("talk to ").is_none());
+        assert!(parse_intent_local("speak to").is_none());
     }
 
     #[test]

@@ -59,6 +59,8 @@ export interface TravelStartPayload {
 
 export interface NpcInfo {
 	name: string;
+	/** Canonical real name, used as a stable id for chip dispatch. */
+	real_name: string;
 	occupation: string;
 	mood: string;
 	introduced: boolean;

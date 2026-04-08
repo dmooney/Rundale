@@ -1,30 +1,8 @@
 <script lang="ts">
-	import { npcsHere, languageHints, nameHints, uiConfig } from '../stores/game';
-	import MoodIcon from './MoodIcon.svelte';
+	import { languageHints, nameHints, uiConfig } from '../stores/game';
 </script>
 
 <aside class="sidebar" data-testid="sidebar">
-	<details open>
-		<summary>NPCs Here</summary>
-		{#if $npcsHere.length > 0}
-			<ul class="npc-list">
-				{#each $npcsHere as npc}
-					<li class="npc-item">
-						<div class="npc-name-row">
-							<span class="npc-mood"><MoodIcon mood={npc.mood} /></span>
-							<span class="npc-name">{npc.name}</span>
-						</div>
-						{#if npc.introduced}
-							<span class="npc-detail">{npc.occupation}</span>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{:else}
-			<p class="empty">Nobody nearby.</p>
-		{/if}
-	</details>
-
 	<details open>
 		<summary>{$uiConfig.hints_label}</summary>
 		{#if $nameHints.length > 0 || $languageHints.length > 0}
@@ -96,48 +74,10 @@
 		content: '▾ ';
 	}
 
-	.npc-list,
 	.hint-list {
 		list-style: none;
 		margin: 0;
 		padding: 0.25rem 0;
-	}
-
-	.npc-item {
-		padding: 0.4rem 0.75rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.npc-item:last-child {
-		border-bottom: none;
-	}
-
-	.npc-name-row {
-		display: flex;
-		align-items: baseline;
-		gap: 0.35rem;
-	}
-
-	.npc-name {
-		color: var(--color-accent);
-		font-style: italic;
-		font-size: 0.9rem;
-	}
-
-	.npc-detail {
-		color: var(--color-muted);
-		font-size: 0.75rem;
-	}
-
-	.npc-mood {
-		font-size: 1rem;
-		cursor: default;
-		display: inline-flex;
-		align-self: center;
-		transform: translateY(-2px);
 	}
 
 	.hint-item {
