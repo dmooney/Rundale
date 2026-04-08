@@ -203,19 +203,23 @@ impl LongTermMemory {
             return Vec::new();
         }
 
+        // Perf: lowercase each query keyword exactly once, then do a single
+        // byte-equality compare against stored keywords. Previously this
+        // function re-lowercased every query keyword *and* every stored
+        // keyword on each (entry, query) pair, producing roughly
+        // N_entries * N_query + N_entries * N_query * N_stored_keywords
+        // transient String allocations per recall. Stored keywords are
+        // already written in lowercase form by `extract_keywords`, so no
+        // conversion is needed on that side.
+        let lowered_query: Vec<String> = query_keywords.iter().map(|q| q.to_lowercase()).collect();
+
         let mut scored: Vec<(f32, &LongTermEntry)> = self
             .entries
             .iter()
             .filter_map(|entry| {
-                let keyword_matches = query_keywords
+                let keyword_matches = lowered_query
                     .iter()
-                    .filter(|qk| {
-                        let qk_lower = qk.to_lowercase();
-                        entry
-                            .keywords
-                            .iter()
-                            .any(|ek| ek.to_lowercase() == qk_lower)
-                    })
+                    .filter(|qk| entry.keywords.iter().any(|ek| ek == *qk))
                     .count();
 
                 if keyword_matches > 0 {
