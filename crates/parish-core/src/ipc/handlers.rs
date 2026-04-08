@@ -211,6 +211,7 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
             let introduced = npc_manager.is_introduced(npc.id);
             NpcInfo {
                 name: npc_manager.display_name(npc).to_string(),
+                real_name: npc.name.clone(),
                 occupation: npc.occupation.clone(),
                 mood_emoji: mood_emoji(&npc.mood).to_string(),
                 mood: npc.mood.clone(),
@@ -251,6 +252,173 @@ pub fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLo
         source: source.into(),
         content: content.into(),
     }
+}
+
+/// One spoken line in a local conversation transcript.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConversationLine {
+    /// Speaker label shown to the player.
+    pub speaker: String,
+    /// Spoken text content.
+    pub text: String,
+}
+
+/// Ordered NPC recipients extracted from player input at the current location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MentionedNpcs {
+    /// Mentioned NPC display names, deduplicated while preserving order.
+    pub names: Vec<String>,
+    /// Remaining player text with the mentions stripped out.
+    pub remaining: String,
+}
+
+fn canonicalize_whitespace(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn mention_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(c) => c.is_whitespace() || matches!(c, '.' | ',' | '!' | '?' | ':' | ';'),
+    }
+}
+
+/// Extracts all valid `@mentions` that match NPCs at the player's location.
+///
+/// Matching is done against the NPCs currently present using their visible
+/// display names, so multi-word lowercase descriptions like "an older man
+/// behind the bar" remain parseable.
+pub fn extract_npc_mentions(
+    raw: &str,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+) -> MentionedNpcs {
+    let candidates: Vec<String> = npc_manager
+        .npcs_at(world.player_location)
+        .into_iter()
+        .map(|npc| npc_manager.display_name(npc).to_string())
+        .collect();
+
+    if candidates.is_empty() {
+        return MentionedNpcs {
+            names: vec![],
+            remaining: raw.trim().to_string(),
+        };
+    }
+
+    let mut spans: Vec<(usize, usize, String)> = Vec::new();
+    let mut cursor = 0usize;
+    while let Some(rel_at) = raw[cursor..].find('@') {
+        let at = cursor + rel_at;
+        let before_ok = at == 0
+            || match raw[..at].chars().next_back() {
+                None => true,
+                Some(ch) => ch.is_whitespace(),
+            };
+        if !before_ok {
+            cursor = at + 1;
+            continue;
+        }
+
+        let rest = &raw[at + 1..];
+        let mut matched: Option<(usize, String)> = None;
+        for name in &candidates {
+            if rest.len() < name.len() {
+                continue;
+            }
+            let candidate = &rest[..name.len()];
+            if candidate.eq_ignore_ascii_case(name)
+                && mention_boundary(rest[name.len()..].chars().next())
+            {
+                match &matched {
+                    Some((len, _)) if *len >= name.len() => {}
+                    _ => matched = Some((name.len(), name.clone())),
+                }
+            }
+        }
+
+        if let Some((name_len, name)) = matched {
+            spans.push((at, at + 1 + name_len, name));
+            cursor = at + 1 + name_len;
+        } else {
+            cursor = at + 1;
+        }
+    }
+
+    if spans.is_empty() {
+        return MentionedNpcs {
+            names: vec![],
+            remaining: raw.trim().to_string(),
+        };
+    }
+
+    let mut names = Vec::new();
+    let mut dedupe = HashSet::new();
+    let mut remaining = String::new();
+    let mut last = 0usize;
+    for (start, end, name) in spans {
+        if dedupe.insert(name.to_lowercase()) {
+            names.push(name);
+        }
+        remaining.push_str(&raw[last..start]);
+        remaining.push(' ');
+        last = end;
+    }
+    remaining.push_str(&raw[last..]);
+
+    MentionedNpcs {
+        names,
+        remaining: canonicalize_whitespace(&remaining),
+    }
+}
+
+/// Resolves ordered conversation targets from extracted display names.
+///
+/// Falls back to the first NPC at the current location when no names are
+/// supplied. Unknown names are ignored.
+pub fn resolve_npc_targets(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    target_names: &[String],
+) -> Vec<NpcId> {
+    let mut targets = Vec::new();
+    let mut seen = HashSet::new();
+    for name in target_names {
+        if let Some(npc) = npc_manager.find_by_name(name, world.player_location)
+            && seen.insert(npc.id)
+        {
+            targets.push(npc.id);
+        }
+    }
+
+    if targets.is_empty()
+        && let Some(npc) = npc_manager
+            .npcs_at(world.player_location)
+            .into_iter()
+            .next()
+    {
+        targets.push(npc.id);
+    }
+
+    targets
+}
+
+fn append_transcript_context(context: &mut String, transcript: &[ConversationLine]) {
+    let lines: Vec<&ConversationLine> = transcript
+        .iter()
+        .filter(|line| !line.text.trim().is_empty())
+        .collect();
+    if lines.is_empty() {
+        return;
+    }
+
+    context.push_str("\n\nRecent conversation here:\n");
+    for line in lines {
+        context.push_str(&format!("- {}: {}\n", line.speaker, line.text.trim()));
+    }
+    context.push_str(
+        "\nRespond to the live exchange above. You may answer the player or another nearby NPC by name when it feels natural.\n",
+    );
 }
 
 /// Irish-themed canned messages shown when NPC inference fails.
@@ -301,13 +469,53 @@ pub struct NpcConversationSetup {
     pub context: String,
 }
 
-/// Prepares an NPC conversation: finds the NPC, builds prompts, and marks them
-/// as introduced. All backends call this before submitting to the inference queue.
+/// Prepares a specific NPC's turn in an ongoing conversation.
 ///
-/// If `target_name` is provided (from an `@mention`), the matching NPC is
-/// selected; otherwise falls back to the first NPC at the player's location.
-///
-/// Returns `None` if no NPC is present at the player's location.
+/// The supplied `player_input` describes the current trigger for this turn,
+/// while `transcript` carries the recent local exchange for continuity.
+pub fn prepare_npc_conversation_turn(
+    world: &WorldState,
+    npc_manager: &mut NpcManager,
+    player_input: &str,
+    speaker_id: NpcId,
+    transcript: &[ConversationLine],
+    improv_enabled: bool,
+) -> Option<NpcConversationSetup> {
+    let npc = npc_manager.get(speaker_id)?.clone();
+    let display_name = npc_manager.display_name(&npc).to_string();
+    let other_npcs: Vec<&Npc> = npc_manager
+        .npcs_at(world.player_location)
+        .into_iter()
+        .filter(|other| other.id != npc.id)
+        .collect();
+
+    let npc_names: std::collections::HashMap<NpcId, String> = npc_manager
+        .all_npcs()
+        .map(|n| (n.id, n.name.clone()))
+        .collect();
+    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
+    let mut context =
+        ticks::build_enhanced_context(&npc, world, player_input, &other_npcs, &npc_names);
+    append_transcript_context(&mut context, transcript);
+
+    // Check for anachronisms in player input and inject alert into context
+    let anachronisms = anachronism::check_input(player_input);
+    if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
+        context.push_str(&alert);
+    }
+
+    // Mark NPC as introduced on first conversation
+    npc_manager.mark_introduced(speaker_id);
+
+    Some(NpcConversationSetup {
+        display_name,
+        npc_id: speaker_id,
+        system_prompt,
+        context,
+    })
+}
+
+/// Backward-compatible single-target helper retained for older callers.
 pub fn prepare_npc_conversation(
     world: &WorldState,
     npc_manager: &mut NpcManager,
@@ -315,56 +523,13 @@ pub fn prepare_npc_conversation(
     target_name: Option<&str>,
     improv_enabled: bool,
 ) -> Option<NpcConversationSetup> {
-    let npcs_here = npc_manager.npcs_at(world.player_location);
-    if npcs_here.is_empty() {
-        return None;
-    }
-
-    // If an @mention was provided, try to find that NPC by name.
-    // Otherwise default to the last NPC spoken to at this location (if still
-    // present), falling back to the first NPC in the list.
-    let npc: Option<Npc> = if let Some(name) = target_name {
-        npc_manager
-            .find_by_name(name, world.player_location)
-            .cloned()
-            .or_else(|| npcs_here.first().cloned().cloned())
-    } else {
-        let last_spoken_to = world
-            .conversation_log
-            .last_speaker_at(world.player_location)
-            .and_then(|id| npc_manager.get(id))
-            .filter(|npc| npcs_here.iter().any(|n| n.id == npc.id))
-            .cloned();
-        last_spoken_to.or_else(|| npcs_here.first().cloned().cloned())
-    };
-
-    let npc = npc?;
-    let display_name = npc_manager.display_name(&npc).to_string();
-    let npc_id = npc.id;
-
-    let npc_names: std::collections::HashMap<NpcId, String> = npc_manager
-        .all_npcs()
-        .map(|n| (n.id, n.name.clone()))
-        .collect();
-    let other_npcs: Vec<&Npc> = npcs_here.into_iter().filter(|n| n.id != npc.id).collect();
-    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
-    let mut context = ticks::build_enhanced_context(&npc, world, raw, &other_npcs, &npc_names);
-
-    // Check for anachronisms in player input and inject alert into context
-    let anachronisms = anachronism::check_input(raw);
-    if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-        context.push_str(&alert);
-    }
-
-    // Mark NPC as introduced on first conversation
-    npc_manager.mark_introduced(npc_id);
-
-    Some(NpcConversationSetup {
-        display_name,
-        npc_id,
-        system_prompt,
-        context,
-    })
+    let target_names = target_name
+        .map(|name| vec![name.to_string()])
+        .unwrap_or_default();
+    let speaker_id = resolve_npc_targets(world, npc_manager, &target_names)
+        .into_iter()
+        .next()?;
+    prepare_npc_conversation_turn(world, npc_manager, raw, speaker_id, &[], improv_enabled)
 }
 
 // ── Pronunciation hints ────────────────────────────────────────────────────
@@ -548,6 +713,76 @@ mod tests {
         let npc_mgr = NpcManager::new();
         let npcs = build_npcs_here(&world, &npc_mgr);
         assert!(npcs.is_empty());
+    }
+
+    #[test]
+    fn extract_npc_mentions_matches_visible_display_names() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc_mgr.add_npc(npc);
+        npc_mgr.mark_introduced(NpcId(1));
+
+        let extracted = extract_npc_mentions(
+            "@Padraig O'Brien @padraig o'brien tell me the news",
+            &world,
+            &npc_mgr,
+        );
+
+        assert_eq!(extracted.names, vec!["Padraig O'Brien".to_string()]);
+        assert_eq!(extracted.remaining, "tell me the news");
+    }
+
+    #[test]
+    fn extract_npc_mentions_handles_unintroduced_descriptions() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc.brief_description = "an older man behind the bar".to_string();
+        npc_mgr.add_npc(npc);
+
+        let extracted = extract_npc_mentions(
+            "@an older man behind the bar what have you heard?",
+            &world,
+            &npc_mgr,
+        );
+
+        assert_eq!(
+            extracted.names,
+            vec!["an older man behind the bar".to_string()]
+        );
+        assert_eq!(extracted.remaining, "what have you heard?");
+    }
+
+    #[test]
+    fn resolve_npc_targets_preserves_order() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut npc1 = Npc::new_test_npc();
+        npc1.id = NpcId(1);
+        npc1.name = "Padraig Darcy".to_string();
+        npc1.location = world.player_location;
+
+        let mut npc2 = Npc::new_test_npc();
+        npc2.id = NpcId(2);
+        npc2.name = "Siobhan Murphy".to_string();
+        npc2.location = world.player_location;
+
+        npc_mgr.add_npc(npc1);
+        npc_mgr.add_npc(npc2);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let targets = resolve_npc_targets(
+            &world,
+            &npc_mgr,
+            &["Siobhan Murphy".to_string(), "Padraig Darcy".to_string()],
+        );
+
+        assert_eq!(targets, vec![NpcId(2), NpcId(1)]);
     }
 
     #[test]

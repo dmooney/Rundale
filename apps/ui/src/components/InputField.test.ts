@@ -5,10 +5,26 @@ import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
-const mockSubmitInput = vi.fn(async (_text: string) => {});
+const mockSubmitInput = vi.fn(async (_text: string, _addressedTo?: string[]) => {});
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
 }));
+
+const localStore: Record<string, string> = {};
+if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+	Object.defineProperty(globalThis, 'localStorage', {
+		configurable: true,
+		value: {
+			getItem: (key: string) => localStore[key] ?? null,
+			setItem: (key: string, value: string) => {
+				localStore[key] = value;
+			},
+			clear: () => {
+				for (const key of Object.keys(localStore)) delete localStore[key];
+			}
+		}
+	});
+}
 
 describe('InputField', () => {
 	beforeEach(() => {
@@ -16,7 +32,7 @@ describe('InputField', () => {
 		npcsHere.set([]);
 		mapData.set(null);
 		mockSubmitInput.mockClear();
-		localStorage.clear();
+		localStorage.clear?.();
 	});
 
 	it('renders an editable input area', () => {
@@ -52,9 +68,9 @@ describe('InputField', () => {
 
 	describe('NPC mention autocomplete', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
-			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
-			{ name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
+			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
+			{ name: 'Father Callahan', real_name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
 		];
 
 		beforeEach(() => {
@@ -371,11 +387,93 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			expect(mockSubmitInput).toHaveBeenCalledWith('submit me');
+			expect(mockSubmitInput).toHaveBeenCalledWith('submit me', []);
 		});
 	});
 
 	// ── Location quick-travel chips ─────────────────────────────────────
+
+	describe('npc selection buttons', () => {
+		const testNpcs = [
+			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'an older man behind the bar', real_name: 'Tomas Brennan', occupation: 'Publican', mood: 'wary', introduced: false, mood_emoji: '😐' },
+			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' }
+		];
+
+		function typeIntoEditor(editor: HTMLElement, text: string) {
+			editor.textContent = text;
+			const range = document.createRange();
+			const sel = window.getSelection();
+			if (editor.firstChild) {
+				range.setStart(editor.firstChild, text.length);
+			} else {
+				range.setStart(editor, 0);
+			}
+			range.collapse(true);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		beforeEach(() => {
+			npcsHere.set(testNpcs);
+		});
+
+		it('renders npc buttons and hides occupation for unintroduced npcs', () => {
+			const { container, getByText } = render(InputField);
+			expect(container.querySelectorAll('.npc-chip').length).toBe(3);
+			expect(getByText('Padraig Darcy')).toBeTruthy();
+			expect(getByText('Publican')).toBeTruthy();
+			expect((container.querySelectorAll('.npc-chip')[1] as HTMLElement).textContent).not.toContain('Publican');
+		});
+
+		it('toggles persistent npc selection', async () => {
+			const { container } = render(InputField);
+			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
+			await fireEvent.click(chip);
+			expect(chip.getAttribute('aria-pressed')).toBe('true');
+			await fireEvent.click(chip);
+			expect(chip.getAttribute('aria-pressed')).toBe('false');
+		});
+
+		it('submits selected npcs in selection order and clears selection', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+			const chips = container.querySelectorAll('.npc-chip');
+			await fireEvent.click(chips[2] as HTMLButtonElement);
+			await fireEvent.click(chips[0] as HTMLButtonElement);
+
+			typeIntoEditor(editor, 'Any news?');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('Any news?', [
+				'Siobhan Murphy',
+				'Padraig Darcy'
+			]);
+			expect((chips[2] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+			expect((chips[0] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+		});
+
+		it('submits an unintroduced npc by real_name, not display name', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+			const chips = container.querySelectorAll('.npc-chip');
+			// chips[1] is the unintroduced "an older man behind the bar" → real_name "Tomas Brennan"
+			await fireEvent.click(chips[1] as HTMLButtonElement);
+
+			typeIntoEditor(editor, 'A pint, please.');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('A pint, please.', ['Tomas Brennan']);
+		});
+
+		it('hides npc buttons during streaming', () => {
+			streamingActive.set(true);
+			const { container } = render(InputField);
+			expect(container.querySelector('.npc-chips')).toBeFalsy();
+		});
+	});
 
 	describe('quick-travel chips', () => {
 		const testMapData = {
@@ -500,6 +598,7 @@ describe('InputField', () => {
 		const testNpcs = [
 			{
 				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
 				mood: 'content',
 				introduced: true,
@@ -614,6 +713,7 @@ describe('InputField', () => {
 			npcsHere.set([
 				{
 					name: 'Padraig Darcy',
+					real_name: 'Padraig Darcy',
 					occupation: 'Publican',
 					mood: 'content',
 					introduced: true,

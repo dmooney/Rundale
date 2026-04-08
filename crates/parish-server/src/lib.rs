@@ -235,6 +235,15 @@ fn spawn_background_ticks(state: Arc<AppState>) {
         }
     });
 
+    // Inactivity tick: drive idle banter and auto-pause.
+    let state_idle = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            routes::tick_inactivity(&state_idle).await;
+        }
+    });
+
     // Autosave tick: save snapshot every 60 seconds (if a save file is active)
     let state_autosave = Arc::clone(&state);
     tokio::spawn(async move {
@@ -299,6 +308,9 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
         cloud_api_key: None,
         cloud_base_url: None,
         improv_enabled: false,
+        max_follow_up_turns: 2,
+        idle_banter_after_secs: 25,
+        auto_pause_after_secs: 60,
         category_provider: [None, None, None, None],
         category_model: [None, None, None, None],
         category_api_key: [None, None, None, None],

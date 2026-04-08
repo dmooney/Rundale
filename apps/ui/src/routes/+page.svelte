@@ -35,8 +35,13 @@
 		onSavePicker,
 		onToggleFullMap,
 		onNpcReaction,
-		onTravelStart
+		onTravelStart,
+		submitInput
 	} from '$lib/ipc';
+	import { createAutoPauseTracker } from '$lib/auto-pause';
+
+	const AUTO_PAUSE_MS = 60_000;
+	const MOUSEMOVE_THROTTLE_MS = 1000;
 
 	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
@@ -87,6 +92,25 @@
 	});
 
 	onMount(async () => {
+		// Frontend auto-pause tracker — fires /pause after 60s of true UI
+		// inactivity (no key/mouse/touch). The server-side tick_inactivity
+		// backstop in parish-server still runs for the tab-close case.
+		const tracker = createAutoPauseTracker({
+			idleMs: AUTO_PAUSE_MS,
+			mousemoveThrottleMs: MOUSEMOVE_THROTTLE_MS,
+			submitInput,
+			isWorldPaused: () => get(worldState)?.paused ?? false
+		});
+
+		const onTrackerKey = () => tracker.recordActivity();
+		const onTrackerMousedown = () => tracker.recordActivity();
+		const onTrackerTouch = () => tracker.recordActivity();
+		const onTrackerMousemove = () => tracker.recordMousemove();
+		window.addEventListener('keydown', onTrackerKey);
+		window.addEventListener('mousedown', onTrackerMousedown);
+		window.addEventListener('touchstart', onTrackerTouch);
+		window.addEventListener('mousemove', onTrackerMousemove);
+
 		// Initial data fetch (theme first to avoid color flash)
 		try {
 			const [snap, map, npcs, theme] = await Promise.all([
@@ -134,6 +158,7 @@
 		try {
 			listeners.push(await onWorldUpdate(async (snap) => {
 				worldState.set(snap);
+				tracker.onWorldStateChange(snap.paused);
 				if (snap.name_hints) nameHints.set(snap.name_hints);
 				try {
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
@@ -245,6 +270,11 @@
 		}
 
 		return () => {
+			window.removeEventListener('keydown', onTrackerKey);
+			window.removeEventListener('mousedown', onTrackerMousedown);
+			window.removeEventListener('touchstart', onTrackerTouch);
+			window.removeEventListener('mousemove', onTrackerMousemove);
+			tracker.dispose();
 			listeners.forEach((fn) => fn());
 		};
 	});
@@ -270,7 +300,7 @@
 			class="mobile-btn"
 			class:active={mobilePanel === 'sidebar'}
 			onclick={() => mobilePanel = mobilePanel === 'sidebar' ? 'none' : 'sidebar'}
-		>NPCs &amp; Hints</button>
+		>Hints</button>
 	</div>
 
 	<div class="main-area">
