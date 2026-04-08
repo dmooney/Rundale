@@ -205,6 +205,7 @@ pub async fn get_ui_config(
 #[tauri::command]
 pub async fn submit_input(
     text: String,
+    addressed_to: Option<Vec<String>>,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
@@ -218,6 +219,8 @@ pub async fn submit_input(
 
     touch_player_activity(&state).await;
 
+    let addressed_to = addressed_to.unwrap_or_default();
+
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, &state, &app).await;
@@ -228,7 +231,7 @@ pub async fn submit_input(
             let player_msg_id = player_msg.id.clone();
             let _ = app.emit(EVENT_TEXT_LOG, player_msg);
             let raw_for_reactions = raw.clone();
-            handle_game_input(raw, state.clone(), app.clone()).await;
+            handle_game_input(raw, addressed_to, state.clone(), app.clone()).await;
             // Generate rule-based NPC reactions to the player's message
             emit_npc_reactions(&player_msg_id, &raw_for_reactions, &state, &app).await;
         }
@@ -408,6 +411,7 @@ async fn handle_system_command(
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 async fn handle_game_input(
     raw: String,
+    addressed_to: Vec<String>,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) {
@@ -473,7 +477,23 @@ async fn handle_game_input(
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    handle_npc_conversation(mentions.remaining, mentions.names, state, app).await;
+    // Chip selections (real names from the frontend) come first, then any
+    // inline @mentions that aren't already in the chip set. Deduping happens
+    // in `resolve_npc_targets` via `find_by_name`, which matches both real
+    // and display names.
+    let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + mentions.names.len());
+    for name in addressed_to {
+        if !targets.iter().any(|t| t == &name) {
+            targets.push(name);
+        }
+    }
+    for name in mentions.names {
+        if !targets.iter().any(|t| t == &name) {
+            targets.push(name);
+        }
+    }
+
+    handle_npc_conversation(mentions.remaining, targets, state, app).await;
 }
 
 /// Resolves movement to a named location using the shared movement pipeline.

@@ -108,9 +108,13 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
 
 /// Request body for `POST /api/submit-input`.
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SubmitInputRequest {
     /// The player's input text.
     pub text: String,
+    /// Real names of NPCs explicitly addressed via chip selection (chip-first order).
+    #[serde(default)]
+    pub addressed_to: Vec<String>,
 }
 
 /// `POST /api/submit-input` — processes player text input.
@@ -138,7 +142,7 @@ pub async fn submit_input(
             let player_msg_id = player_msg.id.clone();
             state.event_bus.emit("text-log", &player_msg);
             let raw_for_reactions = raw.clone();
-            handle_game_input(raw, &state).await;
+            handle_game_input(raw, body.addressed_to, &state).await;
             // Generate rule-based NPC reactions to the player's message
             emit_npc_reactions(&player_msg_id, &raw_for_reactions, &state).await;
         }
@@ -324,7 +328,7 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
-async fn handle_game_input(raw: String, state: &Arc<AppState>) {
+async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<AppState>) {
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
         let config = state.config.lock().await;
@@ -384,7 +388,23 @@ async fn handle_game_input(raw: String, state: &Arc<AppState>) {
         parish_core::ipc::extract_npc_mentions(&raw, &world, &npc_manager)
     };
 
-    handle_npc_conversation(mentions.remaining, mentions.names, state).await;
+    // Chip selections (real names from the frontend) come first, then any
+    // inline @mentions that aren't already in the chip set. Deduping happens
+    // in `resolve_npc_targets` via `find_by_name`, which matches both real
+    // and display names.
+    let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + mentions.names.len());
+    for name in addressed_to {
+        if !targets.iter().any(|t| t == &name) {
+            targets.push(name);
+        }
+    }
+    for name in mentions.names {
+        if !targets.iter().any(|t| t == &name) {
+            targets.push(name);
+        }
+    }
+
+    handle_npc_conversation(mentions.remaining, targets, state).await;
 }
 
 /// Resolves movement to a named location.
@@ -1484,6 +1504,15 @@ mod tests {
         let json = r#"{"text": "go to church"}"#;
         let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.text, "go to church");
+        assert!(req.addressed_to.is_empty());
+    }
+
+    #[test]
+    fn submit_input_request_with_addressed_to() {
+        let json = r#"{"text": "hello", "addressedTo": ["Padraig", "Maire"]}"#;
+        let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.text, "hello");
+        assert_eq!(req.addressed_to, vec!["Padraig", "Maire"]);
     }
 
     /// Helper to build a minimal AppState from the real game data.

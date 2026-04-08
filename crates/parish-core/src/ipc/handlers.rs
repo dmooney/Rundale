@@ -211,6 +211,7 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
             let introduced = npc_manager.is_introduced(npc.id);
             NpcInfo {
                 name: npc_manager.display_name(npc).to_string(),
+                real_name: npc.name.clone(),
                 occupation: npc.occupation.clone(),
                 mood_emoji: mood_emoji(&npc.mood).to_string(),
                 mood: npc.mood.clone(),

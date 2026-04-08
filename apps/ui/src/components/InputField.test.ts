@@ -5,7 +5,7 @@ import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
-const mockSubmitInput = vi.fn(async (_text: string) => {});
+const mockSubmitInput = vi.fn(async (_text: string, _addressedTo?: string[]) => {});
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
 }));
@@ -68,9 +68,9 @@ describe('InputField', () => {
 
 	describe('NPC mention autocomplete', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
-			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
-			{ name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
+			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
+			{ name: 'Father Callahan', real_name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
 		];
 
 		beforeEach(() => {
@@ -387,7 +387,7 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			expect(mockSubmitInput).toHaveBeenCalledWith('submit me');
+			expect(mockSubmitInput).toHaveBeenCalledWith('submit me', []);
 		});
 	});
 
@@ -395,9 +395,9 @@ describe('InputField', () => {
 
 	describe('npc selection buttons', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
-			{ name: 'an older man behind the bar', occupation: 'Publican', mood: 'wary', introduced: false, mood_emoji: '😐' },
-			{ name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' }
+			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
+			{ name: 'an older man behind the bar', real_name: 'Tomas Brennan', occupation: 'Publican', mood: 'wary', introduced: false, mood_emoji: '😐' },
+			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' }
 		];
 
 		function typeIntoEditor(editor: HTMLElement, text: string) {
@@ -446,9 +446,26 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			expect(mockSubmitInput).toHaveBeenCalledWith('@Siobhan Murphy @Padraig Darcy Any news?');
+			expect(mockSubmitInput).toHaveBeenCalledWith('Any news?', [
+				'Siobhan Murphy',
+				'Padraig Darcy'
+			]);
 			expect((chips[2] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
 			expect((chips[0] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+		});
+
+		it('submits an unintroduced npc by real_name, not display name', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+			const chips = container.querySelectorAll('.npc-chip');
+			// chips[1] is the unintroduced "an older man behind the bar" → real_name "Tomas Brennan"
+			await fireEvent.click(chips[1] as HTMLButtonElement);
+
+			typeIntoEditor(editor, 'A pint, please.');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('A pint, please.', ['Tomas Brennan']);
 		});
 
 		it('hides npc buttons during streaming', () => {
@@ -581,6 +598,7 @@ describe('InputField', () => {
 		const testNpcs = [
 			{
 				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
 				mood: 'content',
 				introduced: true,
@@ -695,6 +713,7 @@ describe('InputField', () => {
 			npcsHere.set([
 				{
 					name: 'Padraig Darcy',
+					real_name: 'Padraig Darcy',
 					occupation: 'Publican',
 					mood: 'content',
 					introduced: true,

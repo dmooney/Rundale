@@ -52,13 +52,19 @@
 			.sort((a, b) => a.name.localeCompare(b.name))
 	);
 
-	let selectedNpcNames = $state<string[]>([]);
+	// Chip selection is keyed by `real_name` (the canonical id) so unintroduced
+	// NPCs whose `name` is a placeholder ("a stern priest") still resolve
+	// correctly on the backend.
+	let selectedNpcRealNames = $state<string[]>([]);
 
 	$effect(() => {
-		const visible = new Set($npcsHere.map((npc) => npc.name));
-		const pruned = selectedNpcNames.filter((name) => visible.has(name));
-		if (pruned.length !== selectedNpcNames.length || pruned.some((name, i) => name !== selectedNpcNames[i])) {
-			selectedNpcNames = pruned;
+		const visible = new Set($npcsHere.map((npc) => npc.real_name));
+		const pruned = selectedNpcRealNames.filter((name) => visible.has(name));
+		if (
+			pruned.length !== selectedNpcRealNames.length ||
+			pruned.some((name, i) => name !== selectedNpcRealNames[i])
+		) {
+			selectedNpcRealNames = pruned;
 		}
 	});
 
@@ -449,25 +455,19 @@
 
 	async function quickTravel(locationName: string) {
 		if ($streamingActive) return;
-		selectedNpcNames = [];
+		selectedNpcRealNames = [];
 		clearEditor();
 		await submitInput(`go to ${locationName}`);
 	}
 
-	function toggleNpcSelection(npcName: string) {
+	function toggleNpcSelection(realName: string) {
 		if ($streamingActive) return;
-		if (selectedNpcNames.includes(npcName)) {
-			selectedNpcNames = selectedNpcNames.filter((name) => name !== npcName);
+		if (selectedNpcRealNames.includes(realName)) {
+			selectedNpcRealNames = selectedNpcRealNames.filter((name) => name !== realName);
 		} else {
-			selectedNpcNames = [...selectedNpcNames, npcName];
+			selectedNpcRealNames = [...selectedNpcRealNames, realName];
 		}
 		editorEl?.focus();
-	}
-
-	function buildSubmittedText(trimmed: string): string {
-		if (selectedNpcNames.length === 0) return trimmed;
-		const mentions = selectedNpcNames.map((name) => `@${name}`).join(' ');
-		return `${mentions} ${trimmed}`.trim();
 	}
 
 	// ── Submit ──────────────────────────────────────────────────────────────
@@ -495,9 +495,9 @@
 		}
 		historyIndex = -1;
 
-		const submitted = buildSubmittedText(trimmed);
-		selectedNpcNames = [];
-		await submitInput(submitted);
+		const addressedTo = [...selectedNpcRealNames];
+		selectedNpcRealNames = [];
+		await submitInput(trimmed, addressedTo);
 	}
 
 	// ── Keyboard handling ───────────────────────────────────────────────────
@@ -752,9 +752,9 @@
 			{#each $npcsHere as npc}
 				<button
 					class="npc-chip"
-					class:selected={selectedNpcNames.includes(npc.name)}
-					aria-pressed={selectedNpcNames.includes(npc.name)}
-					onclick={() => toggleNpcSelection(npc.name)}
+					class:selected={selectedNpcRealNames.includes(npc.real_name)}
+					aria-pressed={selectedNpcRealNames.includes(npc.real_name)}
+					onclick={() => toggleNpcSelection(npc.real_name)}
 				>
 					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
 					<span class="npc-chip-copy">

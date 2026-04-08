@@ -107,6 +107,9 @@ pub struct MapData {
 pub struct NpcInfo {
     /// Display name (full name if introduced, brief description otherwise).
     pub name: String,
+    /// Canonical real name, used as a stable id for chip dispatch.
+    #[serde(default)]
+    pub real_name: String,
     /// NPC's occupation.
     pub occupation: String,
     /// NPC's current mood.
@@ -322,6 +325,7 @@ mod tests {
     fn npc_info_serialization() {
         let info = NpcInfo {
             name: "Seán".to_string(),
+            real_name: "Seán Ó Briain".to_string(),
             occupation: "Farmer".to_string(),
             mood: "content".to_string(),
             introduced: true,
@@ -330,6 +334,7 @@ mod tests {
         let json = serde_json::to_string(&info).unwrap();
         let deser: NpcInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.name, "Seán");
+        assert_eq!(deser.real_name, "Seán Ó Briain");
     }
 
     #[test]
