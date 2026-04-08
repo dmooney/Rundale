@@ -17,4 +17,5 @@ pub mod ipc;
 pub mod loading;
 pub mod npc;
 pub mod persistence;
+pub mod prompts;
 pub mod world;

@@ -20,7 +20,9 @@ pub mod transitions;
 pub mod types;
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
+use crate::prompts::PromptFile;
 use crate::world::time::{DayType, Season};
 use crate::world::{LocationId, WorldState};
 use serde::{Deserialize, Serialize};
@@ -29,6 +31,16 @@ use memory::{LongTermMemory, ShortTermMemory};
 use reactions::ReactionLog;
 use transitions::NpcSummary;
 use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
+
+/// Tier 1 NPC dialogue prompt, loaded once from `prompts/npc_tier1.prompt.yml`.
+///
+/// The YAML file lives alongside the Rust source so it can be opened in the
+/// GitHub Models playground for iteration on wording and model evaluation.
+/// Conditional sections (improv guidance, intelligence flavor) are pre-rendered
+/// in Rust as `{{improv_section}}` / `{{intel_guidance_block}}` variables and
+/// then substituted into the flat template.
+static TIER1_PROMPT: LazyLock<PromptFile> =
+    LazyLock::new(|| PromptFile::parse(include_str!("../../prompts/npc_tier1.prompt.yml")));
 
 /// A pronunciation hint for a word in the setting's secondary language.
 ///
@@ -357,64 +369,31 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 /// The prompt instructs the model to output dialogue first (which is
 /// streamed to the player), then a `---` separator, then a JSON metadata
 /// block (which is parsed silently for simulation state).
+///
+/// The template body lives in `crates/parish-core/prompts/npc_tier1.prompt.yml`
+/// (GitHub Models prompt format) so it can be opened in the playground for
+/// iteration on wording and model evaluation. Conditional sections
+/// (improv guidance, intelligence flavor) are computed here as `{{...}}`
+/// substitution variables before rendering.
 pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
     let intel_guidance = npc.intelligence.prompt_guidance();
+    let intel_guidance_block = if intel_guidance.is_empty() {
+        String::new()
+    } else {
+        format!("Mind and manner: {intel_guidance}\n")
+    };
+    let age = npc.age.to_string();
 
-    format!(
-        "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
-        Ireland, in the year 1820.\n\
-        \n\
-        HISTORICAL CONTEXT: Ireland is under British rule following the Acts of Union of 1800. \
-        Catholic Emancipation has not yet been achieved. The landlord class is predominantly \
-        Protestant and English-speaking, while ordinary people speak both Irish and English. \
-        Life is rural and agricultural — there is no electricity, no railways, no photography. \
-        Travel is by foot, horse, or cart. News arrives by mail coach or word of mouth. \
-        Do not reference anything that does not exist in 1820 Ireland.\n\
-        \n\
-        CULTURAL GUIDELINES: Portray Irish characters with dignity, warmth, and complexity. \
-        Never portray Irish characters as excessively drunk, violent as a cultural trait, \
-        foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
-        Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
-        Show the wit, intelligence, resilience, and warmth of rural Irish people.\
-        {improv_section}\n\
-        \n\
-        Personality: {personality}\n\
-        {intel_guidance}\
-        Current mood: {mood}\n\
-        \n\
-        Respond in character as {name}. Write only what you say aloud — \
-        pure dialogue, no narration or action descriptions. \
-        Pepper your speech naturally with the occasional Irish word or phrase.\n\
-        \n\
-        LENGTH: 2-4 sentences. Be conversational, not a monologue.\n\
-        \n\
-        FORMAT: Write your dialogue, then on a new line write exactly: ---\n\
-        Then a JSON metadata block:\n\
-        {{\"action\": \"what you physically do\", \"mood\": \"your mood after this\", \
-        \"internal_thought\": \"what you think but don't say\", \
-        \"irish_words\": [{{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}}]}}\n\
-        \n\
-        Example:\n\
-        Ah, good morning to ye! Dia dhuit — fine day for it, so it is. \
-        Will ye have a drop of something to warm the bones?\n\
-        ---\n\
-        {{\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
-        \"internal_thought\": \"New face around here\", \
-        \"irish_words\": [{{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
-        \"meaning\": \"Hello (lit. God to you)\"}}]}}",
-        name = npc.name,
-        age = npc.age,
-        occupation = npc.occupation,
-        personality = npc.personality,
-        intel_guidance = if intel_guidance.is_empty() {
-            String::new()
-        } else {
-            format!("Mind and manner: {intel_guidance}\n")
-        },
-        mood = npc.mood,
-        improv_section = improv_section,
-    )
+    TIER1_PROMPT.render_system(&[
+        ("name", npc.name.as_str()),
+        ("age", age.as_str()),
+        ("occupation", npc.occupation.as_str()),
+        ("personality", npc.personality.as_str()),
+        ("mood", npc.mood.as_str()),
+        ("improv_section", improv_section),
+        ("intel_guidance_block", intel_guidance_block.as_str()),
+    ])
 }
 
 /// Builds the action line for an NPC prompt from raw player input.
@@ -948,5 +927,68 @@ mod tests {
         assert!(prompt.contains("CULTURAL GUIDELINES"));
         assert!(prompt.contains("irish_words"));
         assert!(prompt.contains("---"));
+    }
+
+    #[test]
+    fn test_tier1_prompt_yaml_renders_via_loader() {
+        // Lock the .prompt.yml file (loaded via include_str!) to the Rust
+        // render path. If the YAML body is edited in the GitHub Models
+        // playground in a way that breaks substitution wiring — e.g. a
+        // placeholder is renamed or removed — this test catches the drift
+        // before it reaches the inference layer.
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc, false);
+
+        // Every {{key}} in the system message body should have been
+        // substituted by the loader; no raw placeholders should remain.
+        assert!(
+            !prompt.contains("{{"),
+            "raw {{key}} placeholder leaked into rendered prompt: {}",
+            prompt
+        );
+        assert!(
+            !prompt.contains("}}"),
+            "raw }}}} placeholder leaked into rendered prompt: {}",
+            prompt
+        );
+
+        // Sanity-check that the YAML really is the source of the rendered
+        // text by hitting markers that only exist in npc_tier1.prompt.yml.
+        // (The Rust source no longer holds the prompt body.)
+        assert!(prompt.contains("County Roscommon"));
+        assert!(prompt.contains("Acts of Union of 1800"));
+        assert!(prompt.contains("CULTURAL GUIDELINES"));
+        assert!(prompt.contains("FORMAT: Write your dialogue"));
+        assert!(prompt.contains("Dia dhuit"));
+
+        // The improv toggle must round-trip through the YAML's
+        // {{improv_section}} placeholder.
+        let improv_prompt = build_tier1_system_prompt(&npc, true);
+        assert!(improv_prompt.contains("IMPROV CRAFT"));
+        assert!(!prompt.contains("IMPROV CRAFT"));
+
+        // The intelligence-flavor block should appear for Padraig
+        // (verbal=3 → no entry, but emotional=4, practical=4, wisdom=5,
+        // creative=4 all push lines, so the block is non-empty).
+        assert!(
+            prompt.contains("Mind and manner:"),
+            "intel_guidance_block should be populated for the test NPC"
+        );
+    }
+
+    #[test]
+    fn test_tier1_prompt_yaml_loader_exposes_user_message() {
+        // The .prompt.yml also defines a `user`-role message for playground
+        // iteration on the action/context side. The loader's render_system
+        // path must NOT include it, but the file's raw `messages` array
+        // should expose it so future code (and the playground) can consume
+        // both sides of the prompt.
+        assert!(TIER1_PROMPT.messages.iter().any(|m| m.role == "user"));
+        assert!(TIER1_PROMPT.messages.iter().any(|m| m.role == "system"));
+        let system_only = TIER1_PROMPT.render_system(&[]);
+        // With no vars supplied, the system message body should still come
+        // through but the {{...}} placeholders are left intact for debugging.
+        assert!(system_only.contains("County Roscommon"));
+        assert!(system_only.contains("{{name}}"));
     }
 }
