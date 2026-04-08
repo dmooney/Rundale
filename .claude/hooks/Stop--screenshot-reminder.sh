@@ -6,9 +6,9 @@ exec >&2
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
 
-UI_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep -E '(^ui/src/|^src-tauri/src/)' || true)
-UI_UNSTAGED=$(git diff --name-only 2>/dev/null | grep -E '(^ui/src/|^src-tauri/src/)' || true)
-UI_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '(^ui/src/|^src-tauri/src/)' || true)
+UI_CHANGED=$(git diff --name-only HEAD 2>/dev/null | grep -E '(^apps/ui/src/|^crates/parish-tauri/src/)' || true)
+UI_UNSTAGED=$(git diff --name-only 2>/dev/null | grep -E '(^apps/ui/src/|^crates/parish-tauri/src/)' || true)
+UI_UNTRACKED=$(git ls-files --others --exclude-standard 2>/dev/null | grep -E '(^apps/ui/src/|^crates/parish-tauri/src/)' || true)
 
 if [[ -n "$UI_CHANGED" || -n "$UI_UNSTAGED" || -n "$UI_UNTRACKED" ]]; then
     echo "=== Screenshot Reminder ==="

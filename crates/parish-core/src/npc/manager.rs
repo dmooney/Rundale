@@ -970,7 +970,7 @@ mod tests {
 
     /// Loads the parish graph for tests that need real topology.
     fn load_test_graph() -> Option<WorldGraph> {
-        let path = Path::new("data/parish.json");
+        let path = Path::new("../../mods/kilteevan-1820/world.json");
         if path.exists() {
             WorldGraph::load_from_file(path).ok()
         } else {
@@ -1218,7 +1218,7 @@ mod tests {
 
     #[test]
     fn test_load_from_file() {
-        let path = Path::new("data/npcs.json");
+        let path = Path::new("../../mods/kilteevan-1820/npcs.json");
         if !path.exists() {
             return;
         }

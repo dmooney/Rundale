@@ -185,9 +185,9 @@
 - [x] Convert Cargo.toml to workspace (root + crates/parish-core + src-tauri)
 - [x] Extract pure game logic to `crates/parish-core` library crate
 - [x] Delete `src/gui/` (egui); clean root `lib.rs` and `main.rs`
-- [x] Scaffold `src-tauri/` Tauri 2 backend with `AppState`, IPC commands, streaming events
-- [x] Scaffold `ui/` Svelte 5 + SvelteKit frontend (static adapter)
-- [x] IPC types (`ui/src/lib/types.ts`), command wrappers (`ipc.ts`), Svelte stores
+- [x] Scaffold `crates/parish-tauri/` Tauri 2 backend with `AppState`, IPC commands, streaming events
+- [x] Scaffold `apps/ui/` Svelte 5 + SvelteKit frontend (static adapter)
+- [x] IPC types (`apps/ui/src/lib/types.ts`), command wrappers (`ipc.ts`), Svelte stores
 - [x] Svelte components: StatusBar, ChatPanel, MapPanel, Sidebar, InputField
 - [x] CSS theme via CSS custom properties (`var(--color-*)`) driven by Rust theme-tick events
 - [x] Add `lat`/`lon` to `LocationData` for SVG map projection

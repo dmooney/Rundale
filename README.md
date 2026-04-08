@@ -29,7 +29,7 @@ The default experience is a Tauri 2 desktop app with a Svelte 5 frontend.
 cargo install tauri-cli
 
 # Install frontend dependencies (one-time)
-cd ui && npm install && cd ..
+cd apps/ui && npm install && cd ../..
 
 # Launch the desktop app
 cargo tauri dev
@@ -53,16 +53,18 @@ The documentation is organized hierarchically — start at a summary level and d
 
 ```
 README.md (you are here — project overview, quick start)
-├── CLAUDE.md                  — Agent quick-ref: build, test, style, standards
+├── CLAUDE.md / AGENTS.md      — Slim agent indexes → docs/agent/
 └── docs/index.md              — Full documentation hub (start here for everything)
+    ├── docs/agent/            — Agent-facing build/test/style/gotchas docs
     ├── docs/requirements/
     │   └── roadmap.md         — Per-item status tracking across all phases
     ├── docs/design/
-    │   └── overview.md        — Architecture overview → links to subsystem docs
+    │   └── overview.md        — Architecture overview → subsystem docs
     ├── docs/adr/
     │   └── README.md          — Architecture decision records with rationale
     ├── docs/plans/            — Detailed implementation plan per phase
     ├── docs/research/         — Historical research informing design
+    ├── docs/archive/          — Historical / superseded docs (DESIGN.md)
     ├── docs/journal.md        — Cross-session development notes
     └── docs/known-issues.md   — Active bugs and UX issues
 ```
@@ -74,6 +76,22 @@ README.md (you are here — project overview, quick start)
 | [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
 | [docs/adr/README.md](docs/adr/README.md) | Architecture decision records (ADRs) |
 
+## Repository Layout
+
+```
+crates/
+  parish-core/      pure game logic library
+  parish-cli/       headless / web / CLI binary (`parish`)
+  parish-server/    Axum web backend
+  parish-tauri/     Tauri 2 desktop backend
+  geo-tool/         OSM extraction CLI
+apps/ui/            Svelte 5 + TypeScript frontend
+testing/fixtures/   scripted gameplay fixtures
+mods/               game content packages
+deploy/             Dockerfile + railway.toml
+docs/               design, ADRs, plans, research, agent guides
+```
+
 ## For AI Agents
 
-See [CLAUDE.md](CLAUDE.md) for build commands, code style, engineering standards, and gotchas. For deeper context, follow links to [docs/index.md](docs/index.md) and the specific subsystem design docs.
+See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) — both index into [docs/agent/](docs/agent/README.md) for build commands, architecture, code style, engineering standards, and gotchas.

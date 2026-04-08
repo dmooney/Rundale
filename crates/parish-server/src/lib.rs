@@ -33,12 +33,16 @@ use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    // Load world
-    let world = WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15))
-        .unwrap_or_else(|e| {
-            tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
-            WorldState::new()
-        });
+    // Load world — try legacy `parish.json` first, then mod `world.json`.
+    let world_path = {
+        let parish = data_dir.join("parish.json");
+        let world = data_dir.join("world.json");
+        if parish.exists() { parish } else { world }
+    };
+    let world = WorldState::from_parish_file(&world_path, LocationId(15)).unwrap_or_else(|e| {
+        tracing::warn!("Failed to load world data: {}. Using default world.", e);
+        WorldState::new()
+    });
 
     // Load NPCs
     let mut npc_manager =

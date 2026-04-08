@@ -62,8 +62,8 @@ A mod is a directory with a `mod.toml` manifest and data files:
 ```
 mods/kilteevan-1820/
 ├── mod.toml              # Manifest: name, version, start_date, start_location, period_year
-├── world.json            # Location graph (from data/parish.json)
-├── npcs.json             # NPC definitions (from data/npcs.json)
+├── world.json            # Location graph (from mods/kilteevan-1820/world.json)
+├── npcs.json             # NPC definitions (from mods/kilteevan-1820/npcs.json)
 ├── prompts/
 │   ├── tier1_system.txt  # Tier 1 system prompt template with {name}, {age}, etc.
 │   ├── tier1_context.txt # Tier 1 context template
@@ -287,11 +287,11 @@ Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses id
 
 ## Source Modules
 
-- [`src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
+- [`crates/parish-cli/src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
 - [`src/lib.rs`](../../src/lib.rs)
 - [`src/error.rs`](../../src/error.rs)
-- [`src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
-- [`src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
+- [`crates/parish-cli/src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
+- [`crates/parish-cli/src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
 - [`src/world/`](../../src/world/)
 - [`src/npc/`](../../src/npc/)
 - [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap

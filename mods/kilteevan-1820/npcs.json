@@ -3170,6 +3170,11 @@
                     "target_id": 16,
                     "kind": "Family",
                     "strength": 0.95
+                },
+                {
+                    "target_id": 5,
+                    "kind": "Friend",
+                    "strength": 0.4
                 }
             ],
             "knowledge": [

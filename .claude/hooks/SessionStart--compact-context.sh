@@ -11,7 +11,7 @@ PROJECT: Parish -- An Irish Living World Text Adventure (Rust, Cargo workspace)
 WORKSPACE MEMBERS:
 - Root crate (src/): CLI entry point, headless mode, test harness
 - crates/parish-core/: Pure game logic library
-- src-tauri/: Tauri 2 desktop backend
+- crates/parish-tauri/: Tauri 2 desktop backend
 - ui/: Svelte 5 + TypeScript frontend
 
 QUALITY GATES (must pass before every commit):
@@ -21,7 +21,7 @@ QUALITY GATES (must pass before every commit):
 Use /check skill to run all three, /verify for full pre-push checklist.
 
 GAME TEST HARNESS:
-  cargo run -- --script tests/fixtures/test_walkthrough.txt
+  cargo run -- --script testing/fixtures/test_walkthrough.txt
 Outputs JSON. Always verify changes with the harness, not just unit tests.
 
 GIT CONVENTIONS:
@@ -32,12 +32,12 @@ GIT CONVENTIONS:
 
 CRITICAL FILES (do not edit directly):
 - Cargo.lock (managed by cargo)
-- data/parish.json, data/npcs.json (world data, use geo-tool)
+- mods/kilteevan-1820/world.json, mods/kilteevan-1820/npcs.json (world data, use geo-tool)
 
 KEY PATHS:
 - docs/index.md -- documentation hub
 - docs/design/overview.md -- architecture
-- tests/fixtures/ -- 20 test script files
+- testing/fixtures/ -- 20 test script files
 
 === End re-injected context ===
 CONTEXT

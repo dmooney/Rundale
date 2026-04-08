@@ -15,7 +15,7 @@ if [[ -n "$CORE_CHANGED" || -n "$CORE_UNSTAGED" || -n "$CORE_UNTRACKED" ]]; then
     echo "=== Game Logic Changed ==="
     echo "Files in parish-core or world/ were modified."
     echo "Run the game harness to verify mechanics:"
-    echo "  cargo run -- --script tests/fixtures/test_walkthrough.txt"
+    echo "  cargo run -- --script testing/fixtures/test_walkthrough.txt"
     echo "Or use: /game-test"
     echo "==========================="
 fi

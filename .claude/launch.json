@@ -4,7 +4,7 @@
     {
       "name": "vite-dev",
       "runtimeExecutable": "/bin/sh",
-      "runtimeArgs": ["-c", "cd ui && PATH=/usr/local/Cellar/node/25.8.1_1/bin:$PATH npx vite dev"],
+      "runtimeArgs": ["-c", "cd apps/ui && PATH=/usr/local/Cellar/node/25.8.1_1/bin:$PATH npx vite dev"],
       "port": 5173
     },
     {

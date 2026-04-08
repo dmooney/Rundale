@@ -13,7 +13,7 @@ Play-test the Parish game via the `--script` mode, which outputs structured JSON
 
 2. **Determine what to test**:
    - If `$ARGUMENTS` is a `.txt` file path, use it directly as the script file.
-   - If `$ARGUMENTS` is a scenario description (e.g., "explore all locations", "talk to every NPC", "test time passage"), generate an appropriate test script file at `tests/fixtures/play_session.txt`.
+   - If `$ARGUMENTS` is a scenario description (e.g., "explore all locations", "talk to every NPC", "test time passage"), generate an appropriate test script file at `testing/fixtures/play_session.txt`.
    - If no arguments, generate a comprehensive exploration script that:
      - Checks `/status`, `/time`, `/map`, `/npcs`
      - Visits every reachable location via movement commands

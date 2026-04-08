@@ -8,7 +8,7 @@ in `docs/plans/chrome-test-plan.md`.
 
 ## Setup
 
-1. **Build frontend**: `cd ui && npm run build`
+1. **Build frontend**: `cd apps/ui && npm run build`
 2. **Check if server is running**: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/`
 3. **Start server if needed**: `cargo run -- --web 3001` (run in background, wait for 200 on health check)
 4. **Connect Chrome**: Call `mcp__claude-in-chrome__tabs_context_mcp` with `createIfEmpty: true`. If "No Chrome extension connected" error, tell the user to enable the extension and retry.
