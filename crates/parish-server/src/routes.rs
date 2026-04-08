@@ -192,16 +192,6 @@ async fn emit_world_update(state: &Arc<AppState>) {
     state.event_bus.emit("world-update", &ws);
 }
 
-fn build_turn_order(targets: &[NpcId], max_follow_up_turns: usize) -> Vec<(NpcId, bool)> {
-    let mut turns: Vec<(NpcId, bool)> = targets.iter().copied().map(|id| (id, false)).collect();
-    if targets.len() >= 2 {
-        for idx in 0..max_follow_up_turns {
-            turns.push((targets[idx % targets.len()], true));
-        }
-    }
-    turns
-}
-
 /// Handles `/command` system inputs using the shared command handler.
 async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
     use parish_core::ipc::{CommandEffect, handle_command};
@@ -773,16 +763,20 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
     emit_world_update(state).await;
 
     let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
+    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
+    let mut last_speaker: Option<NpcId> = None;
 
-    for (speaker_id, follow_up) in build_turn_order(&targets, max_follow_up_turns) {
-        let prompt = if follow_up {
-            "listens while the nearby conversation continues"
-        } else {
-            trimmed.as_str()
-        };
-
-        let Some(outcome) =
-            run_npc_turn(state, &queue, &model, speaker_id, prompt, &transcript).await
+    // Phase 1: each addressed NPC takes one turn in the order they were named.
+    for speaker_id in &targets {
+        let Some(outcome) = run_npc_turn(
+            state,
+            &queue,
+            &model,
+            *speaker_id,
+            trimmed.as_str(),
+            &transcript,
+        )
+        .await
         else {
             break;
         };
@@ -794,6 +788,55 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
             conversation.push_line(line);
             conversation.last_spoken_at = std::time::Instant::now();
         }
+        spoken_this_chain.push(*speaker_id);
+        last_speaker = Some(*speaker_id);
+    }
+
+    // Phase 2: autonomous chain. Bystanders or already-addressed NPCs may
+    // chime in based on the heuristic in `npc::autonomous::pick_next_speaker`.
+    // Capped at `max_follow_up_turns` to prevent runaway chatter.
+    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    for _ in 0..chain_cap {
+        let next_speaker_id = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let candidates: Vec<&parish_core::npc::Npc> =
+                npc_manager.npcs_at(world.player_location);
+            parish_core::npc::autonomous::pick_next_speaker(
+                &candidates,
+                last_speaker,
+                &spoken_this_chain,
+                &targets,
+            )
+            .map(|npc| npc.id)
+        };
+
+        let Some(speaker_id) = next_speaker_id else {
+            break;
+        };
+
+        let Some(outcome) = run_npc_turn(
+            state,
+            &queue,
+            &model,
+            speaker_id,
+            "listens while the nearby conversation continues",
+            &transcript,
+        )
+        .await
+        else {
+            break;
+        };
+
+        combined_hints.extend(outcome.hints);
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+        spoken_this_chain.push(speaker_id);
+        last_speaker = Some(speaker_id);
     }
 
     {
@@ -856,15 +899,65 @@ async fn run_idle_banter(state: &Arc<AppState>) {
     emit_world_update(state).await;
 
     let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
+    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
+    let mut last_speaker: Option<NpcId> = None;
 
-    for (speaker_id, follow_up) in build_turn_order(&speakers, max_follow_up_turns) {
-        let prompt = if follow_up {
-            "answers the nearby remark and keeps the local chatter going"
-        } else {
-            "breaks the silence with a natural nearby remark"
+    // First spontaneous remark: deterministic order (sorted by id) so quiet
+    // locations with calm NPCs still produce a line. Without this fallback the
+    // heuristic would refuse to fire on a peaceful location.
+    if let Some(first_speaker) = speakers.first().copied()
+        && let Some(outcome) = run_npc_turn(
+            state,
+            &queue,
+            &model,
+            first_speaker,
+            "breaks the silence with a natural nearby remark",
+            &transcript,
+        )
+        .await
+    {
+        combined_hints.extend(outcome.hints);
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+        spoken_this_chain.push(first_speaker);
+        last_speaker = Some(first_speaker);
+    }
+
+    // Follow-up turns: heuristic-based selection so a high-energy or
+    // closely-related bystander can chime in.
+    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    for _ in 0..chain_cap {
+        let next_speaker_id = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let candidates: Vec<&parish_core::npc::Npc> =
+                npc_manager.npcs_at(world.player_location);
+            parish_core::npc::autonomous::pick_next_speaker(
+                &candidates,
+                last_speaker,
+                &spoken_this_chain,
+                &[],
+            )
+            .map(|npc| npc.id)
         };
-        let Some(outcome) =
-            run_npc_turn(state, &queue, &model, speaker_id, prompt, &transcript).await
+
+        let Some(speaker_id) = next_speaker_id else {
+            break;
+        };
+
+        let Some(outcome) = run_npc_turn(
+            state,
+            &queue,
+            &model,
+            speaker_id,
+            "answers the nearby remark and keeps the local chatter going",
+            &transcript,
+        )
+        .await
         else {
             break;
         };
@@ -876,6 +969,8 @@ async fn run_idle_banter(state: &Arc<AppState>) {
             conversation.push_line(line);
             conversation.last_spoken_at = std::time::Instant::now();
         }
+        spoken_this_chain.push(speaker_id);
+        last_speaker = Some(speaker_id);
     }
 
     {
@@ -1763,7 +1858,7 @@ mod tests {
         {
             let mut config = state.config.lock().await;
             config.model_name = "test-model".to_string();
-            config.max_follow_up_turns = 1;
+            config.max_follow_up_turns = 0;
         }
 
         // Subscribe BEFORE the dispatch so we can count stream-end events.
@@ -1774,7 +1869,6 @@ mod tests {
             vec![
                 "I heard the fair will be lively.\n---\n{\"action\":\"speaks\",\"mood\":\"curious\"}",
                 "If it is, Siobhan, I'll bring the cart.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
-                "Then we'd best leave early, Padraig.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
             ],
         )
         .await;
@@ -1805,19 +1899,14 @@ mod tests {
                     speaker: "Padraig Darcy".to_string(),
                     text: "If it is, Siobhan, I'll bring the cart.".to_string(),
                 },
-                ConversationLine {
-                    speaker: "Siobhan Murphy".to_string(),
-                    text: "Then we'd best leave early, Padraig.".to_string(),
-                },
             ]
         );
 
         let prompts = prompts.lock().unwrap().clone();
-        assert_eq!(prompts.len(), 3);
+        assert_eq!(prompts.len(), 2);
         assert!(prompts[0].contains("Recent conversation here:"));
         assert!(prompts[0].contains("- You: What news is there?"));
         assert!(prompts[1].contains("- Siobhan Murphy: I heard the fair will be lively."));
-        assert!(prompts[2].contains("- Padraig Darcy: If it is, Siobhan, I'll bring the cart."));
 
         // Regression guard: stream-end must fire EXACTLY ONCE for the whole
         // turn (addressed + follow-up), so the input field stays disabled
@@ -1836,7 +1925,7 @@ mod tests {
         }
         assert_eq!(
             stream_end_count, 1,
-            "expected exactly one stream-end after a 3-turn dispatch, got {}",
+            "expected exactly one stream-end after a 2-turn dispatch, got {}",
             stream_end_count
         );
 
@@ -1844,15 +1933,95 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tick_inactivity_runs_idle_banter_before_auto_pause() {
+    async fn handle_npc_conversation_bystander_chain_picks_related_npc() {
+        use parish_core::npc::types::{Relationship, RelationshipKind};
+
         let state = test_app_state();
         add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
         add_introduced_npc(&state, 2, "Padraig Darcy", "Farmer").await;
+        add_introduced_npc(&state, 3, "Sean Brennan", "Smith").await;
+
+        // Sean has a strong friendship with Padraig — when Padraig is the last
+        // speaker, the heuristic should pick Sean for the autonomous chain
+        // turn (not Siobhan, who has already spoken and is excluded by
+        // `recently_spoken`).
+        {
+            let mut npc_manager = state.npc_manager.lock().await;
+            if let Some(sean) = npc_manager.get_mut(NpcId(3)) {
+                sean.relationships.insert(
+                    NpcId(2),
+                    Relationship {
+                        kind: RelationshipKind::Friend,
+                        strength: 0.7,
+                        history: Vec::new(),
+                    },
+                );
+            }
+        }
 
         {
             let mut config = state.config.lock().await;
             config.model_name = "test-model".to_string();
-            config.max_follow_up_turns = 0;
+            config.max_follow_up_turns = 1;
+        }
+
+        let (_prompts, worker) = install_scripted_inference_queue(
+            &state,
+            vec![
+                "I heard the fair will be lively.\n---\n{\"action\":\"speaks\",\"mood\":\"curious\"}",
+                "If it is, Siobhan, I'll bring the cart.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
+                "I'd come too if my hand wasn't burnt at the forge.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
+            ],
+        )
+        .await;
+
+        handle_npc_conversation(
+            "What news is there?".to_string(),
+            vec!["Siobhan Murphy".to_string(), "Padraig Darcy".to_string()],
+            &state,
+        )
+        .await;
+
+        let transcript = {
+            let conversation = state.conversation.lock().await;
+            conversation.transcript.iter().cloned().collect::<Vec<_>>()
+        };
+        // Expect: player → Siobhan (addressed) → Padraig (addressed) → Sean (chain).
+        assert_eq!(transcript.len(), 4, "transcript = {:?}", transcript);
+        assert_eq!(transcript[3].speaker, "Sean Brennan");
+
+        worker.abort();
+    }
+
+    #[tokio::test]
+    async fn tick_inactivity_runs_idle_banter_before_auto_pause() {
+        use parish_core::npc::types::{Relationship, RelationshipKind};
+
+        let state = test_app_state();
+        add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+        add_introduced_npc(&state, 2, "Padraig Darcy", "Farmer").await;
+
+        // Padraig is friends with Siobhan so the heuristic will pick him for
+        // the autonomous follow-up after Siobhan's first remark. Without this
+        // relationship the chain would die after the first deterministic turn.
+        {
+            let mut npc_manager = state.npc_manager.lock().await;
+            if let Some(padraig) = npc_manager.get_mut(NpcId(2)) {
+                padraig.relationships.insert(
+                    NpcId(1),
+                    Relationship {
+                        kind: RelationshipKind::Friend,
+                        strength: 0.5,
+                        history: Vec::new(),
+                    },
+                );
+            }
+        }
+
+        {
+            let mut config = state.config.lock().await;
+            config.model_name = "test-model".to_string();
+            config.max_follow_up_turns = 1;
             config.idle_banter_after_secs = 1;
             config.auto_pause_after_secs = 60;
         }

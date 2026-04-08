@@ -279,16 +279,6 @@ async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
 }
 
-fn build_turn_order(targets: &[NpcId], max_follow_up_turns: usize) -> Vec<(NpcId, bool)> {
-    let mut turns: Vec<(NpcId, bool)> = targets.iter().copied().map(|id| (id, false)).collect();
-    if targets.len() >= 2 {
-        for idx in 0..max_follow_up_turns {
-            turns.push((targets[idx % targets.len()], true));
-        }
-    }
-    turns
-}
-
 /// Handles `/command` inputs using the shared command handler.
 async fn handle_system_command(
     cmd: parish_core::input::Command,
@@ -920,20 +910,18 @@ async fn handle_npc_conversation(
     emit_world_update(&state, &app).await;
 
     let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
+    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
+    let mut last_speaker: Option<NpcId> = None;
 
-    for (speaker_id, follow_up) in build_turn_order(&targets, max_follow_up_turns) {
-        let prompt = if follow_up {
-            "listens while the nearby conversation continues"
-        } else {
-            trimmed.as_str()
-        };
+    // Phase 1: each addressed NPC takes one turn in the order they were named.
+    for speaker_id in &targets {
         let Some(outcome) = run_npc_turn(
             &state,
             &app,
             &queue,
             &model,
-            speaker_id,
-            prompt,
+            *speaker_id,
+            trimmed.as_str(),
             &transcript,
         )
         .await
@@ -948,6 +936,54 @@ async fn handle_npc_conversation(
             conversation.push_line(line);
             conversation.last_spoken_at = std::time::Instant::now();
         }
+        spoken_this_chain.push(*speaker_id);
+        last_speaker = Some(*speaker_id);
+    }
+
+    // Phase 2: autonomous chain via the bystander-aware heuristic.
+    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    for _ in 0..chain_cap {
+        let next_speaker_id = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let candidates: Vec<&parish_core::npc::Npc> =
+                npc_manager.npcs_at(world.player_location);
+            parish_core::npc::autonomous::pick_next_speaker(
+                &candidates,
+                last_speaker,
+                &spoken_this_chain,
+                &targets,
+            )
+            .map(|npc| npc.id)
+        };
+
+        let Some(speaker_id) = next_speaker_id else {
+            break;
+        };
+
+        let Some(outcome) = run_npc_turn(
+            &state,
+            &app,
+            &queue,
+            &model,
+            speaker_id,
+            "listens while the nearby conversation continues",
+            &transcript,
+        )
+        .await
+        else {
+            break;
+        };
+
+        combined_hints.extend(outcome.hints);
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+        spoken_this_chain.push(speaker_id);
+        last_speaker = Some(speaker_id);
     }
 
     {
@@ -1008,15 +1044,65 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
     emit_world_update(state, app).await;
 
     let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
+    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
+    let mut last_speaker: Option<NpcId> = None;
 
-    for (speaker_id, follow_up) in build_turn_order(&speakers, max_follow_up_turns) {
-        let prompt = if follow_up {
-            "answers the nearby remark and keeps the local chatter going"
-        } else {
-            "breaks the silence with a natural nearby remark"
+    // First spontaneous remark: deterministic ordering so a quiet location with
+    // calm NPCs still produces a line. The heuristic alone would refuse.
+    if let Some(first_speaker) = speakers.first().copied()
+        && let Some(outcome) = run_npc_turn(
+            state,
+            app,
+            &queue,
+            &model,
+            first_speaker,
+            "breaks the silence with a natural nearby remark",
+            &transcript,
+        )
+        .await
+    {
+        combined_hints.extend(outcome.hints);
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = state.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+        spoken_this_chain.push(first_speaker);
+        last_speaker = Some(first_speaker);
+    }
+
+    // Follow-up turns: heuristic-based selection.
+    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    for _ in 0..chain_cap {
+        let next_speaker_id = {
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let candidates: Vec<&parish_core::npc::Npc> =
+                npc_manager.npcs_at(world.player_location);
+            parish_core::npc::autonomous::pick_next_speaker(
+                &candidates,
+                last_speaker,
+                &spoken_this_chain,
+                &[],
+            )
+            .map(|npc| npc.id)
         };
-        let Some(outcome) =
-            run_npc_turn(state, app, &queue, &model, speaker_id, prompt, &transcript).await
+
+        let Some(speaker_id) = next_speaker_id else {
+            break;
+        };
+
+        let Some(outcome) = run_npc_turn(
+            state,
+            app,
+            &queue,
+            &model,
+            speaker_id,
+            "answers the nearby remark and keeps the local chatter going",
+            &transcript,
+        )
+        .await
         else {
             break;
         };
@@ -1028,6 +1114,8 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
             conversation.push_line(line);
             conversation.last_spoken_at = std::time::Instant::now();
         }
+        spoken_this_chain.push(speaker_id);
+        last_speaker = Some(speaker_id);
     }
 
     {
