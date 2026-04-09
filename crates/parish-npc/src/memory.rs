@@ -18,6 +18,19 @@ use parish_types::NpcId;
 /// Maximum number of entries in short-term memory.
 pub const MEMORY_CAPACITY: usize = 20;
 
+/// Categorizes what kind of event a memory records.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryKind {
+    /// Spoke directly with the player.
+    SpokeWithPlayer,
+    /// Spoke with another NPC.
+    SpokeWithNpc(NpcId),
+    /// Overheard a conversation nearby.
+    OverheardConversation,
+    /// Received gossip from another NPC.
+    ReceivedGossip,
+}
+
 /// A single memory entry recording something an NPC experienced.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryEntry {
@@ -29,6 +42,9 @@ pub struct MemoryEntry {
     pub participants: Vec<NpcId>,
     /// Where this happened.
     pub location: LocationId,
+    /// What kind of event this was (None for legacy entries).
+    #[serde(default)]
+    pub kind: Option<MemoryKind>,
 }
 
 /// Ring buffer of recent NPC memories.
@@ -85,6 +101,11 @@ impl ShortTermMemory {
         let len = self.entries.len();
         let skip = len.saturating_sub(n);
         self.entries.iter().skip(skip).collect()
+    }
+
+    /// Returns all entries as a slice-like iterator.
+    pub fn entries(&self) -> impl Iterator<Item = &MemoryEntry> {
+        self.entries.iter()
     }
 
     /// Returns the number of stored entries.
@@ -178,6 +199,11 @@ impl LongTermMemory {
         Self {
             entries: Vec::new(),
         }
+    }
+
+    /// Returns all entries.
+    pub fn entries(&self) -> &[LongTermEntry] {
+        &self.entries
     }
 
     /// Stores an entry if it meets the importance threshold.
@@ -304,6 +330,11 @@ pub fn compute_importance(entry: &MemoryEntry) -> f32 {
         score += 0.2;
     }
 
+    // First encounters / direct player interaction — always promote
+    if let Some(MemoryKind::SpokeWithPlayer) = &entry.kind {
+        score += 0.1;
+    }
+
     score.min(1.0)
 }
 
@@ -390,6 +421,7 @@ mod tests {
             content: content.to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         }
     }
 
@@ -472,6 +504,7 @@ mod tests {
             content: "Joint conversation".to_string(),
             participants: vec![NpcId(1), NpcId(2), NpcId(3)],
             location: LocationId(2),
+            kind: None,
         };
         mem.add(entry);
 
@@ -640,6 +673,7 @@ mod tests {
             content: "Spoke about the weather".to_string(),
             participants: vec![NpcId(0), NpcId(1)], // NpcId(0) = player
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         assert!((score - 0.5).abs() < 0.01); // 0.2 base + 0.3 player
@@ -652,6 +686,7 @@ mod tests {
             content: "The farmer was angry about the stolen sheep".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         // 0.2 base + 0.2 emotion ("angry" + "stolen")
@@ -666,6 +701,7 @@ mod tests {
             content: "The friend was angry and betrayed".to_string(),
             participants: vec![NpcId(0), NpcId(1), NpcId(2), NpcId(3)],
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         assert!(score <= 1.0);
@@ -678,6 +714,7 @@ mod tests {
             content: "Argued fiercely about the landlord's cattle".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         };
 
         let keywords = extract_keywords(&entry, &["Padraig".to_string()], "The Crossroads");
@@ -701,6 +738,7 @@ mod tests {
             content: "Spoke with the newcomer about the secret".to_string(),
             participants: vec![NpcId(0), NpcId(1)], // player involved
             location: LocationId(1),
+            kind: None,
         };
         // Player (0.3) + base (0.2) + emotion "secret" (0.2) = 0.7
         let promoted = try_promote(&mut ltm, &entry, &["Padraig".to_string()], "The Crossroads");

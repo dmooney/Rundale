@@ -276,6 +276,53 @@ impl NpcManager {
         &mut self.npcs
     }
 
+    /// Returns the NPCs that a given NPC "knows" — the union of relationships,
+    /// memory participants, and co-residents at home/workplace.
+    ///
+    /// Returns a vec of `(NpcId, name, occupation)` tuples, deduplicated.
+    pub fn known_roster(&self, npc: &Npc) -> Vec<(NpcId, String, String)> {
+        let mut known_ids: std::collections::HashSet<NpcId> = std::collections::HashSet::new();
+
+        // 1. NPCs in relationships
+        for target_id in npc.relationships.keys() {
+            known_ids.insert(*target_id);
+        }
+
+        // 2. NPCs mentioned in short-term memory (by participant ID)
+        for entry in npc.memory.entries() {
+            for &pid in &entry.participants {
+                if pid != npc.id && pid != NpcId(0) {
+                    known_ids.insert(pid);
+                }
+            }
+        }
+
+        // 4. NPCs at the same home or workplace location
+        if let Some(home) = npc.home {
+            for other in self.npcs.values() {
+                if other.id != npc.id && (other.home == Some(home) || other.location == home) {
+                    known_ids.insert(other.id);
+                }
+            }
+        }
+        if let Some(work) = npc.workplace {
+            for other in self.npcs.values() {
+                if other.id != npc.id && (other.workplace == Some(work) || other.location == work) {
+                    known_ids.insert(other.id);
+                }
+            }
+        }
+
+        // Resolve to (id, name, occupation) tuples
+        known_ids
+            .into_iter()
+            .filter_map(|id| {
+                let other = self.npcs.get(&id)?;
+                Some((id, other.name.clone(), other.occupation.clone()))
+            })
+            .collect()
+    }
+
     /// Returns the number of NPCs managed.
     pub fn npc_count(&self) -> usize {
         self.npcs.len()

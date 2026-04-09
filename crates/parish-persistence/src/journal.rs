@@ -148,6 +148,7 @@ pub fn replay_journal(
                         content: content.clone(),
                         participants: vec![*npc_id],
                         location: npc.location,
+                        kind: None,
                     });
                 }
             }

@@ -495,7 +495,14 @@ pub fn prepare_npc_conversation_turn(
         .all_npcs()
         .map(|n| (n.id, n.name.clone()))
         .collect();
-    let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
+    let roster = npc_manager.known_roster(&npc);
+    let system_prompt = ticks::build_enhanced_system_prompt_with_config(
+        &npc,
+        improv_enabled,
+        &crate::config::NpcConfig::default(),
+        &npc_names,
+        Some(&roster),
+    );
 
     // Determine if this NPC knows the player's name
     let player_name_for_npc = if npc_manager.knows_player_name(speaker_id) {

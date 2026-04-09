@@ -67,6 +67,7 @@ pub fn inflate_npc_context(
         content: format!("[Context recap] {}", narrative),
         participants: vec![npc.id],
         location: npc.location,
+        kind: None,
     });
 
     // Clear the deflated summary since we've now inflated
@@ -288,6 +289,7 @@ mod tests {
             content: "Saw a rabbit".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(5),
+            kind: None,
         });
 
         let events = vec![GameEvent::RelationshipChanged {
