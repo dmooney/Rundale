@@ -1,11 +1,15 @@
 /// Static list of slash commands for autocomplete, mirroring the backend's
 /// `parse_system_command` in `crates/parish-core/src/input/mod.rs`.
 
+import { EFFECT_DEFINITIONS } from '$lib/effects';
+
 export interface SlashCommand {
 	command: string;
 	description: string;
 	/** If true, the command accepts an argument after a space. */
 	hasArgs: boolean;
+	/** If true, this command is handled on the frontend only (never sent to backend). */
+	frontendOnly?: boolean;
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
@@ -35,7 +39,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/wait', description: 'Wait N minutes (default 15)', hasArgs: true },
 	{ command: '/tick', description: 'Advance NPC schedules', hasArgs: false },
 	{ command: '/new', description: 'Start a new game', hasArgs: false },
-	{ command: '/quit', description: 'Take your leave', hasArgs: false }
+	{ command: '/quit', description: 'Take your leave', hasArgs: false },
+	{ command: '/fx', description: 'Trigger a visual effect (testing)', hasArgs: true, frontendOnly: true },
 ];
 
 /// Filter commands by prefix query (the text after `/`).
@@ -43,4 +48,14 @@ export function filterCommands(query: string): SlashCommand[] {
 	if (query === '') return SLASH_COMMANDS;
 	const lower = query.toLowerCase();
 	return SLASH_COMMANDS.filter((cmd) => cmd.command.slice(1).toLowerCase().startsWith(lower));
+}
+
+/** All registered effect IDs for /fx autocomplete. */
+export const EFFECT_IDS: string[] = EFFECT_DEFINITIONS.map((d) => d.id);
+
+/** Filter effect IDs by prefix for /fx argument autocomplete. */
+export function filterEffectIds(query: string): string[] {
+	if (!query) return EFFECT_IDS;
+	const lower = query.toLowerCase();
+	return EFFECT_IDS.filter((id) => id.toLowerCase().startsWith(lower));
 }

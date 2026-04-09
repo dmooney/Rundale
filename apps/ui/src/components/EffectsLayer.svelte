@@ -14,7 +14,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { worldState, mapData, streamingActive } from '../stores/game';
-	import { activeEffects, effectsEnabled } from '../stores/effects';
+	import { activeEffects, effectsEnabled, effectsEngine } from '../stores/effects';
 	import { EffectsEngine, EFFECT_DEFINITIONS } from '$lib/effects';
 	import type { EffectContext } from '$lib/effects';
 	import { onTextLog, onTravelStart } from '$lib/ipc';
@@ -92,6 +92,7 @@
 
 		engine.registerAll(EFFECT_DEFINITIONS);
 		engine.start();
+		effectsEngine.set(engine);
 
 		// Sync enabled state with the store
 		const unsub = effectsEnabled.subscribe((enabled) => {
@@ -140,6 +141,7 @@
 	onDestroy(() => {
 		engine?.stop();
 		engine = null;
+		effectsEngine.set(null);
 	});
 </script>
 

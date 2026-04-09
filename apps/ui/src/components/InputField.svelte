@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, textLog } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
-	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
+	import { filterCommands, filterEffectIds, EFFECT_IDS, type SlashCommand } from '$lib/slash-commands';
+	import { effectsEngine } from '../stores/effects';
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
@@ -9,11 +10,12 @@
 	let editorEl: HTMLDivElement;
 
 	// ── Unified dropdown state ──────────────────────────────────────────────
-	type DropdownMode = 'mention' | 'slash' | null;
+	type DropdownMode = 'mention' | 'slash' | 'fx' | null;
 	let dropdownMode: DropdownMode = $state(null);
 	let selectedIndex = $state(0);
 	let mentionQuery = $state('');
 	let slashQuery = $state('');
+	let fxQuery = $state('');
 
 	const filteredNpcs = $derived(
 		mentionQuery === ''
@@ -24,6 +26,7 @@
 	);
 
 	const filteredCommands = $derived(filterCommands(slashQuery));
+	const filteredEffects = $derived(filterEffectIds(fxQuery));
 
 	// ── Input history ───────────────────────────────────────────────────────
 	const HISTORY_KEY = 'parish-input-history';
@@ -179,6 +182,9 @@
 		if (dropdownMode === 'slash' && selectedIndex >= filteredCommands.length) {
 			selectedIndex = Math.max(0, filteredCommands.length - 1);
 		}
+		if (dropdownMode === 'fx' && selectedIndex >= filteredEffects.length) {
+			selectedIndex = Math.max(0, filteredEffects.length - 1);
+		}
 	});
 
 	// ── Editor helpers ──────────────────────────────────────────────────────
@@ -313,9 +319,18 @@
 		const text = getPlainText();
 		// Slash commands must be the first character and no space yet (still typing the command)
 		if (!text.startsWith('/')) {
-			if (dropdownMode === 'slash') dropdownMode = null;
+			if (dropdownMode === 'slash' || dropdownMode === 'fx') dropdownMode = null;
 			return;
 		}
+
+		// Special case: /fx <arg> — show effect ID autocomplete
+		if (text.startsWith('/fx ')) {
+			fxQuery = text.slice(4);
+			dropdownMode = 'fx';
+			selectedIndex = 0;
+			return;
+		}
+
 		const spaceIdx = text.indexOf(' ');
 		const query = spaceIdx === -1 ? text.slice(1) : '';
 		// If user has typed a space (entering args), dismiss dropdown
@@ -483,6 +498,10 @@
 			selectSlashCommand(filteredCommands[selectedIndex]);
 			return;
 		}
+		if (dropdownMode === 'fx' && filteredEffects.length > 0) {
+			selectFxEffect(filteredEffects[selectedIndex]);
+			return;
+		}
 		const trimmed = getPlainText().trim();
 		if (!trimmed || $streamingActive) return;
 		clearEditor();
@@ -495,6 +514,26 @@
 		}
 		historyIndex = -1;
 
+		// Frontend-only /fx command — trigger a visual effect for testing
+		if (trimmed.startsWith('/fx')) {
+			const arg = trimmed.slice(3).trim();
+			const eng = get(effectsEngine);
+			if (!arg) {
+				// Show available effect IDs
+				textLog.update((log) => [...log, {
+					source: 'system',
+					content: 'Usage: /fx <effect-id>\n\nAvailable effects:\n' + EFFECT_IDS.join(', ')
+				}]);
+			} else if (eng) {
+				eng.trigger(arg);
+				textLog.update((log) => [...log, {
+					source: 'system',
+					content: `Triggered effect: ${arg}`
+				}]);
+			}
+			return;
+		}
+
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
 		await submitInput(trimmed, addressedTo);
@@ -502,10 +541,25 @@
 
 	// ── Keyboard handling ───────────────────────────────────────────────────
 
+	function selectFxEffect(effectId: string) {
+		setEditorText('/fx ' + effectId);
+		dropdownMode = null;
+		// Immediately submit
+		clearEditor();
+		const eng = get(effectsEngine);
+		if (eng) {
+			eng.trigger(effectId);
+			textLog.update((log) => [...log, {
+				source: 'system',
+				content: `Triggered effect: ${effectId}`
+			}]);
+		}
+	}
+
 	function handleKeydown(e: KeyboardEvent) {
-		// Dropdown navigation (mention or slash)
+		// Dropdown navigation (mention, slash, or fx)
 		if (dropdownMode !== null) {
-			const items = dropdownMode === 'mention' ? filteredNpcs : filteredCommands;
+			const items = dropdownMode === 'mention' ? filteredNpcs : dropdownMode === 'fx' ? filteredEffects : filteredCommands;
 			if (items.length > 0) {
 				if (e.key === 'ArrowDown') {
 					e.preventDefault();
@@ -523,6 +577,8 @@
 					e.preventDefault();
 					if (dropdownMode === 'mention') {
 						selectNpc(filteredNpcs[selectedIndex].name);
+					} else if (dropdownMode === 'fx') {
+						selectFxEffect(filteredEffects[selectedIndex]);
 					} else {
 						selectSlashCommand(filteredCommands[selectedIndex]);
 					}
@@ -742,6 +798,22 @@
 				>
 					<span class="mention-name">{cmd.command}</span>
 					<span class="mention-detail">{cmd.description}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#if dropdownMode === 'fx' && filteredEffects.length > 0}
+		<ul class="mention-dropdown" role="listbox" aria-label="Visual effects">
+			{#each filteredEffects as fxId, i}
+				<li
+					role="option"
+					aria-selected={i === selectedIndex}
+					class="mention-item"
+					class:selected={i === selectedIndex}
+					onmousedown={(e) => { e.preventDefault(); selectFxEffect(fxId); }}
+					onmouseenter={() => (selectedIndex = i)}
+				>
+					<span class="mention-name">{fxId}</span>
 				</li>
 			{/each}
 		</ul>
