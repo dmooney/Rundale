@@ -434,10 +434,8 @@ pub fn validate_mentioned_people(
         }
 
         // Check against player name
-        if let Some(pn) = player_name {
-            if pn.to_lowercase() == lower {
-                continue;
-            }
+        if player_name.is_some_and(|pn| pn.to_lowercase() == lower) {
+            continue;
         }
 
         // Check against roster (full name or first name match)

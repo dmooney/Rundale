@@ -255,6 +255,7 @@ impl OpenAiClient {
     }
 
     /// Builds a chat completion request body.
+    #[allow(clippy::too_many_arguments)] // builder pattern with all params explicit
     fn build_request<'a>(
         &self,
         model: &'a str,

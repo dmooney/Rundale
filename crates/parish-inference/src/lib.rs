@@ -116,6 +116,7 @@ impl InferenceQueue {
     /// `max_tokens` cap is forwarded to the LLM provider to limit output
     /// length. Returns a oneshot receiver that will yield the complete
     /// response. Returns an error if the queue channel is closed.
+    #[allow(clippy::too_many_arguments)] // all params are semantically distinct
     pub async fn send(
         &self,
         id: u64,
