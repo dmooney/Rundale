@@ -20,4 +20,14 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
 		probability: 0.7,
 		singleton: true,
 	},
+
+	{
+		id: 'rain-streaks',
+		conditions: { weather: ['LightRain', 'HeavyRain', 'Storm'], indoor: false },
+		cooldownMs: 0,
+		intervalMs: [1_000, 2_000],
+		durationMs: 60_000,
+		probability: 1.0,
+		singleton: true,
+	},
 ];

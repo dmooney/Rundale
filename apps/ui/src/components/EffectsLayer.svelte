@@ -17,6 +17,7 @@
 	import type { EffectContext } from '$lib/effects';
 
 	import LightningFlash from './effects/LightningFlash.svelte';
+	import RainStreaks from './effects/RainStreaks.svelte';
 
 	let engine: EffectsEngine | null = null;
 
@@ -73,6 +74,7 @@
 	<div class="effects-layer" aria-hidden="true">
 		{#each $activeEffects as effect (effect.instanceKey)}
 			{#if effect.id === 'lightning-flash'}<LightningFlash {effect} />{/if}
+			{#if effect.id === 'rain-streaks'}<RainStreaks {effect} />{/if}
 		{/each}
 	</div>
 {/if}
