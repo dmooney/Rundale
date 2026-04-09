@@ -292,7 +292,13 @@ impl WorldGraph {
         queue.push_back(from);
 
         while let Some(current) = queue.pop_front() {
-            for (neighbor_id, _) in self.neighbors(current) {
+            // Perf: iterate connections directly instead of calling `neighbors()`,
+            // which would allocate a new Vec on every BFS iteration.
+            let Some(loc) = self.locations.get(&current) else {
+                continue;
+            };
+            for conn in &loc.connections {
+                let neighbor_id = conn.target;
                 if !visited.contains(&neighbor_id) {
                     visited.insert(neighbor_id);
                     predecessors.insert(neighbor_id, current);
@@ -364,7 +370,15 @@ impl WorldGraph {
         let mut queue = VecDeque::new();
         queue.push_back((from, 0u32));
         while let Some((current, depth)) = queue.pop_front() {
-            for (neighbor_id, _) in self.neighbors(current) {
+            // Perf: iterate connections directly instead of calling `neighbors()`,
+            // which would allocate a new Vec on every BFS iteration. `hop_distances`
+            // is called on every map snapshot (hot path), so the saved allocations
+            // scale with graph size per frame.
+            let Some(loc) = self.locations.get(&current) else {
+                continue;
+            };
+            for conn in &loc.connections {
+                let neighbor_id = conn.target;
                 if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor_id) {
                     e.insert(depth + 1);
                     queue.push_back((neighbor_id, depth + 1));
