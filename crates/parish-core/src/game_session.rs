@@ -396,7 +396,7 @@ pub async fn resolve_reaction_texts(
                     let started = std::time::Instant::now();
                     let result = tokio::time::timeout(
                         std::time::Duration::from_secs(timeout_secs),
-                        c.generate(model, &context, Some(&system), Some(100)),
+                        c.generate(model, &context, Some(&system), Some(100), None),
                     )
                     .await;
                     let elapsed_ms = started.elapsed().as_millis() as u64;

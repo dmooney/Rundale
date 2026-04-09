@@ -816,7 +816,7 @@ pub fn build_reaction_prompt(
     );
 
     let context = format!(
-        "A traveller has just arrived at {location}. It is {time}, {weather}.\n{intro}",
+        "A newcomer has just arrived at {location}. It is {time}, {weather}.\n{intro}",
         location = location_name,
         time = time_str,
         weather = weather,
@@ -855,7 +855,7 @@ pub async fn resolve_llm_greeting(
     let timeout = Duration::from_secs(timeout_secs);
     let result = tokio::time::timeout(
         timeout,
-        client.generate(model, &context, Some(&system), Some(100)),
+        client.generate(model, &context, Some(&system), Some(100), None),
     )
     .await;
 

@@ -110,7 +110,7 @@ impl ConversationLog {
             };
 
             lines.push(format!(
-                "- [{}] The traveller said: \"{}\". {} replied: \"{}\"",
+                "- [{}] The newcomer said: \"{}\". {} replied: \"{}\"",
                 time, exchange.player_input, speaker, exchange.npc_dialogue,
             ));
         }

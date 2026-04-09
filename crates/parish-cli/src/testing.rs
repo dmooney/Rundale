@@ -930,6 +930,7 @@ impl GameTestHarness {
                         mood: npc.mood.clone(),
                         internal_thought: None,
                         language_hints: Vec::new(),
+                        mentioned_people: Vec::new(),
                     }),
                 };
                 let game_time = self.app.world.clock.now();

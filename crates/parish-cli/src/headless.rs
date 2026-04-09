@@ -672,6 +672,13 @@ async fn handle_headless_game_input(
                 None => (None, text.to_string()),
             };
 
+            // Detect player self-introduction before building the NPC prompt
+            if let Some(name) = parish_core::npc::detect_player_name(&dialogue) {
+                if app.world.player_name.is_none() {
+                    app.world.player_name = Some(name);
+                }
+            }
+
             // Route to NPC conversation if one is present
             if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
                 &app.world,
@@ -680,6 +687,12 @@ async fn handle_headless_game_input(
                 target_name.as_deref(),
                 app.improv_enabled,
             ) {
+                // Teach this NPC the player's name if introduced
+                if app.world.player_name.is_some() {
+                    if parish_core::npc::detect_player_name(&dialogue).is_some() {
+                        app.npc_manager.teach_player_name(setup.npc_id);
+                    }
+                }
                 let npc_id = setup.npc_id;
                 let system_prompt = setup.system_prompt;
                 let context = setup.context;
@@ -728,6 +741,7 @@ async fn handle_headless_game_input(
                             Some(system_prompt),
                             Some(token_tx),
                             None,
+                            Some(0.7),
                         )
                         .await
                     {

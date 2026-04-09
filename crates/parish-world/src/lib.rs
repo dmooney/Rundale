@@ -61,6 +61,9 @@ pub struct WorldState {
     pub gossip_network: GossipNetwork,
     /// Recent conversation exchanges for scene awareness and NPC memory.
     pub conversation_log: ConversationLog,
+    /// The player's name, learned from dialogue (e.g. "My name is Ciaran").
+    /// `None` until the player introduces themselves.
+    pub player_name: Option<String>,
 }
 
 impl WorldState {
@@ -104,6 +107,7 @@ impl WorldState {
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
+            player_name: None,
         }
     }
 
@@ -151,6 +155,7 @@ impl WorldState {
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
+            player_name: None,
         })
     }
 
@@ -211,6 +216,7 @@ impl WorldState {
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
+            player_name: None,
         })
     }
 

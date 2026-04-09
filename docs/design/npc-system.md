@@ -37,7 +37,7 @@ NPCs are aware of conversations happening around them, not just conversations di
 ### Witness Memory System
 
 When the player talks to NPC A at a location where NPCs B and C are also present:
-- B and C each receive a short-term memory entry: `"Overheard: a traveller said '...' and {A} replied '...'"`
+- B and C each receive a short-term memory entry: `"Overheard: a newcomer said '...' and {A} replied '...'"`
 - These memories appear in B's and C's context when the player talks to them next
 - This creates natural conversational flow: "I heard what you said to Padraig..."
 
@@ -47,7 +47,7 @@ A per-location ring buffer (`ConversationLog` on `WorldState`) tracks the last 3
 
 ### Scene Continuity
 
-If the player has recently spoken to the same NPC, a cue is injected: "You are already in conversation with this traveller. Do not re-introduce yourself." This prevents NPCs from re-greeting on every utterance.
+If the player has recently spoken to the same NPC, a cue is injected: "You are already in conversation with this newcomer. Do not re-introduce yourself." This prevents NPCs from re-greeting on every utterance.
 
 ### Prompt Quality
 

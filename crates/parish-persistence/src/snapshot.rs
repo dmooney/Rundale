@@ -195,6 +195,12 @@ pub struct GameSnapshot {
     /// Recent conversation exchanges for scene awareness.
     #[serde(default)]
     pub conversation_log: ConversationLog,
+    /// The player's name, learned from dialogue.
+    #[serde(default)]
+    pub player_name: Option<String>,
+    /// Set of NPC ids that know the player's name.
+    #[serde(default)]
+    pub npcs_who_know_player_name: HashSet<NpcId>,
 }
 
 impl GameSnapshot {
@@ -222,6 +228,8 @@ impl GameSnapshot {
             edge_traversals: world.edge_traversals.clone(),
             gossip_network: world.gossip_network.clone(),
             conversation_log: world.conversation_log.clone(),
+            player_name: world.player_name.clone(),
+            npcs_who_know_player_name: npc_manager.player_name_known_set(),
         }
     }
 
@@ -290,6 +298,12 @@ impl GameSnapshot {
 
         // Restore conversation log
         world.conversation_log = self.conversation_log;
+
+        // Restore player name
+        world.player_name = self.player_name;
+
+        // Restore NPC knowledge of player name
+        npc_manager.restore_player_name_known(self.npcs_who_know_player_name);
     }
 }
 

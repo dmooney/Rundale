@@ -197,6 +197,9 @@ pub struct NpcMetadata {
     /// Pronunciation hints for any secondary-language words used in dialogue.
     #[serde(default, alias = "irish_words")]
     pub language_hints: Vec<LanguageHint>,
+    /// People the NPC mentioned by name in their dialogue (self-declared by the LLM).
+    #[serde(default)]
+    pub mentioned_people: Vec<String>,
 }
 
 /// Structured action output from an NPC's LLM response.
@@ -245,6 +248,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             mood: action.mood,
             internal_thought: action.internal_thought,
             language_hints: Vec::new(),
+            mentioned_people: Vec::new(),
         });
         return NpcStreamResponse { dialogue, metadata };
     }
@@ -264,7 +268,7 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
     \n\
     IMPROV CRAFT: You are a scene partner. Follow these principles:\n\
     - YES, AND: Accept what the player establishes and build on it. Disagree in character, but never negate their reality.\n\
-    - SPECIFICITY: Use real names, exact amounts, particular objects — never generic placeholders.\n\
+    - SPECIFICITY: Ground your dialogue in particular objects, sounds, smells, and amounts. Only refer to people by name if they appear in your PEOPLE YOU KNOW list or are present at your location. If you don't know someone's name, describe them naturally ('a lad from the next townland', 'the newcomer').\n\
     - EMOTIONAL TRUTH: Let comedy and drama emerge from honest reactions, not clever lines.\n\
     - PHYSICAL GROUNDING: Reference the environment — turf smoke, creaking chairs, rain on glass.\n\
     - LISTEN AND REACT: Respond to what was actually said. Let surprises surprise your character.\n\
@@ -353,12 +357,58 @@ pub fn build_action_line(player_input: &str) -> String {
         .filter(|inner| !inner.is_empty() && !inner.contains('*'))
     {
         return format!(
-            "The traveller performs an action: {inner}\n\
-            (The traveller is emoting rather than speaking. \
+            "The newcomer performs an action: {inner}\n\
+            (The newcomer is emoting rather than speaking. \
             Respond to their physical action naturally.)"
         );
     }
-    format!("The traveller says: \"{player_input}\"")
+    format!("The newcomer says: \"{player_input}\"")
+}
+
+/// Builds the action line for an NPC prompt, using the player's name if the NPC knows it.
+///
+/// This is the name-aware variant of [`build_action_line`]. If `player_name` is provided,
+/// the NPC addresses the player by name. Otherwise falls back to "The newcomer".
+pub fn build_named_action_line(player_input: &str, player_name: Option<&str>) -> String {
+    let label = player_name.unwrap_or("The newcomer");
+
+    if let Some(inner) = player_input
+        .strip_prefix('*')
+        .and_then(|s| s.strip_suffix('*'))
+        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
+    {
+        return format!(
+            "{label} performs an action: {inner}\n\
+            ({label} is emoting rather than speaking. \
+            Respond to their physical action naturally.)"
+        );
+    }
+    format!("{label} says: \"{player_input}\"")
+}
+
+/// Detects if the player is introducing themselves by name.
+///
+/// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
+/// Returns the extracted name if found.
+pub fn detect_player_name(input: &str) -> Option<String> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+
+    static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)(?:my name(?:'s| is)|I'm|I am|they call me|call me|the name's|name is)\s+(?-i:([A-Z][a-zA-Z']+(?:\s+[A-Z][a-zA-Z']+)?))",
+        )
+        .unwrap()
+    });
+
+    NAME_RE.captures(input).and_then(|caps| {
+        let name = caps.get(1)?.as_str().to_string();
+        // Reject very short names (likely false positives)
+        if name.len() < 2 {
+            return None;
+        }
+        Some(name)
+    })
 }
 
 /// Builds the Tier 1 context prompt for an NPC interaction.
@@ -465,14 +515,67 @@ mod tests {
     #[test]
     fn test_build_action_line_normal_input() {
         let line = build_action_line("hello there");
-        assert!(line.contains("The traveller says: \"hello there\""));
+        assert!(line.contains("The newcomer says: \"hello there\""));
         assert!(!line.contains("performs an action"));
     }
 
     #[test]
     fn test_build_action_line_partial_asterisks() {
         let line = build_action_line("*incomplete");
-        assert!(line.contains("The traveller says: \"*incomplete\""));
+        assert!(line.contains("The newcomer says: \"*incomplete\""));
+    }
+
+    #[test]
+    fn test_build_named_action_line_with_name() {
+        let line = build_named_action_line("hello", Some("Ciaran"));
+        assert_eq!(line, "Ciaran says: \"hello\"");
+    }
+
+    #[test]
+    fn test_build_named_action_line_without_name() {
+        let line = build_named_action_line("hello", None);
+        assert_eq!(line, "The newcomer says: \"hello\"");
+    }
+
+    #[test]
+    fn test_build_named_action_line_emote_with_name() {
+        let line = build_named_action_line("*tips hat*", Some("Ciaran"));
+        assert!(line.contains("Ciaran performs an action: tips hat"));
+    }
+
+    #[test]
+    fn test_detect_player_name_my_name_is() {
+        assert_eq!(
+            detect_player_name("My name is Ciaran"),
+            Some("Ciaran".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_player_name_im() {
+        assert_eq!(
+            detect_player_name("I'm Padraig O'Brien"),
+            Some("Padraig O'Brien".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_player_name_call_me() {
+        assert_eq!(detect_player_name("Call me Sean"), Some("Sean".to_string()));
+    }
+
+    #[test]
+    fn test_detect_player_name_no_match() {
+        assert_eq!(detect_player_name("hello there"), None);
+        assert_eq!(detect_player_name("what is your name?"), None);
+    }
+
+    #[test]
+    fn test_detect_player_name_in_sentence() {
+        assert_eq!(
+            detect_player_name("Well, my name is Maeve if you must know"),
+            Some("Maeve".to_string())
+        );
     }
 
     #[test]
