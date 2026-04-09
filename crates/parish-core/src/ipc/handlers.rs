@@ -562,6 +562,38 @@ pub fn detect_and_record_player_name(
     }
 }
 
+/// Checks an NPC response for hallucinated names and returns a corrective
+/// system prompt addendum if any are found.
+///
+/// Call this after parsing the NPC response. If it returns `Some(correction)`,
+/// append the correction to the system prompt and re-submit once. If the
+/// retry also hallucinates, accept and log.
+pub fn check_for_hallucinated_names(
+    response: &crate::npc::NpcStreamResponse,
+    known_roster: &[(NpcId, String, String)],
+    player_name: Option<&str>,
+) -> Option<String> {
+    let mentioned = response
+        .metadata
+        .as_ref()
+        .map(|m| &m.mentioned_people)
+        .filter(|mp| !mp.is_empty())?;
+
+    let hallucinated = crate::npc::validate_mentioned_people(mentioned, known_roster, player_name);
+    if hallucinated.is_empty() {
+        return None;
+    }
+
+    let names = hallucinated.join(", ");
+    tracing::warn!("NPC hallucinated names: {}", names);
+    Some(format!(
+        "\n\nCORRECTION: Your previous response mentioned '{}', \
+        who does not exist in this parish. Regenerate your dialogue \
+        without inventing names for people not in your PEOPLE YOU KNOW list.",
+        names
+    ))
+}
+
 // ── Pronunciation hints ────────────────────────────────────────────────────
 
 /// Computes contextual name pronunciation hints for the current location.

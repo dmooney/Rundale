@@ -411,6 +411,52 @@ pub fn detect_player_name(input: &str) -> Option<String> {
     })
 }
 
+/// Validates the people mentioned in an NPC's dialogue against a known roster.
+///
+/// Returns a list of hallucinated names — names that appear in `mentioned`
+/// but don't match any entry in the roster, the player's name, or known
+/// location names.
+pub fn validate_mentioned_people(
+    mentioned: &[String],
+    known_roster: &[(NpcId, String, String)],
+    player_name: Option<&str>,
+) -> Vec<String> {
+    if mentioned.is_empty() {
+        return Vec::new();
+    }
+
+    let mut hallucinated = Vec::new();
+    for name in mentioned {
+        let lower = name.to_lowercase();
+        // Skip empty names
+        if lower.is_empty() {
+            continue;
+        }
+
+        // Check against player name
+        if let Some(pn) = player_name {
+            if pn.to_lowercase() == lower {
+                continue;
+            }
+        }
+
+        // Check against roster (full name or first name match)
+        let in_roster = known_roster.iter().any(|(_, roster_name, _)| {
+            let roster_lower = roster_name.to_lowercase();
+            roster_lower == lower
+                || roster_lower
+                    .split_whitespace()
+                    .next()
+                    .is_some_and(|first| first == lower)
+        });
+
+        if !in_roster {
+            hallucinated.push(name.clone());
+        }
+    }
+    hallucinated
+}
+
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
 /// Includes the current location, time of day, weather, and season.
@@ -576,6 +622,52 @@ mod tests {
             detect_player_name("Well, my name is Maeve if you must know"),
             Some("Maeve".to_string())
         );
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_known() {
+        let roster = vec![
+            (
+                NpcId(1),
+                "Padraig Darcy".to_string(),
+                "publican".to_string(),
+            ),
+            (
+                NpcId(2),
+                "Mary O'Sullivan".to_string(),
+                "weaver".to_string(),
+            ),
+        ];
+        let mentioned = vec!["Padraig".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, None);
+        assert!(hallucinated.is_empty());
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_hallucinated() {
+        let roster = vec![(
+            NpcId(1),
+            "Padraig Darcy".to_string(),
+            "publican".to_string(),
+        )];
+        let mentioned = vec!["Padraig".to_string(), "Seamus".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, None);
+        assert_eq!(hallucinated, vec!["Seamus".to_string()]);
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_player_name() {
+        let roster = vec![];
+        let mentioned = vec!["Ciaran".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, Some("Ciaran"));
+        assert!(hallucinated.is_empty());
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_empty() {
+        let roster = vec![];
+        let hallucinated = validate_mentioned_people(&[], &roster, None);
+        assert!(hallucinated.is_empty());
     }
 
     #[test]

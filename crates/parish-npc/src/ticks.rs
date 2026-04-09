@@ -315,7 +315,7 @@ pub fn apply_tier1_response_with_config(
         content,
         participants: vec![NpcId(0), npc.id], // NpcId(0) = player
         location: npc.location,
-        kind: Some(crate::npc::memory::MemoryKind::SpokeWithPlayer),
+        kind: Some(crate::memory::MemoryKind::SpokeWithPlayer),
     };
     if let Some(evicted) = npc.memory.add(mem_entry) {
         let npc_name = npc.name.clone();
@@ -383,7 +383,7 @@ pub fn record_witness_memories(
             content: content.clone(),
             participants: vec![NpcId(0), speaker_id, witness_id],
             location,
-            kind: Some(crate::npc::memory::MemoryKind::OverheardConversation),
+            kind: Some(crate::memory::MemoryKind::OverheardConversation),
         };
 
         if let Some(witness) = npcs.get_mut(&witness_id) {
@@ -547,7 +547,7 @@ pub fn apply_tier2_event_with_config(
                 content: memory_content.clone(),
                 participants: event.participants.clone(),
                 location: event.location,
-                kind: Some(crate::npc::memory::MemoryKind::SpokeWithNpc(participant_id)),
+                kind: Some(crate::memory::MemoryKind::SpokeWithNpc(participant_id)),
             };
             if let Some(evicted) = npc.memory.add(mem_entry) {
                 let npc_name = npc.name.clone();
