@@ -34,6 +34,11 @@
 		isAction: boolean;
 	}
 
+	interface RenderSegment extends TextSegment {
+		animate?: boolean;
+		animationKey?: number;
+	}
+
 	/** Splits text on *action* markers into normal and emote segments. */
 	function parseEmotes(content: string): TextSegment[] {
 		const segments: TextSegment[] = [];
@@ -54,6 +59,47 @@
 		if (segments.length === 0) {
 			segments.push({ text: content, isAction: false });
 		}
+		return segments;
+	}
+
+	function renderSegments(entry: TextLogEntry): RenderSegment[] {
+		const segments = parseEmotes(entry.content);
+		const latestChunk = entry.streaming ? entry.latest_chunk : null;
+		if (!latestChunk) return segments;
+
+		for (let index = segments.length - 1; index >= 0; index -= 1) {
+			const segment = segments[index];
+			if (!segment.text.endsWith(latestChunk)) continue;
+
+			const stableText = segment.text.slice(0, -latestChunk.length);
+			const leadingWhitespace = latestChunk.match(/^\s+/u)?.[0] ?? '';
+			const trailingWhitespace = latestChunk.match(/\s+$/u)?.[0] ?? '';
+			const animatedText = latestChunk.slice(
+				leadingWhitespace.length,
+				latestChunk.length - trailingWhitespace.length
+			);
+			const animatedSegments: RenderSegment[] = [];
+			if (stableText) {
+				animatedSegments.push({ text: stableText, isAction: segment.isAction });
+			}
+			if (leadingWhitespace) {
+				animatedSegments.push({ text: leadingWhitespace, isAction: segment.isAction });
+			}
+			if (animatedText) {
+				animatedSegments.push({
+					text: animatedText,
+					isAction: segment.isAction,
+					animate: true,
+					animationKey: entry.stream_chunk_id ?? entry.content.length
+				});
+			}
+			if (trailingWhitespace) {
+				animatedSegments.push({ text: trailingWhitespace, isAction: segment.isAction });
+			}
+
+			return [...segments.slice(0, index), ...animatedSegments];
+		}
+
 		return segments;
 	}
 
@@ -93,9 +139,7 @@
 					>
 						<div class="bubble">
 							<span class="content"
-								>{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}{#if entry.streaming}<span class="cursor">▋</span
-								>{/if}</span
-							>
+								>{#each renderSegments(entry) as seg}{#if seg.animate}{#key seg.animationKey}<span class="stream-chunk" class:emote={seg.isAction}>{seg.text}</span>{/key}{:else if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}</span>
 						</div>
 
 						<!-- Reaction picker (floats over bubble, NPC messages only) -->
@@ -259,18 +303,21 @@
 		opacity: 0.85;
 	}
 
-	.cursor {
+	.stream-chunk {
 		display: inline-block;
-		animation: blink 1s step-end infinite;
+		white-space: pre-wrap;
+		will-change: clip-path, opacity;
+		animation: stream-chunk-sweep 240ms linear forwards;
 	}
 
-	@keyframes blink {
-		0%,
-		100% {
-			opacity: 1;
+	@keyframes stream-chunk-sweep {
+		from {
+			opacity: 0.24;
+			clip-path: inset(0 100% 0 0);
 		}
-		50% {
-			opacity: 0;
+		to {
+			opacity: 1;
+			clip-path: inset(0 0 0 0);
 		}
 	}
 

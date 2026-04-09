@@ -102,6 +102,8 @@ export interface TextLogEntry {
 	source: string;
 	content: string;
 	streaming?: boolean;
+	latest_chunk?: string;
+	stream_chunk_id?: number;
 	reactions?: Reaction[];
 }
 

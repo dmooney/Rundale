@@ -52,10 +52,25 @@ describe('ChatPanel', () => {
 		expect(phrase.style.color).toBe('rgb(255, 200, 87)');
 	});
 
-	it('shows blinking cursor on streaming entry', () => {
+	it('does not render a streaming cursor', () => {
 		textLog.set([{ source: 'Seán', content: 'Dia dhuit…', streaming: true }]);
 		const { container } = render(ChatPanel);
-		expect(container.querySelector('.cursor')).toBeTruthy();
+		expect(container.querySelector('.cursor')).toBeFalsy();
+	});
+
+	it('animates the latest streamed chunk when metadata is present', () => {
+		textLog.set([{
+			source: 'Seán',
+			content: 'Dia dhuit ',
+			streaming: true,
+			latest_chunk: 'dhuit ',
+			stream_chunk_id: 2
+		}]);
+		const { container } = render(ChatPanel);
+		const latestChunk = container.querySelector('.stream-chunk');
+		expect(latestChunk).toBeTruthy();
+		expect(latestChunk?.textContent).toBe('dhuit');
+		expect(container.querySelector('.content')?.textContent).toBe('Dia dhuit ');
 	});
 
 	it('player source shows You label', () => {
