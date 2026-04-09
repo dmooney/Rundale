@@ -24,6 +24,20 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
 	// ── Folklore ─────────────────────────────────────────────────────────
 
 	{
+		id: 'bog-lights',
+		conditions: {
+			indoor: false,
+			locationMatch: ['bog', 'marsh', 'moor', 'turf'],
+			timeOfDay: ['Dusk', 'Night', 'Midnight'],
+		},
+		cooldownMs: 120_000,
+		intervalMs: [60_000, 180_000],
+		durationMs: 45_000,
+		probability: 0.5,
+		singleton: true,
+	},
+
+	{
 		id: 'fairy-sprite',
 		conditions: {
 			indoor: false,

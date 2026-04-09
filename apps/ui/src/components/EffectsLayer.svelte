@@ -20,6 +20,7 @@
 	import RainStreaks from './effects/RainStreaks.svelte';
 	import FogCreep from './effects/FogCreep.svelte';
 	import FairySprite from './effects/FairySprite.svelte';
+	import BogLights from './effects/BogLights.svelte';
 
 	let engine: EffectsEngine | null = null;
 
@@ -79,6 +80,7 @@
 			{#if effect.id === 'rain-streaks'}<RainStreaks {effect} />{/if}
 			{#if effect.id === 'fog-creep'}<FogCreep {effect} />{/if}
 			{#if effect.id === 'fairy-sprite'}<FairySprite {effect} />{/if}
+			{#if effect.id === 'bog-lights'}<BogLights {effect} />{/if}
 		{/each}
 	</div>
 {/if}
