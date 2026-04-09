@@ -85,6 +85,20 @@ body::before {
 	background: var(--color-muted);
 }
 
+/* ── Wind gust effect — shudders the entire page ── */
+body.wind-gust {
+	animation: wind-shudder 600ms ease-out;
+}
+
+@keyframes wind-shudder {
+	0%   { transform: translate(0, 0) rotate(0deg); }
+	15%  { transform: translate(-1.5px, 0) rotate(-0.2deg); }
+	30%  { transform: translate(1px, 0.5px) rotate(0.15deg); }
+	50%  { transform: translate(-0.5px, -0.5px) rotate(-0.1deg); }
+	70%  { transform: translate(0.5px, 0) rotate(0.05deg); }
+	100% { transform: translate(0, 0) rotate(0deg); }
+}
+
 /* ── Mobile adjustments ── */
 @media (max-width: 768px) {
 	html, body {

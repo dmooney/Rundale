@@ -50,6 +50,16 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
 		singleton: true,
 	},
 
+	{
+		id: 'wind-gust',
+		conditions: { weather: ['Storm', 'HeavyRain'], indoor: false },
+		cooldownMs: 30_000,
+		intervalMs: [20_000, 60_000],
+		durationMs: 700,
+		probability: 0.5,
+		singleton: true,
+	},
+
 	// ── Ambient ──────────────────────────────────────────────────────────
 
 	{
