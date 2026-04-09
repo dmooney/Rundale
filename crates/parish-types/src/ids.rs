@@ -4,7 +4,56 @@
 //! the `Location` struct, `LanguageHint`, and streaming separator helpers
 //! extracted from the world and NPC modules.
 
+use std::fmt;
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
+
+use crate::ParishError;
+
+/// Current weather conditions in the game world.
+///
+/// Affects color palette tinting and location description templates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Weather {
+    Clear,
+    PartlyCloudy,
+    Overcast,
+    LightRain,
+    HeavyRain,
+    Fog,
+    Storm,
+}
+
+impl FromStr for Weather {
+    type Err = ParishError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Clear" => Ok(Weather::Clear),
+            "Partly Cloudy" | "PartlyCloudy" => Ok(Weather::PartlyCloudy),
+            "Overcast" => Ok(Weather::Overcast),
+            "Light Rain" | "LightRain" | "Rain" => Ok(Weather::LightRain),
+            "Heavy Rain" | "HeavyRain" => Ok(Weather::HeavyRain),
+            "Fog" => Ok(Weather::Fog),
+            "Storm" => Ok(Weather::Storm),
+            other => Err(ParishError::Config(format!("unknown weather: {}", other))),
+        }
+    }
+}
+
+impl fmt::Display for Weather {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Weather::Clear => write!(f, "Clear"),
+            Weather::PartlyCloudy => write!(f, "Partly Cloudy"),
+            Weather::Overcast => write!(f, "Overcast"),
+            Weather::LightRain => write!(f, "Light Rain"),
+            Weather::HeavyRain => write!(f, "Heavy Rain"),
+            Weather::Fog => write!(f, "Fog"),
+            Weather::Storm => write!(f, "Storm"),
+        }
+    }
+}
 
 /// Unique identifier for a location in the world graph.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
