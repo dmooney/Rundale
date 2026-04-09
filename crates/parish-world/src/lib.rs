@@ -19,15 +19,12 @@ pub mod events {
     pub use parish_types::events::*;
 }
 
-pub use parish_types::LocationId;
+pub use parish_types::{Location, LocationId, Weather};
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use parish_types::{
-    ConversationLog, EventBus, GameClock, GossipNetwork, Location, LocationId as _LocationId,
-    ParishError, Weather,
-};
+use parish_types::{ConversationLog, EventBus, GameClock, GossipNetwork, ParishError};
 
 use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
@@ -73,7 +70,7 @@ impl WorldState {
     pub fn new() -> Self {
         use chrono::{TimeZone, Utc};
 
-        let crossroads_id = _LocationId(1);
+        let crossroads_id = LocationId(1);
         let crossroads = Location {
             id: crossroads_id,
             name: "The Crossroads".to_string(),
@@ -139,6 +136,66 @@ impl WorldState {
         }
 
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
+
+        Ok(Self {
+            clock,
+            player_location: start_location,
+            locations,
+            graph,
+            weather: Weather::Clear,
+            weather_engine,
+            text_log: Vec::new(),
+            event_bus: EventBus::new(),
+            visited_locations: HashSet::from([start_location]),
+            edge_traversals: HashMap::new(),
+            gossip_network: GossipNetwork::new(),
+            conversation_log: ConversationLog::new(),
+        })
+    }
+
+    /// Creates a world state from mod parameters.
+    ///
+    /// Equivalent to `from_parish_file` but also sets the start date from an
+    /// RFC 3339 string. Used by `parish-core`'s mod loader so that `parish-world`
+    /// does not need to depend on `GameMod` directly.
+    pub fn from_mod_params(
+        world_path: &Path,
+        start_location: LocationId,
+        start_date_rfc3339: &str,
+    ) -> Result<Self, ParishError> {
+        let graph = WorldGraph::load_from_file(world_path)?;
+
+        let mut locations = HashMap::new();
+        for loc_id in graph.location_ids() {
+            if let Some(data) = graph.get(loc_id) {
+                locations.insert(
+                    loc_id,
+                    Location {
+                        id: loc_id,
+                        name: data.name.clone(),
+                        description: data.description_template.clone(),
+                        indoor: data.indoor,
+                        public: data.public,
+                        lat: data.lat,
+                        lon: data.lon,
+                    },
+                );
+            }
+        }
+
+        let start_dt = chrono::DateTime::parse_from_rfc3339(start_date_rfc3339)
+            .map(|dt| dt.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|e| {
+                tracing::warn!(
+                    start_date = start_date_rfc3339,
+                    error = %e,
+                    "Failed to parse mod start_date, falling back to current time"
+                );
+                chrono::Utc::now()
+            });
+
+        let clock = GameClock::new(start_dt);
         let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
         Ok(Self {

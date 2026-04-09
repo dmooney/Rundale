@@ -608,7 +608,7 @@ mod tests {
         use crate::game_mod::{GameMod, find_default_mod};
         if let Some(mod_dir) = find_default_mod() {
             let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
-            let world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let world = crate::game_mod::world_state_from_mod(&game_mod).expect("world from mod");
             let start = world.player_location;
             let neighbor_count = world.graph.neighbors(start).len();
 
@@ -664,7 +664,8 @@ mod tests {
         use crate::game_mod::{GameMod, find_default_mod};
         if let Some(mod_dir) = find_default_mod() {
             let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
-            let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let mut world =
+                crate::game_mod::world_state_from_mod(&game_mod).expect("world from mod");
             let start = world.player_location;
             // Visit a neighbor
             let neighbors = world.graph.neighbors(start);
@@ -797,7 +798,8 @@ mod tests {
 
         if let Some(mod_dir) = find_default_mod() {
             let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
-            let mut world = WorldState::from_mod(&game_mod).expect("world from mod");
+            let mut world =
+                crate::game_mod::world_state_from_mod(&game_mod).expect("world from mod");
             let start = world.player_location;
             let neighbor_id = world.graph.neighbors(start).first().map(|(id, _)| *id);
             if let Some(neighbor_id) = neighbor_id {

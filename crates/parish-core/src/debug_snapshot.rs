@@ -254,34 +254,8 @@ pub struct InferenceDebug {
     pub call_log: Vec<InferenceLogEntry>,
 }
 
-/// A single logged inference call for the debug panel.
-#[derive(Debug, Clone, Serialize)]
-pub struct InferenceLogEntry {
-    /// Unique request ID.
-    pub request_id: u64,
-    /// Wall-clock timestamp (e.g. "14:32:05").
-    pub timestamp: String,
-    /// Model name used for this request.
-    pub model: String,
-    /// Whether this was a streaming request.
-    pub streaming: bool,
-    /// Request duration in milliseconds.
-    pub duration_ms: u64,
-    /// Prompt length in characters.
-    pub prompt_len: usize,
-    /// Response length in characters.
-    pub response_len: usize,
-    /// Error message if the request failed (None = success).
-    pub error: Option<String>,
-    /// System prompt sent (if any).
-    pub system_prompt: Option<String>,
-    /// User prompt text.
-    pub prompt_text: String,
-    /// Full response text (empty on error).
-    pub response_text: String,
-    /// Max tokens limit sent to provider (if any).
-    pub max_tokens: Option<u32>,
-}
+/// Re-export from parish-inference so callers don't need a separate import.
+pub use crate::inference::InferenceLogEntry;
 
 /// Builds a complete debug snapshot from live game state.
 ///

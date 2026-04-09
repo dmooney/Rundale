@@ -16,6 +16,11 @@ pub mod tier4;
 pub mod transitions;
 pub mod types;
 
+/// Re-export conversation types from parish-types for cross-crate path compatibility.
+pub mod conversation {
+    pub use parish_types::conversation::*;
+}
+
 use std::collections::HashMap;
 
 use serde::Deserialize;
