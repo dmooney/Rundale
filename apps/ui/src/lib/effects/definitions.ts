@@ -50,6 +50,21 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
 		singleton: true,
 	},
 
+	// ── Ambient ──────────────────────────────────────────────────────────
+
+	{
+		id: 'turf-smoke',
+		conditions: {
+			indoor: false,
+			locationMatch: ['pub', 'darcy', 'cottage', 'farm', 'murphy', 'village', 'shop'],
+		},
+		cooldownMs: 30_000,
+		intervalMs: [20_000, 60_000],
+		durationMs: 20_000,
+		probability: 0.6,
+		singleton: true,
+	},
+
 	// ── Weather ──────────────────────────────────────────────────────────
 
 	{
