@@ -9,7 +9,7 @@ use chrono::Utc;
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::{
-    Npc, NpcId, NpcStreamResponse, build_action_line, build_tier1_context,
+    Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
     build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
@@ -133,6 +133,7 @@ pub fn build_enhanced_context_with_config(
     other_npcs: &[&Npc],
     config: &NpcConfig,
     _npc_names: &std::collections::HashMap<NpcId, String>,
+    player_name_for_npc: Option<&str>,
 ) -> String {
     let mut context = build_tier1_context(world);
 
@@ -171,7 +172,7 @@ pub fn build_enhanced_context_with_config(
         .has_recent_exchange_with(world.player_location, npc.id, 2)
     {
         context.push_str(
-            "\n\nYou are already in conversation with this traveller. \
+            "\n\nYou are already in conversation with this newcomer. \
             Do not re-introduce yourself or greet them again.",
         );
     }
@@ -216,7 +217,7 @@ pub fn build_enhanced_context_with_config(
 
     // Player's current input last — everything above is context for this moment
     context.push_str("\n\n");
-    context.push_str(&build_action_line(player_input));
+    context.push_str(&build_named_action_line(player_input, player_name_for_npc));
 
     context
 }
@@ -239,6 +240,7 @@ pub fn build_enhanced_context(
         other_npcs,
         &NpcConfig::default(),
         npc_names,
+        None,
     )
 }
 
@@ -269,7 +271,7 @@ pub fn apply_tier1_response_with_config(
 
     // Record memory of the interaction
     let content = format!(
-        "A traveller said: '{}'. Responded: {}",
+        "A newcomer said: '{}'. Responded: {}",
         player_input,
         truncate_for_memory(&response.dialogue, config.memory_truncation_dialogue)
     );
@@ -332,7 +334,7 @@ pub fn record_witness_memories(
     let mut debug_events = Vec::new();
 
     let content = format!(
-        "Overheard: a traveller said '{}' and {} replied '{}'",
+        "Overheard: a newcomer said '{}' and {} replied '{}'",
         player_input, speaker_name, npc_dialogue,
     );
 
@@ -441,7 +443,7 @@ pub async fn run_tier2_for_group(
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     match client
-        .generate_json::<Tier2Response>(model, &prompt, None, None)
+        .generate_json::<Tier2Response>(model, &prompt, None, None, None)
         .await
     {
         Ok(resp) => Some(Tier2Event {
@@ -751,7 +753,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
 
         match ctx
             .client
-            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None)
+            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None, None)
             .await
         {
             Ok(resp) => {
@@ -969,6 +971,7 @@ mod tests {
                 mood: "cheerful".to_string(),
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1162,8 +1165,8 @@ mod tests {
         let world = WorldState::new();
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
         let context = build_enhanced_context(&npc, &world, "hello there", &[], &npc_names);
-        // The traveller's current input must be the last meaningful content
-        let action_line = "The traveller says: \"hello there\"";
+        // The newcomer's current input must be the last meaningful content
+        let action_line = "The newcomer says: \"hello there\"";
         assert!(context.contains(action_line));
         assert!(
             context.rfind(action_line) > context.rfind("Your Location:"),
@@ -1472,6 +1475,7 @@ mod tests {
                 mood: "calm".to_string(), // same mood
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1493,6 +1497,7 @@ mod tests {
                 mood: String::new(), // empty mood
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();

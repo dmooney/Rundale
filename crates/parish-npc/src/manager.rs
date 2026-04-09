@@ -110,6 +110,8 @@ pub struct NpcManager {
     last_tier4_game_time: Option<DateTime<Utc>>,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
+    /// Set of NPC ids that know the player's name (learned via dialogue or gossip).
+    npcs_who_know_player_name: HashSet<NpcId>,
 }
 
 impl NpcManager {
@@ -123,6 +125,7 @@ impl NpcManager {
             tier3_in_flight: false,
             last_tier4_game_time: None,
             introduced_npcs: HashSet::new(),
+            npcs_who_know_player_name: HashSet::new(),
         }
     }
 
@@ -139,6 +142,26 @@ impl NpcManager {
     /// Returns a clone of the set of introduced NPC ids.
     pub fn introduced_set(&self) -> HashSet<NpcId> {
         self.introduced_npcs.clone()
+    }
+
+    /// Records that the given NPC has learned the player's name.
+    pub fn teach_player_name(&mut self, id: NpcId) {
+        self.npcs_who_know_player_name.insert(id);
+    }
+
+    /// Returns whether the given NPC knows the player's name.
+    pub fn knows_player_name(&self, id: NpcId) -> bool {
+        self.npcs_who_know_player_name.contains(&id)
+    }
+
+    /// Returns a clone of the set of NPC ids that know the player's name.
+    pub fn player_name_known_set(&self) -> HashSet<NpcId> {
+        self.npcs_who_know_player_name.clone()
+    }
+
+    /// Restores the set of NPC ids that know the player's name (for snapshot restore).
+    pub fn restore_player_name_known(&mut self, ids: HashSet<NpcId>) {
+        self.npcs_who_know_player_name = ids;
     }
 
     /// Returns the display name for an NPC: their name if introduced,

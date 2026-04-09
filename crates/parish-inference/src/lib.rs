@@ -80,6 +80,8 @@ pub struct InferenceRequest {
     pub token_tx: Option<mpsc::UnboundedSender<String>>,
     /// Optional maximum number of tokens to generate.
     pub max_tokens: Option<u32>,
+    /// Optional temperature for sampling (0.0 = deterministic, 1.0+ = creative).
+    pub temperature: Option<f32>,
 }
 
 /// The response from an inference request.
@@ -122,6 +124,7 @@ impl InferenceQueue {
         system: Option<String>,
         token_tx: Option<mpsc::UnboundedSender<String>>,
         max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
         let (response_tx, response_rx) = oneshot::channel();
@@ -133,6 +136,7 @@ impl InferenceQueue {
             response_tx,
             token_tx,
             max_tokens,
+            temperature,
         };
         self.tx.send(request).await?;
         Ok(response_rx)
@@ -238,6 +242,7 @@ pub fn spawn_inference_worker(
                         request.system.as_deref(),
                         token_tx,
                         request.max_tokens,
+                        request.temperature,
                     )
                     .await
             } else {
@@ -247,6 +252,7 @@ pub fn spawn_inference_worker(
                         &request.prompt,
                         request.system.as_deref(),
                         request.max_tokens,
+                        request.temperature,
                     )
                     .await
             };
@@ -322,6 +328,7 @@ mod tests {
                 Some("system".to_string()),
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -361,6 +368,7 @@ mod tests {
                 None,
                 None,
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -384,6 +392,7 @@ mod tests {
                 "prompt".to_string(),
                 None,
                 Some(token_tx),
+                None,
                 None,
             )
             .await

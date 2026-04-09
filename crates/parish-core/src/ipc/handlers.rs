@@ -496,8 +496,23 @@ pub fn prepare_npc_conversation_turn(
         .map(|n| (n.id, n.name.clone()))
         .collect();
     let system_prompt = ticks::build_enhanced_system_prompt(&npc, improv_enabled, &npc_names);
-    let mut context =
-        ticks::build_enhanced_context(&npc, world, player_input, &other_npcs, &npc_names);
+
+    // Determine if this NPC knows the player's name
+    let player_name_for_npc = if npc_manager.knows_player_name(speaker_id) {
+        world.player_name.as_deref()
+    } else {
+        None
+    };
+
+    let mut context = ticks::build_enhanced_context_with_config(
+        &npc,
+        world,
+        player_input,
+        &other_npcs,
+        &crate::config::NpcConfig::default(),
+        &npc_names,
+        player_name_for_npc,
+    );
     append_transcript_context(&mut context, transcript);
 
     // Check for anachronisms in player input and inject alert into context
@@ -532,6 +547,27 @@ pub fn prepare_npc_conversation(
         .into_iter()
         .next()?;
     prepare_npc_conversation_turn(world, npc_manager, raw, speaker_id, &[], improv_enabled)
+}
+
+/// Detects if the player is introducing themselves and records the name.
+///
+/// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
+/// use the player's name. If detected, sets `world.player_name` (if not
+/// already set) and teaches the speaking NPC the player's name.
+pub fn detect_and_record_player_name(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    player_input: &str,
+    speaker_id: NpcId,
+) {
+    if let Some(name) = crate::npc::detect_player_name(player_input) {
+        // Don't overwrite a previously set player name
+        if world.player_name.is_none() {
+            tracing::info!("Player introduced themselves as: {}", name);
+            world.player_name = Some(name);
+        }
+        npc_manager.teach_player_name(speaker_id);
+    }
 }
 
 // ── Pronunciation hints ────────────────────────────────────────────────────

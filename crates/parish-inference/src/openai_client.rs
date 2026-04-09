@@ -47,6 +47,8 @@ struct ChatCompletionRequest<'a> {
     response_format: Option<ResponseFormat>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
 }
 
 /// Controls structured output format.
@@ -168,8 +170,9 @@ impl OpenAiClient {
         prompt: &str,
         system: Option<&str>,
         max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<String, ParishError> {
-        let body = self.build_request(model, prompt, system, false, false, max_tokens);
+        let body = self.build_request(model, prompt, system, false, false, max_tokens, temperature);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
         Ok(extract_content(&completion))
@@ -189,8 +192,9 @@ impl OpenAiClient {
         system: Option<&str>,
         token_tx: mpsc::UnboundedSender<String>,
         max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<String, ParishError> {
-        let body = self.build_request(model, prompt, system, true, false, max_tokens);
+        let body = self.build_request(model, prompt, system, true, false, max_tokens, temperature);
 
         let url = format!("{}/v1/chat/completions", self.base_url);
         let mut req = self.streaming_client.post(&url).json(&body);
@@ -240,8 +244,9 @@ impl OpenAiClient {
         prompt: &str,
         system: Option<&str>,
         max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> Result<T, ParishError> {
-        let body = self.build_request(model, prompt, system, false, true, max_tokens);
+        let body = self.build_request(model, prompt, system, false, true, max_tokens, temperature);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
         let content = extract_content(&completion);
@@ -258,6 +263,7 @@ impl OpenAiClient {
         stream: bool,
         json_mode: bool,
         max_tokens: Option<u32>,
+        temperature: Option<f32>,
     ) -> ChatCompletionRequest<'a> {
         let mut messages = Vec::new();
         if let Some(sys) = system {
@@ -285,6 +291,7 @@ impl OpenAiClient {
             stream,
             response_format,
             max_tokens,
+            temperature,
         }
     }
 
@@ -450,6 +457,7 @@ mod tests {
             false,
             false,
             None,
+            None,
         );
         assert_eq!(req.model, "model");
         assert_eq!(req.messages.len(), 2);
@@ -464,7 +472,7 @@ mod tests {
     #[test]
     fn test_build_request_without_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, false, None);
+        let req = client.build_request("model", "hello", None, false, false, None, None);
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
     }
@@ -472,7 +480,7 @@ mod tests {
     #[test]
     fn test_build_request_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, true, None);
+        let req = client.build_request("model", "hello", None, false, true, None, None);
         let fmt = req.response_format.unwrap();
         assert_eq!(fmt.format_type, "json_object");
     }
@@ -480,7 +488,7 @@ mod tests {
     #[test]
     fn test_build_request_streaming() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, true, false, None);
+        let req = client.build_request("model", "hello", None, true, false, None, None);
         assert!(req.stream);
     }
 
@@ -590,7 +598,15 @@ mod tests {
     #[test]
     fn test_request_serialization() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", Some("be brief"), false, false, None);
+        let req = client.build_request(
+            "qwen3:14b",
+            "hello",
+            Some("be brief"),
+            false,
+            false,
+            None,
+            None,
+        );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["model"], "qwen3:14b");
         assert_eq!(json["messages"][0]["role"], "system");
@@ -605,7 +621,7 @@ mod tests {
     #[test]
     fn test_request_serialization_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, true, None);
+        let req = client.build_request("qwen3:14b", "hello", None, false, true, None, None);
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["response_format"]["type"], "json_object");
     }
@@ -613,9 +629,25 @@ mod tests {
     #[test]
     fn test_request_serialization_with_max_tokens() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, false, Some(300));
+        let req = client.build_request("qwen3:14b", "hello", None, false, false, Some(300), None);
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["max_tokens"], 300);
+    }
+
+    #[test]
+    fn test_request_serialization_with_temperature() {
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        let req = client.build_request("qwen3:14b", "hello", None, false, false, None, Some(0.7));
+        let json = serde_json::to_value(&req).unwrap();
+        assert!((json["temperature"].as_f64().unwrap() - 0.7).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_request_serialization_temperature_omitted_when_none() {
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        let req = client.build_request("qwen3:14b", "hello", None, false, false, None, None);
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(json.get("temperature").is_none());
     }
 
     #[tokio::test]
@@ -623,7 +655,7 @@ mod tests {
     async fn test_generate_live() {
         let client = OpenAiClient::new("http://localhost:11434", None);
         let result = client
-            .generate("qwen3:14b", "Say hello in one word.", None, None)
+            .generate("qwen3:14b", "Say hello in one word.", None, None, None)
             .await;
         assert!(result.is_ok());
         assert!(!result.unwrap().is_empty());
@@ -635,7 +667,7 @@ mod tests {
         let client = OpenAiClient::new("http://localhost:11434", None);
         let (tx, mut rx) = mpsc::unbounded_channel();
         let result = client
-            .generate_stream("qwen3:14b", "Say hello in one word.", None, tx, None)
+            .generate_stream("qwen3:14b", "Say hello in one word.", None, tx, None, None)
             .await;
         assert!(result.is_ok());
 
@@ -661,6 +693,7 @@ mod tests {
             .generate_json(
                 "qwen3:14b",
                 "Return a JSON object with a 'greeting' field containing 'hello'.",
+                None,
                 None,
                 None,
             )

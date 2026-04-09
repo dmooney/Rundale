@@ -577,9 +577,16 @@ async fn run_npc_turn(
     transcript: &[ConversationLine],
 ) -> Option<TurnOutcome> {
     let setup = {
-        let world = state.world.lock().await;
+        let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let config = state.config.lock().await;
+        // Detect player self-introduction before building NPC prompt
+        parish_core::ipc::detect_and_record_player_name(
+            &mut world,
+            &mut npc_manager,
+            prompt_input,
+            speaker_id,
+        );
         parish_core::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
@@ -608,6 +615,7 @@ async fn run_npc_turn(
             Some(setup.system_prompt),
             Some(token_tx),
             None,
+            Some(0.7),
         )
         .await;
 
