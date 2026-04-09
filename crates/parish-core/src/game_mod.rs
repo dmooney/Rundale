@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::error::ParishError;
+use crate::ipc::ThemePalette;
 use crate::npc::LanguageHint;
 use crate::world::transport::TransportConfig;
 
@@ -180,12 +181,69 @@ pub struct SidebarConfig {
     pub hints_label: String,
 }
 
+/// Theme palette configuration loaded from `ui.toml`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ThemePaletteConfig {
+    /// Main background colour.
+    #[serde(default = "default_theme_bg")]
+    pub bg: String,
+    /// Primary text colour.
+    #[serde(default = "default_theme_fg")]
+    pub fg: String,
+    /// Accent colour for highlights and status UI.
+    #[serde(default = "default_theme_accent")]
+    pub accent: String,
+    /// Panel background colour.
+    #[serde(default = "default_theme_panel_bg")]
+    pub panel_bg: String,
+    /// Input background colour.
+    #[serde(default = "default_theme_input_bg")]
+    pub input_bg: String,
+    /// Border and separator colour.
+    #[serde(default = "default_theme_border")]
+    pub border: String,
+    /// Secondary / muted text colour.
+    #[serde(default = "default_theme_muted")]
+    pub muted: String,
+}
+
+impl From<ThemePaletteConfig> for ThemePalette {
+    fn from(config: ThemePaletteConfig) -> Self {
+        ThemePalette {
+            bg: config.bg,
+            fg: config.fg,
+            accent: config.accent,
+            panel_bg: config.panel_bg,
+            input_bg: config.input_bg,
+            border: config.border,
+            muted: config.muted,
+        }
+    }
+}
+
+impl Default for ThemePaletteConfig {
+    fn default() -> Self {
+        Self {
+            bg: default_theme_bg(),
+            fg: default_theme_fg(),
+            accent: default_theme_accent(),
+            panel_bg: default_theme_panel_bg(),
+            input_bg: default_theme_input_bg(),
+            border: default_theme_border(),
+            muted: default_theme_muted(),
+        }
+    }
+}
+
 /// Theme section of the UI configuration.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ThemeConfig {
-    /// Default accent colour (CSS hex string).
-    #[serde(default = "default_accent")]
-    pub default_accent: String,
+    /// Legacy accent override for older mods.
+    #[serde(default)]
+    pub default_accent: Option<String>,
+    /// Fixed theme palette used by the frontend.
+    #[serde(default)]
+    pub palette: ThemePaletteConfig,
 }
 
 /// UI configuration loaded from `ui.toml`.
@@ -203,8 +261,37 @@ fn default_hints_label() -> String {
     "Language Hints".to_string()
 }
 
-fn default_accent() -> String {
-    "#c4a35a".to_string()
+fn default_theme_bg() -> String {
+    "#fafad8".to_string()
+}
+
+fn default_theme_fg() -> String {
+    "#31240f".to_string()
+}
+
+fn default_theme_accent() -> String {
+    "#b08531".to_string()
+}
+
+fn default_theme_panel_bg() -> String {
+    "#f5f5d3".to_string()
+}
+
+fn default_theme_input_bg() -> String {
+    "#f0f0ce".to_string()
+}
+
+fn default_theme_border() -> String {
+    "#cec293".to_string()
+}
+
+fn default_theme_muted() -> String {
+    "#76663b".to_string()
+}
+
+/// Returns the built-in fixed theme palette used when a mod does not provide one.
+pub fn default_theme_palette() -> ThemePalette {
+    ThemePaletteConfig::default().into()
 }
 
 impl Default for SidebarConfig {
@@ -218,8 +305,20 @@ impl Default for SidebarConfig {
 impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
-            default_accent: default_accent(),
+            default_accent: None,
+            palette: ThemePaletteConfig::default(),
         }
+    }
+}
+
+impl ThemeConfig {
+    /// Returns the fully resolved theme palette, applying any legacy overrides.
+    pub fn resolved_palette(&self) -> ThemePalette {
+        let mut palette = ThemePalette::from(self.palette.clone());
+        if let Some(ref accent) = self.default_accent {
+            palette.accent = accent.clone();
+        }
+        palette
     }
 }
 
@@ -597,8 +696,8 @@ phrases = ["Loading...", "Please wait..."]
 [sidebar]
 hints_label = "Focail"
 
-[theme]
-default_accent = "#aabbcc"
+[theme.palette]
+accent = "#aabbcc"
 "##,
         )
         .unwrap();
@@ -727,7 +826,8 @@ phrases = ["Loading"]
         let toml_str = "";
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.sidebar.hints_label, "Language Hints");
-        assert_eq!(ui.theme.default_accent, "#c4a35a");
+        assert_eq!(ui.theme.palette.bg, "#fafad8");
+        assert_eq!(ui.theme.palette.accent, "#b08531");
     }
 
     #[test]
@@ -736,12 +836,26 @@ phrases = ["Loading"]
 [sidebar]
 hints_label = "Custom"
 
-[theme]
-default_accent = "#ff0000"
+[theme.palette]
+accent = "#ff0000"
+bg = "#010203"
 "##;
         let ui: UiConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(ui.sidebar.hints_label, "Custom");
-        assert_eq!(ui.theme.default_accent, "#ff0000");
+        assert_eq!(ui.theme.palette.bg, "#010203");
+        assert_eq!(ui.theme.palette.accent, "#ff0000");
+        assert_eq!(ui.theme.palette.fg, "#31240f");
+    }
+
+    #[test]
+    fn test_ui_config_legacy_default_accent() {
+        let toml_str = r##"
+[theme]
+default_accent = "#112233"
+"##;
+        let ui: UiConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(ui.theme.resolved_palette().accent, "#112233");
+        assert_eq!(ui.theme.resolved_palette().bg, "#fafad8");
     }
 
     #[test]

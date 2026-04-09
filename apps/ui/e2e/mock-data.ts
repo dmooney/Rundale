@@ -10,10 +10,12 @@ import type {
 	TextLogEntry,
 	UiConfig
 } from '../src/lib/types';
+import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
-// ── Theme palettes for each time of day ─────────────────────────────────────
+// ── Theme palettes used in tests ────────────────────────────────────────────
 
 export const PALETTES: Record<string, ThemePalette> = {
+	default: DEFAULT_THEME_PALETTE,
 	morning: {
 		bg: '#1e2a3a',
 		fg: '#f0e6d2',
@@ -136,7 +138,8 @@ export const IRISH_HINTS: LanguageHint[] = [
 
 export const UI_CONFIG: UiConfig = {
 	hints_label: 'Focail (Irish Words)',
-	default_accent: '#c4a35a'
+	default_accent: DEFAULT_THEME_PALETTE.accent,
+	splash_text: ''
 };
 
 // ── Text log entries ────────────────────────────────────────────────────────

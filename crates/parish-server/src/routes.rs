@@ -65,10 +65,9 @@ pub async fn get_npcs_here(State(state): State<Arc<AppState>>) -> Json<Vec<NpcIn
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// `GET /api/theme` — returns the current time-of-day theme palette.
+/// `GET /api/theme` — returns the configured UI theme palette.
 pub async fn get_theme(State(state): State<Arc<AppState>>) -> Json<ThemePalette> {
-    let world = state.world.lock().await;
-    Json(parish_core::ipc::build_theme(&world))
+    Json(state.theme_palette.clone())
 }
 
 /// `GET /api/ui-config` — returns UI configuration (splash text, labels, accent).
@@ -1648,6 +1647,7 @@ mod tests {
             default_accent: "#000".to_string(),
             splash_text: String::new(),
         };
+        let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../saves");
         crate::state::build_app_state(
             world,
@@ -1674,6 +1674,7 @@ mod tests {
             None,
             transport,
             ui_config,
+            theme_palette,
             saves_dir,
             data_dir,
             None,

@@ -1,14 +1,14 @@
 /* Parish — Global CSS Theme */
 
 :root {
-	/* Default palette: morning (game starts at 8 AM). Overridden at runtime by Rust theme-update events. */
-	--color-bg: #fff5dc;
-	--color-fg: #32230f;
-	--color-accent: #b48232;
-	--color-panel-bg: #faf0d7;
-	--color-input-bg: #f5ebd2;
-	--color-border: #d2be96;
-	--color-muted: #78643c;
+	/* Default palette mirrors the fixed theme configured in the active mod. */
+	--color-bg: #fafad8;
+	--color-fg: #31240f;
+	--color-accent: #b08531;
+	--color-panel-bg: #f5f5d3;
+	--color-input-bg: #f0f0ce;
+	--color-border: #cec293;
+	--color-muted: #76663b;
 	/* Typography */
 	--font-body: 'IM Fell English', Georgia, serif;
 	--font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;

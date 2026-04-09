@@ -4,6 +4,7 @@
 
 import { test, expect, installTauriMock, emitEvent, applyTheme } from './fixtures';
 import { SNAPSHOTS, PALETTES, NPCS, MAP_DATA } from './mock-data';
+import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
 test.describe('App layout', () => {
 	test.beforeEach(async ({ page }) => {
@@ -67,11 +68,11 @@ test.describe('Theme application', () => {
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 
-		// The default palette from theme.ts is applied before any event
+		// The configured fixed palette is applied on load.
 		const bgColor = await page.evaluate(() =>
 			getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
 		);
-		expect(bgColor).toBe('#1a1a2e');
+		expect(bgColor).toBe(DEFAULT_THEME_PALETTE.bg);
 	});
 
 	test('theme updates when theme-update event is emitted', async ({ page }) => {

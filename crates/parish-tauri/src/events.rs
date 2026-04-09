@@ -15,7 +15,7 @@ pub const EVENT_TEXT_LOG: &str = "text-log";
 pub const EVENT_WORLD_UPDATE: &str = "world-update";
 /// Event emitted to show/hide the loading indicator.
 pub const EVENT_LOADING: &str = "loading";
-/// Event emitted every 500 ms with the current theme palette.
+/// Event emitted when the UI theme palette changes.
 pub const EVENT_THEME_UPDATE: &str = "theme-update";
 /// Event emitted every 2 s with a debug snapshot (only when debug panel is open).
 pub const EVENT_DEBUG_UPDATE: &str = "debug-update";

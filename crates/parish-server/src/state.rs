@@ -10,6 +10,7 @@ use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceLog, InferenceQueue};
 use parish_core::ipc::ConversationLine;
+use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
@@ -113,6 +114,8 @@ pub struct AppState {
     pub transport: TransportConfig,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
+    /// Fixed theme palette from the loaded game mod.
+    pub theme_palette: ThemePalette,
     /// Directory where save files are stored.
     pub saves_dir: PathBuf,
     /// Directory containing game data files (world.json, npcs.json, etc.).
@@ -199,6 +202,7 @@ pub fn build_app_state(
     cloud_client: Option<OpenAiClient>,
     transport: TransportConfig,
     ui_config: UiConfigSnapshot,
+    theme_palette: ThemePalette,
     saves_dir: PathBuf,
     data_dir: PathBuf,
     game_mod: Option<parish_core::game_mod::GameMod>,
@@ -220,6 +224,7 @@ pub fn build_app_state(
         event_bus: EventBus::new(256),
         transport,
         ui_config,
+        theme_palette,
         saves_dir,
         data_dir,
         save_path: Mutex::new(None),

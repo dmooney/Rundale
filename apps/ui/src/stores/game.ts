@@ -35,7 +35,7 @@ export const nameHints = writable<LanguageHint[]>([]);
 
 export const uiConfig = writable<UiConfig>({
 	hints_label: 'Language Hints',
-	default_accent: '#c4a35a',
+	default_accent: '#b08531',
 	splash_text: ''
 });
 
