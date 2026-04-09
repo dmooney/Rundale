@@ -146,11 +146,10 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the current time-of-day theme palette as CSS hex colours.
+/// Returns the configured UI theme palette as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
-    let world = state.world.lock().await;
-    Ok(parish_core::ipc::build_theme(&world))
+    Ok(state.theme_palette.clone())
 }
 
 /// Returns a debug snapshot of all game state for the debug panel.

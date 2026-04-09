@@ -27,7 +27,7 @@ export async function installTauriMock(
 	timeOfDay: string = 'morning'
 ): Promise<void> {
 	const snapshot = SNAPSHOTS[timeOfDay];
-	const palette = PALETTES[timeOfDay];
+	const palette = PALETTES.default;
 	const mapData = MAP_DATA;
 	const npcs = NPCS;
 
@@ -50,7 +50,7 @@ export async function installTauriMock(
 				get_theme: palette,
 				get_ui_config: {
 					hints_label: 'Focail',
-					default_accent: '#c4a35a',
+					default_accent: palette.accent,
 					splash_text: 'Parish: Kilteevan 1820\nCopyright \u00A9 2026 David Mooney. All rights reserved.\ntest-branch - 2026-03-29 00:00'
 				}
 			};

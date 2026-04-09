@@ -81,10 +81,22 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         chrono::Local::now().format("%Y-%m-%d %H:%M"),
         short_sha,
     );
-    let ui_config = UiConfigSnapshot {
-        hints_label: "Language Hints".to_string(),
-        default_accent: "#c4a35a".to_string(),
-        splash_text,
+    let theme_palette = game_mod
+        .as_ref()
+        .map(|gm| gm.ui.theme.resolved_palette())
+        .unwrap_or_else(parish_core::game_mod::default_theme_palette);
+    let ui_config = if let Some(ref gm) = game_mod {
+        UiConfigSnapshot {
+            hints_label: gm.ui.sidebar.hints_label.clone(),
+            default_accent: theme_palette.accent.clone(),
+            splash_text,
+        }
+    } else {
+        UiConfigSnapshot {
+            hints_label: "Language Hints".to_string(),
+            default_accent: theme_palette.accent.clone(),
+            splash_text,
+        }
     };
 
     let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
@@ -96,6 +108,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         cloud_client,
         transport,
         ui_config,
+        theme_palette,
         saves_dir,
         data_dir.clone(),
         game_mod,
@@ -223,18 +236,6 @@ fn spawn_background_ticks(state: Arc<AppState>) {
         }
     });
 
-    // Theme tick: broadcast updated palette every 500 ms
-    let state_theme = Arc::clone(&state);
-    tokio::spawn(async move {
-        tracing::debug!("Theme tick task started");
-        loop {
-            tokio::time::sleep(Duration::from_millis(500)).await;
-            let world = state_theme.world.lock().await;
-            let palette = parish_core::ipc::build_theme(&world);
-            state_theme.event_bus.emit("theme-update", &palette);
-        }
-    });
-
     // Inactivity tick: drive idle banter and auto-pause.
     let state_idle = Arc::clone(&state);
     tokio::spawn(async move {
@@ -243,7 +244,6 @@ fn spawn_background_ticks(state: Arc<AppState>) {
             routes::tick_inactivity(&state_idle).await;
         }
     });
-
     // Autosave tick: save snapshot every 60 seconds (if a save file is active)
     let state_autosave = Arc::clone(&state);
     tokio::spawn(async move {

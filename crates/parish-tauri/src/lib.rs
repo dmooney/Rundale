@@ -24,7 +24,6 @@ use parish_core::inference::{
 use parish_core::ipc::ConversationLine;
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::reactions::ReactionTemplates;
-use parish_core::world::palette::compute_palette;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
@@ -214,6 +213,8 @@ pub struct AppState {
     pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
     pub ui_config: UiConfigSnapshot,
+    /// Fixed theme palette from the loaded game mod.
+    pub theme_palette: ThemePalette,
     /// Name pronunciation entries from the loaded game mod.
     pub pronunciations: Vec<PronunciationEntry>,
     /// NPC arrival reaction templates from the loaded game mod.
@@ -461,17 +462,22 @@ pub fn run() {
         .map(|gm| gm.transport.clone())
         .unwrap_or_default();
 
+    let theme_palette = game_mod
+        .as_ref()
+        .map(|gm| gm.ui.theme.resolved_palette())
+        .unwrap_or_else(parish_core::game_mod::default_theme_palette);
+
     // Build UI config from mod or defaults
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
-            default_accent: gm.ui.theme.default_accent.clone(),
+            default_accent: theme_palette.accent.clone(),
             splash_text: splash_text.clone(),
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
-            default_accent: "#c4a35a".to_string(),
+            default_accent: theme_palette.accent.clone(),
             splash_text,
         }
     };
@@ -500,6 +506,7 @@ pub fn run() {
         )),
         inference_log: new_inference_log(),
         ui_config,
+        theme_palette,
         pronunciations,
         reaction_templates,
         save_path: Mutex::new(None),
@@ -561,20 +568,11 @@ pub fn run() {
                     // before onMount data is rendered into the DOM.
                     tokio::time::sleep(Duration::from_secs(20)).await;
 
-                    // Emit an initial theme so the frontend has a palette painted
-                    // before the first capture (screenshot mode skips the normal
-                    // 500ms theme tick, leaving the WebView on its default white).
+                    // Emit the configured theme once so the frontend has a palette
+                    // painted before the first capture.
                     {
-                        use chrono::Timelike;
-                        let world = state_ss.world.lock().await;
-                        let now = world.clock.now();
-                        let raw = compute_palette(
-                            now.hour(),
-                            now.minute(),
-                            world.clock.season(),
-                            world.weather,
-                        );
-                        let _ = handle_ss.emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
+                        let palette = state_ss.theme_palette.clone();
+                        let _ = handle_ss.emit(events::EVENT_THEME_UPDATE, palette);
                     }
                     tokio::time::sleep(Duration::from_secs(3)).await;
 
@@ -591,16 +589,6 @@ pub fn run() {
                             let current_hour = world.clock.now().hour() as i64;
                             let delta = ((*target_hour as i64) - current_hour).rem_euclid(24) * 60;
                             world.clock.advance(delta);
-                            // Push updated theme to frontend
-                            let now = world.clock.now();
-                            let raw = compute_palette(
-                                now.hour(),
-                                now.minute(),
-                                world.clock.season(),
-                                world.weather,
-                            );
-                            let palette = ThemePalette::from(raw);
-                            let _ = handle_ss.emit(events::EVENT_THEME_UPDATE, palette);
                         }
 
                         // Wait for Svelte to re-render and WebKit to commit the frame
@@ -850,26 +838,6 @@ pub fn run() {
                     }
                 });
 
-                // Theme tick: emit updated palette every 500 ms
-                let state_theme = Arc::clone(&state_setup);
-                let handle_theme = handle.clone();
-                tokio::spawn(async move {
-                    loop {
-                        tokio::time::sleep(Duration::from_millis(500)).await;
-                        let world = state_theme.world.lock().await;
-                        use chrono::Timelike;
-                        let now = world.clock.now();
-                        let raw = compute_palette(
-                            now.hour(),
-                            now.minute(),
-                            world.clock.season(),
-                            world.weather,
-                        );
-                        let palette = ThemePalette::from(raw);
-                        let _ = handle_theme.emit(events::EVENT_THEME_UPDATE, palette);
-                    }
-                });
-
                 // Inactivity tick: drive idle banter and auto-pause.
                 let state_idle = Arc::clone(&state_setup);
                 let handle_idle = handle.clone();
@@ -879,7 +847,6 @@ pub fn run() {
                         crate::commands::tick_inactivity(&state_idle, &handle_idle).await;
                     }
                 });
-
                 // Debug tick: emit debug snapshot every 2 seconds
                 let state_debug = Arc::clone(&state_setup);
                 let handle_debug = handle.clone();

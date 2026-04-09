@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { mapData, worldState } from '../stores/game';
+	import { mapData } from '../stores/game';
 	import { fullMapOpen } from '../stores/game';
 	import { travelState, getTravelPosition } from '../stores/travel';
 	import { submitInput } from '$lib/ipc';
@@ -119,6 +119,11 @@
 		}))
 	);
 
+	// Edges between 1-hop locations
+	let visibleEdges: [string, string][] = $derived.by(() => {
+		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
+		return ($mapData?.edges ?? []).filter(([a, b]) => nearbyIds.has(a) && nearbyIds.has(b));
+	});
 
 	let edgeLines: EdgeLine[] = $derived(
 		visibleEdges.map(([src, dst]) => {
@@ -143,12 +148,6 @@
 		)
 	);
 
-	// Edges between 1-hop locations
-	let visibleEdges: [string, string][] = $derived.by(() => {
-		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
-		return ($mapData?.edges ?? []).filter(([a, b]) => nearbyIds.has(a) && nearbyIds.has(b));
-	});
-
 	// Count of off-map connections per visible node (for "road continues" stubs)
 	let offMapCounts: Map<string, number> = $derived.by(() => {
 		const nearbyIds = new Set(nearbyProjected.map((l) => l.id));
@@ -160,29 +159,10 @@
 		return counts;
 	});
 
-	// ── Time-of-day atmosphere ───────────────────────────────────────────
-	/** 0 = full daylight, 1 = deep night */
-	let nightFactor: number = $derived.by(() => {
-		const h = $worldState?.hour ?? 12;
-		if (h >= 7 && h <= 17) return 0;       // day
-		if (h >= 21 || h <= 4) return 1;        // deep night
-		if (h >= 18 && h <= 20) return (h - 17) / 3; // dusk→night
-		return (7 - h) / 3;                    // dawn→day
-	});
-
-	/** Locations with lights that glow at night. */
 	const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;
 	function isLit(name: string): boolean {
 		return LIT_PATTERNS.test(name);
 	}
-
-	/** Weather-based tint class. */
-	let weatherTint: string = $derived.by(() => {
-		const w = ($worldState?.weather ?? '').toLowerCase();
-		if (w.includes('rain') || w.includes('storm')) return 'weather-rain';
-		if (w.includes('fog')) return 'weather-fog';
-		return '';
-	});
 
 	// ── Travel animation ────────────────────────────────────────────────
 	let animFrame = $state(0);
@@ -294,26 +274,26 @@
 		</button>
 	</div>
 	{#if $mapData}
-		<svg viewBox="0 0 {viewBox.w} {viewBox.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish minimap" class={weatherTint}>
+		<svg viewBox="0 0 {viewBox.w} {viewBox.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Parish minimap">
 			<defs>
 				{#each usedIcons as icon}
 					<symbol id="minimap-icon-{icon}" viewBox="0 0 256 256">
 						<path d={ICON_PATHS[icon]} />
 					</symbol>
 				{/each}
-				<!-- Night glow filter for lit locations -->
-				{#if nightFactor > 0}
-					<filter id="minimap-glow" x="-50%" y="-50%" width="200%" height="200%">
-						<feGaussianBlur in="SourceGraphic" stdDeviation={4 * s * nightFactor} result="blur" />
-						<feColorMatrix in="blur" type="matrix"
-							values="1 0 0 0 0.3  0 1 0 0 0.25  0 0 1 0 0.1  0 0 0 0.7 0"
-							result="glow" />
-						<feMerge>
-							<feMergeNode in="glow" />
-							<feMergeNode in="SourceGraphic" />
-						</feMerge>
-					</filter>
-				{/if}
+				<filter id="minimap-glow" x="-50%" y="-50%" width="200%" height="200%">
+					<feGaussianBlur in="SourceGraphic" stdDeviation={4 * s} result="blur" />
+					<feColorMatrix
+						in="blur"
+						type="matrix"
+						values="1 0 0 0 0.3  0 1 0 0 0.25  0 0 1 0 0.1  0 0 0 0.7 0"
+						result="glow"
+					/>
+					<feMerge>
+						<feMergeNode in="glow" />
+						<feMergeNode in="SourceGraphic" />
+					</feMerge>
+				</filter>
 			</defs>
 			<!-- Continuation stubs: short faded lines from nodes with off-map connections -->
 			{#each localProjected as loc}
@@ -333,13 +313,6 @@
 					/>
 				{/if}
 			{/each}
-
-			<!-- Night overlay — darkens the map at night -->
-			{#if nightFactor > 0}
-				<rect x="0" y="0" width={viewBox.w} height={viewBox.h}
-					fill="black" opacity={nightFactor * 0.45}
-					pointer-events="none" />
-			{/if}
 
 			<!-- Edges (with footprint thickness) -->
 			{#each visibleEdges as [src, dst]}
@@ -386,7 +359,7 @@
 				{@const r = isPlayer(loc) ? playerR : nodeR}
 				{@const icon = getLocationIcon(loc.name)}
 				{@const iconSize = r * 2}
-				{@const lit = nightFactor > 0 && isLit(loc.name) && loc.visited !== false}
+				{@const lit = isLit(loc.name) && loc.visited !== false}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<g
@@ -586,22 +559,12 @@
 		to { opacity: 1; }
 	}
 
-	/* ── Night atmosphere ── */
 	.node.lit-node .node-icon {
 		fill: var(--color-accent);
 	}
 
 	.node.lit-node .node-label {
 		fill: var(--color-accent);
-	}
-
-	/* ── Weather tinting ── */
-	svg.weather-rain {
-		filter: saturate(0.85) brightness(0.92);
-	}
-
-	svg.weather-fog {
-		filter: saturate(0.6) contrast(0.85) brightness(1.05);
 	}
 
 	.tooltip-unexplored {

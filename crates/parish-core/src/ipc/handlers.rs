@@ -15,11 +15,10 @@ use crate::npc::mood::mood_emoji;
 use crate::npc::ticks;
 use crate::npc::{LanguageHint, Npc, NpcId};
 use crate::world::description::render_description;
-use crate::world::palette::compute_palette;
 use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
 
-use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, ThemePalette, WorldSnapshot};
+use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, WorldSnapshot};
 
 /// Builds a [`WorldSnapshot`] from the current world state.
 pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> WorldSnapshot {
@@ -219,18 +218,6 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
             }
         })
         .collect()
-}
-
-/// Builds the current [`ThemePalette`] from the world clock and weather.
-pub fn build_theme(world: &WorldState) -> ThemePalette {
-    let now = world.clock.now();
-    let raw = compute_palette(
-        now.hour(),
-        now.minute(),
-        world.clock.season(),
-        world.weather,
-    );
-    ThemePalette::from(raw)
 }
 
 /// Capitalizes the first character of a string slice.
@@ -783,15 +770,6 @@ mod tests {
         );
 
         assert_eq!(targets, vec![NpcId(2), NpcId(1)]);
-    }
-
-    #[test]
-    fn build_theme_returns_hex_colors() {
-        let world = WorldState::new();
-        let theme = build_theme(&world);
-        assert!(theme.bg.starts_with('#'));
-        assert_eq!(theme.bg.len(), 7);
-        assert!(theme.fg.starts_with('#'));
     }
 
     #[test]

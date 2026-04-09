@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { mapData, worldState } from '../stores/game';
+	import { mapData } from '../stores/game';
 	import { travelState, getTravelPosition } from '../stores/travel';
 	import { submitInput } from '$lib/ipc';
 	import { resolveLabels, distSq, estimateTextWidth, type EdgeLine } from '$lib/map-labels';
@@ -94,26 +94,10 @@
 		)
 	);
 
-	// ── Time-of-day atmosphere ───────────────────────────────────────────
-	let nightFactor: number = $derived.by(() => {
-		const h = $worldState?.hour ?? 12;
-		if (h >= 7 && h <= 17) return 0;
-		if (h >= 21 || h <= 4) return 1;
-		if (h >= 18 && h <= 20) return (h - 17) / 3;
-		return (7 - h) / 3;
-	});
-
 	const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;
 	function isLit(name: string): boolean {
 		return LIT_PATTERNS.test(name);
 	}
-
-	let weatherTint: string = $derived.by(() => {
-		const w = ($worldState?.weather ?? '').toLowerCase();
-		if (w.includes('rain') || w.includes('storm')) return 'weather-rain';
-		if (w.includes('fog')) return 'weather-fog';
-		return '';
-	});
 
 	// ── Travel animation ────────────────────────────────────────────────
 	let animFrame = $state(0);
@@ -248,7 +232,6 @@
 				xmlns="http://www.w3.org/2000/svg"
 				role="img"
 				aria-label="Full parish map"
-				class={weatherTint}
 				style="transform: translate({panX}px, {panY}px) scale({zoom}); transform-origin: center;"
 			>
 				<defs>
@@ -257,26 +240,20 @@
 							<path d={ICON_PATHS[icon]} />
 						</symbol>
 					{/each}
-					{#if nightFactor > 0}
-						<filter id="fullmap-glow" x="-50%" y="-50%" width="200%" height="200%">
-							<feGaussianBlur in="SourceGraphic" stdDeviation={5 * nightFactor} result="blur" />
-							<feColorMatrix in="blur" type="matrix"
-								values="1 0 0 0 0.3  0 1 0 0 0.25  0 0 1 0 0.1  0 0 0 0.7 0"
-								result="glow" />
-							<feMerge>
-								<feMergeNode in="glow" />
-								<feMergeNode in="SourceGraphic" />
-							</feMerge>
-						</filter>
-					{/if}
+					<filter id="fullmap-glow" x="-50%" y="-50%" width="200%" height="200%">
+						<feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+						<feColorMatrix
+							in="blur"
+							type="matrix"
+							values="1 0 0 0 0.3  0 1 0 0 0.25  0 0 1 0 0.1  0 0 0 0.7 0"
+							result="glow"
+						/>
+						<feMerge>
+							<feMergeNode in="glow" />
+							<feMergeNode in="SourceGraphic" />
+						</feMerge>
+					</filter>
 				</defs>
-
-				<!-- Night overlay -->
-				{#if nightFactor > 0}
-					<rect x="0" y="0" width={svgW} height={svgH}
-						fill="black" opacity={nightFactor * 0.45}
-						pointer-events="none" />
-				{/if}
 
 				<!-- Edges (with footprints and travel highlight) -->
 				{#each $mapData?.edges ?? [] as [src, dst]}
@@ -322,7 +299,7 @@
 					{@const r = isPlayer(loc) ? PLAYER_R : NODE_R}
 					{@const icon = getLocationIcon(loc.name)}
 					{@const iconSize = r * 2}
-					{@const lit = nightFactor > 0 && isLit(loc.name) && loc.visited !== false}
+					{@const lit = isLit(loc.name) && loc.visited !== false}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<g
@@ -556,22 +533,12 @@
 		to { opacity: 1; }
 	}
 
-	/* ── Night atmosphere ── */
 	.node.lit-node .node-icon {
 		fill: var(--color-accent);
 	}
 
 	.node.lit-node .node-label {
 		fill: var(--color-accent);
-	}
-
-	/* ── Weather tinting ── */
-	svg.weather-rain {
-		filter: saturate(0.85) brightness(0.92);
-	}
-
-	svg.weather-fog {
-		filter: saturate(0.6) contrast(0.85) brightness(1.05);
 	}
 
 	.tooltip-unexplored {

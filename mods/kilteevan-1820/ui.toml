@@ -1,5 +1,11 @@
 [sidebar]
 hints_label = "Focail (Irish Words)"
 
-[theme]
-default_accent = "#c4a35a"
+[theme.palette]
+bg = "#fafad8"
+fg = "#31240f"
+accent = "#b08531"
+panel_bg = "#f5f5d3"
+input_bg = "#f0f0ce"
+border = "#cec293"
+muted = "#76663b"
