@@ -63,6 +63,20 @@ export const EFFECT_DEFINITIONS: EffectDefinition[] = [
 	// ── Ambient ──────────────────────────────────────────────────────────
 
 	{
+		id: 'dust-motes',
+		conditions: {
+			indoor: true,
+			weather: ['Clear', 'PartlyCloudy'],
+			timeOfDay: ['Morning', 'Midday', 'Afternoon'],
+		},
+		cooldownMs: 60_000,
+		intervalMs: [30_000, 120_000],
+		durationMs: 30_000,
+		probability: 0.5,
+		singleton: true,
+	},
+
+	{
 		id: 'turf-smoke',
 		conditions: {
 			indoor: false,

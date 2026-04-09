@@ -23,6 +23,7 @@
 	import BogLights from './effects/BogLights.svelte';
 	import TurfSmoke from './effects/TurfSmoke.svelte';
 	import WindGust from './effects/WindGust.svelte';
+	import DustMotes from './effects/DustMotes.svelte';
 
 	let engine: EffectsEngine | null = null;
 
@@ -85,6 +86,7 @@
 			{#if effect.id === 'bog-lights'}<BogLights {effect} />{/if}
 			{#if effect.id === 'turf-smoke'}<TurfSmoke {effect} />{/if}
 			{#if effect.id === 'wind-gust'}<WindGust {effect} />{/if}
+			{#if effect.id === 'dust-motes'}<DustMotes {effect} />{/if}
 		{/each}
 	</div>
 {/if}
