@@ -371,10 +371,6 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if $fullMapOpen}
-	<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
-{/if}
-
 <div class="app-shell" class:debug-open={$debugVisible}>
 	<StatusBar />
 
@@ -382,20 +378,38 @@
 	<div class="mobile-toolbar">
 		<button
 			class="mobile-btn"
-			class:active={mobilePanel === 'map'}
-			onclick={() => mobilePanel = mobilePanel === 'map' ? 'none' : 'map'}
+			class:active={$fullMapOpen}
+			onclick={() => {
+				if ($fullMapOpen) {
+					fullMapOpen.set(false);
+				} else {
+					mobilePanel = 'none';
+					fullMapOpen.set(true);
+				}
+			}}
 		>Map</button>
 		<button
 			class="mobile-btn"
 			class:active={mobilePanel === 'sidebar'}
-			onclick={() => mobilePanel = mobilePanel === 'sidebar' ? 'none' : 'sidebar'}
+			onclick={() => {
+				if (mobilePanel === 'sidebar') {
+					mobilePanel = 'none';
+				} else {
+					fullMapOpen.set(false);
+					mobilePanel = 'sidebar';
+				}
+			}}
 		>Hints</button>
 	</div>
 
 	<div class="main-area">
 		<div class="chat-col" class:mobile-hidden={mobilePanel !== 'none'}>
-			<ChatPanel />
-			<InputField />
+			{#if $fullMapOpen}
+				<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
+			{:else}
+				<ChatPanel />
+				<InputField />
+			{/if}
 		</div>
 		<div class="right-col">
 			<MapPanel />
@@ -404,17 +418,11 @@
 	</div>
 
 	<!-- Mobile-only panel (replaces chat area when open) -->
-	{#if mobilePanel !== 'none'}
+	{#if mobilePanel === 'sidebar'}
 		<div class="mobile-panel">
-			{#if mobilePanel === 'map'}
-				<div class="mobile-panel-inner">
-					<MapPanel />
-				</div>
-			{:else}
-				<div class="mobile-panel-inner">
-					<Sidebar />
-				</div>
-			{/if}
+			<div class="mobile-panel-inner">
+				<Sidebar />
+			</div>
 		</div>
 	{/if}
 </div>
