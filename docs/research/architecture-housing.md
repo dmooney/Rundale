@@ -1,6 +1,6 @@
 # Architecture & Housing in 1820s Ireland
 
-*Research document for Parish — an interactive fiction game set in 1820s rural Ireland.*
+*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
 
 ## The One-Room Cabin
 
@@ -50,7 +50,7 @@ Housing in 1820s Ireland was not uniform, and the regional differences reflected
 
 ## Game Design Implications
 
-The architecture and housing of 1820s Ireland offer rich material for building Parish as a living, legible world. **Location descriptions** should immediately communicate social class through architectural detail: the smoky darkness and earthen floor of a cottier's cabin versus the lime-washed walls and dresser full of delph in a strong farmer's kitchen versus the plasterwork and mahogany of a Big House drawing room. Each building type functions naturally as a **world node** — a place where specific interactions, characters, and events are situated — and the physical differences between them provide the player with an intuitive visual grammar for understanding the social landscape.
+The architecture and housing of 1820s Ireland offer rich material for building Rundale as a living, legible world. **Location descriptions** should immediately communicate social class through architectural detail: the smoky darkness and earthen floor of a cottier's cabin versus the lime-washed walls and dresser full of delph in a strong farmer's kitchen versus the plasterwork and mahogany of a Big House drawing room. Each building type functions naturally as a **world node** — a place where specific interactions, characters, and events are situated — and the physical differences between them provide the player with an intuitive visual grammar for understanding the social landscape.
 
 **Interior detail** is especially important for scenes set inside homes. The hearth should be a persistent presence in every domestic scene — the fire's state (blazing, low, banked in ashes) can signal time of day and household mood. The half-door, the dresser, the settle bed, and the pot crane are not merely decorative details but interactive elements: a conversation at a half-door has a different social register than one conducted by the hearth; an NPC glancing at her dresser while speaking to a visitor is performing a class-coded behaviour that the game can leverage for characterisation. The clachan layout supports the game's social dynamics by placing related NPC households in close proximity, creating natural clusters of interaction and gossip.
 

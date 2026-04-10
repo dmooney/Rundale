@@ -1,6 +1,6 @@
 # Politics & Movements in 1820s Ireland
 
-## Research Document — Parish (Kilteevan, County Roscommon, 1820s)
+## Research Document — Rundale (Kilteevan, County Roscommon, 1820s)
 
 ### The Shadow of the Act of Union
 
@@ -44,7 +44,7 @@ The 1820s were close enough to the **Rebellion of 1798** that its memory remaine
 
 ### Game Design Implications
 
-The political dynamics of 1820s Ireland offer rich material for *Parish*. **NPC dialogue** should reflect the pervasive political tensions of the era: Catholic characters might speak with guarded hope about O'Connell's campaign, debate the merits of the penny rent, or express anxiety about landlord retaliation at election time. Protestant characters might range from rigid Orangemen to sympathetic reformers, with the majority occupying an uneasy middle ground. **Daniel O'Connell** himself should function as a powerful **offscreen figure** — discussed, admired, feared, quoted, but never directly encountered — whose campaign provides a background arc of rising tension across the game's timeline.
+The political dynamics of 1820s Ireland offer rich material for *Rundale*. **NPC dialogue** should reflect the pervasive political tensions of the era: Catholic characters might speak with guarded hope about O'Connell's campaign, debate the merits of the penny rent, or express anxiety about landlord retaliation at election time. Protestant characters might range from rigid Orangemen to sympathetic reformers, with the majority occupying an uneasy middle ground. **Daniel O'Connell** himself should function as a powerful **offscreen figure** — discussed, admired, feared, quoted, but never directly encountered — whose campaign provides a background arc of rising tension across the game's timeline.
 
 **Faction allegiances** can be modeled through the competing pulls of the Catholic Association, the Orange Order, Ribbon lodges, and the landlord interest. NPCs should have opinions on these groups that reflect their social position, religion, and personal history. The **parish priest** is a natural quest-giver and authority figure whose political role — collecting the Catholic rent, urging tenants to defy their landlord at the polls — creates dramatic tension with the landlord and his agent. **Election events**, whether a county election or the distant thunder of Clare in 1828, can serve as set-piece moments that force the player to navigate competing loyalties. The **memory of 1798** can surface through older NPCs' stories, hidden pikes in thatched roofs, and the lingering fear that speaking too freely about rebellion might bring the authorities to one's door. These layers of political tension — constitutional versus revolutionary, Catholic versus Protestant, tenant versus landlord, local versus national — provide a web of conflict and choice that can animate every interaction in the parish.
 

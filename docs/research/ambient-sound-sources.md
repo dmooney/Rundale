@@ -1,6 +1,6 @@
-# Ambient Sound Sources — Royalty-Free Audio for Parish
+# Ambient Sound Sources — Royalty-Free Audio for Rundale
 
-## Research Document for Parish (Kilteevan, County Roscommon)
+## Research Document for Rundale (Kilteevan, County Roscommon)
 
 This document catalogs royalty-free and Creative Commons audio sources for the ambient sound system. All sounds must be period-plausible for 1820s rural Ireland — no engines, electronics, or modern machinery. Preferred formats: OGG Vorbis or WAV. Preferred licenses: CC0 (public domain) or CC-BY (attribution only).
 
@@ -196,7 +196,7 @@ General village life sounds for Kilteevan Village and indoor locations.
 | **CC0** | None. Public domain. | Best. Use freely. |
 | **CC-BY** | Credit the author. | Good. Include in credits/about screen. |
 | **CC-BY-SA** | Credit + share alike. | Acceptable if game assets are shareable. |
-| **CC-BY-NC** | Credit + non-commercial only. | Only if Parish remains non-commercial. |
+| **CC-BY-NC** | Credit + non-commercial only. | Only if Rundale remains non-commercial. |
 | **Pixabay License** | No attribution required. Cannot resell as standalone. | Good for games. |
 | **Mixkit License** | Free for commercial use. | Good. |
 | **Zapsplat License** | Free tier requires attribution. | Acceptable. |

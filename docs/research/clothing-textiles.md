@@ -1,6 +1,6 @@
 # Clothing & Textiles in 1820s Ireland
 
-*Research document for Parish — an interactive fiction game set in 1820s rural Ireland.*
+*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
 
 ## Clothing as Social Marker
 
@@ -46,7 +46,7 @@ By the 1820s, the domestic textile economy that had sustained countless families
 
 ## Game Design Implications
 
-Clothing and textiles offer rich material for grounding Parish in physical, social, and economic reality. **NPC appearance descriptions** should foreground clothing as the primary visual indicator of class: a barefoot woman in a patched bánín shawl and faded red petticoat reads instantly as poor, while a man in a well-fitted dyed frieze coat and good brogues signals a strong farmer. The presence or absence of shoes is the single quickest class marker and should appear prominently in character descriptions. **Seasonal wardrobe changes** can reinforce the passage of time — NPCs should go barefoot in summer and bundled in winter, swap cloaks for shawls as fashion shifts, and appear in their Sunday best on Mass days and fair days.
+Clothing and textiles offer rich material for grounding Rundale in physical, social, and economic reality. **NPC appearance descriptions** should foreground clothing as the primary visual indicator of class: a barefoot woman in a patched bánín shawl and faded red petticoat reads instantly as poor, while a man in a well-fitted dyed frieze coat and good brogues signals a strong farmer. The presence or absence of shoes is the single quickest class marker and should appear prominently in character descriptions. **Seasonal wardrobe changes** can reinforce the passage of time — NPCs should go barefoot in summer and bundled in winter, swap cloaks for shawls as fashion shifts, and appear in their Sunday best on Mass days and fair days.
 
 **Class identification** through clothing allows the player to make rapid social assessments without explicit exposition. A player arriving in a new parish can read the community's economic condition from the state of people's clothes: the proportion of barefoot to shod, the quality of cloth, the presence of imported fabrics versus homespun. The **textile economy** — spinning wheels, looms, flax fields, retting pools, the weaver's cottage — provides a backdrop of productive activity that populates the world with purposeful NPCs and plausible economic interactions. A player might buy cloth from a weaver, commission a pair of brogues from a cobbler, or hear women discussing the falling price of yarn. The ongoing **collapse of cottage industry** provides ambient economic tension: weavers complaining about cheap English cloth, spinners finding no buyers for their yarn, families anxiously calculating whether they can still make the rent. This slow-motion crisis is historically accurate and dramatically potent, foreshadowing the greater catastrophe to come.
 

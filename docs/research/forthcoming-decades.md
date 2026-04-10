@@ -46,7 +46,7 @@ The question that dominates daily life in Kilteevan — who owns the land and on
 
 ## Game Design Implications
 
-This timeline is not background lore — it is a design resource with specific applications for Parish.
+This timeline is not background lore — it is a design resource with specific applications for Rundale.
 
 **Foreshadowing through NPC dialogue** is the most immediate use. Characters in the 1820s cannot predict the Famine, but they can voice the anxieties that make it inevitable. A farmer noting that his holding is too small to divide again among his sons. A mother observing that the family eats nothing but potatoes from August to May. An old man remembering the partial failure of 1816–1817 and wondering what would happen if the crop failed entirely. A priest worrying about the growing population and the shrinking holdings. None of these characters know what is coming, but the player — armed with historical knowledge — can recognise the warning signs. This creates **dramatic irony** of extraordinary power: the player knows the catastrophe is approaching and cannot prevent it, lending even ordinary moments a weight of impending loss.
 

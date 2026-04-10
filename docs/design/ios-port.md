@@ -153,7 +153,7 @@ gating is local to those two files.
 
 ## The Tauri 2 iOS Shell
 
-Tauri 2 supports iOS out of the box. Parish just hasn't enabled it. Most of
+Tauri 2 supports iOS out of the box. Rundale just hasn't enabled it. Most of
 the prep work has, however, already happened organically.
 
 ### What's already done
@@ -276,7 +276,7 @@ autoregressive LLM decoding with a sliding KV cache, the practical state of
 the art on Apple Silicon is still Metal/MPS via `llama.cpp` or MLX, both of
 which run on the **GPU**, not the ANE. `llama.cpp`'s Metal backend on an
 A17 Pro / A18 hits roughly 20–30 tokens/sec for a 3B Q4, which is plenty for
-Parish's tier-1 dialogue.
+Rundale's tier-1 dialogue.
 
 If we wanted ANE specifically, the path would be: convert the model to Core
 ML packages with `coremltools` (stateful KV-cache support landed in iOS 18),
@@ -372,7 +372,7 @@ Three viable options:
 | Option                          | Pros                                              | Cons                                                          |
 |---------------------------------|---------------------------------------------------|---------------------------------------------------------------|
 | **Xcode Cloud**                 | First-party, integrated with App Store Connect; generous free tier (25 hr/month) | Less flexible than YAML-based CI; locks you into Apple        |
-| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Parish CI | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
+| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Rundale CI | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
 | **Self-hosted Mac**             | Cheapest at scale; fast                           | Babysit the machine; certificate management is on you         |
 
 A typical iOS CI pipeline:
@@ -393,7 +393,7 @@ repo. Any CI machine runs `fastlane match` to fetch them. Without `match`
 you end up doing manual keychain dances in CI that break every time Apple
 rotates a certificate.
 
-For Parish specifically: the existing GitHub Actions workflows for
+For Rundale specifically: the existing GitHub Actions workflows for
 desktop/CLI tests should not change. Add a separate `ios-build.yml`
 workflow that runs on `macos-latest`, gated to only run on PRs that touch
 `crates/parish-tauri/`, `crates/parish-core/src/inference/`, `apps/ui/`, or
@@ -426,7 +426,7 @@ App Review reality:
 - **Apple's review guidelines change.** A pattern that was fine last submission can be a rejection reason on the next one. Re-read the [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) before any submission after a long gap.
 - **Bundle identifiers are forever.** Once `ie.parish.app` ships to the store, it can't be changed without releasing a new app and migrating saves manually.
 - **Release builds are slow.** A clean Rust + Tauri release build is 10–20 minutes on a Mac mini. CI minutes add up fast.
-- **iOS aggressively kills backgrounded apps with high RAM usage.** Parish + a 3 GB resident model is exactly the kind of app iOS will reap. The session-resume path (load from latest snapshot on cold start) needs to be fast and reliable.
+- **iOS aggressively kills backgrounded apps with high RAM usage.** Rundale + a 3 GB resident model is exactly the kind of app iOS will reap. The session-resume path (load from latest snapshot on cold start) needs to be fast and reliable.
 
 ## Risks
 

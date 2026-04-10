@@ -240,7 +240,7 @@ A spectator mode where multiple people can suggest inputs via a WebSocket:
 - The "player" picks one, or the most-voted action auto-submits after a timer
 - NPCs could react to the chaos: "Why do ye keep changing yer mind?"
 
-Wild idea — but Parish's streaming NPC responses would look great on a Twitch stream.
+Wild idea — but Rundale's streaming NPC responses would look great on a Twitch stream.
 
 **Effort**: Very High — needs WebSocket server, voting UI, audience client.
 

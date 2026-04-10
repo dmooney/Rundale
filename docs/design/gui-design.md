@@ -233,7 +233,7 @@ The `run_gui()` function in `src/gui/mod.rs`:
 
 | Property | Value |
 |----------|-------|
-| Title | "Parish — An Irish Living World Text Adventure" |
+| Title | "Rundale — An Irish Living World Text Adventure" |
 | Default size | 1200 x 800 |
 | Minimum size | 800 x 500 |
 | Right panel width | 250–320px |

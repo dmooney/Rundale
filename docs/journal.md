@@ -53,7 +53,7 @@ for location names. Players can now say "go to the coast" (→ Lough Ree Shore),
 
 ## 2026-03-25 — TUI Removal
 
-Removed the ratatui terminal UI (`src/tui/`) from the project. Parish now has two modes:
+Removed the ratatui terminal UI (`src/tui/`) from the project. Rundale now has two modes:
 
 - **Headless REPL** (default): plain stdin/stdout, launched via `cargo run`
 - **Tauri GUI** (desktop app): launched via `cargo tauri dev`

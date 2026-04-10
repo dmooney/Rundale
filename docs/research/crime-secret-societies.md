@@ -1,6 +1,6 @@
 # Crime & Secret Societies in 1820s Ireland
 
-## Research Document — Parish (Kilteevan, County Roscommon)
+## Research Document — Rundale (Kilteevan, County Roscommon)
 
 ### Agrarian Secret Societies: Origins and Local Variants
 
@@ -34,7 +34,7 @@ The figure of the **informer** occupied a unique place of horror in this world. 
 
 ### Game Design Implications
 
-These historical realities suggest several rich systems for Parish. **Secret society membership** should function as a hidden NPC attribute, influencing behavior, dialogue, and alliances in ways the player must discover through observation and conversation rather than through explicit labels. Some NPCs will be oath-bound Threshers or Ribbonmen; others will be sympathizers; still others will be opposed, whether out of loyalty to the crown, religious conviction, or simple fear. **Threatening letters** can appear as in-game events — posted on the chapel door, discovered at a player-allied NPC's home — serving as narrative triggers that force the player to choose sides or attempt mediation.
+These historical realities suggest several rich systems for Rundale. **Secret society membership** should function as a hidden NPC attribute, influencing behavior, dialogue, and alliances in ways the player must discover through observation and conversation rather than through explicit labels. Some NPCs will be oath-bound Threshers or Ribbonmen; others will be sympathizers; still others will be opposed, whether out of loyalty to the crown, religious conviction, or simple fear. **Threatening letters** can appear as in-game events — posted on the chapel door, discovered at a player-allied NPC's home — serving as narrative triggers that force the player to choose sides or attempt mediation.
 
 **Faction tensions** between rival townlands or families provide a persistent source of social conflict that operates independently of the main narrative. The player may witness or be drawn into faction fights at fairs and pattern days, and their responses will shape their reputation with different groups. **Moral choices** around crime — whether to report a poitin still, whether to shelter a man accused of cattle-maiming, whether to carry a threatening letter or refuse — should have no cleanly "good" outcome. The crown's justice is harsh and alien; the community's justice is brutal and sometimes unjust. The player is caught between systems, and every choice closes some doors while opening others.
 

@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](../index.md) | [Architecture Overview](overview.md)
 
-A collection of brainstormed gameplay ideas for Parish, organized by theme. These are early-stage concepts — not commitments. Each idea notes how it connects to existing systems and which development phase it would likely fit into.
+A collection of brainstormed gameplay ideas for Rundale, organized by theme. These are early-stage concepts — not commitments. Each idea notes how it connects to existing systems and which development phase it would likely fit into.
 
 ---
 

@@ -25,8 +25,8 @@ Factorio's soundtrack does something different but equally relevant: it makes yo
 Key principles to steal:
 
 - **Ambient density reflects world state.** A quiet winter night at the Fairy Fort should sound fundamentally different from a summer evening at the Crossroads with a dance in full swing. Not just different sounds — different *density* of sound.
-- **Long-session tolerance.** Parish sessions can run 2–6 hours. Nothing should become grating. Loops must be long (3–5 minutes minimum), varied, and layered so they never feel repetitive.
-- **Sound is information.** In Factorio, you can *hear* that something's wrong before you see it. In Parish, you should be able to *hear* that it's getting late (birdsong fading, evening settling sounds), that weather is changing (wind picking up before rain arrives), or that the pub is lively tonight (distant fiddle music).
+- **Long-session tolerance.** Rundale sessions can run 2–6 hours. Nothing should become grating. Loops must be long (3–5 minutes minimum), varied, and layered so they never feel repetitive.
+- **Sound is information.** In Factorio, you can *hear* that something's wrong before you see it. In Rundale, you should be able to *hear* that it's getting late (birdsong fading, evening settling sounds), that weather is changing (wind picking up before rain arrives), or that the pub is lively tonight (distant fiddle music).
 
 ### The Rundale Synthesis: Sound as World-Building
 
@@ -173,7 +173,7 @@ Weather doesn't just add sounds — it *transforms the entire mix*.
 
 ## Part 3: The Otherworld Has a Soundtrack
 
-Irish mythology isn't decorative in Parish — it's structural. The locations, NPCs, and calendar are already threaded with supernatural hooks. Sound is how we make the player *believe* in the Otherworld without ever showing it directly.
+Irish mythology isn't decorative in Rundale — it's structural. The locations, NPCs, and calendar are already threaded with supernatural hooks. Sound is how we make the player *believe* in the Otherworld without ever showing it directly.
 
 ### The Principle: You Never See It. You *Almost* Hear It.
 
@@ -202,7 +202,7 @@ Bealtaine is the other thin-veil festival. The Fort's night soundscape should sh
 
 ### The Banshee
 
-The *bean sí* foretells death. If Parish ever implements NPC death events, the banshee should be heard 1–3 in-game days before. Design ideas:
+The *bean sí* foretells death. If Rundale ever implements NPC death events, the banshee should be heard 1–3 in-game days before. Design ideas:
 
 - **Not a scream.** That's the Hollywood version. The real folklore describes a keening — a *caoineadh* — a women's lament, wavering between song and wail. Think of it as sean-nós singing from the wrong side of reality.
 - **Distance and direction:** The banshee is heard from the direction of the home of the person who will die. It propagates Far, but with heavy low-pass filtering — you hear a mournful, muffled wailing that you can't quite locate.
@@ -444,7 +444,7 @@ The graph-based propagation system in ADR-015 is powerful. Here are creative use
 
 ### Original Composition vs. Found Sound
 
-Ideally, Parish would have a small number of **original composed pieces** supplemented by **royalty-free ambient sound** (see [ambient-sound-sources.md](../research/ambient-sound-sources.md)).
+Ideally, Rundale would have a small number of **original composed pieces** supplemented by **royalty-free ambient sound** (see [ambient-sound-sources.md](../research/ambient-sound-sources.md)).
 
 **What should be composed:**
 - 5–8 short (2–4 minute) non-diegetic pieces for the Minecraft-style emotional layer

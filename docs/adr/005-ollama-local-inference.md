@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish's core innovation is LLM-driven NPC cognition and natural language input parsing. Every NPC interaction, nearby NPC-to-NPC conversation, and player command requires inference. This creates several requirements:
+Rundale's core innovation is LLM-driven NPC cognition and natural language input parsing. Every NPC interaction, nearby NPC-to-NPC conversation, and player command requires inference. This creates several requirements:
 
 - **Privacy**: Player interactions and game content must stay local. No data leaves the machine.
 - **Cost**: With potentially hundreds of inference calls per play session, cloud API costs would be prohibitive.

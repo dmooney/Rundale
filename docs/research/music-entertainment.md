@@ -1,6 +1,6 @@
 # Music & Entertainment in 1820s Ireland
 
-## Research Document for Parish (Kilteevan, County Roscommon)
+## Research Document for Rundale (Kilteevan, County Roscommon)
 
 ### Instruments of the People
 
@@ -44,7 +44,7 @@ Yet the wake was far more than mourning. After the keening and prayers, the wake
 
 ### Game Design Implications
 
-Music and entertainment offer rich possibilities for Parish as an interactive fiction experience. **Music events** should function as dynamic social gatherings that the player can attend, participate in, or overhear — a crossroads dance on a summer evening, a storytelling session by the fire on a winter night, a piper arriving at the local public house. These events serve as natural hubs for NPC interaction, information exchange, and relationship development.
+Music and entertainment offer rich possibilities for Rundale as an interactive fiction experience. **Music events** should function as dynamic social gatherings that the player can attend, participate in, or overhear — a crossroads dance on a summer evening, a storytelling session by the fire on a winter night, a piper arriving at the local public house. These events serve as natural hubs for NPC interaction, information exchange, and relationship development.
 
 **NPC musicians and storytellers** — a parish fiddler, a visiting piper, a resident seanchai — should be distinct character types with their own social roles and schedules. The travelling musician mechanic offers a natural way to introduce news, new characters, and plot developments from outside the parish. A seanchai NPC could serve as a vehicle for delivering lore, backstory, and cultural context to the player in a way that feels organic to the setting.
 

@@ -6,7 +6,7 @@
 
 ## Context
 
-The Parish desktop GUI runs inside Tauri's WebView, which cannot be driven by
+The Rundale desktop GUI runs inside Tauri's WebView, which cannot be driven by
 standard browser automation tools (Playwright, Puppeteer, Selenium). This makes
 automated visual testing of the Svelte frontend impossible without the native
 desktop app running.

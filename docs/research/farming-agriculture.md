@@ -1,6 +1,6 @@
 # Farming & Agriculture in 1820s Ireland
 
-## Research Document — Parish (Kilteevan, County Roscommon)
+## Research Document — Rundale (Kilteevan, County Roscommon)
 
 ### The Land and Its People
 
@@ -42,7 +42,7 @@ The 1820s were a period of rising tension over land. Landlords and their agents 
 
 ## Game Design Implications
 
-The agricultural world of 1820s Kilteevan provides a rich foundation for the Parish simulation. **NPC daily routines** should reflect the seasonal calendar: farmers working lazy beds in spring, families at the bog in early summer, the bustle of harvest meitheal in autumn, and the quieter domestic rhythms of winter. The time of year should visibly change what NPCs are doing, where they are found, and what they talk about. **Cattle fairs** and **market days** offer natural set-piece encounters — crowded, social, charged with economic anxiety — where the player can overhear gossip, witness disputes, and interact with a wider cast of characters than the townland normally provides.
+The agricultural world of 1820s Kilteevan provides a rich foundation for the Rundale simulation. **NPC daily routines** should reflect the seasonal calendar: farmers working lazy beds in spring, families at the bog in early summer, the bustle of harvest meitheal in autumn, and the quieter domestic rhythms of winter. The time of year should visibly change what NPCs are doing, where they are found, and what they talk about. **Cattle fairs** and **market days** offer natural set-piece encounters — crowded, social, charged with economic anxiety — where the player can overhear gossip, witness disputes, and interact with a wider cast of characters than the townland normally provides.
 
 **Farming as backdrop for encounters** means that the player should regularly come across NPCs engaged in agricultural labour: a man turning lazy beds with his loy, women making butter, children minding geese, a meitheal gang bringing in the oats. These encounters ground the world in physical reality and provide natural openings for conversation and story. The **conacre system** and **rundale redistribution** offer potent sources of interpersonal conflict — who gets which strip, who is being squeezed out, who cannot pay — that can drive NPC relationships and quest lines without requiring any supernatural or melodramatic contrivance.
 
