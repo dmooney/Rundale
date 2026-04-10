@@ -2599,12 +2599,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-config"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "parish-types",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
 name = "parish-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
  "dotenvy",
+ "parish-config",
+ "parish-inference",
+ "parish-input",
+ "parish-npc",
+ "parish-persistence",
+ "parish-types",
+ "parish-world",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "reqwest 0.12.28",
@@ -2618,6 +2638,71 @@ dependencies = [
  "tokio",
  "tokio-test",
  "toml 0.8.23",
+ "tracing",
+]
+
+[[package]]
+name = "parish-inference"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "parish-config",
+ "parish-types",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "parish-input"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "parish-config",
+ "parish-inference",
+ "parish-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "parish-npc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "parish-config",
+ "parish-inference",
+ "parish-types",
+ "parish-world",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "parish-persistence"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "parish-npc",
+ "parish-types",
+ "parish-world",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 
@@ -2657,6 +2742,40 @@ dependencies = [
  "tauri-build",
  "tokio",
  "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "parish-types"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "rand 0.8.5",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-test",
+ "tracing",
+]
+
+[[package]]
+name = "parish-world"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "parish-config",
+ "parish-types",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "strsim",
+ "thiserror 2.0.18",
+ "tokio",
+ "toml 0.8.23",
  "tracing",
 ]
 
