@@ -1456,18 +1456,27 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
 ///
 /// Called both by the `new_game` Tauri command and the `CommandEffect::NewGame` handler.
 async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<(), String> {
-    let data_dir = crate::find_data_dir();
+    let game_mod = parish_core::game_mod::find_default_mod()
+        .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
-    // Reload fresh world and NPCs from data files
-    let fresh_world = parish_core::world::WorldState::from_parish_file(
-        &data_dir.join("parish.json"),
-        parish_core::world::LocationId(15),
-    )
-    .map_err(|e| format!("Failed to load parish.json: {}", e))?;
+    // Reload fresh world and NPCs from the active game mod when available,
+    // falling back to legacy data files for backward compatibility.
+    let (fresh_world, npcs_path) = if let Some(ref gm) = game_mod {
+        let world = parish_core::world::WorldState::from_mod(gm)
+            .map_err(|e| format!("Failed to load world from mod: {}", e))?;
+        (world, gm.npcs_path())
+    } else {
+        let data_dir = crate::find_data_dir();
+        let world = parish_core::world::WorldState::from_parish_file(
+            &data_dir.join("parish.json"),
+            parish_core::world::LocationId(15),
+        )
+        .map_err(|e| format!("Failed to load parish.json: {}", e))?;
+        (world, data_dir.join("npcs.json"))
+    };
 
-    let mut fresh_npcs =
-        parish_core::npc::manager::NpcManager::load_from_file(&data_dir.join("npcs.json"))
-            .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
+    let mut fresh_npcs = parish_core::npc::manager::NpcManager::load_from_file(&npcs_path)
+        .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
 
     fresh_npcs.assign_tiers(&fresh_world, &[]);
 
