@@ -296,6 +296,15 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                     );
                 }
             },
+            CommandEffect::SaveFlags => {
+                let flags = state.config.lock().await.flags.clone();
+                let path = state.flags_path.clone();
+                tokio::task::spawn_blocking(move || {
+                    if let Err(e) = flags.save_to_file(&path) {
+                        tracing::warn!("Failed to save feature flags: {}", e);
+                    }
+                });
+            }
         }
     }
 
@@ -1670,14 +1679,16 @@ mod tests {
                 category_model: [None, None, None, None],
                 category_api_key: [None, None, None, None],
                 category_base_url: [None, None, None, None],
+                flags: parish_core::config::FeatureFlags::default(),
             },
             None,
             transport,
             ui_config,
             theme_palette,
             saves_dir,
-            data_dir,
+            data_dir.clone(),
             None,
+            data_dir.join("parish-flags.json"),
         )
     }
 

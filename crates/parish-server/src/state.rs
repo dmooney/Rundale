@@ -130,6 +130,8 @@ pub struct AppState {
     pub game_mod: Option<parish_core::game_mod::GameMod>,
     /// Name pronunciation entries from the game mod.
     pub pronunciations: Vec<PronunciationEntry>,
+    /// Path to the feature flags persistence file.
+    pub flags_path: PathBuf,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -206,6 +208,7 @@ pub fn build_app_state(
     saves_dir: PathBuf,
     data_dir: PathBuf,
     game_mod: Option<parish_core::game_mod::GameMod>,
+    flags_path: PathBuf,
 ) -> Arc<AppState> {
     // Extract pronunciations from game mod before moving it.
     let pronunciations = game_mod
@@ -232,6 +235,7 @@ pub fn build_app_state(
         current_branch_name: Mutex::new(None),
         game_mod,
         pronunciations,
+        flags_path,
     })
 }
 

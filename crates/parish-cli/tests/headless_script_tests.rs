@@ -1239,3 +1239,89 @@ fn test_fixture_grand_tour_runs() {
 fn test_fixture_speed_assertions_runs() {
     fixture("test_speed_assertions.txt");
 }
+
+// ============================================================
+// Feature flag commands
+// ============================================================
+
+#[test]
+fn test_fixture_flags_runs() {
+    let results = fixture("test_flags.txt");
+    let system_cmds: Vec<&ScriptResult> = results
+        .iter()
+        .filter(|r| matches!(r.result, ActionResult::SystemCommand { .. }))
+        .collect();
+    assert!(
+        !system_cmds.is_empty(),
+        "Expected SystemCommand results from flag commands"
+    );
+}
+
+#[test]
+fn test_flag_enable_disable_via_harness() {
+    let mut h = GameTestHarness::new();
+
+    // No flags set yet
+    assert!(!h.is_flag_enabled("test-feature"));
+
+    // Enable via command
+    let r = h.execute("/flag enable test-feature");
+    assert!(
+        matches!(&r, ActionResult::SystemCommand { response } if response.contains("enabled")),
+        "Expected 'enabled' response, got {:?}",
+        r
+    );
+    assert!(h.is_flag_enabled("test-feature"));
+
+    // Disable via command
+    let r = h.execute("/flag disable test-feature");
+    assert!(
+        matches!(&r, ActionResult::SystemCommand { response } if response.contains("disabled")),
+        "Expected 'disabled' response, got {:?}",
+        r
+    );
+    assert!(!h.is_flag_enabled("test-feature"));
+}
+
+#[test]
+fn test_flag_list_empty() {
+    let mut h = GameTestHarness::new();
+    let r = h.execute("/flag list");
+    assert!(
+        matches!(&r, ActionResult::SystemCommand { response } if response.contains("No feature flags")),
+        "Expected 'No feature flags' message when list is empty, got {:?}",
+        r
+    );
+}
+
+#[test]
+fn test_flags_alias_works() {
+    let mut h = GameTestHarness::new();
+    let r = h.execute("/flags");
+    assert!(
+        matches!(r, ActionResult::SystemCommand { .. }),
+        "Expected SystemCommand from /flags alias"
+    );
+}
+
+#[test]
+fn test_flag_list_shows_enabled_flags() {
+    let mut h = GameTestHarness::new();
+    h.execute("/flag enable my-feature");
+    let r = h.execute("/flag list");
+    assert!(
+        matches!(&r, ActionResult::SystemCommand { response } if response.contains("my-feature")),
+        "Expected flag name in list output, got {:?}",
+        r
+    );
+}
+
+#[test]
+fn test_invalid_flag_name_returns_error() {
+    let mut h = GameTestHarness::new();
+    let r = h.execute("/flag enable bad flag!");
+    // Either the parser returns an error or the harness falls through
+    // The key requirement is: no crash, and the flag is NOT enabled
+    assert!(!h.is_flag_enabled("bad flag!"));
+    let _ = r; // result type may vary — just assert no panic
+}

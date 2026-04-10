@@ -351,6 +351,11 @@ impl GameTestHarness {
         self.app.world.clock.is_paused()
     }
 
+    /// Returns whether a named feature flag is currently enabled.
+    pub fn is_flag_enabled(&self, name: &str) -> bool {
+        self.app.flags.is_enabled(name)
+    }
+
     /// Processes schedule events: debug log + player-visible text log messages.
     fn process_schedule_events(&mut self, events: &[crate::npc::manager::ScheduleEvent]) {
         use crate::npc::manager::ScheduleEventKind;
@@ -497,6 +502,9 @@ impl GameTestHarness {
                 }
                 CommandEffect::RebuildInference | CommandEffect::RebuildCloudClient => {
                     // No-op in test mode — no real inference clients
+                }
+                CommandEffect::SaveFlags => {
+                    // No-op in test mode — flags are in-memory only
                 }
             }
         }

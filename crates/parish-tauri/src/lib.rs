@@ -14,7 +14,7 @@ use std::time::Instant;
 use tauri::Emitter;
 use tokio::sync::Mutex;
 
-use parish_core::config::Provider;
+use parish_core::config::{FeatureFlags, Provider};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
@@ -227,6 +227,8 @@ pub struct AppState {
     pub current_branch_name: Mutex<Option<String>>,
     /// Transport mode configuration from the loaded game mod.
     pub transport: TransportConfig,
+    /// Data directory used to derive the feature-flags persistence path.
+    pub data_dir: PathBuf,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -494,6 +496,9 @@ pub fn run() {
         .map(|gm| gm.reactions.clone())
         .unwrap_or_default();
 
+    // Load feature flags from disk
+    let flags = FeatureFlags::load_from_file(&data_dir.join("parish-flags.json"));
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -513,6 +518,7 @@ pub fn run() {
         current_branch_id: Mutex::new(None),
         current_branch_name: Mutex::new(None),
         transport,
+        data_dir: data_dir.clone(),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -530,6 +536,7 @@ pub fn run() {
             category_model: [None, None, None, None],
             category_api_key: [None, None, None, None],
             category_base_url: [None, None, None, None],
+            flags,
         }),
     });
 
