@@ -225,7 +225,7 @@ cargo run
 The `run_gui()` function in `src/gui/mod.rs`:
 
 1. Initializes the inference pipeline (tokio channel + worker)
-2. Loads world data from `mods/kilteevan-1820/world.json` and NPCs from `mods/kilteevan-1820/npcs.json`
+2. Loads world data from `mods/rundale/world.json` and NPCs from `mods/rundale/npcs.json`
 3. Creates a `GuiApp` with the tokio runtime handle
 4. Launches `eframe::run_native()` with a 1200x800 window (min 800x500)
 

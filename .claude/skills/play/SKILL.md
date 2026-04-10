@@ -51,4 +51,4 @@ Available commands in scripts:
 - Control: `/pause`, `/resume`, `/new`
 - Debug: `/debug`, `/debug npcs`, `/debug clock`, `/debug here`, `/debug schedule`
 
-Location names can be found by running `/map` first or checking `mods/kilteevan-1820/world.json`.
+Location names can be found by running `/map` first or checking `mods/rundale/world.json`.

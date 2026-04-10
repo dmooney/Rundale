@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_overhear_adjacent_location() {
-        let path = Path::new("../../mods/kilteevan-1820/world.json");
+        let path = Path::new("../../mods/rundale/world.json");
         if !path.exists() {
             return;
         }
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_overhear_same_location_excluded() {
-        let path = Path::new("../../mods/kilteevan-1820/world.json");
+        let path = Path::new("../../mods/rundale/world.json");
         if !path.exists() {
             return;
         }
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     fn test_overhear_distant_location_excluded() {
-        let path = Path::new("../../mods/kilteevan-1820/world.json");
+        let path = Path::new("../../mods/rundale/world.json");
         if !path.exists() {
             return;
         }

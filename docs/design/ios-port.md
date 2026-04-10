@@ -136,7 +136,7 @@ All three fit comfortably on an 8 GB device alongside `WKWebView` and game
 state.
 
 The current `qwen3:14b`-tuned prompts in
-`mods/kilteevan-1820/prompts/tier1_system.txt` will need a revision pass for
+`mods/rundale/prompts/tier1_system.txt` will need a revision pass for
 the smaller model — expect more rigid scaffolding, fewer open-ended
 instructions, more concrete examples. The existing tiered prompt system
 (`tier1_system.txt`, `tier1_context.txt`, `tier2_system.txt`) is exactly the
@@ -217,11 +217,11 @@ explicit `&Path` already.
 
 ### Mod assets
 
-`mods/kilteevan-1820/` is currently loaded by relative path. On iOS the app
+`mods/rundale/` is currently loaded by relative path. On iOS the app
 sandbox has no concept of "the directory the binary was launched from", so
 the mod has to ship as a Tauri *resource*:
 
-- Add `mods/kilteevan-1820/**` to `tauri.conf.json` → `bundle.resources`
+- Add `mods/rundale/**` to `tauri.conf.json` → `bundle.resources`
 - Replace any direct relative-path mod loading in the Tauri startup (`crates/parish-tauri/src/lib.rs`) with Tauri's resource resolver
 - The resolver returns the correct on-disk path on every platform — desktop reads from the dev directory, iOS reads from inside the app bundle
 
@@ -471,5 +471,5 @@ Forward reference for whoever picks this up:
 | `crates/parish-tauri/tauri.conf.json`                             | iOS bundle target, `bundle.resources` for the mod, iOS icons    |
 | `crates/parish-tauri/src/lib.rs`                                  | Force embedded backend on `target_os = "ios"`; gate `--screenshot` flag parsing |
 | `crates/parish-tauri/gen/apple/` *(generated)*                    | Xcode project from `cargo tauri ios init`                       |
-| `mods/kilteevan-1820/prompts/tier1_system.txt`                    | Slim down for 3B-class model                                    |
+| `mods/rundale/prompts/tier1_system.txt`                    | Slim down for 3B-class model                                    |
 | `apps/ui/src/app.css`                                             | `env(safe-area-inset-*)` rules                                  |

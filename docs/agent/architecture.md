@@ -67,7 +67,7 @@ Parish/
 │   └── fixtures/            # Plaintext script-mode fixtures (test_*.txt, play_*.txt)
 │
 ├── mods/
-│   └── kilteevan-1820/      # Default mod: 1820 rural Ireland
+│   └── rundale/      # Default mod: 1820 rural Ireland
 │       ├── mod.toml                # Manifest
 │       ├── world.json              # Locations + connections
 │       ├── npcs.json               # NPC definitions
