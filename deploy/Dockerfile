@@ -23,7 +23,7 @@ RUN cargo build --release -p parish --bin parish
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl libssl3 \
+    ca-certificates curl libssl3 bash jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Download cloudflared at a pinned version and verify its SHA-256 checksum
@@ -46,10 +46,13 @@ WORKDIR /app
 COPY --from=builder /build/target/release/parish ./
 COPY --from=frontend /build/dist ./apps/ui/dist/
 COPY mods/ ./mods/
+COPY deploy/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
 
 ENV RUST_LOG=info
 EXPOSE 3001
-# Railway injects $PORT; fall back to 3001 for local docker testing
-CMD sh -c "./parish --web ${PORT:-3001}"
+# entrypoint.sh detects PR vs production via RAILWAY_ENVIRONMENT and
+# starts cloudflared tunnel (PR only) alongside the parish binary.
+CMD ["./entrypoint.sh"]
