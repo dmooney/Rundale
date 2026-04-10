@@ -6,6 +6,13 @@ members = [
     "crates/parish-cli",
     "crates/parish-tauri",
     "crates/geo-tool",
+    "crates/parish-types",
+    "crates/parish-config",
+    "crates/parish-inference",
+    "crates/parish-world",
+    "crates/parish-npc",
+    "crates/parish-persistence",
+    "crates/parish-input",
 ]
 default-members = ["crates/parish-cli"]
 

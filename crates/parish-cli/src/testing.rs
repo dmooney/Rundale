@@ -116,7 +116,7 @@ impl GameTestHarness {
             .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
         if let Some(ref gm) = game_mod {
-            match crate::world::WorldState::from_mod(gm) {
+            match parish_core::game_mod::world_state_from_mod(gm) {
                 Ok(world) => app.world = world,
                 Err(e) => eprintln!("Warning: Failed to load world from mod: {}", e),
             }
@@ -750,16 +750,29 @@ impl GameTestHarness {
         let game_mod = parish_core::game_mod::find_default_mod()
             .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
-        if let Some(ref gm) = game_mod {
-            if let Ok(world) = crate::world::WorldState::from_mod(gm) {
+        if let Some(ref gm) = game_mod
+            && let Ok(world) = parish_core::game_mod::world_state_from_mod(gm)
+        {
+            self.app.world = world;
+        } else {
+            let parish_path = Path::new("data/parish.json");
+            if parish_path.exists()
+                && let Ok(world) =
+                    crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
+            {
                 self.app.world = world;
             }
-            let npcs_path = gm.npcs_path();
-            if npcs_path.exists()
-                && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
-            {
-                self.app.npc_manager = mgr;
-            }
+        }
+
+        let npcs_path = if let Some(ref gm) = game_mod {
+            gm.npcs_path()
+        } else {
+            std::path::PathBuf::from("data/npcs.json")
+        };
+        if npcs_path.exists()
+            && let Ok(mgr) = NpcManager::load_from_file(&npcs_path)
+        {
+            self.app.npc_manager = mgr;
         }
         self.app.game_mod = game_mod;
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);

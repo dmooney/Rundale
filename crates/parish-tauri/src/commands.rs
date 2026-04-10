@@ -1462,7 +1462,7 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     // Reload fresh world and NPCs from the active game mod when available,
     // falling back to legacy data files for backward compatibility.
     let (fresh_world, npcs_path) = if let Some(ref gm) = game_mod {
-        let world = parish_core::world::WorldState::from_mod(gm)
+        let world = parish_core::game_mod::world_state_from_mod(gm)
             .map_err(|e| format!("Failed to load world from mod: {}", e))?;
         (world, gm.npcs_path())
     } else {

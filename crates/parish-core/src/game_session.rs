@@ -468,7 +468,7 @@ mod tests {
     fn setup() -> Option<(WorldState, NpcManager, ReactionTemplates, TransportMode)> {
         let mod_dir = find_default_mod()?;
         let game_mod = GameMod::load(&mod_dir).ok()?;
-        let world = WorldState::from_mod(&game_mod).ok()?;
+        let world = crate::game_mod::world_state_from_mod(&game_mod).ok()?;
         let npc_manager = NpcManager::load_from_file(&mod_dir.join("npcs.json")).ok()?;
         let templates = game_mod.reactions.clone();
         let transport = TransportMode::walking();

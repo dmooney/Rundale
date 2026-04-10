@@ -413,7 +413,7 @@ pub fn run() {
 
     // Load world — prefer mod data, fall back to legacy data/ directory
     let world = if let Some(ref gm) = game_mod {
-        WorldState::from_mod(gm).unwrap_or_else(|e| {
+        parish_core::game_mod::world_state_from_mod(gm).unwrap_or_else(|e| {
             tracing::warn!("Failed to load world from mod: {}. Using default.", e);
             WorldState::new()
         })

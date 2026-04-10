@@ -604,6 +604,21 @@ pub fn interpolate_template(template: &str, vars: &[(&str, &str)]) -> String {
     result
 }
 
+/// Creates a [`crate::world::WorldState`] from a loaded [`GameMod`].
+///
+/// Bridges [`GameMod`] (which lives in `parish-core`) and
+/// [`crate::world::WorldState::from_mod_params`] (which lives in `parish-world`
+/// and cannot depend on `parish-core`).
+pub fn world_state_from_mod(
+    game_mod: &GameMod,
+) -> Result<crate::world::WorldState, parish_types::ParishError> {
+    crate::world::WorldState::from_mod_params(
+        &game_mod.world_path(),
+        parish_types::LocationId(game_mod.start_location()),
+        game_mod.start_date(),
+    )
+}
+
 /// Walk up from the current working directory looking for
 /// `mods/rundale/mod.toml`.
 ///

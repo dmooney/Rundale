@@ -5,17 +5,20 @@
 //! Consumed by the CLI binary (headless), the Tauri desktop frontend,
 //! and the axum web server.
 
-pub mod config;
+// Retained modules — IPC, orchestration glue, and mod loading
 pub mod debug_snapshot;
-pub mod dice;
-pub mod error;
 pub mod game_mod;
 pub mod game_session;
-pub mod inference;
-pub mod input;
 pub mod ipc;
 pub mod loading;
-pub mod npc;
-pub mod persistence;
 pub mod prompts;
-pub mod world;
+
+// Sub-crate re-exports — preserves `crate::X::...` paths used throughout
+pub use parish_config as config;
+pub use parish_inference as inference;
+pub use parish_input as input;
+pub use parish_npc as npc;
+pub use parish_persistence as persistence;
+pub use parish_types::dice;
+pub use parish_types::error;
+pub use parish_world as world;
