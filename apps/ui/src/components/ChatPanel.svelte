@@ -116,7 +116,7 @@
 </script>
 
 <div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log">
-	{#each $textLog as entry (entry)}
+	{#each $textLog as entry, index (entry.id ?? entry.stream_turn_id ?? `${entry.source}:${index}`)}
 		{#if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}

@@ -249,6 +249,21 @@ static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
 pub fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLogPayload {
     TextLogPayload {
         id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: None,
+        source: source.into(),
+        content: content.into(),
+    }
+}
+
+/// Creates a [`TextLogPayload`] tied to a specific NPC stream turn.
+pub fn text_log_for_stream_turn(
+    source: impl Into<String>,
+    content: impl Into<String>,
+    stream_turn_id: u64,
+) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: Some(stream_turn_id),
         source: source.into(),
         content: content.into(),
     }

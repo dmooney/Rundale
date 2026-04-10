@@ -16,7 +16,7 @@ use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first,
-    compute_name_hints, text_log,
+    compute_name_hints, text_log, text_log_for_stream_turn,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
@@ -25,8 +25,9 @@ use parish_core::npc::ticks::apply_tier1_response;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
-    NpcReactionPayload, StreamEndPayload, TextLogPayload, spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
+    EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload,
+    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -381,6 +382,7 @@ async fn handle_system_command(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: response,
             },
@@ -456,6 +458,7 @@ async fn handle_game_input(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
                     id: String::new(),
+                    stream_turn_id: None,
                     source: "system".to_string(),
                     content: "And where would ye be off to?".to_string(),
                 },
@@ -653,6 +656,7 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
         EVENT_TEXT_LOG,
         TextLogPayload {
             id: String::new(),
+            stream_turn_id: None,
             source: "system".to_string(),
             content: text,
         },
@@ -696,12 +700,11 @@ async fn run_npc_turn(
 
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
     let display_label = capitalize_first(&setup.display_name);
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
     let _ = app.emit(
         EVENT_TEXT_LOG,
-        text_log(display_label.clone(), String::new()),
+        text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
     );
-
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
     let send_result = queue
         .send(
             req_id,
@@ -727,9 +730,14 @@ async fn run_npc_turn(
                 message: format!("Queue submit failed: {e}"),
             });
             let _ = app.emit(
+                EVENT_STREAM_TURN_END,
+                StreamTurnEndPayload { turn_id: req_id },
+            );
+            let _ = app.emit(
                 EVENT_TEXT_LOG,
                 TextLogPayload {
                     id: String::new(),
+                    stream_turn_id: None,
                     source: "system".to_string(),
                     content: "The parish storyteller has wandered off. Try again in a moment."
                         .to_string(),
@@ -742,11 +750,28 @@ async fn run_npc_turn(
 
     let stream_handle = tokio::spawn({
         let app_clone = app.clone();
-        async move { crate::events::stream_npc_response(app_clone, token_rx).await }
+        let source = display_label.clone();
+        async move {
+            parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                let _ = app_clone.emit(
+                    crate::events::EVENT_STREAM_TOKEN,
+                    StreamTokenPayload {
+                        token: batch.to_string(),
+                        turn_id: req_id,
+                        source: source.clone(),
+                    },
+                );
+            })
+            .await
+        }
     });
 
     let response = response_rx.await.ok();
     let _ = stream_handle.await;
+    let _ = app.emit(
+        EVENT_STREAM_TURN_END,
+        StreamTurnEndPayload { turn_id: req_id },
+    );
     loading_cancel.cancel();
 
     let Some(response) = response else {
@@ -754,6 +779,7 @@ async fn run_npc_turn(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: "The storyteller has wandered off mid-tale.".to_string(),
             },
@@ -777,6 +803,7 @@ async fn run_npc_turn(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
             },
@@ -847,6 +874,7 @@ async fn handle_npc_conversation(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: IDLE_MESSAGES[idx].to_string(),
             },
@@ -859,6 +887,7 @@ async fn handle_npc_conversation(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: "There are ears enough for ye here, but say something first.".to_string(),
             },
@@ -871,6 +900,7 @@ async fn handle_npc_conversation(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content:
                     "There's someone here, but the LLM is not configured — set a provider with /provider."
@@ -885,6 +915,7 @@ async fn handle_npc_conversation(
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content: "No one here answers to that name just now.".to_string(),
             },
@@ -1184,6 +1215,7 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
             EVENT_TEXT_LOG,
             TextLogPayload {
                 id: String::new(),
+                stream_turn_id: None,
                 source: "system".to_string(),
                 content:
                     "The parish falls quiet after a full minute of silence. Time is now paused."
@@ -1348,6 +1380,7 @@ pub async fn load_branch(
         EVENT_TEXT_LOG,
         TextLogPayload {
             id: String::new(),
+            stream_turn_id: None,
             source: "system".to_string(),
             content: format!("Loaded {} (branch: {}).", filename, branch_name),
         },
@@ -1519,6 +1552,7 @@ pub async fn new_game(
         EVENT_TEXT_LOG,
         TextLogPayload {
             id: String::new(),
+            stream_turn_id: None,
             source: "system".to_string(),
             content: "A new chapter begins in the parish...".to_string(),
         },

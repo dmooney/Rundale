@@ -13,6 +13,7 @@ import type {
 	ThemePalette,
 	UiConfig,
 	StreamTokenPayload,
+	StreamTurnEndPayload,
 	StreamEndPayload,
 	TextLogPayload,
 	NpcReactionPayload,
@@ -165,6 +166,9 @@ async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<Unlisten
 
 export const onStreamToken = (cb: (payload: StreamTokenPayload) => void) =>
 	onEvent<StreamTokenPayload>('stream-token', cb);
+
+export const onStreamTurnEnd = (cb: (payload: StreamTurnEndPayload) => void) =>
+	onEvent<StreamTurnEndPayload>('stream-turn-end', cb);
 
 export const onStreamEnd = (cb: (payload: StreamEndPayload) => void) =>
 	onEvent<StreamEndPayload>('stream-end', cb);

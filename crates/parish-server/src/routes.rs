@@ -18,8 +18,9 @@ use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
-    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, ThemePalette,
-    WorldSnapshot, capitalize_first, text_log,
+    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, ThemePalette, WorldSnapshot, capitalize_first, text_log,
+    text_log_for_stream_turn,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::manager::NpcManager;
@@ -583,11 +584,13 @@ async fn run_npc_turn(
 
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
     let display_label = capitalize_first(&setup.display_name);
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
     state
         .event_bus
-        .emit("text-log", &text_log(display_label.clone(), String::new()));
-
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+        .emit(
+            "text-log",
+            &text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
+        );
     let send_result = queue
         .send(
             req_id,
@@ -604,6 +607,10 @@ async fn run_npc_turn(
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
             state.event_bus.emit(
+                "stream-turn-end",
+                &StreamTurnEndPayload { turn_id: req_id },
+            );
+            state.event_bus.emit(
                 "text-log",
                 &text_log(
                     "system",
@@ -618,6 +625,7 @@ async fn run_npc_turn(
     let stream_handle = tokio::spawn({
         let state_clone = Arc::clone(state);
         let cancel = loading_cancel.clone();
+        let source = display_label.clone();
         async move {
             parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
                 cancel.cancel();
@@ -625,6 +633,8 @@ async fn run_npc_turn(
                     "stream-token",
                     &StreamTokenPayload {
                         token: batch.to_string(),
+                        turn_id: req_id,
+                        source: source.clone(),
                     },
                 );
             })
@@ -634,6 +644,10 @@ async fn run_npc_turn(
 
     let response = response_rx.await.ok();
     let _ = stream_handle.await;
+    state.event_bus.emit(
+        "stream-turn-end",
+        &StreamTurnEndPayload { turn_id: req_id },
+    );
     loading_cancel.cancel();
 
     let Some(response) = response else {

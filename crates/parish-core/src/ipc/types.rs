@@ -163,6 +163,17 @@ impl From<RawPalette> for ThemePalette {
 pub struct StreamTokenPayload {
     /// The batch of token text to append to the current chat entry.
     pub token: String,
+    /// Stable ID for the NPC turn this token batch belongs to.
+    pub turn_id: u64,
+    /// Speaker label for this stream turn.
+    pub source: String,
+}
+
+/// Payload for `stream-turn-end` events.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct StreamTurnEndPayload {
+    /// Stable ID for the NPC turn that has finished streaming tokens.
+    pub turn_id: u64,
 }
 
 /// Payload for `stream-end` events.
@@ -178,6 +189,9 @@ pub struct TextLogPayload {
     /// Unique message ID for reaction targeting.
     #[serde(default)]
     pub id: String,
+    /// Stable ID for the NPC turn this placeholder belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_turn_id: Option<u64>,
     /// Who produced this text: "player", "system", or the NPC's name.
     pub source: String,
     /// The log entry text.
@@ -341,12 +355,16 @@ mod tests {
     fn event_payload_serialization() {
         let token = StreamTokenPayload {
             token: "hello".to_string(),
+            turn_id: 7,
+            source: "Siobhan Murphy".to_string(),
         };
         let json = serde_json::to_string(&token).unwrap();
         assert!(json.contains("hello"));
+        assert!(json.contains("turn_id"));
 
         let log = TextLogPayload {
             id: "msg-1".to_string(),
+            stream_turn_id: Some(7),
             source: "system".to_string(),
             content: "Welcome".to_string(),
         };
