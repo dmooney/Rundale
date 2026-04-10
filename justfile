@@ -215,7 +215,7 @@ geo-tool-dry-run AREA:
 
 # Run the geo-tool and merge into the active mod's world.json
 geo-tool-merge AREA:
-    cargo run -p geo-tool -- --area "{{AREA}}" --merge mods/kilteevan-1820/world.json
+    cargo run -p geo-tool -- --area "{{AREA}}" --merge mods/rundale/world.json
 
 # ─── Dependencies ────────────────────────────────────────────────────────────
 

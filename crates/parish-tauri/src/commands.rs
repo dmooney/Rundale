@@ -1212,7 +1212,7 @@ use parish_core::persistence::snapshot::GameSnapshot;
 fn saves_dir() -> std::path::PathBuf {
     let mut p = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     for _ in 0..4 {
-        if p.join("mods/kilteevan-1820/world.json").exists() {
+        if p.join("mods/rundale/world.json").exists() {
             let sd = p.join("saves");
             std::fs::create_dir_all(&sd).ok();
             return sd;

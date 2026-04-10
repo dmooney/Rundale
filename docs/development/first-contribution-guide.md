@@ -109,7 +109,7 @@ Use this pattern:
 
 ### 5) Content-only contribution (easiest first PR)
 
-For a low-risk first contribution, update game data under `mods/kilteevan-1820/`:
+For a low-risk first contribution, update game data under `mods/rundale/`:
 
 - world and location data
 - NPC and encounter data
@@ -155,6 +155,6 @@ If you want to practice repo conventions, start with one of these:
 
 - **Backend:** add a lightweight read-only debug/system command with shared behavior + mode-specific transport wiring.
 - **UI:** add a small panel that reads existing IPC state (no protocol changes).
-- **Content:** expand one location + a few NPC schedule details in `mods/kilteevan-1820`.
+- **Content:** expand one location + a few NPC schedule details in `mods/rundale`.
 
 These are usually enough to learn repo layering without needing deep persistence or inference changes.

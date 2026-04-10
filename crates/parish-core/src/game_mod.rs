@@ -37,11 +37,11 @@ pub struct ModManifest {
 pub struct ModMeta {
     /// Human-readable mod name.
     pub name: String,
-    /// Display title for the splash screen (e.g. "Parish: Kilteevan 1820").
+    /// Display title for the splash screen (e.g. "Rundale").
     /// Falls back to the engine default "Parish" if not set.
     #[serde(default)]
     pub title: Option<String>,
-    /// Machine-friendly mod identifier (e.g. `kilteevan-1820`).
+    /// Machine-friendly mod identifier (e.g. `rundale`).
     pub id: String,
     /// Semantic version string.
     pub version: String,
@@ -605,15 +605,15 @@ pub fn interpolate_template(template: &str, vars: &[(&str, &str)]) -> String {
 }
 
 /// Walk up from the current working directory looking for
-/// `mods/kilteevan-1820/mod.toml`.
+/// `mods/rundale/mod.toml`.
 ///
 /// Returns the mod directory path (not the `mod.toml` path) if found.
 pub fn find_default_mod() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
     loop {
-        let candidate = dir.join("mods/kilteevan-1820/mod.toml");
+        let candidate = dir.join("mods/rundale/mod.toml");
         if candidate.is_file() {
-            return Some(dir.join("mods/kilteevan-1820"));
+            return Some(dir.join("mods/rundale"));
         }
         if !dir.pop() {
             return None;

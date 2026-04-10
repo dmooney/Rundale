@@ -50,7 +50,7 @@ A mod is a directory with a `mod.toml` manifest and data files:
 
 ```
 mods/
-└── kilteevan-1820/
+└── rundale/
     ├── mod.toml                # Manifest: name, version, start_date, start_location, etc.
     ├── world.json              # Locations, connections (currently data/parish.json)
     ├── npcs.json               # NPC definitions (currently data/npcs.json)
@@ -70,7 +70,7 @@ mods/
 ```toml
 [mod]
 name = "Parish: 1820 Ireland"
-id = "kilteevan-1820"
+id = "rundale"
 version = "1.0.0"
 description = "A small parish in County Roscommon, Ireland, in the year 1820"
 
@@ -209,20 +209,20 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 
 ### What Moves to the Mod
 
-- `data/parish.json` → `mods/kilteevan-1820/world.json`
-- `data/npcs.json` → `mods/kilteevan-1820/npcs.json`
-- System prompt text → `mods/kilteevan-1820/prompts/`
-- Anachronism dictionary → `mods/kilteevan-1820/anachronisms.json`
-- Festival definitions → `mods/kilteevan-1820/festivals.json`
-- Encounter flavor text → `mods/kilteevan-1820/encounters.json`
-- Loading phrases/colors/spinners → `mods/kilteevan-1820/loading.toml`
-- UI labels → `mods/kilteevan-1820/ui.toml`
+- `data/parish.json` → `mods/rundale/world.json`
+- `data/npcs.json` → `mods/rundale/npcs.json`
+- System prompt text → `mods/rundale/prompts/`
+- Anachronism dictionary → `mods/rundale/anachronisms.json`
+- Festival definitions → `mods/rundale/festivals.json`
+- Encounter flavor text → `mods/rundale/encounters.json`
+- Loading phrases/colors/spinners → `mods/rundale/loading.toml`
+- UI labels → `mods/rundale/ui.toml`
 - `geo_tool` stays as a separate binary (it's a development tool for generating mod content, not part of the engine or mod runtime)
 
 ### Migration Path
 
 **Phase 1: Define mod structure + GameMod loader**
-- Create `mods/kilteevan-1820/` directory with `mod.toml`
+- Create `mods/rundale/` directory with `mod.toml`
 - Add `GameMod` struct and loader to `parish-core`
 - Move `data/*.json` to the mod directory
 - No behavior changes yet — just loading from new paths
@@ -253,20 +253,20 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 ## Files to Modify
 
 ### New files:
-- `mods/kilteevan-1820/mod.toml`
-- `mods/kilteevan-1820/prompts/tier1_system.txt`
-- `mods/kilteevan-1820/prompts/tier1_context.txt`
-- `mods/kilteevan-1820/prompts/tier2_system.txt`
-- `mods/kilteevan-1820/anachronisms.json`
-- `mods/kilteevan-1820/festivals.json`
-- `mods/kilteevan-1820/encounters.json`
-- `mods/kilteevan-1820/loading.toml`
-- `mods/kilteevan-1820/ui.toml`
+- `mods/rundale/mod.toml`
+- `mods/rundale/prompts/tier1_system.txt`
+- `mods/rundale/prompts/tier1_context.txt`
+- `mods/rundale/prompts/tier2_system.txt`
+- `mods/rundale/anachronisms.json`
+- `mods/rundale/festivals.json`
+- `mods/rundale/encounters.json`
+- `mods/rundale/loading.toml`
+- `mods/rundale/ui.toml`
 - `crates/parish-core/src/game_mod.rs` — GameMod struct + loader
 
 ### Move:
-- `data/parish.json` → `mods/kilteevan-1820/world.json`
-- `data/npcs.json` → `mods/kilteevan-1820/npcs.json`
+- `data/parish.json` → `mods/rundale/world.json`
+- `data/npcs.json` → `mods/rundale/npcs.json`
 
 ### Modify:
 - `crates/parish-core/src/lib.rs` — add `game_mod` module
@@ -288,6 +288,6 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 1. `cargo build` — ensure all crates compile
 2. `cargo test` — all existing tests pass (may need test mod fixture)
 3. `cargo clippy -- -D warnings` — no warnings
-4. `cargo run -- --mod mods/kilteevan-1820 --script tests/fixtures/test_walkthrough.txt` — game runs identically to before
+4. `cargo run -- --mod mods/rundale --script tests/fixtures/test_walkthrough.txt` — game runs identically to before
 5. Confirm no Ireland/1820-specific strings remain in `crates/parish-core/src/` (grep test)
 6. Confirm a hypothetical empty mod with minimal `mod.toml` loads without panic (engine doesn't assume Irish content)

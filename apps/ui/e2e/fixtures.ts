@@ -51,7 +51,7 @@ export async function installTauriMock(
 				get_ui_config: {
 					hints_label: 'Focail',
 					default_accent: palette.accent,
-					splash_text: 'Parish: Kilteevan 1820\nCopyright \u00A9 2026 David Mooney. All rights reserved.\ntest-branch - 2026-03-29 00:00'
+					splash_text: 'Rundale\nCopyright \u00A9 2026 David Mooney. All rights reserved.\ntest-branch - 2026-03-29 00:00'
 				}
 			};
 

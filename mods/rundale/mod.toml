@@ -1,10 +1,10 @@
-# Kilteevan 1820 — Game Mod Manifest
+# Rundale — Game Mod Manifest
 [mod]
-name = "Kilteevan 1820"
-title = "Parish: Kilteevan 1820"
-id = "kilteevan-1820"
+name = "Rundale"
+title = "Rundale"
+id = "rundale"
 version = "1.0.0"
-description = "A small parish in County Roscommon, Ireland, in the year 1820"
+description = "Rural Ireland, 1820 — a living world of land, labour, and community"
 
 [setting]
 start_date = "1820-03-20T08:00:00Z"

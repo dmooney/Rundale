@@ -1637,7 +1637,7 @@ mod tests {
     /// Helper to build a minimal AppState from the real game data.
     fn test_app_state() -> Arc<AppState> {
         let data_dir =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../mods/kilteevan-1820");
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../mods/rundale");
         let world =
             WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
         let npc_manager = NpcManager::new();

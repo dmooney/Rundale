@@ -60,10 +60,10 @@ The engine is generic and knows nothing about any specific setting. All game-spe
 A mod is a directory with a `mod.toml` manifest and data files:
 
 ```
-mods/kilteevan-1820/
+mods/rundale/
 ├── mod.toml              # Manifest: name, version, start_date, start_location, period_year
-├── world.json            # Location graph (from mods/kilteevan-1820/world.json)
-├── npcs.json             # NPC definitions (from mods/kilteevan-1820/npcs.json)
+├── world.json            # Location graph (from mods/rundale/world.json)
+├── npcs.json             # NPC definitions (from mods/rundale/npcs.json)
 ├── prompts/
 │   ├── tier1_system.txt  # Tier 1 system prompt template with {name}, {age}, etc.
 │   ├── tier1_context.txt # Tier 1 context template
@@ -76,7 +76,7 @@ mods/kilteevan-1820/
 └── pronunciations.json   # Name pronunciation hints (optional)
 ```
 
-The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected from `mods/kilteevan-1820/`) and passes it through the application:
+The engine loads a `GameMod` at startup (via `--game-mod <dir>` or auto-detected from `mods/rundale/`) and passes it through the application:
 
 - `WorldState::from_mod(&game_mod)` — loads world graph and start date from mod
 - `LoadingAnimation::from_config(&game_mod.loading)` — configurable spinner

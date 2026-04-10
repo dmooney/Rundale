@@ -106,7 +106,7 @@ struct Cli {
     #[arg(long, env = "PARISH_INTENT_API_KEY")]
     intent_api_key: Option<String>,
 
-    /// Path to a game mod directory (default: auto-detect mods/kilteevan-1820/)
+    /// Path to a game mod directory (default: auto-detect mods/rundale/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
     game_mod: Option<String>,
 
@@ -311,7 +311,7 @@ fn build_inference_clients(
 
 /// Finds the active mod data directory (containing `world.json` + `npcs.json`).
 fn find_data_dir() -> PathBuf {
-    const MOD_REL: &str = "mods/kilteevan-1820";
+    const MOD_REL: &str = "mods/rundale";
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..4 {
         if p.join(MOD_REL).join("world.json").exists() {

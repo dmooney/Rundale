@@ -48,7 +48,7 @@ cargo run --bin geo-tool -- --area "Roscommon" --level county
 cargo run --bin geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
 
 # Merge with existing hand-authored data
-cargo run --bin geo-tool -- --area "Kiltoom" --merge mods/kilteevan-1820/world.json
+cargo run --bin geo-tool -- --area "Kiltoom" --merge mods/rundale/world.json
 
 # Dry run — show Overpass queries without executing
 cargo run --bin geo-tool -- --area "Kiltoom" --dry-run

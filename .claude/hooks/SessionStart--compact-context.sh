@@ -32,7 +32,7 @@ GIT CONVENTIONS:
 
 CRITICAL FILES (do not edit directly):
 - Cargo.lock (managed by cargo)
-- mods/kilteevan-1820/world.json, mods/kilteevan-1820/npcs.json (world data, use geo-tool)
+- mods/rundale/world.json, mods/rundale/npcs.json (world data, use geo-tool)
 
 KEY PATHS:
 - docs/index.md -- documentation hub

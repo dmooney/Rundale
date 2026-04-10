@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-After the engine/game-data separation (ADR/PR #119), game content lives in the mod system (`mods/kilteevan-1820/`). However, ~60 engine-level numeric constants (inference timeouts, game speed factors, encounter probabilities, NPC memory/cognition tuning, palette tinting) remained hardcoded, requiring recompilation to tune.
+After the engine/game-data separation (ADR/PR #119), game content lives in the mod system (`mods/rundale/`). However, ~60 engine-level numeric constants (inference timeouts, game speed factors, encounter probabilities, NPC memory/cognition tuning, palette tinting) remained hardcoded, requiring recompilation to tune.
 
 ## Decision
 
