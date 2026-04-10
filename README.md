@@ -1,12 +1,12 @@
-# Parish
+# Rundale
 
-An Irish Living World Text Adventure built in Rust, set in 1820.
+An Irish Living World Text Adventure built in Rust, set in 1820. Powered by the **Parish** engine.
 
 The player arrives as a newcomer to **Kilteevan Village** in the parish of Kiltoom, near Roscommon, County Roscommon. NPCs are driven by local LLM inference (via any OpenAI-compatible provider — Ollama, LM Studio, OpenRouter, or custom). A cognitive level-of-detail (LOD) system simulates hundreds of NPCs at varying fidelity based on proximity to the player.
 
 > Any resemblance to real persons, living or dead, or actual businesses is purely coincidental. All characters and commercial establishments in this game are fictional.
 
-![Parish GUI — Morning](docs/screenshots/gui-morning.png)
+![Rundale GUI — Morning](docs/screenshots/gui-morning.png)
 
 *Tauri GUI showing the chat panel, interactive map, NPC sidebar, and time-of-day color theming (morning palette).*
 
@@ -80,14 +80,14 @@ README.md (you are here — project overview, quick start)
 
 ```
 crates/
-  parish-core/      pure game logic library
-  parish-cli/       headless / web / CLI binary (`parish`)
-  parish-server/    Axum web backend
-  parish-tauri/     Tauri 2 desktop backend
+  parish-core/      Parish engine — pure game logic library
+  parish-cli/       Parish engine — headless / web / CLI binary (`parish`)
+  parish-server/    Parish engine — Axum web backend
+  parish-tauri/     Parish engine — Tauri 2 desktop backend
   geo-tool/         OSM extraction CLI
 apps/ui/            Svelte 5 + TypeScript frontend
 testing/fixtures/   scripted gameplay fixtures
-mods/               game content packages
+mods/rundale/       Rundale game content (world, NPCs, prompts, lore)
 deploy/             Dockerfile + railway.toml
 docs/               design, ADRs, plans, research, agent guides
 ```

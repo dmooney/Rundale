@@ -1,4 +1,4 @@
-# Parish — Claude Code Guide
+# Rundale — Claude Code Guide
 
 Detailed guides live in [docs/agent/](docs/agent/README.md):
 
