@@ -32,6 +32,7 @@
 		onTextLog,
 		onLoading,
 		onThemeUpdate,
+		onThemeSwitch,
 		onDebugUpdate,
 		onSavePicker,
 		onToggleFullMap,
@@ -172,7 +173,7 @@
 			worldState.set(snap);
 			mapData.set(map);
 			npcsHere.set(npcs);
-			palette.apply(theme);
+			palette.applyServerPalette(theme);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
 			// Show initial location description in the chat panel
 			if (snap.location_description) {
@@ -432,7 +433,14 @@
 			}));
 
 			listeners.push(await onThemeUpdate((p) => {
-				palette.apply(p);
+				palette.applyServerPalette(p);
+			}));
+
+			listeners.push(await onThemeSwitch((p) => {
+				palette.setPreference({
+					name: p.name as 'default' | 'solarized',
+					mode: p.mode as 'light' | 'dark' | 'auto' | ''
+				});
 			}));
 
 			listeners.push(await onDebugUpdate((snap) => {

@@ -155,10 +155,20 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the configured UI theme palette as CSS hex colours.
+/// Returns the current time-of-day palette (weather + season tinted) as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
-    Ok(state.theme_palette.clone())
+    use chrono::Timelike;
+    use parish_core::world::palette::compute_palette;
+    let world = state.world.lock().await;
+    let now = world.clock.now();
+    let raw = compute_palette(
+        now.hour(),
+        now.minute(),
+        world.clock.season(),
+        world.weather,
+    );
+    Ok(ThemePalette::from(raw))
 }
 
 /// Returns a debug snapshot of all game state for the debug panel.
@@ -398,6 +408,12 @@ async fn handle_system_command(
                         tracing::warn!("Failed to save feature flags: {}", e);
                     }
                 });
+            }
+            CommandEffect::ApplyTheme(name, mode) => {
+                let _ = app.emit(
+                    events::EVENT_THEME_SWITCH,
+                    serde_json::json!({ "name": name, "mode": mode }),
+                );
             }
         }
     }

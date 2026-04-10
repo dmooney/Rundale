@@ -534,6 +534,9 @@ impl GameTestHarness {
                 CommandEffect::SaveFlags => {
                     // No-op in test mode — flags are in-memory only
                 }
+                CommandEffect::ApplyTheme(..) => {
+                    // No visual theme in test harness; response text is returned below.
+                }
             }
         }
 

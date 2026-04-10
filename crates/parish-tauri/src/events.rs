@@ -29,6 +29,8 @@ pub const EVENT_TOGGLE_MAP: &str = "toggle-full-map";
 pub const EVENT_NPC_REACTION: &str = "npc-reaction";
 /// Event emitted when the player begins traveling between locations.
 pub const EVENT_TRAVEL_START: &str = "travel-start";
+/// Event emitted when a `/theme` command selects a new UI theme.
+pub const EVENT_THEME_SWITCH: &str = "theme-switch";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;
