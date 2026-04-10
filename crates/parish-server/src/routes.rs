@@ -28,7 +28,8 @@ use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response;
 use parish_core::world::{LocationId, WorldState};
 
-use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
+use crate::state::DEBUG_EVENT_CAPACITY;
+use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
@@ -82,7 +83,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
-    let events = std::collections::VecDeque::new();
+    let debug_events = state.debug_events.lock().await;
     let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
         state.inference_log.lock().await.iter().cloned().collect();
     let inference = InferenceDebug {
@@ -98,7 +99,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
     Json(debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
-        &events,
+        &debug_events,
         &inference,
     ))
 }
@@ -167,9 +168,17 @@ async fn rebuild_inference(state: &Arc<AppState>) {
         *client_guard = Some(new_client.clone());
     }
 
-    let (tx, rx) = tokio::sync::mpsc::channel(32);
-    let _worker = spawn_inference_worker(new_client, rx, state.inference_log.clone());
-    let queue = InferenceQueue::new(tx);
+    let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
+    let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
+    let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
+    let _worker = spawn_inference_worker(
+        new_client,
+        interactive_rx,
+        background_rx,
+        batch_rx,
+        state.inference_log.clone(),
+    );
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
 }
@@ -595,6 +604,7 @@ async fn run_npc_turn(
             Some(setup.system_prompt),
             Some(token_tx),
             None,
+            parish_core::inference::InferencePriority::Interactive,
         )
         .await;
 
@@ -663,9 +673,39 @@ async fn run_npc_turn(
     {
         let world = state.world.lock().await;
         let game_time = world.clock.now();
+        let location = world.player_location;
         let mut npc_manager = state.npc_manager.lock().await;
+        let speaker_name = npc_manager
+            .get(speaker_id)
+            .map(|n| n.name.clone())
+            .unwrap_or_default();
         if let Some(npc) = npc_manager.get_mut(speaker_id) {
             let _ = apply_tier1_response(npc, &parsed, prompt_input, game_time);
+        }
+
+        // Record witness memories for bystander NPCs overhearing the exchange.
+        let witness_events = parish_core::npc::ticks::record_witness_memories(
+            npc_manager.npcs_mut(),
+            speaker_id,
+            &speaker_name,
+            prompt_input,
+            &parsed.dialogue,
+            game_time,
+            location,
+        );
+        if !witness_events.is_empty() {
+            let mut debug_events = state.debug_events.lock().await;
+            for event in &witness_events {
+                tracing::debug!("{}", event);
+                if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+                    debug_events.pop_front();
+                }
+                debug_events.push_back(DebugEvent {
+                    timestamp: String::new(),
+                    category: "witness".to_string(),
+                    message: event.clone(),
+                });
+            }
         }
     }
 
@@ -1724,7 +1764,7 @@ mod tests {
             }
         });
 
-        *state.inference_queue.lock().await = Some(InferenceQueue::new(tx));
+        *state.inference_queue.lock().await = Some(InferenceQueue::new(tx.clone(), tx.clone(), tx));
         (prompts, handle)
     }
 

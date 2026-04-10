@@ -1,11 +1,13 @@
 //! Shared application state and event bus for the web server.
 
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{Mutex, broadcast};
 
+use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceLog, InferenceQueue};
@@ -14,6 +16,9 @@ use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
+
+/// Maximum number of debug events to retain in the rolling ring buffer.
+pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
 /// UI configuration snapshot returned by the `/api/ui-config` endpoint.
 #[derive(serde::Serialize, Clone)]
@@ -130,6 +135,8 @@ pub struct AppState {
     pub game_mod: Option<parish_core::game_mod::GameMod>,
     /// Name pronunciation entries from the game mod.
     pub pronunciations: Vec<PronunciationEntry>,
+    /// Rolling debug event log for the debug panel (mirrors parish-tauri pattern).
+    pub debug_events: Mutex<VecDeque<DebugEvent>>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -232,6 +239,7 @@ pub fn build_app_state(
         current_branch_name: Mutex::new(None),
         game_mod,
         pronunciations,
+        debug_events: Mutex::new(VecDeque::with_capacity(DEBUG_EVENT_CAPACITY)),
     })
 }
 

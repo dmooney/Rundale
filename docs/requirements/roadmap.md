@@ -2,8 +2,8 @@
 
 > [Docs Index](../index.md)
 
-> Last updated: 2026-03-23
-> Current phase: **Phase 4 — Persistence** (complete)
+> Last updated: 2026-04-09
+> Current phase: **Phase 5 — Full LOD & Scale** (in progress; 5A/5B/5C/5D/5E done including Tier 2 wiring, priority queue redesign, and debug panel visibility; 5F not started)
 
 ## Status Legend
 
@@ -82,26 +82,28 @@
 
 > [Detailed plan](../plans/phase-5a-event-bus-tier-transitions.md) | **Foundation — do first**
 
-- [ ] `WorldEvent` enum and `EventBus` (tokio broadcast)
-- [ ] Tier inflation: build narrative context on NPC promotion (distant → close)
-- [ ] Tier deflation: compact short-term memory on NPC demotion (close → distant)
-- [ ] Wire transitions into `NpcManager::assign_tiers`
-- [ ] Event journal bridge (persistence subscriber)
+- [x] `WorldEvent` enum and `EventBus` (tokio broadcast)
+- [x] Tier inflation: build narrative context on NPC promotion (distant → close)
+- [x] Tier deflation: compact short-term memory on NPC demotion (close → distant)
+- [x] Wire transitions into `NpcManager::assign_tiers`
+- [x] Event journal bridge (persistence subscriber)
 
 ### Phase 5B — Weather State Machine
 
 > [Detailed plan](../plans/phase-5b-weather-state-machine.md) | Depends on: 5A
 
-- [ ] Expand `Weather` enum (add PartlyCloudy, LightRain, HeavyRain)
-- [ ] `WeatherEngine` with seasonal transition probabilities
-- [ ] Weather affects NPC schedules (seek shelter in rain)
-- [ ] Weather context in Tier 2 prompts
-- [ ] Palette tinting for new weather variants
-- [ ] Publish `WeatherChanged` events via event bus
+- [x] Expand `Weather` enum (add PartlyCloudy, LightRain, HeavyRain)
+- [x] `WeatherEngine` with seasonal transition probabilities
+- [x] Weather affects NPC schedules (seek shelter in rain)
+- [x] Weather context in Tier 2 prompts
+- [x] Palette tinting for new weather variants
+- [x] Publish `WeatherChanged` events via event bus
 
 ### Phase 5C — NPC Long-Term Memory & Gossip
 
 > [Detailed plan](../plans/phase-5c-memory-gossip.md) | Depends on: 5A
+>
+> **Runtime status:** wired in all entry points. `propagate_gossip_at_location` and `apply_tier1_response` are called from `parish-tauri`, `parish-server`, and `parish-cli/headless`.
 
 - [x] `LongTermMemory` with keyword-based retrieval
 - [x] Short-term → long-term promotion on eviction (importance threshold)
@@ -119,17 +121,21 @@
 ### Phase 5D — Tier 3 Batch Inference
 
 > [Detailed plan](../plans/phase-5d-tier3-batch-inference.md) | Depends on: 5A, 5C
+>
+> **Runtime status:** wired in all three entry points. `tick_tier3` is dispatched from the background tick loops in parish-tauri (spawned task), parish-server (spawned task), and parish-cli/headless (inline await). The `tier3_in_flight` flag prevents double-dispatch.
 
-- [ ] `Tier3Update` / `Tier3Response` types
-- [ ] Batch prompt construction (8-10 NPCs per call)
-- [ ] Tier 3 tick function (every 1 in-game day)
-- [ ] Priority queue: Tier 1 > Tier 2 > Tier 3
-- [ ] Skip overdue ticks (don't queue)
-- [ ] Tier 3 vs Tier 4 distance split in `assign_tiers`
+- [x] `Tier3Update` / `Tier3Response` types
+- [x] Batch prompt construction (8-10 NPCs per call) — `TIER3_BATCH_SIZE = 10`
+- [x] Tier 3 tick function (every 1 in-game day) — wired into all three entry points
+- [x] Priority queue: Tier 1 > Tier 2 > Tier 3 — multi-lane `InferenceQueue` (Interactive/Background/Batch) with `tokio::select! biased;` worker. Tier 3 routed through Batch lane via `submit_json`. Per-category simulation client routing deferred (TODO in call sites)
+- [x] Skip overdue ticks (don't queue) — `tier3_in_flight` flag gates re-entry while a batch is awaited
+- [x] Tier 3 vs Tier 4 distance split in `assign_tiers`
 
 ### Phase 5E — Tier 4 Rules Engine & Seasonal Effects
 
 > [Detailed plan](../plans/phase-5e-tier4-seasonal-effects.md) | Depends on: 5A, 5B, 5D
+>
+> **Runtime status:** wired in all three entry points. `tick_tier4` runs inline (sub-ms CPU) inside the background tick scope, gated on `needs_tier4_tick`, with returned `Tier4Event`s passed through `apply_tier4_events` and published on `world.event_bus`.
 
 - [x] `Tier4Event` enum and `tick_tier4` CPU-only rules engine
 - [x] Life event probabilities (illness, death, birth, trade)

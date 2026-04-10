@@ -6,7 +6,7 @@
 
 use std::collections::VecDeque;
 
-use chrono::{Datelike, Timelike};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::Serialize;
 
 use crate::npc::manager::NpcManager;
@@ -34,6 +34,8 @@ pub struct DebugSnapshot {
     pub events: Vec<DebugEvent>,
     /// Inference pipeline configuration.
     pub inference: InferenceDebug,
+    /// Gossip network summary.
+    pub gossip: GossipDebug,
 }
 
 /// Game clock state for debug display.
@@ -57,6 +59,8 @@ pub struct ClockDebug {
     pub day_of_week: String,
     /// Schedule day type label (e.g. "Weekday", "Sunday", "Market Day").
     pub day_type: String,
+    /// Last ~5 weather transitions as (timestamp, weather_label) pairs.
+    pub weather_recent: Vec<(DateTime<Utc>, String)>,
 }
 
 /// World graph summary for debug display.
@@ -128,6 +132,12 @@ pub struct NpcDebug {
     pub intelligence: IntelligenceDebug,
     /// Last Tier 3 batch activity summary, if this NPC has received one.
     pub last_activity: Option<String>,
+    /// Whether the NPC is currently ill.
+    pub is_ill: bool,
+    /// Most recent activity from the deflated summary, if any.
+    pub deflated_summary: Option<String>,
+    /// Number of long-term memory entries.
+    pub long_term_memory_count: usize,
 }
 
 /// Compact intelligence profile for debug display.
@@ -220,6 +230,25 @@ pub struct TierSummary {
     pub tier3_in_flight: bool,
     /// Formatted game time of last Tier 3 batch tick, or null if never run.
     pub last_tier3_tick: Option<String>,
+    /// Whether a Tier 2 background inference is currently in flight.
+    pub tier2_in_flight: bool,
+    /// Formatted game time of last Tier 2 tick, or null if never run.
+    pub last_tier2_tick: Option<String>,
+    /// Number of Tier 3 NPCs queued for the next batch dispatch.
+    pub tier3_pending_count: usize,
+    /// Last ~5 Tier 4 life-event descriptions (newest last).
+    pub tier4_recent_events: Vec<String>,
+}
+
+/// Gossip network summary for debug display.
+#[derive(Debug, Clone, Serialize)]
+pub struct GossipDebug {
+    /// Total number of gossip items in circulation.
+    pub rumor_count: usize,
+    /// Number of NPCs who know at least one piece of gossip.
+    pub recent_witnesses: usize,
+    /// Last ~5 rumor texts.
+    pub top_rumors: Vec<String>,
 }
 
 /// A timestamped debug event for the event log.
@@ -281,6 +310,7 @@ pub fn build_debug_snapshot(
         current_day_type,
     );
     let tier_summary = build_tier_summary(npc_manager);
+    let gossip = build_gossip_debug(world, npc_manager);
     let event_list: Vec<DebugEvent> = events.iter().cloned().collect();
 
     DebugSnapshot {
@@ -290,6 +320,7 @@ pub fn build_debug_snapshot(
         tier_summary,
         events: event_list,
         inference: inference.clone(),
+        gossip,
     }
 }
 
@@ -306,6 +337,18 @@ fn build_clock_debug(world: &WorldState) -> ClockDebug {
         chrono::Weekday::Sun => "Sunday",
     }
     .to_string();
+    // Build recent weather transitions from the weather engine history.
+    // Take the last 5 entries for display.
+    let weather_recent: Vec<(DateTime<Utc>, String)> = world
+        .weather_engine
+        .history()
+        .iter()
+        .rev()
+        .take(5)
+        .rev()
+        .map(|(ts, w)| (*ts, w.to_string()))
+        .collect();
+
     ClockDebug {
         game_time: format!(
             "{:02}:{:02} {}",
@@ -321,6 +364,7 @@ fn build_clock_debug(world: &WorldState) -> ClockDebug {
         speed_factor: world.clock.speed_factor(),
         day_of_week,
         day_type: world.clock.day_type().to_string(),
+        weather_recent,
     }
 }
 
@@ -468,6 +512,11 @@ fn build_npc_debug_list(
                 })
                 .collect();
 
+            let deflated_summary = npc
+                .deflated_summary
+                .as_ref()
+                .and_then(|s| s.recent_activity.first().cloned());
+
             NpcDebug {
                 id: npc.id.0,
                 name: npc.name.clone(),
@@ -494,6 +543,9 @@ fn build_npc_debug_list(
                     creative: npc.intelligence.creative,
                 },
                 last_activity: npc.last_activity.clone(),
+                is_ill: npc.is_ill,
+                deflated_summary,
+                long_term_memory_count: npc.long_term_memory.len(),
             }
         })
         .collect();
@@ -523,6 +575,14 @@ fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
         .last_tier3_game_time()
         .map(|t| t.format("%H:%M %Y-%m-%d").to_string());
 
+    let last_tier2_tick = npc_manager
+        .last_tier2_game_time()
+        .map(|t| t.format("%H:%M %Y-%m-%d").to_string());
+
+    let tier3_pending_count = t3.len();
+    let tier4_recent_events: Vec<String> =
+        npc_manager.recent_tier4_events().iter().cloned().collect();
+
     TierSummary {
         tier1_count: t1.len(),
         tier2_count: t2.len(),
@@ -533,6 +593,38 @@ fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
         tier3_names: t3,
         tier3_in_flight: npc_manager.tier3_in_flight(),
         last_tier3_tick,
+        tier2_in_flight: npc_manager.tier2_in_flight(),
+        last_tier2_tick,
+        tier3_pending_count,
+        tier4_recent_events,
+    }
+}
+
+/// Builds the gossip network debug summary.
+fn build_gossip_debug(world: &WorldState, npc_manager: &NpcManager) -> GossipDebug {
+    let gossip = &world.gossip_network;
+    let rumor_count = gossip.len();
+
+    // Count NPCs who know at least one piece of gossip.
+    let recent_witnesses = npc_manager
+        .all_npcs()
+        .filter(|npc| !gossip.known_by(npc.id).is_empty())
+        .count();
+
+    // Collect the last ~5 rumor texts (newest items are appended last by GossipNetwork).
+    let top_rumors: Vec<String> = gossip
+        .all_items()
+        .iter()
+        .rev()
+        .take(5)
+        .rev()
+        .map(|item| item.content.clone())
+        .collect();
+
+    GossipDebug {
+        rumor_count,
+        recent_witnesses,
+        top_rumors,
     }
 }
 
@@ -790,5 +882,95 @@ mod tests {
         // Relationships should be sorted by strength descending
         assert_eq!(npcs[0].relationships.len(), 2);
         assert!(npcs[0].relationships[0].strength > npcs[0].relationships[1].strength);
+    }
+
+    #[test]
+    fn test_npc_debug_new_fields() {
+        let world = WorldState::new();
+        let mut mgr = NpcManager::new();
+        let npc = Npc::new_test_npc();
+        mgr.add_npc(npc);
+        mgr.assign_tiers(&world, &[]);
+
+        let graph = WorldGraph::new();
+        let npcs = build_npc_debug_list(&mgr, &graph, 10, Season::Spring, DayType::Weekday);
+        assert_eq!(npcs.len(), 1);
+        // New fields: is_ill should be false for a healthy NPC
+        assert!(!npcs[0].is_ill);
+        // No deflated summary on a fresh NPC
+        assert!(npcs[0].deflated_summary.is_none());
+        // Long-term memory starts empty
+        assert_eq!(npcs[0].long_term_memory_count, 0);
+    }
+
+    #[test]
+    fn test_tier_summary_new_fields() {
+        let mgr = NpcManager::new();
+        let summary = build_tier_summary(&mgr);
+        // New fields: defaults
+        assert!(!summary.tier2_in_flight);
+        assert!(summary.last_tier2_tick.is_none());
+        assert_eq!(summary.tier3_pending_count, 0);
+        assert!(summary.tier4_recent_events.is_empty());
+    }
+
+    #[test]
+    fn test_clock_debug_weather_recent_empty() {
+        let world = WorldState::new();
+        let clock = build_clock_debug(&world);
+        // No transitions yet — history should be empty
+        assert!(clock.weather_recent.is_empty());
+    }
+
+    #[test]
+    fn test_gossip_debug_empty() {
+        let world = WorldState::new();
+        let mgr = NpcManager::new();
+        let g = build_gossip_debug(&world, &mgr);
+        assert_eq!(g.rumor_count, 0);
+        assert_eq!(g.recent_witnesses, 0);
+        assert!(g.top_rumors.is_empty());
+    }
+
+    #[test]
+    fn test_gossip_debug_serializes_in_snapshot() {
+        let world = WorldState::new();
+        let mgr = NpcManager::new();
+        let events = VecDeque::new();
+        let inference = InferenceDebug {
+            provider_name: "test".to_string(),
+            model_name: "test".to_string(),
+            base_url: "http://localhost".to_string(),
+            cloud_provider: None,
+            cloud_model: None,
+            has_queue: false,
+            improv_enabled: false,
+            call_log: vec![],
+        };
+        let snapshot = build_debug_snapshot(&world, &mgr, &events, &inference);
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(json.contains("gossip"));
+        assert!(json.contains("rumor_count"));
+    }
+
+    #[test]
+    fn test_recent_tier4_events_in_tier_summary() {
+        use crate::npc::tier4::Tier4Event;
+        use chrono::Utc;
+
+        let world = WorldState::new();
+        let mut mgr = NpcManager::new();
+        let npc = Npc::new_test_npc();
+        let npc_id = npc.id;
+        mgr.add_npc(npc);
+        mgr.assign_tiers(&world, &[]);
+
+        // Apply an Illness event — should populate ring buffer
+        let events = vec![Tier4Event::Illness { npc_id }];
+        mgr.apply_tier4_events(&events, Utc::now());
+
+        let summary = build_tier_summary(&mgr);
+        assert_eq!(summary.tier4_recent_events.len(), 1);
+        assert!(summary.tier4_recent_events[0].contains("ill"));
     }
 }

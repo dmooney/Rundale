@@ -589,20 +589,6 @@ pub struct Tier3Response {
     pub updates: Vec<Tier3Update>,
 }
 
-/// Priority levels for inference requests.
-///
-/// Lower values = higher priority. Used to ensure player-facing dialogue
-/// is never delayed by background batch simulation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum InferencePriority {
-    /// Tier 1: player-facing dialogue (highest priority).
-    Interactive = 0,
-    /// Tier 2: nearby NPC background simulation.
-    Background = 1,
-    /// Tier 3: distant NPC batch simulation (lowest LLM priority).
-    Batch = 2,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1099,7 +1085,7 @@ mod tests {
 
     #[test]
     fn test_tier3_update_deserialize_full() {
-        use super::{Tier3Response, Tier3Update};
+        use super::Tier3Response;
 
         let json = r#"{
             "updates": [{
@@ -1144,7 +1130,7 @@ mod tests {
 
     #[test]
     fn test_inference_priority_ordering() {
-        use super::InferencePriority;
+        use parish_inference::InferencePriority;
 
         assert!(InferencePriority::Interactive < InferencePriority::Background);
         assert!(InferencePriority::Background < InferencePriority::Batch);

@@ -70,6 +70,10 @@
 					<div class="field">{snap.clock.time_of_day} | {snap.clock.day_of_week} | {snap.clock.season}</div>
 					<div class="field muted">Schedule day: {snap.clock.day_type}</div>
 					<div class="field">Weather: {snap.clock.weather}</div>
+					{#if snap.clock.weather_recent.length > 0}
+						{@const last = snap.clock.weather_recent[snap.clock.weather_recent.length - 1]}
+						<div class="field muted">Recent transition: {last[1]} <span class="muted">({new Date(last[0]).toLocaleTimeString()})</span></div>
+					{/if}
 					<div class="field">Speed: {snap.clock.speed_factor}x {snap.clock.paused ? '(PAUSED)' : ''}</div>
 					{#if snap.clock.festival}
 						<div class="field accent">Festival: {snap.clock.festival}</div>
@@ -89,6 +93,18 @@
 					{#if snap.tier_summary.tier3_names.length > 0}
 						<div class="field muted">T3: {snap.tier_summary.tier3_names.join(', ')}</div>
 					{/if}
+					<div class="field">T2 background:
+						{#if snap.tier_summary.tier2_in_flight}
+							<span class="accent">IN FLIGHT</span>
+						{:else}
+							idle
+						{/if}
+						{#if snap.tier_summary.last_tier2_tick}
+							| last: {snap.tier_summary.last_tier2_tick}
+						{:else}
+							| (never run)
+						{/if}
+					</div>
 					<div class="field">T3 batch:
 						{#if snap.tier_summary.tier3_in_flight}
 							<span class="accent">IN FLIGHT</span>
@@ -100,7 +116,25 @@
 						{:else}
 							| (never run)
 						{/if}
+						<span class="muted">| pending: {snap.tier_summary.tier3_pending_count}</span>
 					</div>
+					{#if snap.tier_summary.tier4_recent_events.length > 0}
+						<div class="field">Recent life events:</div>
+						{#each snap.tier_summary.tier4_recent_events.slice(-3) as evt}
+							<div class="field muted">- {evt}</div>
+						{/each}
+					{/if}
+				</div>
+				<div class="section">
+					<h4>Gossip</h4>
+					<div class="field">Rumors in circulation: {snap.gossip.rumor_count}</div>
+					<div class="field">NPCs with witnessed gossip: {snap.gossip.recent_witnesses}</div>
+					{#if snap.gossip.top_rumors.length > 0}
+						<div class="field muted">Recent:</div>
+						{#each snap.gossip.top_rumors.slice(-3) as rumor}
+							<div class="field muted">- {rumor.length > 80 ? rumor.slice(0, 77) + '...' : rumor}</div>
+						{/each}
+					{/if}
 				</div>
 
 			{:else if tab === 1}
@@ -125,8 +159,16 @@
 
 						<div class="section">
 							<h5>Status</h5>
-							<div class="field">Mood: {selectedNpc.mood}</div>
+							<div class="field">
+								Mood: {selectedNpc.mood}
+								{#if selectedNpc.is_ill}
+									<span class="accent">🤒 Ill</span>
+								{/if}
+							</div>
 							<div class="field">Tier: {selectedNpc.tier} | {selectedNpc.state}</div>
+							{#if selectedNpc.deflated_summary}
+								<div class="field muted"><em>{selectedNpc.deflated_summary}</em></div>
+							{/if}
 						</div>
 
 						{#if selectedNpc.last_activity}
@@ -173,9 +215,9 @@
 							</div>
 						{/if}
 
-						{#if selectedNpc.memories.length > 0}
+						{#if selectedNpc.memories.length > 0 || selectedNpc.long_term_memory_count > 0}
 							<div class="section">
-								<h5>Memory ({selectedNpc.memories.length})</h5>
+								<h5>Memory (short {selectedNpc.memories.length} / long {selectedNpc.long_term_memory_count})</h5>
 								{#each selectedNpc.memories as mem}
 									<div class="field"><span class="muted">[{mem.timestamp}]</span> {mem.content} <span class="muted">({mem.location_name})</span></div>
 								{/each}

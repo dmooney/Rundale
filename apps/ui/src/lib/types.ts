@@ -145,6 +145,7 @@ export interface DebugSnapshot {
 	tier_summary: TierSummary;
 	events: DebugEvent[];
 	inference: InferenceDebug;
+	gossip: GossipDebug;
 }
 
 export interface ClockDebug {
@@ -157,6 +158,14 @@ export interface ClockDebug {
 	speed_factor: number;
 	day_of_week: string;
 	day_type: string;
+	/** Last ~5 weather transitions: [iso_timestamp, weather_label]. */
+	weather_recent: [string, string][];
+}
+
+export interface GossipDebug {
+	rumor_count: number;
+	recent_witnesses: number;
+	top_rumors: string[];
 }
 
 export interface WorldDebug {
@@ -194,6 +203,9 @@ export interface NpcDebug {
 	knowledge: string[];
 	intelligence: IntelligenceDebug;
 	last_activity: string | null;
+	is_ill: boolean;
+	deflated_summary: string | null;
+	long_term_memory_count: number;
 }
 
 export interface ScheduleVariantDebug {
@@ -243,6 +255,10 @@ export interface TierSummary {
 	tier3_names: string[];
 	tier3_in_flight: boolean;
 	last_tier3_tick: string | null;
+	tier2_in_flight: boolean;
+	last_tier2_tick: string | null;
+	tier3_pending_count: number;
+	tier4_recent_events: string[];
 }
 
 export interface DebugEvent {

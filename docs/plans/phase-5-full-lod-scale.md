@@ -2,7 +2,7 @@
 
 > Parent: [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: In progress** (5A/5B/5C/5D/5E done including Tier 2 wiring, priority queue, and debug visibility; 5F not started)
 
 ## Goal
 

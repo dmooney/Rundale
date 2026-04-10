@@ -102,6 +102,8 @@ pub struct NpcManager {
     tier_assignments: HashMap<NpcId, CogTier>,
     /// Game time of the last Tier 2 tick (None if never ticked).
     last_tier2_game_time: Option<DateTime<Utc>>,
+    /// Whether a Tier 2 background inference is currently in-flight.
+    tier2_in_flight: bool,
     /// Game time of the last Tier 3 tick (None if never ticked).
     last_tier3_game_time: Option<DateTime<Utc>>,
     /// Whether a Tier 3 batch inference is currently in-flight.
@@ -110,6 +112,8 @@ pub struct NpcManager {
     last_tier4_game_time: Option<DateTime<Utc>>,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
+    /// Ring buffer of the last 5 Tier 4 life-event descriptions (newest last).
+    recent_tier4_events: VecDeque<String>,
 }
 
 impl NpcManager {
@@ -119,10 +123,12 @@ impl NpcManager {
             npcs: HashMap::new(),
             tier_assignments: HashMap::new(),
             last_tier2_game_time: None,
+            tier2_in_flight: false,
             last_tier3_game_time: None,
             tier3_in_flight: false,
             last_tier4_game_time: None,
             introduced_npcs: HashSet::new(),
+            recent_tier4_events: VecDeque::with_capacity(5),
         }
     }
 
@@ -595,6 +601,16 @@ impl NpcManager {
         self.last_tier2_game_time = Some(time);
     }
 
+    /// Returns whether a Tier 2 tick is currently in-flight.
+    pub fn tier2_in_flight(&self) -> bool {
+        self.tier2_in_flight
+    }
+
+    /// Sets whether a Tier 2 tick is currently in-flight.
+    pub fn set_tier2_in_flight(&mut self, in_flight: bool) {
+        self.tier2_in_flight = in_flight;
+    }
+
     /// Returns the ids of all NPCs assigned to Tier 3.
     pub fn tier3_npcs(&self) -> Vec<NpcId> {
         self.tier_assignments
@@ -677,9 +693,19 @@ impl NpcManager {
         }
     }
 
+    /// Returns the game time of the last Tier 4 tick, if any.
+    pub fn last_tier4_game_time(&self) -> Option<DateTime<Utc>> {
+        self.last_tier4_game_time
+    }
+
     /// Records that a Tier 4 tick has been performed at the given game time.
     pub fn record_tier4_tick(&mut self, time: DateTime<Utc>) {
         self.last_tier4_game_time = Some(time);
+    }
+
+    /// Returns the ring buffer of recent Tier 4 life-event descriptions (newest last).
+    pub fn recent_tier4_events(&self) -> &VecDeque<String> {
+        &self.recent_tier4_events
     }
 
     /// Applies the results of a Tier 4 tick to NPC state.
@@ -693,6 +719,8 @@ impl NpcManager {
         use crate::tier4::Tier4Event;
 
         let mut game_events = Vec::new();
+        // Collect short descriptions for the recent_tier4_events ring buffer.
+        let mut life_descriptions: Vec<String> = Vec::new();
 
         for event in events {
             match event {
@@ -700,9 +728,11 @@ impl NpcManager {
                     if let Some(npc) = self.npcs.get_mut(npc_id) {
                         npc.is_ill = true;
                         npc.mood = "unwell".to_string();
+                        let desc = format!("{} has fallen ill.", npc.name);
+                        life_descriptions.push(desc.clone());
                         game_events.push(GameEvent::LifeEvent {
                             npc_id: *npc_id,
-                            description: format!("{} has fallen ill.", npc.name),
+                            description: desc,
                             timestamp,
                         });
                         game_events.push(GameEvent::MoodChanged {
@@ -716,9 +746,11 @@ impl NpcManager {
                     if let Some(npc) = self.npcs.get_mut(npc_id) {
                         npc.is_ill = false;
                         npc.mood = "content".to_string();
+                        let desc = format!("{} has recovered from illness.", npc.name);
+                        life_descriptions.push(desc.clone());
                         game_events.push(GameEvent::LifeEvent {
                             npc_id: *npc_id,
-                            description: format!("{} has recovered from illness.", npc.name),
+                            description: desc,
                             timestamp,
                         });
                         game_events.push(GameEvent::MoodChanged {
@@ -734,9 +766,11 @@ impl NpcManager {
                         .get(npc_id)
                         .map(|n| n.name.clone())
                         .unwrap_or_default();
+                    let desc = format!("{name} has passed away.");
+                    life_descriptions.push(desc.clone());
                     game_events.push(GameEvent::LifeEvent {
                         npc_id: *npc_id,
-                        description: format!("{name} has passed away."),
+                        description: desc,
                         timestamp,
                     });
                     self.npcs.remove(npc_id);
@@ -753,12 +787,13 @@ impl NpcManager {
                         .get(&parent_ids.1)
                         .map(|n| n.name.clone())
                         .unwrap_or_default();
+                    let desc =
+                        format!("A child has been born to {parent_a_name} and {parent_b_name}.");
+                    life_descriptions.push(desc.clone());
                     // For now, just publish the event — NPC creation is future work.
                     game_events.push(GameEvent::LifeEvent {
                         npc_id: parent_ids.0,
-                        description: format!(
-                            "A child has been born to {parent_a_name} and {parent_b_name}."
-                        ),
+                        description: desc,
                         timestamp,
                     });
                 }
@@ -767,9 +802,11 @@ impl NpcManager {
                     new_schedule_desc,
                 } => {
                     if let Some(npc) = self.npcs.get(npc_id) {
+                        let desc = format!("{}: {}", npc.name, new_schedule_desc);
+                        life_descriptions.push(desc.clone());
                         game_events.push(GameEvent::LifeEvent {
                             npc_id: *npc_id,
-                            description: format!("{}: {}", npc.name, new_schedule_desc),
+                            description: desc,
                             timestamp,
                         });
                     }
@@ -798,9 +835,11 @@ impl NpcManager {
                         rel.adjust_strength(0.1);
                     }
 
+                    let desc = format!("{buyer_name} completed a trade with {seller_name}.");
+                    life_descriptions.push(desc.clone());
                     game_events.push(GameEvent::LifeEvent {
                         npc_id: *buyer,
-                        description: format!("{buyer_name} completed a trade with {seller_name}."),
+                        description: desc,
                         timestamp,
                     });
                     game_events.push(GameEvent::RelationshipChanged {
@@ -839,6 +878,14 @@ impl NpcManager {
                     });
                 }
             }
+        }
+
+        // Push descriptions into the ring buffer (capacity 5).
+        for desc in life_descriptions {
+            if self.recent_tier4_events.len() >= 5 {
+                self.recent_tier4_events.pop_front();
+            }
+            self.recent_tier4_events.push_back(desc);
         }
 
         game_events
@@ -1626,5 +1673,225 @@ mod tests {
         assert!(mgr.tier3_in_flight());
         mgr.set_tier3_in_flight(false);
         assert!(!mgr.tier3_in_flight());
+    }
+
+    /// Tier 4 tick interval: never-ticked manager always returns `needs_tier4_tick = true`.
+    #[test]
+    fn test_tier4_tick_never_ticked() {
+        let mgr = NpcManager::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        assert!(mgr.needs_tier4_tick(now));
+        assert!(mgr.last_tier4_game_time().is_none());
+    }
+
+    /// After recording a tick, the manager should NOT need another tick until the
+    /// interval has elapsed.
+    #[test]
+    fn test_tier4_tick_not_yet_due() {
+        let config = CognitiveTierConfig::default();
+        let mut mgr = NpcManager::new();
+        let t0 = Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap();
+        mgr.record_tier4_tick(t0);
+
+        // 30 days later → not yet due (interval = 90 days)
+        let t1 = Utc.with_ymd_and_hms(1820, 4, 19, 0, 0, 0).unwrap();
+        assert!(!mgr.needs_tier4_tick_with_config(t1, &config));
+        assert_eq!(mgr.last_tier4_game_time(), Some(t0));
+    }
+
+    /// After the interval elapses, `needs_tier4_tick` returns true again.
+    #[test]
+    fn test_tier4_tick_due_after_interval() {
+        let config = CognitiveTierConfig::default();
+        let mut mgr = NpcManager::new();
+        let t0 = Utc.with_ymd_and_hms(1820, 1, 1, 0, 0, 0).unwrap();
+        mgr.record_tier4_tick(t0);
+
+        // Exactly 90 days later → due
+        let t1 = Utc.with_ymd_and_hms(1820, 4, 1, 0, 0, 0).unwrap();
+        assert!(mgr.needs_tier4_tick_with_config(t1, &config));
+    }
+
+    /// Full wiring cycle: build tier4_refs, call tick_tier4, apply events,
+    /// record tick. Asserts `last_tier4_game_time` is set.
+    /// This is the same pattern used by parish-tauri and parish-server.
+    #[test]
+    fn test_tier4_dispatch_wiring_cycle() {
+        use crate::tier4::tick_tier4;
+        use parish_world::WorldState;
+
+        let graph = make_chain_graph(6);
+        let mut mgr = NpcManager::new();
+        // NPC at distance 6 → Tier 4
+        mgr.add_npc(make_test_npc(99, 6));
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+        mgr.assign_tiers(&world, &[]);
+
+        assert_eq!(mgr.tier_of(NpcId(99)), Some(CogTier::Tier4));
+
+        let now = Utc.with_ymd_and_hms(1820, 6, 1, 12, 0, 0).unwrap();
+        assert!(mgr.needs_tier4_tick(now));
+
+        // Replicate the wiring pattern from the entry-point tick loops
+        let tier4_ids: HashSet<NpcId> = mgr.tier4_npcs().into_iter().collect();
+        let events = {
+            let mut tier4_refs: Vec<&mut Npc> = mgr
+                .npcs_mut()
+                .values_mut()
+                .filter(|n| tier4_ids.contains(&n.id))
+                .collect();
+            let season = world.clock.season();
+            let game_date = now.date_naive();
+            let mut rng = rand::thread_rng();
+            tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
+        };
+        let game_events = mgr.apply_tier4_events(&events, now);
+        for evt in game_events {
+            world.event_bus.publish(evt);
+        }
+        mgr.record_tier4_tick(now);
+
+        assert_eq!(mgr.last_tier4_game_time(), Some(now));
+        assert!(!mgr.needs_tier4_tick(now)); // not due again immediately
+    }
+
+    /// Verifies the Tier 3 dispatch gating and state-management cycle used by
+    /// all three entry points (parish-tauri, parish-server, parish-cli/headless).
+    ///
+    /// Checks:
+    ///   1. A fresh manager signals `needs_tier3_tick`.
+    ///   2. Setting `tier3_in_flight = true` does NOT clear `needs_tier3_tick`
+    ///      (the entry point checks both; here we test each independently).
+    ///   3. `record_tier3_tick` sets `last_tier3_game_time` and makes
+    ///      `needs_tier3_tick` return false immediately after.
+    ///   4. After clearing `tier3_in_flight`, the flag is false.
+    #[test]
+    fn test_tier3_dispatch_wiring_cycle() {
+        use crate::ticks::tier3_snapshot_from_npc;
+        use parish_world::WorldState;
+
+        let graph = make_chain_graph(6);
+        let mut mgr = NpcManager::new();
+        // NPC at distance 4 → Tier 3 (between tier2_max and tier3_max)
+        mgr.add_npc(make_test_npc(10, 4));
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+        mgr.assign_tiers(&world, &[]);
+
+        assert_eq!(mgr.tier_of(NpcId(10)), Some(CogTier::Tier3));
+
+        let now = Utc.with_ymd_and_hms(1820, 6, 1, 12, 0, 0).unwrap();
+
+        // 1. Fresh manager → needs a tick
+        assert!(mgr.needs_tier3_tick(now));
+
+        // 2. Simulate the dispatch gating: in-flight flag blocks a second launch
+        //    even though needs_tier3_tick is still true.
+        assert!(!mgr.tier3_in_flight());
+        let should_dispatch = mgr.needs_tier3_tick(now) && !mgr.tier3_in_flight();
+        assert!(should_dispatch);
+
+        mgr.set_tier3_in_flight(true);
+
+        // While in-flight, a second pass must not dispatch again.
+        let would_double_dispatch = mgr.needs_tier3_tick(now) && !mgr.tier3_in_flight();
+        assert!(
+            !would_double_dispatch,
+            "in-flight guard must block double dispatch"
+        );
+
+        // 3. Build snapshots — same pattern as the entry-point loops.
+        let tier3_ids = mgr.tier3_npcs();
+        assert!(!tier3_ids.is_empty());
+        let snapshots: Vec<_> = tier3_ids
+            .iter()
+            .filter_map(|id| mgr.get(*id))
+            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph))
+            .collect();
+        assert!(!snapshots.is_empty());
+
+        // Simulate the async call completing: apply the tick + clear the flag.
+        mgr.record_tier3_tick(now);
+        mgr.set_tier3_in_flight(false);
+
+        // 4. Post-tick: time recorded, flag clear, no immediate re-dispatch.
+        assert_eq!(mgr.last_tier3_game_time(), Some(now));
+        assert!(!mgr.tier3_in_flight());
+        assert!(!mgr.needs_tier3_tick(now));
+    }
+
+    #[test]
+    fn test_tier2_in_flight_tracking() {
+        let mut mgr = NpcManager::new();
+        assert!(!mgr.tier2_in_flight());
+        mgr.set_tier2_in_flight(true);
+        assert!(mgr.tier2_in_flight());
+        mgr.set_tier2_in_flight(false);
+        assert!(!mgr.tier2_in_flight());
+    }
+
+    /// Verifies the Tier 2 dispatch gating and state-management cycle used by
+    /// all three entry points (parish-tauri, parish-server, parish-cli/headless).
+    ///
+    /// Checks:
+    ///   1. A fresh manager signals `needs_tier2_tick`.
+    ///   2. Setting `tier2_in_flight = true` does NOT clear `needs_tier2_tick`
+    ///      (the entry point checks both; here we test each independently).
+    ///   3. `record_tier2_tick` sets `last_tier2_game_time` and makes
+    ///      `needs_tier2_tick` return false immediately after.
+    ///   4. After clearing `tier2_in_flight`, the flag is false.
+    #[test]
+    fn test_tier2_dispatch_wiring_cycle() {
+        use parish_world::WorldState;
+
+        let graph = make_chain_graph(4);
+        let mut mgr = NpcManager::new();
+        // NPC at distance 2 → Tier 2 (within tier2_max distance)
+        mgr.add_npc(make_test_npc(20, 2));
+
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+        mgr.assign_tiers(&world, &[]);
+
+        assert_eq!(mgr.tier_of(NpcId(20)), Some(CogTier::Tier2));
+
+        let now = Utc.with_ymd_and_hms(1820, 6, 1, 12, 0, 0).unwrap();
+
+        // 1. Fresh manager → needs a tick
+        assert!(mgr.needs_tier2_tick(now));
+
+        // 2. Simulate the dispatch gating: in-flight flag blocks a second launch
+        //    even though needs_tier2_tick is still true.
+        assert!(!mgr.tier2_in_flight());
+        let should_dispatch = mgr.needs_tier2_tick(now) && !mgr.tier2_in_flight();
+        assert!(should_dispatch);
+
+        mgr.set_tier2_in_flight(true);
+
+        // While in-flight, a second pass must not dispatch again.
+        let would_double_dispatch = mgr.needs_tier2_tick(now) && !mgr.tier2_in_flight();
+        assert!(
+            !would_double_dispatch,
+            "in-flight guard must block double dispatch"
+        );
+
+        // 3. Build groups — same pattern as the entry-point loops.
+        let groups_map = mgr.tier2_groups();
+        assert!(!groups_map.is_empty());
+
+        // Simulate the async call completing: apply the tick + clear the flag.
+        mgr.record_tier2_tick(now);
+        mgr.set_tier2_in_flight(false);
+
+        // 4. Post-tick: time recorded, flag clear, no immediate re-dispatch.
+        assert_eq!(mgr.last_tier2_game_time(), Some(now));
+        assert!(!mgr.tier2_in_flight());
+        assert!(!mgr.needs_tier2_tick(now));
     }
 }
