@@ -41,6 +41,8 @@ export const uiConfig = writable<UiConfig>({
 
 export const fullMapOpen = writable<boolean>(false);
 
+export const focailOpen = writable<boolean>(false);
+
 /** Adds a reaction to a message in the text log by message ID. */
 export function addReaction(messageId: string, emoji: string, source: string): void {
 	textLog.update((log) => {

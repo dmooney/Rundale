@@ -1,38 +1,134 @@
 <script lang="ts">
 	import { languageHints, nameHints, uiConfig } from '../stores/game';
+
+	let { onclose }: { onclose?: () => void } = $props();
 </script>
 
-<aside class="sidebar" data-testid="sidebar">
-	<details open>
-		<summary>{$uiConfig.hints_label}</summary>
-		{#if $nameHints.length > 0 || $languageHints.length > 0}
-			<ul class="hint-list">
-				{#each $nameHints as hint}
-					<li class="hint-item name-hint">
-						<span class="word">{hint.word}</span>
-						<span class="pronunciation">[{hint.pronunciation}]</span>
-						{#if hint.meaning}
-							<span class="meaning">— {hint.meaning}</span>
-						{/if}
-					</li>
-				{/each}
-				{#each $languageHints as hint}
-					<li class="hint-item">
-						<span class="word">{hint.word}</span>
-						<span class="pronunciation">[{hint.pronunciation}]</span>
-						{#if hint.meaning}
-							<span class="meaning">— {hint.meaning}</span>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{:else}
-			<p class="empty">No words yet.</p>
-		{/if}
-	</details>
-</aside>
+{#if onclose}
+	<div class="focail-panel">
+		<div class="panel-header">
+			<span class="panel-title"><span class="panel-title-word">Focail Gaeilge</span> <span class="panel-title-label">(Irish Words)</span></span>
+			<button class="close-btn" onclick={onclose}>&times;</button>
+		</div>
+		<div class="panel-content">
+			{#if $nameHints.length > 0 || $languageHints.length > 0}
+				<ul class="hint-list">
+					{#each $nameHints as hint}
+						<li class="hint-item name-hint">
+							<span class="word">{hint.word}</span>
+							<span class="pronunciation">[{hint.pronunciation}]</span>
+							{#if hint.meaning}
+								<span class="meaning">— {hint.meaning}</span>
+							{/if}
+						</li>
+					{/each}
+					{#each $languageHints as hint}
+						<li class="hint-item">
+							<span class="word">{hint.word}</span>
+							<span class="pronunciation">[{hint.pronunciation}]</span>
+							{#if hint.meaning}
+								<span class="meaning">— {hint.meaning}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="empty">No words yet.</p>
+			{/if}
+		</div>
+	</div>
+{:else}
+	<aside class="sidebar" data-testid="sidebar">
+		<details open>
+			<summary>{$uiConfig.hints_label}</summary>
+			{#if $nameHints.length > 0 || $languageHints.length > 0}
+				<ul class="hint-list">
+					{#each $nameHints as hint}
+						<li class="hint-item name-hint">
+							<span class="word">{hint.word}</span>
+							<span class="pronunciation">[{hint.pronunciation}]</span>
+							{#if hint.meaning}
+								<span class="meaning">— {hint.meaning}</span>
+							{/if}
+						</li>
+					{/each}
+					{#each $languageHints as hint}
+						<li class="hint-item">
+							<span class="word">{hint.word}</span>
+							<span class="pronunciation">[{hint.pronunciation}]</span>
+							{#if hint.meaning}
+								<span class="meaning">— {hint.meaning}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="empty">No words yet.</p>
+			{/if}
+		</details>
+	</aside>
+{/if}
 
 <style>
+	.focail-panel {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		background: var(--color-panel-bg);
+	}
+
+	.panel-header {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 0.75rem;
+		border-bottom: 1px solid var(--color-border);
+		flex-shrink: 0;
+	}
+
+	.panel-title {
+		flex: 1;
+		display: flex;
+		align-items: baseline;
+		gap: 0.4em;
+	}
+
+	.panel-title-word {
+		color: var(--color-accent);
+		font-weight: 600;
+		font-style: italic;
+		font-size: 0.85rem;
+	}
+
+	.panel-title-label {
+		font-family: var(--font-display);
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.13em;
+		color: var(--color-muted);
+	}
+
+	.close-btn {
+		background: none;
+		border: none;
+		color: var(--color-muted);
+		font-size: 1.4rem;
+		cursor: pointer;
+		padding: 0 4px;
+		line-height: 1;
+	}
+
+	.close-btn:hover {
+		color: var(--color-fg);
+	}
+
+	.panel-content {
+		flex: 1;
+		overflow-y: auto;
+	}
+
 	.sidebar {
 		background: var(--color-panel-bg);
 		border-left: 1px solid var(--color-border);
