@@ -426,9 +426,10 @@
 	.app-shell {
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100dvh;
 		overflow: hidden;
 		transition: height 0.15s ease;
+		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	.app-shell.debug-open {
@@ -440,6 +441,7 @@
 		display: grid;
 		grid-template-columns: 1fr 220px;
 		overflow: hidden;
+		min-height: 0;
 	}
 
 	.chat-col {
@@ -447,6 +449,7 @@
 		flex-direction: column;
 		min-height: 0;
 		overflow: hidden;
+		position: relative;
 	}
 
 	.right-col {
@@ -458,6 +461,13 @@
 	/* ── Mobile toolbar ── */
 	.mobile-toolbar {
 		display: none;
+	}
+
+	:global(.status-bar) {
+		position: sticky;
+		top: 0;
+		z-index: 30;
+		flex-shrink: 0;
 	}
 
 	/* ── Mobile panel (shown when a toolbar button is active) ── */
@@ -486,6 +496,9 @@
 			padding: 0.35rem 0.75rem;
 			background: var(--color-panel-bg);
 			border-bottom: 1px solid var(--color-border);
+			position: sticky;
+			top: 0;
+			z-index: 29;
 		}
 
 		.mobile-btn {

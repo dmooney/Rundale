@@ -7,6 +7,7 @@
 	import MoodIcon from './MoodIcon.svelte';
 
 	let editorEl: HTMLDivElement;
+	let editorText = $state('');
 
 	// ── Unified dropdown state ──────────────────────────────────────────────
 	type DropdownMode = 'mention' | 'slash' | null;
@@ -215,8 +216,11 @@
 
 	/** Returns true if the editor is visually empty (no text, no chips). */
 	function isEditorEmpty(): boolean {
-		if (!editorEl) return true;
-		return getPlainText().trim() === '';
+		return editorText.trim() === '';
+	}
+
+	function syncEditorText() {
+		editorText = getPlainText();
 	}
 
 	/** Clears the editor content. */
@@ -224,12 +228,14 @@
 		if (editorEl) {
 			editorEl.innerHTML = '';
 		}
+		editorText = '';
 	}
 
 	/** Sets the editor's plain-text content and places cursor at end. */
 	function setEditorText(text: string) {
 		if (!editorEl) return;
 		editorEl.textContent = text;
+		editorText = text;
 		// Place cursor at end
 		const sel = window.getSelection();
 		const range = document.createRange();
@@ -373,6 +379,7 @@
 			sel?.addRange(range);
 			dropdownMode = null;
 			editorEl.focus();
+			syncEditorText();
 			return;
 		}
 
@@ -409,6 +416,7 @@
 
 		dropdownMode = null;
 		editorEl.focus();
+		syncEditorText();
 	}
 
 	// ── Slash command selection ──────────────────────────────────────────────
@@ -436,6 +444,7 @@
 		range.collapse(true);
 		sel?.removeAllRanges();
 		sel?.addRange(range);
+		syncEditorText();
 	}
 
 	// ── Transport icons ──────────────────────────────────────────────────────
@@ -483,7 +492,8 @@
 			selectSlashCommand(filteredCommands[selectedIndex]);
 			return;
 		}
-		const trimmed = getPlainText().trim();
+		syncEditorText();
+		const trimmed = editorText.trim();
 		if (!trimmed || $streamingActive) return;
 		clearEditor();
 		dropdownMode = null;
@@ -699,6 +709,7 @@
 		if (dropdownMode !== 'mention') {
 			detectSlash();
 		}
+		syncEditorText();
 	}
 
 	// Prevent pasting rich content — only plain text
@@ -815,8 +826,11 @@
 
 <style>
 	.input-wrapper {
-		position: relative;
+		position: sticky;
+		bottom: 0;
 		flex: 0 0 auto;
+		z-index: 25;
+		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	.input-form {
@@ -848,6 +862,7 @@
 		word-wrap: break-word;
 		overflow-wrap: break-word;
 		transition: border-color 0.2s;
+		-webkit-user-select: text;
 	}
 
 	.input-field:focus {
@@ -1084,5 +1099,12 @@
 		height: 0.75rem;
 		fill: currentColor;
 		vertical-align: middle;
+	}
+
+	@media (max-width: 768px) {
+		.input-field {
+			font-size: 16px;
+			line-height: 1.4;
+		}
 	}
 </style>

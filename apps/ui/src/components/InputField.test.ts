@@ -64,6 +64,17 @@ describe('InputField', () => {
 		expect(editor.textContent).toBe('');
 	});
 
+	it('enables send button when editor has text', async () => {
+		const { getByRole } = render(InputField);
+		const editor = getByRole('textbox');
+		const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+		expect(sendBtn.disabled).toBe(true);
+
+		editor.textContent = 'hello';
+		await fireEvent.input(editor);
+		expect(sendBtn.disabled).toBe(false);
+	});
+
 	// ── NPC mention autocomplete ────────────────────────────────────────
 
 	describe('NPC mention autocomplete', () => {
