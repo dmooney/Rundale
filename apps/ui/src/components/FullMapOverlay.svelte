@@ -202,31 +202,18 @@
 		dragging = false;
 	}
 
-	function handleBackdropClick(e: MouseEvent) {
-		if (e.target === e.currentTarget) {
-			onclose();
-		}
-	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="overlay-backdrop" onclick={handleBackdropClick}>
-	<div class="overlay-container">
-		<div class="overlay-header">
-			<span class="overlay-title">Parish Map</span>
-			<span class="overlay-hint">Scroll to zoom &middot; Drag to pan &middot; Esc to close</span>
-			<button class="close-btn" onclick={onclose} title="Close (Esc)">&times;</button>
-		</div>
-		<div
-			class="map-viewport"
-			onwheel={handleWheel}
-			onpointerdown={handlePointerDown}
-			onpointermove={handlePointerMove}
-			onpointerup={handlePointerUp}
-		>
+<div class="map-embed">
+	<div
+		class="map-viewport"
+		onwheel={handleWheel}
+		onpointerdown={handlePointerDown}
+		onpointermove={handlePointerMove}
+		onpointerup={handlePointerUp}
+	>
 			<svg
 				viewBox="0 0 {svgW} {svgH}"
 				xmlns="http://www.w3.org/2000/svg"
@@ -347,87 +334,35 @@
 				{/if}
 			</svg>
 		</div>
-		{#if tooltip}
-			<div class="tooltip">
-				<div class="tooltip-name">{tooltip.name}</div>
-				{#if tooltip.visited === false}
-					<div class="tooltip-detail tooltip-unexplored">Unexplored</div>
-				{:else}
-					{#if tooltip.indoor !== undefined}
-						<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
-					{/if}
-					{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
-						<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
-					{/if}
+	{#if tooltip}
+		<div class="tooltip">
+			<div class="tooltip-name">{tooltip.name}</div>
+			{#if tooltip.visited === false}
+				<div class="tooltip-detail tooltip-unexplored">Unexplored</div>
+			{:else}
+				{#if tooltip.indoor !== undefined}
+					<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
 				{/if}
-			</div>
-		{/if}
-	</div>
+				{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
+					<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <style>
-	.overlay-backdrop {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
-		z-index: 1000;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.overlay-container {
-		background: var(--color-panel-bg);
-		border: 1px solid var(--color-border);
-		border-radius: 8px;
-		width: 90vw;
-		max-width: 900px;
-		height: 80vh;
-		max-height: 700px;
+	.map-embed {
+		flex: 1;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		position: relative;
 		overflow: hidden;
+		background: var(--color-panel-bg);
+		position: relative;
 	}
 
-	.overlay-header {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem 0.75rem;
-		border-bottom: 1px solid var(--color-border);
-		flex-shrink: 0;
-	}
-
-	.overlay-title {
-		font-size: 0.9rem;
-		font-weight: 600;
-		color: var(--color-fg);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.overlay-hint {
-		font-size: 0.7rem;
-		color: var(--color-muted);
-		flex: 1;
-	}
-
-	.close-btn {
-		background: none;
-		border: none;
-		color: var(--color-muted);
-		font-size: 1.4rem;
-		cursor: pointer;
-		padding: 0 4px;
-		line-height: 1;
-	}
-
-	.close-btn:hover {
-		color: var(--color-fg);
-	}
-
-	.map-viewport {
+.map-viewport {
 		flex: 1;
 		overflow: hidden;
 		cursor: grab;
