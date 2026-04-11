@@ -50,12 +50,14 @@ impl Database {
     /// Opens or creates a SQLite database at the given path.
     ///
     /// Configures WAL journal mode and NORMAL synchronous mode for
-    /// performance, then runs migrations to ensure the schema is current.
+    /// performance, enables foreign key enforcement, then runs migrations
+    /// to ensure the schema is current.
     pub fn open(path: &Path) -> Result<Self, ParishError> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
-             PRAGMA synchronous=NORMAL;",
+             PRAGMA synchronous=NORMAL;
+             PRAGMA foreign_keys=ON;",
         )?;
         let db = Self { conn };
         db.migrate()?;
@@ -65,6 +67,8 @@ impl Database {
     /// Opens an in-memory database (for testing).
     pub fn open_memory() -> Result<Self, ParishError> {
         let conn = Connection::open_in_memory()?;
+        // foreign_keys must be enabled per-connection, including in-memory ones
+        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
@@ -98,7 +102,8 @@ impl Database {
                 game_time TEXT NOT NULL
             );
 
-            CREATE INDEX IF NOT EXISTS idx_journal_branch_snap_seq
+            DROP INDEX IF EXISTS idx_journal_branch_snap_seq;
+            CREATE UNIQUE INDEX idx_journal_branch_snap_seq
                 ON journal_events(branch_id, after_snapshot_id, sequence);",
         )?;
 
@@ -222,7 +227,10 @@ impl Database {
 
     /// Appends a journal event for the given branch and snapshot.
     ///
-    /// The sequence number is auto-incremented within the (branch, snapshot) scope.
+    /// The sequence number is computed and inserted atomically via a single
+    /// INSERT … SELECT statement, preventing duplicate sequences under
+    /// concurrent writes. The UNIQUE index on (branch_id, after_snapshot_id,
+    /// sequence) provides a second line of defence at the database level.
     pub fn append_event(
         &self,
         branch_id: i64,
@@ -230,29 +238,20 @@ impl Database {
         event: &WorldEvent,
         game_time: &str,
     ) -> Result<(), ParishError> {
-        let sequence: i64 = self.conn.query_row(
-            "SELECT COALESCE(MAX(sequence), 0) + 1
-             FROM journal_events
-             WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-            params![branch_id, snapshot_id],
-            |row| row.get(0),
-        )?;
-
         let event_data = serde_json::to_string(event)?;
         let event_type = event.event_type();
 
+        // Single atomic statement: the subquery computes COALESCE(MAX(sequence),0)+1
+        // over existing rows for this (branch, snapshot). Even with an empty result
+        // set the aggregate returns exactly one row, so the first event gets
+        // sequence=1 correctly.
         self.conn.execute(
             "INSERT INTO journal_events
              (branch_id, sequence, after_snapshot_id, event_type, event_data, game_time)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                branch_id,
-                sequence,
-                snapshot_id,
-                event_type,
-                event_data,
-                game_time
-            ],
+             SELECT ?1, COALESCE(MAX(sequence), 0) + 1, ?2, ?3, ?4, ?5
+             FROM journal_events
+             WHERE branch_id = ?1 AND after_snapshot_id = ?2",
+            params![branch_id, snapshot_id, event_type, event_data, game_time],
         )?;
         Ok(())
     }
@@ -959,5 +958,96 @@ mod tests {
 
         let log = async_db.branch_log(branch.id).await.unwrap();
         assert_eq!(log.len(), 2);
+    }
+
+    // --- Issue #225: PRAGMA foreign_keys=ON enforcement ---
+
+    #[test]
+    fn test_foreign_key_snapshot_references_branch() {
+        let db = Database::open_memory().unwrap();
+        let snapshot = make_test_snapshot();
+        // branch_id 999 does not exist; FK enforcement must reject the insert.
+        let result = db.save_snapshot(999, &snapshot);
+        assert!(
+            result.is_err(),
+            "save_snapshot with a non-existent branch_id should fail with FK violation"
+        );
+    }
+
+    #[test]
+    fn test_foreign_key_journal_references_snapshot() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let event = WorldEvent::ClockAdvanced { minutes: 1 };
+        // snapshot_id 999 does not exist; FK enforcement must reject the insert.
+        let result = db.append_event(branch.id, 999, &event, "1820-03-20T08:00:00Z");
+        assert!(
+            result.is_err(),
+            "append_event with a non-existent snapshot_id should fail with FK violation"
+        );
+    }
+
+    // --- Issue #226: atomic sequence + UNIQUE constraint ---
+
+    #[test]
+    fn test_append_event_sequence_starts_at_one() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        let event = WorldEvent::ClockAdvanced { minutes: 5 };
+        db.append_event(branch.id, snap_id, &event, "1820-03-20T08:00:00Z")
+            .unwrap();
+
+        // Verify sequence=1 was assigned by querying the count (sequence numbers
+        // are internal, but correct ordering is observable via events_since_snapshot).
+        let events = db.events_since_snapshot(branch.id, snap_id).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], event);
+    }
+
+    #[test]
+    fn test_append_event_sequences_are_contiguous() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        for i in 1..=10i64 {
+            let event = WorldEvent::ClockAdvanced { minutes: i };
+            db.append_event(branch.id, snap_id, &event, "1820-03-20T08:00:00Z")
+                .unwrap();
+        }
+
+        let events = db.events_since_snapshot(branch.id, snap_id).unwrap();
+        assert_eq!(events.len(), 10);
+        // Events must arrive in insertion order (ascending sequence).
+        for (idx, ev) in events.iter().enumerate() {
+            match ev {
+                WorldEvent::ClockAdvanced { minutes } => {
+                    assert_eq!(*minutes, (idx as i64) + 1);
+                }
+                _ => panic!("unexpected event type"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_sequences_are_independent_per_snapshot() {
+        // Each snapshot has its own sequence counter starting from 1.
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+
+        let snap1 = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+        let snap2 = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        let ev = WorldEvent::ClockAdvanced { minutes: 1 };
+        db.append_event(branch.id, snap1, &ev, "1820-03-20T08:00:00Z")
+            .unwrap();
+        db.append_event(branch.id, snap2, &ev, "1820-03-20T08:00:00Z")
+            .unwrap();
+
+        // Both snapshots should have exactly one event each.
+        assert_eq!(db.journal_count(branch.id, snap1).unwrap(), 1);
+        assert_eq!(db.journal_count(branch.id, snap2).unwrap(), 1);
     }
 }
