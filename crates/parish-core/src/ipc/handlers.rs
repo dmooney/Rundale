@@ -434,8 +434,11 @@ pub const IDLE_MESSAGES: &[&str] = &[
 
 /// Helper to mask an API key for display (shows first 4 and last 4 chars).
 pub fn mask_key(key: &str) -> String {
-    if key.len() > 8 {
-        format!("{}...{}", &key[..4], &key[key.len() - 4..])
+    let char_count = key.chars().count();
+    if char_count > 8 {
+        let prefix: String = key.chars().take(4).collect();
+        let suffix: String = key.chars().skip(char_count - 4).collect();
+        format!("{}...{}", prefix, suffix)
     } else {
         "(set, too short to mask)".to_string()
     }
@@ -579,6 +582,16 @@ mod tests {
         assert_eq!(mask_key("abcdefghij"), "abcd...ghij");
         assert_eq!(mask_key("short"), "(set, too short to mask)");
         assert_eq!(mask_key("123456789"), "1234...6789");
+    }
+
+    #[test]
+    fn mask_key_non_ascii() {
+        // Multi-byte UTF-8 characters must not panic
+        let key = "αβγδεζηθικ"; // 10 Greek letters, each 2 bytes
+        let result = mask_key(key);
+        assert_eq!(result, "αβγδ...ζηθι");
+        // Exactly 8 chars → too short to mask
+        assert_eq!(mask_key("αβγδεζηθ"), "(set, too short to mask)");
     }
 
     #[test]
