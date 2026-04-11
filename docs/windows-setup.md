@@ -84,12 +84,6 @@ For a production bundle:
 cargo tauri build
 ```
 
-### TUI Mode (Terminal)
-
-```powershell
-cargo run
-```
-
 ### Headless Mode
 
 For piping input/output or running without a terminal UI:
@@ -97,16 +91,6 @@ For piping input/output or running without a terminal UI:
 ```powershell
 cargo run -- --headless
 ```
-
-## Terminal Recommendations (TUI Mode)
-
-Rundale uses a TUI with 24-bit true color. For the best experience:
-
-- **Windows Terminal** (default on Windows 11, available from the Microsoft Store on Windows 10) — full true-color and Unicode support.
-- **PowerShell 7+** in Windows Terminal works well.
-- **Older terminals** (cmd.exe, legacy conhost) may have limited color support.
-
-Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
 
 ## Configuration (Optional)
 
@@ -131,11 +115,6 @@ You need the MSVC C++ Build Tools. Install them via:
 - Check that the Ollama service is running in the system tray.
 - Verify the port: `curl http://localhost:11434/api/tags`.
 - Firewall software may block localhost connections — add an exception if needed.
-
-### TUI looks garbled or has no color
-
-- Switch to Windows Terminal if you are using cmd.exe or legacy conhost.
-- Ensure your terminal font supports Unicode (e.g., Cascadia Code, Consolas).
 
 ### Model runs slowly
 

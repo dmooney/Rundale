@@ -145,12 +145,6 @@ For a production bundle:
 cargo tauri build
 ```
 
-### TUI Mode (Terminal)
-
-```sh
-cargo run
-```
-
 ### Headless Mode
 
 For piping input/output or running without a UI:
@@ -171,17 +165,6 @@ sudo dnf install xorg-x11-server-Xvfb  # Fedora
 # Capture screenshots at 4 times of day
 xvfb-run -a cargo tauri dev -- -- --screenshot docs/screenshots
 ```
-
-## Terminal Recommendations (TUI Mode)
-
-Rundale uses a TUI with 24-bit true color. For the best experience:
-
-- **GNOME Terminal** — full true-color support, default on many distros.
-- **Konsole** — KDE's terminal, excellent color and Unicode support.
-- **kitty** — fast GPU-accelerated terminal with full 24-bit color.
-- **Alacritty** — GPU-accelerated, minimal, full true-color support.
-
-Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
 
 ## Configuration (Optional)
 

@@ -54,12 +54,11 @@ Weather modifies the base time-of-day color palette via multiplicative tinting i
 | Autumn  | (1.06, 1.00, 0.92)    | 0%          |
 | Winter  | (0.94, 0.96, 1.04)    | 8%          |
 
-Both the GUI (`src/gui/theme.rs`) and TUI (`src/tui/mod.rs`) consume the same `RawPalette` from the interpolation engine.
+The GUI consumes `RawPalette` from the engine.
 
 ## Related
 
-- [TUI Design](tui-design.md) — Weather palette modifiers and visual atmosphere
-- [GUI Design](gui-design.md) — GUI color theming with smooth transitions
+- [GUI Design](gui-design.md) — GUI color theming
 - [Time System](time-system.md) — Seasons drive weather patterns
 - [NPC System](npc-system.md) — Weather affects NPC schedules, behavior, and dialogue
 
@@ -67,6 +66,5 @@ Both the GUI (`src/gui/theme.rs`) and TUI (`src/tui/mod.rs`) consume the same `R
 
 - [`src/world/mod.rs`](../../src/world/mod.rs) — `Weather` enum definition
 - [`src/world/palette.rs`](../../src/world/palette.rs) — Smooth interpolation engine, season/weather tinting
-- [`src/gui/theme.rs`](../../src/gui/theme.rs) — GUI palette conversion and application
-- [`src/tui/mod.rs`](../../src/tui/mod.rs) — TUI palette conversion
+- [`src/world/palette.rs`](../../src/world/palette.rs) — Palette engine, season/weather tinting
 - [`src/npc/`](../../src/npc/) — Weather-aware NPC behavior
