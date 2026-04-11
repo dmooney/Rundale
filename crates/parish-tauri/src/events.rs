@@ -7,6 +7,8 @@ use tauri::Emitter;
 
 /// Event emitted with each streamed NPC response token (batched).
 pub const EVENT_STREAM_TOKEN: &str = "stream-token";
+/// Event emitted when an individual NPC turn has finished streaming tokens.
+pub const EVENT_STREAM_TURN_END: &str = "stream-turn-end";
 /// Event emitted when an NPC response stream ends.
 pub const EVENT_STREAM_END: &str = "stream-end";
 /// Event emitted to add a line to the chat log.
@@ -38,6 +40,17 @@ pub const BATCH_MS: u64 = 16;
 pub struct StreamTokenPayload {
     /// The batch of token text to append to the current chat entry.
     pub token: String,
+    /// Stable ID for the NPC turn this token batch belongs to.
+    pub turn_id: u64,
+    /// Speaker label for this stream turn.
+    pub source: String,
+}
+
+/// Payload for `stream-turn-end` events.
+#[derive(serde::Serialize, Clone)]
+pub struct StreamTurnEndPayload {
+    /// Stable ID for the NPC turn that has finished streaming tokens.
+    pub turn_id: u64,
 }
 
 /// Payload for `stream-end` events.
@@ -53,6 +66,9 @@ pub struct TextLogPayload {
     /// Unique message ID for reaction targeting.
     #[serde(default)]
     pub id: String,
+    /// Stable ID for the NPC turn this placeholder belongs to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_turn_id: Option<u64>,
     /// Who produced this text: "player", "system", or the NPC's name.
     pub source: String,
     /// The log entry text.
@@ -143,12 +159,16 @@ pub fn spawn_loading_animation(app: tauri::AppHandle, cancel: tokio_util::sync::
 pub async fn stream_npc_response(
     app: tauri::AppHandle,
     token_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    turn_id: u64,
+    source: String,
 ) -> String {
     parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
         let _ = app.emit(
             EVENT_STREAM_TOKEN,
             StreamTokenPayload {
                 token: batch.to_string(),
+                turn_id,
+                source: source.clone(),
             },
         );
     })

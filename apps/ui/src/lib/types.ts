@@ -101,6 +101,7 @@ export interface TextLogEntry {
 	id?: string;
 	source: string;
 	content: string;
+	stream_turn_id?: number;
 	streaming?: boolean;
 	latest_chunk?: string;
 	stream_chunk_id?: number;
@@ -109,6 +110,12 @@ export interface TextLogEntry {
 
 export interface StreamTokenPayload {
 	token: string;
+	turn_id: number;
+	source: string;
+}
+
+export interface StreamTurnEndPayload {
+	turn_id: number;
 }
 
 export interface StreamEndPayload {
@@ -117,6 +124,7 @@ export interface StreamEndPayload {
 
 export interface TextLogPayload {
 	id?: string;
+	stream_turn_id?: number;
 	source: string;
 	content: string;
 }

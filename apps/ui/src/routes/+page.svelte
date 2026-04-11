@@ -27,6 +27,7 @@
 		getDebugSnapshot,
 		onWorldUpdate,
 		onStreamToken,
+		onStreamTurnEnd,
 		onStreamEnd,
 		onTextLog,
 		onLoading,
@@ -45,6 +46,16 @@
 	const AUTO_PAUSE_MS = 60_000;
 	const MOUSEMOVE_THROTTLE_MS = 1000;
 	const STREAM_WAIT_FOR_WORD_MS = 70;
+
+	type PendingNpcTurn = {
+		turnId: number;
+		source: string;
+		messageId?: string;
+		buffer: string;
+		placeholderInserted: boolean;
+		complete: boolean;
+		pumpHandle: ReturnType<typeof setTimeout> | null;
+	};
 
 	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
@@ -94,49 +105,34 @@
 		}
 	});
 
-	function appendStreamToken(token: string) {
+	function appendStreamToken(turnId: number, source: string, token: string, messageId?: string) {
 		textLog.update((log) => {
-			if (log.length > 0 && log[log.length - 1].streaming) {
-				const last = log[log.length - 1];
+			const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+			if (entryIndex >= 0) {
+				const current = log[entryIndex];
+				const nextEntry = {
+					...current,
+					id: current.id ?? messageId,
+					source,
+					content: current.content + token,
+					stream_turn_id: turnId,
+					streaming: true,
+					latest_chunk: token,
+					stream_chunk_id: (current.stream_chunk_id ?? 0) + 1
+				};
 				return [
-					...log.slice(0, -1),
-					{
-						...last,
-						content: last.content + token,
-						latest_chunk: token,
-						stream_chunk_id: (last.stream_chunk_id ?? 0) + 1
-					}
+					...log.slice(0, entryIndex),
+					nextEntry,
+					...log.slice(entryIndex + 1)
 				];
 			}
-			// Merge with the empty NPC name placeholder emitted by Rust
-			const last = log.length > 0 ? log[log.length - 1] : null;
-			if (
-				last &&
-				last.content === '' &&
-				last.source !== 'player' &&
-				last.source !== 'system'
-			) {
-				return [
-					...log.slice(0, -1),
-					{
-						...last,
-						content: token,
-						streaming: true,
-						latest_chunk: token,
-						stream_chunk_id: 1
-					}
-				];
-			}
-			// Use the most recent NPC source name if available, otherwise fall back
-			const npcSource =
-				last && last.source !== 'player' && last.source !== 'system'
-					? last.source
-					: 'NPC';
 			return trimTextLog([
 				...log,
 				{
-					source: npcSource,
+					id: messageId,
+					source,
 					content: token,
+					stream_turn_id: turnId,
 					streaming: true,
 					latest_chunk: token,
 					stream_chunk_id: 1
@@ -208,71 +204,156 @@
 			debugSnapshot.set(debugSnap);
 		} catch (_) {}
 
-		let streamBuffer = '';
-		let streamPumpHandle: ReturnType<typeof setTimeout> | null = null;
+		let pendingNpcTurns = new Map<number, PendingNpcTurn>();
 		let pendingStreamEndHints: LanguageHint[] | null = null;
 
-		const finishNpcStream = () => {
-			textLog.update((log) => {
-				if (log.length > 0 && log[log.length - 1].streaming) {
-					const last = log[log.length - 1];
-					return [
-						...log.slice(0, -1),
-						{
-							...last,
-							streaming: false,
-							latest_chunk: undefined,
-							stream_chunk_id: undefined
-						}
-					];
+		function findPendingTurn(turnId: number) {
+			return pendingNpcTurns.get(turnId);
+		}
+
+		function queuePendingTurn(turnId: number, source: string, messageId?: string) {
+			const existing = findPendingTurn(turnId);
+			if (existing) {
+				existing.source = source;
+				existing.messageId = existing.messageId ?? messageId;
+				if (messageId && existing.placeholderInserted) {
+					textLog.update((log) => {
+						const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+						if (entryIndex < 0) return log;
+						return [
+							...log.slice(0, entryIndex),
+							{ ...log[entryIndex], id: log[entryIndex].id ?? messageId, source },
+							...log.slice(entryIndex + 1)
+						];
+					});
 				}
-				return log;
-			});
-			languageHints.set(pendingStreamEndHints ?? []);
-			pendingStreamEndHints = null;
-			streamingActive.set(false);
-		};
-
-		const stopStreamPump = () => {
-			if (streamPumpHandle !== null) {
-				clearTimeout(streamPumpHandle);
-				streamPumpHandle = null;
+				return existing;
 			}
-		};
 
-		const scheduleStreamPump = (delayMs: number) => {
-			streamPumpHandle = setTimeout(() => {
-				streamPumpHandle = null;
-				pumpStream();
+			const turn: PendingNpcTurn = {
+				turnId,
+				source,
+				messageId,
+				buffer: '',
+				placeholderInserted: false,
+				complete: false,
+				pumpHandle: null
+			};
+			pendingNpcTurns.set(turnId, turn);
+			return turn;
+		}
+
+		function ensureTurnEntry(turn: PendingNpcTurn) {
+			if (turn.placeholderInserted) return;
+
+			textLog.update((log) =>
+				trimTextLog([
+					...log,
+					{
+						id: turn.messageId,
+						source: turn.source,
+						content: '',
+						stream_turn_id: turn.turnId
+					}
+				])
+			);
+			turn.placeholderInserted = true;
+		}
+
+		function finalizeStreamingEntry(turnId: number) {
+			textLog.update((log) => {
+				const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
+				if (entryIndex < 0) {
+					return log;
+				}
+
+				const entry = log[entryIndex];
+				if (entry.content === '') {
+					return [...log.slice(0, entryIndex), ...log.slice(entryIndex + 1)];
+				}
+
+				return [
+					...log.slice(0, entryIndex),
+					{
+						...entry,
+						streaming: false,
+						latest_chunk: undefined,
+						stream_chunk_id: undefined
+					},
+					...log.slice(entryIndex + 1)
+				];
+			});
+		}
+
+		function finishNpcStream(hints = []) {
+			languageHints.set(hints);
+			streamingActive.set(false);
+		}
+
+		function maybeFinishNpcStream() {
+			if (pendingStreamEndHints === null || pendingNpcTurns.size > 0) return;
+			finishNpcStream(pendingStreamEndHints);
+			pendingStreamEndHints = null;
+		}
+
+		function stopTurnPump(turn: PendingNpcTurn) {
+			if (turn.pumpHandle !== null) {
+				clearTimeout(turn.pumpHandle);
+				turn.pumpHandle = null;
+			}
+		}
+
+		function scheduleTurnPump(turn: PendingNpcTurn, delayMs: number) {
+			turn.pumpHandle = setTimeout(() => {
+				turn.pumpHandle = null;
+				pumpTurn(turn.turnId);
 			}, delayMs);
-		};
+		}
 
-		const pumpStream = () => {
-			if (streamBuffer.length === 0) {
-				stopStreamPump();
-				if (pendingStreamEndHints !== null) finishNpcStream();
+		function finalizePendingTurn(turnId: number) {
+			const turn = findPendingTurn(turnId);
+			if (!turn) return;
+			stopTurnPump(turn);
+			finalizeStreamingEntry(turnId);
+			pendingNpcTurns.delete(turnId);
+			maybeFinishNpcStream();
+		}
+
+		function startTurnPumpIfNeeded(turn: PendingNpcTurn) {
+			if (turn.pumpHandle !== null) return;
+			pumpTurn(turn.turnId);
+		}
+
+		function pumpTurn(turnId: number) {
+			const turn = findPendingTurn(turnId);
+			if (!turn) return;
+
+			if (turn.buffer.length === 0) {
+				stopTurnPump(turn);
+				if (turn.complete) {
+					finalizePendingTurn(turnId);
+				}
 				return;
 			}
 
-			const { chunk, rest } = takeNextStreamChunk(
-				streamBuffer,
-				pendingStreamEndHints !== null
-			);
+			ensureTurnEntry(turn);
+
+			const { chunk, rest } = takeNextStreamChunk(turn.buffer, turn.complete);
 
 			if (chunk === null) {
-				scheduleStreamPump(STREAM_WAIT_FOR_WORD_MS);
+				scheduleTurnPump(turn, STREAM_WAIT_FOR_WORD_MS);
 				return;
 			}
 
-			streamBuffer = rest;
-			appendStreamToken(chunk);
-			scheduleStreamPump(getStreamChunkDelayMs(chunk));
-		};
-
-		const startStreamPumpIfNeeded = () => {
-			if (streamPumpHandle !== null) return;
-			pumpStream();
-		};
+			turn.buffer = rest;
+			appendStreamToken(
+				turn.turnId,
+				turn.source,
+				chunk,
+				turn.messageId
+			);
+			scheduleTurnPump(turn, getStreamChunkDelayMs(chunk));
+		}
 
 		const listeners: Array<() => void> = [];
 		try {
@@ -288,12 +369,32 @@
 			}));
 
 			listeners.push(await onTextLog((payload) => {
+				const isNpcPlaceholder =
+					payload.content === '' &&
+					payload.source !== 'player' &&
+					payload.source !== 'system' &&
+					payload.stream_turn_id != null;
+				if (isNpcPlaceholder) {
+					queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
+					return;
+				}
+
 				// Strip "> " prefix from player messages — bubble alignment shows speaker
 				const content =
 					payload.source === 'player' && payload.content.startsWith('> ')
 						? payload.content.slice(2)
 						: payload.content;
-				textLog.update((log) => trimTextLog([...log, { id: payload.id, source: payload.source, content }]));
+				textLog.update((log) =>
+					trimTextLog([
+						...log,
+						{
+							id: payload.id,
+							source: payload.source,
+							content,
+							stream_turn_id: payload.stream_turn_id ?? undefined
+						}
+					])
+				);
 			}));
 
 			listeners.push(await onNpcReaction((payload) => {
@@ -301,36 +402,32 @@
 			}));
 
 			listeners.push(await onStreamToken((payload) => {
-				streamBuffer += payload.token;
-				startStreamPumpIfNeeded();
+				const turn = queuePendingTurn(payload.turn_id, payload.source);
+				turn.buffer += payload.token;
+				startTurnPumpIfNeeded(turn);
+			}));
+
+			listeners.push(await onStreamTurnEnd((payload) => {
+				const turn = findPendingTurn(payload.turn_id);
+				if (!turn) return;
+				turn.complete = true;
+				startTurnPumpIfNeeded(turn);
 			}));
 
 			listeners.push(await onStreamEnd((payload) => {
 				pendingStreamEndHints = payload.hints;
-				if (streamBuffer.length === 0 && streamPumpHandle === null) {
-					finishNpcStream();
-				}
+				maybeFinishNpcStream();
 			}));
 
 			listeners.push(await onLoading((payload) => {
-				const wasActive = get(streamingActive);
 				streamingActive.set(payload.active);
 				if (payload.active) {
 					// Update animated loading phrase and spinner
 					if (payload.spinner) loadingSpinner.set(payload.spinner);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
-					// Only clean up stale streaming entries on the *first*
-					// loading event (transition from inactive → active), not
-					// on every animation tick, to avoid erasing in-progress text.
-					if (!wasActive) {
-						textLog.update((log) => {
-							if (log.length > 0 && log[log.length - 1].streaming) {
-								return log.slice(0, -1);
-							}
-							return log;
-						});
-					}
+					// The loading animation ticks repeatedly while a turn is in
+					// flight; don't mutate chat state on those frames.
 				}
 			}));
 
@@ -363,7 +460,7 @@
 			window.removeEventListener('touchstart', onTrackerTouch);
 			window.removeEventListener('mousemove', onTrackerMousemove);
 			tracker.dispose();
-			stopStreamPump();
+			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 			listeners.forEach((fn) => fn());
 		};
 	});
