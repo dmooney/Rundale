@@ -1,11 +1,11 @@
 ---
 name: game-test
-description: Run the Parish game test harness to verify game mechanics work correctly. Use after changing world, movement, NPC, or input code.
+description: Run the Rundale game test harness to verify game mechanics work correctly. Use after changing world, movement, NPC, or input code.
 disable-model-invocation: true
 argument-hint: [script-file]
 ---
 
-Run the Parish GameTestHarness to verify game behavior.
+Run the Rundale GameTestHarness to verify game behavior.
 
 If `$ARGUMENTS` is provided, use that as the script file path. Otherwise, run the default walkthrough.
 

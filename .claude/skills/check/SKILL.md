@@ -4,7 +4,7 @@ description: Run the full cargo quality gate — fmt, clippy, and tests. Use bef
 disable-model-invocation: true
 ---
 
-Run the full Parish quality gate. All three must pass before any commit.
+Run the full Rundale quality gate. All three must pass before any commit.
 
 1. **Format check**: Run `cargo fmt --check`. If it fails, run `cargo fmt` to fix, then re-check.
 2. **Lint**: Run `cargo clippy -- -D warnings`. Fix any warnings before proceeding.
