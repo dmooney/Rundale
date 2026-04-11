@@ -510,8 +510,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         )
         .await;
 
-        for text in texts {
-            state.event_bus.emit("text-log", &text_log("npc", text));
+        for (display_name, text) in texts {
+            let label = capitalize_first(&display_name);
+            state.event_bus.emit("text-log", &text_log(label, text));
         }
     }
 

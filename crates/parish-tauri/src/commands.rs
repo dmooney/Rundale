@@ -593,8 +593,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         )
         .await;
 
-        for text in texts {
-            let _ = app.emit(EVENT_TEXT_LOG, text_log("npc", &text));
+        for (display_name, text) in texts {
+            let label = capitalize_first(&display_name);
+            let _ = app.emit(EVENT_TEXT_LOG, text_log(label, &text));
         }
     }
 
