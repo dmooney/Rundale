@@ -4,7 +4,7 @@
 
 ## Context
 
-Parish currently has 8 hand-authored NPCs in `mods/rundale/npcs.json`. Each has ~200 words of personality, 4+ relationships, schedules, and knowledge. At this scale, editing a JSON file is manageable. At 1,000+ NPCs it becomes painful; at 1M it is impossible. We need a database-backed architecture, a build-time procedural generation pipeline, management tooling, and a principled approach to NPC data richness that complements the existing cognitive LOD system.
+Rundale currently has 8 hand-authored NPCs in `mods/rundale/npcs.json`. Each has ~200 words of personality, 4+ relationships, schedules, and knowledge. At this scale, editing a JSON file is manageable. At 1,000+ NPCs it becomes painful; at 1M it is impossible. We need a database-backed architecture, a build-time procedural generation pipeline, management tooling, and a principled approach to NPC data richness that complements the existing cognitive LOD system.
 
 **Key design decision:** pre-generate all Sketched NPCs upfront. At ~200 bytes each, 1M NPCs = ~200MB, 6.8M (all-Ireland) = ~1.4GB. These are trivial sizes for SQLite. Pre-generation means no runtime generation stalls, full referential integrity from day one, and cross-references that always resolve (e.g. an NPC in Kiltoom mentions a cousin in Galway — that cousin exists).
 

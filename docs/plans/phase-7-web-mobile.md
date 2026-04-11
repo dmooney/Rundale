@@ -6,7 +6,7 @@
 
 ## Goal
 
-Deliver Parish as a full game client in web browsers and on mobile devices (iOS/Android) using Rust-native technologies: egui compiled to WebAssembly for the browser, and Tauri v2 for native mobile apps. A cloud-hosted game server (axum + WebSocket) manages game state and routes LLM inference through cloud providers.
+Deliver Rundale as a full game client in web browsers and on mobile devices (iOS/Android) using Rust-native technologies: egui compiled to WebAssembly for the browser, and Tauri v2 for native mobile apps. A cloud-hosted game server (axum + WebSocket) manages game state and routes LLM inference through cloud providers.
 
 ## Architecture Overview
 
@@ -138,7 +138,7 @@ Deliver Parish as a full game client in web browsers and on mobile devices (iOS/
     - `mobile/` directory with Tauri v2 project structure
     - `mobile/src-tauri/` — Rust backend (Tauri commands, app config)
     - `mobile/src/` — Frontend (loads the same egui WASM bundle from Part B)
-    - `mobile/src-tauri/tauri.conf.json` — app name "Parish", bundle ID `com.parish.app`, permissions
+    - `mobile/src-tauri/tauri.conf.json` — app name "Rundale", bundle ID `com.parish.app`, permissions
 
 13. **Configure Tauri for iOS and Android**
     - iOS: `tauri ios init` → Xcode project in `mobile/src-tauri/gen/apple/`

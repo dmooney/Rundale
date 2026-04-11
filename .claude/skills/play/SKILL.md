@@ -1,11 +1,11 @@
 ---
 name: play
-description: Play-test the Parish game using the script harness. Sends commands, reads JSON output, and evaluates the gameplay experience.
+description: Play-test Rundale using the script harness. Sends commands, reads JSON output, and evaluates the gameplay experience.
 disable-model-invocation: false
 argument-hint: [scenario or script-file]
 ---
 
-Play-test the Parish game via the `--script` mode, which outputs structured JSON per command.
+Play-test Rundale via the `--script` mode, which outputs structured JSON per command.
 
 ## Steps
 

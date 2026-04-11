@@ -7,7 +7,7 @@
 
 ## Overview
 
-First end-to-end browser test of Parish running in Chrome via the axum web
+First end-to-end browser test of Rundale running in Chrome via the axum web
 server (`cargo run -- --web 3001`). The Svelte frontend was served as static
 files with a WebSocket event relay replacing Tauri IPC.
 

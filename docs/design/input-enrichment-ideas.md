@@ -240,7 +240,7 @@ A spectator mode where multiple people can suggest inputs via a WebSocket:
 - The "player" picks one, or the most-voted action auto-submits after a timer
 - NPCs could react to the chaos: "Why do ye keep changing yer mind?"
 
-Wild idea — but Parish's streaming NPC responses would look great on a Twitch stream.
+Wild idea — but Rundale's streaming NPC responses would look great on a Twitch stream.
 
 **Effort**: Very High — needs WebSocket server, voting UI, audience client.
 
@@ -418,7 +418,7 @@ Hold spacebar (when the input field is empty) to speak instead of type. Release 
 
 **Effort**: Low (Web Speech API path) to Medium (Whisper sidecar path).
 
-**Why this matters**: Voice input is faster than typing for natural language. Parish is a conversation game — speaking to NPCs instead of typing to them is a natural fit. And with push-to-talk (not always-on), it stays intentional.
+**Why this matters**: Voice input is faster than typing for natural language. Rundale is a conversation game — speaking to NPCs instead of typing to them is a natural fit. And with push-to-talk (not always-on), it stays intentional.
 
 ---
 

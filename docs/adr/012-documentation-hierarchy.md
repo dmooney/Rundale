@@ -12,7 +12,7 @@ Accepted
 
 ## Context
 
-Parish documentation grew organically across multiple development sessions. By the end of Phase 3, several problems had emerged:
+Rundale documentation grew organically across multiple development sessions. By the end of Phase 3, several problems had emerged:
 
 1. **Status drift**: Phase completion status was tracked in multiple places (README.md, docs/index.md, roadmap.md, individual phase plans) and had fallen out of sync. Phase 3 was complete but still shown as "Planned" in some documents.
 2. **Module tree drift**: The source module tree in CLAUDE.md and the architecture overview hadn't been updated as new modules were added in Phases 2-3 (npc submodules, debug.rs, geo_tool, gui submodules).

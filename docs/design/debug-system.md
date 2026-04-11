@@ -2,7 +2,7 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md)
 
-The debug system provides runtime visibility into Parish's background simulation. It exposes NPC state, inference pipeline metrics, background task health, and performance data through slash commands.
+The debug system provides runtime visibility into Rundale's background simulation. It exposes NPC state, inference pipeline metrics, background task health, and performance data through slash commands.
 
 All debug functionality is gated behind a `debug` cargo feature flag and compiles out of release builds entirely.
 

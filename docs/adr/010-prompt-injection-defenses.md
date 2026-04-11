@@ -8,9 +8,9 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish sends player-authored natural language to a local LLM (Ollama) for two purposes: intent parsing ("what does the player want to do?") and NPC cognition ("how does this NPC respond?"). In both cases, untrusted player input is embedded into prompts alongside trusted system instructions. This creates a prompt injection attack surface.
+Rundale sends player-authored natural language to a local LLM (Ollama) for two purposes: intent parsing ("what does the player want to do?") and NPC cognition ("how does this NPC respond?"). In both cases, untrusted player input is embedded into prompts alongside trusted system instructions. This creates a prompt injection attack surface.
 
-The threat model is unusual: Parish is a single-player, locally-hosted game. There is no remote attacker — the player is the only user. The primary risks are:
+The threat model is unusual: Rundale is a single-player, locally-hosted game. There is no remote attacker — the player is the only user. The primary risks are:
 
 - **Game state corruption**: Injected instructions cause the LLM to emit malformed JSON or out-of-bounds values (e.g., `relationship_delta: 999.0`), corrupting world state.
 - **Prompt leakage**: The player extracts NPC `internal_thought` fields, system prompts, or other hidden context, breaking dramatic irony and immersion.

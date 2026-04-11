@@ -54,7 +54,7 @@ The economic structures of 1820s Ireland offer rich material for gameplay system
 
 **Trade mechanics** might include selling produce at market, managing credit with the local shopkeeper, deciding whether to buy legal goods or cheaper smuggled alternatives, or participating in the poitin economy with its risks and rewards. The dual economy of subsistence and market agriculture means NPCs should behave differently depending on the season and the state of prices — generous after a good harvest, tight-fisted and anxious when the rent is due. Currency confusion in the period before 1826 could even serve as a minor gameplay element, with sharp dealers exploiting the exchange rate between Irish and British pounds.
 
-The fundamental economic reality — that most people were poor, that security was fragile, and that the systems meant to help did not yet exist — should pervade the tone of the game. Parish is not a world of abundance. It is a world where a pig sold at fair might save a family, where credit from the shopkeeper comes at a cost, and where the wrong word to the wrong person can set in motion a chain of consequences that ends at the side of the road with nowhere to go.
+The fundamental economic reality — that most people were poor, that security was fragile, and that the systems meant to help did not yet exist — should pervade the tone of the game. Rundale is not a world of abundance. It is a world where a pig sold at fair might save a family, where credit from the shopkeeper comes at a cost, and where the wrong word to the wrong person can set in motion a chain of consequences that ends at the side of the road with nowhere to go.
 
 ---
 

@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on Windows — no WSL or Docker required.
+Rundale runs natively on Windows — no WSL or Docker required.
 
 ## Prerequisites
 
@@ -100,7 +100,7 @@ cargo run -- --headless
 
 ## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI with 24-bit true color. For the best experience:
+Rundale uses a TUI with 24-bit true color. For the best experience:
 
 - **Windows Terminal** (default on Windows 11, available from the Microsoft Store on Windows 10) — full true-color and Unicode support.
 - **PowerShell 7+** in Windows Terminal works well.
@@ -110,7 +110,7 @@ Ensure your terminal window is at least **120 columns x 40 rows** for the intend
 
 ## Configuration (Optional)
 
-Parish works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
+Rundale works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
 
 ```powershell
 copy .env.example .env

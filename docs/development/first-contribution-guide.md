@@ -4,7 +4,7 @@ This guide is for newcomers who want to make their first meaningful contribution
 
 ## TL;DR: Mental model
 
-Parish is a Rust workspace built around a shared core engine plus multiple runtime surfaces:
+**Rundale** is the game. **Parish** is the Rust engine it runs on — a workspace built around a shared core library plus multiple runtime surfaces:
 
 - `crates/parish-core` → engine and simulation logic (shared)
 - root crate (`src/`) → CLI/headless runtime and app bootstrapping

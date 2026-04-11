@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on Linux. GPU acceleration is supported via NVIDIA (CUDA) and AMD (ROCm) but is optional — CPU-only works fine with smaller models.
+Rundale runs natively on Linux. GPU acceleration is supported via NVIDIA (CUDA) and AMD (ROCm) but is optional — CPU-only works fine with smaller models.
 
 ## Prerequisites
 
@@ -174,7 +174,7 @@ xvfb-run -a cargo tauri dev -- -- --screenshot docs/screenshots
 
 ## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI with 24-bit true color. For the best experience:
+Rundale uses a TUI with 24-bit true color. For the best experience:
 
 - **GNOME Terminal** — full true-color support, default on many distros.
 - **Konsole** — KDE's terminal, excellent color and Unicode support.
@@ -185,7 +185,7 @@ Ensure your terminal window is at least **120 columns x 40 rows** for the intend
 
 ## Configuration (Optional)
 
-Parish works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
+Rundale works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
 
 ```sh
 cp .env.example .env

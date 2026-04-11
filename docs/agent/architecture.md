@@ -2,10 +2,10 @@
 
 See [docs/design/overview.md](../design/overview.md) for the full architecture and [docs/index.md](../index.md) for all documentation.
 
-Parish is a **Cargo workspace**. All Rust crates live under `crates/`, all frontends under `apps/`, all test fixtures under `testing/`, all deploy artifacts under `deploy/`.
+**Rundale** is the Irish living world game. **Parish** is the Rust engine it runs on. The repository is a **Cargo workspace** — all engine crates live under `crates/`, the game content lives under `mods/rundale/`, frontends under `apps/`, test fixtures under `testing/`, and deploy artifacts under `deploy/`.
 
 ```
-Parish/
+Rundale (on Parish engine)/
 ├── crates/
 │   ├── parish-core/         # Pure game logic library (no UI deps)
 │   │   └── src/
@@ -67,7 +67,7 @@ Parish/
 │   └── fixtures/            # Plaintext script-mode fixtures (test_*.txt, play_*.txt)
 │
 ├── mods/
-│   └── rundale/      # Default mod: 1820 rural Ireland
+│   └── rundale/      # Rundale game content: 1820 rural Ireland
 │       ├── mod.toml                # Manifest
 │       ├── world.json              # Locations + connections
 │       ├── npcs.json               # NPC definitions

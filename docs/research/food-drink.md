@@ -1,6 +1,6 @@
 # Food & Drink in 1820s Ireland
 
-*Research document for Parish — an interactive fiction game set in 1820s rural Ireland.*
+*Research document for Rundale — an interactive fiction game set in 1820s rural Ireland.*
 
 ## The Potato Economy
 
@@ -50,7 +50,7 @@ The **Cork Butter Exchange**, established in 1770 [9], was by the 1820s the **la
 
 ## Game Design Implications
 
-The food economy of 1820s Ireland offers rich material for Parish's simulation of daily life. **NPC daily routines** should revolve around food preparation and acquisition: women tending the fire and boiling the evening potatoes, men working fields that grow crops they will never eat, children sent to collect buttermilk or forage for nettles during the meal months. The **seasonal cycle** is critical — the game clock should register the difference between autumn plenty (new potatoes, harvest surplus) and the anxious hunger of July and August, when NPC dialogue and behaviour shift toward scarcity and worry.
+The food economy of 1820s Ireland offers rich material for Rundale's simulation of daily life. **NPC daily routines** should revolve around food preparation and acquisition: women tending the fire and boiling the evening potatoes, men working fields that grow crops they will never eat, children sent to collect buttermilk or forage for nettles during the meal months. The **seasonal cycle** is critical — the game clock should register the difference between autumn plenty (new potatoes, harvest surplus) and the anxious hunger of July and August, when NPC dialogue and behaviour shift toward scarcity and worry.
 
 **Pubs and shebeens** function as the primary social hubs of the game world. They are where the player will overhear gossip, encounter strangers, witness disputes, and gather information. The distinction between a respectable licensed house and a rough shebeen provides natural social geography: different characters frequent different establishments, and the player's choice of drinking venue signals their social affiliations. Poitín distillation can serve as a recurring background activity — a neighbour's still, a revenue officer's raid, the tension between community solidarity and the law.
 

@@ -1,8 +1,8 @@
-# Parish Documentation Index
+# Rundale Documentation — Parish Engine
 
 > Back to [README](../README.md) | [CLAUDE.md](../CLAUDE.md) (agent quick reference)
 
-This is the documentation hub for Parish, an Irish Living World Text Adventure set in 1820. Start here to find any document.
+This is the documentation hub for **Rundale**, an Irish Living World Text Adventure set in 1820, built on the **Parish** engine. Start here to find any document.
 
 ## Project Status
 

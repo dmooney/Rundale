@@ -1,6 +1,6 @@
 # Education & Literacy in 1820s Ireland
 
-## Research Document — Parish Interactive Fiction
+## Research Document — Rundale Interactive Fiction
 
 ### The Hedge School Tradition
 

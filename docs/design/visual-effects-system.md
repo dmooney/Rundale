@@ -1,6 +1,6 @@
 # Visual Effects System — Design
 
-Parish is a text-based game, and that's a feature, not a limitation. But text and CSS give us
+Rundale is a text-based game, and that's a feature, not a limitation. But text and CSS give us
 a surprising canvas for effects that feel alive: atmospheric overlays, typographic trembling,
 creatures that cross the screen, glows that breathe from behind the text. The goal is to
 reward players who pay attention — a storm that announces itself before the narrative does,

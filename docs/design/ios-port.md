@@ -1,4 +1,4 @@
-# iOS Port — Fully On-Device Parish
+# iOS Port — Fully On-Device Rundale
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) |
 > ADRs: [005 — Ollama Local Inference](../adr/005-ollama-local-inference.md), [014 — Web/Mobile Architecture](../adr/014-web-mobile-architecture.md), [016 — Tauri + Svelte GUI](../adr/016-tauri-svelte-gui.md) |
@@ -8,10 +8,10 @@
 
 ## Goal
 
-Ship the entire Parish game — UI, simulation, persistence, and LLM inference —
+Ship the entire Rundale game — UI, simulation, persistence, and LLM inference —
 running fully on-device on a modern iPhone (15 Pro / 16 class), with no
 network calls and no companion server. The player downloads the app, the app
-downloads its language model on first launch, and from then on Parish runs
+downloads its language model on first launch, and from then on Rundale runs
 offline.
 
 This is deliberately the *opposite* of the [Phase 7 — Web & Mobile](../plans/phase-7-web-mobile.md)
@@ -153,7 +153,7 @@ gating is local to those two files.
 
 ## The Tauri 2 iOS Shell
 
-Tauri 2 supports iOS out of the box. Parish just hasn't enabled it. Most of
+Tauri 2 supports iOS out of the box. Rundale just hasn't enabled it. Most of
 the prep work has, however, already happened organically.
 
 ### What's already done
@@ -276,7 +276,7 @@ autoregressive LLM decoding with a sliding KV cache, the practical state of
 the art on Apple Silicon is still Metal/MPS via `llama.cpp` or MLX, both of
 which run on the **GPU**, not the ANE. `llama.cpp`'s Metal backend on an
 A17 Pro / A18 hits roughly 20–30 tokens/sec for a 3B Q4, which is plenty for
-Parish's tier-1 dialogue.
+Rundale's tier-1 dialogue.
 
 If we wanted ANE specifically, the path would be: convert the model to Core
 ML packages with `coremltools` (stateful KV-cache support landed in iOS 18),
@@ -362,7 +362,7 @@ other people's phones without going through full App Store review.
 5. Testers install the **TestFlight app** from the App Store, accept the invite, and get builds. Updates push automatically.
 
 TestFlight builds expire after 90 days; upload a new build to refresh. This
-is how Parish should be distributed to playtesters before any App Store
+is how Rundale should be distributed to playtesters before any App Store
 submission.
 
 ### CI
@@ -372,7 +372,7 @@ Three viable options:
 | Option                          | Pros                                              | Cons                                                          |
 |---------------------------------|---------------------------------------------------|---------------------------------------------------------------|
 | **Xcode Cloud**                 | First-party, integrated with App Store Connect; generous free tier (25 hr/month) | Less flexible than YAML-based CI; locks you into Apple        |
-| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Parish CI | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
+| **GitHub Actions** (`macos-latest`) | Familiar, flexible YAML, plays well with the rest of Rundale CI | macOS minutes burn ~10× faster than Linux; ~5–15 min per build |
 | **Self-hosted Mac**             | Cheapest at scale; fast                           | Babysit the machine; certificate management is on you         |
 
 A typical iOS CI pipeline:
@@ -393,7 +393,7 @@ repo. Any CI machine runs `fastlane match` to fetch them. Without `match`
 you end up doing manual keychain dances in CI that break every time Apple
 rotates a certificate.
 
-For Parish specifically: the existing GitHub Actions workflows for
+For Rundale specifically: the existing GitHub Actions workflows for
 desktop/CLI tests should not change. Add a separate `ios-build.yml`
 workflow that runs on `macos-latest`, gated to only run on PRs that touch
 `crates/parish-tauri/`, `crates/parish-core/src/inference/`, `apps/ui/`, or
@@ -406,7 +406,7 @@ Once a TestFlight build is solid:
 1. In **App Store Connect**, create the app listing (bundle ID `ie.parish.app`, name, primary language, SKU)
 2. Fill out metadata: description, keywords, support URL, marketing URL, age rating questionnaire, category, pricing
 3. Upload **screenshots** for every required device size (currently 6.7" and 6.5" iPhone are mandatory; iPad if supported). Apple is strict about pixel dimensions.
-4. Provide a **privacy policy URL** and complete the **App Privacy** disclosures. A fully on-device Parish should be a clean "no data collected" declaration, which is the easy case.
+4. Provide a **privacy policy URL** and complete the **App Privacy** disclosures. A fully on-device Rundale should be a clean "no data collected" declaration, which is the easy case.
 5. Pick a build from TestFlight as the release candidate
 6. Submit for review
 
@@ -426,7 +426,7 @@ App Review reality:
 - **Apple's review guidelines change.** A pattern that was fine last submission can be a rejection reason on the next one. Re-read the [App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) before any submission after a long gap.
 - **Bundle identifiers are forever.** Once `ie.parish.app` ships to the store, it can't be changed without releasing a new app and migrating saves manually.
 - **Release builds are slow.** A clean Rust + Tauri release build is 10–20 minutes on a Mac mini. CI minutes add up fast.
-- **iOS aggressively kills backgrounded apps with high RAM usage.** Parish + a 3 GB resident model is exactly the kind of app iOS will reap. The session-resume path (load from latest snapshot on cold start) needs to be fast and reliable.
+- **iOS aggressively kills backgrounded apps with high RAM usage.** Rundale + a 3 GB resident model is exactly the kind of app iOS will reap. The session-resume path (load from latest snapshot on cold start) needs to be fast and reliable.
 
 ## Risks
 

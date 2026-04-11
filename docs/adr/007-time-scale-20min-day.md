@@ -8,7 +8,7 @@ Superseded (2026-03-23) — Default changed to 40 minutes per day (speed factor 
 
 ## Context
 
-Parish simulates a living Irish parish where seasons change, relationships evolve, and years pass. The time scale must balance several competing concerns:
+Rundale simulates a living Irish parish where seasons change, relationships evolve, and years pass. The time scale must balance several competing concerns:
 
 - **Seasonal change must be visible**: Players should experience all four seasons (marked by the Irish festivals Imbolc, Bealtaine, Lughnasa, and Samhain) within a reasonable play session.
 - **Relationships must evolve**: NPCs need enough simulated time for their relationships, routines, and lives to develop noticeably.

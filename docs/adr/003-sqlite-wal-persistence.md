@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish requires a persistence system that meets several demanding requirements:
+Rundale requires a persistence system that meets several demanding requirements:
 
 - **Crash safety**: The player never explicitly saves. If the game crashes or the player force-quits, no meaningful progress should be lost.
 - **No gameplay stutter**: Persistence writes must never block the game loop or cause visible hitches in the TUI.

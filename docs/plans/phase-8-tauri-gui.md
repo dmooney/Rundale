@@ -123,7 +123,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 4. **Initialise the Tauri crate at `src-tauri/`**
    - Run `cargo tauri init` from the repo root, pointing devUrl at `http://localhost:5173` and distDir at `../ui/dist`
    - Edit `src-tauri/Cargo.toml`: add `parish-core = { path = "../crates/parish-core" }` as a dependency
-   - Set `productName = "Parish"`, `version` from workspace, `identifier = "ie.parish.app"` in `tauri.conf.json`
+   - Set `productName = "Rundale"`, `version` from workspace, `identifier = "ie.parish.app"` in `tauri.conf.json`
 
 5. **Define the shared IPC type surface in `src-tauri/src/lib.rs`**
    Serde-serialisable structs mirrored in `ui/src/lib/types.ts`:

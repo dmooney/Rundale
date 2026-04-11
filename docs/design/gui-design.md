@@ -25,7 +25,7 @@ The headless and TUI modes continue to use the Rust `LoadingAnimation` (`crates/
 
 ## Overview
 
-Parish has three UI modes, selectable via CLI flags:
+Rundale (via the Parish engine) has three UI modes, selectable via CLI flags:
 
 | Mode | Flag | Framework | Description |
 |------|------|-----------|-------------|
@@ -233,7 +233,7 @@ The `run_gui()` function in `src/gui/mod.rs`:
 
 | Property | Value |
 |----------|-------|
-| Title | "Parish — An Irish Living World Text Adventure" |
+| Title | "Rundale — An Irish Living World Text Adventure" |
 | Default size | 1200 x 800 |
 | Minimum size | 800 x 500 |
 | Right panel width | 250–320px |

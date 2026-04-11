@@ -2,7 +2,7 @@
 
 ## Context
 
-Parish is a living-world text adventure set in 1820 rural Ireland. The engine (world graph, NPC cognition tiers, time system, LLM inference, persistence) is largely generic and reusable, but game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) is hardcoded throughout the Rust source. The goal is to separate these cleanly — like Factorio's engine vs. base-game mod — so the engine knows nothing about Ireland or 1820, and all setting-specific content lives in a loadable data package ("mod").
+**Rundale** is a living-world text adventure set in 1820 rural Ireland, built on the **Parish engine**. The engine (world graph, NPC cognition tiers, time system, LLM inference, persistence) is largely generic and reusable, but game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) is hardcoded throughout the Rust source. The goal is to separate these cleanly — like Factorio's engine vs. base-game mod — so the Parish engine knows nothing about Ireland or 1820, and all Rundale setting-specific content lives in a loadable data package ("mod").
 
 ## Current State Assessment
 
@@ -69,7 +69,7 @@ mods/
 
 ```toml
 [mod]
-name = "Parish: 1820 Ireland"
+name = "Rundale: 1820 Ireland"
 id = "rundale"
 version = "1.0.0"
 description = "A small parish in County Roscommon, Ireland, in the year 1820"

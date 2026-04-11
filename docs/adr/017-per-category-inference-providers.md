@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Parish has three distinct inference categories with different requirements:
+Rundale has three distinct inference categories with different requirements:
 
 - **Dialogue** (Tier 1): Player-facing NPC conversation. Benefits from high-quality cloud models. Uses streaming.
 - **Simulation** (Tier 2): Background NPC group interactions. Runs frequently, tolerates lower quality. Non-streaming JSON.

@@ -64,7 +64,7 @@ This history is not background flavor — it is the engine of NPC personality an
 
 The **memory of transportation** should function as a persistent undertone in the game world — an ever-present threat that shapes how NPCs talk about risk, law, and resistance. When a character warns another to be careful, they are not speaking in abstractions; they are thinking of a specific person who was not careful and who is now on the other side of the world, or dead.
 
-Finally, the **economic context** — the post-war depression, falling prices, rising rents, the pressure of a growing population on finite land — provides the material foundation for NPC anxieties and conflicts. History in Parish is not merely political; it is felt in the price of oats, the size of a holding, the number of mouths to feed, and the landlord's agent riding into the townland with a ledger and an eviction notice.
+Finally, the **economic context** — the post-war depression, falling prices, rising rents, the pressure of a growing population on finite land — provides the material foundation for NPC anxieties and conflicts. History in Rundale is not merely political; it is felt in the price of oats, the size of a holding, the number of mouths to feed, and the landlord's agent riding into the townland with a ledger and an eviction notice.
 
 ---
 

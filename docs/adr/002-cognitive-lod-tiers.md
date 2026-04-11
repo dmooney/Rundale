@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-The core innovation of Parish is a living world where hundreds of NPCs have ongoing lives, relationships, and conversations, whether or not the player is watching. However, full LLM inference for every NPC on every tick is impossible given the hardware constraints (RX 9070 16GB GPU, ~30-50 tokens/sec on a 14B model, ~100-150 tokens per NPC response).
+The core innovation of Rundale is a living world where hundreds of NPCs have ongoing lives, relationships, and conversations, whether or not the player is watching. However, full LLM inference for every NPC on every tick is impossible given the hardware constraints (RX 9070 16GB GPU, ~30-50 tokens/sec on a 14B model, ~100-150 tokens per NPC response).
 
 At best, the system can handle ~3-5 full-fidelity NPC "thoughts" per second. With hundreds of NPCs in the world, a uniform simulation approach would either exhaust GPU resources instantly or require unacceptable simplification of every NPC.
 

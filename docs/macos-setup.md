@@ -2,7 +2,7 @@
 
 > Back to [Documentation Index](index.md) | [README](../README.md)
 
-Parish runs natively on macOS — Intel and Apple Silicon (M1/M2/M3/M4) are both supported.
+Rundale runs natively on macOS — Intel and Apple Silicon (M1/M2/M3/M4) are both supported.
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ curl http://localhost:11434/api/tags
 
 ### 6. Pull a Model
 
-Parish auto-detects your hardware and selects a model when you first run the game, but you can pre-pull one:
+Rundale auto-detects your hardware and selects a model when you first run the game, but you can pre-pull one:
 
 ```sh
 # Apple Silicon with 16 GB+ unified memory — full quality
@@ -118,7 +118,7 @@ cargo run -- --headless
 
 ## Terminal Recommendations (TUI Mode)
 
-Parish uses a TUI with 24-bit true color. For the best experience:
+Rundale uses a TUI with 24-bit true color. For the best experience:
 
 - **iTerm2** — full true-color and Unicode support, highly recommended.
 - **kitty** — fast GPU-accelerated terminal with excellent color support.
@@ -128,7 +128,7 @@ Ensure your terminal window is at least **120 columns x 40 rows** for the intend
 
 ## Configuration (Optional)
 
-Parish works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
+Rundale works out of the box with Ollama defaults. To use an alternative LLM provider, copy the example config:
 
 ```sh
 cp .env.example .env

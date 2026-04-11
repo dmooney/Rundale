@@ -1,6 +1,6 @@
-# Parish Research Collection
+# Rundale Research Collection
 
-Reference hub for 23 research documents covering life in 1820s Ireland, written to support world-building in Parish -- an interactive fiction game set in Kilteevan, County Roscommon, with scope to expand across all of Ireland.
+Reference hub for 23 research documents covering life in 1820s Ireland, written to support world-building in Rundale — an interactive fiction game set in Kilteevan, County Roscommon, with scope to expand across all of Ireland.
 
 These documents provide the historical, cultural, and material foundations for NPC dialogue, location descriptions, game mechanics, and narrative design. Each document includes a dedicated "Game Design Implications" section translating research into actionable design guidance.
 

@@ -4,7 +4,7 @@ description: Full pre-push verification checklist. Runs fmt, clippy, tests, and 
 disable-model-invocation: true
 ---
 
-Run the complete Parish pre-push verification checklist.
+Run the complete Rundale pre-push verification checklist.
 
 ## Steps
 

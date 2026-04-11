@@ -2,7 +2,7 @@
 
 ## Context
 
-Parish uses a git-like branching save system where each save is a named branch that can fork from others. The persistence backend is fully implemented (SQLite with journal + snapshot + branch model), but the Tauri GUI currently has no save/load UI — it only works in TUI/headless mode. This plan adds a full-screen overlay for browsing, loading, forking, and deleting save branches.
+Rundale uses a git-like branching save system where each save is a named branch that can fork from others. The persistence backend is fully implemented (SQLite with journal + snapshot + branch model), but the Tauri GUI currently has no save/load UI — it only works in TUI/headless mode. This plan adds a full-screen overlay for browsing, loading, forking, and deleting save branches.
 
 ## Visual Design
 

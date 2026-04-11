@@ -8,9 +8,9 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish is a text adventure where the player's primary interaction is typing text. Traditional text adventures use rigid parsers that expect specific verb-noun combinations ("GET LAMP", "GO NORTH"), leading to the infamous "guess the verb" problem that frustrates players.
+Rundale is a text adventure where the player's primary interaction is typing text. Traditional text adventures use rigid parsers that expect specific verb-noun combinations ("GET LAMP", "GO NORTH"), leading to the infamous "guess the verb" problem that frustrates players.
 
-Since Parish already has LLM inference available for NPC cognition (ADR-005), the same infrastructure can be used to parse player input. The question is whether to use a traditional parser, a hybrid approach, or full natural language understanding.
+Since Rundale already has LLM inference available for NPC cognition (ADR-005), the same infrastructure can be used to parse player input. The question is whether to use a traditional parser, a hybrid approach, or full natural language understanding.
 
 Additionally, the game needs system commands (save, load, quit, etc.) that must be reliably detected without ambiguity.
 

@@ -8,7 +8,7 @@ Accepted (2026-03-23)
 
 ## Context
 
-Parish currently supports three UI modes — TUI (Ratatui), GUI (egui/eframe), and headless — all running as local desktop processes. The game engine, LLM inference, and persistence are tightly coupled to the local process. To reach players on web browsers and mobile devices (iOS/Android), we need a client-server architecture where thin clients connect to a cloud-hosted game server.
+Rundale currently supports three UI modes — TUI (Ratatui), GUI (egui/eframe), and headless — all running as local desktop processes. The Parish engine, LLM inference, and persistence are tightly coupled to the local process. To reach players on web browsers and mobile devices (iOS/Android), we need a client-server architecture where thin clients connect to a cloud-hosted game server.
 
 Key constraints:
 - The existing egui GUI already renders the full game interface (map, chat, sidebar, theme).
@@ -60,5 +60,5 @@ Adopt a **thin-client, thick-server** architecture using Rust-native technologie
 1. **React/TypeScript web + React Native mobile**: Maximum ecosystem support and developer pool, but introduces a second language and duplicates all UI work. Rejected in favor of Rust-native code reuse.
 2. **Web-only (responsive, no native mobile app)**: Simpler, but native mobile apps provide better performance, offline potential, and app store presence. Tauri v2's mobile support makes native apps low-cost.
 3. **Compile full game engine to WASM (peer-to-peer)**: Eliminates the server, but WASM can't run Ollama or manage SQLite efficiently. LLM inference must go through cloud APIs anyway, making a server the natural home for game logic.
-4. **Bevy + WebGPU**: More powerful rendering, but Parish is a text adventure — egui's immediate-mode model is a better fit than a game engine, and eframe's WASM support is more mature.
+4. **Bevy + WebGPU**: More powerful rendering, but Rundale is a text adventure — egui's immediate-mode model is a better fit than a game engine, and eframe's WASM support is more mature.
 5. **Flutter for mobile**: Cross-platform mobile framework, but requires Dart and doesn't share code with the Rust backend. Tauri v2 keeps everything in Rust.

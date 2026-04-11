@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish is a text adventure set in rural Ireland, built on real geography. The game world needs to represent the island of Ireland at varying levels of detail, from a dense starting parish near Roscommon (~30-50 locations) down to sparse representations of distant cities (~5 nodes).
+Rundale is a text adventure set in rural Ireland, built on real geography. The game world needs to represent the island of Ireland at varying levels of detail, from a dense starting parish near Roscommon (~30-50 locations) down to sparse representations of distant cities (~5 nodes).
 
 The representation must support:
 

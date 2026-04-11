@@ -8,7 +8,7 @@ Accepted (2026-03-24)
 
 ## Context
 
-Parish already invests heavily in visual atmosphere — smooth color palette interpolation by time of day, season, and weather; atmospheric idle messages; en-route encounter prose. But the soundscape is absent. The game world of 1820s Kilteevan would have been rich with sound: fiddle music from the pub, church bells carrying across the parish, farm animals at dawn, curlews over the bog, crossroads dances on summer evenings. These sounds are documented in `docs/research/music-entertainment.md`.
+Rundale already invests heavily in visual atmosphere — smooth color palette interpolation by time of day, season, and weather; atmospheric idle messages; en-route encounter prose. But the soundscape is absent. The game world of 1820s Kilteevan would have been rich with sound: fiddle music from the pub, church bells carrying across the parish, farm animals at dawn, curlews over the bog, crossroads dances on summer evenings. These sounds are documented in `docs/research/music-entertainment.md`.
 
 Sound is inherently spatial and temporal. Church bells carry for miles in flat midlands terrain. Pub music spills into the street and nearby locations. Roosters crow at dawn but not at midnight. Crossroads dances happen on summer evenings. The game already has the data to model this: location graph with traversal times (proxy for distance), `TimeOfDay`, `Season`, `Weather`, and `LocationKind` (in the geo-tool, not yet in the main game).
 

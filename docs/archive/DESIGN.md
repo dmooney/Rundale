@@ -2,7 +2,7 @@
 > The canonical, maintained versions of each section now live in `docs/design/`.
 > See [docs/index.md](docs/index.md) for the full documentation index.
 
-# Parish — An Irish Living World Text Adventure
+# Rundale — An Irish Living World Text Adventure (on the Parish engine)
 
 ## Overview
 

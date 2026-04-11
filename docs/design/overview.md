@@ -4,7 +4,9 @@
 
 ## Project Overview
 
-Parish is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in Kilteevan Village, in the parish of Kiltoom near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
+**Rundale** is a text-based interactive fiction game set in rural Ireland in the year 1820 — after the Acts of Union (1800) and before Catholic Emancipation (1829) or the Great Famine (1845). The player spawns in Kilteevan Village, in the parish of Kiltoom near Roscommon, County Roscommon. The entire game world is the island of Ireland, built on real geography with fictional people and businesses.
+
+Rundale is built on the **Parish engine** — a generic Rust simulation framework. The engine knows nothing about any specific setting; all game-specific content lives in the `mods/rundale/` content package.
 
 The game is committed to representing Irish people and culture with accuracy, respect, and sensitivity. Characters are portrayed with dignity and complexity. The historical setting reflects the real political and social landscape of early 19th-century Ireland.
 
@@ -55,7 +57,7 @@ Player Input → Command Detection → [System Command OR Game Input]
 
 ## Engine / Game Data Separation (Mod System)
 
-The engine is generic and knows nothing about any specific setting. All game-specific content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
+The Parish engine is generic and knows nothing about any specific setting. All Rundale game content (Irish place names, 1820 historical context, anachronism dictionary, festivals, loading phrases, system prompts) lives in a loadable data package called a "mod", inspired by Factorio's engine/base-game architecture.
 
 A mod is a directory with a `mod.toml` manifest and data files:
 
@@ -184,7 +186,7 @@ src/
 
 ## Multi-Provider LLM Support
 
-Parish supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
+The Parish engine supports any OpenAI-compatible LLM provider via the `/v1/chat/completions` API:
 
 | Provider | Type | Notes |
 |----------|------|-------|
@@ -264,7 +266,7 @@ Config structs live in `crates/parish-core/src/config/engine.rs`.
 
 ### Ollama Bootstrap & GPU Detection (Default Path)
 
-When using the Ollama provider (the default), Parish runs a self-contained setup sequence (see `src/inference/setup.rs`):
+When using the Ollama provider (the default), the Parish engine runs a self-contained setup sequence (see `src/inference/setup.rs`):
 
 1. **Detect Ollama** — checks if the `ollama` binary is on PATH
 2. **Auto-install** — if missing, runs the official install script

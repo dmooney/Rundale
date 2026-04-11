@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish is set in rural Ireland, centered on a parish near Roscommon, County Roscommon. The world-building approach must balance authenticity (a genuine sense of Irish place) with legal and ethical constraints (no real people or businesses should be depicted).
+Rundale is set in rural Ireland, centered on a parish near Roscommon, County Roscommon. The world-building approach must balance authenticity (a genuine sense of Irish place) with legal and ethical constraints (no real people or businesses should be depicted).
 
 Ireland has exceptionally rich geographic data available:
 

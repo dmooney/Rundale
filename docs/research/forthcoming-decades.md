@@ -46,13 +46,13 @@ The question that dominates daily life in Kilteevan — who owns the land and on
 
 ## Game Design Implications
 
-This timeline is not background lore — it is a design resource with specific applications for Parish.
+This timeline is not background lore — it is a design resource with specific applications for Rundale.
 
 **Foreshadowing through NPC dialogue** is the most immediate use. Characters in the 1820s cannot predict the Famine, but they can voice the anxieties that make it inevitable. A farmer noting that his holding is too small to divide again among his sons. A mother observing that the family eats nothing but potatoes from August to May. An old man remembering the partial failure of 1816–1817 and wondering what would happen if the crop failed entirely. A priest worrying about the growing population and the shrinking holdings. None of these characters know what is coming, but the player — armed with historical knowledge — can recognise the warning signs. This creates **dramatic irony** of extraordinary power: the player knows the catastrophe is approaching and cannot prevent it, lending even ordinary moments a weight of impending loss.
 
 **Timeline advancement**, if the game supports it, transforms the parish utterly. Characters the player knows and cares about will face starvation, emigration, the workhouse, death. The cosy familiarity of the parish becomes a source of dread. The game can use the passage of time as its most powerful narrative mechanism — not through dramatic set-pieces but through absence, through the empty houses and the names no longer spoken.
 
-**The weight of knowing** is perhaps the most distinctive quality this material gives the game. Parish is set in a world that feels stable, rooted, ancient in its rhythms. The research in this document reveals that world to be balanced on a knife's edge. Every potato ridge is a countdown. Every new baby in a subdivided holding is a step closer to catastrophe. The game does not need to depict the Famine to be haunted by it. It only needs to depict, with honesty and care, the world that made the Famine possible — and trust the player to feel the shadow falling.
+**The weight of knowing** is perhaps the most distinctive quality this material gives the game. Rundale is set in a world that feels stable, rooted, ancient in its rhythms. The research in this document reveals that world to be balanced on a knife's edge. Every potato ridge is a countdown. Every new baby in a subdivided holding is a step closer to catastrophe. The game does not need to depict the Famine to be haunted by it. It only needs to depict, with honesty and care, the world that made the Famine possible — and trust the player to feel the shadow falling.
 
 ---
 

@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish uses LLM inference for two primary purposes: NPC behavior/cognition and player input parsing. In both cases, the LLM output must be machine-parseable to update world state programmatically. The game cannot rely on free-text output that requires human interpretation.
+Rundale uses LLM inference for two primary purposes: NPC behavior/cognition and player input parsing. In both cases, the LLM output must be machine-parseable to update world state programmatically. The game cannot rely on free-text output that requires human interpretation.
 
 Requirements:
 

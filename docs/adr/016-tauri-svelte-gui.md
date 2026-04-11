@@ -8,7 +8,7 @@ Accepted (2026-03-24)
 
 ## Context
 
-Parish currently ships a windowed GUI built on **egui/eframe** (`src/gui/`, ~2,000 LOC). egui is
+Rundale currently ships a windowed GUI built on **egui/eframe** (`src/gui/`, ~2,000 LOC). egui is
 an immediate-mode Rust GUI toolkit that renders directly via the OS window compositor (via wgpu/glow
 on desktop). It has served the project well for rapid iteration but shows hard limits as the game
 matures:

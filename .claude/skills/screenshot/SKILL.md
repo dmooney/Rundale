@@ -1,10 +1,10 @@
 ---
 name: screenshot
-description: Regenerate GUI screenshots via Playwright. Captures the Parish GUI at 4 times of day (morning, midday, dusk, night) using headless Chromium — no X11/GDK required.
+description: Regenerate GUI screenshots via Playwright. Captures the Rundale GUI at 4 times of day (morning, midday, dusk, night) using headless Chromium — no X11/GDK required.
 disable-model-invocation: true
 ---
 
-Regenerate Parish GUI screenshots after UI changes.
+Regenerate Rundale GUI screenshots after UI changes.
 
 ## Steps
 

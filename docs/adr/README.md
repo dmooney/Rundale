@@ -2,7 +2,7 @@
 
 > Back to [Docs Index](../index.md)
 
-This directory contains Architecture Decision Records (ADRs) for the Parish project.
+This directory contains Architecture Decision Records (ADRs) for the Rundale game and Parish engine.
 
 ## ADR Index
 

@@ -8,7 +8,7 @@ Accepted (2026-03-18)
 
 ## Context
 
-Parish aims for an invisible save system where the player never thinks about saving. They quit whenever they want, load whenever they want, and the world is exactly where they left it. Beyond basic persistence, the design calls for the ability to fork and explore alternate timelines: "What if I had told Mary the truth instead?"
+Rundale aims for an invisible save system where the player never thinks about saving. They quit whenever they want, load whenever they want, and the world is exactly where they left it. Beyond basic persistence, the design calls for the ability to fork and explore alternate timelines: "What if I had told Mary the truth instead?"
 
 This requires a save system that supports:
 

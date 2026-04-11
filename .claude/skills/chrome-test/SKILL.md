@@ -1,9 +1,9 @@
 ---
 name: chrome-test
-description: Run a live Chrome browser testing session against the Parish web server using Claude-in-Chrome MCP tools. Builds frontend, starts server, navigates Chrome, and runs through the test plan.
+description: Run a live Chrome browser testing session against the Rundale web server using Claude-in-Chrome MCP tools. Builds frontend, starts server, navigates Chrome, and runs through the test plan.
 ---
 
-Run an interactive Chrome browser test session for Parish. Follow the test plan
+Run an interactive Chrome browser test session for Rundale. Follow the test plan
 in `docs/plans/chrome-test-plan.md`.
 
 ## Setup
