@@ -192,6 +192,28 @@ impl ConversationRuntimeState {
 ///
 /// Wrapped in `Arc` so background tasks can hold references without
 /// borrowing from `tauri::State<'_>` (which is not `'static`).
+///
+/// # Lock ordering contract
+///
+/// Several fields are wrapped in [`tokio::sync::Mutex`]. To avoid
+/// deadlocks, any code path that acquires more than one of them **must**
+/// do so in the following canonical order, from outermost to innermost:
+///
+/// 1. [`AppState::world`]
+/// 2. [`AppState::npc_manager`]
+/// 3. [`AppState::conversation`]
+/// 4. [`AppState::debug_events`] / [`AppState::game_events`]
+/// 5. [`AppState::config`]
+/// 6. [`AppState::save_path`] / [`AppState::current_branch_id`] /
+///    [`AppState::current_branch_name`]
+/// 7. [`AppState::client`] / [`AppState::cloud_client`]
+/// 8. [`AppState::inference_log`]
+/// 9. [`AppState::inference_queue`]
+///
+/// Never drop a lock only to re-acquire it in the same critical section —
+/// if two locks are needed, hold them both for the duration of the work.
+/// See `background tick` in [`run`] for the canonical example of holding
+/// `world` and `npc_manager` together through a full tick iteration.
 pub struct AppState {
     /// The game world (clock, player position, graph, weather).
     pub world: Mutex<WorldState>,
@@ -804,17 +826,26 @@ pub fn run() {
                     });
                 }
 
-                // Idle tick: emit world snapshot every 5 seconds.
+                // Idle tick: emit world snapshot and run world/NPC ticks every 5 seconds.
                 // The GameClock already flows via speed_factor — no manual advance needed.
+                //
+                // Lock ordering: `world` → `npc_manager` → `debug_events`. Both
+                // `world` and `npc_manager` are acquired once at the top of each
+                // iteration and held through the entire body to avoid any window
+                // where a command handler could sneak in between them and race
+                // the tick (see the AppState lock ordering contract).
                 let state_tick = Arc::clone(&state_setup);
                 let handle_tick = handle.clone();
                 tokio::spawn(async move {
                     loop {
                         tokio::time::sleep(Duration::from_secs(5)).await;
+
+                        let mut world = state_tick.world.lock().await;
+                        let mut npc_mgr = state_tick.npc_manager.lock().await;
+
+                        // Emit a fresh world snapshot to the frontend.
                         {
-                            let world = state_tick.world.lock().await;
                             let transport = state_tick.transport.default_mode();
-                            let npc_mgr = state_tick.npc_manager.lock().await;
                             let snapshot = crate::commands::get_world_snapshot_inner(
                                 &world,
                                 transport,
@@ -838,9 +869,6 @@ pub fn run() {
                             }
                         }
                         {
-                            let mut world = state_tick.world.lock().await;
-                            let mut npc_mgr = state_tick.npc_manager.lock().await;
-
                             // Tick weather engine
                             let season = world.clock.season();
                             let now = world.clock.now();
