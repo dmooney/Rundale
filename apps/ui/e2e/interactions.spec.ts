@@ -47,11 +47,12 @@ test.describe('Streaming simulation', () => {
 		await page.waitForTimeout(100);
 
 		// Send tokens
-		await emitEvent(page, 'stream-token', { token: 'Ah, ' });
+		await emitEvent(page, 'stream-token', { token: 'Ah, ', turn_id: 1, source: 'Siobhan Murphy' });
 		await page.waitForTimeout(50);
-		await emitEvent(page, 'stream-token', { token: "you're " });
+		await emitEvent(page, 'stream-token', { token: "you're ", turn_id: 1, source: 'Siobhan Murphy' });
 		await page.waitForTimeout(50);
-		await emitEvent(page, 'stream-token', { token: 'welcome!' });
+		await emitEvent(page, 'stream-token', { token: 'welcome!', turn_id: 1, source: 'Siobhan Murphy' });
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1 });
 		await page.waitForTimeout(100);
 
 		await expect(page.getByText("Ah, you're welcome!")).toBeVisible();
@@ -59,6 +60,64 @@ test.describe('Streaming simulation', () => {
 		// End stream
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 		await page.waitForTimeout(100);
+	});
+
+	test('keeps overlapping multi-npc streams attached to the right speaker', async ({ page }) => {
+		await installTauriMock(page, 'morning');
+		await page.goto('/');
+		await page.waitForLoadState('networkidle');
+
+		await emitEvent(page, 'loading', { active: true });
+		await page.waitForTimeout(100);
+
+		await emitEvent(page, 'text-log', {
+			id: 'msg-1',
+			source: 'Siobhan Murphy',
+			content: '',
+			stream_turn_id: 11
+		});
+		await emitEvent(page, 'stream-token', {
+			token: 'I heard the fair will be lively tonight ',
+			turn_id: 11,
+			source: 'Siobhan Murphy'
+		});
+		await page.waitForTimeout(80);
+		await expect(page.locator('.bubble-row.npc').nth(0).locator('.label')).toHaveText('Siobhan Murphy');
+
+		// Queue Padraig before Siobhan has finished animating.
+		await emitEvent(page, 'text-log', {
+			id: 'msg-2',
+			source: 'Padraig Darcy',
+			content: '',
+			stream_turn_id: 12
+		});
+		await emitEvent(page, 'stream-token', {
+			token: "If it is, I'll bring the cart before sunset.",
+			turn_id: 12,
+			source: 'Padraig Darcy'
+		});
+
+		await emitEvent(page, 'stream-token', {
+			token: 'with music by the square.',
+			turn_id: 11,
+			source: 'Siobhan Murphy'
+		});
+		await emitEvent(page, 'stream-turn-end', { turn_id: 11 });
+		await emitEvent(page, 'stream-turn-end', { turn_id: 12 });
+		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
+
+		await page.waitForTimeout(1500);
+
+		const npcRows = page.locator('.bubble-row.npc');
+		await expect(npcRows).toHaveCount(2);
+		await expect(npcRows.nth(0).locator('.label')).toHaveText('Siobhan Murphy');
+		await expect(npcRows.nth(0).locator('.content')).toContainText(
+			'I heard the fair will be lively tonight with music by the square.'
+		);
+		await expect(npcRows.nth(1).locator('.label')).toHaveText('Padraig Darcy');
+		await expect(npcRows.nth(1).locator('.content')).toContainText(
+			"If it is, I'll bring the cart before sunset."
+		);
 	});
 });
 
