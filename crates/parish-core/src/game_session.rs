@@ -12,6 +12,7 @@
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use crate::config::ReactionConfig;
 use crate::debug_snapshot::InferenceLogEntry;
@@ -346,14 +347,18 @@ fn apply_arrival_reactions_inner(
     reactions
 }
 
-/// Resolves NPC arrival reaction texts, upgrading `use_llm` entries via the
-/// provided LLM client when available, and logging each call to `inference_log`
-/// if one is supplied.
+/// Streams NPC arrival reaction texts to the frontend gradually, upgrading
+/// `use_llm` entries via the provided LLM client when available.
 ///
-/// Returns one `String` per reaction in the same order as `reactions`. Each
-/// text is either the LLM-generated greeting (on success) or the pre-computed
-/// `canned_text` fallback. Backends call this after [`apply_movement`] to get
-/// the final display text before emitting to their respective frontends.
+/// For each reaction, calls `emit_text_log` with the NPC display name to
+/// create an empty placeholder entry in the frontend chat log, then pipes
+/// token batches to `emit_stream_token` so the frontend stream-pump can
+/// reveal them word-by-word — matching the gradual appearance of normal NPC
+/// dialogue. Canned text is used when no LLM client is available or when the
+/// reaction does not require an LLM.
+///
+/// The caller is responsible for emitting a `stream-end` event after this
+/// function returns so the frontend finalises the last streaming entry.
 ///
 /// # Parameters
 /// - `reactions` — raw reactions from `GameEffects::arrival_reactions`
@@ -366,8 +371,14 @@ fn apply_arrival_reactions_inner(
 /// - `client` — LLM client, or `None` to always use canned text
 /// - `model` — model name passed to the LLM
 /// - `inference_log` — optional log to record each call for the debug panel
+/// - `emit_text_log(turn_id, npc_name)` — called once per reaction to create
+///   an empty placeholder in the frontend chat log before streaming begins
+/// - `emit_stream_token(turn_id, source, batch)` — called with each batched
+///   token chunk to be appended to the current streaming entry
 #[allow(clippy::too_many_arguments)]
-pub async fn resolve_reaction_texts(
+// Justification: mirrors the previous resolve_reaction_texts signature; all
+// arguments are necessary to build the per-NPC prompt and wire the callbacks.
+pub async fn stream_reaction_texts(
     reactions: &[NpcReaction],
     all_npcs: &[Npc],
     current_location_id: LocationId,
@@ -378,91 +389,99 @@ pub async fn resolve_reaction_texts(
     client: Option<&OpenAiClient>,
     model: &str,
     inference_log: Option<&InferenceLog>,
-) -> Vec<(String, String)> {
+    mut emit_text_log: impl FnMut(u64, &str),
+    mut emit_stream_token: impl FnMut(u64, &str, &str),
+) {
+    use crate::ipc::stream_npc_tokens;
     use crate::npc::reactions::build_reaction_prompt;
+    use tokio::sync::mpsc;
 
     let timeout_secs = ReactionConfig::default().llm_timeout_secs;
-    let mut texts = Vec::with_capacity(reactions.len());
 
     for reaction in reactions {
-        let text = if reaction.use_llm {
-            if let Some(c) = client {
-                let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
-                if let Some(npc) = npc {
-                    let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
-                    let is_introduced = introduced.contains(&reaction.npc_id);
-                    let (system, context) = build_reaction_prompt(
-                        npc,
-                        loc_name,
-                        tod,
-                        weather,
-                        is_introduced,
-                        at_workplace,
-                    );
-                    let prompt_len = context.len();
-                    let req_id = REACTION_REQ_ID.fetch_add(1, Ordering::Relaxed);
-                    let started = std::time::Instant::now();
-                    let result = tokio::time::timeout(
-                        std::time::Duration::from_secs(timeout_secs),
-                        c.generate(model, &context, Some(&system), Some(100), None),
+        let npc = all_npcs.iter().find(|n| n.id == reaction.npc_id);
+        let turn_id = REACTION_REQ_ID.fetch_add(1, Ordering::Relaxed);
+
+        // Emit an empty placeholder so the frontend shows the NPC name immediately
+        // and the stream-pump knows which entry to fill.
+        emit_text_log(turn_id, &reaction.npc_display_name);
+
+        let (tx, rx) = mpsc::unbounded_channel::<String>();
+
+        // Capture prompt data here (before the spawn) so we can log it afterwards.
+        let mut llm_log_info: Option<(usize, String, String)> = None; // (prompt_len, system, context)
+
+        if reaction.use_llm {
+            if let (Some(c), Some(npc)) = (client, npc) {
+                let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
+                let is_introduced = introduced.contains(&reaction.npc_id);
+                let (system, context) =
+                    build_reaction_prompt(npc, loc_name, tod, weather, is_introduced, at_workplace);
+                llm_log_info = Some((context.len(), system.clone(), context.clone()));
+
+                let c_clone = c.clone();
+                let model_str = model.to_string();
+                tokio::spawn(async move {
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(timeout_secs),
+                        c_clone.generate_stream(
+                            &model_str,
+                            &context,
+                            Some(&system),
+                            tx,
+                            Some(100),
+                            None,
+                        ),
                     )
                     .await;
-                    let elapsed_ms = started.elapsed().as_millis() as u64;
-
-                    let (text, error) = match result {
-                        Ok(Ok(t)) => {
-                            let trimmed = t.trim();
-                            let cleaned = trimmed
-                                .split("---")
-                                .next()
-                                .unwrap_or(trimmed)
-                                .trim()
-                                .to_string();
-                            if cleaned.is_empty() {
-                                (reaction.canned_text.clone(), None)
-                            } else {
-                                (cleaned, None)
-                            }
-                        }
-                        Ok(Err(e)) => (reaction.canned_text.clone(), Some(e.to_string())),
-                        Err(_) => (reaction.canned_text.clone(), Some("timeout".to_string())),
-                    };
-
-                    if let Some(log) = inference_log {
-                        let entry = InferenceLogEntry {
-                            request_id: req_id,
-                            timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
-                            model: model.to_string(),
-                            streaming: false,
-                            duration_ms: elapsed_ms,
-                            prompt_len,
-                            response_len: text.len(),
-                            error,
-                            system_prompt: Some(system),
-                            prompt_text: context,
-                            response_text: text.clone(),
-                            max_tokens: Some(100),
-                        };
-                        let mut log_guard = log.lock().await;
-                        if log_guard.len() >= log_guard.capacity().max(1) {
-                            log_guard.pop_front();
-                        }
-                        log_guard.push_back(entry);
-                    }
-
-                    text
-                } else {
-                    reaction.canned_text.clone()
-                }
+                    // tx is consumed by generate_stream; when it returns (success or
+                    // timeout) tx is dropped, closing the channel and allowing
+                    // stream_npc_tokens to finish.
+                });
             } else {
-                reaction.canned_text.clone()
+                // No client or NPC not found — fall back to canned text.
+                let _ = tx.send(reaction.canned_text.clone());
+                drop(tx);
             }
         } else {
-            reaction.canned_text.clone()
-        };
-        texts.push((reaction.npc_display_name.clone(), text));
+            // Canned text path: send directly through the channel so
+            // stream_npc_tokens can still pace the output word-by-word.
+            let _ = tx.send(reaction.canned_text.clone());
+            drop(tx);
+        }
+
+        let npc_name = reaction.npc_display_name.clone();
+        let started = Instant::now();
+        let accumulated = stream_npc_tokens(rx, |batch| {
+            emit_stream_token(turn_id, &npc_name, batch);
+        })
+        .await;
+        let elapsed_ms = started.elapsed().as_millis() as u64;
+
+        if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
+            (llm_log_info, inference_log)
+        {
+            let entry = InferenceLogEntry {
+                request_id: turn_id,
+                timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
+                model: model.to_string(),
+                streaming: true,
+                duration_ms: elapsed_ms,
+                prompt_len,
+                response_len: accumulated.len(),
+                error: None,
+                system_prompt: Some(system_prompt),
+                prompt_text,
+                response_text: accumulated,
+                max_tokens: Some(100),
+            };
+            let mut log_guard = log.lock().await;
+            if log_guard.len() >= log_guard.capacity().max(1) {
+                log_guard.pop_front();
+            }
+            log_guard.push_back(entry);
+        }
     }
-    texts
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -554,5 +573,56 @@ mod tests {
         let texts = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
         // May or may not be empty depending on game data — just verify it doesn't panic
         let _ = texts;
+    }
+
+    /// Verifies that stream_reaction_texts calls emit_text_log once per reaction
+    /// and emits the complete canned text as one or more token chunks when no
+    /// LLM client is provided.
+    #[tokio::test]
+    async fn stream_reaction_texts_canned_streams_gradually() {
+        use crate::npc::reactions::{NpcReaction, ReactionKind};
+
+        let reaction = NpcReaction {
+            npc_id: NpcId(999),
+            npc_display_name: "Ciarán".to_string(),
+            kind: ReactionKind::Greeting,
+            canned_text: "Hello there!".to_string(),
+            introduces: false,
+            use_llm: false,
+        };
+
+        let mut log_sources: Vec<String> = Vec::new();
+        let mut token_chunks: Vec<String> = Vec::new();
+
+        stream_reaction_texts(
+            &[reaction],
+            &[],
+            LocationId(0),
+            "Galway",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+        )
+        .await;
+
+        assert_eq!(
+            log_sources,
+            vec!["Ciarán"],
+            "emit_text_log called with NPC name"
+        );
+        assert!(
+            !token_chunks.is_empty(),
+            "at least one token chunk must be emitted"
+        );
+        assert_eq!(
+            token_chunks.join(""),
+            "Hello there!",
+            "concatenated chunks equal the canned text"
+        );
     }
 }

@@ -98,7 +98,7 @@ fn test_parish_path_crossroads_to_pub() {
     assert_eq!(path, vec![LocationId(1), LocationId(2)]);
     let time = graph.path_travel_time(&path, 1.25);
     assert!(
-        time >= 1 && time <= 10,
+        (1..=10).contains(&time),
         "Crossroads→Pub should be 1-10 min, got {time}"
     );
 }
@@ -146,7 +146,7 @@ fn test_movement_go_to_pub() {
         } => {
             assert_eq!(destination, LocationId(2));
             assert!(
-                minutes >= 1 && minutes <= 10,
+                (1..=10).contains(&minutes),
                 "pub should be 1-10 min walk, got {minutes}"
             );
             assert!(narration.contains("on foot"));
@@ -167,7 +167,7 @@ fn test_movement_go_to_church() {
         } => {
             assert_eq!(destination, LocationId(3));
             assert!(
-                minutes >= 1 && minutes <= 15,
+                (1..=15).contains(&minutes),
                 "church should be 1-15 min walk, got {minutes}"
             );
         }
@@ -272,7 +272,7 @@ fn test_parish_computed_travel_times_reasonable() {
         for (target_id, _) in graph.neighbors(id) {
             let minutes = graph.edge_travel_minutes(id, target_id, 1.25);
             assert!(
-                minutes >= 1 && minutes <= 60,
+                (1..=60).contains(&minutes),
                 "travel time {} min from {:?} to {:?} should be 1-60 minutes",
                 minutes,
                 id,

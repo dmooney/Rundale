@@ -25,9 +25,9 @@ use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG, EVENT_TRAVEL_START,
-    EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload, StreamTokenPayload,
-    StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
+    EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload,
+    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
@@ -567,9 +567,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
         let _ = app.emit(EVENT_TEXT_LOG, text_log(msg.source, &msg.text));
     }
 
-    // Emit NPC arrival reactions — upgrade to LLM text where available
+    // Emit NPC arrival reactions — stream gradually like normal NPC dialogue
     if !effects.arrival_reactions.is_empty() {
-        use parish_core::game_session::resolve_reaction_texts;
+        use parish_core::game_session::stream_reaction_texts;
 
         let (
             all_npcs,
@@ -602,7 +602,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             )
         };
 
-        let texts = resolve_reaction_texts(
+        stream_reaction_texts(
             &effects.arrival_reactions,
             &all_npcs,
             current_location_id,
@@ -613,13 +613,27 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             reaction_client.as_ref(),
             &reaction_model,
             Some(&state.inference_log),
+            |_turn_id, npc_name| {
+                let _ = app.emit(
+                    EVENT_TEXT_LOG,
+                    text_log(npc_name.to_string(), String::new()),
+                );
+            },
+            |turn_id, source, batch| {
+                let _ = app.emit(
+                    EVENT_STREAM_TOKEN,
+                    StreamTokenPayload {
+                        token: batch.to_string(),
+                        turn_id,
+                        source: source.to_string(),
+                    },
+                );
+            },
         )
         .await;
 
-        for (display_name, text) in texts {
-            let label = capitalize_first(&display_name);
-            let _ = app.emit(EVENT_TEXT_LOG, text_log(label, &text));
-        }
+        // Finalise the streaming state so the frontend marks the last entry done.
+        let _ = app.emit(EVENT_STREAM_END, StreamEndPayload { hints: vec![] });
     }
 
     // Record tier transitions in the debug event log
