@@ -201,29 +201,36 @@ impl NpcManager {
         let npcs = self.npcs_at(location);
         let lower = name.to_lowercase();
 
-        // Exact match on real name (always) or display name (if introduced)
-        if let Some(npc) = npcs.iter().find(|n| {
-            n.name.to_lowercase() == lower || self.display_name(n).to_lowercase() == lower
-        }) {
-            return Some(npc);
-        }
+        // Single-pass: lowercase each NPC's name and display name once, then
+        // check both exact and prefix match. This avoids the previous two-pass
+        // approach which lowercased every NPC name twice (once per pass).
+        let mut prefix_match: Option<&Npc> = None;
+        for &npc in &npcs {
+            let name_lower = npc.name.to_lowercase();
+            let display_lower = self.display_name(npc).to_lowercase();
 
-        // First-name prefix match against real name or display name
-        npcs.iter()
-            .find(|n| {
-                n.name
-                    .to_lowercase()
+            // Exact match takes priority — return immediately
+            if name_lower == lower || display_lower == lower {
+                return Some(npc);
+            }
+
+            // First-name prefix match — remember first hit but keep looking
+            // for an exact match
+            if prefix_match.is_none()
+                && (name_lower
                     .split_whitespace()
                     .next()
                     .is_some_and(|first| first == lower)
-                    || self
-                        .display_name(n)
-                        .to_lowercase()
+                    || display_lower
                         .split_whitespace()
                         .next()
-                        .is_some_and(|first| first == lower)
-            })
-            .copied()
+                        .is_some_and(|first| first == lower))
+            {
+                prefix_match = Some(npc);
+            }
+        }
+
+        prefix_match
     }
 
     /// Finds an NPC by exact name (case-insensitive), searching all NPCs.
