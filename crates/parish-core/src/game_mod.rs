@@ -352,16 +352,22 @@ impl PronunciationEntry {
 
     /// Check whether this entry matches any of the given names.
     pub fn matches_any(&self, names: &[&str]) -> bool {
+        // Pre-compute lowercased match strings and word once, rather than
+        // re-allocating them for every name in the outer loop.
+        // Reduces allocations from O(names × matches) to O(matches + 1).
+        let matches_lower: Vec<String> = self.matches.iter().map(|m| m.to_lowercase()).collect();
+        let word_lower = self.word.to_lowercase();
+
         for name in names {
             let name_lower = name.to_lowercase();
             // Check the match strings first
-            for m in &self.matches {
-                if name_lower.contains(&m.to_lowercase()) {
+            for m in &matches_lower {
+                if name_lower.contains(m.as_str()) {
                     return true;
                 }
             }
             // Fall back to matching the word itself
-            if name_lower.contains(&self.word.to_lowercase()) {
+            if name_lower.contains(word_lower.as_str()) {
                 return true;
             }
         }
