@@ -479,6 +479,36 @@
 		editorEl?.focus();
 	}
 
+	function insertNpcMention(npcName: string) {
+		if ($streamingActive || !editorEl) return;
+
+		const chip = document.createElement('span');
+		chip.className = 'mention-chip';
+		chip.contentEditable = 'false';
+		chip.dataset.npc = npcName;
+		chip.textContent = `@${npcName}`;
+
+		const trailing = document.createTextNode('\u00A0');
+		const sel = window.getSelection();
+
+		if (sel && sel.rangeCount > 0 && editorEl.contains(sel.getRangeAt(0).startContainer)) {
+			const range = sel.getRangeAt(0);
+			range.deleteContents();
+			range.insertNode(trailing);
+			range.insertNode(chip);
+		} else {
+			editorEl.appendChild(chip);
+			editorEl.appendChild(trailing);
+		}
+
+		const range = document.createRange();
+		range.setStart(trailing, 1);
+		range.collapse(true);
+		sel?.removeAllRanges();
+		sel?.addRange(range);
+		editorEl.focus();
+	}
+
 	// ── Submit ──────────────────────────────────────────────────────────────
 
 	async function handleSubmit(e: Event) {
@@ -763,9 +793,7 @@
 			{#each $npcsHere as npc}
 				<button
 					class="npc-chip"
-					class:selected={selectedNpcRealNames.includes(npc.real_name)}
-					aria-pressed={selectedNpcRealNames.includes(npc.real_name)}
-					onclick={() => toggleNpcSelection(npc.real_name)}
+					onclick={() => insertNpcMention(npc.name)}
 				>
 					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
 					<span class="npc-chip-copy">
@@ -1005,12 +1033,6 @@
 	.npc-chip:hover {
 		border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
 		transform: translateY(-1px);
-	}
-
-	.npc-chip.selected {
-		background: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel-bg));
-		border-color: var(--color-accent);
-		color: var(--color-accent);
 	}
 
 	.npc-chip-mood {
