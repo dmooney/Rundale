@@ -102,12 +102,6 @@ For a production bundle:
 cargo tauri build
 ```
 
-### TUI Mode (Terminal)
-
-```sh
-cargo run
-```
-
 ### Headless Mode
 
 For piping input/output or running without a UI:
@@ -115,16 +109,6 @@ For piping input/output or running without a UI:
 ```sh
 cargo run -- --headless
 ```
-
-## Terminal Recommendations (TUI Mode)
-
-Rundale uses a TUI with 24-bit true color. For the best experience:
-
-- **iTerm2** — full true-color and Unicode support, highly recommended.
-- **kitty** — fast GPU-accelerated terminal with excellent color support.
-- **Terminal.app** — works, but verify 24-bit color is enabled.
-
-Ensure your terminal window is at least **120 columns x 40 rows** for the intended layout.
 
 ## Configuration (Optional)
 
@@ -153,12 +137,6 @@ sudo xcode-select --reset
 - Ensure the Ollama app is running (check the menu bar icon).
 - Verify the port: `curl http://localhost:11434/api/tags`.
 - If you installed via Homebrew, start the service: `brew services start ollama`.
-
-### TUI looks garbled or has no color
-
-- Switch to iTerm2 or kitty if using Terminal.app.
-- Ensure your terminal supports 24-bit true color. Test with: `printf "\x1b[38;2;255;100;0mTRUECOLOR\x1b[0m\n"` — you should see orange text.
-- Resize your terminal to at least 120x40.
 
 ### Model runs slowly
 
