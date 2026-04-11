@@ -42,11 +42,36 @@
 	} from '$lib/ipc';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
 	import { getStreamChunkDelayMs, takeNextStreamChunk } from '$lib/stream-pacing';
+	import { shouldTriggerDayShiftPulse } from '$lib/day-shift-effect';
 	import type { LanguageHint } from '$lib/types';
 
 	const AUTO_PAUSE_MS = 60_000;
 	const MOUSEMOVE_THROTTLE_MS = 1000;
 	const STREAM_WAIT_FOR_WORD_MS = 70;
+	const DAY_SHIFT_PULSE_MS = 1600;
+	let dayShiftPulseActive = $state(false);
+	let dayShiftPulseKey = $state(0);
+	let dayShiftPulseColor = $state('var(--color-accent)');
+	let prefersReducedMotion = $state(false);
+	let previousWorldHour: number | null = null;
+	let dayShiftPulseHandle: ReturnType<typeof setTimeout> | null = null;
+
+	function triggerDayShiftPulse() {
+		if (prefersReducedMotion) return;
+		const cssAccent = getComputedStyle(document.documentElement)
+			.getPropertyValue('--color-accent')
+			.trim();
+		dayShiftPulseColor = cssAccent || 'var(--color-accent)';
+		dayShiftPulseKey += 1;
+		dayShiftPulseActive = true;
+		if (dayShiftPulseHandle !== null) {
+			clearTimeout(dayShiftPulseHandle);
+		}
+		dayShiftPulseHandle = setTimeout(() => {
+			dayShiftPulseActive = false;
+			dayShiftPulseHandle = null;
+		}, DAY_SHIFT_PULSE_MS);
+	}
 
 	type PendingNpcTurn = {
 		turnId: number;
@@ -154,6 +179,13 @@
 	});
 
 	async function setupMount(): Promise<() => void> {
+		const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const syncReducedMotion = () => {
+			prefersReducedMotion = reducedMotionQuery.matches;
+		};
+		syncReducedMotion();
+		reducedMotionQuery.addEventListener('change', syncReducedMotion);
+
 		// Frontend auto-pause tracker — fires /pause after 60s of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
@@ -188,6 +220,7 @@
 		if (snapRes.status === 'fulfilled') {
 			const snap = snapRes.value;
 			worldState.set(snap);
+			previousWorldHour = snap.hour;
 			palette.applyGameHour(snap.hour);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
 			if (snap.location_description) {
@@ -396,6 +429,10 @@
 		const listeners: Array<() => void> = [];
 		try {
 			listeners.push(await onWorldUpdate(async (snap) => {
+				if (shouldTriggerDayShiftPulse(previousWorldHour, snap.hour)) {
+					triggerDayShiftPulse();
+				}
+				previousWorldHour = snap.hour;
 				worldState.set(snap);
 				tracker.onWorldStateChange(snap.paused);
 				palette.applyGameHour(snap.hour);
@@ -506,7 +543,11 @@
 			window.removeEventListener('mousedown', onTrackerMousedown);
 			window.removeEventListener('touchstart', onTrackerTouch);
 			window.removeEventListener('mousemove', onTrackerMousemove);
+			reducedMotionQuery.removeEventListener('change', syncReducedMotion);
 			tracker.dispose();
+			if (dayShiftPulseHandle !== null) {
+				clearTimeout(dayShiftPulseHandle);
+			}
 			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 			listeners.forEach((fn) => fn());
 		};
@@ -516,6 +557,13 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="app-shell" class:debug-open={$debugVisible}>
+	{#if dayShiftPulseActive}
+		<div class="day-shift-layer">
+			{#key dayShiftPulseKey}
+				<div class="day-shift-pulse" style={`--pulse-color: ${dayShiftPulseColor}`}></div>
+			{/key}
+		</div>
+	{/if}
 	<StatusBar />
 
 	<!-- Mobile-only toggle toolbar -->
@@ -578,6 +626,45 @@
 		overflow: hidden;
 		transition: height 0.15s ease;
 		padding-bottom: env(safe-area-inset-bottom);
+		position: relative;
+	}
+
+	.day-shift-layer {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 2;
+		overflow: hidden;
+	}
+
+	.day-shift-pulse {
+		position: absolute;
+		width: 20vmax;
+		aspect-ratio: 1;
+		left: calc(50% - 10vmax);
+		top: calc(50% - 10vmax);
+		border-radius: 50%;
+		background: radial-gradient(
+			circle,
+			color-mix(in oklab, var(--pulse-color) 55%, white 45%) 0%,
+			color-mix(in oklab, var(--pulse-color) 35%, transparent 65%) 46%,
+			transparent 70%
+		);
+		mix-blend-mode: soft-light;
+		opacity: 0;
+		transform: scale(0.12);
+		animation: day-shift-pulse 1.5s ease-out forwards;
+	}
+
+	@keyframes day-shift-pulse {
+		0% {
+			opacity: 0.28;
+			transform: scale(0.12);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(3.2);
+		}
 	}
 
 	.app-shell.debug-open {

@@ -298,21 +298,41 @@ On weather change away from frost conditions, they fade and retract (reverse ani
 
 ### 10. Time-of-Day Shimmer
 
-**Trigger:** Hour transitions (automatically, as the clock crosses 5:00, 7:00, 12:00,
-17:00, 20:00, 23:00 — the palette keyframe boundaries).
+**Intent:** make world-time progression legible without feeling like a UI notification.
+
+**Trigger (revised):**
+- Evaluate only on `world-update` events where `hour` changed.
+- Fire when crossing one of the phase boundaries: `05:00`, `07:00`, `12:00`, `17:00`,
+  `20:00`, `23:00`.
+- Crossing is edge-based, not equality-based (e.g. `04 → 08` still triggers once).
+- The first snapshot after load never triggers (prevents opening flash).
 
 **What it does:**
-At each major time-of-day boundary, the palette transition (which already happens) is
-accompanied by a brief, subtle radial pulse from the centre of the screen — a wash of
-the incoming palette's dominant colour that expands outward and fades in 1.5 seconds.
+A soft radial wash blooms from the viewport centre and dissipates over ~1.5s, tinted by
+the *incoming* accent colour. This should read as atmospheric "light shift," not a
+notification badge or spell effect.
 
-**Implementation:**
-A `<div class="dayshift-pulse">` with `border-radius: 50%; transform: scale(0)` transitions
-to `scale(3)` while `opacity` goes from 0.3 to 0, using `mix-blend-mode: soft-light`.
-The colour is derived from the new palette's `--color-accent`.
+**Implementation notes:**
+- Render a temporary overlay layer with `pointer-events: none`.
+- Animate one pulse element:
+  - start `scale(0.12), opacity ~0.28`
+  - end `scale(3.2), opacity 0`
+  - `mix-blend-mode: soft-light`
+- Colour source: current CSS token `--color-accent` (so mod themes and dynamic palettes
+  are automatically respected).
+- Re-trigger via keyed remount (not class toggling) to guarantee deterministic replay.
 
-This is the most "always-on" ambient effect — subtle enough that most players won't consciously
-notice it, but it makes the world feel like it breathes.
+**Accessibility & constraints:**
+- Disabled entirely when `prefers-reduced-motion: reduce`.
+- Never blocks text selection/clicks.
+- One active pulse at a time; retrigger resets the animation instead of stacking.
+
+**Acceptance criteria:**
+1. No pulse on initial app load.
+2. Pulse appears exactly once when crossing each boundary in normal simulation.
+3. Pulse still appears when updates skip hours (fast-forward / catch-up ticks).
+4. No pulse while reduced-motion is enabled.
+5. No measurable input latency regression while pulse is active.
 
 ---
 
