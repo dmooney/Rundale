@@ -16,6 +16,7 @@ Detailed guides live in [docs/agent/](docs/agent/README.md):
 3. **Tests on every change.** Coverage must stay above 90% (`cargo tarpaulin`). Run `/check` before any commit and `/verify` before any push.
 4. **Prove gameplay features.** After implementing any gameplay change, run `/prove <feature>` — unit tests passing is not enough.
 5. **No `#[allow]`** without a justifying comment.
+6. **Feature flags for new engine features.** Every new gameplay or engine feature must be gated behind a feature flag (enabled by default). Add the flag check via `config.flags.is_enabled("my-feature-name")` and document the flag name in the PR. Use `/flag disable <name>` to turn it off if issues arise in production.
 
 ## Quick start
 

@@ -39,6 +39,21 @@ impl FeatureFlags {
         self.flags.insert(name.to_string(), false);
     }
 
+    /// Returns `true` only when the flag has been **explicitly** disabled.
+    ///
+    /// Unknown flags return `false` — features are considered on by default.
+    /// Use this (instead of `is_enabled`) for features that should ship
+    /// enabled and be kill-switched off in production:
+    ///
+    /// ```ignore
+    /// if !config.flags.is_disabled("new-npc-schedules") {
+    ///     // feature code
+    /// }
+    /// ```
+    pub fn is_disabled(&self, name: &str) -> bool {
+        self.flags.get(name).copied() == Some(false)
+    }
+
     /// Returns all flags in alphabetical order as `(name, enabled)` pairs.
     pub fn list(&self) -> Vec<(&str, bool)> {
         self.flags.iter().map(|(k, v)| (k.as_str(), *v)).collect()
@@ -165,6 +180,27 @@ mod tests {
         let flags = FeatureFlags::default();
         flags.save_to_file(&path).unwrap();
         assert!(path.exists());
+    }
+
+    #[test]
+    fn test_is_disabled_unknown_flag_returns_false() {
+        // Unknown flags are NOT disabled — features ship enabled by default.
+        let flags = FeatureFlags::default();
+        assert!(!flags.is_disabled("never-set"));
+    }
+
+    #[test]
+    fn test_is_disabled_after_disable() {
+        let mut flags = FeatureFlags::default();
+        flags.disable("kill-switch");
+        assert!(flags.is_disabled("kill-switch"));
+    }
+
+    #[test]
+    fn test_is_disabled_after_enable() {
+        let mut flags = FeatureFlags::default();
+        flags.enable("re-enabled");
+        assert!(!flags.is_disabled("re-enabled"));
     }
 
     #[test]
