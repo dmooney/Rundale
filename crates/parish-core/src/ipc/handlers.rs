@@ -504,6 +504,9 @@ pub fn prepare_npc_conversation_turn(
     improv_enabled: bool,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
+    // Mark NPC as introduced before computing display_name so first conversation
+    // shows their name, not their anonymous description.
+    npc_manager.mark_introduced(speaker_id);
     let display_name = npc_manager.display_name(&npc).to_string();
     let other_npcs: Vec<&Npc> = npc_manager
         .npcs_at(world.player_location)
@@ -571,9 +574,6 @@ pub fn prepare_npc_conversation_turn(
     context.push_str(
         "\n\nRespond to the live exchange above. You may answer the player or another nearby NPC by name when it feels natural.\n",
     );
-
-    // Mark NPC as introduced on first conversation
-    npc_manager.mark_introduced(speaker_id);
 
     Some(NpcConversationSetup {
         display_name,

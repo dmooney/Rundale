@@ -1390,18 +1390,30 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
     let data_dir = state.data_dir.clone();
     let saves_dir = state.saves_dir.clone();
 
-    // Load fresh world and NPCs
-    let world = WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15))
-        .unwrap_or_else(|e| {
-            tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
+    // Load fresh world and NPCs — prefer the active game mod when available,
+    // matching the same logic used by the Tauri backend.
+    let (world, npcs_path) = if let Some(ref gm) = state.game_mod {
+        let world = parish_core::game_mod::world_state_from_mod(gm)
+            .map_err(|e| format!("Failed to load world from mod: {}", e))?;
+        (world, gm.npcs_path())
+    } else {
+        // Legacy fallback: try parish.json first, then world.json.
+        let world_path = {
+            let parish = data_dir.join("parish.json");
+            let world = data_dir.join("world.json");
+            if parish.exists() { parish } else { world }
+        };
+        let world = WorldState::from_parish_file(&world_path, LocationId(15)).unwrap_or_else(|e| {
+            tracing::warn!("Failed to load world data: {}. Using default world.", e);
             WorldState::new()
         });
+        (world, data_dir.join("npcs.json"))
+    };
 
-    let mut npc_manager =
-        NpcManager::load_from_file(&data_dir.join("npcs.json")).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
-            NpcManager::new()
-        });
+    let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
+        tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
+        NpcManager::new()
+    });
     npc_manager.assign_tiers(&world, &[]);
 
     // Replace state

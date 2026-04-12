@@ -110,6 +110,12 @@ pub struct NpcSnapshot {
     pub knowledge: Vec<String>,
     /// Present or in-transit state.
     pub state: NpcState,
+    /// Last activity summary from Tier 3 batch simulation.
+    #[serde(default)]
+    pub last_activity: Option<String>,
+    /// Whether the NPC is currently ill. Set by Tier 4 rules engine.
+    #[serde(default)]
+    pub is_ill: bool,
 }
 
 impl NpcSnapshot {
@@ -133,6 +139,8 @@ impl NpcSnapshot {
             long_term_memory: npc.long_term_memory.clone(),
             knowledge: npc.knowledge.clone(),
             state: npc.state.clone(),
+            last_activity: npc.last_activity.clone(),
+            is_ill: npc.is_ill,
         }
     }
 
@@ -156,10 +164,10 @@ impl NpcSnapshot {
             long_term_memory: self.long_term_memory,
             knowledge: self.knowledge,
             state: self.state,
+            last_activity: self.last_activity,
+            is_ill: self.is_ill,
             deflated_summary: None,
             reaction_log: parish_npc::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
         }
     }
 }
@@ -183,6 +191,15 @@ pub struct GameSnapshot {
     pub npcs: Vec<NpcSnapshot>,
     /// Game time of the last Tier 2 tick.
     pub last_tier2_game_time: Option<DateTime<Utc>>,
+    /// Game time of the last Tier 3 tick.
+    #[serde(default)]
+    pub last_tier3_game_time: Option<DateTime<Utc>>,
+    /// Game time of the last Tier 4 tick.
+    #[serde(default)]
+    pub last_tier4_game_time: Option<DateTime<Utc>>,
+    /// NPCs the player has been introduced to.
+    #[serde(default)]
+    pub introduced_npcs: HashSet<NpcId>,
     /// Set of location IDs the player has visited (fog-of-war map).
     #[serde(default)]
     pub visited_locations: HashSet<LocationId>,
@@ -224,6 +241,9 @@ impl GameSnapshot {
             clock,
             npcs,
             last_tier2_game_time: npc_manager.last_tier2_game_time(),
+            last_tier3_game_time: npc_manager.last_tier3_game_time(),
+            last_tier4_game_time: npc_manager.last_tier4_game_time(),
+            introduced_npcs: npc_manager.introduced_set(),
             visited_locations: world.visited_locations.clone(),
             edge_traversals: world.edge_traversals.clone(),
             gossip_network: world.gossip_network.clone(),
@@ -292,6 +312,13 @@ impl GameSnapshot {
         if let Some(t) = self.last_tier2_game_time {
             npc_manager.record_tier2_tick(t);
         }
+        if let Some(t) = self.last_tier3_game_time {
+            npc_manager.record_tier3_tick(t);
+        }
+        if let Some(t) = self.last_tier4_game_time {
+            npc_manager.record_tier4_tick(t);
+        }
+        npc_manager.restore_introduced_set(self.introduced_npcs);
 
         // Restore gossip network
         world.gossip_network = self.gossip_network;
