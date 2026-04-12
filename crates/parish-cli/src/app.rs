@@ -177,6 +177,10 @@ pub struct App {
     pub reaction_base_url: Option<String>,
     /// Loaded game mod data (None if no mod directory was found or specified).
     pub game_mod: Option<GameMod>,
+    /// Runtime feature flags (loaded from parish-flags.json at startup).
+    pub flags: crate::config::FeatureFlags,
+    /// Path to the flags persistence file (None disables persistence).
+    pub flags_path: Option<PathBuf>,
 }
 
 impl App {
@@ -231,6 +235,8 @@ impl App {
             reaction_api_key: None,
             reaction_base_url: None,
             game_mod: None,
+            flags: crate::config::FeatureFlags::default(),
+            flags_path: None,
         }
     }
 
@@ -365,6 +371,7 @@ impl App {
             max_follow_up_turns: 2,
             idle_banter_after_secs: 25,
             auto_pause_after_secs: 60,
+            flags: self.flags.clone(),
             ..GameConfig::default()
         };
 
@@ -398,6 +405,7 @@ impl App {
         self.cloud_api_key = cfg.cloud_api_key.clone();
         self.cloud_base_url = cfg.cloud_base_url.clone();
         self.improv_enabled = cfg.improv_enabled;
+        self.flags = cfg.flags.clone();
 
         // Apply per-category overrides
         for cat in InferenceCategory::ALL {

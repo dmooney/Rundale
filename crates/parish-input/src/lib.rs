@@ -10,6 +10,17 @@ use parish_types::GameSpeed;
 use parish_types::ParishError;
 use serde::Deserialize;
 
+/// Sub-command for the `/flag` feature-flag system.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlagSubcommand {
+    /// Enable the named flag.
+    Enable(String),
+    /// Disable the named flag.
+    Disable(String),
+    /// List all known flags.
+    List,
+}
+
 /// A system command entered by the player.
 ///
 /// System commands use a `/` prefix and control game meta-operations
@@ -102,10 +113,19 @@ pub enum Command {
     Tick,
     /// Invalid branch name was provided.
     InvalidBranchName(String),
+    /// Feature flag management (`/flag enable|disable|list <name>`).
+    Flag(FlagSubcommand),
+    /// List all feature flags (alias for `Flag(List)`).
+    Flags,
+    /// Invalid flag name was provided.
+    InvalidFlagName(String),
 }
 
 /// Maximum allowed length for save branch names.
 const MAX_BRANCH_NAME_LEN: usize = 255;
+
+/// Maximum allowed length for feature flag names.
+const MAX_FLAG_NAME_LEN: usize = 64;
 
 /// Validates a save branch name for length and allowed characters.
 ///
@@ -124,6 +144,30 @@ fn validate_branch_name(name: &str) -> Result<String, String> {
         return Err(
             "Branch names may only contain letters, numbers, spaces, underscores, and hyphens."
                 .to_string(),
+        );
+    }
+    Ok(name.to_string())
+}
+
+/// Validates a feature flag name for length and allowed characters.
+///
+/// Flag names may contain alphanumerics, hyphens, and underscores only.
+fn validate_flag_name(name: &str) -> Result<String, String> {
+    if name.is_empty() {
+        return Err("Flag name cannot be empty.".to_string());
+    }
+    if name.len() > MAX_FLAG_NAME_LEN {
+        return Err(format!(
+            "Flag name too long (max {} characters).",
+            MAX_FLAG_NAME_LEN
+        ));
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(
+            "Flag names may only contain letters, digits, hyphens, and underscores.".to_string(),
         );
     }
     Ok(name.to_string())
@@ -360,6 +404,34 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::ShowCloudKey)
         } else {
             Some(Command::ShowCloud)
+        }
+    } else if lower == "/flags" {
+        Some(Command::Flags)
+    } else if lower == "/flag" || lower == "/flag list" {
+        Some(Command::Flag(FlagSubcommand::List))
+    } else if lower.starts_with("/flag ") {
+        let rest = trimmed.get("/flag ".len()..).unwrap_or("").trim();
+        let rest_lower = rest.to_lowercase();
+        if rest_lower.starts_with("enable ") {
+            let name = rest.get("enable ".len()..).unwrap_or("").trim();
+            match validate_flag_name(name) {
+                Ok(valid) => Some(Command::Flag(FlagSubcommand::Enable(valid))),
+                Err(msg) => Some(Command::InvalidFlagName(msg)),
+            }
+        } else if rest_lower.starts_with("disable ") {
+            let name = rest.get("disable ".len()..).unwrap_or("").trim();
+            match validate_flag_name(name) {
+                Ok(valid) => Some(Command::Flag(FlagSubcommand::Disable(valid))),
+                Err(msg) => Some(Command::InvalidFlagName(msg)),
+            }
+        } else if rest_lower == "enable" || rest_lower == "disable" || rest_lower == "list" {
+            Some(Command::Flag(FlagSubcommand::List))
+        } else {
+            // `/flag <name>` without enable/disable — treat as usage error
+            Some(Command::InvalidFlagName(format!(
+                "Unknown flag sub-command '{}'. Use: /flag enable <name>, /flag disable <name>, /flag list",
+                rest
+            )))
         }
     } else {
         None

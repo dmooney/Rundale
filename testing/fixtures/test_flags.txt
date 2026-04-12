@@ -1,0 +1,26 @@
+# Feature flag integration test
+# Verifies that /flag and /flags commands work end-to-end through the harness.
+
+# List flags when none are set
+/flags
+/flag list
+
+# Enable a flag and verify it shows in the list
+/flag enable test-feature
+/flag list
+
+# Disable that flag
+/flag disable test-feature
+/flag list
+
+# Enable multiple flags
+/flag enable alpha
+/flag enable beta
+/flag list
+
+# Disable one of them
+/flag disable alpha
+/flag list
+
+# Invalid flag name should return an error, not crash
+/flag enable bad flag name!

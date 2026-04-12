@@ -5,7 +5,7 @@
 //! and the headless CLI — eliminating the duplicate `GameConfig` structs that
 //! previously lived in each backend.
 
-use crate::config::InferenceCategory;
+use crate::config::{FeatureFlags, InferenceCategory};
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
 ///
@@ -45,6 +45,8 @@ pub struct GameConfig {
     pub category_api_key: [Option<String>; 4],
     /// Per-category base URL overrides (None = inherits base).
     pub category_base_url: [Option<String>; 4],
+    /// Runtime feature flags for safe deployment of in-progress features.
+    pub flags: FeatureFlags,
 }
 
 impl GameConfig {
@@ -117,6 +119,7 @@ impl Default for GameConfig {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            flags: FeatureFlags::default(),
         }
     }
 }
