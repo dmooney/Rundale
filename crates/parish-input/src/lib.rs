@@ -509,12 +509,18 @@ determine their intent. Respond with valid JSON containing:\n\
 - \"target\": what the action is directed at (string or null)\n\
 - \"dialogue\": what the player is saying, if talking (string or null)\n\
 \n\
+IMPORTANT: \"move\" is ONLY for when the player expresses a present desire to \
+navigate somewhere (imperative or future intent). Narrative, past-tense, or \
+reflective statements that merely mention a place name are \"talk\", not \"move\".\n\
+\n\
 Examples:\n\
 Input: \"go to the pub\" → {\"intent\": \"move\", \"target\": \"the pub\", \"dialogue\": null}\n\
 Input: \"talk to Mary\" → {\"intent\": \"talk\", \"target\": \"Mary\", \"dialogue\": null}\n\
 Input: \"tell Padraig I saw his cow\" → {\"intent\": \"talk\", \"target\": \"Padraig\", \"dialogue\": \"I saw his cow\"}\n\
 Input: \"look around\" → {\"intent\": \"look\", \"target\": null, \"dialogue\": null}\n\
 Input: \"pick up the stone\" → {\"intent\": \"interact\", \"target\": \"the stone\", \"dialogue\": null}\n\
+Input: \"I came from the coast\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I came from the coast\"}\n\
+Input: \"I was at the shore yesterday\" → {\"intent\": \"talk\", \"target\": null, \"dialogue\": \"I was at the shore yesterday\"}\n\
 \n\
 Respond ONLY with valid JSON. No explanation.";
 
@@ -634,6 +640,20 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
             intent: IntentKind::Look,
             target: None,
             dialogue: None,
+            raw: raw_input.to_string(),
+        });
+    }
+
+    // First-person narrative guard: sentences that begin with a first-person
+    // pronoun are clearly conversational, never navigation commands.  Catching
+    // them here prevents the LLM from extracting a place name mentioned in the
+    // middle of a statement (e.g. "I came from the coast") as a move target.
+    let first_person_prefixes = ["i ", "i'm ", "i've ", "i'd ", "i'll ", "i was ", "i am "];
+    if first_person_prefixes.iter().any(|p| lower.starts_with(p)) || lower == "i" {
+        return Some(PlayerIntent {
+            intent: IntentKind::Talk,
+            target: None,
+            dialogue: Some(raw_input.trim().to_string()),
             raw: raw_input.to_string(),
         });
     }
@@ -962,6 +982,30 @@ mod tests {
         assert!(parse_intent_local("tell Mary hello").is_none());
         assert!(parse_intent_local("pick up the stone").is_none());
         assert!(parse_intent_local("hello there").is_none());
+    }
+
+    #[test]
+    fn test_local_parse_first_person_narrative_is_talk() {
+        // First-person statements that mention place names must not be
+        // interpreted as move commands (regression: "I came from the coast"
+        // was triggering navigation to Lough Ree Shore).
+        let intent = parse_intent_local("I came from the coast").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, None);
+        assert_eq!(intent.dialogue, Some("I came from the coast".to_string()));
+
+        let intent = parse_intent_local("I was at the shore yesterday").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        let intent = parse_intent_local("I'm not from around here").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        let intent = parse_intent_local("I've been to the pub before").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        // Bare "I" with no continuation is also talk
+        let intent = parse_intent_local("I").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
     }
 
     #[test]
