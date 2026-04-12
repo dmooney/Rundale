@@ -44,6 +44,10 @@ async fn cf_access_guard(
     if addr.ip().is_loopback() {
         return Ok(next.run(req).await);
     }
+    // Allow the health-check endpoint without auth so Railway can probe it.
+    if req.uri().path() == "/api/ui-config" {
+        return Ok(next.run(req).await);
+    }
     if req
         .headers()
         .contains_key("CF-Access-Authenticated-User-Email")
