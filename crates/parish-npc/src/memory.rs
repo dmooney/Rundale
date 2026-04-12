@@ -242,6 +242,13 @@ impl LongTermMemory {
         self.entries.is_empty()
     }
 
+    /// Returns all entries for debug display, sorted newest first.
+    pub fn all_entries(&self) -> Vec<&LongTermEntry> {
+        let mut entries: Vec<&LongTermEntry> = self.entries.iter().collect();
+        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries
+    }
+
     /// Formats recalled memories into a context string for LLM prompts.
     ///
     /// Returns an empty string if no memories match.

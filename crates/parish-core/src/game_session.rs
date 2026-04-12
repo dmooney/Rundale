@@ -22,15 +22,23 @@ use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
 use crate::npc::{Npc, NpcId};
-
-/// Monotonically increasing request ID counter for reaction inference calls.
-/// Starts at 100_000 to stay visually distinct from the dialogue queue IDs.
-static REACTION_REQ_ID: AtomicU64 = AtomicU64::new(100_000);
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{MovementResult, resolve_movement};
 use crate::world::time::TimeOfDay;
 use crate::world::transport::TransportMode;
 use crate::world::{Location, LocationId, WorldState};
+
+/// Monotonically increasing request ID counter for reaction inference calls.
+/// Starts at 100_000 to stay visually distinct from the dialogue queue IDs.
+static REACTION_REQ_ID: AtomicU64 = AtomicU64::new(100_000);
+
+/// Returns the current value of the reaction request ID counter.
+///
+/// Read-only accessor used by the debug panel to report how many reaction
+/// inference calls have been issued this session.
+pub fn reaction_req_id_peek() -> u64 {
+    REACTION_REQ_ID.load(Ordering::Relaxed)
+}
 
 // ── Public types ─────────────────────────────────────────────────────────────
 

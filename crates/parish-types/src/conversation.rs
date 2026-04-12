@@ -126,6 +126,13 @@ impl ConversationLog {
     pub fn is_empty(&self) -> bool {
         self.exchanges.is_empty()
     }
+
+    /// Returns all stored exchanges in chronological order (oldest first).
+    ///
+    /// Used by the debug panel to surface the full ring buffer.
+    pub fn all(&self) -> impl Iterator<Item = &ConversationExchange> {
+        self.exchanges.iter()
+    }
 }
 
 #[cfg(test)]

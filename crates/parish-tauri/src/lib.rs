@@ -209,6 +209,9 @@ pub struct AppState {
     pub conversation: Mutex<ConversationRuntimeState>,
     /// Rolling debug event log for the debug panel.
     pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    /// Rolling `GameEvent` ring buffer captured from the world event bus.
+    /// Populated by a background task that subscribes to `world.event_bus`.
+    pub game_events: Mutex<std::collections::VecDeque<parish_core::world::events::GameEvent>>,
     /// Shared inference call log for the debug panel.
     pub inference_log: InferenceLog,
     /// UI configuration from the loaded game mod.
@@ -509,6 +512,9 @@ pub fn run() {
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
+        game_events: Mutex::new(std::collections::VecDeque::with_capacity(
+            DEBUG_EVENT_CAPACITY,
+        )),
         inference_log: new_inference_log(),
         ui_config,
         theme_palette,
@@ -750,6 +756,35 @@ pub fn run() {
 
                 // ── Background ticks ─────────────────────────────────────────
 
+                // Event bus fan-in: subscribe to world.event_bus and buffer the
+                // last N events in AppState.game_events for the debug panel.
+                {
+                    let state_events = Arc::clone(&state_setup);
+                    let mut rx = {
+                        let world = state_events.world.lock().await;
+                        world.event_bus.subscribe()
+                    };
+                    tokio::spawn(async move {
+                        loop {
+                            match rx.recv().await {
+                                Ok(evt) => {
+                                    let mut buf = state_events.game_events.lock().await;
+                                    if buf.len() >= DEBUG_EVENT_CAPACITY {
+                                        buf.pop_front();
+                                    }
+                                    buf.push_back(evt);
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                                    continue;
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                }
+
                 // Idle tick: emit world snapshot every 5 seconds.
                 // The GameClock already flows via speed_factor — no manual advance needed.
                 let state_tick = Arc::clone(&state_setup);
@@ -799,13 +834,15 @@ pub fn run() {
 
                             // Log schedule events and tier transitions to debug panel
                             if !schedule_events.is_empty() || !tier_transitions.is_empty() {
+                                let ts =
+                                    world.clock.now().format("%H:%M %Y-%m-%d").to_string();
                                 let mut debug_events = state_tick.debug_events.lock().await;
                                 for evt in &schedule_events {
                                     if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {
                                         debug_events.pop_front();
                                     }
                                     debug_events.push_back(DebugEvent {
-                                        timestamp: String::new(),
+                                        timestamp: ts.clone(),
                                         category: "schedule".to_string(),
                                         message: evt.debug_string(),
                                     });
@@ -817,7 +854,7 @@ pub fn run() {
                                     let direction =
                                         if tt.promoted { "promoted" } else { "demoted" };
                                     debug_events.push_back(DebugEvent {
-                                        timestamp: String::new(),
+                                        timestamp: ts.clone(),
                                         category: "tier".to_string(),
                                         message: format!(
                                             "{} {} {:?} → {:?}",
@@ -863,6 +900,7 @@ pub fn run() {
                         let world = state_debug.world.lock().await;
                         let npc_manager = state_debug.npc_manager.lock().await;
                         let debug_events = state_debug.debug_events.lock().await;
+                        let game_events = state_debug.game_events.lock().await;
                         let config = state_debug.config.lock().await;
 
                         let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
@@ -881,6 +919,7 @@ pub fn run() {
                             cloud_provider: config.cloud_provider_name.clone(),
                             cloud_model: config.cloud_model_name.clone(),
                             has_queue: state_debug.inference_queue.lock().await.is_some(),
+                            reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
                             improv_enabled: config.improv_enabled,
                             call_log,
                         };
@@ -889,6 +928,7 @@ pub fn run() {
                             &world,
                             &npc_manager,
                             &debug_events,
+                            &game_events,
                             &inference,
                         );
                         let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);

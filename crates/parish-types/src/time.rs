@@ -500,6 +500,28 @@ impl GameClock {
             .find(|s| (self.speed_factor - s.factor()).abs() < EPSILON)
             .copied()
     }
+
+    /// Returns the game-time origin anchor (creation or last resume).
+    ///
+    /// Exposed for the debug panel so it can report real-vs-game drift.
+    pub fn start_game(&self) -> DateTime<Utc> {
+        self.start_game
+    }
+
+    /// Returns the frozen game time captured when the clock was paused.
+    ///
+    /// When the clock is running this is the last pause anchor; when paused
+    /// (by player or inference) it matches `now()`.
+    pub fn paused_game_time(&self) -> DateTime<Utc> {
+        self.paused_game_time
+    }
+
+    /// Returns the real-world elapsed seconds since the last resume/create.
+    ///
+    /// Useful for the debug panel to compare real vs. accelerated time.
+    pub fn real_elapsed_secs(&self) -> f64 {
+        self.start_real.elapsed().as_secs_f64()
+    }
 }
 
 /// Trait for types that have a festival month and day.

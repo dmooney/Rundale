@@ -202,6 +202,31 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
 
 /// Spawns the background tick tasks (world update + theme update).
 fn spawn_background_ticks(state: Arc<AppState>) {
+    // Event bus fan-in: subscribe to world.event_bus and buffer the last N
+    // GameEvents in AppState.game_events for the debug panel.
+    {
+        let state_events = Arc::clone(&state);
+        tokio::spawn(async move {
+            let mut rx = {
+                let world = state_events.world.lock().await;
+                world.event_bus.subscribe()
+            };
+            loop {
+                match rx.recv().await {
+                    Ok(evt) => {
+                        let mut buf = state_events.game_events.lock().await;
+                        if buf.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                            buf.pop_front();
+                        }
+                        buf.push_back(evt);
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
     // Idle tick: broadcast world snapshot every 5 seconds
     let state_tick = Arc::clone(&state);
     tokio::spawn(async move {
@@ -227,17 +252,19 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                 // Tick weather engine
                 let season = world.clock.season();
                 let now = world.clock.now();
-                let mut rng = rand::thread_rng();
-                if let Some(new_weather) = world.weather_engine.tick(now, season, &mut rng) {
-                    let old = world.weather;
-                    world.weather = new_weather;
-                    world.event_bus.publish(
-                        parish_core::world::events::GameEvent::WeatherChanged {
-                            new_weather: new_weather.to_string(),
-                            timestamp: world.clock.now(),
-                        },
-                    );
-                    tracing::info!(old = %old, new = %new_weather, "Weather changed");
+                {
+                    let mut rng = rand::thread_rng();
+                    if let Some(new_weather) = world.weather_engine.tick(now, season, &mut rng) {
+                        let old = world.weather;
+                        world.weather = new_weather;
+                        world.event_bus.publish(
+                            parish_core::world::events::GameEvent::WeatherChanged {
+                                new_weather: new_weather.to_string(),
+                                timestamp: world.clock.now(),
+                            },
+                        );
+                        tracing::info!(old = %old, new = %new_weather, "Weather changed");
+                    }
                 }
 
                 // Tick NPC schedules and assign tiers
@@ -246,8 +273,18 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                 let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
 
                 if !schedule_events.is_empty() || !tier_transitions.is_empty() {
+                    let ts = world.clock.now().format("%H:%M %Y-%m-%d").to_string();
+                    let mut debug_events = state_tick.debug_events.lock().await;
                     for evt in &schedule_events {
                         tracing::debug!("NPC schedule: {}", evt.debug_string());
+                        if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                            timestamp: ts.clone(),
+                            category: "schedule".to_string(),
+                            message: evt.debug_string(),
+                        });
                     }
                     for tt in &tier_transitions {
                         let direction = if tt.promoted { "promoted" } else { "demoted" };
@@ -258,6 +295,17 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                             tt.old_tier,
                             tt.new_tier,
                         );
+                        if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                            timestamp: ts.clone(),
+                            category: "tier".to_string(),
+                            message: format!(
+                                "{} {} {:?} → {:?}",
+                                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+                            ),
+                        });
                     }
                 }
 

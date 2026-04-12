@@ -689,6 +689,16 @@ impl NpcManager {
         self.last_tier4_game_time = Some(time);
     }
 
+    /// Returns the game time of the last Tier 4 tick, if any.
+    pub fn last_tier4_game_time(&self) -> Option<DateTime<Utc>> {
+        self.last_tier4_game_time
+    }
+
+    /// Returns the number of NPCs that have introduced themselves to the player.
+    pub fn introduced_count(&self) -> usize {
+        self.introduced_npcs.len()
+    }
+
     /// Applies the results of a Tier 4 tick to NPC state.
     ///
     /// Returns a list of `GameEvent`s to publish on the event bus.

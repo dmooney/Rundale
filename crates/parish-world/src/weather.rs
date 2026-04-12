@@ -116,6 +116,21 @@ impl WeatherEngine {
         elapsed.num_minutes() as f64 / 60.0
     }
 
+    /// Returns the game time when the current weather state began.
+    pub fn since(&self) -> DateTime<Utc> {
+        self.since
+    }
+
+    /// Returns the minimum duration (game-hours) before a transition is allowed.
+    pub fn min_duration_hours(&self) -> f64 {
+        self.min_duration_hours
+    }
+
+    /// Returns the game-hour of the last transition check, or `None` if unchecked.
+    pub fn last_check_hour(&self) -> Option<u32> {
+        self.last_check_hour
+    }
+
     /// Ticks the weather engine. Returns `Some(new_weather)` if a
     /// transition occurred, `None` if the weather is unchanged.
     ///

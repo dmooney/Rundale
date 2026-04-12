@@ -139,6 +139,11 @@ impl ReactionLog {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Returns the stored entries in chronological order (oldest first).
+    pub fn entries(&self) -> &[ReactionEntry] {
+        &self.entries
+    }
 }
 
 /// Keyword groups that trigger NPC reactions, with the corresponding emoji.

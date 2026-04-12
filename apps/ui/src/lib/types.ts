@@ -148,9 +148,13 @@ export interface LoadingPayload {
 
 export interface DebugSnapshot {
 	clock: ClockDebug;
+	weather: WeatherDebug;
 	world: WorldDebug;
 	npcs: NpcDebug[];
 	tier_summary: TierSummary;
+	event_bus: EventBusDebug;
+	gossip: GossipDebug;
+	conversations: ConversationsDebug;
 	events: DebugEvent[];
 	inference: InferenceDebug;
 }
@@ -162,16 +166,40 @@ export interface ClockDebug {
 	festival: string | null;
 	weather: string;
 	paused: boolean;
+	inference_paused: boolean;
 	speed_factor: number;
+	speed_name: string | null;
 	day_of_week: string;
 	day_type: string;
+	start_game_time: string;
+	paused_game_time: string;
+	real_elapsed_secs: number;
+}
+
+export interface WeatherDebug {
+	current: string;
+	since: string;
+	duration_hours: number;
+	min_duration_hours: number;
+	last_check_hour: number | null;
 }
 
 export interface WorldDebug {
 	player_location_name: string;
 	player_location_id: number;
 	location_count: number;
+	visited_count: number;
+	visited_locations: string[];
+	edge_traversals: EdgeTraversalDebug[];
+	text_log_tail: string[];
+	text_log_len: number;
 	locations: LocationDebug[];
+}
+
+export interface EdgeTraversalDebug {
+	from_name: string;
+	to_name: string;
+	count: number;
 }
 
 export interface LocationDebug {
@@ -181,11 +209,22 @@ export interface LocationDebug {
 	public: boolean;
 	connection_count: number;
 	npcs_here: string[];
+	visited: boolean;
+	edges: GraphEdgeDebug[];
+}
+
+export interface GraphEdgeDebug {
+	target_id: number;
+	target_name: string;
+	path_description: string;
+	walking_minutes: number;
 }
 
 export interface NpcDebug {
 	id: number;
 	name: string;
+	brief_description: string;
+	introduced: boolean;
 	age: number;
 	occupation: string;
 	personality: string;
@@ -194,14 +233,39 @@ export interface NpcDebug {
 	home_name: string | null;
 	workplace_name: string | null;
 	mood: string;
+	is_ill: boolean;
 	state: string;
 	tier: string;
 	schedule: ScheduleVariantDebug[];
 	relationships: RelationshipDebug[];
 	memories: MemoryDebug[];
+	long_term_memories: LongTermMemoryDebug[];
+	reactions: ReactionDebug[];
+	deflated_summary: DeflatedSummaryDebug | null;
 	knowledge: string[];
 	intelligence: IntelligenceDebug;
 	last_activity: string | null;
+}
+
+export interface LongTermMemoryDebug {
+	timestamp: string;
+	content: string;
+	importance: number;
+	keywords: string[];
+}
+
+export interface ReactionDebug {
+	timestamp: string;
+	emoji: string;
+	description: string;
+	context: string;
+}
+
+export interface DeflatedSummaryDebug {
+	location_name: string;
+	mood: string;
+	recent_activity: string[];
+	key_relationship_changes: string[];
 }
 
 export interface ScheduleVariantDebug {
@@ -233,6 +297,12 @@ export interface RelationshipDebug {
 	kind: string;
 	strength: number;
 	history_count: number;
+	history: RelationshipEventDebug[];
+}
+
+export interface RelationshipEventDebug {
+	timestamp: string;
+	description: string;
 }
 
 export interface MemoryDebug {
@@ -249,8 +319,51 @@ export interface TierSummary {
 	tier1_names: string[];
 	tier2_names: string[];
 	tier3_names: string[];
+	tier4_names: string[];
 	tier3_in_flight: boolean;
+	last_tier2_tick: string | null;
 	last_tier3_tick: string | null;
+	last_tier4_tick: string | null;
+	introduced_count: number;
+}
+
+export interface EventBusDebug {
+	subscriber_count: number;
+	recent_events: GameEventDebug[];
+}
+
+export interface GameEventDebug {
+	timestamp: string;
+	kind: string;
+	summary: string;
+}
+
+export interface GossipDebug {
+	item_count: number;
+	items: GossipItemDebug[];
+}
+
+export interface GossipItemDebug {
+	id: number;
+	content: string;
+	source_name: string;
+	distortion_level: number;
+	known_by: string[];
+	timestamp: string;
+}
+
+export interface ConversationsDebug {
+	exchange_count: number;
+	exchanges: ConversationExchangeDebug[];
+}
+
+export interface ConversationExchangeDebug {
+	timestamp: string;
+	speaker_id: number;
+	speaker_name: string;
+	location_name: string;
+	player_input: string;
+	npc_dialogue: string;
 }
 
 export interface DebugEvent {
@@ -266,6 +379,7 @@ export interface InferenceDebug {
 	cloud_provider: string | null;
 	cloud_model: string | null;
 	has_queue: boolean;
+	reaction_req_id: number;
 	improv_enabled: boolean;
 	call_log: InferenceLogEntry[];
 }

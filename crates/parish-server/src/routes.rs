@@ -82,7 +82,8 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
-    let events = std::collections::VecDeque::new();
+    let events = state.debug_events.lock().await;
+    let game_events = state.game_events.lock().await;
     let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
         state.inference_log.lock().await.iter().cloned().collect();
     let inference = InferenceDebug {
@@ -92,6 +93,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
         cloud_provider: config.cloud_provider_name.clone(),
         cloud_model: config.cloud_model_name.clone(),
         has_queue: state.inference_queue.lock().await.is_some(),
+        reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled: config.improv_enabled,
         call_log,
     };
@@ -99,6 +101,7 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
         &world,
         &npc_manager,
         &events,
+        &game_events,
         &inference,
     ))
 }

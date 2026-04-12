@@ -6,14 +6,19 @@ use std::time::Instant;
 
 use tokio::sync::{Mutex, broadcast};
 
+use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{InferenceLog, InferenceQueue};
 use parish_core::ipc::ConversationLine;
 use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
+use parish_core::world::events::GameEvent;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
+
+/// Maximum number of debug/game events retained in the server's ring buffer.
+pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
 /// UI configuration snapshot returned by the `/api/ui-config` endpoint.
 #[derive(serde::Serialize, Clone)]
@@ -108,6 +113,11 @@ pub struct AppState {
     pub config: Mutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
     pub conversation: Mutex<ConversationRuntimeState>,
+    /// Rolling ring buffer of debug events (schedule ticks, tier transitions,
+    /// inference errors) surfaced to the debug panel.
+    pub debug_events: Mutex<std::collections::VecDeque<DebugEvent>>,
+    /// Rolling ring buffer of `GameEvent`s captured from the world event bus.
+    pub game_events: Mutex<std::collections::VecDeque<GameEvent>>,
     /// Broadcast channel for pushing events to WebSocket clients.
     pub event_bus: EventBus,
     /// Transport mode configuration from the loaded game mod.
@@ -224,6 +234,12 @@ pub fn build_app_state(
         cloud_client: Mutex::new(cloud_client),
         config: Mutex::new(config),
         conversation: Mutex::new(ConversationRuntimeState::new()),
+        debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
+            DEBUG_EVENT_CAPACITY,
+        )),
+        game_events: Mutex::new(std::collections::VecDeque::with_capacity(
+            DEBUG_EVENT_CAPACITY,
+        )),
         event_bus: EventBus::new(256),
         transport,
         ui_config,
