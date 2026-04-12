@@ -25,9 +25,9 @@ use parish_core::npc::ticks::apply_tier1_response;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
-    EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload,
-    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
+    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG, EVENT_TRAVEL_START,
+    EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
 };
 use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 

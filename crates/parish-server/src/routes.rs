@@ -18,9 +18,8 @@ use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
-    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload,
-    StreamTurnEndPayload, ThemePalette, WorldSnapshot, capitalize_first, text_log,
-    text_log_for_stream_turn,
+    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
+    ThemePalette, WorldSnapshot, capitalize_first, text_log, text_log_for_stream_turn,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::manager::NpcManager;
@@ -584,12 +583,10 @@ async fn run_npc_turn(
     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
-    state
-        .event_bus
-        .emit(
-            "text-log",
-            &text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
-        );
+    state.event_bus.emit(
+        "text-log",
+        &text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
+    );
     let send_result = queue
         .send(
             req_id,
@@ -605,10 +602,9 @@ async fn run_npc_turn(
         Ok(rx) => rx,
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
-            state.event_bus.emit(
-                "stream-turn-end",
-                &StreamTurnEndPayload { turn_id: req_id },
-            );
+            state
+                .event_bus
+                .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
             state.event_bus.emit(
                 "text-log",
                 &text_log(
@@ -643,10 +639,9 @@ async fn run_npc_turn(
 
     let response = response_rx.await.ok();
     let _ = stream_handle.await;
-    state.event_bus.emit(
-        "stream-turn-end",
-        &StreamTurnEndPayload { turn_id: req_id },
-    );
+    state
+        .event_bus
+        .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
     loading_cancel.cancel();
 
     let Some(response) = response else {

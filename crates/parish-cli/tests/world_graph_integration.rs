@@ -16,8 +16,7 @@ use parish::world::transport::TransportMode;
 
 fn load_parish_graph() -> WorldGraph {
     let path = Path::new("../../mods/rundale/world.json");
-    WorldGraph::load_from_file(path)
-        .expect("mods/rundale/world.json should load and validate")
+    WorldGraph::load_from_file(path).expect("mods/rundale/world.json should load and validate")
 }
 
 fn walking() -> TransportMode {

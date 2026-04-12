@@ -8,11 +8,16 @@ pub mod routes;
 pub mod state;
 pub mod ws;
 
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
+use axum::extract::ConnectInfo;
+use axum::http::{Request, StatusCode};
+use axum::middleware::{self, Next};
+use axum::response::Response;
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 
@@ -24,6 +29,29 @@ use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
 use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
+
+/// Middleware that enforces Cloudflare Access authentication on non-localhost traffic.
+///
+/// Requests from loopback addresses (127.0.0.1 / ::1) are always allowed so local
+/// development works without a Cloudflare tunnel.  All other requests must carry the
+/// `CF-Access-Authenticated-User-Email` header that Cloudflare Access injects after a
+/// successful login.  Requests that lack the header are rejected with 401.
+async fn cf_access_guard(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if addr.ip().is_loopback() {
+        return Ok(next.run(req).await);
+    }
+    if req
+        .headers()
+        .contains_key("CF-Access-Authenticated-User-Email")
+    {
+        return Ok(next.run(req).await);
+    }
+    Err(StatusCode::UNAUTHORIZED)
+}
 
 /// Starts the Parish web server on the given port.
 ///
@@ -145,6 +173,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
+        .layer(middleware::from_fn(cf_access_guard))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{}", port);
@@ -152,7 +181,11 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     tracing::info!("Serving static files from {}", static_dir.display());
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

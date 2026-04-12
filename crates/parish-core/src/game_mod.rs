@@ -236,7 +236,7 @@ impl Default for ThemePaletteConfig {
 }
 
 /// Theme section of the UI configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct ThemeConfig {
     /// Legacy accent override for older mods.
     #[serde(default)]
@@ -298,15 +298,6 @@ impl Default for SidebarConfig {
     fn default() -> Self {
         Self {
             hints_label: default_hints_label(),
-        }
-    }
-}
-
-impl Default for ThemeConfig {
-    fn default() -> Self {
-        Self {
-            default_accent: None,
-            palette: ThemePaletteConfig::default(),
         }
     }
 }
