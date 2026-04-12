@@ -37,6 +37,7 @@ pub async fn run_headless(
     category_configs: &HashMap<InferenceCategory, CategoryConfig>,
     improv: bool,
     game_mod: Option<parish_core::game_mod::GameMod>,
+    data_dir: Option<std::path::PathBuf>,
 ) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
     println!(
@@ -76,6 +77,13 @@ pub async fn run_headless(
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = improv;
+
+    // Load feature flags from disk
+    let flags_path = data_dir.map(|d| d.join("parish-flags.json"));
+    if let Some(ref p) = flags_path {
+        app.flags = crate::config::FeatureFlags::load_from_file(p);
+    }
+    app.flags_path = flags_path;
 
     // Set intent client/model
     let (intent_cl, intent_mdl) = clients.intent_client();
@@ -507,6 +515,13 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             }
             CommandEffect::NewGame => {
                 handle_headless_new_game(app).await;
+            }
+            CommandEffect::SaveFlags => {
+                if let Some(ref p) = app.flags_path
+                    && let Err(e) = app.flags.save_to_file(p)
+                {
+                    eprintln!("Warning: failed to save feature flags: {}", e);
+                }
             }
         }
     }

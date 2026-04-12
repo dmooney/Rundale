@@ -35,7 +35,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/wait', description: 'Wait N minutes (default 15)', hasArgs: true },
 	{ command: '/tick', description: 'Advance NPC schedules', hasArgs: false },
 	{ command: '/new', description: 'Start a new game', hasArgs: false },
-	{ command: '/quit', description: 'Take your leave', hasArgs: false }
+	{ command: '/quit', description: 'Take your leave', hasArgs: false },
+	{ command: '/flag', description: 'Feature flags: enable/disable/list', hasArgs: true },
+	{ command: '/flags', description: 'List all feature flags', hasArgs: false }
 ];
 
 /// Filter commands by prefix query (the text after `/`).

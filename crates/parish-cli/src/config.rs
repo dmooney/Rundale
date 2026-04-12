@@ -12,9 +12,9 @@
 
 pub use parish_core::config::{
     CliCloudOverrides, CliOverrides, CloudConfig, CognitiveTierConfig, EncounterConfig,
-    EngineConfig, InferenceCategory, InferenceConfig, NpcConfig, PaletteConfig, PersistenceConfig,
-    Provider, ProviderConfig, RelationshipLabelConfig, SeasonTintConfig, SpeedConfig,
-    WeatherTintConfig, WorldConfig, resolve_cloud_config, resolve_config,
+    EngineConfig, FeatureFlags, InferenceCategory, InferenceConfig, NpcConfig, PaletteConfig,
+    PersistenceConfig, Provider, ProviderConfig, RelationshipLabelConfig, SeasonTintConfig,
+    SpeedConfig, WeatherTintConfig, WorldConfig, resolve_cloud_config, resolve_config,
 };
 
 use crate::error::ParishError;

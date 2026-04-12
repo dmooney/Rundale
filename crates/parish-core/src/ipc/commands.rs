@@ -12,7 +12,7 @@
 use chrono::Timelike;
 
 use crate::config::Provider;
-use crate::input::Command;
+use crate::input::{Command, FlagSubcommand};
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
@@ -46,6 +46,8 @@ pub enum CommandEffect {
     NewGame,
     /// Rebuild the cloud/dialogue client specifically.
     RebuildCloudClient,
+    /// Persist the current feature flag state to disk.
+    SaveFlags,
 }
 
 /// The result of processing a system command.
@@ -361,6 +363,38 @@ pub fn handle_command(
             )
         }
 
+        // ── Feature flags ───────────────────────────────────────────────
+        Command::Flags | Command::Flag(FlagSubcommand::List) => {
+            let list = config.flags.list();
+            if list.is_empty() {
+                CommandResult::text(
+                    "No feature flags have been set. Use /flag enable <name> to enable one.",
+                )
+            } else {
+                let mut lines = vec!["Feature flags:".to_string()];
+                for (name, enabled) in &list {
+                    let status = if *enabled { "on " } else { "off" };
+                    lines.push(format!("  [{}] {}", status, name));
+                }
+                CommandResult::text(lines.join("\n"))
+            }
+        }
+        Command::Flag(FlagSubcommand::Enable(name)) => {
+            config.flags.enable(&name);
+            CommandResult::with_effect(
+                format!("Feature '{}' enabled.", name),
+                CommandEffect::SaveFlags,
+            )
+        }
+        Command::Flag(FlagSubcommand::Disable(name)) => {
+            config.flags.disable(&name);
+            CommandResult::with_effect(
+                format!("Feature '{}' disabled.", name),
+                CommandEffect::SaveFlags,
+            )
+        }
+        Command::InvalidFlagName(msg) => CommandResult::text(msg),
+
         // ── Mode-specific commands (delegated to backend) ───────────────
         Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
         Command::Help => CommandResult::text(
@@ -378,6 +412,9 @@ pub fn handle_command(
                 "  /irish             — Toggle Irish pronunciation sidebar",
                 "  /improv            — Toggle improv craft mode",
                 "  /map               — Toggle the full map",
+                "  /flag list                  — List all feature flags",
+                "  /flag enable <name>         — Enable a feature flag",
+                "  /flag disable <name>        — Disable a feature flag",
                 "  /save              — Save the game",
                 "  /fork <name>       — Fork a new branch from here",
                 "  /load <name>       — Load a named branch",

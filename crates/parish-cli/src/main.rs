@@ -236,6 +236,7 @@ async fn main() -> Result<()> {
     };
 
     // Headless REPL mode (default)
+    let headless_data_dir = find_data_dir();
     let result = headless::run_headless(
         clients.clone(),
         &provider_config,
@@ -243,6 +244,7 @@ async fn main() -> Result<()> {
         &category_configs,
         cli.improv,
         game_mod,
+        Some(headless_data_dir),
     )
     .await;
     ollama_process.stop();

@@ -28,6 +28,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
+use parish_core::config::FeatureFlags;
 use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 
 /// Middleware that enforces Cloudflare Access authentication on non-localhost traffic.
@@ -131,6 +132,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         }
     };
 
+    // Load feature flags from disk and inject into config
+    let flags_path = data_dir.join("parish-flags.json");
+    config.flags = FeatureFlags::load_from_file(&flags_path);
+
     let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
     let state = build_app_state(
         world,
@@ -144,6 +149,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         saves_dir,
         data_dir.clone(),
         game_mod,
+        flags_path,
     );
 
     // Initialize inference queue
@@ -352,6 +358,7 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
         category_model: [None, None, None, None],
         category_api_key: [None, None, None, None],
         category_base_url: [None, None, None, None],
+        flags: FeatureFlags::default(),
     };
 
     (client, config)

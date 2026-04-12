@@ -371,6 +371,15 @@ async fn handle_system_command(
                     extra_response = Some(format!("New game failed: {}", e));
                 }
             },
+            CommandEffect::SaveFlags => {
+                let flags = state.config.lock().await.flags.clone();
+                let path = state.data_dir.join("parish-flags.json");
+                tokio::task::spawn_blocking(move || {
+                    if let Err(e) = flags.save_to_file(&path) {
+                        tracing::warn!("Failed to save feature flags: {}", e);
+                    }
+                });
+            }
         }
     }
 
