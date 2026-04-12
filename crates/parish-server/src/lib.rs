@@ -32,15 +32,24 @@ use state::{AppState, GameConfig, UiConfigSnapshot, build_app_state};
 
 /// Middleware that enforces Cloudflare Access authentication on non-localhost traffic.
 ///
-/// Requests from loopback addresses (127.0.0.1 / ::1) are always allowed so local
-/// development works without a Cloudflare tunnel.  All other requests must carry the
-/// `CF-Access-Authenticated-User-Email` header that Cloudflare Access injects after a
-/// successful login.  Requests that lack the header are rejected with 401.
+/// Only active when the `PARISH_CF_ACCESS=1` environment variable is set.  Leave it
+/// unset on Railway (or any deployment that is not behind a Cloudflare Access tunnel)
+/// so that Railway's health-check requests and normal traffic are not rejected.
+///
+/// When enabled, requests from loopback addresses (127.0.0.1 / ::1) are always
+/// allowed so local development works without a Cloudflare tunnel.  All other
+/// requests must carry the `CF-Access-Authenticated-User-Email` header that
+/// Cloudflare Access injects after a successful login.  Requests that lack the
+/// header are rejected with 401.
 async fn cf_access_guard(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
+    // Guard is disabled unless PARISH_CF_ACCESS=1 is explicitly set.
+    if std::env::var("PARISH_CF_ACCESS").as_deref() != Ok("1") {
+        return Ok(next.run(req).await);
+    }
     if addr.ip().is_loopback() {
         return Ok(next.run(req).await);
     }
@@ -179,6 +188,14 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Parish web server listening on http://{}", addr);
     tracing::info!("Serving static files from {}", static_dir.display());
+
+    if std::env::var("PARISH_CF_ACCESS").as_deref() == Ok("1") {
+        tracing::info!("Cloudflare Access enforcement enabled (PARISH_CF_ACCESS=1)");
+    } else {
+        tracing::info!(
+            "Cloudflare Access enforcement disabled; set PARISH_CF_ACCESS=1 to require CF headers"
+        );
+    }
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(
