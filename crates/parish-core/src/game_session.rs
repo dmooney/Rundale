@@ -370,7 +370,7 @@ pub async fn resolve_reaction_texts(
     client: Option<&OpenAiClient>,
     model: &str,
     inference_log: Option<&InferenceLog>,
-) -> Vec<String> {
+) -> Vec<(String, String)> {
     use crate::npc::reactions::build_reaction_prompt;
 
     let timeout_secs = ReactionConfig::default().llm_timeout_secs;
@@ -452,7 +452,7 @@ pub async fn resolve_reaction_texts(
         } else {
             reaction.canned_text.clone()
         };
-        texts.push(text);
+        texts.push((reaction.npc_display_name.clone(), text));
     }
     texts
 }
