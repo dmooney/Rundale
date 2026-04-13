@@ -24,7 +24,7 @@ use tower_http::services::ServeDir;
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::{GameMod, find_default_mod};
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
@@ -138,6 +138,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
     let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
+    // Capture provider name before config is moved into build_app_state.
+    let provider_name = config.provider_name.clone();
     let state = build_app_state(
         world,
         npc_manager,
@@ -153,13 +155,18 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         flags_path,
     );
 
-    // Initialize inference queue
-    if let Some(ref client) = client {
+    // Initialize inference queue — use the simulator if configured, else the real client.
+    let any_client: Option<AnyClient> = if provider_name == "simulator" {
+        Some(AnyClient::simulator())
+    } else {
+        client.map(AnyClient::open_ai)
+    };
+    if let Some(ac) = any_client {
         let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
         let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
         let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
         let _worker = spawn_inference_worker(
-            client.clone(),
+            ac,
             interactive_rx,
             background_rx,
             batch_rx,
@@ -701,7 +708,7 @@ fn spawn_background_ticks(state: Arc<AppState>) {
 
 /// Builds the local LLM client and config from environment variables.
 fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
-    let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "ollama".to_string());
+    let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
         parish_core::config::Provider::from_str_loose(&provider)
@@ -800,8 +807,8 @@ mod tests {
 
     #[test]
     fn build_client_and_config_defaults() {
-        // In test env, PARISH_PROVIDER is usually not set → defaults to "ollama"
+        // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
         let (_client, config) = build_client_and_config();
-        assert_eq!(config.provider_name, "ollama");
+        assert_eq!(config.provider_name, "simulator");
     }
 }

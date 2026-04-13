@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
@@ -170,21 +170,30 @@ pub async fn submit_input(
 /// Config is read in a scoped block so the lock is dropped before any other
 /// lock is acquired, minimising the race window between concurrent rebuilds.
 async fn rebuild_inference(state: &Arc<AppState>) {
-    let new_client = {
+    // Read config first, then drop the lock before acquiring any other lock.
+    let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
-        OpenAiClient::new(&config.base_url, config.api_key.as_deref())
+        (
+            config.provider_name.clone(),
+            config.base_url.clone(),
+            config.api_key.clone(),
+        )
     };
 
-    {
+    let any_client = if provider_name == "simulator" {
+        AnyClient::simulator()
+    } else {
+        let oai = OpenAiClient::new(&base_url, api_key.as_deref());
         let mut client_guard = state.client.lock().await;
-        *client_guard = Some(new_client.clone());
-    }
+        *client_guard = Some(oai.clone());
+        AnyClient::open_ai(oai)
+    };
 
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
     let _worker = spawn_inference_worker(
-        new_client,
+        any_client,
         interactive_rx,
         background_rx,
         batch_rx,

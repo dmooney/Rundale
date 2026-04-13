@@ -7,7 +7,7 @@
 use crate::app::App;
 use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, ProviderConfig};
 use crate::inference::openai_client::OpenAiClient;
-use crate::inference::{self, InferenceClients, InferenceQueue};
+use crate::inference::{self, AnyClient, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
@@ -59,8 +59,13 @@ pub async fn run_headless(
     let (background_tx, background_rx) = mpsc::channel(32);
     let (batch_tx, batch_rx) = mpsc::channel(64);
     let inference_log = inference::new_inference_log();
+    let worker_client = if provider_config.provider == parish_core::config::Provider::Simulator {
+        AnyClient::simulator()
+    } else {
+        AnyClient::open_ai(dial_client.clone())
+    };
     let _worker = inference::spawn_inference_worker(
-        dial_client.clone(),
+        worker_client,
         interactive_rx,
         background_rx,
         batch_rx,
@@ -93,20 +98,23 @@ pub async fn run_headless(
     }
     app.flags_path = flags_path;
 
-    // Set intent client/model
-    let (intent_cl, intent_mdl) = clients.intent_client();
-    app.intent_client = Some(intent_cl.clone());
-    app.intent_model = intent_mdl.to_string();
+    // Set intent / simulation / reaction clients — skip for the simulator
+    // provider since it has no real HTTP client and the dummy URL would cause
+    // connection-timeout delays during intent parsing.
+    let is_simulator = provider_config.provider == parish_core::config::Provider::Simulator;
+    if !is_simulator {
+        let (intent_cl, intent_mdl) = clients.intent_client();
+        app.intent_client = Some(intent_cl.clone());
+        app.intent_model = intent_mdl.to_string();
 
-    // Set simulation client/model
-    let (sim_cl, sim_mdl) = clients.simulation_client();
-    app.simulation_client = Some(sim_cl.clone());
-    app.simulation_model = sim_mdl.to_string();
+        let (sim_cl, sim_mdl) = clients.simulation_client();
+        app.simulation_client = Some(sim_cl.clone());
+        app.simulation_model = sim_mdl.to_string();
 
-    // Set reaction client/model
-    let (react_cl, react_mdl) = clients.reaction_client();
-    app.reaction_client = Some(react_cl.clone());
-    app.reaction_model = react_mdl.to_string();
+        let (react_cl, react_mdl) = clients.reaction_client();
+        app.reaction_client = Some(react_cl.clone());
+        app.reaction_model = react_mdl.to_string();
+    }
 
     // Initialize per-category provider metadata from config
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
@@ -195,9 +203,16 @@ pub async fn run_headless(
             InputResult::SystemCommand(cmd) => {
                 let (quit, rebuild) = handle_headless_command(&mut app, cmd).await;
                 if rebuild {
-                    // Rebuild dialogue queue: prefer cloud client, fall back to local
-                    let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
-                    if let Some(new_client) = dial_client {
+                    // Rebuild dialogue queue: simulator, cloud, or local client.
+                    let any = if app.provider_name == "simulator" {
+                        Some(AnyClient::simulator())
+                    } else {
+                        app.cloud_client
+                            .clone()
+                            .or_else(|| app.client.clone())
+                            .map(AnyClient::open_ai)
+                    };
+                    if let Some(new_client) = any {
                         let (interactive_tx, interactive_rx) = mpsc::channel(16);
                         let (background_tx, background_rx) = mpsc::channel(32);
                         let (batch_tx, batch_rx) = mpsc::channel(64);
@@ -217,17 +232,11 @@ pub async fn run_headless(
                 }
             }
             InputResult::GameInput(text) => {
-                let intent_client = match app.intent_client.clone() {
-                    Some(client) => client,
-                    None => {
-                        eprintln!("Intent client unavailable; cannot process input");
-                        continue;
-                    }
-                };
+                let intent_client = app.intent_client.clone();
                 let intent_model = app.intent_model.clone();
                 handle_headless_game_input(
                     &mut app,
-                    &intent_client,
+                    intent_client.as_ref(),
                     &intent_model,
                     &text,
                     &mut request_id,
@@ -527,7 +536,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
     for effect in &result.effects {
         match effect {
             CommandEffect::RebuildInference => {
-                app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+                if app.provider_name != "simulator" {
+                    app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+                }
                 rebuild = true;
             }
             CommandEffect::RebuildCloudClient => {
@@ -850,16 +861,28 @@ async fn handle_headless_new_game(app: &mut App) {
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
 async fn handle_headless_game_input(
     app: &mut App,
-    client: &OpenAiClient,
+    client: Option<&OpenAiClient>,
     model: &str,
     text: &str,
     request_id: &mut u64,
 ) -> Result<()> {
-    // Pause the game clock during intent parsing inference
-    app.world.clock.inference_pause();
-    let intent_result = parse_intent(client, text, model).await;
-    app.world.clock.inference_resume();
-    let intent = intent_result?;
+    // Parse intent: try local keyword matching first, fall back to LLM.
+    let intent = if let Some(local) = crate::input::parse_intent_local(text) {
+        local
+    } else if let Some(client) = client {
+        app.world.clock.inference_pause();
+        let result = parse_intent(client, text, model).await;
+        app.world.clock.inference_resume();
+        result?
+    } else {
+        // No client (e.g. simulator mode) — treat as generic dialogue.
+        crate::input::PlayerIntent {
+            intent: crate::input::IntentKind::Talk,
+            target: None,
+            dialogue: Some(text.to_string()),
+            raw: text.to_string(),
+        }
+    };
 
     match intent.intent {
         crate::input::IntentKind::Move => {

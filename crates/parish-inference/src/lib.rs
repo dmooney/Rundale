@@ -8,6 +8,7 @@ pub mod client;
 pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
+pub mod simulator;
 
 pub use rate_limit::InferenceRateLimiter;
 
@@ -17,6 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use openai_client::OpenAiClient;
+use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
@@ -287,6 +289,108 @@ impl InferenceClients {
     }
 }
 
+/// A unified client handle that can be either a real OpenAI-compatible
+/// HTTP client or the built-in offline simulator.
+///
+/// Use `AnyClient::OpenAi` for all real providers (Ollama, OpenRouter, etc.)
+/// and `AnyClient::Simulator` to run without any LLM for testing.
+#[derive(Clone)]
+pub enum AnyClient {
+    /// A real OpenAI-compatible HTTP client.
+    OpenAi(OpenAiClient),
+    /// The built-in offline simulator (generates funny nonsense locally).
+    Simulator(Arc<SimulatorClient>),
+}
+
+impl AnyClient {
+    /// Wraps a real `OpenAiClient`.
+    pub fn open_ai(client: OpenAiClient) -> Self {
+        Self::OpenAi(client)
+    }
+
+    /// Creates a new simulator client.
+    pub fn simulator() -> Self {
+        Self::Simulator(Arc::new(SimulatorClient::new()))
+    }
+
+    /// Generates plain text (non-streaming).
+    pub async fn generate(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
+    /// Generates text with token streaming.
+    pub async fn generate_stream(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
+    /// Generates a structured JSON response and deserializes it into `T`.
+    pub async fn generate_json<T: serde::de::DeserializeOwned>(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<T, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
+    /// Returns a reference to the inner `OpenAiClient`, if this is a real client.
+    pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
+        match self {
+            Self::OpenAi(c) => Some(c),
+            Self::Simulator(_) => None,
+        }
+    }
+
+    /// Returns `true` if this is the offline simulator.
+    pub fn is_simulator(&self) -> bool {
+        matches!(self, Self::Simulator(_))
+    }
+}
+
 /// Spawns the inference worker task.
 ///
 /// The worker pulls requests from three priority lanes using `tokio::select!`
@@ -297,7 +401,7 @@ impl InferenceClients {
 /// Each completed call is recorded in the shared `log` ring buffer.
 /// The task runs until all three sender sides of the channels are dropped.
 pub fn spawn_inference_worker(
-    client: OpenAiClient,
+    client: AnyClient,
     mut interactive_rx: mpsc::Receiver<InferenceRequest>,
     mut background_rx: mpsc::Receiver<InferenceRequest>,
     mut batch_rx: mpsc::Receiver<InferenceRequest>,

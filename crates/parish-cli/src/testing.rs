@@ -17,6 +17,7 @@
 //! ```
 
 use crate::app::App;
+use crate::inference::simulator::SimulatorClient;
 use crate::input::{self, Command, InputResult, IntentKind};
 use crate::npc::Npc;
 use crate::npc::manager::NpcManager;
@@ -28,6 +29,7 @@ use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 /// The result of executing a command through the test harness.
 ///
@@ -105,6 +107,8 @@ pub struct GameTestHarness {
     canned_responses: HashMap<String, Vec<String>>,
     /// Synchronous database handle for persistence in tests.
     db_sync: Option<crate::persistence::Database>,
+    /// Optional offline simulator used as a fallback when no canned response exists.
+    simulator: Option<Arc<SimulatorClient>>,
 }
 
 impl GameTestHarness {
@@ -158,7 +162,27 @@ impl GameTestHarness {
             app,
             canned_responses: HashMap::new(),
             db_sync,
+            simulator: None,
         }
+    }
+
+    /// Attaches the built-in offline simulator as a fallback for NPC dialogue.
+    ///
+    /// When the harness needs an NPC response and no canned reply has been
+    /// registered with [`add_canned_response`], it will ask the simulator
+    /// for a funny Markov-chain response instead of returning
+    /// [`ActionResult::NpcNotAvailable`]. No network or GPU required.
+    ///
+    /// ```rust,no_run
+    /// use parish::testing::GameTestHarness;
+    /// let mut h = GameTestHarness::new().with_simulator();
+    /// h.execute("go to pub");
+    /// h.execute("hello"); // NPC responds with Markov nonsense
+    /// ```
+    pub fn with_simulator(mut self) -> Self {
+        self.simulator = Some(Arc::new(SimulatorClient::new()));
+        self.app.provider_name = "simulator".to_string();
+        self
     }
 
     /// Executes a raw input string and returns a structured result.
@@ -1025,6 +1049,20 @@ impl GameTestHarness {
                     anachronisms: anachronism_terms,
                 };
             }
+        }
+
+        // No canned response — fall back to the simulator if configured.
+        if let Some(ref sim) = self.simulator
+            && let Some(npc) = npcs_here.first()
+        {
+            let dialogue = sim.generate_sync(text, None);
+            let name = npc.name.clone();
+            self.app.world.log(format!("{}: {}", name, dialogue));
+            return ActionResult::NpcResponse {
+                npc: name,
+                dialogue,
+                anachronisms: anachronism_terms,
+            };
         }
 
         ActionResult::NpcNotAvailable
@@ -1900,6 +1938,7 @@ mod tests {
             app,
             canned_responses: std::collections::HashMap::new(),
             db_sync: None,
+            simulator: None,
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)

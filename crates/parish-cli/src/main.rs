@@ -264,6 +264,13 @@ async fn setup_provider(
     parish::inference::client::OllamaProcess,
 )> {
     match config.provider {
+        Provider::Simulator => {
+            // Built-in simulator: no network, no model download required.
+            tracing::info!("Using built-in inference simulator (GPT-0 mode)");
+            let dummy_client = OpenAiClient::new("http://localhost:1", None);
+            let dummy_process = parish::inference::client::OllamaProcess::none();
+            return Ok((dummy_client, "simulator".to_string(), dummy_process));
+        }
         Provider::Ollama => {
             let progress = StdoutProgress;
             let setup =

@@ -31,8 +31,7 @@ const DEFAULT_TOGETHER_URL: &str = "https://api.together.xyz";
 /// auto-start, GPU detection, and model pulling features.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Provider {
-    /// Local Ollama server with auto-management (default).
-    #[default]
+    /// Local Ollama server with auto-management.
     Ollama,
     /// Local LM Studio server.
     LmStudio,
@@ -56,6 +55,10 @@ pub enum Provider {
     Together,
     /// Any OpenAI-compatible endpoint (requires base_url).
     Custom,
+    /// Built-in offline simulator — generates funny nonsense locally,
+    /// no network, no model download. Default when no provider is configured.
+    #[default]
+    Simulator,
 }
 
 impl Provider {
@@ -74,9 +77,10 @@ impl Provider {
             "deepseek" | "deep-seek" | "deep_seek" => Ok(Provider::DeepSeek),
             "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
             "custom" => Ok(Provider::Custom),
+            "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
                 "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
-                 google, groq, xai, mistral, deepseek, together, custom",
+                 google, groq, xai, mistral, deepseek, together, custom, simulator",
                 other
             ))),
         }
@@ -97,6 +101,7 @@ impl Provider {
             Provider::DeepSeek => DEFAULT_DEEPSEEK_URL,
             Provider::Together => DEFAULT_TOGETHER_URL,
             Provider::Custom => "",
+            Provider::Simulator => "",
         }
     }
 
@@ -118,7 +123,7 @@ impl Provider {
     /// Whether this provider requires an explicit model name
     /// (no auto-detection available).
     pub fn requires_model(&self) -> bool {
-        !matches!(self, Provider::Ollama)
+        !matches!(self, Provider::Ollama | Provider::Simulator)
     }
 }
 
@@ -766,8 +771,8 @@ mod tests {
 
         let cli = CliOverrides::default();
         let config = resolve_config(Some(Path::new("/nonexistent/parish.toml")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Ollama);
-        assert_eq!(config.base_url, "http://localhost:11434");
+        assert_eq!(config.provider, Provider::Simulator);
+        assert_eq!(config.base_url, "");
         assert!(config.api_key.is_none());
         assert!(config.model.is_none());
     }
