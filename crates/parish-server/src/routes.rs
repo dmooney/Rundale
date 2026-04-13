@@ -481,9 +481,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             .emit("text-log", &text_log(msg.source, &msg.text));
     }
 
-    // Emit NPC arrival reactions — upgrade to LLM text where available
+    // Emit NPC arrival reactions — stream gradually like normal NPC dialogue
     if !effects.arrival_reactions.is_empty() {
-        use parish_core::game_session::resolve_reaction_texts;
+        use parish_core::game_session::stream_reaction_texts;
 
         let (
             all_npcs,
@@ -516,7 +516,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             )
         };
 
-        let texts = resolve_reaction_texts(
+        stream_reaction_texts(
             &effects.arrival_reactions,
             &all_npcs,
             current_location_id,
@@ -527,13 +527,28 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             reaction_client.as_ref(),
             &reaction_model,
             None,
+            |_turn_id, npc_name| {
+                state
+                    .event_bus
+                    .emit("text-log", &text_log(npc_name, String::new()));
+            },
+            |turn_id, source, batch| {
+                state.event_bus.emit(
+                    "stream-token",
+                    &StreamTokenPayload {
+                        token: batch.to_string(),
+                        turn_id,
+                        source: source.to_string(),
+                    },
+                );
+            },
         )
         .await;
 
-        for (display_name, text) in texts {
-            let label = capitalize_first(&display_name);
-            state.event_bus.emit("text-log", &text_log(label, text));
-        }
+        // Finalise the streaming state so the frontend marks the last entry done.
+        state
+            .event_bus
+            .emit("stream-end", &StreamEndPayload { hints: vec![] });
     }
 
     // Emit updated world snapshot after a successful move
