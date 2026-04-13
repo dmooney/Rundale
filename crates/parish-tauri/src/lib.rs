@@ -543,6 +543,7 @@ pub fn run() {
             category_api_key: [None, None, None, None],
             category_base_url: [None, None, None, None],
             flags,
+            category_rate_limit: [None, None, None, None],
         }),
     });
 

@@ -8,6 +8,7 @@
 //! Game-specific CONTENT (prompts, loading phrases, encounter text) lives in
 //! the mod system (`GameMod` / `mod.toml`).
 
+use crate::provider::InferenceCategory;
 use parish_types::SpeedConfig;
 use serde::Deserialize;
 
@@ -62,6 +63,13 @@ pub struct InferenceConfig {
     /// Maximum entries in the debug inference log ring buffer.
     #[serde(default = "default_log_capacity")]
     pub log_capacity: usize,
+    /// Per-category outbound request rate limits.
+    ///
+    /// Defaults to no limit. Useful when targeting paid providers
+    /// (OpenRouter, Anthropic, etc.) to avoid burning through quota
+    /// or hitting `429 Too Many Requests`.
+    #[serde(default)]
+    pub rate_limits: RateLimitConfig,
 }
 
 impl Default for InferenceConfig {
@@ -73,6 +81,7 @@ impl Default for InferenceConfig {
             model_download_timeout_secs: 3600,
             model_loading_timeout_secs: 300,
             log_capacity: 50,
+            rate_limits: RateLimitConfig::default(),
         }
     }
 }
@@ -94,6 +103,82 @@ fn default_model_loading_timeout_secs() -> u64 {
 }
 fn default_log_capacity() -> usize {
     50
+}
+
+// ---------------------------------------------------------------------------
+// Rate limiting
+// ---------------------------------------------------------------------------
+
+/// Per-category rate limit configuration for outbound LLM requests.
+///
+/// All fields are optional. A `None` value disables rate limiting for
+/// that category. Categories without an explicit override fall back to
+/// the [`RateLimitConfig::default`] field, which applies to the base
+/// provider client. Configuration example (`parish.toml`):
+///
+/// ```toml
+/// [engine.inference.rate_limits.default]
+/// per_minute = 60
+/// burst = 10
+///
+/// [engine.inference.rate_limits.dialogue]
+/// per_minute = 20
+/// burst = 4
+/// ```
+#[derive(Debug, Default, Deserialize, Clone, Copy)]
+pub struct RateLimitConfig {
+    /// Default rate limit applied to the base provider client.
+    /// Categories without an explicit override share this limiter.
+    #[serde(default)]
+    pub default: Option<CategoryRateLimit>,
+    /// Override for the player-facing NPC dialogue category.
+    #[serde(default)]
+    pub dialogue: Option<CategoryRateLimit>,
+    /// Override for the background NPC simulation category.
+    #[serde(default)]
+    pub simulation: Option<CategoryRateLimit>,
+    /// Override for the player intent parsing category.
+    #[serde(default)]
+    pub intent: Option<CategoryRateLimit>,
+    /// Override for the NPC arrival reaction category.
+    #[serde(default)]
+    pub reaction: Option<CategoryRateLimit>,
+}
+
+impl RateLimitConfig {
+    /// Returns the configured rate limit for a category override, if any.
+    ///
+    /// This does NOT fall back to [`Self::default`] — the base limit is
+    /// only applied to the base client itself, not to per-category
+    /// override clients. (Override clients target a different provider
+    /// endpoint and should have their own quota.)
+    pub fn for_category(&self, cat: InferenceCategory) -> Option<CategoryRateLimit> {
+        match cat {
+            InferenceCategory::Dialogue => self.dialogue,
+            InferenceCategory::Simulation => self.simulation,
+            InferenceCategory::Intent => self.intent,
+            InferenceCategory::Reaction => self.reaction,
+        }
+    }
+}
+
+/// A single rate-limit quota: sustained rate plus burst capacity.
+///
+/// Implements a token-bucket / GCRA model: up to `burst` requests may
+/// be issued back-to-back, after which new requests are admitted at
+/// `per_minute / 60` per second until the bucket refills.
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct CategoryRateLimit {
+    /// Sustained rate: maximum number of requests admitted per minute.
+    /// Must be greater than zero — a value of zero disables the limiter.
+    pub per_minute: u32,
+    /// Maximum burst size (token-bucket capacity). Defaults to 1.
+    #[serde(default = "default_burst")]
+    pub burst: u32,
+}
+
+fn default_burst() -> u32 {
+    1
 }
 
 // ---------------------------------------------------------------------------
@@ -726,5 +811,94 @@ memory_capacity = 30
     fn test_inference_log_capacity_default() {
         let cfg = InferenceConfig::default();
         assert_eq!(cfg.log_capacity, 50);
+    }
+
+    #[test]
+    fn test_rate_limit_config_default_is_unset() {
+        let cfg = RateLimitConfig::default();
+        assert!(cfg.default.is_none());
+        assert!(cfg.dialogue.is_none());
+        assert!(cfg.simulation.is_none());
+        assert!(cfg.intent.is_none());
+        assert!(cfg.reaction.is_none());
+    }
+
+    #[test]
+    fn test_inference_config_default_has_no_rate_limits() {
+        let cfg = InferenceConfig::default();
+        assert!(cfg.rate_limits.default.is_none());
+        assert!(cfg.rate_limits.dialogue.is_none());
+    }
+
+    #[test]
+    fn test_rate_limit_config_for_category_returns_override() {
+        let cfg = RateLimitConfig {
+            dialogue: Some(CategoryRateLimit {
+                per_minute: 20,
+                burst: 4,
+            }),
+            simulation: Some(CategoryRateLimit {
+                per_minute: 60,
+                burst: 10,
+            }),
+            ..RateLimitConfig::default()
+        };
+        let dial = cfg.for_category(InferenceCategory::Dialogue).unwrap();
+        assert_eq!(dial.per_minute, 20);
+        assert_eq!(dial.burst, 4);
+        let sim = cfg.for_category(InferenceCategory::Simulation).unwrap();
+        assert_eq!(sim.per_minute, 60);
+        assert!(cfg.for_category(InferenceCategory::Intent).is_none());
+        assert!(cfg.for_category(InferenceCategory::Reaction).is_none());
+    }
+
+    #[test]
+    fn test_rate_limit_config_for_category_does_not_inherit_default() {
+        // The `default` field is for the base client, not per-category fallback.
+        let cfg = RateLimitConfig {
+            default: Some(CategoryRateLimit {
+                per_minute: 100,
+                burst: 5,
+            }),
+            ..RateLimitConfig::default()
+        };
+        assert!(cfg.for_category(InferenceCategory::Dialogue).is_none());
+    }
+
+    #[test]
+    fn test_category_rate_limit_burst_defaults_to_one() {
+        let toml = "per_minute = 30";
+        let cfg: CategoryRateLimit = toml::from_str(toml).unwrap();
+        assert_eq!(cfg.per_minute, 30);
+        assert_eq!(cfg.burst, 1);
+    }
+
+    #[test]
+    fn test_inference_config_parses_rate_limits_from_toml() {
+        let toml_text = r#"
+            [rate_limits.default]
+            per_minute = 60
+            burst = 10
+
+            [rate_limits.dialogue]
+            per_minute = 20
+            burst = 4
+
+            [rate_limits.simulation]
+            per_minute = 30
+        "#;
+        let cfg: InferenceConfig = toml::from_str(toml_text).unwrap();
+        let default = cfg.rate_limits.default.unwrap();
+        assert_eq!(default.per_minute, 60);
+        assert_eq!(default.burst, 10);
+        let dial = cfg.rate_limits.dialogue.unwrap();
+        assert_eq!(dial.per_minute, 20);
+        assert_eq!(dial.burst, 4);
+        let sim = cfg.rate_limits.simulation.unwrap();
+        assert_eq!(sim.per_minute, 30);
+        assert_eq!(sim.burst, 1);
+        // Unspecified categories remain None
+        assert!(cfg.rate_limits.intent.is_none());
+        assert!(cfg.rate_limits.reaction.is_none());
     }
 }

@@ -827,8 +827,13 @@ pub async fn setup_ollama_with_config(
     // Step 6: Warm up the model (uses Ollama native /api/generate)
     warmup_model_with_config(base_url, &model_config.model_name, progress, config).await?;
 
-    // Create an OpenAI-compatible client pointing at Ollama's /v1/ endpoint
-    let client = OpenAiClient::new_with_config(base_url, None, config);
+    // Create an OpenAI-compatible client pointing at Ollama's /v1/ endpoint.
+    // Attach the configured base rate limiter so all calls that fall through
+    // to the base provider (no per-category override) are throttled together.
+    let base_limiter =
+        crate::rate_limit::InferenceRateLimiter::from_config(config.rate_limits.default);
+    let client =
+        OpenAiClient::new_with_config(base_url, None, config).maybe_with_rate_limit(base_limiter);
 
     Ok(OllamaSetup {
         process,

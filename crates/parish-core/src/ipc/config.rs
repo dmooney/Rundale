@@ -5,7 +5,8 @@
 //! and the headless CLI — eliminating the duplicate `GameConfig` structs that
 //! previously lived in each backend.
 
-use crate::config::{FeatureFlags, InferenceCategory};
+use crate::config::{FeatureFlags, InferenceCategory, RateLimitConfig};
+use crate::inference::InferenceRateLimiter;
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
 ///
@@ -47,6 +48,14 @@ pub struct GameConfig {
     pub category_base_url: [Option<String>; 4],
     /// Runtime feature flags for safe deployment of in-progress features.
     pub flags: FeatureFlags,
+    /// Per-category outbound rate limiters, pre-built from the
+    /// engine `[inference.rate_limits]` config.
+    ///
+    /// Attached automatically by [`Self::resolve_category_client`] when
+    /// constructing per-category override clients. Categories that fall
+    /// back to the base client inherit whatever limiter the base client
+    /// was constructed with (see [`crate::inference::openai_client::OpenAiClient::with_rate_limit`]).
+    pub category_rate_limit: [Option<InferenceRateLimiter>; 4],
 }
 
 impl GameConfig {
@@ -63,9 +72,10 @@ impl GameConfig {
     /// Resolves the client and model for a given inference category.
     ///
     /// If the category has per-category overrides (provider/key/URL), builds a
-    /// new [`OpenAiClient`] from those settings. Otherwise falls back to the
-    /// supplied `base_client`. The model falls back to `self.model_name` if no
-    /// per-category model is set.
+    /// new [`OpenAiClient`] from those settings and attaches the per-category
+    /// rate limiter (if configured). Otherwise falls back to the supplied
+    /// `base_client`, which already carries its own rate limiter from setup.
+    /// The model falls back to `self.model_name` if no per-category model is set.
     ///
     /// Returns `None` if no client is available (base is `None` and no
     /// category override is configured).
@@ -91,12 +101,33 @@ impl GameConfig {
                 let key = self.category_api_key[idx]
                     .as_deref()
                     .or(self.api_key.as_deref());
-                Some(crate::inference::openai_client::OpenAiClient::new(url, key))
+                let new_client = crate::inference::openai_client::OpenAiClient::new(url, key)
+                    .maybe_with_rate_limit(self.category_rate_limit[idx].clone());
+                Some(new_client)
             } else {
                 base_client.cloned()
             };
 
         (client, model)
+    }
+
+    /// Installs per-category rate limiters from a parsed config.
+    ///
+    /// Builds an [`InferenceRateLimiter`] for each category that has an
+    /// entry in `cfg`, and stores them in `category_rate_limit`. Categories
+    /// without an entry (or with a zero rate) are left unset, meaning the
+    /// resolved client for that category will not be rate-limited beyond
+    /// whatever limit the base client itself carries.
+    ///
+    /// The base client's rate limit (`cfg.default`) is NOT installed here —
+    /// it must be applied at base-client construction time in `setup.rs`,
+    /// because cloning a client preserves its limiter.
+    pub fn install_rate_limits(&mut self, cfg: &RateLimitConfig) {
+        for cat in InferenceCategory::ALL {
+            let idx = Self::cat_idx(cat);
+            self.category_rate_limit[idx] =
+                InferenceRateLimiter::from_config(cfg.for_category(cat));
+        }
     }
 }
 
@@ -120,6 +151,7 @@ impl Default for GameConfig {
             category_api_key: Default::default(),
             category_base_url: Default::default(),
             flags: FeatureFlags::default(),
+            category_rate_limit: Default::default(),
         }
     }
 }
@@ -185,5 +217,114 @@ mod tests {
         let cfg = GameConfig::default();
         let (client, _model) = cfg.resolve_category_client(InferenceCategory::Intent, None);
         assert!(client.is_none());
+    }
+
+    #[test]
+    fn install_rate_limits_populates_configured_categories() {
+        use crate::config::{CategoryRateLimit, RateLimitConfig};
+
+        let mut cfg = GameConfig::default();
+        let rl = RateLimitConfig {
+            dialogue: Some(CategoryRateLimit {
+                per_minute: 30,
+                burst: 5,
+            }),
+            intent: Some(CategoryRateLimit {
+                per_minute: 120,
+                burst: 10,
+            }),
+            ..RateLimitConfig::default()
+        };
+        cfg.install_rate_limits(&rl);
+
+        let dial_idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
+        let intent_idx = GameConfig::cat_idx(InferenceCategory::Intent);
+        let sim_idx = GameConfig::cat_idx(InferenceCategory::Simulation);
+        let react_idx = GameConfig::cat_idx(InferenceCategory::Reaction);
+
+        assert!(cfg.category_rate_limit[dial_idx].is_some());
+        assert!(cfg.category_rate_limit[intent_idx].is_some());
+        assert!(cfg.category_rate_limit[sim_idx].is_none());
+        assert!(cfg.category_rate_limit[react_idx].is_none());
+    }
+
+    #[test]
+    fn install_rate_limits_skips_zero_rate() {
+        use crate::config::{CategoryRateLimit, RateLimitConfig};
+
+        let mut cfg = GameConfig::default();
+        let rl = RateLimitConfig {
+            dialogue: Some(CategoryRateLimit {
+                per_minute: 0,
+                burst: 5,
+            }),
+            ..RateLimitConfig::default()
+        };
+        cfg.install_rate_limits(&rl);
+        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
+        assert!(cfg.category_rate_limit[idx].is_none());
+    }
+
+    #[test]
+    fn resolve_category_client_attaches_per_category_rate_limit() {
+        use crate::config::{CategoryRateLimit, RateLimitConfig};
+
+        let mut cfg = GameConfig {
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
+        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
+        cfg.category_api_key[idx] = Some("sk-test".to_string());
+
+        // Install a rate limit for the Reaction category.
+        let rl_cfg = RateLimitConfig {
+            reaction: Some(CategoryRateLimit {
+                per_minute: 60,
+                burst: 5,
+            }),
+            ..RateLimitConfig::default()
+        };
+        cfg.install_rate_limits(&rl_cfg);
+
+        let (client, _model) = cfg.resolve_category_client(InferenceCategory::Reaction, None);
+        let client = client.expect("override client built");
+        assert!(client.has_rate_limiter());
+    }
+
+    #[test]
+    fn resolve_category_client_override_without_rate_limit_is_unlimited() {
+        let mut cfg = GameConfig {
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
+        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
+        cfg.category_api_key[idx] = Some("sk-test".to_string());
+
+        let (client, _model) = cfg.resolve_category_client(InferenceCategory::Reaction, None);
+        let client = client.expect("override client built");
+        assert!(!client.has_rate_limiter());
+    }
+
+    #[test]
+    fn resolve_category_client_inherited_base_keeps_base_rate_limit() {
+        use crate::inference::InferenceRateLimiter;
+        use crate::inference::openai_client::OpenAiClient;
+
+        let cfg = GameConfig {
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let limiter = InferenceRateLimiter::new(60, 5).expect("limiter");
+        let base = OpenAiClient::new("http://localhost:11434", None).with_rate_limit(limiter);
+
+        let (client, _model) =
+            cfg.resolve_category_client(InferenceCategory::Dialogue, Some(&base));
+        let client = client.expect("inherits base");
+        assert!(client.has_rate_limiter(), "base limiter is preserved");
     }
 }

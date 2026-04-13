@@ -742,6 +742,7 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
         category_api_key: [None, None, None, None],
         category_base_url: [None, None, None, None],
         flags: FeatureFlags::default(),
+        category_rate_limit: [None, None, None, None],
     };
 
     (client, config)

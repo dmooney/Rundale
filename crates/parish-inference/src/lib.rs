@@ -6,7 +6,10 @@
 
 pub mod client;
 pub mod openai_client;
+pub mod rate_limit;
 pub mod setup;
+
+pub use rate_limit::InferenceRateLimiter;
 
 use std::collections::VecDeque;
 use std::sync::Arc;

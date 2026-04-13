@@ -1765,6 +1765,7 @@ mod tests {
                 category_api_key: [None, None, None, None],
                 category_base_url: [None, None, None, None],
                 flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: [None, None, None, None],
             },
             None,
             transport,

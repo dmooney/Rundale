@@ -4,6 +4,7 @@
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
 
+use crate::rate_limit::InferenceRateLimiter;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
@@ -17,6 +18,11 @@ use tokio::sync::mpsc;
 /// implements the `/v1/chat/completions` API. Provides the same
 /// logical interface as the legacy Ollama-native client: plain text
 /// generation, streaming generation, and structured JSON output.
+///
+/// Optionally holds an [`InferenceRateLimiter`] applied to every
+/// outbound request — when set, calls block until the limiter has
+/// a free slot, transparently throttling per-provider request rates
+/// without any caller awareness.
 #[derive(Clone)]
 pub struct OpenAiClient {
     /// HTTP client with default timeout for non-streaming requests.
@@ -28,6 +34,8 @@ pub struct OpenAiClient {
     base_url: String,
     /// Optional API key for authenticated providers.
     api_key: Option<String>,
+    /// Optional outbound request rate limiter. `None` means unlimited.
+    rate_limiter: Option<InferenceRateLimiter>,
 }
 
 /// A single message in the chat completions request.
@@ -150,6 +158,39 @@ impl OpenAiClient {
             streaming_client,
             base_url: normalized,
             api_key: api_key.map(|s| s.to_string()),
+            rate_limiter: None,
+        }
+    }
+
+    /// Attaches an outbound rate limiter, returning the modified client.
+    ///
+    /// All subsequent `generate*` calls will block on the limiter
+    /// before issuing the HTTP request. Use [`InferenceRateLimiter::from_config`]
+    /// to build a limiter from a `parish.toml` `[rate_limits]` entry.
+    pub fn with_rate_limit(mut self, limiter: InferenceRateLimiter) -> Self {
+        self.rate_limiter = Some(limiter);
+        self
+    }
+
+    /// Convenience: attach a rate limiter only if `limiter` is `Some`.
+    ///
+    /// Equivalent to `match limiter { Some(l) => self.with_rate_limit(l), None => self }`.
+    pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
+        match limiter {
+            Some(l) => self.with_rate_limit(l),
+            None => self,
+        }
+    }
+
+    /// Returns whether this client has a rate limiter attached.
+    pub fn has_rate_limiter(&self) -> bool {
+        self.rate_limiter.is_some()
+    }
+
+    /// Awaits a free slot in the limiter (no-op if unlimited).
+    async fn acquire_slot(&self) {
+        if let Some(rl) = &self.rate_limiter {
+            rl.acquire().await;
         }
     }
 
@@ -172,6 +213,7 @@ impl OpenAiClient {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
+        self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, false, false, max_tokens, temperature);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
@@ -194,6 +236,7 @@ impl OpenAiClient {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
+        self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, true, false, max_tokens, temperature);
 
         let url = format!("{}/v1/chat/completions", self.base_url);
@@ -246,6 +289,7 @@ impl OpenAiClient {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<T, ParishError> {
+        self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, false, true, max_tokens, temperature);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp.json().await?;
@@ -446,6 +490,51 @@ mod tests {
     fn test_openai_client_with_api_key() {
         let client = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
         assert_eq!(client.api_key.as_deref(), Some("sk-test"));
+    }
+
+    #[test]
+    fn test_openai_client_starts_without_rate_limiter() {
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        assert!(!client.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_with_rate_limit_attaches_limiter() {
+        let limiter = InferenceRateLimiter::new(60, 5).expect("limiter");
+        let client = OpenAiClient::new("http://localhost:11434", None).with_rate_limit(limiter);
+        assert!(client.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_maybe_with_rate_limit_some() {
+        let limiter = InferenceRateLimiter::new(60, 5);
+        let client =
+            OpenAiClient::new("http://localhost:11434", None).maybe_with_rate_limit(limiter);
+        assert!(client.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_maybe_with_rate_limit_none_is_noop() {
+        let client = OpenAiClient::new("http://localhost:11434", None).maybe_with_rate_limit(None);
+        assert!(!client.has_rate_limiter());
+    }
+
+    #[tokio::test]
+    async fn test_acquire_slot_is_noop_without_limiter() {
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        // Should return immediately and not panic.
+        client.acquire_slot().await;
+    }
+
+    #[tokio::test]
+    async fn test_acquire_slot_blocks_when_limiter_exhausted() {
+        // 600/min = 10/sec; burst 1.
+        let limiter = InferenceRateLimiter::new(600, 1).expect("limiter");
+        let client = OpenAiClient::new("http://localhost:11434", None).with_rate_limit(limiter);
+        client.acquire_slot().await; // consume burst
+        let start = std::time::Instant::now();
+        client.acquire_slot().await; // must wait ~100ms
+        assert!(start.elapsed() >= std::time::Duration::from_millis(50));
     }
 
     #[test]
