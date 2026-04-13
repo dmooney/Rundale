@@ -10,20 +10,16 @@ import {
 	loadThemePreference,
 	saveThemePreference
 } from '$lib/theme';
-import {
-	getSunTimes,
-	isNightNow,
-	nextSwitchTime,
-	getUserCoords,
-	IRELAND_LAT,
-	IRELAND_LON
-} from '$lib/sun';
+
+/** Game hour < 6 or >= 20 is considered night. */
+function isGameNight(hour: number): boolean {
+	return hour < 6 || hour >= 20;
+}
 
 function createPaletteStore() {
 	const { subscribe, set } = writable<ThemePalette>(DEFAULT_THEME_PALETTE);
 	let preference: ThemePreference = DEFAULT_PREFERENCE;
-	let switchTimer: ReturnType<typeof setTimeout> | null = null;
-	let coords = { lat: IRELAND_LAT, lon: IRELAND_LON };
+	let lastGameHour: number | null = null;
 
 	function apply(p: ThemePalette) {
 		set(p);
@@ -33,9 +29,12 @@ function createPaletteStore() {
 	function resolveAndApply(pref: ThemePreference) {
 		if (pref.name === 'solarized') {
 			if (pref.mode === 'auto') {
-				const times = getSunTimes(coords.lat, coords.lon, new Date());
-				apply(isNightNow(times.sunrise, times.sunset) ? SOLARIZED_DARK : SOLARIZED_LIGHT);
-				scheduleNext(times);
+				// Use the last known game hour if available; default to light
+				if (lastGameHour !== null) {
+					apply(isGameNight(lastGameHour) ? SOLARIZED_DARK : SOLARIZED_LIGHT);
+				} else {
+					apply(SOLARIZED_LIGHT);
+				}
 			} else if (pref.mode === 'dark') {
 				apply(SOLARIZED_DARK);
 			} else {
@@ -44,25 +43,6 @@ function createPaletteStore() {
 			}
 		}
 		// 'default': no-op — server palette is applied via applyServerPalette
-	}
-
-	function scheduleNext(times: { sunrise: Date; sunset: Date }) {
-		if (switchTimer !== null) {
-			clearTimeout(switchTimer);
-			switchTimer = null;
-		}
-		const next = nextSwitchTime(times.sunrise, times.sunset);
-		if (!next) return;
-		const ms = next.getTime() - Date.now();
-		if (ms <= 0) return;
-		// +1 s buffer so we're safely past the threshold when we re-evaluate
-		switchTimer = setTimeout(() => {
-			switchTimer = null;
-			const today = new Date();
-			const newTimes = getSunTimes(coords.lat, coords.lon, today);
-			resolveAndApply(preference);
-			// resolveAndApply re-schedules the next switch via scheduleNext
-		}, ms + 1000);
 	}
 
 	/**
@@ -75,20 +55,23 @@ function createPaletteStore() {
 	}
 
 	/**
+	 * Called on every world-update with the current game hour (0–23).
+	 * When solarized auto is active, switches light/dark based on game time.
+	 */
+	function applyGameHour(hour: number) {
+		lastGameHour = hour;
+		if (preference.name === 'solarized' && preference.mode === 'auto') {
+			apply(isGameNight(hour) ? SOLARIZED_DARK : SOLARIZED_LIGHT);
+		}
+	}
+
+	/**
 	 * Called when a `"theme-switch"` event arrives from the backend
 	 * (i.e. the player typed a `/theme` command).
 	 */
-	async function setPreference(pref: ThemePreference) {
+	function setPreference(pref: ThemePreference) {
 		preference = pref;
 		saveThemePreference(pref);
-		if (pref.mode === 'auto') {
-			// Refresh geolocation; fall back to Ireland on failure
-			try {
-				coords = await getUserCoords();
-			} catch {
-				/* keep current coords */
-			}
-		}
 		resolveAndApply(pref);
 	}
 
@@ -99,20 +82,7 @@ function createPaletteStore() {
 	preference = saved;
 	resolveAndApply(saved);
 
-	// If auto mode was saved, kick off an async geolocation fetch; if the
-	// resolved coords differ from Ireland, re-apply so the schedule is accurate.
-	if (saved.mode === 'auto') {
-		getUserCoords()
-			.then((c) => {
-				if (c.lat !== coords.lat || c.lon !== coords.lon) {
-					coords = c;
-					resolveAndApply(preference);
-				}
-			})
-			.catch(() => {});
-	}
-
-	return { subscribe, applyServerPalette, setPreference };
+	return { subscribe, applyServerPalette, applyGameHour, setPreference };
 }
 
 export const palette = createPaletteStore();

@@ -174,6 +174,7 @@
 			mapData.set(map);
 			npcsHere.set(npcs);
 			palette.applyServerPalette(theme);
+			palette.applyGameHour(snap.hour);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
 			// Show initial location description in the chat panel
 			if (snap.location_description) {
@@ -361,6 +362,7 @@
 			listeners.push(await onWorldUpdate(async (snap) => {
 				worldState.set(snap);
 				tracker.onWorldStateChange(snap.paused);
+				palette.applyGameHour(snap.hour);
 				if (snap.name_hints) nameHints.set(snap.name_hints);
 				try {
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);

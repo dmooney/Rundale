@@ -411,7 +411,7 @@ async fn handle_system_command(
             }
             CommandEffect::ApplyTheme(name, mode) => {
                 let _ = app.emit(
-                    events::EVENT_THEME_SWITCH,
+                    crate::events::EVENT_THEME_SWITCH,
                     serde_json::json!({ "name": name, "mode": mode }),
                 );
             }

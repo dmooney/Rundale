@@ -460,7 +460,7 @@ pub fn handle_command(
                         let msg = match mode.as_str() {
                             "light" => "Solarized light applied.",
                             "dark" => "Solarized dark applied.",
-                            "auto" => "Solarized auto — follows the real sun.",
+                            "auto" => "Solarized auto — follows the game's time of day.",
                             other => {
                                 return CommandResult::text(format!(
                                     "Unknown mode '{}'. Try: light, dark, auto",
