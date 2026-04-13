@@ -111,6 +111,8 @@ pub enum Command {
     NewGame,
     /// Manually tick NPC schedules without advancing time.
     Tick,
+    /// Show or change the UI theme.
+    Theme(Option<String>),
     /// Invalid branch name was provided.
     InvalidBranchName(String),
     /// Feature flag management (`/flag enable|disable|list <name>`).
@@ -293,6 +295,19 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::NewGame)
     } else if lower == "/tick" {
         Some(Command::Tick)
+    } else if lower == "/theme" {
+        Some(Command::Theme(None))
+    } else if lower.starts_with("/theme ") {
+        let arg = trimmed
+            .get("/theme ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if arg.is_empty() {
+            Some(Command::Theme(None))
+        } else {
+            Some(Command::Theme(Some(arg)))
+        }
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
     } else if lower == "/provider" {
@@ -1338,6 +1353,35 @@ mod tests {
     #[test]
     fn test_parse_tick_command() {
         assert_eq!(parse_system_command("/tick"), Some(Command::Tick));
+    }
+
+    #[test]
+    fn test_parse_theme_command() {
+        assert_eq!(parse_system_command("/theme"), Some(Command::Theme(None)));
+        assert_eq!(
+            parse_system_command("/theme default"),
+            Some(Command::Theme(Some("default".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/theme solarized"),
+            Some(Command::Theme(Some("solarized".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/theme solarized light"),
+            Some(Command::Theme(Some("solarized light".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/theme solarized dark"),
+            Some(Command::Theme(Some("solarized dark".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/theme solarized auto"),
+            Some(Command::Theme(Some("solarized auto".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/THEME Solarized Dark"),
+            Some(Command::Theme(Some("Solarized Dark".to_string())))
+        );
     }
 
     #[test]

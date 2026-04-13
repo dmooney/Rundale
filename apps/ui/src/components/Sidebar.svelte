@@ -14,7 +14,7 @@
 			{#if $nameHints.length > 0 || $languageHints.length > 0}
 				<ul class="hint-list">
 					{#each $nameHints as hint}
-						<li class="hint-item name-hint">
+						<li class="hint-item name-hint hint-name">
 							<span class="word">{hint.word}</span>
 							<span class="pronunciation">[{hint.pronunciation}]</span>
 							{#if hint.meaning}
@@ -23,7 +23,7 @@
 						</li>
 					{/each}
 					{#each $languageHints as hint}
-						<li class="hint-item">
+						<li class="hint-item hint-irish">
 							<span class="word">{hint.word}</span>
 							<span class="pronunciation">[{hint.pronunciation}]</span>
 							{#if hint.meaning}
@@ -44,7 +44,7 @@
 			{#if $nameHints.length > 0 || $languageHints.length > 0}
 				<ul class="hint-list">
 					{#each $nameHints as hint}
-						<li class="hint-item name-hint">
+						<li class="hint-item name-hint hint-name">
 							<span class="word">{hint.word}</span>
 							<span class="pronunciation">[{hint.pronunciation}]</span>
 							{#if hint.meaning}
@@ -53,7 +53,7 @@
 						</li>
 					{/each}
 					{#each $languageHints as hint}
-						<li class="hint-item">
+						<li class="hint-item hint-irish">
 							<span class="word">{hint.word}</span>
 							<span class="pronunciation">[{hint.pronunciation}]</span>
 							{#if hint.meaning}
@@ -191,9 +191,17 @@
 	}
 
 	.word {
-		color: var(--color-accent);
 		font-weight: 600;
 		font-style: italic;
+	}
+
+	.hint-irish .word {
+		color: var(--color-irish);
+	}
+
+	.hint-name .word {
+		color: var(--color-name);
+		font-style: normal;
 	}
 
 	.pronunciation {
@@ -203,10 +211,6 @@
 	.meaning {
 		color: var(--color-fg);
 		font-size: 0.75rem;
-	}
-
-	.name-hint .word {
-		font-style: normal;
 	}
 
 	.empty {

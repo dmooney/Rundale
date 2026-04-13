@@ -65,9 +65,19 @@ pub async fn get_npcs_here(State(state): State<Arc<AppState>>) -> Json<Vec<NpcIn
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// `GET /api/theme` — returns the configured UI theme palette.
+/// `GET /api/theme` — returns the current time-of-day palette (weather + season tinted).
 pub async fn get_theme(State(state): State<Arc<AppState>>) -> Json<ThemePalette> {
-    Json(state.theme_palette.clone())
+    use chrono::Timelike;
+    use parish_core::world::palette::compute_palette;
+    let world = state.world.lock().await;
+    let now = world.clock.now();
+    let raw = compute_palette(
+        now.hour(),
+        now.minute(),
+        world.clock.season(),
+        world.weather,
+    );
+    Json(ThemePalette::from(raw))
 }
 
 /// `GET /api/ui-config` — returns UI configuration (splash text, labels, accent).
@@ -315,6 +325,12 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                         tracing::warn!("Failed to save feature flags: {}", e);
                     }
                 });
+            }
+            CommandEffect::ApplyTheme(name, mode) => {
+                state.event_bus.emit(
+                    "theme-switch",
+                    &serde_json::json!({ "name": name, "mode": mode }),
+                );
             }
         }
     }

@@ -16,7 +16,7 @@ use parish_core::inference::{InferenceQueue, spawn_inference_worker};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first,
-    compute_name_hints, text_log, text_log_for_stream_turn,
+    compute_name_hints, text_log, text_log_for_stream_turn, text_log_typed,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
@@ -155,10 +155,20 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the configured UI theme palette as CSS hex colours.
+/// Returns the current time-of-day palette (weather + season tinted) as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
-    Ok(state.theme_palette.clone())
+    use chrono::Timelike;
+    use parish_core::world::palette::compute_palette;
+    let world = state.world.lock().await;
+    let now = world.clock.now();
+    let raw = compute_palette(
+        now.hour(),
+        now.minute(),
+        world.clock.season(),
+        world.weather,
+    );
+    Ok(ThemePalette::from(raw))
 }
 
 /// Returns a debug snapshot of all game state for the debug panel.
@@ -399,6 +409,12 @@ async fn handle_system_command(
                     }
                 });
             }
+            CommandEffect::ApplyTheme(name, mode) => {
+                let _ = app.emit(
+                    crate::events::EVENT_THEME_SWITCH,
+                    serde_json::json!({ "name": name, "mode": mode }),
+                );
+            }
         }
     }
 
@@ -572,7 +588,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
     // Emit all player-visible messages in order
     for msg in &effects.messages {
-        let _ = app.emit(EVENT_TEXT_LOG, text_log(msg.source, &msg.text));
+        let payload = match msg.subtype {
+            Some(st) => text_log_typed(msg.source, &msg.text, st),
+            None => text_log(msg.source, &msg.text),
+        };
+        let _ = app.emit(EVENT_TEXT_LOG, payload);
     }
 
     // Emit NPC arrival reactions — stream gradually like normal NPC dialogue

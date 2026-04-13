@@ -712,6 +712,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                     eprintln!("Warning: failed to save feature flags: {}", e);
                 }
             }
+            CommandEffect::ApplyTheme(..) => {
+                // No visual theme in headless mode; response text is printed below.
+            }
         }
     }
 

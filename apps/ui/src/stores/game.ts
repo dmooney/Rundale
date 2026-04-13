@@ -43,6 +43,9 @@ export const fullMapOpen = writable<boolean>(false);
 
 export const focailOpen = writable<boolean>(false);
 
+/** Maps message ID → Irish word hints for that completed NPC response. */
+export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
+
 /** Adds a reaction to a message in the text log by message ID. */
 export function addReaction(messageId: string, emoji: string, source: string): void {
 	textLog.update((log) => {

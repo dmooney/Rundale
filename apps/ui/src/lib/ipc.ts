@@ -185,6 +185,13 @@ export const onLoading = (cb: (payload: LoadingPayload) => void) =>
 export const onThemeUpdate = (cb: (payload: ThemePalette) => void) =>
 	onEvent<ThemePalette>('theme-update', cb);
 
+export interface ThemeSwitchPayload {
+	name: string;
+	mode: string;
+}
+export const onThemeSwitch = (cb: (payload: ThemeSwitchPayload) => void) =>
+	onEvent<ThemeSwitchPayload>('theme-switch', cb);
+
 export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
 	onEvent<DebugSnapshot>('debug-update', cb);
 

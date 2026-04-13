@@ -253,6 +253,22 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                     &state_tick.pronunciations,
                 );
                 state_tick.event_bus.emit("world-update", &snapshot);
+                // Emit current time-of-day palette (weather + season tinted)
+                {
+                    use chrono::Timelike;
+                    use parish_core::ipc::ThemePalette;
+                    use parish_core::world::palette::compute_palette;
+                    let now = world.clock.now();
+                    let raw = compute_palette(
+                        now.hour(),
+                        now.minute(),
+                        world.clock.season(),
+                        world.weather,
+                    );
+                    state_tick
+                        .event_bus
+                        .emit("theme-update", &ThemePalette::from(raw));
+                }
             }
             {
                 let mut world = state_tick.world.lock().await;

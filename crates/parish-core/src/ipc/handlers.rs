@@ -239,6 +239,7 @@ pub fn text_log(source: impl Into<String>, content: impl Into<String>) -> TextLo
         stream_turn_id: None,
         source: source.into(),
         content: content.into(),
+        subtype: None,
     }
 }
 
@@ -253,6 +254,22 @@ pub fn text_log_for_stream_turn(
         stream_turn_id: Some(stream_turn_id),
         source: source.into(),
         content: content.into(),
+        subtype: None,
+    }
+}
+
+/// Creates a [`TextLogPayload`] with a semantic subtype for frontend styling.
+pub fn text_log_typed(
+    source: impl Into<String>,
+    content: impl Into<String>,
+    subtype: impl Into<String>,
+) -> TextLogPayload {
+    TextLogPayload {
+        id: format!("msg-{}", MESSAGE_ID.fetch_add(1, Ordering::SeqCst)),
+        stream_turn_id: None,
+        source: source.into(),
+        content: content.into(),
+        subtype: Some(subtype.into()),
     }
 }
 
