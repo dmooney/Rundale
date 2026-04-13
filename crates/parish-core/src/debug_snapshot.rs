@@ -365,6 +365,12 @@ pub struct TierSummary {
     pub last_tier4_tick: Option<String>,
     /// Number of NPCs the player has been introduced to.
     pub introduced_count: usize,
+    /// Whether a Tier 2 background inference is currently in flight.
+    pub tier2_in_flight: bool,
+    /// Number of Tier 3 NPCs queued for the next batch dispatch.
+    pub tier3_pending_count: usize,
+    /// Last ~5 Tier 4 life-event descriptions (newest last).
+    pub tier4_recent_events: Vec<String>,
 }
 
 /// Event bus + recent event stream for debug display.
@@ -504,9 +510,9 @@ pub fn build_debug_snapshot(
         current_day_type,
     );
     let tier_summary = build_tier_summary(npc_manager);
+    let gossip = build_gossip_debug(world, npc_manager);
     let event_list: Vec<DebugEvent> = events.iter().cloned().collect();
     let event_bus = build_event_bus_debug(world, game_events, npc_manager);
-    let gossip = build_gossip_debug(world, npc_manager);
     let conversations = build_conversations_debug(world);
 
     DebugSnapshot {
@@ -536,6 +542,7 @@ fn build_clock_debug(world: &WorldState) -> ClockDebug {
         chrono::Weekday::Sun => "Sunday",
     }
     .to_string();
+
     ClockDebug {
         game_time: format!(
             "{:02}:{:02} {}",
@@ -1018,6 +1025,10 @@ fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
     let last_tier3_tick = npc_manager.last_tier3_game_time().map(fmt_tick);
     let last_tier4_tick = npc_manager.last_tier4_game_time().map(fmt_tick);
 
+    let tier3_pending_count = t3.len();
+    let tier4_recent_events: Vec<String> =
+        npc_manager.recent_tier4_events().iter().cloned().collect();
+
     TierSummary {
         tier1_count: t1.len(),
         tier2_count: t2.len(),
@@ -1032,6 +1043,9 @@ fn build_tier_summary(npc_manager: &NpcManager) -> TierSummary {
         last_tier3_tick,
         last_tier4_tick,
         introduced_count: npc_manager.introduced_count(),
+        tier2_in_flight: npc_manager.tier2_in_flight(),
+        tier3_pending_count,
+        tier4_recent_events,
     }
 }
 
@@ -1286,5 +1300,88 @@ mod tests {
         // Relationships should be sorted by strength descending
         assert_eq!(npcs[0].relationships.len(), 2);
         assert!(npcs[0].relationships[0].strength > npcs[0].relationships[1].strength);
+    }
+
+    #[test]
+    fn test_npc_debug_new_fields() {
+        let world = WorldState::new();
+        let mut mgr = NpcManager::new();
+        let npc = Npc::new_test_npc();
+        mgr.add_npc(npc);
+        mgr.assign_tiers(&world, &[]);
+
+        let graph = WorldGraph::new();
+        let npcs = build_npc_debug_list(&mgr, &graph, 10, Season::Spring, DayType::Weekday);
+        assert_eq!(npcs.len(), 1);
+        // New fields: is_ill should be false for a healthy NPC
+        assert!(!npcs[0].is_ill);
+        // No deflated summary on a fresh NPC
+        assert!(npcs[0].deflated_summary.is_none());
+        // Long-term memory starts empty
+        assert!(npcs[0].long_term_memories.is_empty());
+    }
+
+    #[test]
+    fn test_tier_summary_new_fields() {
+        let mgr = NpcManager::new();
+        let summary = build_tier_summary(&mgr);
+        // New fields: defaults
+        assert!(!summary.tier2_in_flight);
+        assert!(summary.last_tier2_tick.is_none());
+        assert_eq!(summary.tier3_pending_count, 0);
+        assert!(summary.tier4_recent_events.is_empty());
+    }
+
+    #[test]
+    fn test_gossip_debug_empty() {
+        let world = WorldState::new();
+        let mgr = NpcManager::new();
+        let g = build_gossip_debug(&world, &mgr);
+        assert_eq!(g.item_count, 0);
+        assert!(g.items.is_empty());
+    }
+
+    #[test]
+    fn test_gossip_debug_serializes_in_snapshot() {
+        let world = WorldState::new();
+        let mgr = NpcManager::new();
+        let events = VecDeque::new();
+        let game_events: VecDeque<GameEvent> = VecDeque::new();
+        let inference = InferenceDebug {
+            provider_name: "test".to_string(),
+            model_name: "test".to_string(),
+            base_url: "http://localhost".to_string(),
+            cloud_provider: None,
+            cloud_model: None,
+            has_queue: false,
+            reaction_req_id: 0,
+            improv_enabled: false,
+            call_log: vec![],
+        };
+        let snapshot = build_debug_snapshot(&world, &mgr, &events, &game_events, &inference);
+        let json = serde_json::to_string(&snapshot).unwrap();
+        assert!(json.contains("gossip"));
+        assert!(json.contains("item_count"));
+    }
+
+    #[test]
+    fn test_recent_tier4_events_in_tier_summary() {
+        use crate::npc::tier4::Tier4Event;
+        use chrono::Utc;
+
+        let world = WorldState::new();
+        let mut mgr = NpcManager::new();
+        let npc = Npc::new_test_npc();
+        let npc_id = npc.id;
+        mgr.add_npc(npc);
+        mgr.assign_tiers(&world, &[]);
+
+        // Apply an Illness event — should populate ring buffer
+        let events = vec![Tier4Event::Illness { npc_id }];
+        mgr.apply_tier4_events(&events, Utc::now());
+
+        let summary = build_tier_summary(&mgr);
+        assert_eq!(summary.tier4_recent_events.len(), 1);
+        assert!(summary.tier4_recent_events[0].contains("ill"));
     }
 }

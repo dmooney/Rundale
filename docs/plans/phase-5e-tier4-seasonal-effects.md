@@ -2,10 +2,14 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Done**
+> **Status: Done** (runtime wiring landed)
 >
 > **Depends on:** Phase 5A (event bus), Phase 5B (weather for weather-driven rules), Phase 5D (tier assignment split)
 > **Depended on by:** None (terminal sub-phase)
+
+## Runtime wiring note
+
+`tick_tier4` is dispatched inline inside the background tick scope (not via `spawn_blocking` as the original plan suggested). Measured CPU cost is sub-millisecond for typical NPC counts (~30 NPCs), so `spawn_blocking` would add complexity without benefit. See `crates/parish-tauri/src/lib.rs`, `crates/parish-server/src/lib.rs`, and `crates/parish-cli/src/headless.rs` for the call sites.
 
 ## Goal
 

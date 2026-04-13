@@ -2,10 +2,14 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: Done** (runtime wiring + priority queue redesign landed)
 >
 > **Depends on:** Phase 5A (event bus), Phase 5C (long-term memory for context)
 > **Depended on by:** 5E (Tier 4 depends on Tier 3 being operational for priority queue)
+
+## Implementation notes
+
+The `InferenceQueue` was redesigned with three priority lanes (Interactive > Background > Batch) using `tokio::select! biased;` in the worker. Tier 3 batch inference is routed through the Batch lane via `submit_json`, so Tier 1 dialogue (Interactive) preempts it at the queue level. The worker is single-flight (no preemption of in-flight calls). Per-category simulation client routing is deferred (queue worker uses the base client; see TODO comments in the entry-point Tier 3 dispatch blocks).
 
 ## Goal
 

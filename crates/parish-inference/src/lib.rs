@@ -10,6 +10,7 @@ pub mod setup;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use openai_client::OpenAiClient;
@@ -17,6 +18,7 @@ use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 use parish_config::InferenceConfig;
+use parish_types::ParishError;
 
 /// A single logged inference call for the debug panel.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -45,6 +47,17 @@ pub struct InferenceLogEntry {
     pub response_text: String,
     /// Max tokens limit sent to provider (if any).
     pub max_tokens: Option<u32>,
+}
+
+/// Priority lane for inference requests. Higher priority lanes are drained first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InferencePriority {
+    /// Player-facing dialogue (Tier 1). Highest priority.
+    Interactive = 0,
+    /// NPC background simulation (Tier 2). Medium priority.
+    Background = 1,
+    /// Distant NPC batch simulation (Tier 3). Lowest priority.
+    Batch = 2,
 }
 
 /// Shared ring buffer of inference call log entries.
@@ -82,6 +95,8 @@ pub struct InferenceRequest {
     pub max_tokens: Option<u32>,
     /// Optional temperature for sampling (0.0 = deterministic, 1.0+ = creative).
     pub temperature: Option<f32>,
+    /// Priority lane for this request.
+    pub priority: InferencePriority,
 }
 
 /// The response from an inference request.
@@ -97,19 +112,30 @@ pub struct InferenceResponse {
 
 /// A handle to the inference queue for submitting requests.
 ///
-/// Wraps a Tokio mpsc sender. Clone this to share across tasks.
+/// Routes requests to one of three priority lanes (Interactive, Background, Batch).
+/// Clone this to share across tasks.
 #[derive(Clone)]
 pub struct InferenceQueue {
-    tx: mpsc::Sender<InferenceRequest>,
+    interactive_tx: mpsc::Sender<InferenceRequest>,
+    background_tx: mpsc::Sender<InferenceRequest>,
+    batch_tx: mpsc::Sender<InferenceRequest>,
 }
 
 impl InferenceQueue {
-    /// Creates a new inference queue with the given channel sender.
-    pub fn new(tx: mpsc::Sender<InferenceRequest>) -> Self {
-        Self { tx }
+    /// Creates a new inference queue with one sender per priority lane.
+    pub fn new(
+        interactive_tx: mpsc::Sender<InferenceRequest>,
+        background_tx: mpsc::Sender<InferenceRequest>,
+        batch_tx: mpsc::Sender<InferenceRequest>,
+    ) -> Self {
+        Self {
+            interactive_tx,
+            background_tx,
+            batch_tx,
+        }
     }
 
-    /// Submits an inference request to the queue.
+    /// Submits an inference request to the appropriate priority lane.
     ///
     /// If `token_tx` is provided, the worker will stream individual tokens
     /// through it before sending the final complete response. An optional
@@ -126,6 +152,7 @@ impl InferenceQueue {
         token_tx: Option<mpsc::UnboundedSender<String>>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
+        priority: InferencePriority,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
         let (response_tx, response_rx) = oneshot::channel();
@@ -138,10 +165,54 @@ impl InferenceQueue {
             token_tx,
             max_tokens,
             temperature,
+            priority,
         };
-        self.tx.send(request).await?;
+        let lane = match priority {
+            InferencePriority::Interactive => &self.interactive_tx,
+            InferencePriority::Background => &self.background_tx,
+            InferencePriority::Batch => &self.batch_tx,
+        };
+        lane.send(request).await?;
         Ok(response_rx)
     }
+}
+
+/// Monotonically increasing request ID counter for queue-submitted JSON requests.
+static QUEUE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Submit a request that expects a JSON response, then deserialize it.
+///
+/// Used by Tier 3 batch inference and (in future Track B) Tier 2 background simulation.
+/// Requests are non-streaming and routed to the given priority lane.
+pub async fn submit_json<T: serde::de::DeserializeOwned>(
+    queue: &InferenceQueue,
+    priority: InferencePriority,
+    model: &str,
+    prompt: &str,
+    system: Option<&str>,
+) -> Result<T, ParishError> {
+    let id = QUEUE_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    let response_rx = queue
+        .send(
+            id,
+            model.to_string(),
+            prompt.to_string(),
+            system.map(String::from),
+            None,
+            None,
+            None,
+            priority,
+        )
+        .await
+        .map_err(|e| ParishError::Inference(format!("queue send failed: {e}")))?;
+    let response = response_rx
+        .await
+        .map_err(|e| ParishError::Inference(format!("response channel closed: {e}")))?;
+    if let Some(err) = response.error {
+        return Err(ParishError::Inference(err));
+    }
+    serde_json::from_str(&response.text)
+        .map_err(|e| ParishError::Inference(format!("JSON parse failed: {e}")))
 }
 
 /// Per-category LLM client routing with a base provider fallback.
@@ -215,17 +286,30 @@ impl InferenceClients {
 
 /// Spawns the inference worker task.
 ///
-/// The worker pulls requests from the mpsc receiver, calls the LLM
-/// client, and sends responses back through each request's oneshot channel.
+/// The worker pulls requests from three priority lanes using `tokio::select!`
+/// with `biased;` ordering, ensuring Interactive requests are always processed
+/// before Background and Batch requests. The worker is single-flight: one
+/// in-flight LLM call at a time (no preemption).
+///
 /// Each completed call is recorded in the shared `log` ring buffer.
-/// The task runs until the sender side of the channel is dropped.
+/// The task runs until all three sender sides of the channels are dropped.
 pub fn spawn_inference_worker(
     client: OpenAiClient,
-    mut rx: mpsc::Receiver<InferenceRequest>,
+    mut interactive_rx: mpsc::Receiver<InferenceRequest>,
+    mut background_rx: mpsc::Receiver<InferenceRequest>,
+    mut batch_rx: mpsc::Receiver<InferenceRequest>,
     log: InferenceLog,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        while let Some(request) = rx.recv().await {
+        loop {
+            let request = tokio::select! {
+                biased;
+                Some(req) = interactive_rx.recv() => req,
+                Some(req) = background_rx.recv() => req,
+                Some(req) = batch_rx.recv() => req,
+                else => break,
+            };
+
             let streaming = request.token_tx.is_some();
             let prompt_len = request.prompt.len();
             let model = request.model.clone();
@@ -316,10 +400,22 @@ pub fn spawn_inference_worker(
 mod tests {
     use super::*;
 
+    /// Helper to build a three-lane InferenceQueue and return the matching receivers.
+    fn make_queue() -> (
+        InferenceQueue,
+        mpsc::Receiver<InferenceRequest>,
+        mpsc::Receiver<InferenceRequest>,
+        mpsc::Receiver<InferenceRequest>,
+    ) {
+        let (itx, irx) = mpsc::channel::<InferenceRequest>(16);
+        let (btx, brx) = mpsc::channel::<InferenceRequest>(32);
+        let (batx, batrx) = mpsc::channel::<InferenceRequest>(64);
+        (InferenceQueue::new(itx, btx, batx), irx, brx, batrx)
+    }
+
     #[tokio::test]
     async fn test_inference_queue_send() {
-        let (tx, mut rx) = mpsc::channel::<InferenceRequest>(10);
-        let queue = InferenceQueue::new(tx);
+        let (queue, mut irx, _brx, _batrx) = make_queue();
 
         let response_rx = queue
             .send(
@@ -330,16 +426,18 @@ mod tests {
                 None,
                 None,
                 None,
+                InferencePriority::Interactive,
             )
             .await
             .unwrap();
 
-        // Verify the request was received
-        let request = rx.recv().await.unwrap();
+        // Verify the request was received on the Interactive lane
+        let request = irx.recv().await.unwrap();
         assert_eq!(request.id, 1);
         assert_eq!(request.model, "test-model");
         assert_eq!(request.prompt, "hello");
         assert_eq!(request.system, Some("system".to_string()));
+        assert_eq!(request.priority, InferencePriority::Interactive);
 
         // Send a mock response back
         let response = InferenceResponse {
@@ -358,8 +456,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_inference_queue_no_system() {
-        let (tx, mut rx) = mpsc::channel::<InferenceRequest>(10);
-        let queue = InferenceQueue::new(tx);
+        let (queue, mut irx, _brx, _batrx) = make_queue();
 
         let _response_rx = queue
             .send(
@@ -370,19 +467,19 @@ mod tests {
                 None,
                 None,
                 None,
+                InferencePriority::Interactive,
             )
             .await
             .unwrap();
 
-        let request = rx.recv().await.unwrap();
+        let request = irx.recv().await.unwrap();
         assert_eq!(request.id, 2);
         assert!(request.system.is_none());
     }
 
     #[tokio::test]
     async fn test_inference_queue_with_token_tx() {
-        let (tx, mut rx) = mpsc::channel::<InferenceRequest>(10);
-        let queue = InferenceQueue::new(tx);
+        let (queue, mut irx, _brx, _batrx) = make_queue();
 
         let (token_tx, _token_rx) = mpsc::unbounded_channel::<String>();
 
@@ -395,11 +492,12 @@ mod tests {
                 Some(token_tx),
                 None,
                 None,
+                InferencePriority::Interactive,
             )
             .await
             .unwrap();
 
-        let request = rx.recv().await.unwrap();
+        let request = irx.recv().await.unwrap();
         assert_eq!(request.id, 3);
         assert!(request.token_tx.is_some());
     }
@@ -494,5 +592,128 @@ mod tests {
         let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.intent_client();
         assert_eq!(model, "qwen3:14b");
+    }
+
+    #[test]
+    fn test_inference_priority_ordering() {
+        assert!(InferencePriority::Interactive < InferencePriority::Background);
+        assert!(InferencePriority::Background < InferencePriority::Batch);
+    }
+
+    #[tokio::test]
+    async fn test_priority_lanes_route_correctly() {
+        // Verify each priority routes to the correct lane receiver.
+        let (queue, mut irx, mut brx, mut batrx) = make_queue();
+
+        // Send one request per lane
+        let _rx1 = queue
+            .send(
+                10,
+                "m".to_string(),
+                "p".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Interactive,
+            )
+            .await
+            .unwrap();
+        let _rx2 = queue
+            .send(
+                11,
+                "m".to_string(),
+                "p".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Background,
+            )
+            .await
+            .unwrap();
+        let _rx3 = queue
+            .send(
+                12,
+                "m".to_string(),
+                "p".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Batch,
+            )
+            .await
+            .unwrap();
+
+        let req_i = irx.recv().await.unwrap();
+        assert_eq!(req_i.id, 10);
+        assert_eq!(req_i.priority, InferencePriority::Interactive);
+
+        let req_b = brx.recv().await.unwrap();
+        assert_eq!(req_b.id, 11);
+        assert_eq!(req_b.priority, InferencePriority::Background);
+
+        let req_ba = batrx.recv().await.unwrap();
+        assert_eq!(req_ba.id, 12);
+        assert_eq!(req_ba.priority, InferencePriority::Batch);
+    }
+
+    #[tokio::test]
+    async fn test_priority_lanes_batch_yields_to_interactive_when_queued() {
+        // Submit requests to two lanes without a real worker.
+        // Then manually drain via biased select! to verify Interactive is drained first.
+        let (itx, mut irx) = mpsc::channel::<InferenceRequest>(16);
+        let (btx, mut _brx) = mpsc::channel::<InferenceRequest>(32);
+        let (batx, mut batrx) = mpsc::channel::<InferenceRequest>(64);
+        let queue = InferenceQueue::new(itx, btx, batx);
+
+        // Enqueue a Batch request first, then an Interactive request.
+        let _rx_batch = queue
+            .send(
+                20,
+                "m".to_string(),
+                "batch".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Batch,
+            )
+            .await
+            .unwrap();
+        let _rx_interactive = queue
+            .send(
+                21,
+                "m".to_string(),
+                "interactive".to_string(),
+                None,
+                None,
+                None,
+                None,
+                InferencePriority::Interactive,
+            )
+            .await
+            .unwrap();
+
+        // The worker loop uses `biased;` — simulate that by draining with the same ordering.
+        let first = tokio::select! {
+            biased;
+            Some(req) = irx.recv() => req,
+            Some(req) = batrx.recv() => req,
+            else => panic!("no request"),
+        };
+        // Interactive must win even though Batch was enqueued first.
+        assert_eq!(first.priority, InferencePriority::Interactive);
+        assert_eq!(first.id, 21);
+
+        let second = tokio::select! {
+            biased;
+            Some(req) = irx.recv() => req,
+            Some(req) = batrx.recv() => req,
+            else => panic!("no second request"),
+        };
+        assert_eq!(second.priority, InferencePriority::Batch);
+        assert_eq!(second.id, 20);
     }
 }

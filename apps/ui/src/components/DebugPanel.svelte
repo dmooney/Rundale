@@ -122,6 +122,18 @@
 						<div class="field muted">T4: {snap.tier_summary.tier4_names.join(', ')}</div>
 					{/if}
 					<div class="field muted">Introduced: {snap.tier_summary.introduced_count}</div>
+					<div class="field">T2 background:
+						{#if snap.tier_summary.tier2_in_flight}
+							<span class="accent">IN FLIGHT</span>
+						{:else}
+							idle
+						{/if}
+						{#if snap.tier_summary.last_tier2_tick}
+							| last: {snap.tier_summary.last_tier2_tick}
+						{:else}
+							| (never run)
+						{/if}
+					</div>
 					<div class="field">T3 batch:
 						{#if snap.tier_summary.tier3_in_flight}
 							<span class="accent">IN FLIGHT</span>
@@ -133,11 +145,18 @@
 						{:else}
 							| (never run)
 						{/if}
+						<span class="muted">| pending: {snap.tier_summary.tier3_pending_count}</span>
 					</div>
 					<div class="field muted">
 						T2 last: {snap.tier_summary.last_tier2_tick ?? '(never)'}
 						| T4 last: {snap.tier_summary.last_tier4_tick ?? '(never)'}
 					</div>
+					{#if snap.tier_summary.tier4_recent_events.length > 0}
+						<div class="field">Recent life events:</div>
+						{#each snap.tier_summary.tier4_recent_events.slice(-3) as evt}
+							<div class="field muted">- {evt}</div>
+						{/each}
+					{/if}
 				</div>
 				<div class="section">
 					<h4>Event Bus</h4>
@@ -145,6 +164,14 @@
 						Subscribers: {snap.event_bus.subscriber_count}
 						| Captured: {snap.event_bus.recent_events.length}
 					</div>
+				</div>
+				<div class="section">
+					<h4>Gossip ({snap.gossip.item_count})</h4>
+					{#if snap.gossip.items.length > 0}
+						{#each snap.gossip.items.slice(-3) as item}
+							<div class="field muted">- {item.content.length > 80 ? item.content.slice(0, 77) + '...' : item.content}</div>
+						{/each}
+					{/if}
 				</div>
 
 			{:else if tab === 1}
@@ -174,7 +201,12 @@
 
 						<div class="section">
 							<h5>Status</h5>
-							<div class="field">Mood: {selectedNpc.mood}</div>
+							<div class="field">
+								Mood: {selectedNpc.mood}
+								{#if selectedNpc.is_ill}
+									<span class="accent">🤒 Ill</span>
+								{/if}
+							</div>
 							<div class="field">Tier: {selectedNpc.tier} | {selectedNpc.state}</div>
 							<div class="field">Knows player name: {#if selectedNpc.knows_player_name}<span class="accent">yes</span>{:else}<span class="muted">no</span>{/if}</div>
 						</div>
@@ -228,7 +260,7 @@
 							</div>
 						{/if}
 
-						{#if selectedNpc.memories.length > 0}
+						{#if selectedNpc.memories.length > 0 || selectedNpc.long_term_memories.length > 0}
 							<div class="section">
 								<h5>Short-term Memory ({selectedNpc.memories.length})</h5>
 								{#each selectedNpc.memories as mem}
