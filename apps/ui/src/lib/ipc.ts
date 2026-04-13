@@ -31,7 +31,7 @@ const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in windo
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
-async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
 	if (IS_TAURI) {
 		const { invoke } = await import('@tauri-apps/api/core');
 		return invoke<T>(name, args);
