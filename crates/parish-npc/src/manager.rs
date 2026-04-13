@@ -754,19 +754,24 @@ impl NpcManager {
         }
     }
 
-    /// Records that a Tier 4 tick has been performed at the given game time.
-    pub fn record_tier4_tick(&mut self, time: DateTime<Utc>) {
-        self.last_tier4_game_time = Some(time);
-    }
-
     /// Returns the game time of the last Tier 4 tick, if any.
     pub fn last_tier4_game_time(&self) -> Option<DateTime<Utc>> {
         self.last_tier4_game_time
     }
 
+    /// Records that a Tier 4 tick has been performed at the given game time.
+    pub fn record_tier4_tick(&mut self, time: DateTime<Utc>) {
+        self.last_tier4_game_time = Some(time);
+    }
+
     /// Returns the number of NPCs that have introduced themselves to the player.
     pub fn introduced_count(&self) -> usize {
         self.introduced_npcs.len()
+    }
+
+    /// Restores the introduced-NPC set from a snapshot.
+    pub fn restore_introduced_set(&mut self, set: HashSet<NpcId>) {
+        self.introduced_npcs = set;
     }
 
     /// Applies the results of a Tier 4 tick to NPC state.
