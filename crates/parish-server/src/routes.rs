@@ -1526,7 +1526,7 @@ pub async fn discover_save_files(
     Ok(Json(saves))
 }
 
-/// `GET /api/save-game` — saves the current game state to the active save file.
+/// `POST /api/save-game` — saves the current game state to the active save file.
 pub async fn save_game(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<String>, (StatusCode, String)> {
@@ -1553,6 +1553,26 @@ pub async fn load_branch(
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let path = std::path::PathBuf::from(&body.file_path);
+    // Validate the path is within the saves directory to prevent path traversal.
+    let canonical = path.canonicalize().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "Invalid save file path".to_string(),
+        )
+    })?;
+    let saves_canonical = state.saves_dir.canonicalize().map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Saves directory error".to_string(),
+        )
+    })?;
+    if !canonical.starts_with(&saves_canonical) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Path is outside saves directory".to_string(),
+        ));
+    }
+    let path = canonical;
     let branch_id = body.branch_id;
     let path_clone = path.clone();
 
@@ -1631,7 +1651,7 @@ pub async fn create_branch(
     Ok(Json(msg))
 }
 
-/// `GET /api/new-save-file` — creates a new save file and saves current state.
+/// `POST /api/new-save-file` — creates a new save file and saves current state.
 pub async fn new_save_file(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -1666,7 +1686,7 @@ pub async fn new_save_file(
     Ok(StatusCode::OK)
 }
 
-/// `GET /api/new-game` — reloads world/NPCs from data files and saves fresh state.
+/// `POST /api/new-game` — reloads world/NPCs from data files and saves fresh state.
 pub async fn new_game(
     State(state): State<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -2202,5 +2222,18 @@ mod tests {
             log.content
                 .contains("The parish falls quiet after a full minute of silence")
         }));
+    }
+
+    #[tokio::test]
+    async fn load_branch_rejects_path_traversal() {
+        let state = test_app_state();
+        let body = LoadBranchRequest {
+            file_path: "../../etc/passwd".to_string(),
+            branch_id: 1,
+        };
+        let result = load_branch(State(state), Json(body)).await;
+        assert!(result.is_err());
+        let (status, _msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
     }
 }
