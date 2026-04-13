@@ -1716,6 +1716,8 @@ pub async fn load_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    use parish_core::persistence::SaveFileLock;
+
     let path = std::path::PathBuf::from(&body.file_path);
     // Validate the path is within the saves directory to prevent path traversal.
     let canonical = path.canonicalize().map_err(|_| {
@@ -1738,6 +1740,20 @@ pub async fn load_branch(
     }
     let path = canonical;
     let branch_id = body.branch_id;
+
+    // If switching to a different save file, acquire a new lock first.
+    let current_path = state.save_path.lock().await.clone();
+    let switching_files = current_path.as_ref() != Some(&path);
+    if switching_files {
+        let lock = SaveFileLock::try_acquire(&path).ok_or_else(|| {
+            (
+                StatusCode::CONFLICT,
+                "This save file is in use by another instance.".to_string(),
+            )
+        })?;
+        *state.save_lock.lock().await = Some(lock);
+    }
+
     let path_clone = path.clone();
 
     let (snapshot, branch_name) =
@@ -1821,8 +1837,19 @@ pub async fn create_branch(
 pub async fn new_save_file(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    use parish_core::persistence::SaveFileLock;
+
     let saves_dir = state.saves_dir.clone();
     let path = new_save_path(&saves_dir);
+
+    // Acquire lock on the new save file, releasing any previous lock.
+    let lock = SaveFileLock::try_acquire(&path).ok_or_else(|| {
+        (
+            StatusCode::CONFLICT,
+            "Could not lock the new save file.".to_string(),
+        )
+    })?;
+    *state.save_lock.lock().await = Some(lock);
 
     let snapshot = {
         let world = state.world.lock().await;

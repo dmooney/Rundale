@@ -430,6 +430,8 @@
 							</span>
 							{#if isActive}
 								<span class="ledger-current">You are here</span>
+							{:else if file.locked}
+								<span class="ledger-locked">In Use</span>
 							{:else}
 								<button class="action-btn" on:click={() => handleSwitchLedger(file)} disabled={loading}>Open</button>
 							{/if}
@@ -870,6 +872,15 @@
 		font-style: italic;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
+	}
+
+	.ledger-locked {
+		font-size: 0.6rem;
+		color: var(--color-muted);
+		font-style: italic;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		opacity: 0.6;
 	}
 
 	.new-ledger {

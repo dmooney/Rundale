@@ -167,6 +167,8 @@ pub struct AppState {
     /// email is rejected with 409 Conflict until the first socket closes.
     /// Uses a `tokio::sync::Mutex` so it can be held across await points.
     pub active_ws: tokio::sync::Mutex<HashSet<String>>,
+    /// Advisory file lock for the currently active save file.
+    pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -280,6 +282,7 @@ pub fn build_app_state(
         worker_handle: Mutex::new(None),
         editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         active_ws: tokio::sync::Mutex::new(HashSet::new()),
+        save_lock: Mutex::new(None),
     })
 }
 

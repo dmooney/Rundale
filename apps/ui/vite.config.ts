@@ -6,7 +6,7 @@ export default defineConfig({
 	plugins: [sveltekit(), svelteTesting()],
 	clearScreen: false,
 	server: {
-		port: 5173,
+		port: parseInt(process.env.PARISH_DEV_PORT || '5173'),
 		strictPort: true,
 		fs: {
 			allow: ['.']
