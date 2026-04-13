@@ -2,7 +2,7 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Planned**
+> **Status: Done**
 >
 > **Depends on:** Phase 4 (persistence)
 > **Depended on by:** 5B (weather publishes events), 5C (gossip consumes events), 5D (Tier 3 publishes/consumes events), 5E (Tier 4 publishes events)

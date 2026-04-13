@@ -13,7 +13,7 @@ use crate::{
     build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
-use parish_inference::openai_client::OpenAiClient;
+use parish_inference::InferencePriority;
 use parish_types::GossipNetwork;
 use parish_types::ParishError;
 use parish_world::graph::WorldGraph;
@@ -463,12 +463,46 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
     )
 }
 
+/// Creates an `NpcSnapshot` from a live NPC for Tier 2 background inference.
+///
+/// The snapshot is a lightweight owned copy that can be passed to a background
+/// task without holding a lock on the `NpcManager`.
+pub fn npc_snapshot_from_npc(npc: &Npc) -> NpcSnapshot {
+    let intel = &npc.intelligence;
+    let intelligence_tag = format!(
+        "INT[V{} A{} E{} P{} W{} C{}]",
+        intel.verbal,
+        intel.analytical,
+        intel.emotional,
+        intel.practical,
+        intel.wisdom,
+        intel.creative,
+    );
+
+    let relationship_context: Vec<String> = npc
+        .relationships
+        .iter()
+        .take(3)
+        .map(|(target_id, rel)| format!("NPC {} ({:.1})", target_id.0, rel.strength))
+        .collect();
+
+    NpcSnapshot {
+        id: npc.id,
+        name: npc.name.clone(),
+        occupation: npc.occupation.clone(),
+        personality: npc.personality.clone(),
+        intelligence_tag,
+        mood: npc.mood.clone(),
+        relationship_context: relationship_context.join(", "),
+    }
+}
+
 /// Runs Tier 2 inference for a group of NPCs at a location.
 ///
-/// Uses `generate_json` for non-streaming structured output.
+/// Submits to the Background lane of the inference priority queue.
 /// Returns a `Tier2Event` with the summary, mood changes, and relationship deltas.
 pub async fn run_tier2_for_group(
-    client: &OpenAiClient,
+    queue: &parish_inference::InferenceQueue,
     model: &str,
     group: &Tier2Group,
     time_desc: &str,
@@ -494,9 +528,14 @@ pub async fn run_tier2_for_group(
     let prompt = build_tier2_prompt(group, time_desc, weather);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
-    match client
-        .generate_json::<Tier2Response>(model, &prompt, None, None, None)
-        .await
+    match parish_inference::submit_json::<Tier2Response>(
+        queue,
+        InferencePriority::Background,
+        model,
+        &prompt,
+        None,
+    )
+    .await
     {
         Ok(resp) => Some(Tier2Event {
             location: group.location,
@@ -628,23 +667,24 @@ pub fn create_gossip_from_tier2_event(
 /// Propagates gossip between NPCs during a Tier 2 group interaction.
 ///
 /// For each pair of NPCs at the same location, attempts to propagate
-/// gossip from one to the other. Returns the ids of transmitted items.
+/// gossip from one to the other. Returns the total count of rumors
+/// transmitted across all pairs in this group.
 pub fn propagate_gossip_at_location(
     participant_ids: &[NpcId],
     gossip_network: &mut GossipNetwork,
     rng: &mut impl rand::Rng,
-) -> Vec<u32> {
-    let mut all_transmitted = Vec::new();
+) -> usize {
+    let mut total_transmitted = 0usize;
     for i in 0..participant_ids.len() {
         for j in (i + 1)..participant_ids.len() {
             let transmitted = gossip_network.propagate(participant_ids[i], participant_ids[j], rng);
-            all_transmitted.extend(transmitted);
+            total_transmitted += transmitted.len();
             // Also propagate in reverse direction
             let transmitted = gossip_network.propagate(participant_ids[j], participant_ids[i], rng);
-            all_transmitted.extend(transmitted);
+            total_transmitted += transmitted.len();
         }
     }
-    all_transmitted
+    total_transmitted
 }
 
 // ---------------------------------------------------------------------------
@@ -767,11 +807,15 @@ pub fn tier3_snapshot_from_npc(npc: &Npc, graph: &WorldGraph) -> Tier3Snapshot {
 }
 
 /// Context for a Tier 3 batch simulation call.
+///
+/// Tier 3 batches are submitted through the priority `InferenceQueue` with
+/// `Batch` priority so they yield to player-facing dialogue (Tier 1 Interactive)
+/// and Tier 2 background simulation (Background).
 pub struct Tier3Context<'a> {
     /// NPC snapshots to simulate.
     pub snapshots: &'a [Tier3Snapshot],
-    /// LLM client for inference.
-    pub client: &'a OpenAiClient,
+    /// Inference queue used to submit batch requests.
+    pub queue: &'a parish_inference::InferenceQueue,
     /// Model name to use.
     pub model: &'a str,
     /// Time description (e.g. "Morning").
@@ -789,9 +833,9 @@ pub struct Tier3Context<'a> {
 /// Runs a Tier 3 batch simulation for distant NPCs.
 ///
 /// Builds a single prompt summarizing all provided NPC snapshots and their states,
-/// sends it to the simulation LLM client, and parses the JSON response.
-/// If there are more NPCs than `batch_size`, they are split into multiple
-/// sequential LLM calls.
+/// submits it to the inference queue with `Batch` priority, and parses the JSON
+/// response. If there are more NPCs than `batch_size`, they are split into
+/// multiple sequential queue submissions.
 pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, ParishError> {
     let batch_size = if ctx.batch_size == 0 {
         TIER3_BATCH_SIZE
@@ -804,10 +848,14 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
     for batch in ctx.snapshots.chunks(batch_size) {
         let prompt = build_tier3_prompt(batch, ctx.time_desc, ctx.weather, ctx.season, ctx.hours);
 
-        match ctx
-            .client
-            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None, None)
-            .await
+        match parish_inference::submit_json::<Tier3Response>(
+            ctx.queue,
+            InferencePriority::Batch,
+            ctx.model,
+            &prompt,
+            None,
+        )
+        .await
         {
             Ok(resp) => {
                 all_updates.extend(resp.updates);
@@ -1457,9 +1505,12 @@ mod tests {
             }],
         };
 
-        // Solo NPC should get a template event without needing inference
-        let client = OpenAiClient::new("http://localhost:11434", None);
-        let event = run_tier2_for_group(&client, "test", &group, "Morning", "Clear").await;
+        // Solo NPC short-circuits before any LLM call — a disconnected queue is fine.
+        let (itx, _irx) = tokio::sync::mpsc::channel(1);
+        let (btx, _brx) = tokio::sync::mpsc::channel(1);
+        let (batx, _batrx) = tokio::sync::mpsc::channel(1);
+        let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
         assert!(event.is_some());
         let event = event.unwrap();
         assert!(event.summary.contains("Padraig"));
@@ -1477,8 +1528,12 @@ mod tests {
             npcs: Vec::new(),
         };
 
-        let client = OpenAiClient::new("http://localhost:11434", None);
-        let event = run_tier2_for_group(&client, "test", &group, "Morning", "Clear").await;
+        // Empty group short-circuits before any LLM call — a disconnected queue is fine.
+        let (itx, _irx) = tokio::sync::mpsc::channel(1);
+        let (btx, _brx) = tokio::sync::mpsc::channel(1);
+        let (batx, _batrx) = tokio::sync::mpsc::channel(1);
+        let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
         assert!(event.is_none());
     }
 

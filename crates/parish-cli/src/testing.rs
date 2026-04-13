@@ -339,6 +339,34 @@ impl GameTestHarness {
                 }
             }
         }
+
+        // Dispatch Tier 4 rules engine if enough game time has elapsed.
+        // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
+        let now = self.app.world.clock.now();
+        if self.app.npc_manager.needs_tier4_tick(now) {
+            let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
+                self.app.npc_manager.tier4_npcs().into_iter().collect();
+            let t4_events = {
+                let mut tier4_refs: Vec<&mut crate::npc::Npc> = self
+                    .app
+                    .npc_manager
+                    .npcs_mut()
+                    .values_mut()
+                    .filter(|n| tier4_ids.contains(&n.id))
+                    .collect();
+                let season = self.app.world.clock.season();
+                let game_date = now.date_naive();
+                let mut rng2 = rand::thread_rng();
+                crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng2)
+            };
+            let game_events = self.app.npc_manager.apply_tier4_events(&t4_events, now);
+            for evt in game_events {
+                self.app.world.event_bus.publish(evt);
+            }
+            self.app.npc_manager.record_tier4_tick(now);
+            self.app
+                .debug_event(format!("[tier4] {} events", t4_events.len()));
+        }
     }
 
     /// Returns the debug activity log entries.
@@ -1656,7 +1684,7 @@ mod tests {
         );
 
         // Check if gossip was transmitted (probabilistic, but seed 42 should work)
-        if !transmitted.is_empty() {
+        if transmitted > 0 {
             let npc2_gossip = h.app.world.gossip_network.known_by(NpcId(2));
             assert!(!npc2_gossip.is_empty(), "NPC 2 should now know gossip");
         }
@@ -1776,5 +1804,108 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Tier 4 tick fires after enough game time has elapsed.
+    ///
+    /// Places a single NPC far from the player (distance > tier3_max_distance) so
+    /// it is assigned Tier 4, then advances the clock by the default tick interval
+    /// (90 game-days) and verifies that `last_tier4_game_time` is recorded.
+    #[test]
+    fn test_tier4_tick_fires_after_interval() {
+        use crate::npc::Npc;
+        use crate::npc::manager::NpcManager;
+        use crate::world::LocationId;
+        use parish_core::npc::types::NpcState;
+        use parish_core::world::graph::WorldGraph;
+
+        // Build a chain graph long enough that an NPC at the far end is Tier 4
+        // (default tier3_max_distance = 5, so distance 6 → Tier 4).
+        let locations: Vec<serde_json::Value> = (0u32..=6)
+            .map(|i| {
+                let mut conns = Vec::new();
+                if i > 0 {
+                    conns.push(serde_json::json!({
+                        "target": i - 1,
+                        "path_description": "a road"
+                    }));
+                }
+                if i < 6 {
+                    conns.push(serde_json::json!({
+                        "target": i + 1,
+                        "path_description": "a road"
+                    }));
+                }
+                serde_json::json!({
+                    "id": i,
+                    "name": format!("Loc {}", i),
+                    "description_template": "Test",
+                    "indoor": false,
+                    "public": true,
+                    "connections": conns
+                })
+            })
+            .collect();
+        let graph_json = serde_json::json!({"locations": locations}).to_string();
+        let graph = WorldGraph::load_from_str(&graph_json).unwrap();
+
+        // NPC at distance 6 from player (player at Loc 0) → Tier 4
+        let far_npc = Npc {
+            id: crate::npc::NpcId(42),
+            name: "Far Away Person".to_string(),
+            brief_description: "a distant figure".to_string(),
+            age: 40,
+            occupation: "Farmer".to_string(),
+            personality: "Quiet".to_string(),
+            intelligence: parish_core::npc::types::Intelligence::default(),
+            location: LocationId(6),
+            mood: "calm".to_string(),
+            home: Some(LocationId(6)),
+            workplace: None,
+            schedule: None,
+            relationships: std::collections::HashMap::new(),
+            memory: parish_core::npc::memory::ShortTermMemory::new(),
+            long_term_memory: parish_core::npc::memory::LongTermMemory::new(),
+            knowledge: Vec::new(),
+            state: NpcState::Present,
+            deflated_summary: None,
+            reaction_log: parish_core::npc::reactions::ReactionLog::default(),
+            last_activity: None,
+            is_ill: false,
+        };
+
+        let mut app = crate::app::App::new();
+        app.world.player_location = LocationId(0);
+        app.world.graph = graph;
+        app.npc_manager = NpcManager::new();
+        app.npc_manager.add_npc(far_npc);
+        app.npc_manager.assign_tiers(&app.world, &[]);
+
+        // Confirm the NPC is actually Tier 4
+        assert_eq!(
+            app.npc_manager.tier_of(crate::npc::NpcId(42)),
+            Some(parish_core::npc::types::CogTier::Tier4),
+            "NPC at distance 6 should be Tier 4"
+        );
+
+        // No tier4 tick yet
+        assert!(app.npc_manager.last_tier4_game_time().is_none());
+
+        // Wrap in a harness-like struct so we can call advance_time
+        // (GameTestHarness::new() loads the real mod, so build it manually).
+        let mut h = GameTestHarness {
+            app,
+            canned_responses: std::collections::HashMap::new(),
+            db_sync: None,
+        };
+
+        // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)
+        let tier4_interval_minutes: i64 = 90 * 24 * 60;
+        h.advance_time(tier4_interval_minutes);
+
+        assert!(
+            h.app.npc_manager.last_tier4_game_time().is_some(),
+            "last_tier4_game_time should be recorded after advancing 90 game-days"
+        );
     }
 }

@@ -327,6 +327,9 @@ export interface TierSummary {
 	last_tier3_tick: string | null;
 	last_tier4_tick: string | null;
 	introduced_count: number;
+	tier2_in_flight: boolean;
+	tier3_pending_count: number;
+	tier4_recent_events: string[];
 }
 
 export interface EventBusDebug {

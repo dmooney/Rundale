@@ -267,9 +267,17 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     drop(client_guard);
 
     // Respawn inference worker with the new client
-    let (tx, rx) = tokio::sync::mpsc::channel(32);
-    let _worker = spawn_inference_worker(new_client, rx, state.inference_log.clone());
-    let queue = InferenceQueue::new(tx);
+    let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
+    let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
+    let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
+    let _worker = spawn_inference_worker(
+        new_client,
+        interactive_rx,
+        background_rx,
+        batch_rx,
+        state.inference_log.clone(),
+    );
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
 }
@@ -742,6 +750,7 @@ async fn run_npc_turn(
             Some(token_tx),
             None,
             Some(0.7),
+            parish_core::inference::InferencePriority::Interactive,
         )
         .await;
 

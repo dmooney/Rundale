@@ -55,10 +55,18 @@ pub async fn run_headless(
     // Initialize dialogue inference pipeline (cloud if configured, else local)
     let (dial_client, dial_model) = clients.dialogue_client();
     let dialogue_model = dial_model.to_string();
-    let (tx, rx) = mpsc::channel(32);
+    let (interactive_tx, interactive_rx) = mpsc::channel(16);
+    let (background_tx, background_rx) = mpsc::channel(32);
+    let (batch_tx, batch_rx) = mpsc::channel(64);
     let inference_log = inference::new_inference_log();
-    let _worker = inference::spawn_inference_worker(dial_client.clone(), rx, inference_log.clone());
-    let queue = InferenceQueue::new(tx);
+    let _worker = inference::spawn_inference_worker(
+        dial_client.clone(),
+        interactive_rx,
+        background_rx,
+        batch_rx,
+        inference_log.clone(),
+    );
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
 
     // Initialize app state — load world from active mod
     let mut app = App::new();
@@ -190,13 +198,18 @@ pub async fn run_headless(
                     // Rebuild dialogue queue: prefer cloud client, fall back to local
                     let dial_client = app.cloud_client.clone().or_else(|| app.client.clone());
                     if let Some(new_client) = dial_client {
-                        let (tx, rx) = mpsc::channel(32);
+                        let (interactive_tx, interactive_rx) = mpsc::channel(16);
+                        let (background_tx, background_rx) = mpsc::channel(32);
+                        let (batch_tx, batch_rx) = mpsc::channel(64);
                         let _new_worker = inference::spawn_inference_worker(
                             new_client,
-                            rx,
+                            interactive_rx,
+                            background_rx,
+                            batch_rx,
                             inference_log.clone(),
                         );
-                        app.inference_queue = Some(InferenceQueue::new(tx));
+                        app.inference_queue =
+                            Some(InferenceQueue::new(interactive_tx, background_tx, batch_tx));
                     }
                 }
                 if quit {
@@ -254,6 +267,182 @@ pub async fn run_headless(
             app.npc_manager
                 .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
         process_headless_schedule_events(&mut app, &schedule_events);
+
+        // Dispatch Tier 4 rules engine if enough game time has elapsed.
+        // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
+        {
+            let now = app.world.clock.now();
+            if app.npc_manager.needs_tier4_tick(now) {
+                let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
+                    app.npc_manager.tier4_npcs().into_iter().collect();
+                let events = {
+                    let mut tier4_refs: Vec<&mut crate::npc::Npc> = app
+                        .npc_manager
+                        .npcs_mut()
+                        .values_mut()
+                        .filter(|n| tier4_ids.contains(&n.id))
+                        .collect();
+                    let season = app.world.clock.season();
+                    let game_date = now.date_naive();
+                    let mut rng = rand::thread_rng();
+                    crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
+                };
+                let game_events = app.npc_manager.apply_tier4_events(&events, now);
+                for evt in game_events {
+                    app.world.event_bus.publish(evt);
+                }
+                app.npc_manager.record_tier4_tick(now);
+                app.debug_event(format!("[tier4] {} events", events.len()));
+            }
+        }
+
+        // Dispatch Tier 3 batch LLM simulation for distant NPCs.
+        // Runs inline (single-threaded async); the LLM await is acceptable here
+        // because the user already expects potentially slow I/O after each input.
+        {
+            let now = app.world.clock.now();
+            if app.npc_manager.needs_tier3_tick(now) && !app.npc_manager.tier3_in_flight() {
+                let tier3_ids = app.npc_manager.tier3_npcs();
+                let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
+                    .iter()
+                    .filter_map(|id| app.npc_manager.get(*id))
+                    .map(|npc| {
+                        parish_core::npc::ticks::tier3_snapshot_from_npc(npc, &app.world.graph)
+                    })
+                    .collect();
+
+                if !snapshots.is_empty()
+                    && let Some(queue) = app.inference_queue.as_ref()
+                {
+                    let time_desc = app.world.clock.time_of_day().to_string();
+                    let weather_str = app.world.weather.to_string();
+                    let season_str = format!("{:?}", app.world.clock.season());
+                    let hours = 24u32;
+                    // NOTE: queue worker uses the dialogue client; per-category
+                    // Simulation overrides are not honored for batch inference.
+                    let sim_model = app.simulation_model.clone();
+
+                    app.npc_manager.set_tier3_in_flight(true);
+
+                    let ctx = parish_core::npc::ticks::Tier3Context {
+                        snapshots: &snapshots,
+                        queue,
+                        model: &sim_model,
+                        time_desc: &time_desc,
+                        weather: &weather_str,
+                        season: &season_str,
+                        hours,
+                        batch_size: 0,
+                    };
+
+                    match parish_core::npc::ticks::tick_tier3(&ctx).await {
+                        Ok(updates) => {
+                            let game_time = app.world.clock.now();
+                            let _events = parish_core::npc::ticks::apply_tier3_updates(
+                                &updates,
+                                app.npc_manager.npcs_mut(),
+                                &app.world.graph,
+                                game_time,
+                            );
+                            app.npc_manager.record_tier3_tick(game_time);
+                            app.debug_event(format!("[tier3] {} updates", updates.len()));
+                        }
+                        Err(e) => {
+                            tracing::warn!("Tier 3 tick failed: {}", e);
+                        }
+                    }
+
+                    app.npc_manager.set_tier3_in_flight(false);
+                }
+            }
+        }
+
+        // Dispatch Tier 2 background simulation for nearby NPCs.
+        // Runs inline (single-threaded async); the LLM await is acceptable here
+        // because the user already expects potentially slow I/O after each input.
+        {
+            let now = app.world.clock.now();
+            if app.npc_manager.needs_tier2_tick(now)
+                && !app.npc_manager.tier2_in_flight()
+                && let Some(queue) = app.inference_queue.as_ref()
+            {
+                let groups_map = app.npc_manager.tier2_groups();
+                if !groups_map.is_empty() {
+                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+
+                    let groups: Vec<Tier2Group> = groups_map
+                        .into_iter()
+                        .filter_map(|(loc, npc_ids)| {
+                            let location_name = app
+                                .world
+                                .graph
+                                .get(loc)
+                                .map(|d| d.name.clone())
+                                .unwrap_or_else(|| format!("Location {}", loc.0));
+                            let npcs: Vec<_> = npc_ids
+                                .iter()
+                                .filter_map(|id| app.npc_manager.get(*id))
+                                .map(npc_snapshot_from_npc)
+                                .collect();
+                            if npcs.is_empty() {
+                                return None;
+                            }
+                            Some(Tier2Group {
+                                location: loc,
+                                location_name,
+                                npcs,
+                            })
+                        })
+                        .collect();
+
+                    if !groups.is_empty() {
+                        // NOTE: queue worker uses the dialogue client; per-category
+                        // Simulation overrides are not honored for batch inference.
+                        let sim_model = app.simulation_model.clone();
+
+                        app.npc_manager.set_tier2_in_flight(true);
+
+                        let mut events = Vec::new();
+                        for group in &groups {
+                            if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                                queue,
+                                &sim_model,
+                                group,
+                                &app.world.clock.time_of_day().to_string(),
+                                &app.world.weather.to_string(),
+                            )
+                            .await
+                            {
+                                events.push(evt);
+                            }
+                        }
+
+                        let game_time = app.world.clock.now();
+                        for event in &events {
+                            let _dbg = parish_core::npc::ticks::apply_tier2_event(
+                                event,
+                                app.npc_manager.npcs_mut(),
+                                game_time,
+                            );
+                            // Push gossip so it can propagate to other NPCs.
+                            parish_core::npc::ticks::create_gossip_from_tier2_event(
+                                event,
+                                &mut app.world.gossip_network,
+                                game_time,
+                            );
+                        }
+                        app.npc_manager.record_tier2_tick(game_time);
+                        app.debug_event(format!(
+                            "[tier2] {} events from {} groups",
+                            events.len(),
+                            groups.len()
+                        ));
+
+                        app.npc_manager.set_tier2_in_flight(false);
+                    }
+                }
+            }
+        }
 
         // Periodic autosave
         if let Some(ref db) = app.db {
@@ -758,6 +947,7 @@ async fn handle_headless_game_input(
                             Some(token_tx),
                             None,
                             Some(0.7),
+                            parish_core::inference::InferencePriority::Interactive,
                         )
                         .await
                     {

@@ -1225,7 +1225,7 @@ mod tests {
     fn test_night_reduces_reaction_chance() {
         let npc = test_npc(1, "Siobhan", "Farmer", None);
         let loc = test_location(1, false);
-        let introduced: HashSet<NpcId> = HashSet::new();
+        let _introduced: HashSet<NpcId> = HashSet::new();
         let config = ReactionConfig::default();
 
         // Threshold for outdoor, non-workplace, night: 0.55 - 0.15 = 0.40

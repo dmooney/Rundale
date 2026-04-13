@@ -4,10 +4,15 @@
 //! Adjacent-state transitions only — no jumping from Clear to Storm.
 //! Minimum 2 game-hours between transitions to prevent rapid flipping.
 
+use std::collections::VecDeque;
+
 use chrono::{DateTime, Utc};
 use rand::Rng;
 
 use parish_types::{Season, Weather};
+
+/// Maximum number of weather transitions to retain in history.
+const HISTORY_CAPACITY: usize = 10;
 
 /// Minimum duration in game-hours before a weather transition is allowed.
 const DEFAULT_MIN_DURATION_HOURS: f64 = 2.0;
@@ -92,6 +97,8 @@ pub struct WeatherEngine {
     min_duration_hours: f64,
     /// Game-hour of the last transition check (to avoid multiple checks per hour).
     last_check_hour: Option<u32>,
+    /// Ring buffer of recent weather transitions: (timestamp, new_weather).
+    history: VecDeque<(DateTime<Utc>, Weather)>,
 }
 
 impl WeatherEngine {
@@ -102,12 +109,20 @@ impl WeatherEngine {
             since: start_time,
             min_duration_hours: DEFAULT_MIN_DURATION_HOURS,
             last_check_hour: None,
+            history: VecDeque::with_capacity(HISTORY_CAPACITY),
         }
     }
 
     /// Returns the current weather.
     pub fn current(&self) -> Weather {
         self.current
+    }
+
+    /// Returns the history of weather transitions (newest last).
+    ///
+    /// Each entry is `(timestamp, new_weather)` recorded when a transition fired.
+    pub fn history(&self) -> &VecDeque<(DateTime<Utc>, Weather)> {
+        &self.history
     }
 
     /// Returns how long the current weather has persisted (game-hours).
@@ -162,6 +177,11 @@ impl WeatherEngine {
         self.current = new_weather;
         self.since = now;
         self.last_check_hour = Some(current_hour);
+        // Record transition in history ring buffer
+        if self.history.len() >= HISTORY_CAPACITY {
+            self.history.pop_front();
+        }
+        self.history.push_back((now, new_weather));
         Some(new_weather)
     }
 

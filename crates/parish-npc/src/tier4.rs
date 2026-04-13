@@ -335,7 +335,7 @@ mod tests {
     use super::*;
     use crate::memory::{LongTermMemory, ShortTermMemory};
     use crate::reactions::ReactionLog;
-    use crate::types::{Intelligence, NpcState, Relationship, RelationshipKind};
+    use crate::types::{Intelligence, NpcState};
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;
