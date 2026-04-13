@@ -77,6 +77,12 @@ body::before {
 	flex: 0 0 auto !important;
 }
 
+/* Keyboard focus ring — visible only during keyboard navigation */
+:focus-visible {
+	outline: 2px solid var(--color-accent);
+	outline-offset: 2px;
+}
+
 ::-webkit-scrollbar {
 	width: 4px;
 }
