@@ -1,7 +1,54 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
-import { mapData } from '../stores/game';
+import { get } from 'svelte/store';
+import { mapData, fullMapOpen } from '../stores/game';
 import MapPanel from './MapPanel.svelte';
+
+// MapLibre GL JS requires WebGL, which jsdom doesn't provide. Mock the
+// module so the MapPanel mounts without trying to create a real map.
+vi.mock('maplibre-gl', () => {
+	class FakeMap {
+		on() {}
+		remove() {}
+		getCanvas() {
+			const el = document.createElement('canvas');
+			return el as HTMLCanvasElement;
+		}
+		getSource() {
+			return undefined;
+		}
+		setStyle() {}
+		project() {
+			return { x: 0, y: 0 };
+		}
+		jumpTo() {}
+		easeTo() {}
+		fitBounds() {}
+		addControl() {}
+		removeControl() {}
+	}
+	class FakeMarker {
+		setLngLat() {
+			return this;
+		}
+		addTo() {
+			return this;
+		}
+		remove() {}
+	}
+	class FakeLngLatBounds {
+		extend() {
+			return this;
+		}
+	}
+	const def = { Map: FakeMap, Marker: FakeMarker, LngLatBounds: FakeLngLatBounds };
+	return {
+		default: def,
+		Map: FakeMap,
+		Marker: FakeMarker,
+		LngLatBounds: FakeLngLatBounds
+	};
+});
 
 const testMap = {
 	locations: [
@@ -17,6 +64,7 @@ const testMap = {
 describe('MapPanel', () => {
 	beforeEach(() => {
 		mapData.set(null);
+		fullMapOpen.set(false);
 	});
 
 	it('shows loading when no map data', () => {
@@ -24,60 +72,30 @@ describe('MapPanel', () => {
 		expect(getByText('Loading map…')).toBeTruthy();
 	});
 
-	it('renders SVG when map data is available', () => {
+	it('renders the map container when map data is available', () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
-		expect(container.querySelector('svg')).toBeTruthy();
+		expect(container.querySelector('.map-container')).toBeTruthy();
 	});
 
-	it('renders correct number of node icons for nearby locations', () => {
+	it('shows the expand button', () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
-		const icons = container.querySelectorAll('use.node-icon');
-		expect(icons.length).toBe(2);
+		expect(container.querySelector('.expand-btn')).toBeTruthy();
 	});
 
-	it('renders edge lines', () => {
+	it('clicking the expand button opens the full map overlay', async () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
-		const lines = container.querySelectorAll('line.edge');
-		expect(lines.length).toBe(1);
+		const btn = container.querySelector('.expand-btn') as HTMLButtonElement;
+		expect(btn).toBeTruthy();
+		btn.click();
+		expect(get(fullMapOpen)).toBe(true);
 	});
 
-	it('shows player node with accent fill', () => {
+	it('shows the map panel wrapper element', () => {
 		mapData.set(testMap);
 		const { container } = render(MapPanel);
-		const playerGroup = container.querySelector('.node.player');
-		expect(playerGroup).toBeTruthy();
-	});
-
-	it('marks adjacent nodes', () => {
-		mapData.set(testMap);
-		const { container } = render(MapPanel);
-		const adjacent = container.querySelector('.node.adjacent');
-		expect(adjacent).toBeTruthy();
-	});
-
-	it('only shows locations within hop radius', () => {
-		// Add a distant location (hops = 5, beyond MINIMAP_HOP_RADIUS of 1)
-		const mapWithDistant = {
-			...testMap,
-			locations: [
-				...testMap.locations,
-				{ id: 'loc3', name: 'Galway', lat: 53.27, lon: -9.05, adjacent: false, hops: 5 }
-			]
-		};
-		mapData.set(mapWithDistant);
-		const { container } = render(MapPanel);
-		const icons = container.querySelectorAll('use.node-icon');
-		// Only loc1 (hops=0) and loc2 (hops=1) should be rendered
-		expect(icons.length).toBe(2);
-	});
-
-	it('shows expand button', () => {
-		mapData.set(testMap);
-		const { container } = render(MapPanel);
-		const expandBtn = container.querySelector('.expand-btn');
-		expect(expandBtn).toBeTruthy();
+		expect(container.querySelector('[data-testid="map-panel"]')).toBeTruthy();
 	});
 });

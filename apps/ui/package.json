@@ -30,6 +30,7 @@
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",
+		"maplibre-gl": "^5.22.0",
 		"phosphor-svelte": "^3.1.0"
 	}
 }

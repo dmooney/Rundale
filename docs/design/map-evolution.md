@@ -122,7 +122,8 @@ The map could be more than navigation:
 | ~~**Phase A**~~ | ~~GTA minimap (#1) + `/map` hotkey for full view (#2c — zoomable graph)~~ | **Done** |
 | ~~**Phase B**~~ | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~ | **Done** |
 | ~~**Phase C**~~ | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~ | **Done** |
-| **Phase D** | OSM tile background for full map (#9) + TUI ASCII map (#8) | Large |
+| ~~**Phase D (map)**~~ | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~ | **Done** |
+| **Phase D (TUI)** | TUI ASCII map (#8) | Medium |
 | **Phase E** | Narrative annotations (#10) + NPC trails | Large |
 
 ## Open Questions

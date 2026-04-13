@@ -1,5 +1,7 @@
 /* Parish — Global CSS Theme */
 
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
 :root {
 	/* Default palette mirrors the fixed theme configured in the active mod. */
 	--color-bg: #fafad8;
