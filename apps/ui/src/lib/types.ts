@@ -101,6 +101,7 @@ export interface TextLogEntry {
 	id?: string;
 	source: string;
 	content: string;
+	subtype?: string;
 	stream_turn_id?: number;
 	streaming?: boolean;
 	latest_chunk?: string;
@@ -127,6 +128,7 @@ export interface TextLogPayload {
 	stream_turn_id?: number;
 	source: string;
 	content: string;
+	subtype?: string;
 }
 
 export interface NpcReactionPayload {

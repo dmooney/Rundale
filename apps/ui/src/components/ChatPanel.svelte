@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, messageHints, worldState, nameHints } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
 	import { reactToMessage } from '$lib/ipc';
+	import { segmentText } from '$lib/rich-text';
 
 	let logEl: HTMLDivElement;
 	let hoveredMessageId: string | null = $state(null);
@@ -103,6 +104,16 @@
 		return segments;
 	}
 
+	/** Returns rich text segments for a piece of message text, annotating
+	 *  Irish words (per message), names, and location name. */
+	function richify(text: string, entryId?: string) {
+		const hints = (entryId ? $messageHints.get(entryId) : undefined) ?? [];
+		const irishWords = hints.map((h) => h.word);
+		const names = $nameHints.map((h) => h.word);
+		const location = $worldState?.location_name ?? '';
+		return segmentText(text, irishWords, names, location);
+	}
+
 	function handleReaction(entry: TextLogEntry, emoji: string) {
 		if (!entry.id) return;
 		// Optimistic UI update
@@ -120,11 +131,11 @@
 		{#if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
-			<div class="entry system">
+			<div class="entry system" class:location={entry.subtype === 'location'}>
 				{#if isSplash}
 					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
 				{:else}
-					<span class="content">{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}</span>
+					<span class="content">{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 				{/if}
 			</div>
 		{:else}
@@ -139,7 +150,7 @@
 					>
 						<div class="bubble">
 							<span class="content"
-								>{#each renderSegments(entry) as seg}{#if seg.animate}{#key seg.animationKey}<span class="stream-chunk" class:emote={seg.isAction}>{seg.text}</span>{/key}{:else if seg.isAction}<span class="emote">{seg.text}</span>{:else}{seg.text}{/if}{/each}</span>
+								>{#each renderSegments(entry) as seg}{#if seg.animate}{#key seg.animationKey}<span class="stream-chunk" class:emote={seg.isAction}>{seg.text}</span>{/key}{:else if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text, entry.id) as rs}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
 						</div>
 
 						<!-- Reaction picker (floats over bubble, NPC messages only) -->
@@ -218,6 +229,18 @@
 		white-space: pre-wrap;
 		padding: 0.65rem 0;
 	}
+
+	/* Location description: subtle left border in location yellow */
+	.entry.system.location {
+		border-left: 3px solid var(--color-location);
+		padding-left: 0.75rem;
+		color: var(--color-muted);
+	}
+
+	/* Inline term highlighting */
+	:global(.term-irish)    { color: var(--color-irish); }
+	:global(.term-name)     { color: var(--color-name); }
+	:global(.term-location) { color: var(--color-location); font-style: italic; }
 
 	/* Title card: splash message with <strong> title */
 	.entry.system :global(strong) {

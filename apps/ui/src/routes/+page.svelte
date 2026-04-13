@@ -10,7 +10,7 @@
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints } from '../stores/game';
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
@@ -32,6 +32,7 @@
 		onTextLog,
 		onLoading,
 		onThemeUpdate,
+		onThemeSwitch,
 		onDebugUpdate,
 		onSavePicker,
 		onToggleFullMap,
@@ -172,7 +173,8 @@
 			worldState.set(snap);
 			mapData.set(map);
 			npcsHere.set(npcs);
-			palette.apply(theme);
+			palette.applyServerPalette(theme);
+			palette.applyGameHour(snap.hour);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
 			// Show initial location description in the chat panel
 			if (snap.location_description) {
@@ -285,7 +287,17 @@
 			});
 		}
 
-		function finishNpcStream(hints = []) {
+		function finishNpcStream(hints: LanguageHint[] = []) {
+			// Associate Irish hints with the last NPC message for inline highlighting
+			if (hints.length > 0) {
+				const log = get(textLog);
+				for (let i = log.length - 1; i >= 0; i--) {
+					if (log[i].id && log[i].source !== 'player' && log[i].source !== 'system') {
+						messageHints.update((m) => { m.set(log[i].id!, hints); return m; });
+						break;
+					}
+				}
+			}
 			languageHints.set(hints);
 			streamingActive.set(false);
 		}
@@ -360,6 +372,7 @@
 			listeners.push(await onWorldUpdate(async (snap) => {
 				worldState.set(snap);
 				tracker.onWorldStateChange(snap.paused);
+				palette.applyGameHour(snap.hour);
 				if (snap.name_hints) nameHints.set(snap.name_hints);
 				try {
 					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
@@ -391,7 +404,8 @@
 							id: payload.id,
 							source: payload.source,
 							content,
-							stream_turn_id: payload.stream_turn_id ?? undefined
+							stream_turn_id: payload.stream_turn_id ?? undefined,
+							...(payload.subtype ? { subtype: payload.subtype } : {})
 						}
 					])
 				);
@@ -432,7 +446,14 @@
 			}));
 
 			listeners.push(await onThemeUpdate((p) => {
-				palette.apply(p);
+				palette.applyServerPalette(p);
+			}));
+
+			listeners.push(await onThemeSwitch((p) => {
+				palette.setPreference({
+					name: p.name as 'default' | 'solarized',
+					mode: p.mode as 'light' | 'dark' | 'auto' | ''
+				});
 			}));
 
 			listeners.push(await onDebugUpdate((snap) => {

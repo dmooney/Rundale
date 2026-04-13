@@ -52,6 +52,8 @@ pub struct GameMessage {
     /// The message source: `"system"` for narration / descriptions,
     /// `"npc"` for NPC arrival reactions.
     pub source: &'static str,
+    /// Optional semantic subtype for frontend styling (e.g. `"location"`).
+    pub subtype: Option<&'static str>,
     /// The message text.
     pub text: String,
 }
@@ -170,6 +172,7 @@ pub fn apply_movement(
             world.log(String::new());
             messages.push(GameMessage {
                 source: "system",
+                subtype: None,
                 text: narration,
             });
 
@@ -177,6 +180,7 @@ pub fn apply_movement(
             world.log(look_text.clone());
             messages.push(GameMessage {
                 source: "system",
+                subtype: Some("location"),
                 text: look_text,
             });
 
@@ -195,6 +199,7 @@ pub fn apply_movement(
             GameEffects {
                 messages: vec![GameMessage {
                     source: "system",
+                    subtype: None,
                     text,
                 }],
                 ..Default::default()
@@ -216,6 +221,7 @@ pub fn apply_movement(
             GameEffects {
                 messages: vec![GameMessage {
                     source: "system",
+                    subtype: None,
                     text,
                 }],
                 ..Default::default()

@@ -196,6 +196,9 @@ pub struct TextLogPayload {
     pub source: String,
     /// The log entry text.
     pub content: String,
+    /// Optional semantic subtype for styling (e.g. `"location"` for arrival descriptions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtype: Option<String>,
 }
 
 /// Payload for `npc-reaction` events.
@@ -367,6 +370,7 @@ mod tests {
             stream_turn_id: Some(7),
             source: "system".to_string(),
             content: "Welcome".to_string(),
+            subtype: None,
         };
         let json = serde_json::to_string(&log).unwrap();
         assert!(json.contains("system"));
