@@ -850,4 +850,114 @@ mod tests {
         let result = db.create_branch("test", None);
         assert!(result.is_err());
     }
+
+    // --- AsyncDatabase wrapper ---
+
+    #[tokio::test]
+    async fn test_async_save_and_load_roundtrip() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap = make_test_snapshot();
+        let snap_id = async_db.save_snapshot(branch.id, &snap).await.unwrap();
+
+        let loaded = async_db
+            .load_latest_snapshot(branch.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.0, snap_id);
+        assert_eq!(loaded.1.player_location, snap.player_location);
+        assert_eq!(loaded.1.weather, snap.weather);
+    }
+
+    #[tokio::test]
+    async fn test_async_branch_crud() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let fork_id = async_db.create_branch("fork", None).await.unwrap();
+        let found = async_db.find_branch("fork").await.unwrap();
+        assert_eq!(found.unwrap().id, fork_id);
+
+        let branches = async_db.list_branches().await.unwrap();
+        assert_eq!(branches.len(), 2); // main + fork
+    }
+
+    #[tokio::test]
+    async fn test_async_journal_append_and_count() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap_id = async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        async_db
+            .append_event(
+                branch.id,
+                snap_id,
+                &WorldEvent::ClockAdvanced { minutes: 5 },
+                "1820-03-20T08:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        let count = async_db.journal_count(branch.id, snap_id).await.unwrap();
+        assert_eq!(count, 1);
+
+        let events = async_db
+            .events_since_snapshot(branch.id, snap_id)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_async_clear_journal() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap_id = async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        async_db
+            .append_event(
+                branch.id,
+                snap_id,
+                &WorldEvent::ClockAdvanced { minutes: 5 },
+                "1820-03-20T08:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        async_db.clear_journal(branch.id, snap_id).await.unwrap();
+        let count = async_db.journal_count(branch.id, snap_id).await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_async_branch_log() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+        async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        let log = async_db.branch_log(branch.id).await.unwrap();
+        assert_eq!(log.len(), 2);
+    }
 }

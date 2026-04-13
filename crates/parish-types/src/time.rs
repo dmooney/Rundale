@@ -637,4 +637,39 @@ mod tests {
         assert!((cfg.fastest - 144.0).abs() < f64::EPSILON);
         assert!((cfg.ludicrous - 864.0).abs() < f64::EPSILON);
     }
+
+    // --- DayType::from_date ---
+
+    #[test]
+    fn test_day_type_weekdays() {
+        // 1820-03-20 is a Monday (game start date)
+        let date = NaiveDate::from_ymd_opt(1820, 3, 20).unwrap();
+        assert_eq!(DayType::from_date(date), DayType::Weekday);
+        // Tuesday through Friday
+        for d in 21..=24 {
+            let date = NaiveDate::from_ymd_opt(1820, 3, d).unwrap();
+            assert_eq!(DayType::from_date(date), DayType::Weekday, "day {d}");
+        }
+    }
+
+    #[test]
+    fn test_day_type_saturday_is_market_day() {
+        // 1820-03-25 is a Saturday
+        let date = NaiveDate::from_ymd_opt(1820, 3, 25).unwrap();
+        assert_eq!(DayType::from_date(date), DayType::MarketDay);
+    }
+
+    #[test]
+    fn test_day_type_sunday() {
+        // 1820-03-26 is a Sunday
+        let date = NaiveDate::from_ymd_opt(1820, 3, 26).unwrap();
+        assert_eq!(DayType::from_date(date), DayType::Sunday);
+    }
+
+    #[test]
+    fn test_day_type_display() {
+        assert_eq!(DayType::Weekday.to_string(), "Weekday");
+        assert_eq!(DayType::Sunday.to_string(), "Sunday");
+        assert_eq!(DayType::MarketDay.to_string(), "Market Day");
+    }
 }
