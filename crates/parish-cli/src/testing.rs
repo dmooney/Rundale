@@ -1376,6 +1376,22 @@ mod tests {
     }
 
     #[test]
+    fn test_text_log_capped() {
+        let mut h = GameTestHarness::new();
+        // Push well over the 500-entry backend cap.
+        for i in 0..600 {
+            h.app.world.log(format!("entry {i}"));
+        }
+        assert!(
+            h.text_log().len() <= 500,
+            "text_log should be capped at 500 but was {}",
+            h.text_log().len()
+        );
+        // The most recent entry should still be present.
+        assert!(h.text_log().last().unwrap().contains("entry 599"));
+    }
+
+    #[test]
     fn test_exits_not_empty() {
         let h = GameTestHarness::new();
         let exits = h.exits();

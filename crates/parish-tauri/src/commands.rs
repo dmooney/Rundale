@@ -29,7 +29,10 @@ use crate::events::{
     EVENT_TRAVEL_START, EVENT_WORLD_UPDATE, NpcReactionPayload, StreamEndPayload,
     StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, spawn_loading_animation,
 };
-use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
+use crate::{
+    AppState, ConversationRuntimeState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette,
+    WorldSnapshot,
+};
 
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -1605,6 +1608,13 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     let mut npc_manager = state.npc_manager.lock().await;
     *world = fresh_world;
     *npc_manager = fresh_npcs;
+
+    // Reset conversation transcript so stale dialogue from the previous game
+    // does not bleed into NPC conversations in the new game (#281).
+    {
+        let mut conv = state.conversation.lock().await;
+        *conv = ConversationRuntimeState::new();
+    }
 
     // Create a new save file with the fresh state
     let sd = saves_dir();
