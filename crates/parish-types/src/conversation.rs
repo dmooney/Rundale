@@ -93,8 +93,16 @@ impl ConversationLog {
     /// Formats recent conversation history at a location for prompt injection.
     ///
     /// `current_npc_id` is the NPC being prompted — their own lines are
-    /// phrased as "You said..." while others' lines use "{Name} said...".
-    pub fn context_string(&self, location: LocationId, current_npc_id: NpcId, n: usize) -> String {
+    /// phrased as "You:" while others' lines use "{Name}:".
+    /// `player_label` is the name to use for the player's lines ("the newcomer"
+    /// when unknown, or the player's actual name when introduced).
+    pub fn context_string(
+        &self,
+        location: LocationId,
+        current_npc_id: NpcId,
+        player_label: &str,
+        n: usize,
+    ) -> String {
         let recent = self.recent_at(location, n);
         if recent.is_empty() {
             return String::new();
@@ -103,15 +111,15 @@ impl ConversationLog {
         let mut lines = Vec::with_capacity(recent.len());
         for exchange in &recent {
             let time = exchange.timestamp.format("%H:%M");
-            let speaker = if exchange.speaker_id == current_npc_id {
+            let npc_label = if exchange.speaker_id == current_npc_id {
                 "You".to_string()
             } else {
                 exchange.speaker_name.clone()
             };
 
             lines.push(format!(
-                "- [{}] The traveller said: \"{}\". {} replied: \"{}\"",
-                time, exchange.player_input, speaker, exchange.npc_dialogue,
+                "- [{}] {}: \"{}\"\n  {}: \"{}\"",
+                time, player_label, exchange.player_input, npc_label, exchange.npc_dialogue,
             ));
         }
         lines.join("\n")
@@ -225,20 +233,40 @@ mod tests {
         log.add(make_exchange(9, 2, "Niamh", "Good day", "Good morning", 1));
 
         // From Padraig's perspective
-        let ctx = log.context_string(LocationId(1), NpcId(1), 5);
-        assert!(ctx.contains("You replied"));
-        assert!(ctx.contains("Niamh replied"));
+        let ctx = log.context_string(LocationId(1), NpcId(1), "the newcomer", 5);
+        assert!(ctx.contains("You:"), "got: {ctx}");
+        assert!(ctx.contains("Niamh:"), "got: {ctx}");
 
         // From Niamh's perspective
-        let ctx = log.context_string(LocationId(1), NpcId(2), 5);
-        assert!(ctx.contains("Padraig replied"));
-        assert!(ctx.contains("You replied"));
+        let ctx = log.context_string(LocationId(1), NpcId(2), "the newcomer", 5);
+        assert!(ctx.contains("Padraig:"), "got: {ctx}");
+        assert!(ctx.contains("You:"), "got: {ctx}");
+    }
+
+    #[test]
+    fn test_context_string_uses_player_label() {
+        let mut log = ConversationLog::new();
+        log.add(make_exchange(
+            8,
+            1,
+            "Padraig",
+            "Hello there",
+            "Dia dhuit!",
+            1,
+        ));
+
+        let ctx = log.context_string(LocationId(1), NpcId(1), "Ciaran", 5);
+        assert!(ctx.contains("Ciaran:"), "got: {ctx}");
+        assert!(ctx.contains("Hello there"), "got: {ctx}");
     }
 
     #[test]
     fn test_context_string_empty() {
         let log = ConversationLog::new();
-        assert_eq!(log.context_string(LocationId(1), NpcId(1), 5), "");
+        assert_eq!(
+            log.context_string(LocationId(1), NpcId(1), "the newcomer", 5),
+            ""
+        );
     }
 
     #[test]

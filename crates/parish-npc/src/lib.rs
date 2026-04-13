@@ -26,9 +26,11 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use chrono::{Datelike, Timelike};
 use memory::{LongTermMemory, ShortTermMemory};
 use parish_types::{DayType, LocationId, Season};
 use parish_world::WorldState;
+use parish_world::description::render_description;
 use reactions::ReactionLog;
 use transitions::NpcSummary;
 use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
@@ -197,6 +199,9 @@ pub struct NpcMetadata {
     /// Pronunciation hints for any secondary-language words used in dialogue.
     #[serde(default, alias = "irish_words")]
     pub language_hints: Vec<LanguageHint>,
+    /// People the NPC mentioned by name in their dialogue (self-declared by the LLM).
+    #[serde(default)]
+    pub mentioned_people: Vec<String>,
 }
 
 /// Structured action output from an NPC's LLM response.
@@ -245,6 +250,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             mood: action.mood,
             internal_thought: action.internal_thought,
             language_hints: Vec::new(),
+            mentioned_people: Vec::new(),
         });
         return NpcStreamResponse { dialogue, metadata };
     }
@@ -264,7 +270,7 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
     \n\
     IMPROV CRAFT: You are a scene partner. Follow these principles:\n\
     - YES, AND: Accept what the player establishes and build on it. Disagree in character, but never negate their reality.\n\
-    - SPECIFICITY: Use real names, exact amounts, particular objects — never generic placeholders.\n\
+    - SPECIFICITY: Ground your dialogue in particular objects, sounds, smells, and amounts. Only refer to people by name if they appear in your PEOPLE YOU KNOW list or are present at your location. If you don't know someone's name, describe them naturally ('a lad from the next townland', 'the newcomer').\n\
     - EMOTIONAL TRUTH: Let comedy and drama emerge from honest reactions, not clever lines.\n\
     - PHYSICAL GROUNDING: Reference the environment — turf smoke, creaking chairs, rain on glass.\n\
     - LISTEN AND REACT: Respond to what was actually said. Let surprises surprise your character.\n\
@@ -353,34 +359,235 @@ pub fn build_action_line(player_input: &str) -> String {
         .filter(|inner| !inner.is_empty() && !inner.contains('*'))
     {
         return format!(
-            "The traveller performs an action: {inner}\n\
-            (The traveller is emoting rather than speaking. \
+            "The newcomer performs an action: {inner}\n\
+            (The newcomer is emoting rather than speaking. \
             Respond to their physical action naturally.)"
         );
     }
-    format!("The traveller says: \"{player_input}\"")
+    format!("The newcomer says: \"{player_input}\"")
+}
+
+/// Builds the action line for an NPC prompt, using the player's name if the NPC knows it.
+///
+/// This is the name-aware variant of [`build_action_line`]. If `player_name` is provided,
+/// the NPC addresses the player by name. Otherwise falls back to "The newcomer".
+pub fn build_named_action_line(player_input: &str, player_name: Option<&str>) -> String {
+    let label = player_name.unwrap_or("The newcomer");
+
+    if let Some(inner) = player_input
+        .strip_prefix('*')
+        .and_then(|s| s.strip_suffix('*'))
+        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
+    {
+        return format!(
+            "{label} performs an action: {inner}\n\
+            ({label} is emoting rather than speaking. \
+            Respond to their physical action naturally.)"
+        );
+    }
+    format!("{label} says: \"{player_input}\"")
+}
+
+/// Detects if the player is introducing themselves by name.
+///
+/// Matches patterns like "My name is Ciaran", "I'm Ciaran", "Call me Ciaran".
+/// Returns the extracted name if found.
+pub fn detect_player_name(input: &str) -> Option<String> {
+    use regex::Regex;
+    use std::sync::LazyLock;
+
+    static NAME_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(
+            r"(?i)(?:my name(?:'s| is)|I'm|I am|they call me|call me|the name's|name is)\s+(?-i:([A-Z][a-zA-Z']+(?:\s+[A-Z][a-zA-Z']+)?))",
+        )
+        .unwrap()
+    });
+
+    NAME_RE.captures(input).and_then(|caps| -> Option<String> {
+        let name = caps.get(1)?.as_str().to_string();
+        // Reject very short names (likely false positives)
+        if name.len() < 2 {
+            return None;
+        }
+        Some(name)
+    })
+}
+
+/// Validates the people mentioned in an NPC's dialogue against a known roster.
+///
+/// Returns a list of hallucinated names — names that appear in `mentioned`
+/// but don't match any entry in the roster, the player's name, or known
+/// location names.
+pub fn validate_mentioned_people(
+    mentioned: &[String],
+    known_roster: &[(NpcId, String, String)],
+    player_name: Option<&str>,
+) -> Vec<String> {
+    if mentioned.is_empty() {
+        return Vec::new();
+    }
+
+    let mut hallucinated = Vec::new();
+    for name in mentioned {
+        let lower = name.to_lowercase();
+        // Skip empty names
+        if lower.is_empty() {
+            continue;
+        }
+
+        // Check against player name
+        if player_name.is_some_and(|pn| pn.to_lowercase() == lower) {
+            continue;
+        }
+
+        // Check against roster (full name or first name match)
+        let in_roster = known_roster.iter().any(|(_, roster_name, _)| {
+            let roster_lower = roster_name.to_lowercase();
+            roster_lower == lower
+                || roster_lower
+                    .split_whitespace()
+                    .next()
+                    .is_some_and(|first| first == lower)
+        });
+
+        if !in_roster {
+            hallucinated.push(name.clone());
+        }
+    }
+    hallucinated
+}
+
+/// Response type for the reference extraction pre-pass.
+#[derive(Debug, Clone, Deserialize)]
+struct ReferencePrePassResponse {
+    #[serde(default)]
+    names: Vec<String>,
+}
+
+/// Asks a small/fast model which people from the roster an NPC would
+/// naturally reference when responding to the player's input.
+///
+/// Returns validated names (filtered against the roster). Used as the
+/// first pass of two-pass dialogue generation to prevent hallucinated names.
+pub async fn extract_intended_references(
+    client: &parish_inference::openai_client::OpenAiClient,
+    model: &str,
+    npc_name: &str,
+    player_input: &str,
+    known_roster: &[(NpcId, String, String)],
+) -> Vec<String> {
+    if known_roster.is_empty() {
+        return Vec::new();
+    }
+
+    let roster_list: Vec<String> = known_roster
+        .iter()
+        .map(|(_, name, occ)| format!("{} ({})", name, occ))
+        .collect();
+    let roster_str = roster_list.join(", ");
+
+    let prompt = format!(
+        "You are {npc_name}. A newcomer says: \"{player_input}\"\n\
+        People you know: {roster_str}\n\n\
+        Which of these people would you naturally mention in your reply? \
+        Return a JSON object: {{\"names\": [\"Name1\", \"Name2\"]}} \
+        or {{\"names\": []}} if none."
+    );
+
+    match client
+        .generate_json::<ReferencePrePassResponse>(model, &prompt, None, Some(100), None)
+        .await
+    {
+        Ok(resp) => {
+            // Filter against roster to be safe
+            resp.names
+                .into_iter()
+                .filter(|name: &String| {
+                    let lower = name.to_lowercase();
+                    known_roster.iter().any(|(_, rn, _)| {
+                        let rl = rn.to_lowercase();
+                        rl == lower
+                            || rl
+                                .split_whitespace()
+                                .next()
+                                .is_some_and(|first| first == lower)
+                    })
+                })
+                .collect()
+        }
+        Err(e) => {
+            tracing::warn!("Reference pre-pass failed: {e}");
+            Vec::new()
+        }
+    }
+}
+
+/// Formats validated references as a context injection for the main dialogue prompt.
+pub fn format_reference_hint(validated_names: &[String]) -> String {
+    if validated_names.is_empty() {
+        "You don't need to mention anyone specific in your response.".to_string()
+    } else {
+        format!(
+            "People you may reference in your response: {}",
+            validated_names.join(", ")
+        )
+    }
+}
+
+/// Returns the full name of a calendar month (1–12).
+fn month_name(month: u32) -> &'static str {
+    match month {
+        1 => "January",
+        2 => "February",
+        3 => "March",
+        4 => "April",
+        5 => "May",
+        6 => "June",
+        7 => "July",
+        8 => "August",
+        9 => "September",
+        10 => "October",
+        11 => "November",
+        _ => "December",
+    }
 }
 
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
-/// Includes the current location, time of day, weather, and season.
+/// Renders the location description template (substituting `{time}`,
+/// `{weather}`, and `{npcs_present}` placeholders) and includes the
+/// full game date and time so NPCs have precise temporal context.
 /// The player's action is intentionally omitted here so callers can
 /// append it at the end of the full context (after memory, history, etc.).
 pub fn build_tier1_context(world: &WorldState) -> String {
-    let location = world.current_location();
     let time_of_day = world.clock.time_of_day();
     let season = world.clock.season();
+    let now = world.clock.now();
+
+    // Render the location description with current time/weather substituted.
+    let rendered_desc = if let Some(loc_data) = world.current_location_data() {
+        render_description(loc_data, time_of_day, &world.weather.to_string(), &[])
+    } else {
+        world.current_location().description.clone()
+    };
+
+    let date_time_str = format!(
+        "{day_of_week} {day} {month} {year} | {hour:02}:{minute:02} | {season}",
+        day_of_week = now.format("%A"),
+        day = now.day(),
+        month = month_name(now.month()),
+        year = now.year(),
+        hour = now.hour(),
+        minute = now.minute(),
+        season = season,
+    );
 
     format!(
         "Your Location: {loc_name} — {loc_desc}\n\
-        Time: {time}\n\
-        Season: {season}\n\
-        Weather: {weather}",
-        loc_name = location.name,
-        loc_desc = location.description,
-        time = time_of_day,
-        season = season,
-        weather = world.weather,
+        Date and time: {date_time}",
+        loc_name = world.current_location().name,
+        loc_desc = rendered_desc,
+        date_time = date_time_str,
     )
 }
 
@@ -442,11 +649,16 @@ mod tests {
         let world = WorldState::new();
         let context = build_tier1_context(&world);
         assert!(context.contains("The Crossroads"));
-        assert!(context.contains("Morning"));
+        // Time of day is conveyed by the clock time (e.g. 08:00), not a separate label
         assert!(context.contains("Spring"));
-        assert!(context.contains("Clear"));
+        assert!(context.contains("1820"));
         assert!(context.contains("Your Location:"));
+        assert!(context.contains("Date and time:"));
         assert!(!context.contains("is here"));
+        // Weather is now embedded in the rendered description, not a standalone line
+        assert!(!context.contains("\nWeather:"));
+        assert!(!context.contains("\nTime:"));
+        assert!(!context.contains("\nSeason:"));
     }
 
     #[test]
@@ -465,14 +677,113 @@ mod tests {
     #[test]
     fn test_build_action_line_normal_input() {
         let line = build_action_line("hello there");
-        assert!(line.contains("The traveller says: \"hello there\""));
+        assert!(line.contains("The newcomer says: \"hello there\""));
         assert!(!line.contains("performs an action"));
     }
 
     #[test]
     fn test_build_action_line_partial_asterisks() {
         let line = build_action_line("*incomplete");
-        assert!(line.contains("The traveller says: \"*incomplete\""));
+        assert!(line.contains("The newcomer says: \"*incomplete\""));
+    }
+
+    #[test]
+    fn test_build_named_action_line_with_name() {
+        let line = build_named_action_line("hello", Some("Ciaran"));
+        assert_eq!(line, "Ciaran says: \"hello\"");
+    }
+
+    #[test]
+    fn test_build_named_action_line_without_name() {
+        let line = build_named_action_line("hello", None);
+        assert_eq!(line, "The newcomer says: \"hello\"");
+    }
+
+    #[test]
+    fn test_build_named_action_line_emote_with_name() {
+        let line = build_named_action_line("*tips hat*", Some("Ciaran"));
+        assert!(line.contains("Ciaran performs an action: tips hat"));
+    }
+
+    #[test]
+    fn test_detect_player_name_my_name_is() {
+        assert_eq!(
+            detect_player_name("My name is Ciaran"),
+            Some("Ciaran".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_player_name_im() {
+        assert_eq!(
+            detect_player_name("I'm Padraig O'Brien"),
+            Some("Padraig O'Brien".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_player_name_call_me() {
+        assert_eq!(detect_player_name("Call me Sean"), Some("Sean".to_string()));
+    }
+
+    #[test]
+    fn test_detect_player_name_no_match() {
+        assert_eq!(detect_player_name("hello there"), None);
+        assert_eq!(detect_player_name("what is your name?"), None);
+    }
+
+    #[test]
+    fn test_detect_player_name_in_sentence() {
+        assert_eq!(
+            detect_player_name("Well, my name is Maeve if you must know"),
+            Some("Maeve".to_string())
+        );
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_known() {
+        let roster = vec![
+            (
+                NpcId(1),
+                "Padraig Darcy".to_string(),
+                "publican".to_string(),
+            ),
+            (
+                NpcId(2),
+                "Mary O'Sullivan".to_string(),
+                "weaver".to_string(),
+            ),
+        ];
+        let mentioned = vec!["Padraig".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, None);
+        assert!(hallucinated.is_empty());
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_hallucinated() {
+        let roster = vec![(
+            NpcId(1),
+            "Padraig Darcy".to_string(),
+            "publican".to_string(),
+        )];
+        let mentioned = vec!["Padraig".to_string(), "Seamus".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, None);
+        assert_eq!(hallucinated, vec!["Seamus".to_string()]);
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_player_name() {
+        let roster = vec![];
+        let mentioned = vec!["Ciaran".to_string()];
+        let hallucinated = validate_mentioned_people(&mentioned, &roster, Some("Ciaran"));
+        assert!(hallucinated.is_empty());
+    }
+
+    #[test]
+    fn test_validate_mentioned_people_empty() {
+        let roster = vec![];
+        let hallucinated = validate_mentioned_people(&[], &roster, None);
+        assert!(hallucinated.is_empty());
     }
 
     #[test]

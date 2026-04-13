@@ -514,6 +514,8 @@ mod tests {
             edge_traversals: Default::default(),
             gossip_network: Default::default(),
             conversation_log: Default::default(),
+            player_name: None,
+            npcs_who_know_player_name: Default::default(),
         }
     }
 

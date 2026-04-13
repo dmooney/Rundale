@@ -194,6 +194,7 @@ export interface WorldDebug {
 	text_log_tail: string[];
 	text_log_len: number;
 	locations: LocationDebug[];
+	player_name: string | null;
 }
 
 export interface EdgeTraversalDebug {
@@ -245,6 +246,7 @@ export interface NpcDebug {
 	knowledge: string[];
 	intelligence: IntelligenceDebug;
 	last_activity: string | null;
+	knows_player_name: boolean;
 }
 
 export interface LongTermMemoryDebug {

@@ -687,6 +687,13 @@ async fn handle_headless_game_input(
                 None => (None, text.to_string()),
             };
 
+            // Detect player self-introduction before building the NPC prompt
+            if app.world.player_name.is_none()
+                && let Some(name) = parish_core::npc::detect_player_name(&dialogue)
+            {
+                app.world.player_name = Some(name);
+            }
+
             // Route to NPC conversation if one is present
             if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
                 &app.world,
@@ -695,6 +702,12 @@ async fn handle_headless_game_input(
                 target_name.as_deref(),
                 app.improv_enabled,
             ) {
+                // Teach this NPC the player's name if introduced
+                if app.world.player_name.is_some()
+                    && parish_core::npc::detect_player_name(&dialogue).is_some()
+                {
+                    app.npc_manager.teach_player_name(setup.npc_id);
+                }
                 let npc_id = setup.npc_id;
                 let system_prompt = setup.system_prompt;
                 let context = setup.context;
@@ -708,6 +721,7 @@ async fn handle_headless_game_input(
                     let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
 
                     let npc_display_name = setup.display_name;
+                    let npc_actual_name = setup.npc_name;
                     print!("{}: ", capitalize_first(&npc_display_name));
                     std::io::stdout().flush().ok();
 
@@ -743,6 +757,7 @@ async fn handle_headless_game_input(
                             Some(system_prompt),
                             Some(token_tx),
                             None,
+                            Some(0.7),
                         )
                         .await
                     {
@@ -782,11 +797,21 @@ async fn handle_headless_game_input(
 
                                         // Update NPC mood and record speaker's own memory
                                         let game_time = app.world.clock.now();
+                                        let player_name_for_mem =
+                                            if app.npc_manager.knows_player_name(npc_id) {
+                                                app.world.player_name.clone()
+                                            } else {
+                                                None
+                                            };
                                         if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-                                            let debug_events =
-                                                parish_core::npc::ticks::apply_tier1_response(
-                                                    npc_mut, &parsed, text, game_time,
-                                                );
+                                            let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
+                                                npc_mut,
+                                                &parsed,
+                                                text,
+                                                game_time,
+                                                &Default::default(),
+                                                player_name_for_mem.as_deref(),
+                                            );
                                             for event in &debug_events {
                                                 app.debug_event(event.clone());
                                             }
@@ -799,7 +824,7 @@ async fn handle_headless_game_input(
                                             parish_core::npc::conversation::ConversationExchange {
                                                 timestamp: game_time,
                                                 speaker_id: npc_id,
-                                                speaker_name: npc_display_name.clone(),
+                                                speaker_name: npc_actual_name.clone(),
                                                 player_input: text.to_string(),
                                                 npc_dialogue: parsed.dialogue.clone(),
                                                 location,

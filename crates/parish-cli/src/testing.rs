@@ -938,12 +938,23 @@ impl GameTestHarness {
                         mood: npc.mood.clone(),
                         internal_thought: None,
                         language_hints: Vec::new(),
+                        mentioned_people: Vec::new(),
                     }),
                 };
                 let game_time = self.app.world.clock.now();
+                let player_name_for_mem = if self.app.npc_manager.knows_player_name(npc_id) {
+                    self.app.world.player_name.clone()
+                } else {
+                    None
+                };
                 if let Some(npc_mut) = self.app.npc_manager.get_mut(npc_id) {
-                    let debug_events = crate::npc::ticks::apply_tier1_response(
-                        npc_mut, &response, text, game_time,
+                    let debug_events = crate::npc::ticks::apply_tier1_response_with_config(
+                        npc_mut,
+                        &response,
+                        text,
+                        game_time,
+                        &Default::default(),
+                        player_name_for_mem.as_deref(),
                     );
                     for event in debug_events {
                         self.app.debug_event(event);

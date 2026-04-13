@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/PreToolUse--protect-files.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PreToolUse--protect-files.sh'"
           }
         ]
       }
@@ -17,15 +17,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/PostToolUse--auto-fmt.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PostToolUse--auto-fmt.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/PostToolUse--compile-check.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PostToolUse--compile-check.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/PostToolUse--dep-audit-reminder.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PostToolUse--dep-audit-reminder.sh'"
           }
         ]
       }
@@ -36,27 +36,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--quality-gates.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--quality-gates.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--harness-reminder.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--harness-reminder.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--doc-staleness.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--doc-staleness.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--screenshot-reminder.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--screenshot-reminder.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--coverage-reminder.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--coverage-reminder.sh'"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/Stop--design-doc-reminder.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Stop--design-doc-reminder.sh'"
           }
         ]
       }
@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/SessionStart--compact-context.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SessionStart--compact-context.sh'"
           }
         ]
       }
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/UserPromptSubmit--commit-msg-check.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/UserPromptSubmit--commit-msg-check.sh'"
           }
         ]
       }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/Notification--notify.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/Notification--notify.sh'"
           }
         ]
       }
@@ -100,7 +100,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/SubagentStart--tauri-server-check.sh"
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/SubagentStart--tauri-server-check.sh'"
           }
         ]
       }

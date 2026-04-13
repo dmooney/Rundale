@@ -21,7 +21,7 @@ use parish_core::ipc::{
 use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
-use parish_core::npc::ticks::apply_tier1_response;
+use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
@@ -703,9 +703,16 @@ async fn run_npc_turn(
     transcript: &[ConversationLine],
 ) -> Option<TurnOutcome> {
     let setup = {
-        let world = state.world.lock().await;
+        let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         let config = state.config.lock().await;
+        // Detect player self-introduction before building NPC prompt
+        parish_core::ipc::detect_and_record_player_name(
+            &mut world,
+            &mut npc_manager,
+            prompt_input,
+            speaker_id,
+        );
         parish_core::ipc::prepare_npc_conversation_turn(
             &world,
             &mut npc_manager,
@@ -734,6 +741,7 @@ async fn run_npc_turn(
             Some(setup.system_prompt),
             Some(token_tx),
             None,
+            Some(0.7),
         )
         .await;
 
@@ -845,8 +853,20 @@ async fn run_npc_turn(
         let world = state.world.lock().await;
         let game_time = world.clock.now();
         let mut npc_manager = state.npc_manager.lock().await;
+        let player_name = if npc_manager.knows_player_name(speaker_id) {
+            world.player_name.clone()
+        } else {
+            None
+        };
         if let Some(npc) = npc_manager.get_mut(speaker_id) {
-            let _ = apply_tier1_response(npc, &parsed, prompt_input, game_time);
+            let _ = apply_tier1_response_with_config(
+                npc,
+                &parsed,
+                prompt_input,
+                game_time,
+                &Default::default(),
+                player_name.as_deref(),
+            );
         }
     }
 

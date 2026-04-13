@@ -3,4 +3,4 @@ Time: {time}
 Season: {season}
 Weather: {weather}
 {scene_context}
-The traveller says: "{player_action}"
+The newcomer says: "{player_action}"

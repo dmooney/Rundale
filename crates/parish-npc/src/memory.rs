@@ -18,17 +18,33 @@ use parish_types::NpcId;
 /// Maximum number of entries in short-term memory.
 pub const MEMORY_CAPACITY: usize = 20;
 
+/// Categorizes what kind of event a memory records.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MemoryKind {
+    /// Spoke directly with the player.
+    SpokeWithPlayer,
+    /// Spoke with another NPC.
+    SpokeWithNpc(NpcId),
+    /// Overheard a conversation nearby.
+    OverheardConversation,
+    /// Received gossip from another NPC.
+    ReceivedGossip,
+}
+
 /// A single memory entry recording something an NPC experienced.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryEntry {
     /// When this happened in game time.
     pub timestamp: DateTime<Utc>,
-    /// What happened (e.g. "Spoke with the traveller about the landlord").
+    /// What happened (e.g. "Spoke with the newcomer about the landlord").
     pub content: String,
     /// NPCs involved in this event (including the remembering NPC).
     pub participants: Vec<NpcId>,
     /// Where this happened.
     pub location: LocationId,
+    /// What kind of event this was (None for legacy entries).
+    #[serde(default)]
+    pub kind: Option<MemoryKind>,
 }
 
 /// Ring buffer of recent NPC memories.
@@ -87,6 +103,11 @@ impl ShortTermMemory {
         self.entries.iter().skip(skip).collect()
     }
 
+    /// Returns all entries as a slice-like iterator.
+    pub fn entries(&self) -> impl Iterator<Item = &MemoryEntry> {
+        self.entries.iter()
+    }
+
     /// Returns the number of stored entries.
     pub fn len(&self) -> usize {
         self.entries.len()
@@ -113,6 +134,41 @@ impl ShortTermMemory {
             lines.push(format!("- [{}] {}", time, entry.content));
         }
         lines.join("\n")
+    }
+
+    /// Formats recent memories with friendly relative timestamps.
+    ///
+    /// Uses human-readable relative dates ("a few minutes ago", "yesterday",
+    /// etc.) instead of bare clock times. Returns an empty string if there
+    /// are no memories.
+    pub fn context_string_with_now(&self, n: usize, now: DateTime<Utc>) -> String {
+        let recent = self.recent(n);
+        if recent.is_empty() {
+            return String::new();
+        }
+
+        let mut lines = Vec::with_capacity(recent.len());
+        for entry in &recent {
+            let label = relative_time_label(entry.timestamp, now);
+            lines.push(format!("- [{}] {}", label, entry.content));
+        }
+        lines.join("\n")
+    }
+}
+
+/// Formats a game timestamp relative to `now` as a human-readable label.
+fn relative_time_label(ts: DateTime<Utc>, now: DateTime<Utc>) -> String {
+    use chrono::Timelike;
+    let diff = now.signed_duration_since(ts);
+    let mins = diff.num_minutes();
+    match mins {
+        m if m <= 0 => "just now".to_string(),
+        1..=59 => format!("{} min ago", mins),
+        60..=1439 => format!("{} hr ago", diff.num_hours()),
+        1440..=2879 => format!("yesterday, {:02}:{:02}", ts.hour(), ts.minute()),
+        2880..=20159 => format!("{} days ago", diff.num_days()),
+        20160..=86399 => format!("{} weeks ago", diff.num_weeks()),
+        _ => format!("{} months ago", diff.num_days() / 30),
     }
 }
 
@@ -178,6 +234,11 @@ impl LongTermMemory {
         Self {
             entries: Vec::new(),
         }
+    }
+
+    /// Returns all entries.
+    pub fn entries(&self) -> &[LongTermEntry] {
+        &self.entries
     }
 
     /// Stores an entry if it meets the importance threshold.
@@ -304,6 +365,11 @@ pub fn compute_importance(entry: &MemoryEntry) -> f32 {
         score += 0.2;
     }
 
+    // First encounters / direct player interaction — always promote
+    if let Some(MemoryKind::SpokeWithPlayer) = &entry.kind {
+        score += 0.1;
+    }
+
     score.min(1.0)
 }
 
@@ -390,6 +456,7 @@ mod tests {
             content: content.to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         }
     }
 
@@ -445,17 +512,107 @@ mod tests {
     fn test_memory_context_string() {
         let mut mem = ShortTermMemory::new();
         mem.add(make_entry(8, "Opened the pub"));
-        mem.add(make_entry(9, "Spoke with a traveller"));
+        mem.add(make_entry(9, "Spoke with a newcomer"));
 
         let ctx = mem.context_string(5);
         assert!(ctx.contains("[08:00] Opened the pub"));
-        assert!(ctx.contains("[09:00] Spoke with a traveller"));
+        assert!(ctx.contains("[09:00] Spoke with a newcomer"));
     }
 
     #[test]
     fn test_memory_context_string_empty() {
         let mem = ShortTermMemory::new();
         assert_eq!(mem.context_string(5), "");
+    }
+
+    #[test]
+    fn test_context_string_with_now_empty() {
+        let mem = ShortTermMemory::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        assert_eq!(mem.context_string_with_now(5, now), "");
+    }
+
+    #[test]
+    fn test_context_string_with_now_just_now() {
+        let mut mem = ShortTermMemory::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        // Entry timestamped at the same time as "now"
+        mem.add(MemoryEntry {
+            timestamp: now,
+            content: "Said hello".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[just now] Said hello"), "got: {ctx}");
+    }
+
+    #[test]
+    fn test_context_string_with_now_minutes_ago() {
+        let mut mem = ShortTermMemory::new();
+        let ts = Utc.with_ymd_and_hms(1820, 3, 20, 11, 45, 0).unwrap();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(); // 15 min later
+        mem.add(MemoryEntry {
+            timestamp: ts,
+            content: "Bought bread".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[15 min ago] Bought bread"), "got: {ctx}");
+    }
+
+    #[test]
+    fn test_context_string_with_now_hours_ago() {
+        let mut mem = ShortTermMemory::new();
+        let ts = Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(); // 4 hr later
+        mem.add(MemoryEntry {
+            timestamp: ts,
+            content: "Opened the shop".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[4 hr ago] Opened the shop"), "got: {ctx}");
+    }
+
+    #[test]
+    fn test_context_string_with_now_yesterday() {
+        let mut mem = ShortTermMemory::new();
+        let ts = Utc.with_ymd_and_hms(1820, 3, 19, 8, 0, 0).unwrap();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(); // 28 hr later
+        mem.add(MemoryEntry {
+            timestamp: ts,
+            content: "Met the priest".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(
+            ctx.contains("[yesterday, 08:00] Met the priest"),
+            "got: {ctx}"
+        );
+    }
+
+    #[test]
+    fn test_context_string_with_now_days_ago() {
+        let mut mem = ShortTermMemory::new();
+        let ts = Utc.with_ymd_and_hms(1820, 3, 15, 10, 0, 0).unwrap();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(); // 5 days later
+        mem.add(MemoryEntry {
+            timestamp: ts,
+            content: "Attended the fair".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[5 days ago] Attended the fair"), "got: {ctx}");
     }
 
     #[test]
@@ -472,6 +629,7 @@ mod tests {
             content: "Joint conversation".to_string(),
             participants: vec![NpcId(1), NpcId(2), NpcId(3)],
             location: LocationId(2),
+            kind: None,
         };
         mem.add(entry);
 
@@ -640,6 +798,7 @@ mod tests {
             content: "Spoke about the weather".to_string(),
             participants: vec![NpcId(0), NpcId(1)], // NpcId(0) = player
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         assert!((score - 0.5).abs() < 0.01); // 0.2 base + 0.3 player
@@ -652,6 +811,7 @@ mod tests {
             content: "The farmer was angry about the stolen sheep".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         // 0.2 base + 0.2 emotion ("angry" + "stolen")
@@ -666,6 +826,7 @@ mod tests {
             content: "The friend was angry and betrayed".to_string(),
             participants: vec![NpcId(0), NpcId(1), NpcId(2), NpcId(3)],
             location: LocationId(1),
+            kind: None,
         };
         let score = compute_importance(&entry);
         assert!(score <= 1.0);
@@ -678,6 +839,7 @@ mod tests {
             content: "Argued fiercely about the landlord's cattle".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         };
 
         let keywords = extract_keywords(&entry, &["Padraig".to_string()], "The Crossroads");
@@ -698,9 +860,10 @@ mod tests {
         let mut ltm = LongTermMemory::new();
         let entry = MemoryEntry {
             timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
-            content: "Spoke with the traveller about the secret".to_string(),
+            content: "Spoke with the newcomer about the secret".to_string(),
             participants: vec![NpcId(0), NpcId(1)], // player involved
             location: LocationId(1),
+            kind: None,
         };
         // Player (0.3) + base (0.2) + emotion "secret" (0.2) = 0.7
         let promoted = try_promote(&mut ltm, &entry, &["Padraig".to_string()], "The Crossroads");

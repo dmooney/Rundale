@@ -302,7 +302,7 @@ async fn handle_whisper_conversation(
 
     // KEY: When recording this interaction in memory, tag it as whispered
     // so Tier 2 background ticks don't leak it to other NPCs
-    // Memory entry: "A traveller whispered to me: [content]. I responded: [response]"
+    // Memory entry: "A newcomer whispered to me: [content]. I responded: [response]"
 
     // Emit NPC response with whisper flag
     state.event_bus.emit("text-log", &TextLogPayload {

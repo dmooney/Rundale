@@ -9,10 +9,12 @@ cat <<'CONTEXT'
 PROJECT: Parish -- An Irish Living World Text Adventure (Rust, Cargo workspace)
 
 WORKSPACE MEMBERS:
-- Root crate (src/): CLI entry point, headless mode, test harness
+- crates/parish-cli/: CLI entry point, headless mode, test harness
 - crates/parish-core/: Pure game logic library
+- crates/parish-npc/: NPC AI and memory system
+- crates/parish-world/: World state, locations, descriptions
 - crates/parish-tauri/: Tauri 2 desktop backend
-- ui/: Svelte 5 + TypeScript frontend
+- apps/ui/: Svelte 5 + TypeScript frontend
 
 QUALITY GATES (must pass before every commit):
   cargo fmt --check

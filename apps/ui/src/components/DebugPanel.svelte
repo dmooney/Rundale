@@ -13,6 +13,8 @@
 		'Inference'
 	];
 
+	let selectedLogId: number | null = null;
+
 	function selectTab(index: number) {
 		debugTab.set(index);
 		selectedNpcId.set(null);
@@ -27,6 +29,14 @@
 		selectedNpcId.set(null);
 	}
 
+	function selectLog(id: number) {
+		selectedLogId = id;
+	}
+
+	function deselectLog() {
+		selectedLogId = null;
+	}
+
 	function strengthBar(strength: number): string {
 		const normalized = Math.round(((strength + 1) / 2) * 10);
 		const filled = Math.min(normalized, 10);
@@ -34,21 +44,17 @@
 		return '[' + '#'.repeat(filled) + '.'.repeat(empty) + ']';
 	}
 
-	let selectedLogId: number | null = null;
-
-	function selectLogEntry(id: number) {
-		selectedLogId = id;
-	}
-
-	function deselectLogEntry() {
-		selectedLogId = null;
+	/** Extract NPC name from "You are {Name}, a..." system prompt pattern. */
+	function npcLabelFromEntry(entry: { system_prompt?: string | null }): string | null {
+		if (!entry.system_prompt) return null;
+		const m = entry.system_prompt.match(/^You are ([^,]+),/);
+		return m ? m[1].trim() : null;
 	}
 
 	$: snap = $debugSnapshot;
 	$: tab = $debugTab;
 	$: npcId = $selectedNpcId;
 	$: selectedNpc = snap?.npcs.find((n: NpcDebug) => n.id === npcId) ?? null;
-	$: selectedLog = snap?.inference.call_log.find(e => e.request_id === selectedLogId) ?? null;
 </script>
 
 {#if $debugVisible && snap}
@@ -98,6 +104,7 @@
 					<h4>Location</h4>
 					<div class="field accent"># {snap.world.player_location_name}</div>
 					<div class="field muted">{snap.world.visited_count}/{snap.world.location_count} visited</div>
+					<div class="field">Player name: {#if snap.world.player_name}<span class="accent">{snap.world.player_name}</span>{:else}<span class="muted">(unknown)</span>{/if}</div>
 				</div>
 				<div class="section">
 					<h4>Tiers</h4>
@@ -169,6 +176,7 @@
 							<h5>Status</h5>
 							<div class="field">Mood: {selectedNpc.mood}</div>
 							<div class="field">Tier: {selectedNpc.tier} | {selectedNpc.state}</div>
+							<div class="field">Knows player name: {#if selectedNpc.knows_player_name}<span class="accent">yes</span>{:else}<span class="muted">no</span>{/if}</div>
 						</div>
 
 						{#if selectedNpc.last_activity}
@@ -281,6 +289,9 @@
 								<span class="npc-tier">[{npc.tier}]</span>
 								<span class="npc-mood">{npc.mood}</span>
 								<span class="npc-loc muted"># {npc.location_name}</span>
+								{#if npc.knows_player_name}
+									<span class="npc-named accent">[named]</span>
+								{/if}
 								{#if npc.state !== 'Present'}
 									<span class="npc-state muted">{npc.state}</span>
 								{/if}
@@ -409,98 +420,62 @@
 
 			{:else if tab === 7}
 				<!-- Inference -->
-				{#if selectedLog}
-					<!-- Detail view for a single inference call -->
-					<div class="npc-detail">
-						<button class="back-btn" on:click={deselectLogEntry}>Back to list</button>
-						<h4>Request #{selectedLog.request_id}</h4>
-
-						<div class="section">
-							<h5>Summary</h5>
-							<div class="field">Time: {selectedLog.timestamp}</div>
-							<div class="field">Model: <span class="accent">{selectedLog.model}</span></div>
-							<div class="field">Duration: {selectedLog.duration_ms}ms</div>
-							<div class="field">Streaming: {selectedLog.streaming ? 'yes' : 'no'}</div>
-							{#if selectedLog.max_tokens}
-								<div class="field">Max tokens: {selectedLog.max_tokens}</div>
-							{/if}
-							<div class="field">Status:
-								{#if selectedLog.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-							</div>
-						</div>
-
-						{#if selectedLog.system_prompt}
-							<div class="section">
-								<h5>System Prompt ({selectedLog.system_prompt.length}ch)</h5>
-								<pre class="prompt-block">{selectedLog.system_prompt}</pre>
-							</div>
-						{/if}
-
-						<div class="section">
-							<h5>Prompt ({selectedLog.prompt_len}ch)</h5>
-							<pre class="prompt-block">{selectedLog.prompt_text}</pre>
-						</div>
-
-						<div class="section">
-							<h5>Response ({selectedLog.response_len}ch)</h5>
-							{#if selectedLog.error}
-								<div class="log-error-msg">{selectedLog.error}</div>
-							{:else}
-								<pre class="prompt-block">{selectedLog.response_text}</pre>
-							{/if}
-						</div>
+				{@const selectedEntry = snap.inference.call_log.find(e => e.request_id === selectedLogId) ?? null}
+				{#if selectedEntry}
+					<!-- Detail view: one long scrollable page -->
+					<button class="back-btn" on:click={deselectLog}>Back to list</button>
+					{@const npcLabel = npcLabelFromEntry(selectedEntry)}
+					<div class="log-detail-header">
+						<span class="muted">[{selectedEntry.timestamp}]</span>
+						<span class="log-id">#{selectedEntry.request_id}</span>
+						{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{/if}
+						<span class="muted">{selectedEntry.model}</span>
+						{#if selectedEntry.streaming}<span class="log-badge stream">STREAM</span>{/if}
+						{#if selectedEntry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+						<span class="muted">{selectedEntry.duration_ms}ms · prompt {selectedEntry.prompt_len}ch · response {selectedEntry.response_len}ch</span>
 					</div>
+					{#if selectedEntry.error}
+						<div class="log-error-msg">{selectedEntry.error}</div>
+					{/if}
+					{#if selectedEntry.system_prompt}
+						<div class="prompt-label">System prompt ({selectedEntry.system_prompt.length}ch)</div>
+						<pre class="prompt-block">{selectedEntry.system_prompt}</pre>
+					{/if}
+					<div class="prompt-label">Prompt ({selectedEntry.prompt_len}ch)</div>
+					<pre class="prompt-block">{selectedEntry.prompt_text}</pre>
+					<div class="prompt-label">Response ({selectedEntry.response_len}ch)</div>
+					<pre class="prompt-block">{selectedEntry.response_text}</pre>
 				{:else}
-					<!-- Config + call log list -->
+					<!-- List view -->
 					<div class="section">
-						<h4>Base Provider</h4>
-						<div class="field">Provider: {snap.inference.provider_name}</div>
-						<div class="field">Model: {snap.inference.model_name || '(auto)'}</div>
-						<div class="field">URL: {snap.inference.base_url || '(default)'}</div>
-						<div class="field">Queue: {snap.inference.has_queue ? 'active' : 'none'}</div>
-					</div>
-					<div class="section">
-						<h4>Cloud</h4>
+						<h4>Provider</h4>
+						<div class="field">{snap.inference.provider_name} · {snap.inference.model_name || '(auto)'} · {snap.inference.base_url || '(default)'} · Queue: {snap.inference.has_queue ? 'active' : 'none'} · Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
 						{#if snap.inference.cloud_provider}
-							<div class="field">Provider: {snap.inference.cloud_provider}</div>
-							<div class="field">Model: {snap.inference.cloud_model || '(none)'}</div>
-						{:else}
-							<div class="field muted">(not configured)</div>
+							<div class="field muted">Cloud: {snap.inference.cloud_provider} / {snap.inference.cloud_model || '(none)'}</div>
 						{/if}
 					</div>
 					<div class="section">
-						<div class="field">Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
 						<div class="field muted">Reaction req id: {snap.inference.reaction_req_id}</div>
 					</div>
 					<div class="section">
 						<h4>Call Log ({snap.inference.call_log.length})</h4>
-						{#if snap.inference.call_log.length > 0}
+						{#if snap.inference.call_log.length === 0}
+							<div class="field muted">(no calls yet)</div>
+						{:else}
 							{@const avgMs = Math.round(snap.inference.call_log.reduce((s, e) => s + e.duration_ms, 0) / snap.inference.call_log.length)}
 							{@const errorCount = snap.inference.call_log.filter(e => e.error).length}
 							<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
-							<div class="call-log">
-								{#each [...snap.inference.call_log].reverse() as entry}
-									<button class="log-entry-btn" class:log-error={entry.error} on:click={() => selectLogEntry(entry.request_id)}>
-										<div class="log-header">
-											<span class="muted">[{entry.timestamp}]</span>
-											<span class="log-id">#{entry.request_id}</span>
-											<span class="log-model">{entry.model}</span>
-											{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
-											{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-										</div>
-										<div class="log-meta">
-											<span>{entry.duration_ms}ms</span>
-											<span class="muted">prompt: {entry.prompt_len}ch</span>
-											<span class="muted">response: {entry.response_len}ch</span>
-										</div>
-										{#if entry.error}
-											<div class="log-error-msg">{entry.error}</div>
-										{/if}
-									</button>
-								{/each}
-							</div>
-						{:else}
-							<div class="field muted">(no calls yet)</div>
+							{#each [...snap.inference.call_log].reverse() as entry}
+								{@const npcLabel = npcLabelFromEntry(entry)}
+								<button class="log-row" class:log-row-error={entry.error} on:click={() => selectLog(entry.request_id)}>
+									<span class="muted">[{entry.timestamp}]</span>
+									<span class="log-id">#{entry.request_id}</span>
+									{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{:else}<span class="log-model">{entry.model}</span>{/if}
+									{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
+									{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
+									<span class="muted">{entry.duration_ms}ms</span>
+								</button>
+							{/each}
 						{/if}
 					</div>
 				{/if}
@@ -719,36 +694,38 @@
 		font-size: 0.65rem;
 	}
 
-	.call-log {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-		margin-top: 0.25rem;
-	}
 
-	.log-entry-btn {
-		display: block;
+	.log-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: baseline;
 		width: 100%;
 		padding: 0.3rem 0.5rem;
+		background: none;
 		border: none;
 		border-bottom: 1px solid var(--color-border);
-		background: none;
 		cursor: pointer;
 		text-align: left;
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		color: var(--color-fg);
 	}
 
-	.log-entry-btn:hover {
+	.log-row:hover {
 		background: var(--color-input-bg);
 	}
 
-	.log-entry-btn.log-error {
+	.log-row.log-row-error {
 		background: color-mix(in srgb, #ff4444 8%, transparent);
 	}
 
-	.log-entry-btn.log-error:hover {
-		background: color-mix(in srgb, #ff4444 14%, transparent);
+	.log-detail-header {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+		align-items: baseline;
+		font-size: 0.72rem;
+		margin-bottom: 0.5rem;
 	}
 
 	.prompt-block {
@@ -759,10 +736,16 @@
 		line-height: 1.5;
 		white-space: pre-wrap;
 		word-break: break-word;
-		max-height: 12rem;
-		overflow-y: auto;
 		color: var(--color-fg);
-		margin: 0.15rem 0 0;
+		margin: 0.1rem 0 0.4rem;
+	}
+
+	.prompt-label {
+		font-size: 0.6rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--color-muted);
+		margin-top: 0.4rem;
 	}
 
 	.log-header {

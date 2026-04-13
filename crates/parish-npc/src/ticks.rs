@@ -9,7 +9,7 @@ use chrono::Utc;
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::{
-    Npc, NpcId, NpcStreamResponse, build_action_line, build_tier1_context,
+    Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
     build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
@@ -82,11 +82,40 @@ pub fn build_enhanced_system_prompt_with_config(
     improv: bool,
     config: &NpcConfig,
     npc_names: &std::collections::HashMap<NpcId, String>,
+    known_roster: Option<&[(NpcId, String, String)]>,
 ) -> String {
     let mut prompt = build_tier1_system_prompt(npc, improv);
 
-    // Add relationship context with names instead of IDs
-    if !npc.relationships.is_empty() {
+    // Add known NPC roster (relationships + memory + co-located NPCs)
+    // NpcId(0) is the player — shown first with a special "currently speaking with" note.
+    if let Some(roster) = known_roster {
+        if !roster.is_empty() {
+            prompt.push_str("\n\nPEOPLE YOU KNOW:\n");
+            for (target_id, name, occupation) in roster {
+                if *target_id == NpcId(0) {
+                    // The player — highlight them as the current interlocutor
+                    prompt.push_str(&format!(
+                        "- {}, {} \u{2014} this is the person you are currently speaking with\n",
+                        name, occupation
+                    ));
+                } else if let Some(rel) = npc.relationships.get(target_id) {
+                    let strength_desc =
+                        relationship_label_with_config(rel.strength, &config.relationship_labels);
+                    prompt.push_str(&format!(
+                        "- {}, {} \u{2014} {} ({})\n",
+                        name, occupation, rel.kind, strength_desc
+                    ));
+                } else {
+                    prompt.push_str(&format!("- {}, {}\n", name, occupation));
+                }
+            }
+            prompt.push_str(
+                "If you want to mention anyone not listed above, \
+                describe them by role or appearance \u{2014} never invent a name.\n",
+            );
+        }
+    } else if !npc.relationships.is_empty() {
+        // Fallback: legacy behavior for callers that don't pass a roster
         prompt.push_str("\n\nPEOPLE IN YOUR LIFE:\n");
         for (target_id, rel) in &npc.relationships {
             let name = npc_names
@@ -119,7 +148,7 @@ pub fn build_enhanced_system_prompt(
     improv: bool,
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
-    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names)
+    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names, None)
 }
 
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
@@ -133,8 +162,15 @@ pub fn build_enhanced_context_with_config(
     other_npcs: &[&Npc],
     config: &NpcConfig,
     _npc_names: &std::collections::HashMap<NpcId, String>,
+    player_name_for_npc: Option<&str>,
 ) -> String {
     let mut context = build_tier1_context(world);
+
+    // Clearly identify who the NPC is talking to
+    let interlocutor_label = player_name_for_npc.unwrap_or("A newcomer to the parish");
+    context.push_str(&format!(
+        "\n\nPERSON YOU ARE SPEAKING WITH:\n{interlocutor_label}.",
+    ));
 
     // Add other NPCs present with relationship context
     if !other_npcs.is_empty() {
@@ -157,9 +193,11 @@ pub fn build_enhanced_context_with_config(
     }
 
     // Add recent conversation history at this location
-    let conv_ctx = world
-        .conversation_log
-        .context_string(world.player_location, npc.id, 3);
+    let player_label = player_name_for_npc.unwrap_or("The newcomer");
+    let conv_ctx =
+        world
+            .conversation_log
+            .context_string(world.player_location, npc.id, player_label, 3);
     if !conv_ctx.is_empty() {
         context.push_str("\n\nWhat's been said here:\n");
         context.push_str(&conv_ctx);
@@ -170,10 +208,11 @@ pub fn build_enhanced_context_with_config(
         .conversation_log
         .has_recent_exchange_with(world.player_location, npc.id, 2)
     {
-        context.push_str(
-            "\n\nYou are already in conversation with this traveller. \
-            Do not re-introduce yourself or greet them again.",
-        );
+        let name = player_name_for_npc.unwrap_or("this newcomer");
+        context.push_str(&format!(
+            "\n\nYou are already in conversation with {name}. \
+            Do not re-introduce yourself or greet them again."
+        ));
     }
 
     // Add recent player reactions (emoji feedback)
@@ -183,6 +222,14 @@ pub fn build_enhanced_context_with_config(
     if !reaction_ctx.is_empty() {
         context.push_str("\n\n");
         context.push_str(&reaction_ctx);
+    }
+
+    // Add recent short-term memories unconditionally (ensures NPC doesn't
+    // forget what just happened, even if keyword matching would miss it)
+    let stm_ctx = npc.memory.context_string_with_now(5, world.clock.now());
+    if !stm_ctx.is_empty() {
+        context.push_str("\n\nRecent events you remember:\n");
+        context.push_str(&stm_ctx);
     }
 
     // Add long-term memory recall (keyword-based)
@@ -201,7 +248,7 @@ pub fn build_enhanced_context_with_config(
     };
     let ltm_ctx = npc
         .long_term_memory
-        .recall_context_string(&query_keywords, 3);
+        .recall_context_string(&query_keywords, 5);
     if !ltm_ctx.is_empty() {
         context.push_str("\n\n");
         context.push_str(&ltm_ctx);
@@ -213,10 +260,6 @@ pub fn build_enhanced_context_with_config(
         context.push_str("\n\n");
         context.push_str(&gossip_ctx);
     }
-
-    // Player's current input last — everything above is context for this moment
-    context.push_str("\n\n");
-    context.push_str(&build_action_line(player_input));
 
     context
 }
@@ -232,14 +275,19 @@ pub fn build_enhanced_context(
     other_npcs: &[&Npc],
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
-    build_enhanced_context_with_config(
+    let mut context = build_enhanced_context_with_config(
         npc,
         world,
         player_input,
         other_npcs,
         &NpcConfig::default(),
         npc_names,
-    )
+        None,
+    );
+    // Player's current input last — everything above is context for this moment
+    context.push_str("\n\n");
+    context.push_str(&build_named_action_line(player_input, None));
+    context
 }
 
 /// Processes a Tier 1 NPC response using the given config, updating mood and recording a memory.
@@ -255,6 +303,7 @@ pub fn apply_tier1_response_with_config(
     player_input: &str,
     game_time: chrono::DateTime<Utc>,
     config: &NpcConfig,
+    player_name: Option<&str>,
 ) -> Vec<String> {
     let mut events = Vec::new();
 
@@ -267,9 +316,11 @@ pub fn apply_tier1_response_with_config(
         npc.mood = meta.mood.clone();
     }
 
-    // Record memory of the interaction
+    // Record memory of the interaction, using player's name if known
+    let speaker_label = player_name.unwrap_or("A newcomer");
     let content = format!(
-        "A traveller said: '{}'. Responded: {}",
+        "{} said: '{}'. Responded: {}",
+        speaker_label,
         player_input,
         truncate_for_memory(&response.dialogue, config.memory_truncation_dialogue)
     );
@@ -283,6 +334,7 @@ pub fn apply_tier1_response_with_config(
         content,
         participants: vec![NpcId(0), npc.id], // NpcId(0) = player
         location: npc.location,
+        kind: Some(crate::memory::MemoryKind::SpokeWithPlayer),
     };
     if let Some(evicted) = npc.memory.add(mem_entry) {
         let npc_name = npc.name.clone();
@@ -312,6 +364,7 @@ pub fn apply_tier1_response(
         player_input,
         game_time,
         &NpcConfig::default(),
+        None,
     )
 }
 
@@ -332,7 +385,7 @@ pub fn record_witness_memories(
     let mut debug_events = Vec::new();
 
     let content = format!(
-        "Overheard: a traveller said '{}' and {} replied '{}'",
+        "Overheard: a newcomer said '{}' and {} replied '{}'",
         player_input, speaker_name, npc_dialogue,
     );
 
@@ -350,6 +403,7 @@ pub fn record_witness_memories(
             content: content.clone(),
             participants: vec![NpcId(0), speaker_id, witness_id],
             location,
+            kind: Some(crate::memory::MemoryKind::OverheardConversation),
         };
 
         if let Some(witness) = npcs.get_mut(&witness_id) {
@@ -441,7 +495,7 @@ pub async fn run_tier2_for_group(
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     match client
-        .generate_json::<Tier2Response>(model, &prompt, None, None)
+        .generate_json::<Tier2Response>(model, &prompt, None, None, None)
         .await
     {
         Ok(resp) => Some(Tier2Event {
@@ -513,6 +567,7 @@ pub fn apply_tier2_event_with_config(
                 content: memory_content.clone(),
                 participants: event.participants.clone(),
                 location: event.location,
+                kind: Some(crate::memory::MemoryKind::SpokeWithNpc(participant_id)),
             };
             if let Some(evicted) = npc.memory.add(mem_entry) {
                 let npc_name = npc.name.clone();
@@ -751,7 +806,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
 
         match ctx
             .client
-            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None)
+            .generate_json::<Tier3Response>(ctx.model, &prompt, None, None, None)
             .await
         {
             Ok(resp) => {
@@ -813,6 +868,7 @@ pub fn apply_tier3_updates(
                 content: update.activity_summary.clone(),
                 participants: vec![update.npc_id],
                 location: npc.location,
+                kind: None, // Tier 3 batch activity
             };
             if let Some(evicted) = npc.memory.add(mem_entry) {
                 let npc_name = npc.name.clone();
@@ -940,23 +996,23 @@ mod tests {
     }
 
     #[test]
-    fn test_enhanced_context_short_term_memory_not_injected() {
-        // Short-term memories are no longer injected into the context prompt —
-        // the conversation log ("What's been said here") covers recent exchanges,
-        // and short-term memories are maintained only for long-term promotion.
+    fn test_enhanced_context_short_term_memory_injected() {
+        // Short-term memories are now injected unconditionally to prevent
+        // NPCs from "forgetting" recent events even when keyword matching misses them.
         let mut npc = make_test_npc(1, "Padraig", 1);
         npc.memory.add(MemoryEntry {
             timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
             content: "Saw a stranger at the crossroads".to_string(),
             participants: vec![NpcId(1)],
             location: LocationId(1),
+            kind: None,
         });
         let world = WorldState::new();
 
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
         let context = build_enhanced_context(&npc, &world, "says hello", &[], &npc_names);
-        assert!(!context.contains("Recent memories:"));
-        assert!(!context.contains("Saw a stranger at the crossroads"));
+        assert!(context.contains("Recent events you remember:"));
+        assert!(context.contains("Saw a stranger at the crossroads"));
     }
 
     #[test]
@@ -969,6 +1025,7 @@ mod tests {
                 mood: "cheerful".to_string(),
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1150,7 +1207,8 @@ mod tests {
         };
         let npc_names: HashMap<NpcId, String> =
             [(NpcId(2), "Brigid".to_string())].into_iter().collect();
-        let prompt = build_enhanced_system_prompt_with_config(&npc, false, &config, &npc_names);
+        let prompt =
+            build_enhanced_system_prompt_with_config(&npc, false, &config, &npc_names, None);
         // 0.8 is below 0.9 threshold, so should be "friendly" not "very close"
         assert!(prompt.contains("friendly"));
         assert!(!prompt.contains("very close"));
@@ -1162,8 +1220,8 @@ mod tests {
         let world = WorldState::new();
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
         let context = build_enhanced_context(&npc, &world, "hello there", &[], &npc_names);
-        // The traveller's current input must be the last meaningful content
-        let action_line = "The traveller says: \"hello there\"";
+        // The newcomer's current input must be the last meaningful content
+        let action_line = "The newcomer says: \"hello there\"";
         assert!(context.contains(action_line));
         assert!(
             context.rfind(action_line) > context.rfind("Your Location:"),
@@ -1186,8 +1244,9 @@ mod tests {
             memory_truncation_event_log: 30,
             ..NpcConfig::default()
         };
-        let events =
-            apply_tier1_response_with_config(&mut npc, &response, "waves", game_time, &config);
+        let events = apply_tier1_response_with_config(
+            &mut npc, &response, "waves", game_time, &config, None,
+        );
 
         // The debug event log entry should be truncated to ~30 chars
         assert!(events.iter().any(|e| e.contains("remembers:")));
@@ -1472,6 +1531,7 @@ mod tests {
                 mood: "calm".to_string(), // same mood
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1493,6 +1553,7 @@ mod tests {
                 mood: String::new(), // empty mood
                 internal_thought: None,
                 language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();

@@ -113,6 +113,8 @@ pub struct WorldDebug {
     pub text_log_len: usize,
     /// Per-location debug info.
     pub locations: Vec<LocationDebug>,
+    /// Player's name if they have introduced themselves, or null.
+    pub player_name: Option<String>,
 }
 
 /// A single edge in the player "worn path" map.
@@ -211,6 +213,8 @@ pub struct NpcDebug {
     pub intelligence: IntelligenceDebug,
     /// Last Tier 3 batch activity summary, if this NPC has received one.
     pub last_activity: Option<String>,
+    /// Whether this NPC knows the player's name.
+    pub knows_player_name: bool,
 }
 
 /// A long-term memory entry for debug display.
@@ -794,6 +798,7 @@ fn build_world_debug(world: &WorldState, npc_manager: &NpcManager) -> WorldDebug
         text_log_tail,
         text_log_len,
         locations,
+        player_name: world.player_name.clone(),
     }
 }
 
@@ -982,6 +987,7 @@ fn build_npc_debug_list(
                     creative: npc.intelligence.creative,
                 },
                 last_activity: npc.last_activity.clone(),
+                knows_player_name: npc_manager.knows_player_name(npc.id),
             }
         })
         .collect();
