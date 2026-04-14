@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
 	import { discoverSaveFiles, loadBranch, saveGame, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
 	import { worldState, mapData, npcsHere } from '../stores/game';
@@ -7,6 +8,7 @@
 	let loading = false;
 	let forkingBranchId: number | null = null;
 	let forkName = '';
+	let forkError = '';
 	let showLedgers = false;
 
 	$: activeFile = files.find(f => f.filename === saveState?.filename) ?? files[0] ?? null;
@@ -262,7 +264,7 @@
 			});
 		} catch (e: any) {
 			console.error('Branch creation failed:', e);
-			forkName = String(e).substring(0, 60);
+			forkError = String(e).substring(0, 60);
 		}
 		loading = false;
 	}
@@ -293,6 +295,7 @@
 		if (!parent) return;
 		forkingBranchId = branchId;
 		forkName = generateBranchName(parent, activeFile.branches);
+		forkError = '';
 	}
 
 	function autofocus(node: HTMLInputElement) {
@@ -325,12 +328,14 @@
 	function cancelFork() {
 		forkingBranchId = null;
 		forkName = '';
+		forkError = '';
 	}
 
 	function close() {
 		savePickerVisible.set(false);
 		forkingBranchId = null;
 		forkName = '';
+		forkError = '';
 		showLedgers = false;
 	}
 
@@ -346,13 +351,12 @@
 		}
 	}
 
-	function scrollToCurrentNode() {
-		requestAnimationFrame(() => {
-			const current = document.querySelector('.dag-current');
-			if (current) {
-				current.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
-			}
-		});
+	async function scrollToCurrentNode() {
+		await tick();
+		const current = document.querySelector('.dag-current');
+		if (current) {
+			current.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
+		}
 	}
 
 	let prevVisible = false;
@@ -473,8 +477,13 @@
 												bind:value={forkName}
 												use:autofocus
 												on:keydown|stopPropagation={(e) => { if (e.key === 'Enter' && parent) { e.preventDefault(); handleFork(parent); } if (e.key === 'Escape') cancelFork(); }}
+												on:input={() => { forkError = ''; }}
 											/>
-											<span class="node-location">{node.branch.latest_location ?? 'New'}</span>
+											{#if forkError}
+												<span class="fork-error">{forkError}</span>
+											{:else}
+												<span class="node-location">{node.branch.latest_location ?? 'New'}</span>
+											{/if}
 											<div class="phantom-actions">
 												<button class="phantom-btn" on:click|stopPropagation={() => { if (parent) handleFork(parent); }} disabled={loading || !forkName.trim()}>Create</button>
 												<button class="phantom-btn" on:click|stopPropagation={cancelFork}>Cancel</button>
@@ -782,6 +791,15 @@
 	.phantom-name-input:focus {
 		border-color: var(--color-accent);
 		outline: none;
+	}
+
+	.fork-error {
+		font-size: 0.55rem;
+		color: #c44;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 100%;
 	}
 
 	.phantom-actions {

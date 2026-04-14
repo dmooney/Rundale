@@ -446,6 +446,30 @@ mod tests {
     }
 
     #[test]
+    fn test_game_snapshot_ludicrous_speed_roundtrip() {
+        use parish_types::GameSpeed;
+
+        let mut world = WorldState::new();
+        world.clock.set_speed(GameSpeed::Ludicrous);
+        let npc_manager = NpcManager::new();
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+        assert!(
+            (snapshot.clock.speed_factor - GameSpeed::Ludicrous.factor()).abs() < 0.01,
+            "captured factor should match Ludicrous"
+        );
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        assert!(
+            (new_world.clock.speed_factor() - GameSpeed::Ludicrous.factor()).abs() < 0.01,
+            "restored speed factor should match Ludicrous"
+        );
+    }
+
+    #[test]
     fn test_game_snapshot_preserves_tier2_time() {
         let world = WorldState::new();
         let mut npc_manager = NpcManager::new();
