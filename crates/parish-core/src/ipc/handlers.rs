@@ -99,12 +99,15 @@ pub fn build_map_data(world: &WorldState, transport: &TransportMode) -> MapData 
         }
     }
 
-    // Build visited locations (fully enriched)
-    let mut locations: Vec<MapLocation> = world
-        .graph
-        .location_ids()
-        .into_iter()
-        .filter(|id| visited.contains(id))
+    // Build visited locations (fully enriched).
+    //
+    // Perf: iterate `visited` directly instead of fetching every id in the
+    // graph and filtering. Under fog-of-war the visited set is usually far
+    // smaller than the full graph, so this skips a `Vec<LocationId>`
+    // allocation and |graph| - |visited| filter rejections per call.
+    let mut locations: Vec<MapLocation> = visited
+        .iter()
+        .copied()
         .filter_map(|id| world.graph.get(id).map(|data| (id, data)))
         .map(|(id, data)| {
             let travel_minutes = if id == player_loc {
@@ -144,13 +147,15 @@ pub fn build_map_data(world: &WorldState, transport: &TransportMode) -> MapData 
         }
     }
 
-    // Edges: between any two locations that are both visible (visited or frontier)
+    // Edges: between any two locations that are both visible (visited or frontier).
+    //
+    // Perf: iterate `visible` directly rather than scanning every location in
+    // the graph. This avoids an extra `Vec<LocationId>` allocation and drops
+    // the per-iteration `visible.contains(&loc_id)` rejection check — only
+    // the inner `visible.contains(&neighbor_id)` guard is still required.
     let visible: HashSet<LocationId> = visited.union(&frontier).copied().collect();
     let mut edges: Vec<(String, String)> = Vec::new();
-    for loc_id in world.graph.location_ids() {
-        if !visible.contains(&loc_id) {
-            continue;
-        }
+    for &loc_id in &visible {
         for (neighbor_id, _conn) in world.graph.neighbors(loc_id) {
             if loc_id.0 < neighbor_id.0 && visible.contains(&neighbor_id) {
                 edges.push((loc_id.0.to_string(), neighbor_id.0.to_string()));
