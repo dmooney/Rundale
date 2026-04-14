@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{Mutex, broadcast};
+use tokio::task::JoinHandle;
 
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
@@ -142,6 +143,10 @@ pub struct AppState {
     pub pronunciations: Vec<PronunciationEntry>,
     /// Path to the feature flags persistence file.
     pub flags_path: PathBuf,
+    /// Handle for the active inference worker task; used to abort it on rebuild
+    /// or shutdown so orphaned workers (each holding an HTTP client and channel)
+    /// don't accumulate.  See bugs #224 and #231.
+    pub worker_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -252,6 +257,7 @@ pub fn build_app_state(
         game_mod,
         pronunciations,
         flags_path,
+        worker_handle: Mutex::new(None),
     })
 }
 
