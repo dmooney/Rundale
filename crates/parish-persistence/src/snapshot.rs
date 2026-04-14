@@ -273,14 +273,10 @@ impl GameSnapshot {
         // Set speed by finding the matching preset, or use custom factor
         let factor = self.clock.speed_factor;
         use parish_types::GameSpeed;
-        let speed = [
-            GameSpeed::Slow,
-            GameSpeed::Normal,
-            GameSpeed::Fast,
-            GameSpeed::Fastest,
-        ]
-        .into_iter()
-        .find(|s| (s.factor() - factor).abs() < 0.01);
+        let speed = GameSpeed::ALL
+            .iter()
+            .copied()
+            .find(|s| (s.factor() - factor).abs() < 0.01);
         if let Some(s) = speed {
             clock.set_speed(s);
         }

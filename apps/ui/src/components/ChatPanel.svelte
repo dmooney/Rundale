@@ -10,10 +10,12 @@
 	let hoveredMessageId: string | null = $state(null);
 
 	$effect(() => {
-		// Scroll to bottom when log changes
 		const _ = $textLog;
+		const nearBottom = logEl
+			? logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50
+			: true;
 		tick().then(() => {
-			if (logEl) {
+			if (logEl && nearBottom) {
 				logEl.scrollTop = logEl.scrollHeight;
 			}
 		});

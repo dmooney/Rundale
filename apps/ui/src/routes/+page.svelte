@@ -66,9 +66,10 @@
 		}
 		if (e.key === 'F12') {
 			e.preventDefault();
-			debugVisible.update((v) => !v);
+			const nowVisible = !get(debugVisible);
+			debugVisible.set(nowVisible);
 			// Fetch initial snapshot when opening
-			if (!$debugVisible) {
+			if (nowVisible) {
 				getDebugSnapshot()
 					.then((s) => debugSnapshot.set(s))
 					.catch(() => {});
