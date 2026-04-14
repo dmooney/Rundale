@@ -747,7 +747,7 @@ mod tests {
         // Multi-byte UTF-8 characters must not panic
         let key = "αβγδεζηθικ"; // 10 Greek letters, each 2 bytes
         let result = mask_key(key);
-        assert_eq!(result, "αβγδ...ζηθι");
+        assert_eq!(result, "αβγδ...ηθικ");
         // Exactly 8 chars → too short to mask
         assert_eq!(mask_key("αβγδεζηθ"), "(set, too short to mask)");
     }
