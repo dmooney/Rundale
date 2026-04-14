@@ -276,3 +276,128 @@ impl Default for WorldState {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_starts_at_crossroads() {
+        let world = WorldState::new();
+        assert_eq!(world.player_location, LocationId(1));
+        assert_eq!(world.current_location().name, "The Crossroads");
+    }
+
+    #[test]
+    fn new_initial_collections_are_fresh() {
+        let world = WorldState::new();
+        assert!(world.text_log.is_empty());
+        assert!(world.edge_traversals.is_empty());
+        // Starting location is pre-marked as visited.
+        assert!(world.visited_locations.contains(&LocationId(1)));
+        assert_eq!(world.visited_locations.len(), 1);
+        assert!(world.player_name.is_none());
+    }
+
+    #[test]
+    fn new_default_weather_is_clear() {
+        let world = WorldState::new();
+        assert_eq!(world.weather, Weather::Clear);
+    }
+
+    #[test]
+    fn default_matches_new() {
+        let a = WorldState::default();
+        let b = WorldState::new();
+        assert_eq!(a.player_location, b.player_location);
+        assert_eq!(a.weather, b.weather);
+        assert_eq!(a.text_log.len(), b.text_log.len());
+    }
+
+    #[test]
+    fn log_appends_to_text_log() {
+        let mut world = WorldState::new();
+        world.log("hello".to_string());
+        world.log("world".to_string());
+        assert_eq!(world.text_log, vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn mark_visited_adds_location() {
+        let mut world = WorldState::new();
+        world.mark_visited(LocationId(42));
+        assert!(world.visited_locations.contains(&LocationId(42)));
+    }
+
+    #[test]
+    fn mark_visited_is_idempotent() {
+        let mut world = WorldState::new();
+        world.mark_visited(LocationId(5));
+        world.mark_visited(LocationId(5));
+        assert_eq!(
+            world
+                .visited_locations
+                .iter()
+                .filter(|&&id| id == LocationId(5))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn record_path_traversal_canonicalises_edge_order() {
+        let mut world = WorldState::new();
+        // Walk 2 → 1 then 1 → 2 — both should land on the same canonical edge.
+        world.record_path_traversal(&[LocationId(2), LocationId(1)]);
+        world.record_path_traversal(&[LocationId(1), LocationId(2)]);
+        assert_eq!(world.edge_traversals.len(), 1);
+        assert_eq!(
+            world.edge_traversals.get(&(LocationId(1), LocationId(2))),
+            Some(&2)
+        );
+        // The reversed key should never appear.
+        assert!(
+            !world
+                .edge_traversals
+                .contains_key(&(LocationId(2), LocationId(1)))
+        );
+    }
+
+    #[test]
+    fn record_path_traversal_handles_multi_hop_paths() {
+        let mut world = WorldState::new();
+        // Path A→B→C should register two edges.
+        world.record_path_traversal(&[LocationId(1), LocationId(2), LocationId(3)]);
+        assert_eq!(
+            world.edge_traversals.get(&(LocationId(1), LocationId(2))),
+            Some(&1)
+        );
+        assert_eq!(
+            world.edge_traversals.get(&(LocationId(2), LocationId(3))),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn record_path_traversal_ignores_empty_and_single() {
+        let mut world = WorldState::new();
+        world.record_path_traversal(&[]);
+        world.record_path_traversal(&[LocationId(1)]);
+        assert!(world.edge_traversals.is_empty());
+    }
+
+    #[test]
+    fn current_location_data_none_for_empty_graph() {
+        // new() sets up a legacy `locations` map but an empty `graph`.
+        let world = WorldState::new();
+        assert!(world.current_location_data().is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "player location must exist")]
+    fn current_location_panics_when_player_location_missing() {
+        let mut world = WorldState::new();
+        world.player_location = LocationId(999);
+        let _ = world.current_location();
+    }
+}

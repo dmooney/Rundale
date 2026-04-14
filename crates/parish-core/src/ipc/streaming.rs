@@ -217,4 +217,109 @@ mod tests {
         // even if batching delays some.
         assert_eq!(collected.chars().count(), 3);
     }
+
+    // ── Additional coverage for stream_npc_tokens edge cases ────────────────
+
+    #[tokio::test]
+    async fn stream_empty_channel_returns_empty_string() {
+        let (tx, token_rx) = mpsc::unbounded_channel::<String>();
+        drop(tx); // Close immediately without sending.
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, "");
+        assert_eq!(collected, "");
+    }
+
+    #[tokio::test]
+    async fn stream_separator_split_across_tokens() {
+        // Receiver must stitch the separator together even when it arrives in pieces.
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        tx.send("Dialogue text\n".to_string()).unwrap();
+        tx.send("--".to_string()).unwrap();
+        tx.send("-\n".to_string()).unwrap();
+        tx.send("{\"hints\":[]}".to_string()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, "Dialogue text\n---\n{\"hints\":[]}");
+        // No JSON metadata should have leaked into the collected output.
+        assert!(!collected.contains("hints"));
+        assert!(collected.contains("Dialogue text"));
+    }
+
+    #[tokio::test]
+    async fn stream_handles_multibyte_utf8_at_holdback_boundary() {
+        // The holdback window must never land inside a multi-byte char.
+        // Build a long dialogue so the sliding window actually engages, with
+        // Irish accented characters (é, á) around the boundary.
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        let line = "Is fíor-álainn an lá é inniu — gealltanach agus éadrom, caithfidh mé a rá.";
+        tx.send(line.to_string()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, line);
+        // Output must be valid UTF-8 and contain the full phrase.
+        assert!(collected.contains("fíor-álainn"));
+    }
+
+    #[tokio::test]
+    async fn stream_without_separator_strips_trailing_json() {
+        // Weak models sometimes omit the --- separator and emit metadata inline.
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        tx.send("A fine morning it is. ".to_string()).unwrap();
+        tx.send("{\"action\":\"speaks\"}".to_string()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        // The trailing JSON must be stripped from the emitted text.
+        assert!(collected.contains("fine morning"));
+        assert!(!collected.contains("action"));
+    }
+
+    #[tokio::test]
+    async fn stream_short_text_under_holdback_window_still_emits() {
+        // Text shorter than SEPARATOR_HOLDBACK should flush through the
+        // "no separator found" tail path.
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        tx.send("Hi.".to_string()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, "Hi.");
+        assert_eq!(collected, "Hi.");
+    }
+
+    // ── strip_trailing_json edge cases ──────────────────────────────────────
+
+    #[test]
+    fn strip_trailing_json_ignores_unmatched_close_brace() {
+        // A lone '}' with no matching '{' should not crash; text is returned.
+        let text = "punctuation is weird}";
+        assert_eq!(strip_trailing_json(text), text);
+    }
+
+    #[test]
+    fn strip_trailing_json_rejects_invalid_json() {
+        // The candidate block looks like JSON but isn't valid — keep the text.
+        let text = "the deal is {not, a: valid}";
+        assert_eq!(strip_trailing_json(text), text);
+    }
+
+    #[test]
+    fn strip_trailing_json_handles_whitespace_before_json() {
+        let text = "Good evening to ye.   {\"a\":1}";
+        assert_eq!(strip_trailing_json(text), "Good evening to ye.");
+    }
+
+    #[test]
+    fn strip_trailing_json_handles_nested_objects() {
+        let text = r#"(smiles) Welcome home. {"action":"speaks","meta":{"mood":"warm"}}"#;
+        assert_eq!(strip_trailing_json(text), "(smiles) Welcome home.");
+    }
 }
