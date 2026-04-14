@@ -5,7 +5,7 @@ import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
-const mockSubmitInput = vi.fn(async (_text: string, _addressedTo?: string[]) => {});
+const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
 }));
@@ -437,46 +437,16 @@ describe('InputField', () => {
 			expect((container.querySelectorAll('.npc-chip')[1] as HTMLElement).textContent).not.toContain('Publican');
 		});
 
-		it('toggles persistent npc selection', async () => {
-			const { container } = render(InputField);
+		it('clicking an npc chip inserts an @name mention chip into the editor', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
 			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
 			await fireEvent.click(chip);
-			expect(chip.getAttribute('aria-pressed')).toBe('true');
-			await fireEvent.click(chip);
-			expect(chip.getAttribute('aria-pressed')).toBe('false');
-		});
 
-		it('submits selected npcs in selection order and clears selection', async () => {
-			const { container, getByRole } = render(InputField);
-			const editor = getByRole('textbox');
-			const chips = container.querySelectorAll('.npc-chip');
-			await fireEvent.click(chips[2] as HTMLButtonElement);
-			await fireEvent.click(chips[0] as HTMLButtonElement);
-
-			typeIntoEditor(editor, 'Any news?');
-			await fireEvent.input(editor);
-			await fireEvent.keyDown(editor, { key: 'Enter' });
-
-			expect(mockSubmitInput).toHaveBeenCalledWith('Any news?', [
-				'Siobhan Murphy',
-				'Padraig Darcy'
-			]);
-			expect((chips[2] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
-			expect((chips[0] as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
-		});
-
-		it('submits an unintroduced npc by real_name, not display name', async () => {
-			const { container, getByRole } = render(InputField);
-			const editor = getByRole('textbox');
-			const chips = container.querySelectorAll('.npc-chip');
-			// chips[1] is the unintroduced "an older man behind the bar" → real_name "Tomas Brennan"
-			await fireEvent.click(chips[1] as HTMLButtonElement);
-
-			typeIntoEditor(editor, 'A pint, please.');
-			await fireEvent.input(editor);
-			await fireEvent.keyDown(editor, { key: 'Enter' });
-
-			expect(mockSubmitInput).toHaveBeenCalledWith('A pint, please.', ['Tomas Brennan']);
+			const mention = editor.querySelector('.mention-chip');
+			expect(mention).toBeTruthy();
+			expect(mention?.textContent).toBe('@Padraig Darcy');
+			expect((mention as HTMLElement)?.dataset.npc).toBe('Padraig Darcy');
 		});
 
 		it('hides npc buttons during streaming', () => {
@@ -489,12 +459,14 @@ describe('InputField', () => {
 	describe('quick-travel chips', () => {
 		const testMapData = {
 			locations: [
-				{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: false },
-				{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true },
-				{ id: 'church', name: 'The Church', lat: 0.2, lon: 0.2, adjacent: true }
+				{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: false, hops: 0 },
+				{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1 },
+				{ id: 'church', name: 'The Church', lat: 0.2, lon: 0.2, adjacent: true, hops: 1 }
 			],
 			edges: [['crossroads', 'pub'], ['crossroads', 'church']] as [string, string][],
-			player_location: 'crossroads'
+			player_location: 'crossroads',
+			player_lat: 0,
+			player_lon: 0
 		};
 
 		it('renders chips for adjacent locations', () => {
