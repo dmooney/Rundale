@@ -29,6 +29,10 @@ use parish_types::{ConversationLog, EventBus, GameClock, GossipNetwork, ParishEr
 use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
 
+/// Maximum number of entries kept in the backend text log, matching the
+/// frontend cap (`MAX_TEXT_LOG_SIZE` in `apps/ui/src/stores/game.ts`).
+const MAX_TEXT_LOG: usize = 500;
+
 /// Central game state container.
 ///
 /// Holds the game clock, player position, the world graph, weather,
@@ -256,9 +260,14 @@ impl WorldState {
         self.graph.get(self.player_location)
     }
 
-    /// Appends a line to the text log.
+    /// Appends a line to the text log, evicting the oldest entries when the
+    /// log exceeds [`MAX_TEXT_LOG`].
     pub fn log(&mut self, text: String) {
         self.text_log.push(text);
+        if self.text_log.len() > MAX_TEXT_LOG {
+            let excess = self.text_log.len() - MAX_TEXT_LOG;
+            self.text_log.drain(..excess);
+        }
     }
 }
 

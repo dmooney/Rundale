@@ -33,7 +33,7 @@ use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
 
-use crate::state::{AppState, SaveState};
+use crate::state::{AppState, ConversationRuntimeState, SaveState};
 
 /// Monotonically increasing request ID counter for inference requests.
 static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
@@ -1465,14 +1465,20 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
     });
     npc_manager.assign_tiers(&world, &[]);
 
-    // Replace state
+    // Replace state atomically (both locks held together to prevent a window
+    // where a command handler sees the new world with the old NPC manager).
     {
         let mut w = state.world.lock().await;
-        *w = world;
-    }
-    {
         let mut nm = state.npc_manager.lock().await;
+        *w = world;
         *nm = npc_manager;
+    }
+
+    // Reset conversation transcript so stale dialogue from the previous game
+    // does not bleed into NPC conversations in the new game (#281).
+    {
+        let mut conv = state.conversation.lock().await;
+        *conv = ConversationRuntimeState::new();
     }
 
     // Create a new save file
