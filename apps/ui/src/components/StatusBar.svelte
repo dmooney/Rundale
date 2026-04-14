@@ -2,7 +2,7 @@
 	import { worldState } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	let displayHour = $state(0);
 	let displayMinute = $state(0);
@@ -13,6 +13,8 @@
 	let anchorGameMs = 0;
 	let speedFactor = 36.0;
 	let paused = false;
+
+	let rafId: number;
 
 	function timeOfDayLabel(hour: number): string {
 		if (hour >= 5 && hour < 9) return 'Morning';
@@ -38,7 +40,7 @@
 			displayMinute = d.getUTCMinutes();
 		}
 		displayTimeLabel = timeOfDayLabel(displayHour);
-		requestAnimationFrame(tick);
+		rafId = requestAnimationFrame(tick);
 	}
 
 	// Re-anchor whenever we get a new world snapshot from the backend
@@ -53,7 +55,11 @@
 	});
 
 	onMount(() => {
-		requestAnimationFrame(tick);
+		rafId = requestAnimationFrame(tick);
+	});
+
+	onDestroy(() => {
+		cancelAnimationFrame(rafId);
 	});
 </script>
 
