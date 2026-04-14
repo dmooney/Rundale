@@ -347,6 +347,37 @@ impl WorldGraph {
         total
     }
 
+    /// Computes travel time from a source to every reachable location in a single
+    /// BFS pass.
+    ///
+    /// Returns a map from `LocationId` to cumulative travel minutes along the
+    /// shortest-hop path. The source location has time 0. This replaces N separate
+    /// `shortest_path()` + `path_travel_time()` calls with one traversal.
+    pub fn travel_times_from(
+        &self,
+        from: LocationId,
+        speed_m_per_s: f64,
+    ) -> HashMap<LocationId, u16> {
+        let mut times: HashMap<LocationId, u16> = HashMap::new();
+        if !self.locations.contains_key(&from) {
+            return times;
+        }
+        times.insert(from, 0);
+        let mut queue = VecDeque::new();
+        queue.push_back((from, 0u16));
+        while let Some((current, current_time)) = queue.pop_front() {
+            for (neighbor_id, _) in self.neighbors(current) {
+                if let std::collections::hash_map::Entry::Vacant(e) = times.entry(neighbor_id) {
+                    let edge = self.edge_travel_minutes(current, neighbor_id, speed_m_per_s);
+                    let total = current_time.saturating_add(edge);
+                    e.insert(total);
+                    queue.push_back((neighbor_id, total));
+                }
+            }
+        }
+        times
+    }
+
     /// Computes the hop distance from a source location to every reachable location.
     ///
     /// Returns a map from `LocationId` to the number of graph hops (edges)
@@ -855,5 +886,55 @@ mod tests {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         let ids = graph.location_ids();
         assert_eq!(ids.len(), 4);
+    }
+
+    #[test]
+    fn test_travel_times_from_source() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let times = graph.travel_times_from(LocationId(1), 1.25);
+        // Source has zero travel time
+        assert_eq!(times[&LocationId(1)], 0);
+        // All locations reachable
+        assert_eq!(times.len(), 4);
+        // Direct neighbors have positive time
+        assert!(times[&LocationId(2)] > 0);
+        assert!(times[&LocationId(3)] > 0);
+        // 2-hop destination should equal the sum of its edge travel times
+        // (via shortest-hop path 1 → 3 → 4)
+        let expected = graph
+            .edge_travel_minutes(LocationId(1), LocationId(3), 1.25)
+            .saturating_add(graph.edge_travel_minutes(LocationId(3), LocationId(4), 1.25));
+        assert_eq!(times[&LocationId(4)], expected);
+    }
+
+    #[test]
+    fn test_travel_times_matches_path_travel_time() {
+        // Verify that single-pass BFS produces the same result as
+        // shortest_path() + path_travel_time() for each location.
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let speed = 1.25;
+        let source = LocationId(1);
+        let times = graph.travel_times_from(source, speed);
+
+        for id in graph.location_ids() {
+            if id == source {
+                assert_eq!(times[&id], 0);
+                continue;
+            }
+            let path = graph.shortest_path(source, id).unwrap();
+            let expected = graph.path_travel_time(&path, speed);
+            assert_eq!(
+                times[&id], expected,
+                "travel time mismatch for location {}",
+                id.0
+            );
+        }
+    }
+
+    #[test]
+    fn test_travel_times_nonexistent() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let times = graph.travel_times_from(LocationId(99), 1.25);
+        assert!(times.is_empty());
     }
 }
