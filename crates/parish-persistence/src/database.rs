@@ -647,6 +647,150 @@ mod tests {
         assert_eq!(db.journal_count(branch.id, snap_id).unwrap(), 0);
     }
 
+    /// Compaction must be scoped to the `(branch_id, snapshot_id)` pair.
+    /// Events tied to an *earlier* snapshot on the same branch must survive
+    /// a `clear_journal` of a *later* snapshot (and vice versa) — otherwise
+    /// compaction would delete history it has no business touching.
+    #[test]
+    fn test_clear_journal_scoped_to_snapshot_id() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+
+        // Two snapshots on the same branch, each with their own journal tail.
+        let snap1 = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+        db.append_event(
+            branch.id,
+            snap1,
+            &WorldEvent::ClockAdvanced { minutes: 5 },
+            "1820-03-20T08:00:00Z",
+        )
+        .unwrap();
+        db.append_event(
+            branch.id,
+            snap1,
+            &WorldEvent::WeatherChanged {
+                new_weather: "Fog".to_string(),
+            },
+            "1820-03-20T08:05:00Z",
+        )
+        .unwrap();
+
+        let snap2 = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+        db.append_event(
+            branch.id,
+            snap2,
+            &WorldEvent::ClockAdvanced { minutes: 10 },
+            "1820-03-20T09:00:00Z",
+        )
+        .unwrap();
+
+        assert_eq!(db.journal_count(branch.id, snap1).unwrap(), 2);
+        assert_eq!(db.journal_count(branch.id, snap2).unwrap(), 1);
+
+        // Pruning snap2's journal must leave snap1's events alone.
+        db.clear_journal(branch.id, snap2).unwrap();
+        assert_eq!(
+            db.journal_count(branch.id, snap1).unwrap(),
+            2,
+            "pruning snap2 must not touch snap1's journal"
+        );
+        assert_eq!(db.journal_count(branch.id, snap2).unwrap(), 0);
+
+        // Pruning snap1 now clears the remaining two events.
+        db.clear_journal(branch.id, snap1).unwrap();
+        assert_eq!(db.journal_count(branch.id, snap1).unwrap(), 0);
+    }
+
+    /// Compaction must be scoped to the `branch_id` as well: pruning the
+    /// journal for branch A must NEVER touch branch B's events.
+    #[test]
+    fn test_clear_journal_scoped_to_branch_id() {
+        let db = Database::open_memory().unwrap();
+        let main = db.find_branch("main").unwrap().unwrap();
+        let fork_id = db.create_branch("fork", Some(main.id)).unwrap();
+
+        let main_snap = db.save_snapshot(main.id, &make_test_snapshot()).unwrap();
+        let fork_snap = db.save_snapshot(fork_id, &make_test_snapshot()).unwrap();
+
+        db.append_event(
+            main.id,
+            main_snap,
+            &WorldEvent::ClockAdvanced { minutes: 1 },
+            "1820-03-20T08:00:00Z",
+        )
+        .unwrap();
+        db.append_event(
+            fork_id,
+            fork_snap,
+            &WorldEvent::ClockAdvanced { minutes: 2 },
+            "1820-03-20T08:00:00Z",
+        )
+        .unwrap();
+
+        db.clear_journal(main.id, main_snap).unwrap();
+
+        assert_eq!(db.journal_count(main.id, main_snap).unwrap(), 0);
+        assert_eq!(
+            db.journal_count(fork_id, fork_snap).unwrap(),
+            1,
+            "pruning main's journal must not touch the fork"
+        );
+    }
+
+    /// End-to-end compaction workflow:
+    ///   1. save snapshot A
+    ///   2. append N journal events after A
+    ///   3. save snapshot B (which captures the state produced by those events)
+    ///   4. clear_journal(A) — the tail is now redundant
+    ///   5. load_latest_snapshot returns B, and events_since_snapshot(B) is empty
+    ///
+    /// This is the exact lifecycle the CLI / server paths drive via `/save`.
+    #[test]
+    fn test_compaction_lifecycle_matches_save_path() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+
+        let snap_a = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+        for i in 0..4 {
+            db.append_event(
+                branch.id,
+                snap_a,
+                &WorldEvent::ClockAdvanced { minutes: i + 1 },
+                "1820-03-20T08:00:00Z",
+            )
+            .unwrap();
+        }
+        assert_eq!(db.journal_count(branch.id, snap_a).unwrap(), 4);
+
+        // New snapshot captures the post-event state, old journal pruned.
+        let snap_b = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+        db.clear_journal(branch.id, snap_a).unwrap();
+
+        assert_eq!(db.journal_count(branch.id, snap_a).unwrap(), 0);
+        assert_eq!(db.journal_count(branch.id, snap_b).unwrap(), 0);
+
+        // Loading the latest snapshot gives us snap_b and no tail.
+        let (loaded_id, _) = db.load_latest_snapshot(branch.id).unwrap().unwrap();
+        assert_eq!(loaded_id, snap_b);
+        let tail = db.events_since_snapshot(branch.id, snap_b).unwrap();
+        assert!(tail.is_empty());
+    }
+
+    /// Regression: `clear_journal` with zero events must succeed silently —
+    /// the first-ever `/save` call on a fresh branch hits this path, since
+    /// `latest_snapshot_id` may still point at the bootstrap snapshot whose
+    /// journal tail is empty.
+    #[test]
+    fn test_clear_journal_on_empty_tail_is_noop() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        assert_eq!(db.journal_count(branch.id, snap_id).unwrap(), 0);
+        db.clear_journal(branch.id, snap_id).unwrap();
+        assert_eq!(db.journal_count(branch.id, snap_id).unwrap(), 0);
+    }
+
     #[test]
     fn test_multiple_snapshots_loads_latest() {
         let db = Database::open_memory().unwrap();
@@ -705,5 +849,115 @@ mod tests {
         db.create_branch("test", None).unwrap();
         let result = db.create_branch("test", None);
         assert!(result.is_err());
+    }
+
+    // --- AsyncDatabase wrapper ---
+
+    #[tokio::test]
+    async fn test_async_save_and_load_roundtrip() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap = make_test_snapshot();
+        let snap_id = async_db.save_snapshot(branch.id, &snap).await.unwrap();
+
+        let loaded = async_db
+            .load_latest_snapshot(branch.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.0, snap_id);
+        assert_eq!(loaded.1.player_location, snap.player_location);
+        assert_eq!(loaded.1.weather, snap.weather);
+    }
+
+    #[tokio::test]
+    async fn test_async_branch_crud() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let fork_id = async_db.create_branch("fork", None).await.unwrap();
+        let found = async_db.find_branch("fork").await.unwrap();
+        assert_eq!(found.unwrap().id, fork_id);
+
+        let branches = async_db.list_branches().await.unwrap();
+        assert_eq!(branches.len(), 2); // main + fork
+    }
+
+    #[tokio::test]
+    async fn test_async_journal_append_and_count() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap_id = async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        async_db
+            .append_event(
+                branch.id,
+                snap_id,
+                &WorldEvent::ClockAdvanced { minutes: 5 },
+                "1820-03-20T08:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        let count = async_db.journal_count(branch.id, snap_id).await.unwrap();
+        assert_eq!(count, 1);
+
+        let events = async_db
+            .events_since_snapshot(branch.id, snap_id)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_async_clear_journal() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap_id = async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        async_db
+            .append_event(
+                branch.id,
+                snap_id,
+                &WorldEvent::ClockAdvanced { minutes: 5 },
+                "1820-03-20T08:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        async_db.clear_journal(branch.id, snap_id).await.unwrap();
+        let count = async_db.journal_count(branch.id, snap_id).await.unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[tokio::test]
+    async fn test_async_branch_log() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+        async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        let log = async_db.branch_log(branch.id).await.unwrap();
+        assert_eq!(log.len(), 2);
     }
 }

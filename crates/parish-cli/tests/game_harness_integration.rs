@@ -253,6 +253,66 @@ fn test_npc_canned_responses_consumed_in_order() {
     );
 }
 
+/// Regression: when the player's input contains anachronistic terms, the
+/// harness's `NpcResponse` result must surface those terms in its
+/// `anachronisms` field so UI layers can highlight them.
+#[test]
+fn test_npc_response_surfaces_anachronism_terms() {
+    let mut h = GameTestHarness::new();
+    h.add_canned_response("Padraig Darcy", "What's that now?");
+
+    h.advance_time(120);
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+
+    // "telephone" and "computer" are in the rundale anachronism list.
+    let r = h.execute("can I borrow your telephone to call the computer shop?");
+    match r {
+        ActionResult::NpcResponse {
+            anachronisms,
+            dialogue,
+            ..
+        } => {
+            assert_eq!(dialogue, "What's that now?");
+            assert!(
+                anachronisms.iter().any(|t| t == "telephone"),
+                "expected 'telephone' in anachronisms, got {:?}",
+                anachronisms
+            );
+            assert!(
+                anachronisms.iter().any(|t| t == "computer"),
+                "expected 'computer' in anachronisms, got {:?}",
+                anachronisms
+            );
+        }
+        other => panic!("expected NpcResponse, got {:?}", other),
+    }
+}
+
+/// Regression: period-appropriate input must NOT surface any anachronism
+/// terms — the field must be empty, not merely absent.
+#[test]
+fn test_npc_response_anachronism_field_empty_for_period_input() {
+    let mut h = GameTestHarness::new();
+    h.add_canned_response("Padraig Darcy", "Ah, grand.");
+
+    h.advance_time(120);
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+
+    let r = h.execute("good day to you, Padraig");
+    match r {
+        ActionResult::NpcResponse { anachronisms, .. } => {
+            assert!(
+                anachronisms.is_empty(),
+                "period-appropriate input should produce no anachronisms, got {:?}",
+                anachronisms
+            );
+        }
+        other => panic!("expected NpcResponse, got {:?}", other),
+    }
+}
+
 #[test]
 fn test_npc_not_available_after_canned_exhausted() {
     let mut h = GameTestHarness::new();
@@ -458,4 +518,116 @@ fn test_fog_of_war_frontier_at_pub() {
         frontier.iter().map(|l| &l.name).collect::<Vec<_>>()
     );
     eprintln!("Edges: {}", map.edges.len());
+}
+
+/// Regression: the world graph's travel-time calculation is driven by the
+/// transport speed, so faster transport modes must produce proportionally
+/// shorter travel times for an identical path in the real loaded world.
+#[test]
+fn test_transport_mode_scales_travel_time() {
+    use parish_core::world::transport::TransportMode;
+
+    let h = GameTestHarness::new();
+    let graph = &h.app.world.graph;
+
+    // Find Kilteevan Village → The Crossroads → Darcy's Pub
+    let start = h
+        .app
+        .world
+        .graph
+        .find_by_name("Kilteevan Village")
+        .expect("Kilteevan Village should exist in default mod");
+    let dest = h
+        .app
+        .world
+        .graph
+        .find_by_name("Darcy's Pub")
+        .expect("Darcy's Pub should exist in default mod");
+    let path = graph
+        .shortest_path(start, dest)
+        .expect("Kilteevan → Pub must be reachable");
+
+    let walk = TransportMode::walking();
+    let cart = TransportMode {
+        id: "jaunting_car".to_string(),
+        label: "in a jaunting car".to_string(),
+        speed_m_per_s: walk.speed_m_per_s * 4.0,
+    };
+
+    let walk_minutes = graph.path_travel_time(&path, walk.speed_m_per_s);
+    let cart_minutes = graph.path_travel_time(&path, cart.speed_m_per_s);
+
+    assert!(
+        walk_minutes > 0,
+        "walking travel time must be > 0 for a real path"
+    );
+    assert!(
+        cart_minutes <= walk_minutes,
+        "jaunting car ({cart_minutes} min) should not be slower than walking ({walk_minutes} min) on the same path"
+    );
+    // Cart is 4× faster → at least cut roughly in half even after rounding to u16 minutes.
+    // (Travel times are quantised to u16 minutes so we don't assert ≥ 4× exactly.)
+    assert!(
+        cart_minutes * 2 <= walk_minutes || walk_minutes <= 4,
+        "cart time ({cart_minutes}) should be substantially faster than walk time ({walk_minutes})"
+    );
+}
+
+/// Regression: `format_exits` must reflect the transport label given to it, so
+/// narration actually changes when a mod swaps transport modes.
+#[test]
+fn test_transport_label_surfaces_in_exit_listing() {
+    use parish_core::world::description::format_exits;
+
+    let h = GameTestHarness::new();
+
+    let here = h.app.world.player_location;
+    let walk = format_exits(here, &h.app.world.graph, 1.25, "on foot");
+    let boat = format_exits(here, &h.app.world.graph, 0.5, "by currach");
+
+    assert!(
+        walk.contains("on foot"),
+        "walk exits should mention 'on foot': {walk}"
+    );
+    assert!(
+        boat.contains("by currach"),
+        "boat exits should mention 'by currach': {boat}"
+    );
+    assert!(
+        !walk.contains("by currach"),
+        "walk exits should not leak the boat label"
+    );
+}
+
+/// Regression: slower transport produces longer quoted times in the exit
+/// listing for the same neighbor.
+#[test]
+fn test_slower_transport_lengthens_exit_durations() {
+    use parish_core::world::description::format_exits;
+
+    let h = GameTestHarness::new();
+    let here = h.app.world.player_location;
+
+    let fast = format_exits(here, &h.app.world.graph, 5.0, "on horseback");
+    let slow = format_exits(here, &h.app.world.graph, 0.5, "crawling");
+
+    // Each exit line is `NAME (N min LABEL)`; extract the numeric minute count.
+    fn total_minutes(exits: &str) -> u32 {
+        exits
+            .split(',')
+            .filter_map(|segment| {
+                let open = segment.find('(')?;
+                let rest = &segment[open + 1..];
+                let space = rest.find(' ')?;
+                rest[..space].parse::<u32>().ok()
+            })
+            .sum()
+    }
+
+    let fast_total = total_minutes(&fast);
+    let slow_total = total_minutes(&slow);
+    assert!(
+        slow_total > fast_total,
+        "crawling total ({slow_total}) should exceed horseback total ({fast_total}); fast='{fast}' slow='{slow}'"
+    );
 }

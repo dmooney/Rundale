@@ -181,6 +181,143 @@ mod tests {
         // The cap is enforced by the caller, but the constant must exist
         // and be positive so callers can rely on it.
         assert!(MAX_CHAIN_TURNS > 0);
+        // Lock the actual value — if this number ever changes, every frontend
+        // (tauri, server) must be reviewed because they read this constant.
+        assert_eq!(
+            MAX_CHAIN_TURNS, 3,
+            "MAX_CHAIN_TURNS is a load-bearing constant — bump with care"
+        );
+    }
+
+    /// Full simulation of the caller-side chain loop (matches the shape used
+    /// by parish-tauri/commands.rs and parish-server/routes.rs):
+    /// iterate `pick_next_speaker`, append to `recently_spoken`, bail on
+    /// `None`, and break at `MAX_CHAIN_TURNS`. With enough high-energy,
+    /// related NPCs present, the loop MUST terminate at exactly
+    /// `MAX_CHAIN_TURNS` speakers — no more.
+    #[test]
+    fn chain_terminates_at_max_chain_turns_with_abundant_speakers() {
+        // Build 6 NPCs so the speaker pool is strictly larger than the cap.
+        // Each is high-energy AND has a strong mutual relationship to the
+        // "initial" speaker (id 99) so their heuristic score is well above
+        // threshold and the chain never dies from insufficient motivation.
+        let mut npcs: Vec<Npc> = (1..=6)
+            .map(|i| {
+                let mut n = make_npc(i, &format!("NPC{i}"), "excited");
+                add_relationship(&mut n, NpcId(99), 0.8);
+                n
+            })
+            .collect();
+        // Add cross-relationships so once the "initial" speaker is exhausted
+        // as a relationship target, candidates still have ties to the most
+        // recent speakers.
+        for i in 0..npcs.len() {
+            for j in 0..npcs.len() {
+                if i != j {
+                    let target = npcs[j].id;
+                    add_relationship(&mut npcs[i], target, 0.7);
+                }
+            }
+        }
+
+        let candidates: Vec<&Npc> = npcs.iter().collect();
+        let mut recently_spoken: Vec<NpcId> = Vec::new();
+        let mut last_speaker = Some(NpcId(99));
+
+        // Mirror the caller loop verbatim.
+        for _ in 0..MAX_CHAIN_TURNS {
+            let Some(next) = pick_next_speaker(&candidates, last_speaker, &recently_spoken, &[])
+            else {
+                break;
+            };
+            recently_spoken.push(next.id);
+            last_speaker = Some(next.id);
+        }
+
+        assert_eq!(
+            recently_spoken.len(),
+            MAX_CHAIN_TURNS,
+            "chain should fill to exactly MAX_CHAIN_TURNS speakers when candidates are abundant"
+        );
+
+        // Crucially: a *fourth* call beyond the loop cap would still succeed
+        // if we ran it — the cap is what prevents runaway chatter, NOT the
+        // heuristic. Verify that's still true so we don't accidentally shift
+        // the enforcement boundary.
+        let fourth = pick_next_speaker(&candidates, last_speaker, &recently_spoken, &[]);
+        assert!(
+            fourth.is_some(),
+            "cap must be enforced by the loop, not by the heuristic — \
+             with 6 strong candidates and only 3 spoken, a fourth should \
+             still be available"
+        );
+    }
+
+    /// Negative case: if nobody has a strong enough reason to speak, the
+    /// chain must terminate EARLY — well before `MAX_CHAIN_TURNS`.
+    #[test]
+    fn chain_terminates_early_when_no_motivated_speakers() {
+        // Three calm NPCs, no relationships, no addressed bonus — all score
+        // 0.4, below threshold.
+        let alice = make_npc(1, "Alice", "content");
+        let bob = make_npc(2, "Bob", "content");
+        let carol = make_npc(3, "Carol", "content");
+        let candidates = vec![&alice, &bob, &carol];
+
+        let mut recently_spoken: Vec<NpcId> = Vec::new();
+        let mut last_speaker = Some(NpcId(99));
+        let mut turns_taken = 0usize;
+
+        for _ in 0..MAX_CHAIN_TURNS {
+            let Some(next) = pick_next_speaker(&candidates, last_speaker, &recently_spoken, &[])
+            else {
+                break;
+            };
+            recently_spoken.push(next.id);
+            last_speaker = Some(next.id);
+            turns_taken += 1;
+        }
+
+        assert_eq!(
+            turns_taken, 0,
+            "calm unrelated NPCs should produce zero autonomous turns"
+        );
+    }
+
+    /// Each NPC should only speak once per autonomous chain even if their
+    /// score would otherwise make them the highest-ranked candidate on every
+    /// iteration. This guards the `recently_spoken` exclusion.
+    #[test]
+    fn chain_does_not_repeat_speakers() {
+        // Two high-energy NPCs, one calm. If `recently_spoken` weren't
+        // honored, NPC 1 (highest score) would speak twice in a row.
+        let mut alice = make_npc(1, "Alice", "excited");
+        add_relationship(&mut alice, NpcId(99), 0.9);
+        let mut bob = make_npc(2, "Bob", "excited");
+        add_relationship(&mut bob, NpcId(99), 0.5);
+        let candidates = vec![&alice, &bob];
+
+        let mut recently_spoken: Vec<NpcId> = Vec::new();
+        let mut last_speaker = Some(NpcId(99));
+
+        for _ in 0..MAX_CHAIN_TURNS {
+            let Some(next) = pick_next_speaker(&candidates, last_speaker, &recently_spoken, &[])
+            else {
+                break;
+            };
+            recently_spoken.push(next.id);
+            last_speaker = Some(next.id);
+        }
+
+        // Only 2 unique speakers exist — chain must cap at 2, not loop back
+        // to Alice after Bob.
+        assert_eq!(
+            recently_spoken.len(),
+            2,
+            "only two unique speakers available"
+        );
+        assert_eq!(recently_spoken[0], NpcId(1));
+        assert_eq!(recently_spoken[1], NpcId(2));
     }
 
     #[test]
