@@ -2013,8 +2013,12 @@ mod tests {
 
         let prompts = prompts.lock().unwrap().clone();
         assert_eq!(prompts.len(), 2);
-        assert!(prompts[0].contains("Recent conversation here:"));
-        assert!(prompts[0].contains("- You: What news is there?"));
+        // First prompt: the player's current input is excluded from the "Recent
+        // conversation" section (it's shown separately as the triggering line via
+        // build_named_action_line), so no transcript header appears.
+        assert!(prompts[0].contains("The newcomer says: \"What news is there?\""));
+        // Second prompt: includes Siobhan's prior response in transcript context.
+        assert!(prompts[1].contains("Recent conversation here:"));
         assert!(prompts[1].contains("- Siobhan Murphy: I heard the fair will be lively."));
 
         // Regression guard: stream-end must fire EXACTLY ONCE for the whole

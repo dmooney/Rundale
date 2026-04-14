@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(npc2_gossip.len(), 1);
 
         let npc3_gossip = network.known_by(NpcId(3));
-        assert_eq!(npc3_gossip.is_empty(), true);
+        assert!(npc3_gossip.is_empty());
     }
 
     #[test]

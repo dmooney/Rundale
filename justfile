@@ -191,11 +191,11 @@ fmt:
 
 # Run clippy linter (warnings are errors)
 clippy:
-    cargo clippy --workspace -- -D warnings
+    cargo clippy --workspace --all-targets -- -D warnings
 
 # Run clippy and auto-fix what it can
 clippy-fix:
-    cargo clippy --fix --allow-dirty -- -D warnings
+    cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
 # Pre-commit gate: format, lint, tests
 check: fmt-check clippy test

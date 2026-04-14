@@ -447,10 +447,6 @@ mod tests {
         struct IntentResponse {
             #[serde(default)]
             intent: Option<String>,
-            #[serde(default)]
-            target: Option<String>,
-            #[serde(default)]
-            dialogue: Option<String>,
         }
 
         let sim = SimulatorClient::new();

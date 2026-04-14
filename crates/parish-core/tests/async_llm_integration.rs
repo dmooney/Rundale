@@ -63,23 +63,22 @@ async fn mount_sse_response(server: &MockServer, content: &str) {
         .await;
 }
 
+type SharedLog = Arc<Mutex<Vec<String>>>;
+type EmitLogFn = Box<dyn FnMut(u64, &str)>;
+type EmitTokenFn = Box<dyn FnMut(u64, &str, &str)>;
+
 /// Collects streamed tokens using shared mutable state.
-fn make_collectors() -> (
-    Arc<Mutex<Vec<String>>>,
-    Arc<Mutex<Vec<String>>>,
-    impl FnMut(u64, &str),
-    impl FnMut(u64, &str, &str),
-) {
+fn make_collectors() -> (SharedLog, SharedLog, EmitLogFn, EmitTokenFn) {
     let log_names = Arc::new(Mutex::new(Vec::new()));
     let tokens = Arc::new(Mutex::new(Vec::new()));
     let ln = log_names.clone();
     let tk = tokens.clone();
-    let emit_log = move |_turn_id: u64, name: &str| {
+    let emit_log: EmitLogFn = Box::new(move |_turn_id: u64, name: &str| {
         ln.lock().unwrap().push(name.to_string());
-    };
-    let emit_token = move |_turn_id: u64, _source: &str, batch: &str| {
+    });
+    let emit_token: EmitTokenFn = Box::new(move |_turn_id: u64, _source: &str, batch: &str| {
         tk.lock().unwrap().push(batch.to_string());
-    };
+    });
     (log_names, tokens, emit_log, emit_token)
 }
 

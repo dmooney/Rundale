@@ -671,7 +671,7 @@ mod tests {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         // Crossroads to Pub: ~230m at 1.25 m/s → ~3 min
         let minutes = graph.edge_travel_minutes(LocationId(1), LocationId(2), 1.25);
-        assert!(minutes >= 1 && minutes <= 10, "edge time was {minutes}");
+        assert!((1..=10).contains(&minutes), "edge time was {minutes}");
     }
 
     #[test]

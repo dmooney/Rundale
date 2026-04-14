@@ -180,7 +180,6 @@ mod tests {
     fn chain_caps_at_max_turns() {
         // The cap is enforced by the caller, but the constant must exist
         // and be positive so callers can rely on it.
-        assert!(MAX_CHAIN_TURNS > 0);
         // Lock the actual value — if this number ever changes, every frontend
         // (tauri, server) must be reviewed because they read this constant.
         assert_eq!(

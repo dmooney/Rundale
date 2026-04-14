@@ -1781,7 +1781,7 @@ mod tests {
         );
 
         // Memory recorded
-        assert!(npcs.get(&NpcId(1)).unwrap().memory.len() > 0);
+        assert!(!npcs.get(&NpcId(1)).unwrap().memory.is_empty());
 
         // Relationship adjusted
         let rel = npcs

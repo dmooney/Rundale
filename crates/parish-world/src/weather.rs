@@ -318,11 +318,11 @@ mod tests {
                 // Reset last_check_hour so we can tick every iteration
                 engine.last_check_hour = None;
                 // Ensure min_duration is met by using compute_transition directly
-                if engine.duration_hours(game_time) >= engine.min_duration_hours {
-                    if let Some(new) = engine.compute_transition(season, &mut rng) {
-                        engine.current = new;
-                        engine.since = game_time;
-                    }
+                if engine.duration_hours(game_time) >= engine.min_duration_hours
+                    && let Some(new) = engine.compute_transition(season, &mut rng)
+                {
+                    engine.current = new;
+                    engine.since = game_time;
                 }
 
                 if matches!(

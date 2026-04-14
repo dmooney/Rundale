@@ -203,7 +203,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(destination, LocationId(2));
-                assert!(minutes >= 1 && minutes <= 10, "minutes was {minutes}");
+                assert!((1..=10).contains(&minutes), "minutes was {minutes}");
                 assert!(narration.contains("short lane"));
                 assert!(narration.contains("on foot"));
             }

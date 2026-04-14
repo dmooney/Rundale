@@ -676,7 +676,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
     // Record tier transitions in the debug event log
     if !effects.tier_transitions.is_empty() {
-        let ts = debug_event_timestamp(&state).await;
+        let ts = debug_event_timestamp(state).await;
         let mut debug_events = state.debug_events.lock().await;
         for tt in &effects.tier_transitions {
             if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {

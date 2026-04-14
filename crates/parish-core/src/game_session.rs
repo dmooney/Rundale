@@ -635,12 +635,11 @@ mod tests {
     /// Helper: find a location in the default mod that has at least one NPC
     /// whose `Present` state puts them there right now.
     fn find_location_with_present_npc(world: &WorldState, mgr: &NpcManager) -> Option<LocationId> {
-        for loc_id in world.graph.location_ids() {
-            if !mgr.npcs_at(loc_id).is_empty() {
-                return Some(loc_id);
-            }
-        }
-        None
+        world
+            .graph
+            .location_ids()
+            .into_iter()
+            .find(|&loc_id| !mgr.npcs_at(loc_id).is_empty())
     }
 
     /// Regression: calling `apply_arrival_reactions` as a standalone entry
