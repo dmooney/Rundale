@@ -1,6 +1,6 @@
 # Claude Code Skills
 
-Custom slash commands defined in `.claude/skills/`:
+Custom slash commands defined in `.skills/` (with compatibility symlinks from `.claude/skills/` and `.codex/skills/`):
 
 | Skill | Description |
 |---|---|
