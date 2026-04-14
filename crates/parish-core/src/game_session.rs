@@ -631,4 +631,138 @@ mod tests {
             "concatenated chunks equal the canned text"
         );
     }
+
+    /// Helper: find a location in the default mod that has at least one NPC
+    /// whose `Present` state puts them there right now.
+    fn find_location_with_present_npc(world: &WorldState, mgr: &NpcManager) -> Option<LocationId> {
+        for loc_id in world.graph.location_ids() {
+            if !mgr.npcs_at(loc_id).is_empty() {
+                return Some(loc_id);
+            }
+        }
+        None
+    }
+
+    /// Regression: calling `apply_arrival_reactions` as a standalone entry
+    /// point at a location that has NPCs present must return a non-empty
+    /// reaction list AND append canned text to `world.text_log`.
+    #[test]
+    fn apply_arrival_reactions_standalone_produces_reactions() {
+        let Some((mut world, mut mgr, templates, _)) = setup() else {
+            return;
+        };
+        let Some(loc_with_npc) = find_location_with_present_npc(&world, &mgr) else {
+            // Default mod should always have at least one NPC somewhere — if
+            // not, we don't have a test fixture for this scenario.
+            return;
+        };
+
+        // Teleport the player directly to the NPC's location — do NOT call
+        // apply_movement so we isolate the standalone reaction-application
+        // path.
+        world.player_location = loc_with_npc;
+        let log_len_before = world.text_log.len();
+
+        let config = ReactionConfig::default();
+        let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+
+        assert!(
+            !reactions.is_empty(),
+            "apply_arrival_reactions at a location with NPCs should yield at least one reaction"
+        );
+        // Canned text must be logged to the world log.
+        assert!(
+            world.text_log.len() > log_len_before,
+            "apply_arrival_reactions should append canned text to world.text_log"
+        );
+        // Each reaction should have non-empty canned text.
+        for reaction in &reactions {
+            assert!(
+                !reaction.canned_text.is_empty(),
+                "reaction canned_text should not be empty"
+            );
+        }
+    }
+
+    /// Regression: the first call to `apply_arrival_reactions` for an
+    /// unknown NPC should mark them introduced so that subsequent display
+    /// uses their real name.
+    #[test]
+    fn apply_arrival_reactions_marks_introductions() {
+        let Some((mut world, mut mgr, templates, _)) = setup() else {
+            return;
+        };
+        let Some(loc_with_npc) = find_location_with_present_npc(&world, &mgr) else {
+            return;
+        };
+
+        world.player_location = loc_with_npc;
+        let config = ReactionConfig::default();
+        let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+
+        // For every reaction that says it introduces the NPC, the manager
+        // must report that NPC as introduced afterward.
+        for reaction in &reactions {
+            if reaction.introduces {
+                assert!(
+                    mgr.is_introduced(reaction.npc_id),
+                    "NPC {:?} should be marked introduced after its introducing reaction",
+                    reaction.npc_id
+                );
+            }
+        }
+    }
+
+    /// Regression: `apply_movement` should reassign NPC cognitive tiers.
+    /// Moving into the same location as an NPC should promote them closer
+    /// to Tier 1 (distance 0 = Tier 1).
+    #[test]
+    fn apply_movement_reassigns_tiers_on_arrival() {
+        use crate::npc::types::CogTier;
+
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        // Baseline tier assignment at starting position.
+        mgr.assign_tiers(&world, &[]);
+
+        // Find a neighbor that has a Present NPC we can move toward.
+        let neighbors: Vec<LocationId> = world
+            .graph
+            .neighbors(world.player_location)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
+        let target = neighbors
+            .into_iter()
+            .find(|&id| !mgr.npcs_at(id).is_empty());
+        let Some(target) = target else {
+            // No immediate neighbor has an NPC; this mod layout is not
+            // tractable for this specific test.
+            return;
+        };
+        let target_name = world
+            .graph
+            .get(target)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+        let npc_at_target = mgr
+            .npcs_at(target)
+            .first()
+            .map(|n| n.id)
+            .expect("npcs_at target should not be empty");
+
+        // Move there.
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &target_name, &transport);
+        assert!(effects.world_changed);
+        assert_eq!(world.player_location, target);
+
+        // The target-location NPC must now be in Tier 1 (distance 0).
+        let tier = mgr.tier_of(npc_at_target).unwrap_or(CogTier::Tier4);
+        assert_eq!(
+            tier,
+            CogTier::Tier1,
+            "NPC at the player's location must be promoted to Tier 1"
+        );
+    }
 }

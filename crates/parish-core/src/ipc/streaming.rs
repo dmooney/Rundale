@@ -181,4 +181,40 @@ mod tests {
         let text = "{\"action\": \"speaks\"}";
         assert_eq!(strip_trailing_json(text), "");
     }
+
+    #[tokio::test]
+    async fn stream_utf8_multibyte_safety() {
+        // Emojis are 4 bytes each. If they land near the SEPARATOR_HOLDBACK
+        // boundary, floor_char_boundary must not split them.
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        // Build a string long enough that the holdback window slices into
+        // multi-byte territory: 30 chars of ASCII + emoji cluster.
+        let text = "A".repeat(30) + "🎉🍀🎶";
+        tx.send(text.clone()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, text, "full accumulation must preserve all bytes");
+        // The emitted portion must be valid UTF-8 (no panic) and contain the
+        // ASCII prefix. The emojis may or may not be emitted depending on
+        // holdback, but whatever IS emitted must be valid.
+        assert!(collected.starts_with("AAAAAA"));
+    }
+
+    #[tokio::test]
+    async fn stream_pure_emoji_tokens() {
+        let (tx, token_rx) = mpsc::unbounded_channel();
+        tx.send("🎉".to_string()).unwrap();
+        tx.send("🍀".to_string()).unwrap();
+        tx.send("🎶".to_string()).unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, "🎉🍀🎶");
+        // Total emitted length (in chars) should be 3 — all emojis survive
+        // even if batching delays some.
+        assert_eq!(collected.chars().count(), 3);
+    }
 }

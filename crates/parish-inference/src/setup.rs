@@ -222,6 +222,16 @@ async fn detect_nvidia() -> Option<GpuInfo> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_nvidia_smi_output(&stdout)
+}
+
+/// Parses the first line of `nvidia-smi --query-gpu=memory.total,memory.free
+/// --format=csv,noheader,nounits` output into a `GpuInfo`.
+///
+/// Expected format: `"<total>, <free>"` (one GPU per line, values in MiB).
+/// Returns `None` if the output is empty, has fewer than two comma-separated
+/// fields, or either field fails to parse as `u64`.
+pub(crate) fn parse_nvidia_smi_output(stdout: &str) -> Option<GpuInfo> {
     let line = stdout.lines().next()?;
     let parts: Vec<&str> = line.split(',').map(|s| s.trim()).collect();
     if parts.len() < 2 {
@@ -410,31 +420,49 @@ async fn detect_amd() -> Option<GpuInfo> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if let Some(info) = parse_rocm_smi_output(&stdout) {
+        return Some(info);
+    }
+
+    // rocm-smi exists but we couldn't parse VRAM — still AMD.
+    // Fall back to detecting ROCm's presence on disk.
+    if std::path::Path::new("/opt/rocm").exists() {
+        return Some(GpuInfo {
+            vendor: GpuVendor::Amd,
+            vram_total_mb: 0,
+            vram_free_mb: 0,
+        });
+    }
+    None
+}
+
+/// Parses `rocm-smi --showmeminfo vram` output into a `GpuInfo`.
+///
+/// Scans each line for "total" / "used" keywords (case-insensitive) and
+/// extracts the byte count. VRAM bytes are converted to MiB. Returns
+/// `None` if the total VRAM line is missing or unparseable.
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn parse_rocm_smi_output(stdout: &str) -> Option<GpuInfo> {
     let (mut total_mb, mut used_mb) = (0u64, 0u64);
 
+    // NB: real `rocm-smi --showmeminfo vram` output labels the used-memory
+    // line as "VRAM Total Used Memory (B): ...", which also contains the
+    // substring "total". The `used` check must run first so the used line
+    // does not clobber the total line.
     for line in stdout.lines() {
         let lower = line.to_lowercase();
-        if lower.contains("total")
-            && let Some(bytes) = extract_bytes_from_line(line)
-        {
-            total_mb = bytes / (1024 * 1024);
-        } else if lower.contains("used")
+        if lower.contains("used")
             && let Some(bytes) = extract_bytes_from_line(line)
         {
             used_mb = bytes / (1024 * 1024);
+        } else if lower.contains("total")
+            && let Some(bytes) = extract_bytes_from_line(line)
+        {
+            total_mb = bytes / (1024 * 1024);
         }
     }
 
     if total_mb == 0 {
-        // rocm-smi exists but we couldn't parse VRAM — still AMD
-        // Try a simpler fallback: just detect that ROCm is present
-        if std::path::Path::new("/opt/rocm").exists() {
-            return Some(GpuInfo {
-                vendor: GpuVendor::Amd,
-                vram_total_mb: 0,
-                vram_free_mb: 0,
-            });
-        }
         return None;
     }
 
@@ -1298,5 +1326,324 @@ mod tests {
         };
         let env = build_gpu_env(&gpu);
         assert!(env.is_none());
+    }
+
+    // ---- nvidia-smi parser tests ----
+
+    #[test]
+    fn test_parse_nvidia_smi_output_success() {
+        // Actual format from `nvidia-smi --query-gpu=memory.total,memory.free --format=csv,noheader,nounits`
+        let stdout = "24564, 23811\n";
+        let info = parse_nvidia_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vendor, GpuVendor::Nvidia);
+        assert_eq!(info.vram_total_mb, 24564);
+        assert_eq!(info.vram_free_mb, 23811);
+    }
+
+    #[test]
+    fn test_parse_nvidia_smi_output_first_line_only() {
+        // Multi-GPU systems return one line per GPU; we only read the first
+        let stdout = "16384, 14000\n8192, 7000\n";
+        let info = parse_nvidia_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vram_total_mb, 16384);
+        assert_eq!(info.vram_free_mb, 14000);
+    }
+
+    #[test]
+    fn test_parse_nvidia_smi_output_empty() {
+        assert!(parse_nvidia_smi_output("").is_none());
+    }
+
+    #[test]
+    fn test_parse_nvidia_smi_output_malformed() {
+        // Missing comma separator
+        assert!(parse_nvidia_smi_output("24564 23811").is_none());
+    }
+
+    #[test]
+    fn test_parse_nvidia_smi_output_non_numeric() {
+        // Non-numeric where numbers expected
+        assert!(parse_nvidia_smi_output("unknown, data").is_none());
+    }
+
+    #[test]
+    fn test_parse_nvidia_smi_output_extra_whitespace() {
+        // Trimming handles leading/trailing whitespace in the fields
+        let stdout = "  24564  ,  23811  \n";
+        let info = parse_nvidia_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vram_total_mb, 24564);
+        assert_eq!(info.vram_free_mb, 23811);
+    }
+
+    // ---- rocm-smi parser tests ----
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_parse_rocm_smi_output_total_and_used() {
+        // Simplified rocm-smi --showmeminfo vram style output
+        let stdout = "\
+GPU[0]  : VRAM Total Memory (B): 17163091968
+GPU[0]  : VRAM Total Used Memory (B): 3221225472
+";
+        let info = parse_rocm_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vendor, GpuVendor::Amd);
+        // 17163091968 / (1024*1024) ≈ 16368
+        assert_eq!(info.vram_total_mb, 16368);
+        // used = 3221225472 / (1024*1024) = 3072, so free = 16368 - 3072 = 13296
+        assert_eq!(info.vram_free_mb, 13296);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_parse_rocm_smi_output_total_only() {
+        // If used line is missing, free == total
+        let stdout = "GPU[0]  : VRAM Total Memory (B): 17163091968\n";
+        let info = parse_rocm_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vram_total_mb, 16368);
+        assert_eq!(info.vram_free_mb, 16368);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_parse_rocm_smi_output_missing_total_returns_none() {
+        // Without a total line, we cannot determine VRAM at all
+        let stdout = "GPU[0]  : VRAM Total Used Memory (B): 3221225472\n";
+        assert!(parse_rocm_smi_output(stdout).is_none());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_parse_rocm_smi_output_empty() {
+        assert!(parse_rocm_smi_output("").is_none());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn test_parse_rocm_smi_output_used_greater_than_total_saturates() {
+        // Defensive: if rocm-smi reported inconsistent numbers, we saturate to 0
+        // rather than panicking.
+        let stdout = "\
+GPU[0]  : VRAM Total Memory (B): 1048576000
+GPU[0]  : VRAM Total Used Memory (B): 2097152000
+";
+        let info = parse_rocm_smi_output(stdout).expect("parser should succeed");
+        assert_eq!(info.vram_free_mb, 0);
+    }
+
+    // ---- HTTP mock tests for is_model_available / pull_model ----
+
+    #[tokio::test]
+    async fn test_is_model_available_exact_match() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "models": [
+                        {"name": "qwen3:14b"},
+                        {"name": "llama3:8b"}
+                    ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let result = is_model_available(&server.uri(), "qwen3:14b")
+            .await
+            .unwrap();
+        assert!(result);
+    }
+
+    #[tokio::test]
+    async fn test_is_model_available_latest_suffix_match() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "models": [ {"name": "qwen3:latest"} ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        // Query for "qwen3" should match "qwen3:latest"
+        let result = is_model_available(&server.uri(), "qwen3").await.unwrap();
+        assert!(result);
+    }
+
+    #[tokio::test]
+    async fn test_is_model_available_query_with_latest_matches_bare() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "models": [ {"name": "qwen3"} ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        // Query for "qwen3:latest" should match bare "qwen3"
+        let result = is_model_available(&server.uri(), "qwen3:latest")
+            .await
+            .unwrap();
+        assert!(result);
+    }
+
+    #[tokio::test]
+    async fn test_is_model_available_missing_model() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "models": [ {"name": "llama3:8b"} ]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let result = is_model_available(&server.uri(), "qwen3:14b")
+            .await
+            .unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_is_model_available_empty_model_list() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "models": [] })),
+            )
+            .mount(&server)
+            .await;
+
+        let result = is_model_available(&server.uri(), "qwen3:14b")
+            .await
+            .unwrap();
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn test_is_model_available_malformed_json_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("not json"))
+            .mount(&server)
+            .await;
+
+        let result = is_model_available(&server.uri(), "qwen3:14b").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ParishError::Setup(msg) => assert!(msg.contains("parse model list")),
+            other => panic!("expected Setup error, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_success_reports_progress() {
+        let server = wiremock::MockServer::start().await;
+        // Ollama returns NDJSON progress lines
+        let body = "\
+{\"status\":\"pulling manifest\"}
+{\"status\":\"downloading\",\"total\":1000000,\"completed\":250000}
+{\"status\":\"downloading\",\"total\":1000000,\"completed\":1000000}
+{\"status\":\"success\"}
+";
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/api/pull"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
+            .mount(&server)
+            .await;
+
+        let progress = TestProgress::new();
+        pull_model(&server.uri(), "qwen3:14b", &progress)
+            .await
+            .expect("pull should succeed");
+
+        let msgs = progress.messages();
+        // At least: pre-status, progress entries, and final status
+        assert!(msgs.iter().any(|m| m.contains("Fetching")));
+        assert!(msgs.iter().any(|m| m.contains("250000/1000000")));
+        assert!(msgs.iter().any(|m| m.contains("1000000/1000000")));
+        assert!(msgs.iter().any(|m| m.contains("hand")));
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_maps_404_to_model_not_available() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/api/pull"))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+
+        let progress = TestProgress::new();
+        let result = pull_model(&server.uri(), "does-not-exist", &progress).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ParishError::ModelNotAvailable(msg) => {
+                assert!(msg.contains("404"));
+                assert!(msg.contains("does-not-exist"));
+            }
+            other => panic!("expected ModelNotAvailable, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_status_only_lines_do_not_emit_progress() {
+        let server = wiremock::MockServer::start().await;
+        // Only status lines, no total/completed
+        let body = "\
+{\"status\":\"pulling manifest\"}
+{\"status\":\"verifying sha256 digest\"}
+{\"status\":\"success\"}
+";
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/api/pull"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
+            .mount(&server)
+            .await;
+
+        let progress = TestProgress::new();
+        pull_model(&server.uri(), "qwen3:14b", &progress)
+            .await
+            .expect("pull should succeed");
+
+        let msgs = progress.messages();
+        // No "progress: N/M" entries expected since total == 0
+        assert!(!msgs.iter().any(|m| m.starts_with("progress:")));
+        // But status relays should be present
+        assert!(msgs.iter().any(|m| m.contains("pulling manifest")));
+        assert!(msgs.iter().any(|m| m.contains("verifying sha256 digest")));
+    }
+
+    #[tokio::test]
+    async fn test_ensure_model_available_skips_pull_when_present() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "models": [ {"name": "qwen3:14b"} ] })),
+            )
+            .mount(&server)
+            .await;
+        // NB: no mock for /api/pull — if ensure_model_available attempted to pull,
+        // the request would 404 from wiremock and the test would fail.
+
+        let progress = TestProgress::new();
+        ensure_model_available(&server.uri(), "qwen3:14b", &progress)
+            .await
+            .expect("should short-circuit on present model");
+
+        let msgs = progress.messages();
+        assert!(msgs.iter().any(|m| m.contains("already has")));
     }
 }

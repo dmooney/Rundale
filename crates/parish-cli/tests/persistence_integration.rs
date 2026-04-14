@@ -158,6 +158,174 @@ fn test_save_preserves_text_log() {
     assert!(h.text_log().len() >= saved_log_len);
 }
 
+/// Regression: every dynamic `WorldState` field captured by `GameSnapshot`
+/// must round-trip through save/load with no loss.
+///
+/// This is the "if you add a new field to `GameSnapshot`, don't forget to
+/// serialize AND restore it" test — it mutates every field, saves, mutates
+/// them again, loads, and asserts the reloaded values match the saved ones.
+#[test]
+fn test_full_world_state_roundtrip() {
+    use parish::world::time::GameSpeed;
+    use parish_types::{ConversationExchange, LocationId, NpcId};
+
+    let mut h = GameTestHarness::new();
+
+    // ----- 1. Mutate every snapshot field -----
+
+    // (a) player_location + visited_locations + edge_traversals:
+    // moving through apply_movement records the traversal and visited set.
+    h.execute("go to crossroads");
+    h.execute("go to pub");
+    let expected_location = h.app.world.player_location;
+    let expected_visited = h.app.world.visited_locations.clone();
+    let expected_edges = h.app.world.edge_traversals.clone();
+    assert!(
+        !expected_edges.is_empty(),
+        "player movement should record at least one edge traversal"
+    );
+    assert!(expected_visited.len() >= 3);
+
+    // (b) weather
+    h.app.world.weather = parish::world::Weather::Storm;
+
+    // (c) text_log: execute a look so the log contains something meaningful.
+    h.execute("look");
+    let expected_log = h.app.world.text_log.clone();
+    assert!(!expected_log.is_empty());
+
+    // (d) clock: advance, set speed, pause.
+    h.advance_time(45);
+    h.app.world.clock.set_speed(GameSpeed::Fast);
+    h.app.world.clock.pause();
+    let expected_game_time = h.app.world.clock.now();
+    let expected_speed = h.app.world.clock.speed_factor();
+    let expected_paused = h.app.world.clock.is_paused();
+
+    // (e) gossip_network
+    let gossip_id = h.app.world.gossip_network.create(
+        "The high king's cousin was seen at the crossroads".to_string(),
+        NpcId(1),
+        expected_game_time,
+    );
+    let expected_gossip = h.app.world.gossip_network.clone();
+    assert!(!expected_gossip.known_by(NpcId(1)).is_empty());
+
+    // (f) conversation_log
+    h.app.world.conversation_log.add(ConversationExchange {
+        timestamp: expected_game_time,
+        speaker_id: NpcId(1),
+        speaker_name: "Padraig Darcy".to_string(),
+        player_input: "a word, friend?".to_string(),
+        npc_dialogue: "Aye, what is it?".to_string(),
+        location: LocationId(1),
+    });
+    let expected_conversation = h.app.world.conversation_log.clone();
+
+    // (g) npc state: move an NPC so manager state differs from load baseline
+    let npc_ids: Vec<NpcId> = h.app.npc_manager.all_npcs().map(|n| n.id).collect();
+    let moved_npc_id = npc_ids
+        .first()
+        .copied()
+        .expect("harness mod must load at least one NPC");
+    let new_loc = h.app.world.player_location;
+    let expected_npc_loc = new_loc;
+    if let Some(npc) = h.app.npc_manager.get_mut(moved_npc_id) {
+        npc.location = new_loc;
+    }
+
+    // ----- 2. Save -----
+    let save_result = h.execute("/save");
+    assert!(matches!(save_result, ActionResult::SystemCommand { .. }));
+
+    // ----- 3. Mutate every field again so a failed restore is visible -----
+    h.app.world.weather = parish::world::Weather::Clear;
+    h.app.world.text_log.clear();
+    h.app.world.player_location = LocationId(1);
+    h.app.world.visited_locations.clear();
+    h.app.world.edge_traversals.clear();
+    h.app.world.gossip_network = parish_types::GossipNetwork::new();
+    h.app.world.conversation_log = parish_types::ConversationLog::new();
+    h.app.world.clock.resume();
+    h.app.world.clock.set_speed(GameSpeed::Normal);
+    if let Some(npc) = h.app.npc_manager.get_mut(moved_npc_id) {
+        npc.location = LocationId(999);
+    }
+
+    // ----- 4. Load -----
+    h.execute("/load main");
+
+    // ----- 5. Verify each field round-tripped -----
+
+    // player_location
+    assert_eq!(h.app.world.player_location, expected_location);
+
+    // weather
+    assert_eq!(h.app.world.weather, parish::world::Weather::Storm);
+
+    // text_log (load appends its own confirmation line, so we assert the
+    // saved prefix survives — not strict equality)
+    let restored_log = &h.app.world.text_log;
+    assert!(
+        restored_log.len() >= expected_log.len(),
+        "text_log should be at least as long as the saved version"
+    );
+    for (i, line) in expected_log.iter().enumerate() {
+        assert_eq!(&restored_log[i], line, "text_log line {i} mismatch");
+    }
+
+    // clock
+    assert_eq!(h.app.world.clock.now(), expected_game_time);
+    assert!(
+        (h.app.world.clock.speed_factor() - expected_speed).abs() < f64::EPSILON,
+        "speed_factor should round-trip: {} vs {}",
+        h.app.world.clock.speed_factor(),
+        expected_speed
+    );
+    assert_eq!(h.app.world.clock.is_paused(), expected_paused);
+
+    // visited_locations
+    assert_eq!(
+        h.app.world.visited_locations, expected_visited,
+        "visited_locations must round-trip"
+    );
+
+    // edge_traversals
+    assert_eq!(
+        h.app.world.edge_traversals, expected_edges,
+        "edge_traversals must round-trip"
+    );
+
+    // gossip_network
+    assert_eq!(
+        h.app.world.gossip_network, expected_gossip,
+        "gossip_network must round-trip"
+    );
+    // The specific gossip item we created should still be present
+    let restored_items = h.app.world.gossip_network.known_by(NpcId(1));
+    assert!(
+        restored_items.iter().any(|g| g.id == gossip_id),
+        "gossip item {gossip_id} should survive round-trip"
+    );
+
+    // conversation_log
+    assert_eq!(
+        h.app.world.conversation_log, expected_conversation,
+        "conversation_log must round-trip"
+    );
+
+    // NPC state was restored
+    let moved_npc = h
+        .app
+        .npc_manager
+        .get(moved_npc_id)
+        .expect("NPC should still exist after load");
+    assert_eq!(
+        moved_npc.location, expected_npc_loc,
+        "moved NPC's location must round-trip"
+    );
+}
+
 #[test]
 fn test_fork_preserves_npc_state() {
     let mut h = GameTestHarness::new();

@@ -269,7 +269,7 @@ async fn setup_provider(
             tracing::info!("Using built-in inference simulator (GPT-0 mode)");
             let dummy_client = OpenAiClient::new("http://localhost:1", None);
             let dummy_process = parish::inference::client::OllamaProcess::none();
-            return Ok((dummy_client, "simulator".to_string(), dummy_process));
+            Ok((dummy_client, "simulator".to_string(), dummy_process))
         }
         Provider::Ollama => {
             let progress = StdoutProgress;

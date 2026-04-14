@@ -199,4 +199,16 @@ messages:
         );
         assert_eq!(out, r#"Output: {"key": "value"} for test"#);
     }
+
+    #[test]
+    #[should_panic(expected = "malformed .prompt.yml")]
+    fn parse_panics_on_malformed_yaml() {
+        PromptFile::parse("messages: [broken yaml {{{");
+    }
+
+    #[test]
+    #[should_panic(expected = "malformed .prompt.yml")]
+    fn parse_panics_on_missing_messages_field() {
+        PromptFile::parse("name: NoMessages\n");
+    }
 }
