@@ -203,6 +203,32 @@ check: fmt-check clippy test
 # Pre-push gate: check + game harness walkthrough
 verify: fmt-check clippy test game-test
 
+# Witness-style deterministic scan for common AI partial-completion markers
+witness-scan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mapfile -t files < <(git status --porcelain | awk '{print $2}' | sed 's/^"//; s/"$//' | rg '^(crates|apps|docs|testing|mods)/')
+
+    if [ "${#files[@]}" -eq 0 ]; then
+      echo "No changed tracked files under crates/apps/docs/testing/mods; skipping scan."
+      exit 0
+    fi
+
+    echo "Scanning ${#files[@]} changed file(s) for placeholder markers..."
+    if rg -n \
+      -e '// unchanged' \
+      -e '// existing' \
+      -e '// ... rest of the function' \
+      -e 'pass\\s*#\\s*TODO' \
+      -e 'Not implemented' \
+      -e 'return nil\\s*//\\s*placeholder' \
+      "${files[@]}"; then
+      echo "Witness scan failed: placeholder-like markers found in changed files."
+      exit 1
+    fi
+
+    echo "Witness scan passed."
+
 # ─── Geo Tool ────────────────────────────────────────────────────────────────
 
 # Run the geo-tool to extract OSM data for an area
