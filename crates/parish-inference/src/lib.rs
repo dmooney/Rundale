@@ -823,4 +823,54 @@ mod tests {
         assert_eq!(second.priority, InferencePriority::Batch);
         assert_eq!(second.id, 20);
     }
+
+    /// Verifies that aborting the JoinHandle from `spawn_inference_worker` actually
+    /// stops the worker task, preventing orphaned tasks from accumulating across
+    /// provider/key rebuilds (fix for issue #51).
+    #[tokio::test]
+    async fn test_spawn_inference_worker_abort_stops_task() {
+        use tokio::time::{Duration, timeout};
+
+        let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_background_tx, background_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_batch_tx, batch_rx) = mpsc::channel::<InferenceRequest>(4);
+        let log = new_inference_log();
+        let handle = spawn_inference_worker(
+            AnyClient::simulator(),
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log,
+        );
+
+        // Worker is running — abort it.
+        handle.abort();
+
+        // The handle should resolve quickly after abort (the task is cancelled).
+        let result = timeout(Duration::from_millis(200), handle).await;
+        assert!(
+            result.is_ok(),
+            "aborted worker task did not finish within timeout"
+        );
+
+        // After abort the sender should detect the receiver is gone; sending fails.
+        let (resp_tx, _resp_rx) = oneshot::channel();
+        let req = InferenceRequest {
+            id: 99,
+            model: "model".to_string(),
+            prompt: "hi".to_string(),
+            system: None,
+            token_tx: None,
+            response_tx: resp_tx,
+            max_tokens: None,
+            temperature: None,
+            priority: InferencePriority::Interactive,
+        };
+        // send returns Err when the receiver has been dropped by the aborted task.
+        let send_result = interactive_tx.send(req).await;
+        assert!(
+            send_result.is_err(),
+            "expected send to fail after worker abort"
+        );
+    }
 }

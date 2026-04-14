@@ -286,11 +286,20 @@ async fn rebuild_inference(state: &Arc<AppState>) {
         AnyClient::open_ai(oai)
     };
 
-    // Respawn inference worker with the new client
+    // Abort the old inference worker before spawning a replacement to prevent
+    // orphaned tasks from accumulating (each holds an HTTP client and channel).
+    {
+        let mut wh = state.worker_handle.lock().await;
+        if let Some(old) = wh.take() {
+            old.abort();
+        }
+    }
+
+    // Respawn inference worker with the new client and store the handle.
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    let _worker = spawn_inference_worker(
+    let worker = spawn_inference_worker(
         any_client,
         interactive_rx,
         background_rx,
@@ -300,6 +309,9 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
+    drop(iq);
+    let mut wh = state.worker_handle.lock().await;
+    *wh = Some(worker);
 }
 
 async fn touch_player_activity(state: &Arc<AppState>) {

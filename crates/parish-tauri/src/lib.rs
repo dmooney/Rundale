@@ -13,6 +13,7 @@ use std::time::Instant;
 
 use tauri::Emitter;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 use parish_core::config::{FeatureFlags, Provider};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
@@ -232,6 +233,8 @@ pub struct AppState {
     pub transport: TransportConfig,
     /// Data directory used to derive the feature-flags persistence path.
     pub data_dir: PathBuf,
+    /// Handle for the active inference worker task; used to abort it on rebuild.
+    pub worker_handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -525,6 +528,7 @@ pub fn run() {
         current_branch_name: Mutex::new(None),
         transport,
         data_dir: data_dir.clone(),
+        worker_handle: Mutex::new(None),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -648,7 +652,7 @@ pub fn run() {
                         let (background_tx, background_rx) =
                             tokio::sync::mpsc::channel(32);
                         let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-                        let _worker = spawn_inference_worker(
+                        let worker = spawn_inference_worker(
                             ac,
                             interactive_rx,
                             background_rx,
@@ -659,6 +663,9 @@ pub fn run() {
                             InferenceQueue::new(interactive_tx, background_tx, batch_tx);
                         let mut iq = state_setup.inference_queue.lock().await;
                         *iq = Some(queue);
+                        drop(iq);
+                        let mut wh = state_setup.worker_handle.lock().await;
+                        *wh = Some(worker);
                     }
                 }
 
