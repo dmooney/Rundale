@@ -49,9 +49,9 @@ test.describe('App layout', () => {
 	});
 
 	test('input field is visible and enabled', async ({ page }) => {
-		const input = page.locator('.input-field');
+		const input = page.locator('[data-testid="input-field"]');
 		await expect(input).toBeVisible();
-		await expect(input).toBeEnabled();
+		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
 
 	test('sidebar shows name pronunciation hints from world snapshot', async ({ page }) => {
