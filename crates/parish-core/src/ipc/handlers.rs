@@ -996,4 +996,169 @@ mod tests {
             }
         }
     }
+
+    // ── Additional coverage for text_log helpers and supporting functions ───
+
+    #[test]
+    fn capitalize_first_handles_unicode() {
+        // Irish — initial letter has an acute accent.
+        assert_eq!(capitalize_first("éire"), "Éire");
+        // Leading whitespace is preserved.
+        assert_eq!(capitalize_first(" hello"), " hello");
+    }
+
+    #[test]
+    fn mask_key_boundary_conditions() {
+        // Exactly 8 chars still falls into the short branch.
+        assert_eq!(mask_key("12345678"), "(set, too short to mask)");
+        // 9 chars reveals first 4 and last 4.
+        assert_eq!(mask_key("123456789"), "1234...6789");
+        // Empty.
+        assert_eq!(mask_key(""), "(set, too short to mask)");
+    }
+
+    #[test]
+    fn text_log_assigns_unique_monotonic_ids() {
+        let a = text_log("system", "first");
+        let b = text_log("system", "second");
+        assert!(a.id.starts_with("msg-"));
+        assert!(b.id.starts_with("msg-"));
+        assert_ne!(a.id, b.id);
+        assert_eq!(a.source, "system");
+        assert_eq!(a.content, "first");
+        assert!(a.subtype.is_none());
+        assert!(a.stream_turn_id.is_none());
+    }
+
+    #[test]
+    fn text_log_for_stream_turn_carries_turn_id() {
+        let payload = text_log_for_stream_turn("npc", "hello", 42);
+        assert_eq!(payload.stream_turn_id, Some(42));
+        assert_eq!(payload.source, "npc");
+        assert_eq!(payload.content, "hello");
+        assert!(payload.subtype.is_none());
+    }
+
+    #[test]
+    fn text_log_typed_sets_subtype() {
+        let payload = text_log_typed("system", "A wren hops by.", "ambient");
+        assert_eq!(payload.subtype.as_deref(), Some("ambient"));
+        assert_eq!(payload.content, "A wren hops by.");
+        assert!(payload.stream_turn_id.is_none());
+    }
+
+    // ── detect_and_record_player_name ───────────────────────────────────────
+
+    #[test]
+    fn detect_player_name_records_first_introduction() {
+        let mut world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        let speaker = npc.id;
+        npc_mgr.add_npc(npc);
+
+        assert!(world.player_name.is_none());
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "My name is Ciaran.", speaker);
+        assert_eq!(world.player_name.as_deref(), Some("Ciaran"));
+        assert!(npc_mgr.knows_player_name(speaker));
+    }
+
+    #[test]
+    fn detect_player_name_does_not_overwrite() {
+        let mut world = WorldState::new();
+        world.player_name = Some("Aoife".to_string());
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        let speaker = npc.id;
+        npc_mgr.add_npc(npc);
+
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "My name is Ciaran.", speaker);
+        assert_eq!(world.player_name.as_deref(), Some("Aoife"));
+        // The speaker still gets taught the name because detection fired.
+        assert!(npc_mgr.knows_player_name(speaker));
+    }
+
+    #[test]
+    fn detect_player_name_skips_non_introductions() {
+        let mut world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        let speaker = npc.id;
+        npc_mgr.add_npc(npc);
+
+        detect_and_record_player_name(&mut world, &mut npc_mgr, "Tell me the news.", speaker);
+        assert!(world.player_name.is_none());
+        assert!(!npc_mgr.knows_player_name(speaker));
+    }
+
+    // ── compute_name_hints ───────────────────────────────────────────────────
+
+    #[test]
+    fn compute_name_hints_empty_when_no_pronunciations() {
+        let world = WorldState::new();
+        let npc_mgr = NpcManager::new();
+        let hints = compute_name_hints(&world, &npc_mgr, &[]);
+        assert!(hints.is_empty());
+    }
+
+    #[test]
+    fn compute_name_hints_matches_location_name() {
+        use crate::game_mod::PronunciationEntry;
+        let world = WorldState::new();
+        let npc_mgr = NpcManager::new();
+        // Match the default crossroads location.
+        let entries = vec![PronunciationEntry {
+            word: "Crossroads".to_string(),
+            pronunciation: "KROSS-rohds".to_string(),
+            meaning: Some("meeting of ways".to_string()),
+            matches: vec!["crossroads".to_string()],
+        }];
+        let hints = compute_name_hints(&world, &npc_mgr, &entries);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].word, "Crossroads");
+    }
+
+    #[test]
+    fn compute_name_hints_ignores_unintroduced_npcs() {
+        use crate::game_mod::PronunciationEntry;
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc.name = "Siobhan".to_string();
+        let npc_id = npc.id;
+        npc_mgr.add_npc(npc);
+        // Do NOT mark introduced.
+
+        let entries = vec![PronunciationEntry {
+            word: "Siobhan".to_string(),
+            pronunciation: "shi-VAWN".to_string(),
+            meaning: None,
+            matches: vec!["siobhan".to_string()],
+        }];
+        let hints = compute_name_hints(&world, &npc_mgr, &entries);
+        assert!(hints.is_empty(), "unintroduced NPC names must not leak");
+
+        // After introduction, the hint appears.
+        npc_mgr.mark_introduced(npc_id);
+        let hints = compute_name_hints(&world, &npc_mgr, &entries);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].word, "Siobhan");
+    }
+
+    // ── check_for_hallucinated_names ─────────────────────────────────────────
+
+    #[test]
+    fn check_hallucinated_returns_none_when_metadata_absent() {
+        let response = crate::npc::NpcStreamResponse {
+            dialogue: "Hello.".to_string(),
+            metadata: None,
+        };
+        let roster: Vec<(NpcId, String, String)> = vec![];
+        let result = check_for_hallucinated_names(&response, &roster, None);
+        assert!(result.is_none());
+    }
 }

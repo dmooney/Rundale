@@ -641,4 +641,559 @@ mod tests {
         let text = render_look_text(&world, &npc, 1.25, "on foot", true);
         assert!(!text.is_empty());
     }
+
+    // ── Additional coverage for previously untested Command variants ─────────
+
+    #[test]
+    fn about_command_returns_game_blurb() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::About, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("Parish"));
+        assert!(result.response.contains("/help"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn help_command_lists_commands() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Help, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("/help"));
+        assert!(result.response.contains("/save"));
+        assert!(result.response.contains("/pause"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn wait_command_advances_clock() {
+        let (mut world, mut npc, mut config) = default_state();
+        let start = world.clock.now();
+        let result = handle_command(Command::Wait(30), &mut world, &mut npc, &mut config);
+        let end = world.clock.now();
+        let delta = (end - start).num_minutes();
+        assert_eq!(delta, 30);
+        assert!(result.response.contains("30 minutes"));
+    }
+
+    #[test]
+    fn tick_command_with_empty_roster() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Tick, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("No NPC activity"));
+    }
+
+    #[test]
+    fn show_speed_reports_current_speed() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ShowSpeed, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("Speed:"));
+    }
+
+    #[test]
+    fn set_speed_updates_clock() {
+        use parish_types::time::GameSpeed;
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetSpeed(GameSpeed::Fast),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        // Activation message should be non-empty; speed should be Fast.
+        assert!(!result.response.is_empty());
+        assert_eq!(world.clock.current_speed(), Some(GameSpeed::Fast));
+    }
+
+    #[test]
+    fn invalid_speed_reports_hint() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::InvalidSpeed("warp".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("warp"));
+        assert!(result.response.contains("slow"));
+    }
+
+    #[test]
+    fn invalid_branch_name_returns_msg() {
+        let (mut world, mut npc, mut config) = default_state();
+        let msg = "Branch name too long.".to_string();
+        let result = handle_command(
+            Command::InvalidBranchName(msg.clone()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(result.response, msg);
+    }
+
+    #[test]
+    fn invalid_flag_name_returns_msg() {
+        let (mut world, mut npc, mut config) = default_state();
+        let msg = "Flag name cannot be empty.".to_string();
+        let result = handle_command(
+            Command::InvalidFlagName(msg.clone()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(result.response, msg);
+    }
+
+    #[test]
+    fn toggle_sidebar_returns_message() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ToggleSidebar, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("sidebar"));
+    }
+
+    #[test]
+    fn set_model_updates_config() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetModel("qwen3:14b".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.model_name, "qwen3:14b");
+        assert!(result.response.contains("qwen3:14b"));
+    }
+
+    #[test]
+    fn show_key_not_set() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ShowKey, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("not set"));
+    }
+
+    #[test]
+    fn show_key_masks_when_set() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.api_key = Some("sk-abcdefghijklmnop".to_string());
+        let result = handle_command(Command::ShowKey, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("API key"));
+        // Full key must not leak.
+        assert!(!result.response.contains("abcdefghijklmnop"));
+    }
+
+    #[test]
+    fn show_provider_reflects_config() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.provider_name = "lmstudio".to_string();
+        let result = handle_command(Command::ShowProvider, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("lmstudio"));
+    }
+
+    #[test]
+    fn set_provider_invalid_returns_error() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetProvider("bogus".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        // Invalid provider should not trigger a rebuild.
+        assert!(!result.effects.contains(&CommandEffect::RebuildInference));
+    }
+
+    // ── Cloud provider commands ──────────────────────────────────────────────
+
+    #[test]
+    fn show_cloud_not_configured() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ShowCloud, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("No cloud provider"));
+    }
+
+    #[test]
+    fn show_cloud_configured() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.cloud_provider_name = Some("openrouter".to_string());
+        config.cloud_model_name = Some("anthropic/claude-3-haiku".to_string());
+        let result = handle_command(Command::ShowCloud, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("openrouter"));
+        assert!(result.response.contains("claude-3-haiku"));
+    }
+
+    #[test]
+    fn set_cloud_provider_triggers_rebuild() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCloudProvider("openrouter".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("openrouter"));
+        assert!(result.effects.contains(&CommandEffect::RebuildCloudClient));
+        assert_eq!(config.cloud_provider_name.as_deref(), Some("openrouter"));
+    }
+
+    #[test]
+    fn set_cloud_model_updates_config() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCloudModel("gpt-4o".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.cloud_model_name.as_deref(), Some("gpt-4o"));
+        assert!(result.response.contains("gpt-4o"));
+    }
+
+    #[test]
+    fn set_cloud_key_triggers_cloud_rebuild() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCloudKey("sk-cloud-secret".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildCloudClient));
+        assert_eq!(config.cloud_api_key.as_deref(), Some("sk-cloud-secret"));
+    }
+
+    #[test]
+    fn show_cloud_model_not_set() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ShowCloudModel, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("not set"));
+    }
+
+    #[test]
+    fn show_cloud_key_masks_when_set() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.cloud_api_key = Some("sk-cloudabcd1234".to_string());
+        let result = handle_command(Command::ShowCloudKey, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("Cloud API key"));
+        assert!(!result.response.contains("cloudabcd1234"));
+    }
+
+    // ── Category-specific commands ───────────────────────────────────────────
+
+    #[test]
+    fn set_category_provider_stores_and_triggers_rebuild() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCategoryProvider(InferenceCategory::Dialogue, "openrouter".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
+        assert_eq!(config.category_provider[idx].as_deref(), Some("openrouter"));
+    }
+
+    #[test]
+    fn set_category_model_stores_override() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCategoryModel(InferenceCategory::Simulation, "mini-model".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        let idx = GameConfig::cat_idx(InferenceCategory::Simulation);
+        assert_eq!(config.category_model[idx].as_deref(), Some("mini-model"));
+        assert!(result.response.contains("mini-model"));
+    }
+
+    #[test]
+    fn show_category_model_inherits_base() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::ShowCategoryModel(InferenceCategory::Intent),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("inherits base"));
+    }
+
+    #[test]
+    fn show_category_key_not_set() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::ShowCategoryKey(InferenceCategory::Reaction),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("not set"));
+    }
+
+    #[test]
+    fn set_category_key_triggers_rebuild() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetCategoryKey(InferenceCategory::Dialogue, "sk-cat-key".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
+        assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat-key"));
+    }
+
+    // ── Feature flags ────────────────────────────────────────────────────────
+
+    #[test]
+    fn flag_list_empty() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Flag(FlagSubcommand::List),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        // Either empty-state message or flag header — depends on default flags.
+        assert!(
+            result.response.contains("No feature flags")
+                || result.response.contains("Feature flags")
+        );
+    }
+
+    #[test]
+    fn flag_enable_triggers_save() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Flag(FlagSubcommand::Enable("my-feature".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::SaveFlags));
+        assert!(result.response.contains("my-feature"));
+        assert!(result.response.contains("enabled"));
+    }
+
+    #[test]
+    fn flag_disable_triggers_save() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Flag(FlagSubcommand::Disable("my-feature".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::SaveFlags));
+        assert!(result.response.contains("disabled"));
+    }
+
+    #[test]
+    fn flags_alias_matches_list() {
+        let (mut world, mut npc, mut config) = default_state();
+        let flags_result = handle_command(Command::Flags, &mut world, &mut npc, &mut config);
+        let list_result = handle_command(
+            Command::Flag(FlagSubcommand::List),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(flags_result.response, list_result.response);
+    }
+
+    // ── Effect-only commands ─────────────────────────────────────────────────
+
+    #[test]
+    fn save_returns_save_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Save, &mut world, &mut npc, &mut config);
+        assert!(result.response.is_empty());
+        assert!(result.effects.contains(&CommandEffect::SaveGame));
+    }
+
+    #[test]
+    fn fork_returns_fork_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Fork("experiment".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(
+            result
+                .effects
+                .contains(&CommandEffect::ForkBranch("experiment".to_string()))
+        );
+    }
+
+    #[test]
+    fn load_returns_load_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Load("main".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(
+            result
+                .effects
+                .contains(&CommandEffect::LoadBranch("main".to_string()))
+        );
+    }
+
+    #[test]
+    fn branches_returns_list_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Branches, &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::ListBranches));
+    }
+
+    #[test]
+    fn log_returns_show_log_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Log, &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::ShowLog));
+    }
+
+    #[test]
+    fn map_returns_toggle_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Map, &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::ToggleMap));
+    }
+
+    #[test]
+    fn new_game_returns_effect() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::NewGame, &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::NewGame));
+    }
+
+    #[test]
+    fn spinner_returns_effect_with_seconds() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Spinner(5), &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::ShowSpinner(5)));
+    }
+
+    #[test]
+    fn debug_returns_effect_with_subcommand() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Debug(Some("schedule".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(
+            result
+                .effects
+                .contains(&CommandEffect::Debug(Some("schedule".to_string())))
+        );
+    }
+
+    #[test]
+    fn debug_no_subcommand() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Debug(None), &mut world, &mut npc, &mut config);
+        assert!(result.effects.contains(&CommandEffect::Debug(None)));
+    }
+
+    // ── Theme ────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn theme_no_arg_lists_available() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Theme(None), &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("default"));
+        assert!(result.response.contains("solarized"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_default_applies_default() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("default".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, _) if name == "default"
+        )));
+    }
+
+    #[test]
+    fn theme_solarized_defaults_to_auto() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("solarized".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "solarized" && mode == "auto"
+        )));
+    }
+
+    #[test]
+    fn theme_solarized_with_explicit_mode() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("solarized dark".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "solarized" && mode == "dark"
+        )));
+    }
+
+    #[test]
+    fn theme_unknown_name_returns_error() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("neon".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("neon"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_solarized_invalid_mode() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("solarized taupe".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("taupe"));
+        assert!(result.effects.is_empty());
+    }
+
+    // ── NpcsHere with population ─────────────────────────────────────────────
+
+    #[test]
+    fn npcs_here_lists_present_npcs() {
+        // Use the full GameTestHarness via the default state + direct roster inspection.
+        // We can't cheaply populate an NpcManager from scratch here, so we only assert
+        // the branch is reachable via the empty path; the populated path is covered by
+        // integration tests in crates/parish-cli/tests/.
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::NpcsHere, &mut world, &mut npc, &mut config);
+        // Falls through to the "No one else is here." branch.
+        assert!(result.response.contains("No one"));
+    }
 }
