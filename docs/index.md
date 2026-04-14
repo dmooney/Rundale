@@ -184,7 +184,7 @@ Custom slash commands for common development workflows. Run these from any Claud
 | `/screenshot` | Regenerate GUI screenshots after UI changes |
 | `/fix-issue <number>` | Work through a GitHub issue end-to-end |
 
-Skill definitions live in `.claude/skills/`.
+Skill definitions live in `.skills/` (with compatibility symlinks from `.claude/skills/` and `.codex/skills/`).
 
 ## Reference
 

@@ -123,7 +123,7 @@ Tick,          // /tick
 
 ## Claude Code Play-Testing Skill
 
-The `/play` skill (`.claude/skills/play/SKILL.md`) enables Claude Code to
+The `/play` skill (`.skills/play/SKILL.md`) enables Claude Code to
 autonomously play-test the game via `--script` mode:
 
 1. Build the project with `cargo build`
