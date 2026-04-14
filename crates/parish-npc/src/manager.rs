@@ -303,17 +303,26 @@ impl NpcManager {
             }
         }
 
-        // 4. NPCs at the same home or workplace location
-        if let Some(home) = npc.home {
+        // 4. NPCs at the same home or workplace location.
+        //
+        // Perf: single pass over `self.npcs` instead of two separate scans.
+        // Called once per NPC dialogue setup (see ipc/handlers.rs::build_enhanced_system_prompt),
+        // which is a hot path during conversations. For N NPCs this halves the
+        // HashMap traversals from 2N to N per call.
+        if npc.home.is_some() || npc.workplace.is_some() {
             for other in self.npcs.values() {
-                if other.id != npc.id && (other.home == Some(home) || other.location == home) {
-                    known_ids.insert(other.id);
+                if other.id == npc.id {
+                    continue;
                 }
-            }
-        }
-        if let Some(work) = npc.workplace {
-            for other in self.npcs.values() {
-                if other.id != npc.id && (other.workplace == Some(work) || other.location == work) {
+                let home_match = match npc.home {
+                    Some(home) => other.home == Some(home) || other.location == home,
+                    None => false,
+                };
+                let work_match = match npc.workplace {
+                    Some(work) => other.workplace == Some(work) || other.location == work,
+                    None => false,
+                };
+                if home_match || work_match {
                     known_ids.insert(other.id);
                 }
             }
@@ -1466,6 +1475,73 @@ mod tests {
         let found = mgr.find_by_name("an older man behind the bar", LocationId(2));
         assert!(found.is_some());
         assert_eq!(found.unwrap().id, NpcId(1));
+    }
+
+    #[test]
+    fn test_known_roster_unions_home_and_work_matches() {
+        // Regression test for the single-pass optimization in `known_roster`.
+        // Ensures NPCs sharing either home or workplace are included, dedup'd.
+        let mut mgr = NpcManager::new();
+
+        // Subject NPC: home=10, work=20.
+        let mut subject = make_test_npc(1, 10);
+        subject.home = Some(LocationId(10));
+        subject.workplace = Some(LocationId(20));
+        mgr.add_npc(subject.clone());
+
+        // NPC 2: shares home only (home=10, work=30).
+        let mut home_mate = make_test_npc(2, 30);
+        home_mate.home = Some(LocationId(10));
+        home_mate.workplace = Some(LocationId(30));
+        mgr.add_npc(home_mate);
+
+        // NPC 3: shares workplace only (home=40, work=20).
+        let mut work_mate = make_test_npc(3, 20);
+        work_mate.home = Some(LocationId(40));
+        work_mate.workplace = Some(LocationId(20));
+        mgr.add_npc(work_mate);
+
+        // NPC 4: currently located at subject's home (co-presence) but no home/work ties.
+        let mut visitor = make_test_npc(4, 10);
+        visitor.home = Some(LocationId(50));
+        visitor.workplace = None;
+        mgr.add_npc(visitor);
+
+        // NPC 5: shares both home and work (should appear once, not twice).
+        let mut both = make_test_npc(5, 10);
+        both.home = Some(LocationId(10));
+        both.workplace = Some(LocationId(20));
+        mgr.add_npc(both);
+
+        // NPC 6: unrelated — different home and work.
+        let mut stranger = make_test_npc(6, 99);
+        stranger.home = Some(LocationId(99));
+        stranger.workplace = Some(LocationId(98));
+        mgr.add_npc(stranger);
+
+        let roster = mgr.known_roster(&subject);
+        let ids: HashSet<NpcId> = roster.iter().map(|(id, _, _)| *id).collect();
+
+        assert!(ids.contains(&NpcId(2)), "home-mate should be in roster");
+        assert!(ids.contains(&NpcId(3)), "work-mate should be in roster");
+        assert!(
+            ids.contains(&NpcId(4)),
+            "NPC located at subject's home should be in roster"
+        );
+        assert!(
+            ids.contains(&NpcId(5)),
+            "NPC sharing both home and work should be in roster"
+        );
+        assert!(
+            !ids.contains(&NpcId(6)),
+            "unrelated NPC must not be in roster"
+        );
+        assert!(
+            !ids.contains(&NpcId(1)),
+            "subject must not be in its own roster"
+        );
+        // Dedup: each id appears exactly once.
+        assert_eq!(ids.len(), roster.len());
     }
 
     #[test]

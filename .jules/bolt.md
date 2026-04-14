@@ -7,3 +7,7 @@
 ## 2026-03-28 - Pre-existing test breakage in inference module
 **Learning:** The `max_tokens` parameter was added to `build_request()` and `InferenceQueue::send()` signatures but several tests weren't updated. This means test-only compilation failures can lurk undetected if `cargo test` isn't run regularly after API changes.
 **Action:** When modifying function signatures, always grep for all call sites including test modules.
+
+## 2026-04-14 - Recurring multi-pass HashMap scan anti-pattern in parish-npc
+**Learning:** `known_roster` in `manager.rs` repeated the double-scan anti-pattern — separate `for other in self.npcs.values()` loops for home and workplace co-residency. Same shape as the earlier fuzzy-search fix in `graph.rs`. When multiple optional filters apply to the same collection, consolidating into one pass with per-NPC conjunction checks is both faster and clearer.
+**Action:** When reviewing lookup/query methods against `NpcManager`/`WorldState` that iterate `.values()`, check whether nearby code iterates the same map again — if so, fold into a single pass.
