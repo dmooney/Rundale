@@ -247,6 +247,7 @@ fn spawn_background_ticks(state: Arc<AppState>) {
     let state_tick = Arc::clone(&state);
     tokio::spawn(async move {
         tracing::debug!("World tick task started");
+        let mut last_palette: Option<parish_core::world::palette::RawPalette> = None;
         loop {
             tokio::time::sleep(Duration::from_secs(5)).await;
             {
@@ -272,9 +273,12 @@ fn spawn_background_ticks(state: Arc<AppState>) {
                         world.clock.season(),
                         world.weather,
                     );
-                    state_tick
-                        .event_bus
-                        .emit("theme-update", &ThemePalette::from(raw));
+                    if last_palette != Some(raw) {
+                        state_tick
+                            .event_bus
+                            .emit("theme-update", &ThemePalette::from(raw));
+                        last_palette = Some(raw);
+                    }
                 }
             }
             {

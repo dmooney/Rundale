@@ -844,6 +844,7 @@ pub fn run() {
                 let state_tick = Arc::clone(&state_setup);
                 let handle_tick = handle.clone();
                 tokio::spawn(async move {
+                    let mut last_palette: Option<parish_core::world::palette::RawPalette> = None;
                     loop {
                         tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -871,8 +872,13 @@ pub fn run() {
                                     world.clock.season(),
                                     world.weather,
                                 );
-                                let _ = handle_tick
-                                    .emit(events::EVENT_THEME_UPDATE, ThemePalette::from(raw));
+                                if last_palette != Some(raw) {
+                                    let _ = handle_tick.emit(
+                                        events::EVENT_THEME_UPDATE,
+                                        ThemePalette::from(raw),
+                                    );
+                                    last_palette = Some(raw);
+                                }
                             }
                         }
                         {
