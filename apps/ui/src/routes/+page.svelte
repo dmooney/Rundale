@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import StatusBar from '../components/StatusBar.svelte';
 	import ChatPanel from '../components/ChatPanel.svelte';
@@ -143,7 +143,17 @@
 		});
 	}
 
-	onMount(async () => {
+	let mountCleanup: (() => void) | null = null;
+	onMount(() => {
+		(async () => {
+			mountCleanup = await setupMount();
+		})();
+	});
+	onDestroy(() => {
+		mountCleanup?.();
+	});
+
+	async function setupMount(): Promise<() => void> {
 		// Frontend auto-pause tracker — fires /pause after 60s of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
@@ -383,12 +393,12 @@
 			}));
 
 			listeners.push(await onTextLog((payload) => {
-				const isNpcPlaceholder =
+				if (
 					payload.content === '' &&
 					payload.source !== 'player' &&
 					payload.source !== 'system' &&
-					payload.stream_turn_id != null;
-				if (isNpcPlaceholder) {
+					payload.stream_turn_id != null
+				) {
 					queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
 					return;
 				}
@@ -485,7 +495,7 @@
 			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 			listeners.forEach((fn) => fn());
 		};
-	});
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
