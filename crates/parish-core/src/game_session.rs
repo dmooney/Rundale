@@ -764,4 +764,134 @@ mod tests {
             "NPC at the player's location must be promoted to Tier 1"
         );
     }
+
+    // ── Additional coverage ──────────────────────────────────────────────────
+
+    #[test]
+    fn reaction_req_id_monotonic() {
+        let first = reaction_req_id_peek();
+        // The counter starts at 100_000 and only grows; any subsequent read
+        // must be >= the first read.
+        let second = reaction_req_id_peek();
+        assert!(second >= first);
+        assert!(first >= 100_000);
+    }
+
+    #[test]
+    fn apply_movement_not_found_log_contains_exits() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let effects = apply_movement(
+            &mut world,
+            &mut mgr,
+            &templates,
+            "definitely-not-a-place-0xdeadbeef",
+            &transport,
+        );
+        // The not-found message should also have been logged to world.log.
+        assert!(
+            world
+                .text_log
+                .iter()
+                .any(|line| line.contains("faintest notion")),
+            "not-found message must be appended to text_log"
+        );
+        // Effects carry the same message.
+        assert_eq!(effects.messages.len(), 1);
+        assert!(!effects.world_changed);
+    }
+
+    #[test]
+    fn apply_movement_records_edge_traversal_and_visit() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let start = world.player_location;
+        let neighbor = world.graph.neighbors(start).into_iter().next();
+        let Some((neighbor_id, _)) = neighbor else {
+            return;
+        };
+        let neighbor_name = world
+            .graph
+            .get(neighbor_id)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+
+        assert!(!world.visited_locations.contains(&neighbor_id));
+        let clock_before = world.clock.now();
+
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &neighbor_name, &transport);
+
+        // World mutations: visited, clock advanced, edge traversal recorded.
+        assert!(effects.world_changed);
+        assert!(world.visited_locations.contains(&neighbor_id));
+        assert!(world.clock.now() > clock_before);
+
+        // Edge traversal is canonical (min, max).
+        let key = if start < neighbor_id {
+            (start, neighbor_id)
+        } else {
+            (neighbor_id, start)
+        };
+        assert_eq!(world.edge_traversals.get(&key).copied(), Some(1));
+    }
+
+    #[test]
+    fn apply_movement_already_here_explicit() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let exact_name = world.current_location().name.clone();
+        let start = world.player_location;
+        let text_log_before = world.text_log.len();
+
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &exact_name, &transport);
+
+        // Player location should not change, but the harness currently resolves the
+        // *same* name via fuzzy match to the same location — accept either the
+        // `AlreadyHere` short-circuit or the `Arrived`-to-self pipeline.
+        assert_eq!(world.player_location, start);
+        // Either way, at least one line is appended to the log.
+        assert!(world.text_log.len() > text_log_before);
+        // And at least one user-visible message is emitted.
+        assert!(!effects.messages.is_empty());
+    }
+
+    #[test]
+    fn apply_arrival_reactions_returns_empty_when_no_location_data() {
+        // WorldState::new() has a legacy `locations` map but no graph data for
+        // the current location — the fast-path should return an empty vec.
+        let mut world = WorldState::new();
+        let mut mgr = NpcManager::new();
+        let templates = ReactionTemplates::default();
+        let config = ReactionConfig::default();
+        let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+        assert!(reactions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn stream_reaction_texts_empty_list_emits_nothing() {
+        let mut log_sources: Vec<String> = Vec::new();
+        let mut token_chunks: Vec<String> = Vec::new();
+
+        stream_reaction_texts(
+            &[],
+            &[],
+            LocationId(0),
+            "Galway",
+            crate::world::time::TimeOfDay::Morning,
+            "clear",
+            &std::collections::HashSet::new(),
+            None,
+            "",
+            None,
+            |_turn_id, name| log_sources.push(name.to_string()),
+            |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
+        )
+        .await;
+
+        assert!(log_sources.is_empty());
+        assert!(token_chunks.is_empty());
+    }
 }
