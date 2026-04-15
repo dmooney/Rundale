@@ -68,6 +68,33 @@ body::before {
 	height: 100%;
 }
 
+/* Candlelight flicker — active only when the default-dark palette is showing.
+   Scoped to #svelte so body::before (vignette) and body::after (paper grain)
+   are unaffected. Uses `filter` (not a transitioned property) so the global
+   1.5s color-transition doesn't fight the animation. */
+@keyframes parish-candle-flicker {
+	/* Irregular stops + ~3% brightness swing = "flicker", not "pulse". */
+	0% { filter: brightness(1); }
+	13% { filter: brightness(0.985); }
+	27% { filter: brightness(1.02); }
+	41% { filter: brightness(0.99); }
+	58% { filter: brightness(1.015); }
+	73% { filter: brightness(0.975); }
+	89% { filter: brightness(1.01); }
+	100% { filter: brightness(1); }
+}
+
+body.theme-default-night #svelte {
+	animation: parish-candle-flicker 7.3s ease-in-out infinite;
+	will-change: filter;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	body.theme-default-night #svelte {
+		animation: none;
+	}
+}
+
 /* Layout: ChatPanel fills space, InputField pinned to bottom.
    Must be global — Svelte scoped styles can't reach into child components. */
 .chat-panel {

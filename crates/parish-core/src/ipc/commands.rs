@@ -448,17 +448,32 @@ pub fn handle_command(
             None | Some("") => CommandResult::text(
                 "Available themes: default, solarized\n\
                  Usage: /theme <name> [light|dark|auto]\n\
-                 Solarized auto switches with real-world sunrise and sunset.",
-            ),
-            Some("default") => CommandResult::with_effect(
-                "Reverting to the parish's natural colours.",
-                CommandEffect::ApplyTheme("default".to_string(), String::new()),
+                 Default auto lights candles after dusk.\n\
+                 Solarized auto follows game time.",
             ),
             Some(rest) => {
                 let mut parts = rest.splitn(2, ' ');
                 let name = parts.next().unwrap_or("").to_lowercase();
                 let mode = parts.next().map(str::trim).unwrap_or("").to_lowercase();
                 match name.as_str() {
+                    "default" => {
+                        let msg = match mode.as_str() {
+                            "" => "Reverting to the parish's natural colours.",
+                            "light" => "Default light — warm parchment.",
+                            "dark" => "Default dark — candlelit interior.",
+                            "auto" => "Default auto — candlelight after dusk.",
+                            other => {
+                                return CommandResult::text(format!(
+                                    "Unknown mode '{}'. Try: light, dark, auto",
+                                    other
+                                ));
+                            }
+                        };
+                        CommandResult::with_effect(
+                            msg,
+                            CommandEffect::ApplyTheme("default".to_string(), mode),
+                        )
+                    }
                     "solarized" => {
                         let mode = if mode.is_empty() {
                             "auto".to_string()
@@ -1251,6 +1266,64 @@ mod tests {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(
             Command::Theme(Some("solarized taupe".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("taupe"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn theme_default_dark_applies_default_dark() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("default dark".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "default" && mode == "dark"
+        )));
+    }
+
+    #[test]
+    fn theme_default_auto_applies_default_auto() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("default auto".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "default" && mode == "auto"
+        )));
+    }
+
+    #[test]
+    fn theme_default_light_applies_default_light() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("default light".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.iter().any(|e| matches!(
+            e,
+            CommandEffect::ApplyTheme(name, mode) if name == "default" && mode == "light"
+        )));
+    }
+
+    #[test]
+    fn theme_default_invalid_mode() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Theme(Some("default taupe".to_string())),
             &mut world,
             &mut npc,
             &mut config,

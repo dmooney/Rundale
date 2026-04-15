@@ -10,6 +10,17 @@ export const DEFAULT_THEME_PALETTE: ThemePalette = {
 	muted: '#76663b'
 };
 
+/** Default Dark — very dark candlelit interior, paired with DEFAULT_THEME_PALETTE. */
+export const DEFAULT_DARK: ThemePalette = {
+	bg: '#1a1410', // near-black warm brown — candlelit stone
+	fg: '#e8d5a8', // warm cream, readable (≈11:1 contrast)
+	accent: '#d9822b', // candleflame amber
+	panel_bg: '#241c15',
+	input_bg: '#2e241a',
+	border: '#4a3a28',
+	muted: '#8a7456' // ≈4.6:1 contrast on bg
+};
+
 /** Solarized Light — Ethan Schoonover's palette mapped to Parish color slots. */
 export const SOLARIZED_LIGHT: ThemePalette = {
 	bg: '#fdf6e3', // base3
@@ -70,4 +81,10 @@ export function applyThemePalette(palette: ThemePalette): void {
 	root.style.setProperty('--color-input-bg', palette.input_bg);
 	root.style.setProperty('--color-border', palette.border);
 	root.style.setProperty('--color-muted', palette.muted);
+}
+
+/** Toggles the body class that activates the candlelight flicker animation. */
+export function setNightClass(on: boolean): void {
+	if (typeof document === 'undefined') return;
+	document.body.classList.toggle('theme-default-night', on);
 }
