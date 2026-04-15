@@ -146,12 +146,14 @@ impl OllamaClient {
 
         let mut accumulated = String::new();
         let mut line_buf = String::new();
+        let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
 
         // Read chunks and split into NDJSON lines
         let mut response = resp;
         while let Some(chunk) = response.chunk().await? {
-            let text = String::from_utf8_lossy(&chunk);
-            line_buf.push_str(&text);
+            // Decode incrementally so multi-byte characters split across
+            // HTTP chunk boundaries aren't mangled into U+FFFD (#223).
+            line_buf.push_str(&decoder.push(&chunk));
 
             // Process complete lines
             while let Some(newline_pos) = line_buf.find('\n') {
@@ -174,7 +176,8 @@ impl OllamaClient {
             }
         }
 
-        // Process any remaining data in the buffer
+        // Flush any trailing incomplete bytes, then process any remaining line.
+        line_buf.push_str(&decoder.flush());
         let remaining = line_buf.trim();
         if !remaining.is_empty()
             && let Ok(gen_resp) = serde_json::from_str::<GenerateResponse>(remaining)

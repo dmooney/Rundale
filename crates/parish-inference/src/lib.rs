@@ -9,6 +9,7 @@ pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
+pub(crate) mod utf8_stream;
 
 pub use rate_limit::InferenceRateLimiter;
 
