@@ -173,6 +173,27 @@
 						{/each}
 					{/if}
 				</div>
+				<div class="section">
+					<h4>Auth</h4>
+					{#if snap.auth.oauth_enabled}
+						{#if snap.auth.logged_in}
+							<div class="field">
+								<span class="accent">✓ Signed in</span>
+								{#if snap.auth.provider}<span class="muted"> via {snap.auth.provider}</span>{/if}
+							</div>
+							{#if snap.auth.display_name}
+								<div class="field muted">User: {snap.auth.display_name}</div>
+							{/if}
+						{:else}
+							<div class="field muted">OAuth enabled · not signed in</div>
+						{/if}
+					{:else}
+						<div class="field muted">OAuth disabled (no credentials configured)</div>
+					{/if}
+					{#if snap.auth.session_id}
+						<div class="field muted">Session: {snap.auth.session_id}</div>
+					{/if}
+				</div>
 
 			{:else if tab === 1}
 				<!-- NPCs -->

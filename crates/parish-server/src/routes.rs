@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::Json;
-use axum::extract::Extension;
+use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use tokio::sync::mpsc;
@@ -31,11 +31,13 @@ use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::{LocationId, WorldState};
 
-use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
+use parish_core::debug_snapshot::{self, AuthDebug, DebugSnapshot, InferenceDebug};
 use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
 
+use crate::middleware::SessionId;
+use crate::session::GlobalState;
 use crate::state::{AppState, ConversationRuntimeState, SaveState};
 
 /// Monotonically increasing request ID counter for inference requests.
@@ -91,7 +93,11 @@ pub async fn get_ui_config(
 }
 
 /// `GET /api/debug-snapshot` — returns full debug state for the debug panel.
-pub async fn get_debug_snapshot(Extension(state): Extension<Arc<AppState>>) -> Json<DebugSnapshot> {
+pub async fn get_debug_snapshot(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(session_id): Extension<SessionId>,
+    State(global): State<Arc<GlobalState>>,
+) -> Json<DebugSnapshot> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
@@ -110,12 +116,21 @@ pub async fn get_debug_snapshot(Extension(state): Extension<Arc<AppState>>) -> J
         improv_enabled: config.improv_enabled,
         call_log,
     };
+    let linked = global.sessions.google_account_for_session(&session_id.0);
+    let auth = AuthDebug {
+        oauth_enabled: global.oauth_config.is_some(),
+        logged_in: linked.is_some(),
+        provider: linked.as_ref().map(|_| "google".to_string()),
+        display_name: linked.map(|(_sub, name)| name),
+        session_id: Some(session_id.0.clone()),
+    };
     Json(debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &game_events,
         &inference,
+        &auth,
     ))
 }
 

@@ -20,6 +20,12 @@ use crate::session::{GlobalState, get_or_create_session};
 /// Cookie name used to identify a visitor's session.
 pub const SESSION_COOKIE: &str = "parish_sid";
 
+/// Current visitor's session id, injected by [`session_middleware`] so that
+/// route handlers (e.g. debug) can look up per-session metadata in the
+/// global [`crate::session::SessionRegistry`].
+#[derive(Clone, Debug)]
+pub struct SessionId(pub String);
+
 /// Axum middleware that resolves (or creates) a per-visitor session.
 pub async fn session_middleware(
     State(global): State<Arc<GlobalState>>,
@@ -35,19 +41,20 @@ pub async fn session_middleware(
 
     let (session_id, entry, is_new) = get_or_create_session(&global, cookie_id.as_deref()).await;
 
-    // Inject the per-session AppState as an Axum extension.
+    // Inject the per-session AppState and the session id as Axum extensions.
     req.extensions_mut().insert(Arc::clone(&entry.app_state));
+    req.extensions_mut().insert(SessionId(session_id.clone()));
 
     let mut response = next.run(req).await;
 
     // Set the cookie when a new session was created.
-    if is_new {
-        if let Ok(value) = HeaderValue::from_str(&format!(
+    if is_new
+        && let Ok(value) = HeaderValue::from_str(&format!(
             "{}={}; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=/",
             SESSION_COOKIE, session_id
-        )) {
-            response.headers_mut().insert(header::SET_COOKIE, value);
-        }
+        ))
+    {
+        response.headers_mut().insert(header::SET_COOKIE, value);
     }
 
     response
@@ -57,10 +64,10 @@ pub async fn session_middleware(
 fn extract_cookie_value(cookies: &str, name: &str) -> Option<String> {
     for pair in cookies.split(';') {
         let pair = pair.trim();
-        if let Some(rest) = pair.strip_prefix(name) {
-            if let Some(rest) = rest.strip_prefix('=') {
-                return Some(rest.trim().to_string());
-            }
+        if let Some(rest) = pair.strip_prefix(name)
+            && let Some(rest) = rest.strip_prefix('=')
+        {
+            return Some(rest.trim().to_string());
         }
     }
     None
