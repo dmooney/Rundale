@@ -37,3 +37,4 @@ rand = "0.8"
 tokio-test = "0.4"
 tempfile = "3"
 parish-types = { path = "../parish-types" }
+serial_test = "3"
