@@ -216,6 +216,10 @@ pub struct LongTermEntry {
     /// Importance score from 0.0 (trivial) to 1.0 (life-changing).
     pub importance: f32,
     /// Keywords for retrieval (NPC names, locations, event types).
+    ///
+    /// Invariant: keywords are stored pre-lowercased (see [`extract_keywords`]).
+    /// [`LongTermMemory::recall`] relies on this to avoid per-lookup
+    /// allocations.
     pub keywords: Vec<String>,
 }
 
@@ -264,19 +268,25 @@ impl LongTermMemory {
             return Vec::new();
         }
 
+        // Perf: lowercase each query keyword exactly once, up-front. The previous
+        // implementation re-lowercased every query keyword AND every entry
+        // keyword inside the per-entry loop, producing
+        // O(entries × query × (1 + entry_keywords)) transient String
+        // allocations. Entry keywords are guaranteed pre-lowercased (see
+        // `extract_keywords` and the `LongTermEntry::keywords` invariant), so
+        // comparison reduces to a cheap `Vec::contains` against the already-
+        // lowered query. This is on the NPC dialogue hot path
+        // (`ticks::build_enhanced_context_with_config` → `recall_context_string`,
+        // invoked per conversation turn per NPC via `ipc::handlers`).
+        let query_lower: Vec<String> = query_keywords.iter().map(|qk| qk.to_lowercase()).collect();
+
         let mut scored: Vec<(f32, &LongTermEntry)> = self
             .entries
             .iter()
             .filter_map(|entry| {
-                let keyword_matches = query_keywords
+                let keyword_matches = query_lower
                     .iter()
-                    .filter(|qk| {
-                        let qk_lower = qk.to_lowercase();
-                        entry
-                            .keywords
-                            .iter()
-                            .any(|ek| ek.to_lowercase() == qk_lower)
-                    })
+                    .filter(|qk| entry.keywords.contains(*qk))
                     .count();
 
                 if keyword_matches > 0 {
@@ -768,6 +778,21 @@ mod tests {
         ltm.store(make_lt_entry("something happened", 0.7, &["padraig"]));
         let results = ltm.recall(&["nonexistent"], 5);
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_long_term_recall_mixed_case_query() {
+        // Query keywords may arrive mixed-case from player input
+        // (see `ticks::build_enhanced_context_with_config`). The recall
+        // path must lower-case them to match the lowercased stored keywords.
+        let mut ltm = LongTermMemory::new();
+        ltm.store(make_lt_entry("Saw the landlord", 0.8, &["landlord"]));
+
+        let upper = ltm.recall(&["LANDLORD"], 5);
+        assert_eq!(upper.len(), 1, "uppercase query should match");
+
+        let mixed = ltm.recall(&["LandLord"], 5);
+        assert_eq!(mixed.len(), 1, "mixed-case query should match");
     }
 
     #[test]
