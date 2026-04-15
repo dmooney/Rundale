@@ -44,6 +44,10 @@ test.describe('Screenshot generation', () => {
 });
 
 test.describe('Visual regression baselines', () => {
+	// Baselines are environment-specific (fonts, browser pixel rendering).
+	// Skip in CI; run manually with `--update-snapshots` to refresh locally.
+	test.skip(!!process.env.CI, 'visual-regression baselines are environment-specific');
+
 	for (const time of TIMES_OF_DAY) {
 		test(`visual-regression-${time}`, async ({ page }) => {
 			await installTauriMock(page, time);
