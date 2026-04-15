@@ -60,19 +60,24 @@ impl OllamaClient {
     ///
     /// Uses `config.timeout_secs` for the default HTTP client and stores
     /// `config.streaming_timeout_secs` for streaming request clients.
+    ///
+    /// If the underlying `reqwest` builder fails (e.g. a TLS backend is
+    /// unavailable), this falls back to a default `reqwest::Client` with
+    /// no configured timeout rather than panicking, and emits a warning
+    /// via `tracing`. See issue #98.
     pub fn new_with_config(base_url: &str, config: &InferenceConfig) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.timeout_secs))
-            .build()
-            .expect("failed to build reqwest client");
+        let client = crate::openai_client::build_client_or_fallback(
+            Duration::from_secs(config.timeout_secs),
+            "Ollama",
+        );
 
         // Pre-build the streaming client once so connection pooling is
         // preserved across streaming calls instead of creating a fresh
         // client (and fresh TCP connections) on every request.
-        let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.streaming_timeout_secs))
-            .build()
-            .expect("failed to build streaming reqwest client");
+        let streaming_client = crate::openai_client::build_client_or_fallback(
+            Duration::from_secs(config.streaming_timeout_secs),
+            "Ollama streaming",
+        );
 
         Self {
             client,
@@ -311,10 +316,12 @@ impl OllamaProcess {
 
     /// Checks if the Ollama API is reachable by hitting the root endpoint.
     async fn is_reachable(base_url: &str) -> bool {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(2))
-            .build()
-            .unwrap();
+        // Use the shared builder helper so a failing reqwest build falls
+        // back to a default client instead of panicking (#98).
+        let client = crate::openai_client::build_client_or_fallback(
+            Duration::from_secs(2),
+            "Ollama reachability probe",
+        );
         client.get(base_url).send().await.is_ok()
     }
 
