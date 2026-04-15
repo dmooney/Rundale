@@ -46,6 +46,26 @@ export const focailOpen = writable<boolean>(false);
 /** Maps message ID → Irish word hints for that completed NPC response. */
 export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
 
+/**
+ * Appends a user-visible error entry to the text log.
+ *
+ * Used to surface failures from IPC calls or initial data loads that would
+ * otherwise fail silently. The entry is a `system`-sourced message with the
+ * `error` subtype so it can be styled distinctly.
+ */
+export function pushErrorLog(content: string): void {
+	textLog.update((log) =>
+		trimTextLog([...log, { source: 'system', subtype: 'error', content }])
+	);
+}
+
+/** Extracts a concise user-facing string from a thrown IPC error. */
+export function formatIpcError(err: unknown): string {
+	if (err instanceof Error) return err.message;
+	if (typeof err === 'string') return err;
+	return 'unknown error';
+}
+
 /** Adds a reaction to a message in the text log by message ID. */
 export function addReaction(messageId: string, emoji: string, source: string): void {
 	textLog.update((log) => {

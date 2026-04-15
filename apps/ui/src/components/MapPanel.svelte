@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { mapData, fullMapOpen } from '../stores/game';
+	import { mapData, fullMapOpen, pushErrorLog, formatIpcError } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { submitInput } from '$lib/ipc';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
@@ -127,7 +127,13 @@
 
 		controller.onLocationClick(async (info) => {
 			if (!info.adjacent) return;
-			await submitInput(`go to ${info.name}`);
+			try {
+				await submitInput(`go to ${info.name}`);
+			} catch (err) {
+				pushErrorLog(
+					`Could not travel to ${info.name}: ${formatIpcError(err)}`
+				);
+			}
 		});
 
 		controller.onLocationHover(

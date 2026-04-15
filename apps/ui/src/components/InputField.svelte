@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
@@ -429,7 +429,9 @@
 		} else {
 			clearEditor();
 			dropdownMode = null;
-			submitInput(cmd.command);
+			submitInput(cmd.command).catch((err) => {
+				pushErrorLog(`Could not send "${cmd.command}": ${formatIpcError(err)}`);
+			});
 		}
 	}
 
@@ -466,7 +468,13 @@
 		if ($streamingActive) return;
 		selectedNpcRealNames = [];
 		clearEditor();
-		await submitInput(`go to ${locationName}`);
+		try {
+			await submitInput(`go to ${locationName}`);
+		} catch (err) {
+			pushErrorLog(
+				`Could not travel to ${locationName}: ${formatIpcError(err)}`
+			);
+		}
 	}
 
 	function toggleNpcSelection(realName: string) {
@@ -537,7 +545,11 @@
 
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
-		await submitInput(trimmed, addressedTo);
+		try {
+			await submitInput(trimmed, addressedTo);
+		} catch (err) {
+			pushErrorLog(`Could not send input: ${formatIpcError(err)}`);
+		}
 	}
 
 	// ── Keyboard handling ───────────────────────────────────────────────────

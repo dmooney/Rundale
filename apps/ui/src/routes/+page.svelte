@@ -10,7 +10,7 @@
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
@@ -173,29 +173,44 @@
 		window.addEventListener('touchstart', onTrackerTouch);
 		window.addEventListener('mousemove', onTrackerMousemove);
 
-		// Initial data fetch (theme first to avoid color flash)
-		try {
-			const [snap, map, npcs, theme] = await Promise.all([
-				getWorldSnapshot(),
-				getMap(),
-				getNpcsHere(),
-				getTheme()
-			]);
+		// Initial data fetch (theme first to avoid color flash).
+		//
+		// Use `allSettled` so a single failed endpoint doesn't block the
+		// rest of the UI from loading. Any failure is surfaced via
+		// pushErrorLog so the user sees feedback instead of an indefinite
+		// "Loading..." state — see #113.
+		const [snapRes, mapRes, npcsRes, themeRes] = await Promise.allSettled([
+			getWorldSnapshot(),
+			getMap(),
+			getNpcsHere(),
+			getTheme()
+		]);
+		if (snapRes.status === 'fulfilled') {
+			const snap = snapRes.value;
 			worldState.set(snap);
-			mapData.set(map);
-			npcsHere.set(npcs);
-			palette.applyServerPalette(theme);
 			palette.applyGameHour(snap.hour);
 			if (snap.name_hints) nameHints.set(snap.name_hints);
-			// Show initial location description in the chat panel
 			if (snap.location_description) {
 				textLog.update((log) => [
 					...log,
 					{ source: 'system', content: snap.location_description }
 				]);
 			}
-		} catch (e) {
-			console.warn('Initial fetch failed (expected in browser dev):', e);
+		}
+		if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
+		if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
+		if (themeRes.status === 'fulfilled') palette.applyServerPalette(themeRes.value);
+
+		const failed: string[] = [];
+		if (snapRes.status === 'rejected') failed.push(`world (${formatIpcError(snapRes.reason)})`);
+		if (mapRes.status === 'rejected') failed.push(`map (${formatIpcError(mapRes.reason)})`);
+		if (npcsRes.status === 'rejected') failed.push(`NPCs (${formatIpcError(npcsRes.reason)})`);
+		if (themeRes.status === 'rejected') failed.push(`theme (${formatIpcError(themeRes.reason)})`);
+		if (failed.length > 0) {
+			pushErrorLog(`Failed to load initial game data: ${failed.join(', ')}.`);
+			for (const r of [snapRes, mapRes, npcsRes, themeRes]) {
+				if (r.status === 'rejected') console.warn('Initial fetch failed:', r.reason);
+			}
 		}
 
 		// Fetch UI config from mod and show splash text
