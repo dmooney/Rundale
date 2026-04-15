@@ -606,6 +606,7 @@ mod tests {
         let event1 = WorldEvent::PlayerMoved {
             from: parish_types::LocationId(1),
             to: parish_types::LocationId(2),
+            minutes: None,
         };
         let event2 = WorldEvent::WeatherChanged {
             new_weather: "Rain".to_string(),
