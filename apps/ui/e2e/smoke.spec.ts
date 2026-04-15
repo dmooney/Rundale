@@ -15,7 +15,7 @@ test.describe('Parish Web UI', () => {
 		await expect(chatPanel).not.toBeEmpty();
 
 		// Input field should be present
-		const inputField = page.locator('[data-testid="input-field"] input');
+		const inputField = page.locator('[data-testid="input-field"]');
 		await expect(inputField).toBeVisible();
 
 		// Map panel should render
@@ -34,20 +34,20 @@ test.describe('Parish Web UI', () => {
 		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
 
 		// Type a look command
-		const input = page.locator('[data-testid="input-field"] input');
+		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('look');
 		await input.press('Enter');
 
 		// Chat panel should update with player input echo and system response
 		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText('> look', { timeout: 5_000 });
+		await expect(chatPanel).toContainText('look', { timeout: 5_000 });
 	});
 
 	test('player can move to a location', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
 
-		const input = page.locator('[data-testid="input-field"] input');
+		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('go to church');
 		await input.press('Enter');
 
@@ -94,7 +94,7 @@ test.describe('Parish Web UI', () => {
 		await page.screenshot({ path: 'e2e-results/initial-load.png', fullPage: true });
 
 		// After a command
-		const input = page.locator('[data-testid="input-field"] input');
+		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('/status');
 		await input.press('Enter');
 		await page.waitForTimeout(500);

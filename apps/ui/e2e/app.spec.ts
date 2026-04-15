@@ -3,7 +3,7 @@
  */
 
 import { test, expect, installTauriMock, emitEvent, applyTheme } from './fixtures';
-import { SNAPSHOTS, PALETTES, NPCS, MAP_DATA } from './mock-data';
+import { SNAPSHOTS, PALETTES, NPCS } from './mock-data';
 import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
 test.describe('App layout', () => {
@@ -15,7 +15,9 @@ test.describe('App layout', () => {
 
 	test('renders the app shell with all major sections', async ({ page }) => {
 		await expect(page.locator('.app-shell')).toBeVisible();
-		await expect(page.getByText('Baile Átha Cliath')).toBeVisible();
+		await expect(
+			page.locator('[data-testid="status-bar"]').getByText('Baile Átha Cliath')
+		).toBeVisible();
 	});
 
 	test('status bar shows time label and weather', async ({ page }) => {
@@ -31,11 +33,11 @@ test.describe('App layout', () => {
 		).toBeVisible();
 	});
 
-	test('map panel renders SVG with location markers', async ({ page }) => {
-		const svg = page.locator('svg');
-		await expect(svg).toBeVisible();
-		const circles = svg.locator('circle');
-		await expect(circles).toHaveCount(MAP_DATA.locations.length);
+	test('map panel renders MapLibre canvas', async ({ page }) => {
+		// The minimap uses MapLibre GL (WebGL canvas), so assert the canvas is
+		// mounted inside the map panel rather than counting SVG markers.
+		const canvas = page.locator('[data-testid="map-panel"] canvas.maplibregl-canvas');
+		await expect(canvas).toBeVisible();
 	});
 
 	test('NPC chip row shows NPCs at current location', async ({ page }) => {
@@ -49,9 +51,9 @@ test.describe('App layout', () => {
 	});
 
 	test('input field is visible and enabled', async ({ page }) => {
-		const input = page.locator('.input-field');
+		const input = page.locator('[data-testid="input-field"]');
 		await expect(input).toBeVisible();
-		await expect(input).toBeEnabled();
+		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
 
 	test('sidebar shows name pronunciation hints from world snapshot', async ({ page }) => {

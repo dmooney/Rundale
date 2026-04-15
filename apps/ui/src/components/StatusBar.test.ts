@@ -26,7 +26,8 @@ const snapshot: WorldSnapshot = {
 	paused: false,
 	game_epoch_ms: morningEpoch(),
 	speed_factor: 0,
-	name_hints: []
+	name_hints: [],
+	day_of_week: 'Monday'
 };
 
 describe('StatusBar', () => {

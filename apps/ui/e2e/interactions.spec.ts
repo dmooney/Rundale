@@ -13,12 +13,12 @@ test.describe('Input field interactions', () => {
 	});
 
 	test('can type and submit text via Enter key', async ({ page }) => {
-		const input = page.locator('.input-field');
+		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('go to Howth');
 		await input.press('Enter');
 
 		// Input should be cleared after submission
-		await expect(input).toHaveValue('');
+		await expect(input).toHaveText('');
 	});
 
 	test('input is disabled during streaming', async ({ page }) => {
@@ -26,13 +26,13 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'loading', { active: true });
 		await page.waitForTimeout(100);
 
-		const input = page.locator('.input-field');
-		await expect(input).toBeDisabled();
+		const input = page.locator('[data-testid="input-field"]');
+		await expect(input).toHaveAttribute('aria-disabled', 'true');
 
 		// End loading
 		await emitEvent(page, 'loading', { active: false });
 		await page.waitForTimeout(100);
-		await expect(input).toBeEnabled();
+		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
 });
 

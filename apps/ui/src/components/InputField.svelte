@@ -840,6 +840,8 @@
 				role="textbox"
 				tabindex="0"
 				aria-label="Player input"
+				aria-disabled={$streamingActive}
+				data-testid="input-field"
 				onkeydown={handleKeydown}
 				oninput={handleInput}
 				onpaste={handlePaste}
