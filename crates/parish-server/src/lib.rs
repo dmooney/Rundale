@@ -165,7 +165,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
         let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
         let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-        let _worker = spawn_inference_worker(
+        // Store the worker JoinHandle on AppState so a later rebuild_inference
+        // call can abort this initial worker — otherwise it leaks for the
+        // lifetime of the process (bug #231).
+        let worker = spawn_inference_worker(
             ac,
             interactive_rx,
             background_rx,
@@ -175,6 +178,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
         let mut iq = state.inference_queue.lock().await;
         *iq = Some(queue);
+        drop(iq);
+        let mut wh = state.worker_handle.lock().await;
+        *wh = Some(worker);
     }
 
     // Spawn background ticks
