@@ -183,6 +183,55 @@ impl InferenceQueue {
     }
 }
 
+/// Outcome of awaiting an inference response with a safety timeout.
+#[derive(Debug)]
+pub enum InferenceAwaitOutcome {
+    /// The worker sent a response.
+    Response(InferenceResponse),
+    /// The worker dropped the sender without producing a response.
+    Closed,
+    /// The safety timeout fired before the worker responded. The `secs` field
+    /// records the timeout duration so callers can surface it in diagnostics.
+    TimedOut { secs: u64 },
+}
+
+/// Default safety timeout for awaiting an inference response.
+///
+/// Slightly above `InferenceConfig::streaming_timeout_secs` (300s) so that the
+/// underlying HTTP client's timeout has a chance to fire first and produce a
+/// proper error response. Only kicks in if the worker task is wedged or the
+/// HTTP timeout fails to trigger.
+pub const INFERENCE_RESPONSE_TIMEOUT_SECS: u64 = 360;
+
+/// Await an inference response with a safety timeout.
+///
+/// Wraps `response_rx.await` in [`tokio::time::timeout`] so a stuck worker or
+/// a dropped sender never hangs the caller indefinitely. Returns a distinct
+/// outcome for each failure mode so callers can log timeouts separately from
+/// closed channels.
+///
+/// Pass `None` for `timeout` to disable the safety cap (falls back to the
+/// previous unbounded `.await` behaviour, used when the
+/// `inference-response-timeout` feature flag is explicitly disabled).
+pub async fn await_inference_response(
+    response_rx: oneshot::Receiver<InferenceResponse>,
+    timeout: Option<std::time::Duration>,
+) -> InferenceAwaitOutcome {
+    match timeout {
+        Some(dur) => match tokio::time::timeout(dur, response_rx).await {
+            Ok(Ok(resp)) => InferenceAwaitOutcome::Response(resp),
+            Ok(Err(_)) => InferenceAwaitOutcome::Closed,
+            Err(_) => InferenceAwaitOutcome::TimedOut {
+                secs: dur.as_secs(),
+            },
+        },
+        None => match response_rx.await {
+            Ok(resp) => InferenceAwaitOutcome::Response(resp),
+            Err(_) => InferenceAwaitOutcome::Closed,
+        },
+    }
+}
+
 /// Monotonically increasing request ID counter for queue-submitted JSON requests.
 static QUEUE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -619,6 +668,68 @@ mod tests {
         };
         let debug = format!("{:?}", response);
         assert!(debug.contains("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_await_inference_response_returns_response() {
+        let (tx, rx) = oneshot::channel();
+        tx.send(InferenceResponse {
+            id: 42,
+            text: "ok".to_string(),
+            error: None,
+        })
+        .unwrap();
+        let outcome = await_inference_response(rx, Some(std::time::Duration::from_secs(1))).await;
+        match outcome {
+            InferenceAwaitOutcome::Response(r) => {
+                assert_eq!(r.id, 42);
+                assert_eq!(r.text, "ok");
+            }
+            other => panic!("expected Response, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_await_inference_response_detects_closed_channel() {
+        let (tx, rx) = oneshot::channel::<InferenceResponse>();
+        drop(tx);
+        let outcome = await_inference_response(rx, Some(std::time::Duration::from_secs(1))).await;
+        assert!(matches!(outcome, InferenceAwaitOutcome::Closed));
+    }
+
+    #[tokio::test]
+    async fn test_await_inference_response_times_out() {
+        // Keep the sender alive so the channel isn't closed; only the timeout
+        // arm can fire. Use a tiny real duration so the test runs fast.
+        let (_tx, rx) = oneshot::channel::<InferenceResponse>();
+        let outcome =
+            await_inference_response(rx, Some(std::time::Duration::from_millis(20))).await;
+        // `Duration::from_millis(20).as_secs()` rounds down to 0.
+        match outcome {
+            InferenceAwaitOutcome::TimedOut { secs } => assert_eq!(secs, 0),
+            other => panic!("expected TimedOut, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_await_inference_response_without_timeout_awaits_forever() {
+        // With `None`, the helper should await the channel without a cap.
+        // We simulate this by sending a response on a background task and
+        // asserting the helper receives it.
+        let (tx, rx) = oneshot::channel();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            let _ = tx.send(InferenceResponse {
+                id: 7,
+                text: "late".to_string(),
+                error: None,
+            });
+        });
+        let outcome = await_inference_response(rx, None).await;
+        match outcome {
+            InferenceAwaitOutcome::Response(r) => assert_eq!(r.id, 7),
+            other => panic!("expected Response, got {:?}", other),
+        }
     }
 
     #[test]

@@ -14,7 +14,10 @@ use tokio::sync::mpsc;
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{
+    AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
+    await_inference_response, spawn_inference_worker,
+};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
@@ -720,19 +723,46 @@ async fn run_npc_turn(
         }
     });
 
-    let response = response_rx.await.ok();
+    let timeout_secs = {
+        let config = state.config.lock().await;
+        if config.flags.is_disabled("inference-response-timeout") {
+            None
+        } else {
+            Some(INFERENCE_RESPONSE_TIMEOUT_SECS)
+        }
+    };
+    let outcome = await_inference_response(
+        response_rx,
+        timeout_secs.map(std::time::Duration::from_secs),
+    )
+    .await;
     let _ = stream_handle.await;
     state
         .event_bus
         .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
     loading_cancel.cancel();
 
-    let Some(response) = response else {
-        state.event_bus.emit(
-            "text-log",
-            &text_log("system", "The storyteller has wandered off mid-tale."),
-        );
-        return None;
+    let response = match outcome {
+        InferenceAwaitOutcome::Response(r) => r,
+        InferenceAwaitOutcome::Closed => {
+            tracing::warn!(
+                req_id,
+                "NPC inference response channel closed without a reply",
+            );
+            state.event_bus.emit(
+                "text-log",
+                &text_log("system", "The storyteller has wandered off mid-tale."),
+            );
+            return None;
+        }
+        InferenceAwaitOutcome::TimedOut { secs } => {
+            tracing::warn!(req_id, secs, "NPC inference response timed out",);
+            state.event_bus.emit(
+                "text-log",
+                &text_log("system", "The storyteller is lost in thought. Try again."),
+            );
+            return None;
+        }
     };
 
     if response.error.is_some() {

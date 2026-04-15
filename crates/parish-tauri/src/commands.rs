@@ -12,7 +12,10 @@ use tokio::sync::mpsc;
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
+use parish_core::inference::{
+    AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
+    await_inference_response, spawn_inference_worker,
+};
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first,
@@ -864,7 +867,19 @@ async fn run_npc_turn(
         }
     });
 
-    let response = response_rx.await.ok();
+    let timeout_secs = {
+        let config = state.config.lock().await;
+        if config.flags.is_disabled("inference-response-timeout") {
+            None
+        } else {
+            Some(INFERENCE_RESPONSE_TIMEOUT_SECS)
+        }
+    };
+    let outcome = await_inference_response(
+        response_rx,
+        timeout_secs.map(std::time::Duration::from_secs),
+    )
+    .await;
     let _ = stream_handle.await;
     let _ = app.emit(
         EVENT_STREAM_TURN_END,
@@ -872,17 +887,48 @@ async fn run_npc_turn(
     );
     loading_cancel.cancel();
 
-    let Some(response) = response else {
-        let _ = app.emit(
-            EVENT_TEXT_LOG,
-            TextLogPayload {
-                id: String::new(),
-                stream_turn_id: None,
-                source: "system".to_string(),
-                content: "The storyteller has wandered off mid-tale.".to_string(),
-            },
-        );
-        return None;
+    let response = match outcome {
+        InferenceAwaitOutcome::Response(r) => r,
+        InferenceAwaitOutcome::Closed => {
+            tracing::warn!(
+                req_id,
+                "NPC inference response channel closed without a reply",
+            );
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: "The storyteller has wandered off mid-tale.".to_string(),
+                },
+            );
+            return None;
+        }
+        InferenceAwaitOutcome::TimedOut { secs } => {
+            tracing::warn!(req_id, secs, "NPC inference response timed out");
+            let ts = debug_event_timestamp(state).await;
+            let mut events = state.debug_events.lock().await;
+            if events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                events.pop_front();
+            }
+            events.push_back(DebugEvent {
+                timestamp: ts,
+                category: "inference".to_string(),
+                message: format!("Response timed out after {secs}s"),
+            });
+            drop(events);
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: "The storyteller is lost in thought. Try again.".to_string(),
+                },
+            );
+            return None;
+        }
     };
 
     if let Some(ref err) = response.error {
