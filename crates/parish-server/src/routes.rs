@@ -189,10 +189,20 @@ async fn rebuild_inference(state: &Arc<AppState>) {
         AnyClient::open_ai(oai)
     };
 
+    // Abort the old inference worker before spawning a replacement to prevent
+    // orphaned tasks from accumulating (each holds an HTTP client and channel).
+    // Without this, repeated provider/key/model changes leak workers (bug #224).
+    {
+        let mut wh = state.worker_handle.lock().await;
+        if let Some(old) = wh.take() {
+            old.abort();
+        }
+    }
+
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    let _worker = spawn_inference_worker(
+    let worker = spawn_inference_worker(
         any_client,
         interactive_rx,
         background_rx,
@@ -202,6 +212,9 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
     *iq = Some(queue);
+    drop(iq);
+    let mut wh = state.worker_handle.lock().await;
+    *wh = Some(worker);
 }
 
 async fn touch_player_activity(state: &Arc<AppState>) {
@@ -2254,5 +2267,79 @@ mod tests {
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    /// Regression test for #224 / #231: rebuild_inference must abort the
+    /// previously-stored inference worker, otherwise each provider/key/model
+    /// change leaks a worker holding an HTTP client and channel state.
+    #[tokio::test]
+    async fn rebuild_inference_aborts_previous_worker() {
+        let state = test_app_state();
+        // Use the simulator so rebuild_inference doesn't try to talk to a real
+        // LLM endpoint.
+        {
+            let mut config = state.config.lock().await;
+            config.provider_name = "simulator".to_string();
+        }
+
+        // Spawn a sentinel "worker" that runs forever; mirror the real worker
+        // by just sleeping in a loop. Stash an AbortHandle so we can verify
+        // from outside whether rebuild_inference cancelled it.
+        let sentinel = tokio::spawn(async {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        });
+        let abort_handle = sentinel.abort_handle();
+        *state.worker_handle.lock().await = Some(sentinel);
+        assert!(
+            !abort_handle.is_finished(),
+            "sentinel should be running before rebuild"
+        );
+
+        rebuild_inference(&state).await;
+
+        // Yield + brief sleep so the runtime processes the abort.
+        for _ in 0..10 {
+            if abort_handle.is_finished() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            abort_handle.is_finished(),
+            "rebuild_inference must abort the previous worker (#224, #231)"
+        );
+
+        // And a fresh worker handle must be stored.
+        let wh = state.worker_handle.lock().await;
+        assert!(
+            wh.is_some(),
+            "rebuild_inference must install a new worker handle"
+        );
+    }
+
+    /// Regression test for #224 / #231: rebuild_inference must work (and
+    /// install a worker) even when no previous worker was stored — that
+    /// matches the case where startup failed to spawn one.
+    #[tokio::test]
+    async fn rebuild_inference_installs_worker_when_none_stored() {
+        let state = test_app_state();
+        {
+            let mut config = state.config.lock().await;
+            config.provider_name = "simulator".to_string();
+        }
+        assert!(state.worker_handle.lock().await.is_none());
+
+        rebuild_inference(&state).await;
+
+        assert!(
+            state.worker_handle.lock().await.is_some(),
+            "rebuild_inference must install a worker even if none was stored"
+        );
+        assert!(
+            state.inference_queue.lock().await.is_some(),
+            "rebuild_inference must install an inference queue"
+        );
     }
 }
