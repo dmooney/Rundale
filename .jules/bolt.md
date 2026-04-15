@@ -11,3 +11,7 @@
 ## 2026-04-14 - Recurring multi-pass HashMap scan anti-pattern in parish-npc
 **Learning:** `known_roster` in `manager.rs` repeated the double-scan anti-pattern — separate `for other in self.npcs.values()` loops for home and workplace co-residency. Same shape as the earlier fuzzy-search fix in `graph.rs`. When multiple optional filters apply to the same collection, consolidating into one pass with per-NPC conjunction checks is both faster and clearer.
 **Action:** When reviewing lookup/query methods against `NpcManager`/`WorldState` that iterate `.values()`, check whether nearby code iterates the same map again — if so, fold into a single pass.
+
+## 2026-04-15 - Pre-lowercased storage invariant defeated by per-lookup re-lowercasing
+**Learning:** `LongTermMemory::recall` in `parish-npc/memory.rs` re-lowercased both query and stored keywords inside an O(entries × query × entry_keywords) nested loop — yet `extract_keywords` (the only production producer) already stores everything lowercased. The `ek.to_lowercase()` inside `.any()` was pure waste; the `qk.to_lowercase()` should be hoisted above the entries loop. Called per NPC per dialogue turn via `build_enhanced_context_with_config`.
+**Action:** When a "lowercase on read" pattern sits inside a loop, trace every write site of the compared field. If producers already normalise, document the invariant on the struct field and compare directly — don't re-normalise defensively inside hot loops.
