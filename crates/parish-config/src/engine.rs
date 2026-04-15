@@ -482,6 +482,9 @@ pub struct ReactionConfig {
     /// LLM timeout for reaction greeting calls (seconds).
     #[serde(default = "default_reaction_llm_timeout_secs")]
     pub llm_timeout_secs: u64,
+    /// Maximum number of NPCs that react on a single arrival (0 = no cap).
+    #[serde(default = "default_reaction_max_reactions")]
+    pub max_reactions: usize,
 }
 
 impl Default for ReactionConfig {
@@ -494,6 +497,7 @@ impl Default for ReactionConfig {
             negative_mood_penalty: 0.20,
             night_penalty: 0.15,
             llm_timeout_secs: 5,
+            max_reactions: 2,
         }
     }
 }
@@ -518,6 +522,9 @@ fn default_reaction_night_penalty() -> f64 {
 }
 fn default_reaction_llm_timeout_secs() -> u64 {
     5
+}
+fn default_reaction_max_reactions() -> usize {
+    2
 }
 
 // ---------------------------------------------------------------------------

@@ -446,6 +446,19 @@ pub fn generate_arrival_reactions(
         });
     }
 
+    // Cap the number of simultaneous reactions, prioritising the most
+    // socially significant kinds first so the publican always greets you
+    // before a random patron does.
+    if config.max_reactions > 0 && reactions.len() > config.max_reactions {
+        reactions.sort_by_key(|r| match r.kind {
+            ReactionKind::Introduction => 0u8,
+            ReactionKind::Welcome => 1,
+            ReactionKind::Greeting => 2,
+            ReactionKind::Gesture => 3,
+        });
+        reactions.truncate(config.max_reactions);
+    }
+
     reactions
 }
 
@@ -1364,6 +1377,76 @@ mod tests {
         assert!(reactions[0].use_llm);
         // Introduction uses real name
         assert_eq!(reactions[0].npc_display_name, "Siobhan Murphy");
+    }
+
+    #[test]
+    fn test_max_reactions_cap() {
+        // Four introduced non-workplace NPCs all roll to react.
+        // With max_reactions = 2 only two should come through.
+        let npc1 = test_npc(1, "Aoife", "Farmer", None);
+        let npc2 = test_npc(2, "Brigid", "Farmer", None);
+        let npc3 = test_npc(3, "Cormac", "Farmer", None);
+        let npc4 = test_npc(4, "Donal", "Farmer", None);
+        let loc = test_location(1, false);
+        let mut introduced = HashSet::new();
+        for id in [1u32, 2, 3, 4] {
+            introduced.insert(NpcId(id));
+        }
+        let templates = ReactionTemplates::default();
+        let config = ReactionConfig {
+            max_reactions: 2,
+            ..Default::default()
+        };
+        // All chance rolls = 0.0 (pass), type rolls = 0.3 → Greeting for each
+        let dice = fixed_n(&[0.0, 0.3, 0.0, 0.3, 0.0, 0.3, 0.0, 0.3]);
+
+        let reactions = generate_arrival_reactions(
+            &[&npc1, &npc2, &npc3, &npc4],
+            &introduced,
+            &loc,
+            TimeOfDay::Morning,
+            "clear",
+            &templates,
+            &config,
+            &dice,
+        );
+
+        assert_eq!(reactions.len(), 2);
+    }
+
+    #[test]
+    fn test_max_reactions_priority_keeps_introduction() {
+        // NPC1 is introduced → Gesture (type_roll 0.6 ≥ 0.5).
+        // NPC2 is not introduced → Introduction (type_roll 0.1 < 0.25).
+        // With cap = 1 the Introduction beats the Gesture.
+        let npc1 = test_npc(1, "Eoin", "Farmer", None);
+        let npc2 = test_npc(2, "Fiona Murphy", "Farmer", None);
+        let loc = test_location(1, false);
+        let mut introduced = HashSet::new();
+        introduced.insert(NpcId(1)); // npc1 introduced; npc2 is not
+        let templates = ReactionTemplates::default();
+        let config = ReactionConfig {
+            max_reactions: 1,
+            ..Default::default()
+        };
+        // npc1: chance 0.0 (pass), type 0.6 → Gesture
+        // npc2: chance 0.0 (pass), type 0.1 → Introduction
+        let dice = fixed_n(&[0.0, 0.6, 0.0, 0.1]);
+
+        let reactions = generate_arrival_reactions(
+            &[&npc1, &npc2],
+            &introduced,
+            &loc,
+            TimeOfDay::Morning,
+            "clear",
+            &templates,
+            &config,
+            &dice,
+        );
+
+        assert_eq!(reactions.len(), 1);
+        assert_eq!(reactions[0].kind, ReactionKind::Introduction);
+        assert_eq!(reactions[0].npc_id, NpcId(2));
     }
 
     #[test]
