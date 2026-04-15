@@ -347,21 +347,44 @@ fn capture_gdk_screenshot(_path: &std::path::Path) -> anyhow::Result<()> {
     anyhow::bail!("screenshot capture is only implemented on Linux")
 }
 
+/// Maximum time to wait for a screenshot capture to complete before bailing.
+///
+/// If the GTK main thread is busy or the capture never completes, we bail
+/// instead of blocking the task indefinitely.
+const SCREENSHOT_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Awaits a screenshot result on `rx`, bounded by `timeout`.
+///
+/// Returns the captured result, or an error if the channel closes or the
+/// timeout expires. Extracted so the timeout/close behavior can be unit-tested
+/// without GTK.
+async fn await_screenshot_result(
+    rx: std::sync::mpsc::Receiver<anyhow::Result<()>>,
+    timeout: Duration,
+) -> anyhow::Result<()> {
+    let blocking = tokio::task::spawn_blocking(move || {
+        rx.recv()
+            .unwrap_or_else(|_| anyhow::bail!("channel closed"))
+    });
+    match tokio::time::timeout(timeout, blocking).await {
+        Ok(join_result) => join_result?,
+        Err(_) => anyhow::bail!("screenshot capture timed out after {}s", timeout.as_secs()),
+    }
+}
+
 /// Dispatches a screenshot to the GTK main thread (Linux) and waits for completion.
 ///
 /// GDK/GTK APIs must be called from the main thread. We post the capture work
 /// via `glib::idle_add_once` and block a spawn_blocking thread on the result.
+/// The whole dispatch is bounded by [`SCREENSHOT_TIMEOUT`] so a wedged GTK main
+/// thread cannot hang the caller forever.
 #[cfg(target_os = "linux")]
 async fn dispatch_screenshot(path: std::path::PathBuf) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
     glib::idle_add_once(move || {
         let _ = tx.send(capture_gdk_screenshot(&path));
     });
-    tokio::task::spawn_blocking(move || {
-        rx.recv()
-            .unwrap_or_else(|_| anyhow::bail!("channel closed"))
-    })
-    .await?
+    await_screenshot_result(rx, SCREENSHOT_TIMEOUT).await
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -1487,5 +1510,53 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
         model_name: model,
         api_key,
         base_url: Some(base_url),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A successful send resolves immediately and propagates the result.
+    #[tokio::test]
+    async fn await_screenshot_result_returns_ok_when_sender_succeeds() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
+        tx.send(Ok(())).unwrap();
+        let res = await_screenshot_result(rx, Duration::from_secs(5)).await;
+        assert!(res.is_ok());
+    }
+
+    /// An error sent through the channel is propagated to the caller.
+    #[tokio::test]
+    async fn await_screenshot_result_propagates_capture_error() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
+        tx.send(Err(anyhow::anyhow!("capture failed: boom")))
+            .unwrap();
+        let res = await_screenshot_result(rx, Duration::from_secs(5)).await;
+        let err = res.expect_err("expected capture error");
+        assert!(err.to_string().contains("boom"));
+    }
+
+    /// If the sender is dropped without sending, we surface a "channel closed" error
+    /// instead of hanging.
+    #[tokio::test]
+    async fn await_screenshot_result_reports_channel_closed_when_sender_dropped() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
+        drop(tx);
+        let res = await_screenshot_result(rx, Duration::from_secs(5)).await;
+        let err = res.expect_err("expected channel-closed error");
+        assert!(err.to_string().contains("channel closed"));
+    }
+
+    /// If neither sender nor result ever arrives, the timeout fires rather than
+    /// blocking forever — the bug fix for #103.
+    #[tokio::test]
+    async fn await_screenshot_result_times_out_when_sender_stalls() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<anyhow::Result<()>>(1);
+        // Keep the sender alive across the await so rx.recv() actually blocks.
+        let res = await_screenshot_result(rx, Duration::from_millis(50)).await;
+        drop(tx);
+        let err = res.expect_err("expected timeout error");
+        assert!(err.to_string().contains("timed out"), "got: {}", err);
     }
 }
