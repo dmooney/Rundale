@@ -482,10 +482,7 @@ pub async fn stream_reaction_texts(
                 max_tokens: Some(100),
             };
             let mut log_guard = log.lock().await;
-            if log_guard.len() >= log_guard.capacity().max(1) {
-                log_guard.pop_front();
-            }
-            log_guard.push_back(entry);
+            log_guard.push(entry);
         }
     }
 }

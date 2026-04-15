@@ -181,6 +181,13 @@ impl Default for ShortTermMemory {
 /// Minimum importance score for a memory to be stored long-term.
 const PROMOTION_THRESHOLD: f32 = 0.5;
 
+/// Default maximum number of entries held in a single NPC's long-term memory.
+///
+/// Matches the short-term cap and the designer's stated intent (issue #341).
+/// When this cap is reached, the lowest-scoring (importance, oldest-first)
+/// entry is evicted to make room.
+pub const LONG_TERM_CAPACITY: usize = 50;
+
 /// Words that signal emotionally significant events.
 const EMOTION_WORDS: &[&str] = &[
     "angry",
@@ -223,17 +230,50 @@ pub struct LongTermEntry {
 ///
 /// Stores important memories that survive short-term eviction. Retrieval
 /// scores entries by keyword overlap weighted by importance.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+///
+/// Bounded to [`LONG_TERM_CAPACITY`] entries per NPC (issue #341). When the
+/// cap is reached, [`Self::store`] evicts the lowest-importance entry
+/// (oldest first on ties) to keep the most salient memories.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LongTermMemory {
     entries: Vec<LongTermEntry>,
+    #[serde(default = "default_long_term_capacity")]
+    max_entries: usize,
+}
+
+/// Serde default for [`LongTermMemory::max_entries`]; matches the in-memory default
+/// and keeps pre-existing save files compatible.
+fn default_long_term_capacity() -> usize {
+    LONG_TERM_CAPACITY
+}
+
+impl Default for LongTermMemory {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LongTermMemory {
-    /// Creates an empty long-term memory.
+    /// Creates an empty long-term memory with the default capacity.
     pub fn new() -> Self {
+        Self::with_capacity(LONG_TERM_CAPACITY)
+    }
+
+    /// Creates an empty long-term memory with the given capacity.
+    ///
+    /// A value of 0 is clamped to 1 so that `store` can always keep the
+    /// highest-importance entry seen so far.
+    pub fn with_capacity(max_entries: usize) -> Self {
+        let cap = max_entries.max(1);
         Self {
-            entries: Vec::new(),
+            entries: Vec::with_capacity(cap),
+            max_entries: cap,
         }
+    }
+
+    /// Returns the configured maximum number of stored entries.
+    pub fn max_entries(&self) -> usize {
+        self.max_entries
     }
 
     /// Returns all entries.
@@ -244,14 +284,44 @@ impl LongTermMemory {
     /// Stores an entry if it meets the importance threshold.
     ///
     /// Returns `true` if the entry was stored, `false` if it was below
-    /// the promotion threshold.
+    /// the promotion threshold or if every existing entry is more
+    /// important than the incoming one at capacity.
+    ///
+    /// When at capacity, the lowest-importance existing entry is evicted
+    /// to make room. Ties are broken by preferring to evict the oldest
+    /// entry. If the incoming entry's importance is strictly lower than
+    /// every stored entry's importance, it is rejected and the log is
+    /// unchanged.
     pub fn store(&mut self, entry: LongTermEntry) -> bool {
-        if entry.importance >= PROMOTION_THRESHOLD {
-            self.entries.push(entry);
-            true
-        } else {
-            false
+        if entry.importance < PROMOTION_THRESHOLD {
+            return false;
         }
+
+        if self.entries.len() >= self.max_entries {
+            // Find the least-important, oldest entry. `position` returns the
+            // first index, so ties naturally favour eviction of the oldest.
+            let (evict_idx, evict_importance) = self
+                .entries
+                .iter()
+                .enumerate()
+                .min_by(|a, b| {
+                    a.1.importance
+                        .partial_cmp(&b.1.importance)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with(|| a.1.timestamp.cmp(&b.1.timestamp))
+                })
+                .map(|(i, e)| (i, e.importance))
+                .expect("entries is non-empty when at capacity");
+
+            // Refuse to evict a more-important entry for a less-important one.
+            if entry.importance < evict_importance {
+                return false;
+            }
+            self.entries.remove(evict_idx);
+        }
+
+        self.entries.push(entry);
+        true
     }
 
     /// Retrieves the top `limit` entries matching the query by keyword overlap.
@@ -782,6 +852,100 @@ mod tests {
 
         let empty = ltm.recall_context_string(&["nobody"], 3);
         assert!(empty.is_empty());
+    }
+
+    // ── Long-term memory capacity (issue #341) ──────────────────────
+
+    fn make_lt_entry_at(ts_hour: u32, importance: f32) -> LongTermEntry {
+        LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, ts_hour, 0, 0).unwrap(),
+            content: format!("event at hour {ts_hour} (score {importance})"),
+            importance,
+            keywords: vec!["test".to_string()],
+        }
+    }
+
+    #[test]
+    fn long_term_memory_default_capacity_matches_const() {
+        let ltm = LongTermMemory::new();
+        assert_eq!(ltm.max_entries(), LONG_TERM_CAPACITY);
+    }
+
+    #[test]
+    fn long_term_memory_is_bounded_by_cap() {
+        let mut ltm = LongTermMemory::with_capacity(3);
+        for h in 0..10 {
+            ltm.store(make_lt_entry_at(h, 0.7));
+        }
+        assert_eq!(ltm.len(), 3, "must not grow past configured cap");
+    }
+
+    #[test]
+    fn long_term_memory_evicts_lowest_importance_first() {
+        let mut ltm = LongTermMemory::with_capacity(3);
+        assert!(ltm.store(make_lt_entry_at(0, 0.6))); // idx 0
+        assert!(ltm.store(make_lt_entry_at(1, 0.9))); // idx 1
+        assert!(ltm.store(make_lt_entry_at(2, 0.7))); // idx 2
+        // Pushing a new 0.8 at capacity: the 0.6 entry (hour 0) is the
+        // lowest-importance entry and must be evicted to make room.
+        assert!(ltm.store(make_lt_entry_at(3, 0.8)));
+        let remaining_importance: Vec<f32> = ltm.entries().iter().map(|e| e.importance).collect();
+        assert!(!remaining_importance.iter().any(|i| (*i - 0.6).abs() < 1e-6));
+        assert_eq!(ltm.len(), 3);
+    }
+
+    #[test]
+    fn long_term_memory_evicts_oldest_on_importance_tie() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.6)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.6)));
+        // New 0.6 entry at capacity: a tie on importance — the oldest
+        // (hour 0) should be evicted.
+        assert!(ltm.store(make_lt_entry_at(2, 0.6)));
+        let kept_hours: Vec<u32> = ltm
+            .entries()
+            .iter()
+            .map(|e| e.timestamp.format("%H").to_string().parse().unwrap())
+            .collect();
+        assert!(!kept_hours.contains(&0));
+        assert!(kept_hours.contains(&1));
+        assert!(kept_hours.contains(&2));
+    }
+
+    #[test]
+    fn long_term_memory_rejects_lower_importance_when_full() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.9)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.8)));
+        // Incoming 0.6 is strictly below every stored importance — reject.
+        assert!(!ltm.store(make_lt_entry_at(2, 0.6)));
+        assert_eq!(ltm.len(), 2);
+    }
+
+    #[test]
+    fn long_term_memory_preserves_importance_threshold_even_when_empty_room() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(!ltm.store(make_lt_entry_at(0, 0.49)));
+        assert!(ltm.is_empty());
+    }
+
+    #[test]
+    fn long_term_memory_deserialises_legacy_format_without_max_entries() {
+        // Legacy save files only have `entries`. Verify #[serde(default)]
+        // fills in the capacity so autosave round-trips don't regress.
+        let legacy = serde_json::json!({
+            "entries": [
+                {
+                    "timestamp": "1820-03-20T10:00:00Z",
+                    "content": "legacy",
+                    "importance": 0.8,
+                    "keywords": ["legacy"]
+                }
+            ]
+        });
+        let ltm: LongTermMemory = serde_json::from_value(legacy).unwrap();
+        assert_eq!(ltm.len(), 1);
+        assert_eq!(ltm.max_entries(), LONG_TERM_CAPACITY);
     }
 
     #[test]
