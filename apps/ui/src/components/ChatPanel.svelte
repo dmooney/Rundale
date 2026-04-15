@@ -133,7 +133,7 @@
 		{#if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
-			<div class="entry system" class:location={entry.subtype === 'location'}>
+			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'}>
 				{#if isSplash}
 					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
 				{:else}
@@ -237,6 +237,15 @@
 		border-left: 3px solid var(--color-location);
 		padding-left: 0.75rem;
 		color: var(--color-muted);
+	}
+
+	/* Error feedback: subtle red left border so failures are visible
+	   instead of silent — used by pushErrorLog for failed IPC calls. */
+	.entry.system.error {
+		border-left: 3px solid #c0554a;
+		padding-left: 0.75rem;
+		color: var(--color-muted);
+		font-size: 0.95rem;
 	}
 
 	/* Inline term highlighting */

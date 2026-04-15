@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
-import { streamingActive, npcsHere, mapData } from '../stores/game';
+import { get } from 'svelte/store';
+import { streamingActive, npcsHere, mapData, textLog } from '../stores/game';
 import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
@@ -31,7 +32,9 @@ describe('InputField', () => {
 		streamingActive.set(false);
 		npcsHere.set([]);
 		mapData.set(null);
-		mockSubmitInput.mockClear();
+		textLog.set([]);
+		mockSubmitInput.mockReset();
+		mockSubmitInput.mockImplementation(async () => {});
 		localStorage.clear?.();
 	});
 
@@ -715,6 +718,61 @@ describe('InputField', () => {
 			const chip = editor.querySelector('.mention-chip');
 			expect(chip).toBeTruthy();
 			expect(chip?.textContent).toBe('@Padraig Darcy');
+		});
+	});
+
+	// ── Submit error handling (#108) ────────────────────────────────────
+	describe('submit error handling', () => {
+		it('appends a system error entry when submitInput rejects', async () => {
+			mockSubmitInput.mockImplementationOnce(async () => {
+				throw new Error('network down');
+			});
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			editor.textContent = 'hello there';
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			// Let the rejected promise settle so the catch handler runs.
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const log = get(textLog);
+			const last = log[log.length - 1];
+			expect(last.source).toBe('system');
+			expect(last.subtype).toBe('error');
+			expect(last.content).toContain('Could not send input');
+			expect(last.content).toContain('network down');
+		});
+
+		it('appends an error entry when a quick-travel chip click fails', async () => {
+			const testMap = {
+				locations: [
+					{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: true, hops: 0, visited: true },
+					{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1, visited: true }
+				],
+				edges: [['crossroads', 'pub']] as [string, string][],
+				player_location: 'crossroads',
+				player_lat: 0,
+				player_lon: 0
+			};
+			mapData.set(testMap);
+			mockSubmitInput.mockImplementationOnce(async () => {
+				throw new Error('server busy');
+			});
+
+			const { container } = render(InputField);
+			const chip = container.querySelector('.travel-chip') as HTMLButtonElement;
+			await fireEvent.click(chip);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			const log = get(textLog);
+			const last = log[log.length - 1];
+			expect(last.subtype).toBe('error');
+			expect(last.content).toContain("Could not travel to Darcy's Pub");
+			expect(last.content).toContain('server busy');
 		});
 	});
 });
