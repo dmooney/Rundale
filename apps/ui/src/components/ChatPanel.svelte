@@ -160,11 +160,13 @@
 							<div class="reaction-picker" role="toolbar" aria-label="React to message" data-testid="reaction-picker">
 								{#each REACTION_PALETTE as reaction}
 									<button
+										type="button"
 										class="reaction-btn"
 										title={reaction.description}
+										aria-label={`React with ${reaction.description}`}
 										onclick={() => handleReaction(entry, reaction.emoji)}
 									>
-										{reaction.emoji}
+										<span aria-hidden="true">{reaction.emoji}</span>
 									</button>
 								{/each}
 							</div>

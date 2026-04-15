@@ -8,7 +8,7 @@
 	<div class="focail-panel">
 		<div class="panel-header">
 			<span class="panel-title"><span class="panel-title-word">Focail Gaeilge</span> <span class="panel-title-label">(Irish Words)</span></span>
-			<button class="close-btn" onclick={onclose}>&times;</button>
+			<button type="button" class="close-btn" aria-label="Close Irish words panel" title="Close" onclick={onclose}><span aria-hidden="true">&times;</span></button>
 		</div>
 		<div class="panel-content">
 			{#if $nameHints.length > 0 || $languageHints.length > 0}
@@ -120,8 +120,15 @@
 		line-height: 1;
 	}
 
-	.close-btn:hover {
+	.close-btn:hover,
+	.close-btn:focus-visible {
 		color: var(--color-fg);
+	}
+
+	.close-btn:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 2px;
+		border-radius: 2px;
 	}
 
 	.panel-content {

@@ -209,8 +209,8 @@
 <div class="map-panel" data-testid="map-panel">
 	<div class="map-header">
 		<span class="map-title">Map</span>
-		<button class="expand-btn" onclick={openFullMap} title="Open full map (M)">
-			<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+		<button type="button" class="expand-btn" onclick={openFullMap} title="Open full map (M)" aria-label="Open full map">
+			<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true" focusable="false">
 				<path d="M1 1h5v2H3v3H1V1zm9 0h5v5h-2V3h-3V1zM1 10h2v3h3v2H1v-5zm12 3h-3v2h5v-5h-2v3z" />
 			</svg>
 		</button>
