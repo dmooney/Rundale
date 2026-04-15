@@ -5,13 +5,32 @@
 //! concurrent read/write access.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::journal::WorldEvent;
 use crate::snapshot::GameSnapshot;
 use parish_types::ParishError;
+
+/// Acquires a lock on `mutex`, recovering transparently from poisoning.
+///
+/// If a previous thread panicked while holding the database lock,
+/// `Mutex::lock()` will return a [`PoisonError`]. Without recovery, every
+/// subsequent call would cascade a single failure into a total application
+/// crash (issue #82). SQLite writes are transactional, so the connection
+/// itself remains in a consistent state after a panic; we simply log a
+/// warning and return the underlying guard so database access continues
+/// to work.
+fn lock_recovered<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            tracing::warn!("database lock was poisoned; recovering");
+            poisoned.into_inner()
+        }
+    }
+}
 
 /// Information about a save branch.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -357,7 +376,7 @@ impl AsyncDatabase {
         let db = self.inner.clone();
         let snapshot = snapshot.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.save_snapshot(branch_id, &snapshot)
         })
         .await
@@ -372,7 +391,7 @@ impl AsyncDatabase {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(
             move || -> Result<Option<(i64, GameSnapshot)>, ParishError> {
-                let db = db.lock().expect("database lock poisoned");
+                let db = lock_recovered(&db);
                 db.load_latest_snapshot(branch_id)
             },
         )
@@ -389,7 +408,7 @@ impl AsyncDatabase {
         let db = self.inner.clone();
         let name = name.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.create_branch(&name, parent_branch_id)
         })
         .await
@@ -401,7 +420,7 @@ impl AsyncDatabase {
         let db = self.inner.clone();
         let name = name.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.find_branch(&name)
         })
         .await
@@ -412,7 +431,7 @@ impl AsyncDatabase {
     pub async fn list_branches(&self) -> Result<Vec<BranchInfo>, ParishError> {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.list_branches()
         })
         .await
@@ -431,7 +450,7 @@ impl AsyncDatabase {
         let event = event.clone();
         let game_time = game_time.to_string();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.append_event(branch_id, snapshot_id, &event, &game_time)
         })
         .await
@@ -446,7 +465,7 @@ impl AsyncDatabase {
     ) -> Result<Vec<WorldEvent>, ParishError> {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.events_since_snapshot(branch_id, snapshot_id)
         })
         .await
@@ -461,7 +480,7 @@ impl AsyncDatabase {
     ) -> Result<usize, ParishError> {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.journal_count(branch_id, snapshot_id)
         })
         .await
@@ -472,7 +491,7 @@ impl AsyncDatabase {
     pub async fn branch_log(&self, branch_id: i64) -> Result<Vec<SnapshotInfo>, ParishError> {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.branch_log(branch_id)
         })
         .await
@@ -483,7 +502,7 @@ impl AsyncDatabase {
     pub async fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), ParishError> {
         let db = self.inner.clone();
         tokio::task::spawn_blocking(move || {
-            let db = db.lock().expect("database lock poisoned");
+            let db = lock_recovered(&db);
             db.clear_journal(branch_id, snapshot_id)
         })
         .await
@@ -1049,5 +1068,55 @@ mod tests {
         // Both snapshots should have exactly one event each.
         assert_eq!(db.journal_count(branch.id, snap1).unwrap(), 1);
         assert_eq!(db.journal_count(branch.id, snap2).unwrap(), 1);
+    }
+
+    /// Regression test for #82: a previous panic while holding the mutex
+    /// must not cascade into every subsequent database call panicking.
+    /// `lock_recovered` should transparently recover from the poisoned
+    /// state.
+    #[test]
+    fn test_lock_recovered_handles_poisoned_mutex() {
+        let mutex: Arc<Mutex<u32>> = Arc::new(Mutex::new(42));
+
+        // Poison the mutex by panicking in another thread while holding it.
+        let mutex_clone = mutex.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = mutex_clone.lock().unwrap();
+            panic!("intentional panic to poison the mutex");
+        })
+        .join();
+
+        // The mutex is now poisoned; `.lock()` returns `Err(_)`.
+        assert!(mutex.lock().is_err(), "mutex should be poisoned");
+
+        // `lock_recovered` must still yield the inner value.
+        let guard = lock_recovered(&mutex);
+        assert_eq!(*guard, 42);
+    }
+
+    /// Regression test for #82: poison recovery also works on the
+    /// `Arc<Mutex<Database>>` used inside `AsyncDatabase`.
+    #[test]
+    fn test_lock_recovered_with_database_after_poison() {
+        let db = Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let inner: Arc<Mutex<Database>> = Arc::new(Mutex::new(db));
+
+        // Poison the inner mutex.
+        let inner_clone = inner.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = inner_clone.lock().unwrap();
+            panic!("intentional panic");
+        })
+        .join();
+
+        assert!(inner.lock().is_err(), "database mutex should be poisoned");
+
+        // Recover and verify the database is still usable.
+        let db = lock_recovered(&inner);
+        let loaded = db
+            .find_branch(&branch.name)
+            .expect("find_branch should still work after poison recovery");
+        assert!(loaded.is_some());
     }
 }

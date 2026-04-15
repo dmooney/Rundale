@@ -12,6 +12,25 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
+/// Builds a `reqwest::Client` with the given timeout, falling back to a default
+/// client (no timeout) if the builder fails.
+///
+/// Historically this call used `.expect()` which would panic if the TLS
+/// backend failed to initialize (#98). We now log a warning and return a
+/// default client so the application can degrade gracefully rather than
+/// crashing at startup.
+pub(crate) fn build_client_or_fallback(timeout: Duration, label: &'static str) -> reqwest::Client {
+    match reqwest::Client::builder().timeout(timeout).build() {
+        Ok(client) => client,
+        Err(err) => {
+            tracing::warn!(
+                "failed to build {label} reqwest client ({err}); falling back to default client with no timeout",
+            );
+            reqwest::Client::new()
+        }
+    }
+}
+
 /// HTTP client for OpenAI-compatible chat completions endpoints.
 ///
 /// Works with Ollama, LM Studio, OpenRouter, and any provider that
@@ -125,23 +144,28 @@ impl OpenAiClient {
     ///
     /// Uses `config.timeout_secs` for the default HTTP client and stores
     /// `config.streaming_timeout_secs` for streaming request clients.
+    ///
+    /// If the underlying `reqwest` builder fails (e.g. a TLS backend is
+    /// unavailable), this falls back to a default `reqwest::Client` with
+    /// no configured timeout rather than panicking, and emits a warning
+    /// via `tracing`. See issue #98.
     pub fn new_with_config(
         base_url: &str,
         api_key: Option<&str>,
         config: &InferenceConfig,
     ) -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.timeout_secs))
-            .build()
-            .expect("failed to build reqwest client");
+        let client = build_client_or_fallback(
+            Duration::from_secs(config.timeout_secs),
+            "OpenAI-compatible",
+        );
 
         // Pre-build the streaming client once so connection pooling is
         // preserved across streaming calls instead of creating a fresh
         // client (and fresh TCP connections) on every request.
-        let streaming_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(config.streaming_timeout_secs))
-            .build()
-            .expect("failed to build streaming reqwest client");
+        let streaming_client = build_client_or_fallback(
+            Duration::from_secs(config.streaming_timeout_secs),
+            "OpenAI-compatible streaming",
+        );
 
         // Normalize the base URL: strip a trailing slash, and also strip a
         // trailing `/v1` (with or without slash) because the endpoint paths
@@ -475,6 +499,25 @@ fn extract_content(resp: &ChatCompletionResponse) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Regression test for #98: the helper must never panic, even when
+    /// given an extreme timeout. The normal reqwest build path always
+    /// succeeds on a healthy system, so this mainly proves the function
+    /// is invokable and returns a usable client.
+    #[test]
+    fn test_build_client_or_fallback_returns_client() {
+        let client = build_client_or_fallback(Duration::from_secs(30), "test");
+        // Build a request builder to prove the returned client is usable.
+        let _ = client.get("http://127.0.0.1:1/ping");
+    }
+
+    /// Regression test for #98: constructors must not panic at a system
+    /// boundary. Previously `.expect()` would abort the whole process
+    /// if reqwest failed to build.
+    #[test]
+    fn test_openai_client_new_does_not_panic() {
+        let _ = OpenAiClient::new("http://localhost:11434", None);
+    }
 
     #[test]
     fn test_openai_client_new() {
