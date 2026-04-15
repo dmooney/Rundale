@@ -256,14 +256,16 @@ impl GameSnapshot {
     /// Restores this snapshot into live game state.
     ///
     /// Replaces the dynamic fields of `world` and rebuilds the `npc_manager`
-    /// from the snapshot. The world graph and location map are left untouched
-    /// (they are static data loaded from files).
+    /// from the snapshot. The world graph is left untouched (it's static data
+    /// loaded from files), but the legacy `locations` map is back-filled from
+    /// the graph so that [`parish_world::WorldState::current_location`] never
+    /// panics for a player location that's present in the graph.
     pub fn restore(
         self,
         world: &mut parish_world::WorldState,
         npc_manager: &mut parish_npc::manager::NpcManager,
     ) {
-        use parish_types::GameClock;
+        use parish_types::{GameClock, Location};
 
         // Restore clock
         let mut clock = GameClock::new(self.clock.game_time);
@@ -292,6 +294,41 @@ impl GameSnapshot {
         world.player_location = self.player_location;
         world.weather = self.weather.parse().unwrap_or(parish_types::Weather::Clear);
         world.text_log = self.text_log;
+
+        // Back-fill the legacy `locations` map from the graph so that
+        // `current_location()` won't panic if the snapshot's player location
+        // was never inserted via movement. Mirrors `WorldState::from_parish_file`.
+        // Uses `or_insert_with` so any already-populated entries are preserved.
+        for loc_id in world.graph.location_ids() {
+            if let Some(data) = world.graph.get(loc_id) {
+                world.locations.entry(loc_id).or_insert_with(|| Location {
+                    id: loc_id,
+                    name: data.name.clone(),
+                    description: data.description_template.clone(),
+                    indoor: data.indoor,
+                    public: data.public,
+                    lat: data.lat,
+                    lon: data.lon,
+                });
+            }
+        }
+
+        // Last-resort guard: if the player's location is absent from both the
+        // graph and the legacy map (e.g. an empty graph, or a stale save whose
+        // location was removed from the current parish data), insert a
+        // placeholder so `current_location()` stays total.
+        world
+            .locations
+            .entry(self.player_location)
+            .or_insert_with(|| Location {
+                id: self.player_location,
+                name: "Unknown location".to_string(),
+                description: "The surroundings are hazy and unfamiliar.".to_string(),
+                indoor: false,
+                public: false,
+                lat: 0.0,
+                lon: 0.0,
+            });
 
         // Restore visited locations; ensure current position is always visited
         world.visited_locations = self.visited_locations;
@@ -538,5 +575,147 @@ mod tests {
         assert_eq!(restored.relationships.len(), 1);
         let rel = restored.relationships.get(&NpcId(2)).unwrap();
         assert!((rel.strength - 0.7).abs() < f64::EPSILON);
+    }
+
+    /// Regression for #277 — the set of introduced NPCs must survive a
+    /// capture/restore cycle; otherwise players lose all name-recognition
+    /// state across save/load.
+    #[test]
+    fn test_introduced_npcs_roundtrip() {
+        let world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        npc_manager.add_npc(make_test_npc(1, 1));
+        npc_manager.add_npc(make_test_npc(2, 1));
+        npc_manager.add_npc(make_test_npc(3, 1));
+        npc_manager.mark_introduced(NpcId(1));
+        npc_manager.mark_introduced(NpcId(3));
+        assert!(npc_manager.is_introduced(NpcId(1)));
+        assert!(!npc_manager.is_introduced(NpcId(2)));
+        assert!(npc_manager.is_introduced(NpcId(3)));
+
+        let snapshot = GameSnapshot::capture(&world, &npc_manager);
+        assert_eq!(snapshot.introduced_npcs.len(), 2);
+        assert!(snapshot.introduced_npcs.contains(&NpcId(1)));
+        assert!(snapshot.introduced_npcs.contains(&NpcId(3)));
+
+        // Round-trip through JSON to simulate a real save/load.
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        restored.restore(&mut new_world, &mut new_npcs);
+
+        assert!(new_npcs.is_introduced(NpcId(1)));
+        assert!(!new_npcs.is_introduced(NpcId(2)));
+        assert!(new_npcs.is_introduced(NpcId(3)));
+    }
+
+    /// Old saves predating the `introduced_npcs` field must deserialize
+    /// cleanly with an empty set (serde `default`), so loading a legacy
+    /// save doesn't produce a deserialization error.
+    #[test]
+    fn test_old_save_backward_compat_introduced_npcs() {
+        let json = r#"{
+            "player_location": 1,
+            "weather": "Clear",
+            "text_log": [],
+            "clock": {"game_time": "1820-03-20T08:00:00Z", "speed_factor": 36.0, "paused": false},
+            "npcs": [],
+            "last_tier2_game_time": null
+        }"#;
+        let snapshot: GameSnapshot = serde_json::from_str(json).unwrap();
+        assert!(snapshot.introduced_npcs.is_empty());
+
+        let mut world = WorldState::new();
+        let mut npcs = NpcManager::new();
+        snapshot.restore(&mut world, &mut npcs);
+        assert_eq!(npcs.introduced_count(), 0);
+    }
+
+    /// Regression for #286 — `current_location()` must not panic after
+    /// restoring a snapshot into a `WorldState::new()` (empty graph, only
+    /// Crossroads in the legacy map) when the player's saved location
+    /// differs from any entry already present. The fallback placeholder
+    /// guarantees `current_location()` is total.
+    #[test]
+    fn test_restore_current_location_does_not_panic_with_empty_graph() {
+        let mut world = WorldState::new();
+        // `new()` only registers LocationId(1); a saved location of 99 is
+        // unknown to both the legacy `locations` map and the empty graph.
+        let mut npc_manager = NpcManager::new();
+        let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
+        snapshot.player_location = LocationId(99);
+
+        snapshot.restore(&mut world, &mut npc_manager);
+
+        // No panic — the fallback placeholder is inserted for id 99.
+        let loc = world.current_location();
+        assert_eq!(loc.id, LocationId(99));
+        assert_eq!(loc.name, "Unknown location");
+    }
+
+    /// Regression for #286 — when the graph does contain the player's
+    /// saved location but the legacy `locations` map does not (e.g. a
+    /// snapshot restored into a fresh `WorldState::new()` before any
+    /// movement), `restore()` must back-fill the legacy map so
+    /// `current_location()` returns the real location data.
+    #[test]
+    fn test_restore_populates_legacy_locations_from_graph() {
+        use parish_world::graph::WorldGraph;
+
+        // Minimal graph with id 2 ("Darcy's Pub") that's NOT in
+        // `WorldState::new()`'s legacy `locations` map. The graph loader
+        // rejects orphan locations, so we include a second connected node.
+        let graph_json = r#"{
+            "locations": [
+                {
+                    "id": 2,
+                    "name": "Darcy's Pub",
+                    "description_template": "Warm pub interior.",
+                    "indoor": true,
+                    "public": true,
+                    "lat": 53.6195,
+                    "lon": -8.0925,
+                    "connections": [
+                        {"target": 7, "path_description": "a short lane"}
+                    ],
+                    "associated_npcs": [],
+                    "mythological_significance": null
+                },
+                {
+                    "id": 7,
+                    "name": "The Crossroads",
+                    "description_template": "A quiet junction.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.618,
+                    "lon": -8.095,
+                    "connections": [
+                        {"target": 2, "path_description": "a short lane back"}
+                    ],
+                    "associated_npcs": [],
+                    "mythological_significance": null
+                }
+            ]
+        }"#;
+        let graph = WorldGraph::load_from_str(graph_json).unwrap();
+
+        let mut world = WorldState::new();
+        world.graph = graph;
+        // Deliberately leave `world.locations` as only the Crossroads.
+        assert!(!world.locations.contains_key(&LocationId(2)));
+
+        let mut npc_manager = NpcManager::new();
+        let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
+        snapshot.player_location = LocationId(2);
+
+        snapshot.restore(&mut world, &mut npc_manager);
+
+        // Legacy map is back-filled from the graph, so the real data lands.
+        let loc = world.current_location();
+        assert_eq!(loc.id, LocationId(2));
+        assert_eq!(loc.name, "Darcy's Pub");
+        assert!(loc.indoor);
     }
 }
