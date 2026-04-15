@@ -664,8 +664,10 @@ mod tests {
 
         // Force base_chance = 1.0 so every present NPC reacts regardless of
         // dice rolls; the test is about the pipeline, not the probability model.
-        let mut config = ReactionConfig::default();
-        config.base_chance = 1.0;
+        let config = ReactionConfig {
+            base_chance: 1.0,
+            ..Default::default()
+        };
         let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
 
         assert!(

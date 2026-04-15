@@ -1393,8 +1393,10 @@ mod tests {
             introduced.insert(NpcId(id));
         }
         let templates = ReactionTemplates::default();
-        let mut config = ReactionConfig::default();
-        config.max_reactions = 2;
+        let config = ReactionConfig {
+            max_reactions: 2,
+            ..Default::default()
+        };
         // All chance rolls = 0.0 (pass), type rolls = 0.3 → Greeting for each
         let dice = fixed_n(&[0.0, 0.3, 0.0, 0.3, 0.0, 0.3, 0.0, 0.3]);
 
@@ -1423,8 +1425,10 @@ mod tests {
         let mut introduced = HashSet::new();
         introduced.insert(NpcId(1)); // npc1 introduced; npc2 is not
         let templates = ReactionTemplates::default();
-        let mut config = ReactionConfig::default();
-        config.max_reactions = 1;
+        let config = ReactionConfig {
+            max_reactions: 1,
+            ..Default::default()
+        };
         // npc1: chance 0.0 (pass), type 0.6 → Gesture
         // npc2: chance 0.0 (pass), type 0.1 → Introduction
         let dice = fixed_n(&[0.0, 0.6, 0.0, 0.1]);
