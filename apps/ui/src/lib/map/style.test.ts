@@ -26,15 +26,15 @@ function osm(): TileSource {
 	};
 }
 
-function tailte(): TileSource {
+function tmsSource(): TileSource {
 	return {
-		id: 'tailte-historic-6inch',
-		label: 'Tailte Éireann Historic 6"',
+		id: 'arcgis-tms',
+		label: 'ArcGIS-style y-flipped',
 		url: 'https://example.test/MapServer/tile/{z}/{y}/{x}',
 		tile_size: 256,
 		minzoom: 0,
 		maxzoom: 17,
-		attribution: 'Tailte Éireann',
+		attribution: 'example',
 		raster_saturation: 0.0,
 		raster_opacity: 1.0,
 		tms: true
@@ -60,13 +60,13 @@ describe('buildStyle', () => {
 	});
 
 	it('full map with TMS source sets scheme: tms', () => {
-		const style = buildStyle('full', THEME, tailte());
+		const style = buildStyle('full', THEME, tmsSource());
 		const raster = style.sources['map-tiles'] as { scheme?: string };
 		expect(raster.scheme).toBe('tms');
 	});
 
 	it('full map with empty URL falls back to flat background', () => {
-		const empty: TileSource = { ...osm(), id: 'tailte-placeholder', url: '' };
+		const empty: TileSource = { ...osm(), id: 'unconfigured', url: '' };
 		const style = buildStyle('full', THEME, empty);
 		expect(style.sources['map-tiles']).toBeUndefined();
 		expect(style.layers.find((l) => l.id === 'background')).toBeDefined();

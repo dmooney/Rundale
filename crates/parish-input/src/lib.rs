@@ -1411,8 +1411,8 @@ mod tests {
             Some(Command::Tiles(Some("osm".to_string())))
         );
         assert_eq!(
-            parse_system_command("/tiles tailte-historic-6inch"),
-            Some(Command::Tiles(Some("tailte-historic-6inch".to_string())))
+            parse_system_command("/tiles historic-6inch"),
+            Some(Command::Tiles(Some("historic-6inch".to_string())))
         );
         assert_eq!(
             parse_system_command("/TILES OSM"),

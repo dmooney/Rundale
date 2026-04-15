@@ -761,7 +761,7 @@ fn default_journal_compaction_threshold() -> usize {
 ///
 /// **Partial overrides:** serde's BTreeMap deserialisation replaces the whole
 /// map rather than merging. Call [`MapConfig::apply_defaults`] after parsing
-/// to fold the baked defaults (OSM, Tailte Éireann) back into a user-supplied
+/// to fold the baked defaults (OSM, Ireland Historic 6") back into a user-supplied
 /// registry that only overrode a subset.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MapConfig {
@@ -786,7 +786,7 @@ impl Default for MapConfig {
 impl MapConfig {
     /// Fold baked-in defaults into the registry for any id the user didn't
     /// override. Call this after deserialising `parish.toml` so a partial
-    /// `[engine.map.tile_sources.osm]` block doesn't wipe the Tailte entry.
+    /// `[engine.map.tile_sources.osm]` block doesn't wipe the historic entry.
     pub fn apply_defaults(&mut self) {
         for (id, source) in default_tile_sources() {
             self.tile_sources.entry(id).or_insert(source);
@@ -815,23 +815,25 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
         },
     );
     m.insert(
-        "tailte-historic-6inch".to_string(),
+        "historic-6inch".to_string(),
         TileSourceConfig {
-            label: "Tailte Éireann Historic 6\"".to_string(),
-            // Placeholder — capture the real endpoint from browser devtools on
-            // the free GeoHive viewer (https://map.geohive.ie/) or plug in a
-            // MapGenie REST URL if you have a National Mapping Agreement
-            // subscription (https://tailte.ie/services/mapgenie/).
-            // An empty URL triggers a flat-bg fallback in the frontend
-            // instead of rendering a broken map.
-            url: String::new(),
+            label: "Ireland Historic 6\" (via NLS)".to_string(),
+            // Ordnance Survey of Ireland First Edition 6-inch (1829–1842),
+            // reprojected and hosted by the National Library of Scotland.
+            // Free, public, CORS-open (S3). See:
+            //   https://maps.nls.uk/geo/explore/
+            // For alternative (gated) access via Tailte Éireann MapGenie,
+            // see https://tailte.ie/services/mapgenie/.
+            url: "https://mapseries-tilesets.s3.amazonaws.com/ireland_6inch/{z}/{x}/{y}.jpg"
+                .to_string(),
             tile_size: 256,
             minzoom: 0,
-            maxzoom: 17,
-            attribution: "Tailte Éireann, Historic 6\" First Edition (1829–1842)".to_string(),
+            maxzoom: 15,
+            attribution: "Historic 6\" OS Ireland (1829–1842), via National Library of Scotland"
+                .to_string(),
             raster_saturation: 0.0,
             raster_opacity: 1.0,
-            tms: true,
+            tms: false,
         },
     );
     m
@@ -1063,15 +1065,19 @@ memory_capacity = 30
         let cfg = MapConfig::default();
         assert_eq!(cfg.default_tile_source, "osm");
         assert!(cfg.tile_sources.contains_key("osm"));
-        assert!(cfg.tile_sources.contains_key("tailte-historic-6inch"));
+        assert!(cfg.tile_sources.contains_key("historic-6inch"));
         let osm = &cfg.tile_sources["osm"];
         assert_eq!(osm.url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
         assert_eq!(osm.tile_size, 256);
         assert_eq!(osm.maxzoom, 19);
         assert!(!osm.tms);
-        let tailte = &cfg.tile_sources["tailte-historic-6inch"];
-        assert!(tailte.tms);
-        assert!(tailte.url.is_empty(), "Tailte URL ships as placeholder");
+        let historic = &cfg.tile_sources["historic-6inch"];
+        assert!(!historic.tms, "NLS serves standard XYZ, not TMS");
+        assert!(
+            historic.url.starts_with("https://"),
+            "Historic 6\" ships with a live NLS URL"
+        );
+        assert!(historic.url.contains("ireland_6inch"));
     }
 
     #[test]
@@ -1104,7 +1110,7 @@ memory_capacity = 30
         cfg.apply_defaults();
         assert!(cfg.tile_sources.contains_key("custom"));
         assert!(cfg.tile_sources.contains_key("osm"));
-        assert!(cfg.tile_sources.contains_key("tailte-historic-6inch"));
+        assert!(cfg.tile_sources.contains_key("historic-6inch"));
     }
 
     #[test]
@@ -1134,7 +1140,7 @@ memory_capacity = 30
             &path,
             r#"
 [engine.map]
-default_tile_source = "tailte-historic-6inch"
+default_tile_source = "historic-6inch"
 
 [engine.map.tile_sources.osm]
 url = "https://override/{z}/{x}/{y}.png"
@@ -1142,11 +1148,11 @@ url = "https://override/{z}/{x}/{y}.png"
         )
         .unwrap();
         let cfg = load_engine_config(Some(&path));
-        assert_eq!(cfg.map.default_tile_source, "tailte-historic-6inch");
+        assert_eq!(cfg.map.default_tile_source, "historic-6inch");
         assert_eq!(
             cfg.map.tile_sources.len(),
             2,
-            "apply_defaults folded Tailte back in"
+            "apply_defaults folded historic-6inch back in"
         );
         assert_eq!(
             cfg.map.tile_sources["osm"].url,
@@ -1159,13 +1165,14 @@ url = "https://override/{z}/{x}/{y}.png"
         let cfg = MapConfig::default();
         let pairs = cfg.id_label_pairs();
         assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0].0, "osm");
-        assert_eq!(pairs[1].0, "tailte-historic-6inch");
+        // BTreeMap iterates in sorted order, so "historic-6inch" < "osm".
+        assert_eq!(pairs[0].0, "historic-6inch");
+        assert_eq!(pairs[1].0, "osm");
     }
 
     #[test]
     fn test_map_config_deserialize_partial_toml() {
-        // A partial override: user only overrides OSM URL, Tailte entry
+        // A partial override: user only overrides OSM URL, historic-6inch entry
         // would be wiped without apply_defaults.
         let toml_str = r#"
 [tile_sources.osm]
@@ -1175,7 +1182,11 @@ attribution = "custom attribution"
         let mut cfg: MapConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(cfg.tile_sources.len(), 1, "serde replace semantics");
         cfg.apply_defaults();
-        assert_eq!(cfg.tile_sources.len(), 2, "apply_defaults folds in Tailte");
+        assert_eq!(
+            cfg.tile_sources.len(),
+            2,
+            "apply_defaults folds in historic-6inch"
+        );
         assert_eq!(
             cfg.tile_sources["osm"].url,
             "https://custom/{z}/{x}/{y}.png"

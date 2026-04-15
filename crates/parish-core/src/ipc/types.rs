@@ -278,7 +278,7 @@ pub struct TravelStartPayload {
 /// command to render the listing.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TileSourceSnapshot {
-    /// Registry key (e.g. "osm", "tailte-historic-6inch").
+    /// Registry key (e.g. "osm", "historic-6inch").
     pub id: String,
     /// Human-readable label shown in `/tiles` listings.
     pub label: String,

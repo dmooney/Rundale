@@ -121,7 +121,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
 
     // Load engine config (parish.toml) for the tile-source registry. Missing
-    // file or parse errors fall back to baked defaults (OSM + Tailte).
+    // file or parse errors fall back to baked defaults
+    // (OSM + Ireland Historic 6").
     let engine_config = parish_core::config::load_engine_config(None);
     let tile_sources_snapshot =
         parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);

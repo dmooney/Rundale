@@ -52,7 +52,7 @@ pub enum CommandEffect {
     /// Carries (theme_name, mode) where mode is "light", "dark", "auto", or "".
     ApplyTheme(String, String),
     /// Switch the full-map base tile source. Carries the source id
-    /// (e.g. "osm", "tailte-historic-6inch") — frontend looks up URL etc.
+    /// (e.g. "osm", "historic-6inch") — frontend looks up URL etc.
     /// from the tile registry it received via `UiConfigSnapshot`.
     ApplyTiles(String),
 }
@@ -1284,8 +1284,8 @@ mod tests {
         config.tile_sources = vec![
             ("osm".to_string(), "OpenStreetMap".to_string()),
             (
-                "tailte-historic-6inch".to_string(),
-                "Tailte Éireann Historic 6\"".to_string(),
+                "historic-6inch".to_string(),
+                "Ireland Historic 6\" (via NLS)".to_string(),
             ),
         ];
         config.active_tile_source = "osm".to_string();
@@ -1297,7 +1297,7 @@ mod tests {
         seed_tile_sources(&mut config);
         let result = handle_command(Command::Tiles(None), &mut world, &mut npc, &mut config);
         assert!(result.response.contains("osm"));
-        assert!(result.response.contains("tailte-historic-6inch"));
+        assert!(result.response.contains("historic-6inch"));
         assert!(result.response.contains("(active)"));
         assert!(result.effects.is_empty());
     }
@@ -1315,18 +1315,16 @@ mod tests {
         let (mut world, mut npc, mut config) = default_state();
         seed_tile_sources(&mut config);
         let result = handle_command(
-            Command::Tiles(Some("tailte-historic-6inch".to_string())),
+            Command::Tiles(Some("historic-6inch".to_string())),
             &mut world,
             &mut npc,
             &mut config,
         );
-        assert_eq!(config.active_tile_source, "tailte-historic-6inch");
+        assert_eq!(config.active_tile_source, "historic-6inch");
         assert!(result.response.contains("Switched"));
         assert_eq!(
             result.effects,
-            vec![CommandEffect::ApplyTiles(
-                "tailte-historic-6inch".to_string()
-            )]
+            vec![CommandEffect::ApplyTiles("historic-6inch".to_string())]
         );
     }
 
@@ -1370,7 +1368,7 @@ mod tests {
         seed_tile_sources(&mut config);
         config.flags.disable("period-map-tiles");
         let result = handle_command(
-            Command::Tiles(Some("tailte-historic-6inch".to_string())),
+            Command::Tiles(Some("historic-6inch".to_string())),
             &mut world,
             &mut npc,
             &mut config,

@@ -61,9 +61,10 @@ const GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
  * the `tileSource` parameter (ships with OSM by default; the `/tiles`
  * slash command swaps this via `MapController.setTileSource()`).
  *
- * Passing a `tileSource` with an empty `url` (e.g. an unconfigured Tailte
- * placeholder) falls back to the flat-bg layer with a one-shot console
- * warning — the feature flag can stay on without a live endpoint.
+ * Passing a `tileSource` with an empty `url` (e.g. a user-added source
+ * that hasn't had its URL filled in yet) falls back to the flat-bg layer
+ * with a one-shot console warning — the feature flag can stay on without
+ * a live endpoint.
  */
 export function buildStyle(
 	variant: MapVariant,
@@ -87,8 +88,8 @@ export function buildStyle(
 		});
 	} else {
 		if (variant === 'full' && tileSource && tileSource.url.length === 0) {
-			// Informational — Tailte ships with an empty URL placeholder until
-			// the operator pastes a real endpoint into parish.toml.
+			// Informational — a source was registered without a URL; the
+			// operator needs to paste a real endpoint into parish.toml.
 			warnMissingTileUrl(tileSource.id);
 		}
 		// Minimap: flat panel background, no tiles.

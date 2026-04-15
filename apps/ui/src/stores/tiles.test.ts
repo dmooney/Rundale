@@ -17,22 +17,22 @@ function osm(): TileSource {
 	};
 }
 
-function tailte(): TileSource {
+function historic(): TileSource {
 	return {
-		id: 'tailte-historic-6inch',
-		label: 'Tailte 6"',
-		url: '',
+		id: 'historic-6inch',
+		label: 'Historic 6"',
+		url: 'https://mapseries-tilesets.s3.amazonaws.com/ireland_6inch/{z}/{x}/{y}.jpg',
 		tile_size: 256,
 		minzoom: 0,
-		maxzoom: 17,
-		attribution: 'Tailte',
+		maxzoom: 15,
+		attribution: 'NLS',
 		raster_saturation: 0.0,
 		raster_opacity: 1.0,
-		tms: true
+		tms: false
 	};
 }
 
-function cfg(active = 'osm', sources = [osm(), tailte()]): UiConfig {
+function cfg(active = 'osm', sources = [osm(), historic()]): UiConfig {
 	return {
 		hints_label: '',
 		default_accent: '',
@@ -65,8 +65,8 @@ describe('tiles store', () => {
 	it('setActiveId switches the active source', async () => {
 		const { tiles } = await freshStore();
 		tiles.initFromUiConfig(cfg('osm'));
-		tiles.setActiveId('tailte-historic-6inch');
-		expect(get(tiles).activeId).toBe('tailte-historic-6inch');
+		tiles.setActiveId('historic-6inch');
+		expect(get(tiles).activeId).toBe('historic-6inch');
 	});
 
 	it('setActiveId ignores unknown ids', async () => {
@@ -79,15 +79,15 @@ describe('tiles store', () => {
 	it('setActiveId persists choice to localStorage', async () => {
 		const { tiles } = await freshStore();
 		tiles.initFromUiConfig(cfg('osm'));
-		tiles.setActiveId('tailte-historic-6inch');
-		expect(localStorage.getItem('parish.tile-source')).toBe('tailte-historic-6inch');
+		tiles.setActiveId('historic-6inch');
+		expect(localStorage.getItem('parish.tile-source')).toBe('historic-6inch');
 	});
 
 	it('initFromUiConfig prefers localStorage over backend default', async () => {
-		localStorage.setItem('parish.tile-source', 'tailte-historic-6inch');
+		localStorage.setItem('parish.tile-source', 'historic-6inch');
 		const { tiles } = await freshStore();
 		tiles.initFromUiConfig(cfg('osm'));
-		expect(get(tiles).activeId).toBe('tailte-historic-6inch');
+		expect(get(tiles).activeId).toBe('historic-6inch');
 	});
 
 	it('initFromUiConfig falls back to backend default when localStorage has unknown id', async () => {

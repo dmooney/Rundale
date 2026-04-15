@@ -123,7 +123,7 @@ The map could be more than navigation:
 | ~~**Phase B**~~ | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~ | **Done** |
 | ~~**Phase C**~~ | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~ | **Done** |
 | ~~**Phase D (map)**~~ | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~ | **Done** |
-| ~~**Phase D.1 (tiles)**~~ | ~~`/tiles` slash command + configurable tile-source registry (OSM + Tailte Éireann Historic 6" 1829–1842), gated behind `period-map-tiles` feature flag~~ | **Done** |
+| ~~**Phase D.1 (tiles)**~~ | ~~`/tiles` slash command + configurable tile-source registry (OSM + Ireland Historic 6" 1829–1842 via NLS), gated behind `period-map-tiles` feature flag~~ | **Done** |
 | **Phase D (TUI)** | TUI ASCII map (#8) | Medium |
 | **Phase E** | Narrative annotations (#10) + NPC trails | Large |
 
@@ -146,14 +146,19 @@ to switch between them at runtime.
 Two sources ship baked-in:
 
 - **`osm`** — the current OSM raster (working default).
-- **`tailte-historic-6inch`** — Tailte Éireann's Historic 6" first-edition
-  series (surveyed 1829–1842), the most period-accurate cartography for
-  Kiltoom. Its `url` ships empty because MapGenie is gated behind the
-  National Mapping Agreement and GeoHive's free public viewer doesn't
-  publish its tile endpoint — operators paste a URL into `parish.toml`
-  after capturing it from the viewer's browser DevTools. An empty URL
-  falls back to the flat panel background with a one-shot console warning
-  instead of a broken map.
+- **`historic-6inch`** — Ordnance Survey of Ireland First Edition 6-inch
+  (surveyed 1829–1842), the most period-accurate cartography for
+  Kiltoom. Ships wired to the [National Library of Scotland's free public
+  S3-hosted tile service][nls-ireland] — no signup, CORS-open. Operators
+  who want higher-fidelity tiles can override the URL in `parish.toml`
+  with a Tailte Éireann MapGenie endpoint (gated behind the National
+  Mapping Agreement) or a captured GeoHive tile URL.
+
+[nls-ireland]: https://maps.nls.uk/geo/explore/
+
+If an operator registers a new source without filling in a URL, the
+frontend falls back to the flat panel background with a one-shot console
+warning instead of a broken map.
 
 Adding further sources (custom sepia-styled tiles, scanned grand-jury
 maps georeferenced via MapWarper, etc.) is a pure TOML add; no code
