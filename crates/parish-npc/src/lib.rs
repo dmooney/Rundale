@@ -477,7 +477,7 @@ struct ReferencePrePassResponse {
 /// Returns validated names (filtered against the roster). Used as the
 /// first pass of two-pass dialogue generation to prevent hallucinated names.
 pub async fn extract_intended_references(
-    client: &parish_inference::openai_client::OpenAiClient,
+    client: &parish_inference::AnyClient,
     model: &str,
     npc_name: &str,
     player_input: &str,

@@ -14,7 +14,7 @@ use dashmap::DashMap;
 use tokio::task::JoinHandle;
 
 use parish_core::game_mod::{GameMod, PronunciationEntry};
-use parish_core::inference::openai_client::OpenAiClient;
+use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
 use parish_core::ipc::{GameConfig, ThemePalette};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
@@ -319,7 +319,7 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
     );
 
     if let Some(ref c) = client {
-        init_inference_queue(&app_state, c).await;
+        init_inference_queue(&app_state, c.clone()).await;
     }
 
     if let Err(e) = init_session_save(&app_state, &session_saves).await {
@@ -414,7 +414,7 @@ async fn restore_session(
     );
 
     if let Some(ref c) = client {
-        init_inference_queue(&app_state, c).await;
+        init_inference_queue(&app_state, c.clone()).await;
     }
 
     *app_state.save_path.lock().await = Some(db_path);
@@ -432,14 +432,12 @@ async fn restore_session(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async fn init_inference_queue(app_state: &Arc<AppState>, client: &OpenAiClient) {
-    use parish_core::inference::{InferenceQueue, spawn_inference_worker};
+async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyClient) {
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    use parish_core::inference::AnyClient;
-    let _worker = spawn_inference_worker(
-        AnyClient::open_ai(client.clone()),
+    let worker = spawn_inference_worker(
+        client,
         interactive_rx,
         background_rx,
         batch_rx,
@@ -447,6 +445,7 @@ async fn init_inference_queue(app_state: &Arc<AppState>, client: &OpenAiClient) 
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     *app_state.inference_queue.lock().await = Some(queue);
+    *app_state.worker_handle.lock().await = Some(worker);
 }
 
 /// Saves the initial world snapshot into `saves/<session_id>/parish_001.db`.
@@ -588,28 +587,42 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
     handles
 }
 
-fn build_session_client(global: &GlobalState) -> (Option<OpenAiClient>, GameConfig) {
+fn build_session_client(global: &GlobalState) -> (Option<AnyClient>, GameConfig) {
     let config = global.template_config.clone();
-    let client = if config.model_name.is_empty() && config.provider_name != "ollama" {
+    let client = if config.provider_name == "simulator" {
+        Some(AnyClient::simulator())
+    } else if config.model_name.is_empty() && config.provider_name != "ollama" {
         None
     } else {
-        Some(OpenAiClient::new(
+        let provider_enum =
+            parish_core::config::Provider::from_str_loose(&config.provider_name)
+                .unwrap_or_default();
+        Some(parish_core::inference::build_client(
+            &provider_enum,
             &config.base_url,
             config.api_key.as_deref(),
+            &parish_core::config::InferenceConfig::default(),
         ))
     };
     (client, config)
 }
 
-fn build_session_cloud_client(global: &GlobalState) -> Option<OpenAiClient> {
+fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
     let config = &global.template_config;
     config.cloud_api_key.as_deref().map(|key| {
-        OpenAiClient::new(
+        let provider_enum = config
+            .cloud_provider_name
+            .as_deref()
+            .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
+            .unwrap_or(parish_core::config::Provider::OpenRouter);
+        parish_core::inference::build_client(
+            &provider_enum,
             config
                 .cloud_base_url
                 .as_deref()
                 .unwrap_or("https://openrouter.ai/api"),
             Some(key),
+            &parish_core::config::InferenceConfig::default(),
         )
     })
 }

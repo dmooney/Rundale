@@ -6,7 +6,6 @@
 
 use crate::app::App;
 use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, ProviderConfig};
-use crate::inference::openai_client::OpenAiClient;
 use crate::inference::{self, AnyClient, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
 use crate::loading::LoadingAnimation;
@@ -62,7 +61,7 @@ pub async fn run_headless(
     let worker_client = if provider_config.provider == parish_core::config::Provider::Simulator {
         AnyClient::simulator()
     } else {
-        AnyClient::open_ai(dial_client.clone())
+        dial_client.clone()
     };
     let _worker = inference::spawn_inference_worker(
         worker_client,
@@ -204,13 +203,12 @@ pub async fn run_headless(
                 let (quit, rebuild) = handle_headless_command(&mut app, cmd).await;
                 if rebuild {
                     // Rebuild dialogue queue: simulator, cloud, or local client.
+                    // Both `cloud_client` and `client` are already AnyClient now,
+                    // so no additional wrapping is needed.
                     let any = if app.provider_name == "simulator" {
                         Some(AnyClient::simulator())
                     } else {
-                        app.cloud_client
-                            .clone()
-                            .or_else(|| app.client.clone())
-                            .map(AnyClient::open_ai)
+                        app.cloud_client.clone().or_else(|| app.client.clone())
                     };
                     if let Some(new_client) = any {
                         let (interactive_tx, interactive_rx) = mpsc::channel(16);
@@ -545,7 +543,15 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                             app.base_url
                         );
                     }
-                    app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
+                    let provider =
+                        parish_core::config::Provider::from_str_loose(&app.provider_name)
+                            .unwrap_or_default();
+                    app.client = Some(inference::build_client(
+                        &provider,
+                        &app.base_url,
+                        app.api_key.as_deref(),
+                        &parish_core::config::InferenceConfig::default(),
+                    ));
                 }
                 rebuild = true;
             }
@@ -554,7 +560,17 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                     .cloud_base_url
                     .as_deref()
                     .unwrap_or("https://openrouter.ai/api");
-                app.cloud_client = Some(OpenAiClient::new(base_url, app.cloud_api_key.as_deref()));
+                let provider = app
+                    .cloud_provider_name
+                    .as_deref()
+                    .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
+                    .unwrap_or(parish_core::config::Provider::OpenRouter);
+                app.cloud_client = Some(inference::build_client(
+                    &provider,
+                    base_url,
+                    app.cloud_api_key.as_deref(),
+                    &parish_core::config::InferenceConfig::default(),
+                ));
                 rebuild = true;
             }
             CommandEffect::Quit => {
@@ -875,7 +891,7 @@ async fn handle_headless_new_game(app: &mut App) {
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
 async fn handle_headless_game_input(
     app: &mut App,
-    client: Option<&OpenAiClient>,
+    client: Option<&AnyClient>,
     model: &str,
     text: &str,
     request_id: &mut u64,

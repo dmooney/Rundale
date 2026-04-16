@@ -26,7 +26,7 @@ use std::time::Duration;
 
 use crate::{Npc, NpcId};
 use parish_config::ReactionConfig;
-use parish_inference::openai_client::OpenAiClient;
+use parish_inference::AnyClient;
 use parish_types::dice::DiceRoll;
 use parish_world::graph::LocationData;
 use parish_world::time::TimeOfDay;
@@ -857,7 +857,7 @@ pub async fn resolve_llm_greeting(
     weather: &str,
     is_introduced: bool,
     at_workplace: bool,
-    client: &OpenAiClient,
+    client: &AnyClient,
     model: &str,
     timeout_secs: u64,
 ) -> String {

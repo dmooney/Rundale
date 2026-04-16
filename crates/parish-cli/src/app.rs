@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::config::InferenceCategory;
+use crate::inference::AnyClient;
 use crate::inference::InferenceQueue;
-use crate::inference::openai_client::OpenAiClient;
 use crate::loading::LoadingAnimation;
 use crate::npc::LanguageHint;
 use crate::npc::manager::NpcManager;
@@ -112,7 +112,7 @@ pub struct App {
     /// Counter for rotating idle messages.
     pub idle_counter: usize,
     /// The LLM client for inference requests.
-    pub client: Option<OpenAiClient>,
+    pub client: Option<AnyClient>,
     /// Current model name.
     pub model_name: String,
     /// Display name of the current provider.
@@ -126,7 +126,7 @@ pub struct App {
     /// Cloud model name for dialogue.
     pub cloud_model_name: Option<String>,
     /// Cloud client for dialogue inference.
-    pub cloud_client: Option<OpenAiClient>,
+    pub cloud_client: Option<AnyClient>,
     /// Cloud API key.
     pub cloud_api_key: Option<String>,
     /// Cloud base URL.
@@ -146,7 +146,7 @@ pub struct App {
     /// Wall-clock time of the last autosave.
     pub last_autosave: Option<Instant>,
     /// The LLM client for intent parsing (may differ from base client).
-    pub intent_client: Option<OpenAiClient>,
+    pub intent_client: Option<AnyClient>,
     /// The model name for intent parsing.
     pub intent_model: String,
     /// Provider name for intent category (None = inherits base).
@@ -156,7 +156,7 @@ pub struct App {
     /// Base URL for intent category.
     pub intent_base_url: Option<String>,
     /// The LLM client for simulation (may differ from base client).
-    pub simulation_client: Option<OpenAiClient>,
+    pub simulation_client: Option<AnyClient>,
     /// The model name for simulation.
     pub simulation_model: String,
     /// Provider name for simulation category (None = inherits base).
@@ -166,7 +166,7 @@ pub struct App {
     /// Base URL for simulation category.
     pub simulation_base_url: Option<String>,
     /// The LLM client for NPC arrival reactions (may differ from base client).
-    pub reaction_client: Option<OpenAiClient>,
+    pub reaction_client: Option<AnyClient>,
     /// The model name for reactions.
     pub reaction_model: String,
     /// Provider name for reaction category (None = inherits base).
@@ -281,7 +281,7 @@ impl App {
     }
 
     /// Returns the client for a given inference category.
-    pub fn category_client(&self, cat: InferenceCategory) -> Option<&OpenAiClient> {
+    pub fn category_client(&self, cat: InferenceCategory) -> Option<&AnyClient> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client.as_ref(),
             InferenceCategory::Simulation => self.simulation_client.as_ref(),
@@ -334,7 +334,7 @@ impl App {
     }
 
     /// Sets the client for a given inference category.
-    pub fn set_category_client(&mut self, cat: InferenceCategory, client: OpenAiClient) {
+    pub fn set_category_client(&mut self, cat: InferenceCategory, client: AnyClient) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client = Some(client),
             InferenceCategory::Simulation => self.simulation_client = Some(client),

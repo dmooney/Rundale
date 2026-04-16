@@ -8,7 +8,6 @@ use parish::config::{
 };
 use parish::headless;
 use parish::inference::InferenceClients;
-use parish::inference::openai_client::OpenAiClient;
 use parish::inference::setup::{self, StdoutProgress};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -26,7 +25,8 @@ struct Cli {
     #[arg(long, value_name = "FILE")]
     script: Option<String>,
 
-    /// LLM provider: ollama (default), lmstudio, openrouter, vllm, custom
+    /// LLM provider: ollama (default), lmstudio, openrouter, vllm, openai, google,
+    /// groq, xai, mistral, deepseek, together, anthropic, custom, simulator
     #[arg(long, env = "PARISH_PROVIDER")]
     provider: Option<String>,
 
@@ -50,7 +50,8 @@ struct Cli {
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
 
-    /// Cloud LLM provider for player dialogue: openrouter (default), custom
+    /// Cloud LLM provider for player dialogue: openrouter (default), openai,
+    /// google, groq, xai, mistral, deepseek, together, anthropic, custom
     #[arg(long, env = "PARISH_CLOUD_PROVIDER")]
     cloud_provider: Option<String>,
 
@@ -259,24 +260,28 @@ async fn setup_provider(
     _cli: &Cli,
     config: &ProviderConfig,
 ) -> Result<(
-    OpenAiClient,
+    parish::inference::AnyClient,
     String,
     parish::inference::client::OllamaProcess,
 )> {
+    use parish::inference::AnyClient;
     match config.provider {
         Provider::Simulator => {
             // Built-in simulator: no network, no model download required.
             tracing::info!("Using built-in inference simulator (GPT-0 mode)");
-            let dummy_client = OpenAiClient::new("http://localhost:1", None);
             let dummy_process = parish::inference::client::OllamaProcess::none();
-            Ok((dummy_client, "simulator".to_string(), dummy_process))
+            Ok((
+                AnyClient::simulator(),
+                "simulator".to_string(),
+                dummy_process,
+            ))
         }
         Provider::Ollama => {
             let progress = StdoutProgress;
             let setup =
                 setup::setup_ollama(&config.base_url, config.model.as_deref(), &progress).await?;
             let model = setup.model_name.clone();
-            let client = setup.client.clone();
+            let client = AnyClient::open_ai(setup.client.clone());
             let process = setup.process;
             Ok((client, model, process))
         }
@@ -288,7 +293,12 @@ async fn setup_provider(
                     config.provider
                 )
             })?;
-            let client = OpenAiClient::new(&config.base_url, config.api_key.as_deref());
+            let client = parish::inference::build_client(
+                &config.provider,
+                &config.base_url,
+                config.api_key.as_deref(),
+                &parish::config::InferenceConfig::default(),
+            );
             tracing::info!(
                 "Using {:?} provider at {} with model {}",
                 config.provider,
@@ -305,13 +315,19 @@ async fn setup_provider(
 
 /// Builds the per-category inference routing struct from base and category configs.
 fn build_inference_clients(
-    base_client: &OpenAiClient,
+    base_client: &parish::inference::AnyClient,
     base_model: &str,
     category_configs: &std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
 ) -> InferenceClients {
     let mut overrides = std::collections::HashMap::new();
+    let inference_cfg = parish::config::InferenceConfig::default();
     for (category, cfg) in category_configs {
-        let client = OpenAiClient::new(&cfg.base_url, cfg.api_key.as_deref());
+        let client = parish::inference::build_client(
+            &cfg.provider,
+            &cfg.base_url,
+            cfg.api_key.as_deref(),
+            &inference_cfg,
+        );
         let model = cfg.model.clone().unwrap_or_else(|| base_model.to_string());
         overrides.insert(*category, (client, model));
     }

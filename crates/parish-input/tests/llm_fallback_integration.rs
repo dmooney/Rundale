@@ -6,6 +6,7 @@
 //! a wiremock server and drive the LLM fallback path through success,
 //! HTTP error, and malformed-JSON branches.
 
+use parish_inference::AnyClient;
 use parish_inference::openai_client::OpenAiClient;
 use parish_input::{IntentKind, parse_intent};
 use wiremock::matchers::{method, path};
@@ -26,7 +27,7 @@ async fn mount_intent_response(server: &MockServer, content: &str) {
 async fn local_parse_bypasses_llm() {
     // "go to the pub" is a known local pattern — no HTTP call needed.
     // Point at a bogus address to prove no network call is made.
-    let client = OpenAiClient::new("http://127.0.0.1:1", None);
+    let client = AnyClient::open_ai(OpenAiClient::new("http://127.0.0.1:1", None));
     let intent = parse_intent(&client, "go to the pub", "test-model")
         .await
         .unwrap();
@@ -44,7 +45,7 @@ async fn llm_fallback_success_returns_parsed_intent() {
     )
     .await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     // "tell Mary hello there" — likely not matched by local parser
     let intent = parse_intent(&client, "whisper to Mary hello there", "test-model")
         .await
@@ -64,7 +65,7 @@ async fn llm_fallback_http_error_returns_unknown() {
         .mount(&server)
         .await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let intent = parse_intent(&client, "do something strange", "test-model")
         .await
         .unwrap();
@@ -82,7 +83,7 @@ async fn llm_fallback_malformed_json_returns_unknown() {
     let server = MockServer::start().await;
     mount_intent_response(&server, "not valid json at all").await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let intent = parse_intent(&client, "do something weird", "test-model")
         .await
         .unwrap();
@@ -99,7 +100,7 @@ async fn llm_fallback_missing_intent_field_defaults_to_unknown() {
     let server = MockServer::start().await;
     mount_intent_response(&server, r#"{"target":"Mary"}"#).await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let intent = parse_intent(&client, "do something with Mary", "test-model")
         .await
         .unwrap();
@@ -121,7 +122,7 @@ async fn llm_fallback_examine_intent() {
     )
     .await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let intent = parse_intent(&client, "inspect the stone cross closely", "test-model")
         .await
         .unwrap();

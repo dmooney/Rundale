@@ -81,41 +81,62 @@ impl GameConfig {
     /// Resolves the client and model for a given inference category.
     ///
     /// If the category has per-category overrides (provider/key/URL), builds a
-    /// new [`OpenAiClient`] from those settings and attaches the per-category
+    /// new [`AnyClient`] from those settings and attaches the per-category
     /// rate limiter (if configured). Otherwise falls back to the supplied
     /// `base_client`, which already carries its own rate limiter from setup.
     /// The model falls back to `self.model_name` if no per-category model is set.
+    ///
+    /// The per-category provider (from `category_provider[idx]`, falling back
+    /// to `provider_name`) determines which transport is built: OpenAI-compat
+    /// for most providers, the native [`AnthropicClient`] for `anthropic`.
     ///
     /// Returns `None` if no client is available (base is `None` and no
     /// category override is configured).
     pub fn resolve_category_client(
         &self,
         cat: InferenceCategory,
-        base_client: Option<&crate::inference::openai_client::OpenAiClient>,
-    ) -> (
-        Option<crate::inference::openai_client::OpenAiClient>,
-        String,
-    ) {
+        base_client: Option<&crate::inference::AnyClient>,
+    ) -> (Option<crate::inference::AnyClient>, String) {
+        use parish_config::Provider;
         let idx = Self::cat_idx(cat);
         let model = self.category_model[idx]
             .clone()
             .unwrap_or_else(|| self.model_name.clone());
 
-        // Build a per-category client if the provider or URL is overridden.
-        let client =
-            if self.category_base_url[idx].is_some() || self.category_api_key[idx].is_some() {
-                let url = self.category_base_url[idx]
-                    .as_deref()
-                    .unwrap_or(&self.base_url);
-                let key = self.category_api_key[idx]
-                    .as_deref()
-                    .or(self.api_key.as_deref());
-                let new_client = crate::inference::openai_client::OpenAiClient::new(url, key)
-                    .maybe_with_rate_limit(self.category_rate_limit[idx].clone());
-                Some(new_client)
-            } else {
-                base_client.cloned()
+        // Build a per-category client if the provider, URL, or key is overridden.
+        let has_override = self.category_provider[idx].is_some()
+            || self.category_base_url[idx].is_some()
+            || self.category_api_key[idx].is_some();
+
+        let client = if has_override {
+            // Resolve the effective provider for this category.
+            let provider_str = self.category_provider[idx]
+                .as_deref()
+                .unwrap_or(&self.provider_name);
+            let provider = Provider::from_str_loose(provider_str).unwrap_or_default();
+
+            // URL falls back to the base URL, then to the provider default
+            // (the latter matters when a category switches to Anthropic
+            // while the base stays on Ollama — the Anthropic default URL
+            // is not empty, so build_client can still reach a real host).
+            let url: String = match self.category_base_url[idx].as_deref() {
+                Some(u) => u.to_string(),
+                None if !self.base_url.is_empty() => self.base_url.clone(),
+                None => provider.default_base_url().to_string(),
             };
+            let key = self.category_api_key[idx]
+                .as_deref()
+                .or(self.api_key.as_deref());
+
+            let inference_cfg = parish_config::InferenceConfig::default();
+            let built = crate::inference::build_client(&provider, &url, key, &inference_cfg);
+            // Attach the per-category rate limiter to the inner variant
+            // (rate-limiting is per-transport, not at the AnyClient layer).
+            let limiter = self.category_rate_limit[idx].clone();
+            Some(attach_rate_limit(built, limiter))
+        } else {
+            base_client.cloned()
+        };
 
         (client, model)
     }
@@ -137,6 +158,25 @@ impl GameConfig {
             self.category_rate_limit[idx] =
                 InferenceRateLimiter::from_config(cfg.for_category(cat));
         }
+    }
+}
+
+/// Applies an optional rate limiter to whichever inner client variant
+/// lives inside an [`crate::inference::AnyClient`].
+///
+/// Rate limiting is per-transport: each HTTP client struct carries its
+/// own `InferenceRateLimiter`. This helper keeps the per-category
+/// resolution site agnostic of which variant is being built.
+fn attach_rate_limit(
+    client: crate::inference::AnyClient,
+    limiter: Option<InferenceRateLimiter>,
+) -> crate::inference::AnyClient {
+    use crate::inference::AnyClient;
+    match (client, limiter) {
+        (AnyClient::OpenAi(c), lim) => AnyClient::OpenAi(c.maybe_with_rate_limit(lim)),
+        (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
+        // Simulator has no network calls and ignores rate limiting.
+        (c @ AnyClient::Simulator(_), _) => c,
     }
 }
 
@@ -194,13 +234,13 @@ mod tests {
 
     #[test]
     fn resolve_category_client_inherits_base() {
-        use crate::inference::openai_client::OpenAiClient;
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
         let cfg = GameConfig {
             model_name: "base-model".to_string(),
             base_url: "http://localhost:11434".to_string(),
             ..GameConfig::default()
         };
-        let base = OpenAiClient::new("http://localhost:11434", None);
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
         let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
         assert!(client.is_some());
         assert_eq!(model, "base-model");
@@ -208,7 +248,7 @@ mod tests {
 
     #[test]
     fn resolve_category_client_uses_override() {
-        use crate::inference::openai_client::OpenAiClient;
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
         let mut cfg = GameConfig {
             model_name: "base-model".to_string(),
             base_url: "http://localhost:11434".to_string(),
@@ -219,10 +259,35 @@ mod tests {
         cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
         cfg.category_api_key[idx] = Some("sk-test".to_string());
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
         let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
         assert!(client.is_some());
         assert_eq!(model, "reaction-model");
+    }
+
+    #[test]
+    fn resolve_category_client_anthropic_override_builds_native_client() {
+        // Switching a single category to Anthropic should produce an
+        // AnyClient::Anthropic variant, not a misrouted OpenAI-compat
+        // client. Regression guard for dmooney/parish#172.
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            model_name: "base-model".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
+        cfg.category_provider[idx] = Some("anthropic".to_string());
+        cfg.category_api_key[idx] = Some("sk-ant-test".to_string());
+        cfg.category_model[idx] = Some("claude-sonnet-4-5".to_string());
+
+        let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, None);
+        let client = client.expect("override client built");
+        assert!(
+            client.as_anthropic().is_some(),
+            "expected AnyClient::Anthropic"
+        );
+        assert_eq!(model, "claude-sonnet-4-5");
     }
 
     #[test]
@@ -325,7 +390,7 @@ mod tests {
     #[test]
     fn resolve_category_client_inherited_base_keeps_base_rate_limit() {
         use crate::inference::InferenceRateLimiter;
-        use crate::inference::openai_client::OpenAiClient;
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
 
         let cfg = GameConfig {
             model_name: "base-model".to_string(),
@@ -333,7 +398,9 @@ mod tests {
             ..GameConfig::default()
         };
         let limiter = InferenceRateLimiter::new(60, 5).expect("limiter");
-        let base = OpenAiClient::new("http://localhost:11434", None).with_rate_limit(limiter);
+        let base = AnyClient::open_ai(
+            OpenAiClient::new("http://localhost:11434", None).with_rate_limit(limiter),
+        );
 
         let (client, _model) =
             cfg.resolve_category_client(InferenceCategory::Dialogue, Some(&base));

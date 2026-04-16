@@ -19,7 +19,7 @@ use tokio::task::JoinHandle;
 use parish_core::config::{FeatureFlags, Provider};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
-use parish_core::inference::openai_client::OpenAiClient;
+use parish_core::inference::AnyClient;
 use parish_core::inference::{
     AnyClient, InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
 };
@@ -230,9 +230,9 @@ pub struct AppState {
     /// Inference request queue (None until the Tauri runtime is ready).
     pub inference_queue: Mutex<Option<InferenceQueue>>,
     /// Local LLM client (None if no provider is configured).
-    pub client: Mutex<Option<OpenAiClient>>,
+    pub client: Mutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
-    pub cloud_client: Mutex<Option<OpenAiClient>>,
+    pub cloud_client: Mutex<Option<AnyClient>>,
     /// Mutable runtime configuration (provider, model, cloud, improv).
     pub config: Mutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
@@ -726,9 +726,8 @@ pub fn run() {
                         Some(AnyClient::simulator())
                     } else {
                         let client_guard = state_setup.client.lock().await;
-                        client_guard
-                            .as_ref()
-                            .map(|c| AnyClient::open_ai(c.clone()))
+                        // `state.client` is already an AnyClient — just clone it.
+                        client_guard.as_ref().cloned()
                     };
                     if let Some(ac) = any_client {
                         let (interactive_tx, interactive_rx) =
@@ -1478,23 +1477,33 @@ pub fn run() {
 // ── Client initialisation from env ───────────────────────────────────────────
 
 /// Returns `(client, model_name, provider_name, base_url, api_key)`.
-fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Option<String>) {
-    let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
+fn build_client_from_env() -> (Option<AnyClient>, String, String, String, Option<String>) {
+    let provider_name =
+        std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
+    let provider_enum = Provider::from_str_loose(&provider_name).unwrap_or_default();
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
-        Provider::from_str_loose(&provider)
-            .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|_| "http://localhost:11434".to_string())
+        let default = provider_enum.default_base_url();
+        if default.is_empty() {
+            "http://localhost:11434".to_string()
+        } else {
+            default.to_string()
+        }
     });
     let api_key = std::env::var("PARISH_API_KEY")
         .ok()
         .filter(|s| !s.is_empty());
 
-    if model.is_empty() && provider != "ollama" {
-        return (None, String::new(), provider, base_url, api_key);
+    if model.is_empty() && provider_name != "ollama" {
+        return (None, String::new(), provider_name, base_url, api_key);
     }
 
-    let client = OpenAiClient::new(&base_url, api_key.as_deref());
+    let client = parish_core::inference::build_client(
+        &provider_enum,
+        &base_url,
+        api_key.as_deref(),
+        &parish_core::config::InferenceConfig::default(),
+    );
     let model_name = if model.is_empty() {
         "qwen3:14b".to_string() // Ollama default
     } else {
@@ -1504,7 +1513,7 @@ fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Opt
     (
         Some(client),
         model_name,
-        provider,
+        provider_name,
         base_url.clone(),
         api_key,
     )
@@ -1512,8 +1521,8 @@ fn build_client_from_env() -> (Option<OpenAiClient>, String, String, String, Opt
 
 /// Resolved cloud provider configuration from environment variables.
 struct CloudEnvConfig {
-    /// The constructed OpenAI-compatible client (None if no API key).
-    client: Option<OpenAiClient>,
+    /// The constructed client (None if no API key).
+    client: Option<AnyClient>,
     /// Provider name (e.g. "openrouter").
     provider_name: Option<String>,
     /// Model name for cloud dialogue.
@@ -1540,9 +1549,18 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
         .ok()
         .filter(|s| !s.is_empty());
 
-    let client = api_key
-        .as_deref()
-        .map(|key| OpenAiClient::new(&base_url, Some(key)));
+    let client = api_key.as_deref().map(|key| {
+        let provider_enum = provider
+            .as_deref()
+            .and_then(|p| Provider::from_str_loose(p).ok())
+            .unwrap_or(Provider::OpenRouter);
+        parish_core::inference::build_client(
+            &provider_enum,
+            &base_url,
+            Some(key),
+            &parish_core::config::InferenceConfig::default(),
+        )
+    });
 
     CloudEnvConfig {
         client,

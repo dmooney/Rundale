@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 use crate::config::ReactionConfig;
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
+use crate::inference::AnyClient;
 use crate::inference::InferenceLog;
-use crate::inference::openai_client::OpenAiClient;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
@@ -392,7 +392,7 @@ pub async fn stream_reaction_texts(
     tod: TimeOfDay,
     weather: &str,
     introduced: &HashSet<NpcId>,
-    client: Option<&OpenAiClient>,
+    client: Option<&AnyClient>,
     model: &str,
     inference_log: Option<&InferenceLog>,
     mut emit_text_log: impl FnMut(u64, &str),
