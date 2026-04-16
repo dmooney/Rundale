@@ -20,14 +20,16 @@ Rundale's core innovation is LLM-driven NPC cognition and natural language input
 
 Use **Ollama** as the local inference server, running on `localhost:11434` and accessed via its REST API using the `reqwest` HTTP client.
 
-**Model allocation by tier:**
+**Model allocation by size class:**
 
-| Tier | Model | Purpose |
-|------|-------|---------|
-| Tier 1 (immediate) | Qwen3 14B | Full NPC dialogue, rich interaction |
-| Tier 2 (nearby) | Qwen3 8B or 3B | Lighter NPC-to-NPC interaction |
-| Tier 3 (distant) | Qwen3 8B or 3B | Batch simulation of many NPCs |
-| Player input parsing | Qwen3 14B | Natural language intent detection |
+| Tier | Size class | Purpose |
+|------|-----------|---------|
+| Tier 1 (immediate) | ~9B dialogue-tuned | Full NPC dialogue, rich interaction |
+| Tier 2 (nearby) | ~9B JSON-tuned | Lighter NPC-to-NPC interaction |
+| Tier 3 (distant) | ~9B JSON-tuned | Batch simulation of many NPCs |
+| Player input parsing | ~3B JSON / function-calling | Natural language intent detection |
+
+Specific picks are maintained in [docs/design/inference-pipeline.md](../design/inference-pipeline.md#recommended-models-april-2026) and refreshed as the open-model ecosystem evolves. This ADR was originally accepted with Qwen3 14B as the Tier 1 reference model; as of April 2026 the ecosystem has converged on 9B dialogue models (Gemma 4 9B, Qwen 3.5 9B) as the new Tier 1 baseline.
 
 **Inference pipeline:**
 
@@ -42,8 +44,10 @@ Simulation Threads -> Inference Queue (Tokio mpsc) -> Inference Worker -> Ollama
 
 **Expected throughput:**
 
-- Qwen3 14B on RX 9070: ~30-50 tokens/sec
-- At ~100-150 tokens per NPC response: ~3-5 NPC "thoughts" per second
+- 9B-class model on RX 9070 (q4 quantization): ~40-60 tokens/sec
+- At ~100-150 tokens per NPC response: ~3-6 NPC "thoughts" per second
+
+See inference-pipeline.md for current throughput ranges per model and cloud-provider comparisons.
 
 ## Consequences
 
@@ -59,7 +63,7 @@ Simulation Threads -> Inference Queue (Tokio mpsc) -> Inference Worker -> Ollama
 
 **Negative:**
 
-- Hardware-bound throughput: ~30-50 tokens/sec on 14B is a hard ceiling
+- Hardware-bound throughput: ~40-60 tokens/sec on 9B is a hard ceiling (local-only; cloud paths are not subject to this ceiling)
 - ROCm setup on AMD GPUs can be complex and fragile
 - Ollama must be running as a separate process before the game starts
 - Model switching between tiers may incur loading latency if GPU memory is constrained
