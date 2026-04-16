@@ -100,15 +100,13 @@ pub fn merge_locations(
         .collect();
 
     // Reassign IDs for generated locations
-    let mut next_id = max_curated_id + 1;
     let mut id_remap: HashMap<u32, u32> = HashMap::new();
     let mut result = curated;
 
-    for mut generated_loc in filtered_generated {
+    for (next_id, mut generated_loc) in (max_curated_id + 1..).zip(filtered_generated) {
         let old_id = generated_loc.data.id.0;
         id_remap.insert(old_id, next_id);
         generated_loc.data.id = LocationId(next_id);
-        next_id += 1;
         result.push(generated_loc);
     }
 

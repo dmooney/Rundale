@@ -27,8 +27,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Pinned to 1.95.0 so a new stable Rust release does not silently
+      # break PRs via newly-activated clippy lints. Bump deliberately in
+      # a dedicated PR alongside any lint fixes the new version surfaces.
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.95.0
         with:
           components: rustfmt, clippy
 
@@ -94,7 +97,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.95.0
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
