@@ -1,15 +1,57 @@
 # Repository Guidelines — Rundale on the Parish Engine
 
-Full agent docs live in [docs/agent/](docs/agent/README.md). Start there for build/test commands, workspace layout, code style, gotchas, and the git workflow.
+This file is unified with `CLAUDE.md`. Keep both in sync.
 
-**Rundale** is the game (Irish living world, 1820). **Parish** is the engine (the Rust workspace and crates).
+Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.md):
 
-## At a glance
+- [build-test.md](docs/agent/build-test.md) — cargo, harness, frontend, web, and Tauri commands
+- [architecture.md](docs/agent/architecture.md) — workspace layout and module ownership
+- [code-style.md](docs/agent/code-style.md) — Rust + Svelte conventions
+- [gotchas.md](docs/agent/gotchas.md) — Tokio, SQLite, Ollama, mode parity pitfalls
+- [git-workflow.md](docs/agent/git-workflow.md) — commits, tests, and PR standards
+- [skills.md](docs/agent/skills.md) — `/check`, `/verify`, `/prove`, `/play`, etc.
 
-- **Workspace**: all Rust crates under `crates/` (`parish-core`, `parish-cli`, `parish-server`, `parish-tauri`, `geo-tool`); Svelte frontend in `apps/ui/`; test fixtures in `testing/fixtures/`; Rundale game content in `mods/rundale/`; deploy artifacts in `deploy/`.
-- **Shared logic** belongs in `crates/parish-core/`. Transport-specific code (CLI, web server, Tauri) only orchestrates.
-- **Build / test**: `just build`, `just check`, `just verify`. Frontend: `just ui-test`, `just ui-e2e`.
-- **Commits**: conventional prefixes (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`), one logical change each.
-- **Tests required** with every behavior change; coverage target ≥ 90%.
+**Rundale** is the game (Irish living world, 1820). **Parish** is the engine (Rust workspace + frontends).
 
-PRs should explain the change, link issues, list commands run, and include screenshots / updated Playwright baselines for visible UI changes.
+## Current project state (quick map)
+
+- Rust workspace crates under `crates/`:
+  - `parish-core` (shared game logic)
+  - `parish-cli` (CLI/headless binary `parish`)
+  - `parish-server` (Axum web backend)
+  - `parish-tauri` (Tauri desktop backend)
+  - `geo-tool` (OSM extraction CLI)
+- Frontend: `apps/ui/` (Svelte 5 + TypeScript)
+- Game content: `mods/rundale/`
+- Test fixtures: `testing/fixtures/`
+- Deploy artifacts: `deploy/`
+- Documentation hub: `docs/index.md`
+
+## Non-negotiable engineering rules
+
+1. **Module ownership:** Shared logic belongs in `crates/parish-core/` only. Do not duplicate shared modules in `crates/parish-cli/src/`.
+2. **Mode parity:** Tauri, headless CLI, and web server must share behavior.
+3. **Tests with behavior changes:** Add/adjust tests for every behavior change.
+4. **Gameplay proof:** For gameplay features, run `/prove <feature>` (unit tests alone are not sufficient).
+5. **No unexplained `#[allow]`:** Only with explicit justification.
+6. **Feature flags for new engine/gameplay features:** Gate with `config.flags.is_enabled("feature-name")`, default-on, and document in PR.
+
+## Standard commands
+
+```sh
+just build         # cargo build (default member parish-cli)
+just run           # cargo tauri dev
+just run-headless
+just check         # fmt + clippy + tests
+just verify        # check + harness walkthrough
+
+just ui-test       # frontend unit tests
+just ui-e2e        # Playwright end-to-end tests
+just screenshots   # regenerate docs/screenshots/*.png
+```
+
+## Commit and PR expectations
+
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
+- One logical change per commit.
+- PRs should explain behavior changes, link issues, list commands run, and include screenshots / updated Playwright baselines for visible UI changes.
