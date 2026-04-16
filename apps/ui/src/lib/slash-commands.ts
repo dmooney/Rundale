@@ -1,5 +1,5 @@
 /// Static list of slash commands for autocomplete, mirroring the backend's
-/// `parse_system_command` in `crates/parish-core/src/input/mod.rs`.
+/// `parse_system_command` in `crates/parish-input/src/lib.rs`.
 
 export interface SlashCommand {
 	command: string;
@@ -29,6 +29,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/debug', description: 'Debug panel', hasArgs: true },
 	{ command: '/spinner', description: 'Show loading spinner', hasArgs: true },
 	{ command: '/map', description: 'List or switch map tile sources', hasArgs: true },
+	{ command: '/designer', description: 'Open the Parish Designer', hasArgs: false },
 	{ command: '/npcs', description: "Who's here?", hasArgs: false },
 	{ command: '/time', description: 'What time is it?', hasArgs: false },
 	{ command: '/where', description: 'Where am I? (alias for /status)', hasArgs: false },

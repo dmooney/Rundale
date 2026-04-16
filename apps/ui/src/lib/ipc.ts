@@ -204,6 +204,12 @@ export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
 export const onSavePicker = (cb: () => void) =>
 	onEvent<void>('save-picker', () => cb());
 
+export const onToggleFullMap = (cb: () => void) =>
+	onEvent<void>('toggle-full-map', () => cb());
+
+export const onOpenDesigner = (cb: () => void) =>
+	onEvent<void>('open-designer', () => cb());
+
 export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 	onEvent<NpcReactionPayload>('npc-reaction', cb);
 

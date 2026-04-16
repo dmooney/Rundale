@@ -195,7 +195,7 @@ fn schedule_entry_checks(
             category: ValidationCategory::Schedule,
             severity: ValidationSeverity::Error,
             doc: EditorDoc::Npcs,
-            field_path: format!("{field_path}"),
+            field_path: field_path.to_string(),
             message: format!(
                 "{}'s schedule hour out of range (got start={}, end={}; expected 0..=23)",
                 npc_name, entry.start_hour, entry.end_hour

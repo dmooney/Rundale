@@ -10,6 +10,9 @@ use std::sync::Arc;
 
 use tauri::State;
 
+use parish_core::editor::save_inspect::{
+    BranchSummary, SaveFileSummary, SnapshotDetail, SnapshotSummary,
+};
 use parish_core::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, ValidationReport};
 use parish_core::ipc::editor::{self, EditorSaveResponse};
 
@@ -84,4 +87,43 @@ pub async fn editor_reload(state: State<'_, Arc<AppState>>) -> Result<EditorModS
 #[tauri::command]
 pub async fn editor_close(state: State<'_, Arc<AppState>>) -> Result<(), String> {
     editor::handle_editor_close(&state.editor)
+}
+
+// ── Save inspector (read-only) ──────────────────────────────────────────────
+
+fn saves_dir() -> PathBuf {
+    parish_core::persistence::picker::ensure_saves_dir()
+}
+
+#[tauri::command]
+pub async fn editor_list_saves(
+    _state: State<'_, Arc<AppState>>,
+) -> Result<Vec<SaveFileSummary>, String> {
+    editor::handle_editor_list_saves(&saves_dir())
+}
+
+#[tauri::command]
+pub async fn editor_list_branches(
+    save_path: String,
+    _state: State<'_, Arc<AppState>>,
+) -> Result<Vec<BranchSummary>, String> {
+    editor::handle_editor_list_branches(&PathBuf::from(save_path))
+}
+
+#[tauri::command]
+pub async fn editor_list_snapshots(
+    save_path: String,
+    branch_id: i64,
+    _state: State<'_, Arc<AppState>>,
+) -> Result<Vec<SnapshotSummary>, String> {
+    editor::handle_editor_list_snapshots(&PathBuf::from(save_path), branch_id)
+}
+
+#[tauri::command]
+pub async fn editor_read_snapshot(
+    save_path: String,
+    branch_id: i64,
+    _state: State<'_, Arc<AppState>>,
+) -> Result<Option<SnapshotDetail>, String> {
+    editor::handle_editor_read_snapshot(&PathBuf::from(save_path), branch_id)
 }

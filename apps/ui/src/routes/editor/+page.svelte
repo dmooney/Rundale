@@ -19,12 +19,14 @@
 	import LocationList from '../../components/editor/LocationList.svelte';
 	import LocationDetail from '../../components/editor/LocationDetail.svelte';
 	import ValidatorPanel from '../../components/editor/ValidatorPanel.svelte';
+	import SaveInspector from '../../components/editor/SaveInspector.svelte';
 
 	const tabs: { id: EditorTab; label: string }[] = [
 		{ id: 'mods', label: 'Mods' },
 		{ id: 'npcs', label: 'NPCs' },
 		{ id: 'locations', label: 'Locations' },
-		{ id: 'validator', label: 'Validator' }
+		{ id: 'validator', label: 'Validator' },
+		{ id: 'saves', label: 'Saves' }
 	];
 
 	function selectTab(id: EditorTab) {
@@ -59,9 +61,9 @@
 		{/if}
 	</div>
 
-	{#if snap}
-		<div class="tab-bar">
-			{#each tabs as t}
+	<div class="tab-bar">
+		{#each tabs as t}
+			{#if snap || t.id === 'mods' || t.id === 'saves'}
 				<button
 					class="tab-btn"
 					class:active={tab === t.id}
@@ -72,12 +74,16 @@
 						<span class="badge">{issueCount}</span>
 					{/if}
 				</button>
-			{/each}
-		</div>
-	{/if}
+			{/if}
+		{/each}
+	</div>
 
 	<div class="tab-content">
-		{#if tab === 'mods' || !snap}
+		{#if tab === 'mods'}
+			<ModBrowser />
+		{:else if tab === 'saves'}
+			<SaveInspector />
+		{:else if !snap}
 			<ModBrowser />
 		{:else if tab === 'npcs'}
 			<div class="split-pane">

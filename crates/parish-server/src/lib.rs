@@ -243,6 +243,22 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/editor-save", post(editor_routes::editor_save))
         .route("/api/editor-reload", post(editor_routes::editor_reload))
         .route("/api/editor-close", post(editor_routes::editor_close))
+        .route(
+            "/api/editor-list-saves",
+            get(editor_routes::editor_list_saves),
+        )
+        .route(
+            "/api/editor-list-branches",
+            post(editor_routes::editor_list_branches),
+        )
+        .route(
+            "/api/editor-list-snapshots",
+            post(editor_routes::editor_list_snapshots),
+        )
+        .route(
+            "/api/editor-read-snapshot",
+            post(editor_routes::editor_read_snapshot),
+        )
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
         .layer(middleware::from_fn(cf_access_guard))
         .with_state(state);

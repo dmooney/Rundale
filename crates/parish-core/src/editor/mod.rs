@@ -17,6 +17,7 @@ pub mod format;
 mod maintenance_tool;
 pub mod mod_io;
 pub mod persist;
+pub mod save_inspect;
 pub mod types;
 pub mod validate;
 
@@ -24,6 +25,10 @@ pub use format::write_json_deterministic;
 pub use mod_io::{list_mods, load_mod_snapshot};
 pub use persist::{
     SaveResult, save_anachronisms, save_encounters, save_festivals, save_mod, save_npcs, save_world,
+};
+pub use save_inspect::{
+    BranchSummary, SaveFileSummary, SnapshotDetail, SnapshotSummary, list_branches, list_saves,
+    list_snapshots, read_latest_snapshot,
 };
 pub use types::{
     EditorModSnapshot, ModSummary, ValidationIssue, ValidationReport, ValidationSeverity,

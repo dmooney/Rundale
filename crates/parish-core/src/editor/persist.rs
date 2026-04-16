@@ -1,7 +1,7 @@
 //! Atomic persistence for editor-edited mod files.
 //!
 //! Every write goes through [`write_json_deterministic`] (deterministic JSON
-//! + atomic temp-and-rename) and is gated by [`validate_snapshot`] so
+//! plus atomic temp-and-rename) and is gated by [`validate_snapshot`] so
 //! invalid data never reaches disk. Each write function takes a snapshot
 //! plus the set of docs the caller wants to persist, validates the whole
 //! snapshot, and either writes the requested subset or returns the error

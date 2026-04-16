@@ -84,6 +84,7 @@
 		{/if}
 		<span class="spacer"></span>
 		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
+		<a class="designer-link" href="/editor" title="Parish Designer — edit mod data">Designer</a>
 		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
@@ -193,7 +194,8 @@
 		border-color: var(--color-accent);
 	}
 
-	.debug-toggle {
+	.debug-toggle,
+	.designer-link {
 		background: none;
 		border: 1px solid var(--color-border);
 		color: var(--color-muted);
@@ -203,9 +205,13 @@
 		font-family: var(--font-display);
 		letter-spacing: 0.1em;
 		transition: color 0.2s, border-color 0.2s;
+		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
 	}
 
-	.debug-toggle:hover {
+	.debug-toggle:hover,
+	.designer-link:hover {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
@@ -242,7 +248,8 @@
 		}
 
 		.save-toggle,
-		.debug-toggle {
+		.debug-toggle,
+		.designer-link {
 			font-size: 0.55rem;
 			padding: 0.15rem 0.35rem;
 		}

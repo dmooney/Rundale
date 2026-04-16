@@ -645,6 +645,10 @@ pub fn run() {
             editor_commands::editor_save,
             editor_commands::editor_reload,
             editor_commands::editor_close,
+            editor_commands::editor_list_saves,
+            editor_commands::editor_list_branches,
+            editor_commands::editor_list_snapshots,
+            editor_commands::editor_read_snapshot,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

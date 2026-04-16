@@ -146,4 +146,36 @@ export interface EditorSaveResponse {
 
 export type EditorDoc = 'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters' | 'anachronisms';
 
-export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator';
+export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator' | 'saves';
+
+// ── Save inspector ───────────────────────────────────────────────────────────
+
+export interface SaveFileSummary {
+	path: string;
+	filename: string;
+	file_size: string;
+	branch_count: number;
+}
+
+export interface BranchSummary {
+	id: number;
+	name: string;
+	parent_branch_id: number | null;
+	parent_branch_name: string | null;
+	created_at: string;
+	snapshot_count: number;
+}
+
+export interface SnapshotSummary {
+	id: number;
+	game_time: string;
+	real_time: string;
+}
+
+export interface SnapshotDetail {
+	id: number;
+	branch_id: number;
+	game_time: string;
+	real_time: string;
+	world_state: unknown;
+}

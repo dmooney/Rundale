@@ -12,6 +12,9 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
+use parish_core::editor::save_inspect::{
+    BranchSummary, SaveFileSummary, SnapshotDetail, SnapshotSummary,
+};
 use parish_core::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, ValidationReport};
 use parish_core::ipc::editor::{self, EditorSaveResponse};
 
@@ -19,10 +22,10 @@ use crate::state::AppState;
 
 /// Finds the `mods/` directory from the game mod or workspace root.
 fn mods_root(state: &AppState) -> PathBuf {
-    if let Some(ref gm) = state.game_mod {
-        if let Some(parent) = gm.mod_dir.parent() {
-            return parent.to_path_buf();
-        }
+    if let Some(ref gm) = state.game_mod
+        && let Some(parent) = gm.mod_dir.parent()
+    {
+        return parent.to_path_buf();
     }
     parish_core::game_mod::find_default_mod()
         .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
@@ -142,4 +145,58 @@ pub async fn editor_close(
     editor::handle_editor_close(&state.editor)
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+// ── Save inspector (read-only) ──────────────────────────────────────────────
+
+/// `GET /api/editor-list-saves`
+pub async fn editor_list_saves(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<SaveFileSummary>>, (StatusCode, String)> {
+    editor::handle_editor_list_saves(&state.saves_dir)
+        .map(Json)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePathBody {
+    pub save_path: String,
+}
+
+/// `POST /api/editor-list-branches`
+pub async fn editor_list_branches(
+    State(_state): State<Arc<AppState>>,
+    Json(body): Json<SavePathBody>,
+) -> Result<Json<Vec<BranchSummary>>, (StatusCode, String)> {
+    editor::handle_editor_list_branches(&PathBuf::from(body.save_path))
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePathBranchBody {
+    pub save_path: String,
+    pub branch_id: i64,
+}
+
+/// `POST /api/editor-list-snapshots`
+pub async fn editor_list_snapshots(
+    State(_state): State<Arc<AppState>>,
+    Json(body): Json<SavePathBranchBody>,
+) -> Result<Json<Vec<SnapshotSummary>>, (StatusCode, String)> {
+    editor::handle_editor_list_snapshots(&PathBuf::from(body.save_path), body.branch_id)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+/// `POST /api/editor-read-snapshot`
+pub async fn editor_read_snapshot(
+    State(_state): State<Arc<AppState>>,
+    Json(body): Json<SavePathBranchBody>,
+) -> Result<Json<Option<SnapshotDetail>>, (StatusCode, String)> {
+    editor::handle_editor_read_snapshot(&PathBuf::from(body.save_path), body.branch_id)
+        .map(Json)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }

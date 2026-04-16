@@ -13,7 +13,11 @@ import type {
 	EditorSaveResponse,
 	EditorDoc,
 	NpcFile,
-	LocationData
+	LocationData,
+	SaveFileSummary,
+	BranchSummary,
+	SnapshotSummary,
+	SnapshotDetail
 } from './editor-types';
 
 export const editorListMods = () => command<ModSummary[]>('editor_list_mods');
@@ -37,3 +41,16 @@ export const editorSave = (docs: EditorDoc[]) =>
 export const editorReload = () => command<EditorModSnapshot>('editor_reload');
 
 export const editorClose = () => command<void>('editor_close');
+
+// ── Save inspector (read-only) ───────────────────────────────────────────────
+
+export const editorListSaves = () => command<SaveFileSummary[]>('editor_list_saves');
+
+export const editorListBranches = (savePath: string) =>
+	command<BranchSummary[]>('editor_list_branches', { savePath });
+
+export const editorListSnapshots = (savePath: string, branchId: number) =>
+	command<SnapshotSummary[]>('editor_list_snapshots', { savePath, branchId });
+
+export const editorReadSnapshot = (savePath: string, branchId: number) =>
+	command<SnapshotDetail | null>('editor_read_snapshot', { savePath, branchId });

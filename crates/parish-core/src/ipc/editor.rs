@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::editor::mod_io;
 use crate::editor::persist;
+use crate::editor::save_inspect::{
+    self, BranchSummary, SaveFileSummary, SnapshotDetail, SnapshotSummary,
+};
 use crate::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, ValidationReport};
 use crate::editor::validate;
 
@@ -160,4 +163,32 @@ pub fn handle_editor_close(session: &Mutex<EditorSession>) -> Result<(), String>
     let mut s = session.lock().map_err(|e| e.to_string())?;
     s.snapshot = None;
     Ok(())
+}
+
+// ── Save inspector (read-only) ──────────────────────────────────────────────
+
+/// Lists every `.db` file in `saves_dir`.
+pub fn handle_editor_list_saves(saves_dir: &Path) -> Result<Vec<SaveFileSummary>, String> {
+    save_inspect::list_saves(saves_dir).map_err(|e| e.to_string())
+}
+
+/// Lists every branch in the given save file.
+pub fn handle_editor_list_branches(save_path: &Path) -> Result<Vec<BranchSummary>, String> {
+    save_inspect::list_branches(save_path).map_err(|e| e.to_string())
+}
+
+/// Lists snapshots on the given branch (oldest first).
+pub fn handle_editor_list_snapshots(
+    save_path: &Path,
+    branch_id: i64,
+) -> Result<Vec<SnapshotSummary>, String> {
+    save_inspect::list_snapshots(save_path, branch_id).map_err(|e| e.to_string())
+}
+
+/// Returns the latest snapshot on the given branch as parsed JSON.
+pub fn handle_editor_read_snapshot(
+    save_path: &Path,
+    branch_id: i64,
+) -> Result<Option<SnapshotDetail>, String> {
+    save_inspect::read_latest_snapshot(save_path, branch_id).map_err(|e| e.to_string())
 }
