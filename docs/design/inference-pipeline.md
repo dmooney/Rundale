@@ -5,25 +5,61 @@
 ## Pipeline Architecture
 
 ```
-Simulation Threads → Inference Queue (Tokio mpsc channel) → Inference Worker → Ollama REST API → Response Router → World State Update
+                  ┌─ Interactive lane (cap 16) ─┐
+Simulation Tiers ─┼─ Background  lane (cap 32) ─┼─► Single-flight Worker ─► OpenAI-compatible API ─► Response Router ─► World State
+                  └─ Batch       lane (cap 64) ─┘
 ```
 
-- Inference queue accepts requests from any simulation tier
-- A dedicated async task pulls requests, sends to Ollama, routes responses back
-- Batch requests where possible (multiple Tier 2/3 NPCs in one call)
+The inference queue is **one** `InferenceQueue` struct (`crates/parish-inference/src/lib.rs:124`) wrapping **three** Tokio mpsc channels — one per priority lane. A single worker task drains them in strict priority order.
 
-## Tiered Model Selection
+### Priority Lanes
 
-| Tier | Use Case             | Model          |
-|------|----------------------|----------------|
-| 1    | Direct interaction   | Qwen3 14B      |
-| 2    | Nearby activity      | Qwen3 8B or 3B |
-| 3    | Distant batch        | Qwen3 8B or 3B with bulk prompts |
+| Lane        | Capacity | Used for |
+|-------------|----------|----------|
+| Interactive | 16       | Tier 1 player-facing dialogue (streaming) |
+| Background  | 32       | Tier 2 nearby NPC simulation (JSON) |
+| Batch       | 64       | Tier 3 distant NPC batch simulation (JSON) |
+
+Capacities are set at queue construction in each frontend — see `crates/parish-server/src/routes.rs:205-207`, `crates/parish-tauri/src/commands.rs:305-307`, and `crates/parish-cli/src/headless.rs:58-60`. They are sized so bursts of background or batch work cannot block an incoming interactive request from reaching the worker.
+
+### Single-Flight Worker
+
+`spawn_inference_worker` (`crates/parish-inference/src/lib.rs:453`) runs one LLM call at a time using `tokio::select!` with biased ordering:
+
+```rust
+tokio::select! {
+    biased;
+    Some(req) = interactive_rx.recv() => req,
+    Some(req) = background_rx.recv() => req,
+    Some(req) = batch_rx.recv() => req,
+    else => break,
+}
+```
+
+`biased;` makes the select check lanes top-down every iteration, so an Interactive request always beats any pending Background or Batch request. There is **no preemption mid-request** — if a Batch call is in-flight when an Interactive request arrives, the Interactive request waits for the in-flight call to return. Priority applies at lane selection, not inside the LLM call.
+
+## Inference Use Cases
+
+Parish makes LLM calls from five inbound paths. Three go through the priority queue; two bypass it by resolving a per-category client directly via `GameConfig::resolve_category_client()` (`crates/parish-core/src/ipc/config.rs:90`).
+
+| Use case                   | Category   | Path                       | Streaming      | Output              | Call site |
+|----------------------------|------------|----------------------------|----------------|---------------------|-----------|
+| Player dialogue (Tier 1)   | Dialogue   | Interactive lane           | Yes            | Text + JSON tail    | `crates/parish-tauri/src/commands.rs:825` (and server / CLI equivalents) |
+| Nearby NPC sim (Tier 2)    | Simulation | Background lane            | No             | JSON                | `crates/parish-npc/src/ticks.rs:533` |
+| Distant NPC batch (Tier 3) | Simulation | Batch lane                 | No             | JSON                | `crates/parish-npc/src/ticks.rs:853` |
+| NPC arrival reactions      | Reaction   | Direct call (bypass queue) | Optional       | Plain text, ≤100 tok | `crates/parish-npc/src/reactions.rs:876` |
+| Player intent parsing      | Intent     | Direct call (bypass queue) | No             | JSON                | `crates/parish-tauri/src/commands.rs:495-503` |
+
+Queue-based calls compete for the single in-flight worker slot. Direct-category calls run concurrently on their own per-category `OpenAiClient` instances, limited only by each provider's HTTP connection pool. Effective parallelism is therefore `1 (worker) + N (direct-category clients, one per Intent/Reaction call in flight)`.
+
+Reaction timeouts are caller-supplied (the `reactions.rs` helper takes `timeout_secs: u64`), not hardcoded on the queue side.
 
 ## Throughput Estimates
 
-- Expected throughput with Qwen3 14B on RX 9070: **~30-50 tokens/sec**
-- At ~100-150 tokens per NPC response: **~3-5 NPC "thoughts" per second**
+- 9B-class local model (Ollama, q4) on RX 9070: **~40-60 tokens/sec**
+- At ~100-150 tokens per NPC response: **~3-6 NPC "thoughts" per second**
+- Cloud providers (Claude Sonnet 4.6, Gemini 2.5 Flash) are typically faster per-token than local but add ~300-1000 ms network round-trip; budget ~1-2 s per Tier 1 response end-to-end.
+- Numbers vary with model, quantization, and prompt length — measure on your own hardware before tuning tick intervals.
 
 ## Player Input Parsing
 
@@ -58,15 +94,96 @@ After the LLM responds, all modes execute the same pipeline:
 
 ## Multi-Provider Support
 
-The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, etc.) via `OpenAiClient`. Per-category provider routing allows different models for different tasks:
+The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRouter, Google Gemini, Groq, xAI, Mistral, DeepSeek, Together, vLLM, or any custom endpoint) via `OpenAiClient`. Per-category provider routing lets different inbound paths use different models. The engine defines **four** categories, resolved by `GameConfig::resolve_category_client()`:
 
-| Category | Purpose | Default |
-|----------|---------|---------|
-| Dialogue | Player-facing NPC conversation (Tier 1) | Cloud if configured, else local |
-| Simulation | Background NPC activity (Tier 2) | Always local |
-| Intent | Player input classification | Always local |
+| Category   | Purpose                                              | Default |
+|------------|------------------------------------------------------|---------|
+| Dialogue   | Player-facing NPC conversation (Tier 1)              | Cloud if configured, else base provider |
+| Simulation | Background NPC sim (Tier 2 + Tier 3 batch)           | Base provider (usually local) |
+| Intent     | Player input classification (direct, low-latency)    | Base provider (usually local) |
+| Reaction   | NPC arrival greetings (direct, short timeout)        | Base provider (usually local) |
 
-Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client.
+Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client and swaps per-category clients atomically.
+
+### Recommended Models (April 2026)
+
+> This section is **refreshable** — specific picks will drift as the open-model landscape evolves. Last refresh: April 2026. See ADR-005 for the architectural decision; this section owns the specific picks.
+
+Hardware baseline: RX 9070 16 GB + i9-13900KS (matches ADR-005).
+
+| Category                    | Local pick                 | Cloud pick                          | Why |
+|-----------------------------|----------------------------|-------------------------------------|-----|
+| Dialogue                    | Gemma 4 9B or Qwen 3.5 9B  | Claude Sonnet 4.6                   | Quality-critical; 9B fits in 16 GB VRAM with headroom |
+| Simulation (Tier 2 nearby)  | Qwen 3.5 9B                | Gemini 2.5 Flash                    | Structured JSON throughput matters more than prose quality |
+| Simulation (Tier 3 batch)   | Qwen 3.5 9B                | **Gemini 2.5 Flash-Lite**           | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
+| Intent                      | Ministral 3 3B             | — (always local)                    | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private |
+| Reaction                    | Ministral 3 3B             | Gemini 2.5 Flash-Lite               | Short, fast responses; shares the 3B model with Intent |
+
+Notes on the picks:
+
+- **Gemma 4** (Apache 2.0, April 2, 2026) tends to be stronger at naturalistic prose. **Qwen 3.5 9B** (Feb 2026) tends to be stronger at structured output. Qwen 3.5 does not ship a 14B size — 9B is the new Tier 1 target, superseding the Qwen3 14B reference from ADR-005.
+- **Ministral 3 3B** ships with first-class JSON / function-calling, which is exactly what Intent and Reaction need.
+- **Claude Sonnet 4.6** remains the quality leader for in-character dialogue if you have a cloud budget.
+- Benchmarks don't measure 1820 Irish peasant dialogue. Build a small fixture and use the `/prove` harness before committing any model to production.
+
+### Starter Configurations
+
+**Cloud-light** — cloud quality where it matters, cheap batch, local intent/reaction:
+
+```toml
+[provider]
+name = "ollama"
+base_url = "http://localhost:11434"
+model = "ministral3:3b"
+
+[provider.dialogue]
+name = "openrouter"
+model = "anthropic/claude-sonnet-4-6"
+api_key = "$OPENROUTER_API_KEY"
+
+[provider.simulation]
+name = "google"
+model = "gemini-2.5-flash-lite"
+api_key = "$GOOGLE_API_KEY"
+```
+
+**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the 9B stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction:
+
+```toml
+[provider]
+name = "ollama"
+base_url = "http://localhost:11434"
+model = "qwen3.5:9b"   # or "gemma4:9b"
+
+[provider.intent]
+name = "ollama"
+base_url = "http://localhost:11435"
+model = "ministral3:3b"
+
+[provider.reaction]
+name = "ollama"
+base_url = "http://localhost:11435"
+model = "ministral3:3b"
+```
+
+**Quality-maximalist** — full cloud, everything routed via one provider for simplicity:
+
+```toml
+[provider]
+name = "openrouter"
+model = "google/gemini-2.5-flash-lite"
+api_key = "$OPENROUTER_API_KEY"
+
+[provider.dialogue]
+name = "openrouter"
+model = "anthropic/claude-sonnet-4-6"
+api_key = "$OPENROUTER_API_KEY"
+
+[provider.simulation]
+name = "openrouter"
+model = "google/gemini-3.1-pro"
+api_key = "$OPENROUTER_API_KEY"
+```
 
 ## Inference Call Logging
 
@@ -108,7 +225,7 @@ InferenceRequest → spawn_inference_worker() → generate()/generate_stream()
 ```
 
 - **Capacity**: 50 entries (ring buffer, oldest evicted first)
-- **Scope**: Captures all queued requests (NPC dialogue). Direct `generate_json()` calls (Tier 2 simulation, intent parsing) are not yet logged.
+- **Scope**: Captures all requests that flow through the worker — Tier 1 dialogue (Interactive lane) plus Tier 2 and Tier 3 simulation (Background and Batch lanes, via `submit_json`). Direct-category calls (Intent, Reaction) run outside the worker and are not captured here.
 - **Shared state**: The `InferenceLog` (`Arc<Mutex<VecDeque<InferenceLogEntry>>>`) is passed to the worker at spawn time and stored on `AppState` for snapshot reads.
 - **Timing**: `std::time::Instant` measures end-to-end latency including network round-trip, model inference, and streaming delivery.
 
