@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use tokio::sync::mpsc;
@@ -31,11 +31,13 @@ use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::{LocationId, WorldState};
 
-use parish_core::debug_snapshot::{self, DebugSnapshot, InferenceDebug};
+use parish_core::debug_snapshot::{self, AuthDebug, DebugSnapshot, InferenceDebug};
 use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
 
+use crate::middleware::SessionId;
+use crate::session::GlobalState;
 use crate::state::{AppState, ConversationRuntimeState, SaveState};
 
 /// Monotonically increasing request ID counter for inference requests.
@@ -44,7 +46,7 @@ static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 // ── Query endpoints ─────────────────────────────────────────────────────────
 
 /// `GET /api/world-snapshot` — returns the current world snapshot.
-pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<WorldSnapshot> {
+pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> Json<WorldSnapshot> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let transport = state.transport.default_mode();
@@ -55,21 +57,21 @@ pub async fn get_world_snapshot(State(state): State<Arc<AppState>>) -> Json<Worl
 }
 
 /// `GET /api/map` — returns visited locations, edges, and player position.
-pub async fn get_map(State(state): State<Arc<AppState>>) -> Json<MapData> {
+pub async fn get_map(Extension(state): Extension<Arc<AppState>>) -> Json<MapData> {
     let world = state.world.lock().await;
     let transport = state.transport.default_mode();
     Json(parish_core::ipc::build_map_data(&world, transport))
 }
 
 /// `GET /api/npcs-here` — returns NPCs at the player's current location.
-pub async fn get_npcs_here(State(state): State<Arc<AppState>>) -> Json<Vec<NpcInfo>> {
+pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<Vec<NpcInfo>> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
 /// `GET /api/theme` — returns the current time-of-day palette (weather + season tinted).
-pub async fn get_theme(State(state): State<Arc<AppState>>) -> Json<ThemePalette> {
+pub async fn get_theme(Extension(state): Extension<Arc<AppState>>) -> Json<ThemePalette> {
     use chrono::Timelike;
     use parish_core::world::palette::compute_palette;
     let world = state.world.lock().await;
@@ -85,13 +87,17 @@ pub async fn get_theme(State(state): State<Arc<AppState>>) -> Json<ThemePalette>
 
 /// `GET /api/ui-config` — returns UI configuration (splash text, labels, accent).
 pub async fn get_ui_config(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Json<crate::state::UiConfigSnapshot> {
     Json(state.ui_config.clone())
 }
 
 /// `GET /api/debug-snapshot` — returns full debug state for the debug panel.
-pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<DebugSnapshot> {
+pub async fn get_debug_snapshot(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(session_id): Extension<SessionId>,
+    State(global): State<Arc<GlobalState>>,
+) -> Json<DebugSnapshot> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
@@ -110,12 +116,21 @@ pub async fn get_debug_snapshot(State(state): State<Arc<AppState>>) -> Json<Debu
         improv_enabled: config.improv_enabled,
         call_log,
     };
+    let linked = global.sessions.google_account_for_session(&session_id.0);
+    let auth = AuthDebug {
+        oauth_enabled: global.oauth_config.is_some(),
+        logged_in: linked.is_some(),
+        provider: linked.as_ref().map(|_| "google".to_string()),
+        display_name: linked.map(|(_sub, name)| name),
+        session_id: Some(session_id.0.clone()),
+    };
     Json(debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &game_events,
         &inference,
+        &auth,
     ))
 }
 
@@ -134,7 +149,7 @@ pub struct SubmitInputRequest {
 
 /// `POST /api/submit-input` — processes player text input.
 pub async fn submit_input(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<SubmitInputRequest>,
 ) -> impl IntoResponse {
     let text = body.text.trim().to_string();
@@ -1269,7 +1284,7 @@ fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::Cance
 
 /// `POST /api/react-to-message` — player reacts to an NPC message with an emoji.
 pub async fn react_to_message(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<ReactRequest>,
 ) -> impl IntoResponse {
     // Validate emoji is in the palette
@@ -1593,7 +1608,7 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
 
 /// `GET /api/discover-save-files` — returns all save files with branch metadata.
 pub async fn discover_save_files(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<Vec<SaveFileInfo>>, (StatusCode, String)> {
     let graph = {
         let world = state.world.lock().await;
@@ -1610,7 +1625,7 @@ pub async fn discover_save_files(
 
 /// `POST /api/save-game` — saves the current game state to the active save file.
 pub async fn save_game(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<String>, (StatusCode, String)> {
     let msg = do_save_game_inner(&state)
         .await
@@ -1631,7 +1646,7 @@ pub struct LoadBranchRequest {
 
 /// `POST /api/load-branch` — loads a branch from a save file.
 pub async fn load_branch(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let path = std::path::PathBuf::from(&body.file_path);
@@ -1724,7 +1739,7 @@ pub struct CreateBranchRequest {
 
 /// `POST /api/create-branch` — creates a new branch forked from a parent.
 pub async fn create_branch(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<CreateBranchRequest>,
 ) -> Result<Json<String>, (StatusCode, String)> {
     let msg = do_fork_branch_inner(&state, &body.name, body.parent_branch_id)
@@ -1735,7 +1750,7 @@ pub async fn create_branch(
 
 /// `POST /api/new-save-file` — creates a new save file and saves current state.
 pub async fn new_save_file(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let saves_dir = state.saves_dir.clone();
     let path = new_save_path(&saves_dir);
@@ -1770,7 +1785,7 @@ pub async fn new_save_file(
 
 /// `POST /api/new-game` — reloads world/NPCs from data files and saves fresh state.
 pub async fn new_game(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     do_new_game_inner(&state)
         .await
@@ -1785,7 +1800,7 @@ pub async fn new_game(
 }
 
 /// `GET /api/save-state` — returns the current save state for the StatusBar.
-pub async fn get_save_state(State(state): State<Arc<AppState>>) -> Json<SaveState> {
+pub async fn get_save_state(Extension(state): Extension<Arc<AppState>>) -> Json<SaveState> {
     let save_path = state.save_path.lock().await;
     let branch_id = state.current_branch_id.lock().await;
     let branch_name = state.current_branch_name.lock().await;
@@ -2021,7 +2036,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn get_save_state_initial_is_empty() {
         let state = test_app_state();
-        let result = get_save_state(axum::extract::State(state)).await;
+        let result = get_save_state(axum::extract::Extension(state)).await;
         let save_state = result.0;
         assert!(save_state.filename.is_none());
         assert!(save_state.branch_id.is_none());
@@ -2033,7 +2048,7 @@ pub(crate) mod tests {
     async fn discover_save_files_empty_dir() {
         let state = test_app_state();
         // saves_dir points to ../../saves which may or may not exist — either way should not panic
-        let result = discover_save_files(axum::extract::State(state)).await;
+        let result = discover_save_files(axum::extract::Extension(state)).await;
         assert!(result.is_ok());
     }
 
@@ -2321,7 +2336,7 @@ pub(crate) mod tests {
             file_path: "../../etc/passwd".to_string(),
             branch_id: 1,
         };
-        let result = load_branch(State(state), Json(body)).await;
+        let result = load_branch(Extension(state), Json(body)).await;
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);

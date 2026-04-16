@@ -10,7 +10,7 @@ use tauri::Emitter;
 use tokio::sync::mpsc;
 
 use parish_core::config::InferenceCategory;
-use parish_core::debug_snapshot::{self, DebugEvent, DebugSnapshot, InferenceDebug};
+use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{
     AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
@@ -212,6 +212,7 @@ pub async fn get_debug_snapshot(
         &events,
         &game_events,
         &inference,
+        &AuthDebug::disabled(),
     ))
 }
 

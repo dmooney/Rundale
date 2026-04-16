@@ -1,11 +1,11 @@
 //! WebSocket handler for server-push events.
 //!
 //! Each connected client gets a WebSocket that receives JSON-encoded
-//! [`ServerEvent`] frames from the [`EventBus`].
+//! [`ServerEvent`] frames from the per-session [`EventBus`].
 
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::Extension;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
 
@@ -14,15 +14,15 @@ use crate::state::AppState;
 /// Upgrades the HTTP connection to a WebSocket.
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
 /// Handles a single WebSocket connection.
 ///
-/// Subscribes to the [`EventBus`] and forwards each event as a JSON text
-/// frame until the client disconnects or the bus is dropped.
+/// Subscribes to the per-session [`EventBus`] and forwards each event as a
+/// JSON text frame until the client disconnects or the bus is dropped.
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     let mut rx = state.event_bus.subscribe();
     tracing::info!("WebSocket client connected");

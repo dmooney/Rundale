@@ -101,6 +101,7 @@ Detailed, implementation-ready plans for each development phase.
 | [macOS Setup](macos-setup.md) | Native macOS setup, Apple Silicon GPU, terminal tips |
 | [Linux Setup](linux-setup.md) | Native Linux setup, NVIDIA/AMD GPU, headless screenshots |
 | [Windows Setup](windows-setup.md) | Native Windows setup, terminal tips, troubleshooting |
+| [Google OAuth Setup](oauth-setup.md) | Obtaining Google credentials for the web server's sign-in flow |
 
 ## Development
 
