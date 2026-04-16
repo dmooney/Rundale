@@ -29,6 +29,8 @@ WORKDIR /app
 COPY --from=builder /build/target/release/parish ./
 COPY --from=frontend /build/dist ./apps/ui/dist/
 COPY mods/ ./mods/
+RUN useradd -m -u 1000 app && chown -R app:app /app
+USER app
 
 ENV RUST_LOG=info
 EXPOSE 3001

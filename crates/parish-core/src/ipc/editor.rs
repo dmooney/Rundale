@@ -6,7 +6,7 @@
 //! `parish-core::editor` pure functions. All I/O happens here; the caller
 //! only needs to acquire the session lock.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -191,4 +191,79 @@ pub fn handle_editor_read_snapshot(
     branch_id: i64,
 ) -> Result<Option<SnapshotDetail>, String> {
     save_inspect::read_latest_snapshot(save_path, branch_id).map_err(|e| e.to_string())
+}
+
+// ── Path validation ─────────────────────────────────────────────────────────
+
+/// Canonicalises `raw` and ensures it resolves inside `root`.
+/// Returns a `String` error so both Axum and Tauri call-sites can map it.
+pub fn validate_within(raw: &Path, root: &Path) -> Result<PathBuf, String> {
+    let canonical = raw.canonicalize().map_err(|_| "invalid path".to_string())?;
+    let root_canonical = root
+        .canonicalize()
+        .map_err(|_| "invalid root directory".to_string())?;
+    if !canonical.starts_with(&root_canonical) {
+        return Err("path is outside allowed directory".to_string());
+    }
+    Ok(canonical)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn validate_within_happy_path() {
+        let dir = tempdir().unwrap();
+        let file = dir.path().join("save.db");
+        fs::write(&file, b"").unwrap();
+        let result = validate_within(&file, dir.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn validate_within_dotdot_escape() {
+        let dir = tempdir().unwrap();
+        let inner = dir.path().join("sub");
+        fs::create_dir(&inner).unwrap();
+        let file = dir.path().join("outside.db");
+        fs::write(&file, b"").unwrap();
+        // Try to escape from `inner` to `dir` using `..`
+        let traversal = inner.join("../outside.db");
+        // The resolved path is inside `dir`, not inside `inner`
+        let result = validate_within(&traversal, &inner);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("outside allowed directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_within_path_outside_root() {
+        let root = tempdir().unwrap();
+        let other = tempdir().unwrap();
+        let file = other.path().join("evil.db");
+        fs::write(&file, b"").unwrap();
+        let result = validate_within(&file, root.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("outside allowed directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_within_nonexistent_path() {
+        let dir = tempdir().unwrap();
+        let missing = dir.path().join("does_not_exist.db");
+        let result = validate_within(&missing, dir.path());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("invalid path"), "unexpected error: {err}");
+    }
 }
