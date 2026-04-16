@@ -415,11 +415,18 @@ pub fn extract_keywords(
         "until", "wants", "which", "while", "would", "spoke", "asked", "should",
     ];
     for word in entry.content.split_whitespace() {
+        // Perf: collect filtered chars lowercased in one pass. The previous
+        // `collect::<String>().to_lowercase()` chain heap-allocated twice per
+        // word (once for the filtered String, once for its lowercase copy).
+        // `flat_map(char::to_lowercase)` lowercases each kept char inline and
+        // collects directly, saving one allocation per word. Called per
+        // memory promotion (`try_promote`) — once per evicted short-term
+        // entry, per NPC, per conversation turn.
         let cleaned: String = word
             .chars()
             .filter(|c| c.is_alphanumeric())
-            .collect::<String>()
-            .to_lowercase();
+            .flat_map(|c| c.to_lowercase())
+            .collect();
         if cleaned.len() > 4
             && !stop_words.contains(&cleaned.as_str())
             && !keywords.contains(&cleaned)
