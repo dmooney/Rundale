@@ -268,6 +268,61 @@ pub struct TravelStartPayload {
     pub destination: String,
 }
 
+// ── Map tile source snapshot ────────────────────────────────────────────────
+
+/// Frontend-facing description of a single tile source.
+///
+/// Mirrors `parish_config::engine::TileSourceConfig` with the `id` key added
+/// so the frontend can build a registry without its own lookup logic. Sent
+/// inside the `UiConfigSnapshot` on boot and used by the `/tiles` slash
+/// command to render the listing.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TileSourceSnapshot {
+    /// Registry key (e.g. "osm", "historic-6inch").
+    pub id: String,
+    /// Human-readable label shown in `/tiles` listings.
+    pub label: String,
+    /// XYZ URL template (empty string means "not yet configured").
+    pub url: String,
+    /// Tile edge length in pixels.
+    pub tile_size: u32,
+    /// Minimum zoom the source serves tiles for.
+    pub minzoom: u32,
+    /// Maximum zoom the source serves tiles for.
+    pub maxzoom: u32,
+    /// Attribution text for MapLibre's attribution control.
+    pub attribution: String,
+    /// MapLibre `raster-saturation` paint value.
+    pub raster_saturation: f32,
+    /// MapLibre `raster-opacity` paint value.
+    pub raster_opacity: f32,
+    /// When true, the frontend sets `scheme: 'tms'` on the source.
+    pub tms: bool,
+}
+
+impl TileSourceSnapshot {
+    /// Builds the frontend-facing list from a `MapConfig`, alphabetical by id.
+    ///
+    /// Call this at backend boot to populate `UiConfigSnapshot::tile_sources`.
+    pub fn list_from_map_config(cfg: &parish_config::MapConfig) -> Vec<Self> {
+        cfg.tile_sources
+            .iter()
+            .map(|(id, src)| Self {
+                id: id.clone(),
+                label: src.label.clone(),
+                url: src.url.clone(),
+                tile_size: src.tile_size,
+                minzoom: src.minzoom,
+                maxzoom: src.maxzoom,
+                attribution: src.attribution.clone(),
+                raster_saturation: src.raster_saturation,
+                raster_opacity: src.raster_opacity,
+                tms: src.tms,
+            })
+            .collect()
+    }
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

@@ -17,6 +17,7 @@
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
+	import { tiles } from '../stores/tiles';
 	import { startTravel } from '../stores/travel';
 	import {
 		getWorldSnapshot,
@@ -33,9 +34,9 @@
 		onLoading,
 		onThemeUpdate,
 		onThemeSwitch,
+		onTilesSwitch,
 		onDebugUpdate,
 		onSavePicker,
-		onToggleFullMap,
 		onNpcReaction,
 		onTravelStart,
 		submitInput
@@ -217,6 +218,7 @@
 		try {
 			const cfg = await getUiConfig();
 			uiConfig.set(cfg);
+			tiles.initFromUiConfig(cfg);
 			if (cfg.splash_text) {
 				textLog.update((log) => [
 					{ source: 'system', content: cfg.splash_text },
@@ -482,12 +484,12 @@
 				});
 			}));
 
-			listeners.push(await onDebugUpdate((snap) => {
-				debugSnapshot.set(snap);
+			listeners.push(await onTilesSwitch((p) => {
+				tiles.setActiveId(p.id);
 			}));
 
-			listeners.push(await onToggleFullMap(() => {
-				fullMapOpen.update((v) => !v);
+			listeners.push(await onDebugUpdate((snap) => {
+				debugSnapshot.set(snap);
 			}));
 
 			listeners.push(await onTravelStart((payload) => {

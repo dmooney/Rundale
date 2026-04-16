@@ -89,3 +89,51 @@ fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location mat
 
 [engine.persistence]
 journal_compaction_threshold = 1000  # Max journal entries before compaction (reserved)
+
+# ---------------------------------------------------------------------------
+# Map tile sources
+# ---------------------------------------------------------------------------
+# The full-map overlay fetches raster tiles from whichever entry below is
+# selected at runtime via `/map <id>` (see /help). The OSM default is
+# anachronistic for Rundale's 1820 setting; see docs/design/map-evolution.md
+# for the Phase D.1 motivation.
+#
+# Baked-in defaults (no config needed): `osm` and `historic`.
+# Overriding any entry replaces it; entries you don't list stay intact —
+# see MapConfig::apply_defaults in crates/parish-config/src/engine.rs.
+#
+# [engine.map]
+# default_tile_source = "osm"
+#
+# [engine.map.tile_sources.osm]
+# label = "OpenStreetMap"
+# url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+# tile_size = 256
+# minzoom = 0
+# maxzoom = 19
+# attribution = "© OpenStreetMap contributors"
+# raster_saturation = -0.4         # -1.0 fully grey, 0.0 untouched, 1.0 saturated
+# raster_opacity = 0.85
+# tms = false                      # true flips y-axis (ArcGIS-style services)
+#
+# [engine.map.tile_sources.historic]
+# # Ordnance Survey of Ireland First Edition 6-inch (surveyed 1829–1842),
+# # scanned and hosted by the National Library of Scotland under CC-BY-SA 3.0.
+# # NLS serves Ireland as 32 per-county tilesets under `os/<county>1/` — there
+# # is no seamless all-Ireland layer. The baked-in default is Roscommon (where
+# # Rundale is set); expanding to whole-island coverage is tracked in #360.
+# #
+# # Alternatives if you need another projection or higher fidelity:
+# #   - Tailte Éireann MapGenie (https://tailte.ie/services/mapgenie/) — gated
+# #     behind the National Mapping Agreement.
+# #   - GeoHive viewer (https://map.geohive.ie/) — free, capture the tile URL
+# #     from browser DevTools; scheme is ArcGIS (`tms = true`).
+# label = 'Historic 6" OS Ireland (1st ed., via NLS)'
+# url = "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
+# tile_size = 256
+# minzoom = 1
+# maxzoom = 17
+# attribution = 'Historic 6" OS Ireland (1829–1842), via National Library of Scotland'
+# raster_saturation = 0.0
+# raster_opacity = 1.0
+# tms = false                      # NLS uses standard XYZ; set true only for ArcGIS y-flipped services

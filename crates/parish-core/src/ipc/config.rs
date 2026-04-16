@@ -56,6 +56,14 @@ pub struct GameConfig {
     /// back to the base client inherit whatever limiter the base client
     /// was constructed with (see [`crate::inference::openai_client::OpenAiClient::with_rate_limit`]).
     pub category_rate_limit: [Option<InferenceRateLimiter>; 4],
+    /// Id of the map tile source currently applied (matches a key in
+    /// `[engine.map.tile_sources]`). Empty string means "use engine default".
+    pub active_tile_source: String,
+    /// Registry of available tile sources as `(id, label)` pairs, alphabetical
+    /// by id. Populated at backend boot from `EngineConfig::map.tile_sources`
+    /// so the `/tiles` command handler can list and validate without taking
+    /// a reference to the whole engine config.
+    pub tile_sources: Vec<(String, String)>,
 }
 
 impl GameConfig {
@@ -152,6 +160,8 @@ impl Default for GameConfig {
             category_base_url: Default::default(),
             flags: FeatureFlags::default(),
             category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
         }
     }
 }
@@ -169,6 +179,8 @@ mod tests {
         assert_eq!(c.max_follow_up_turns, 2);
         assert_eq!(c.idle_banter_after_secs, 25);
         assert_eq!(c.auto_pause_after_secs, 60);
+        assert!(c.active_tile_source.is_empty());
+        assert!(c.tile_sources.is_empty());
     }
 
     #[test]

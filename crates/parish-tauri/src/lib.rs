@@ -137,6 +137,10 @@ pub struct UiConfigSnapshot {
     pub default_accent: String,
     /// Splash text displayed on game start (Zork-style).
     pub splash_text: String,
+    /// Id of the currently-active tile source (matches a `tile_sources` key).
+    pub active_tile_source: String,
+    /// Registry of available map tile sources, alphabetical by id.
+    pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
 }
 
 /// Runtime conversation/session state used for continuity and inactivity timers.
@@ -520,18 +524,30 @@ pub fn run() {
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
 
+    // Load engine config (parish.toml) for the map tile-source registry.
+    // Missing file / parse errors fall back to baked defaults
+    // (OSM + Ireland Historic 6").
+    let engine_config = parish_core::config::load_engine_config(None);
+    let tile_sources_snapshot =
+        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
+    let active_tile_source = engine_config.map.default_tile_source.clone();
+
     // Build UI config from mod or defaults
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
             default_accent: theme_palette.accent.clone(),
             splash_text: splash_text.clone(),
+            active_tile_source: active_tile_source.clone(),
+            tile_sources: tile_sources_snapshot.clone(),
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
             default_accent: theme_palette.accent.clone(),
             splash_text,
+            active_tile_source: active_tile_source.clone(),
+            tile_sources: tile_sources_snapshot,
         }
     };
 
@@ -593,6 +609,8 @@ pub fn run() {
             category_base_url: [None, None, None, None],
             flags,
             category_rate_limit: [None, None, None, None],
+            active_tile_source,
+            tile_sources: engine_config.map.id_label_pairs(),
         }),
     });
 

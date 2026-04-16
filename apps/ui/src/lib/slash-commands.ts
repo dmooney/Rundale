@@ -28,7 +28,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/cloud', description: 'Cloud provider settings', hasArgs: true },
 	{ command: '/debug', description: 'Debug panel', hasArgs: true },
 	{ command: '/spinner', description: 'Show loading spinner', hasArgs: true },
-	{ command: '/map', description: 'Show the parish map', hasArgs: false },
+	{ command: '/map', description: 'List or switch map tile sources', hasArgs: true },
 	{ command: '/npcs', description: "Who's here?", hasArgs: false },
 	{ command: '/time', description: 'What time is it?', hasArgs: false },
 	{ command: '/where', description: 'Where am I? (alias for /status)', hasArgs: false },

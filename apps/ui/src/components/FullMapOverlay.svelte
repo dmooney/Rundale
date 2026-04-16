@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { mapData } from '../stores/game';
 	import { travelState } from '../stores/travel';
+	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
 
@@ -29,7 +30,8 @@
 		controller = new MapController({
 			container,
 			variant: 'full',
-			interactive: true
+			interactive: true,
+			tileSource: currentTileSource($tiles)
 		});
 
 		controller.onLocationClick(async (info) => {
@@ -85,6 +87,12 @@
 		} else {
 			controller.stopTravel();
 		}
+	});
+
+	// Swap the base tile source when the user toggles via `/tiles`.
+	$effect(() => {
+		if (!mounted || !controller) return;
+		controller.setTileSource(currentTileSource($tiles));
 	});
 
 	function handleKeydown(e: KeyboardEvent) {

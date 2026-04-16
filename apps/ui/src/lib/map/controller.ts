@@ -25,7 +25,7 @@ import maplibregl, {
 	type MapMouseEvent,
 	type MapGeoJSONFeature
 } from 'maplibre-gl';
-import type { MapData, TravelWaypoint } from '$lib/types';
+import type { MapData, TileSource, TravelWaypoint } from '$lib/types';
 import { buildStyle, readThemeColors, type MapVariant } from './style';
 import {
 	locationsToGeoJSON,
@@ -44,6 +44,9 @@ export interface MapControllerOptions {
 	interactive: boolean;
 	/** Initial zoom level. Minimap uses a fixed zoom; full map fits bounds. */
 	initialZoom?: number;
+	/** Raster tile source to use for the base layer (full map only). Undefined
+	 *  or a source with an empty URL yields a flat-bg fallback. */
+	tileSource?: TileSource;
 }
 
 /** Callback payload emitted on location click. */
@@ -73,6 +76,10 @@ export class MapController {
 	private variant: MapVariant;
 	private ready = false;
 	private pendingMapData: MapData | null = null;
+	/** Last `MapData` we rendered. Retained so that `setTileSource()` can
+	 *  re-push the overlay GeoJSON after MapLibre's `setStyle()` wipes all
+	 *  sources and layers. */
+	private lastMapData: MapData | null = null;
 	/** Ids of currently-visible locations (filtered set, or all if no filter). */
 	private lastVisibleIds: Set<string> | null = null;
 	/** Active travel animation, cleared when travel ends. */
@@ -82,13 +89,16 @@ export class MapController {
 	/** Registered hover handler, if any. */
 	private hoverEnterHandler: ((info: LocationHoverInfo) => void) | null = null;
 	private hoverLeaveHandler: (() => void) | null = null;
+	/** Current tile source, mirrored so `setTileSource` can rebuild the style. */
+	private tileSource: TileSource | undefined;
 
 	constructor(options: MapControllerOptions) {
 		this.variant = options.variant;
+		this.tileSource = options.tileSource;
 		const theme = readThemeColors();
 		this.map = new maplibregl.Map({
 			container: options.container,
-			style: buildStyle(options.variant, theme),
+			style: buildStyle(options.variant, theme, this.tileSource),
 			center: [-8.15, 53.59], // Kiltoom/Kilteevan reference center
 			zoom: options.initialZoom ?? (options.variant === 'minimap' ? 14 : 13),
 			interactive: options.interactive,
@@ -110,6 +120,31 @@ export class MapController {
 	}
 
 	/**
+	 * Swaps the base tile source at runtime.
+	 *
+	 * MapLibre's `setStyle()` wipes all existing sources and layers, so after
+	 * the new style's `styledata` event fires we re-push the last `MapData`
+	 * to restore the location/edge overlays. Using `.once()` avoids re-entry
+	 * on repeated `styledata` fires.
+	 *
+	 * Called by the full-map component's `$effect` when the `tiles` store's
+	 * active id changes (driven by the `tiles-switch` event from `/tiles`).
+	 */
+	setTileSource(source: TileSource | undefined): void {
+		this.tileSource = source;
+		const theme = readThemeColors();
+		this.ready = false;
+		this.map.setStyle(buildStyle(this.variant, theme, source));
+		this.map.once('styledata', () => {
+			this.ready = true;
+			this.wireLayerEvents();
+			const data = this.pendingMapData ?? this.lastMapData;
+			this.pendingMapData = null;
+			if (data) this.updateMap(data, this.lastVisibleIds ?? undefined);
+		});
+	}
+
+	/**
 	 * Updates the map's location and edge sources from the latest `MapData`.
 	 *
 	 * On the minimap, pass `visibleIds` to restrict which locations and edges
@@ -117,6 +152,9 @@ export class MapController {
 	 * the player). On the full map, pass undefined to render everything.
 	 */
 	updateMap(mapData: MapData, visibleIds?: ReadonlySet<string>): void {
+		// Retained for post-`setStyle` re-push in `setTileSource`.
+		this.lastMapData = mapData;
+
 		if (!this.ready) {
 			this.pendingMapData = mapData;
 			return;
