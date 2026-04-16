@@ -107,6 +107,15 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="map-embed">
+	<button
+		type="button"
+		class="close-btn"
+		aria-label="Close full map"
+		title="Close (M or Esc)"
+		onclick={onclose}
+	>
+		<span aria-hidden="true">&times;</span>
+	</button>
 	<div class="map-container" bind:this={container}></div>
 	{#if tooltip}
 		<div class="tooltip">
@@ -127,13 +136,38 @@
 
 <style>
 	.map-embed {
-		flex: 1;
-		min-height: 0;
+		position: absolute;
+		inset: 0;
+		z-index: 50;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
 		background: var(--color-panel-bg);
-		position: relative;
+	}
+
+	.close-btn {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		z-index: 2;
+		background: var(--color-panel-bg);
+		border: 1px solid var(--color-border);
+		border-radius: 4px;
+		color: var(--color-muted);
+		font-size: 1.4rem;
+		line-height: 1;
+		padding: 2px 8px 4px;
+		cursor: pointer;
+	}
+
+	.close-btn:hover,
+	.close-btn:focus-visible {
+		color: var(--color-fg);
+	}
+
+	.close-btn:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 2px;
 	}
 
 	.map-container {

@@ -552,9 +552,7 @@
 
 	<div class="main-area">
 		<div class="chat-col" class:mobile-hidden={mobilePanel !== 'none'}>
-			{#if $fullMapOpen}
-				<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
-			{:else if $focailOpen}
+			{#if $focailOpen}
 				<Sidebar onclose={() => focailOpen.set(false)} />
 			{:else}
 				<ChatPanel />
@@ -565,6 +563,9 @@
 			<MapPanel />
 			<Sidebar />
 		</div>
+		{#if $fullMapOpen}
+			<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
+		{/if}
 	</div>
 
 </div>
@@ -592,6 +593,7 @@
 		grid-template-columns: 1fr 220px;
 		overflow: hidden;
 		min-height: 0;
+		position: relative;
 	}
 
 	.chat-col {
