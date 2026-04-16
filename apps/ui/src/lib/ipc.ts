@@ -100,6 +100,13 @@ let ws: WebSocket | null = null;
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const wsListeners = new Map<string, Set<EventCallback<unknown>>>();
 
+function clearReconnectTimer(): void {
+	if (wsReconnectTimer !== null) {
+		clearTimeout(wsReconnectTimer);
+		wsReconnectTimer = null;
+	}
+}
+
 function ensureWebSocket(): void {
 	if (IS_TAURI || ws) return;
 
@@ -124,8 +131,10 @@ function ensureWebSocket(): void {
 
 	ws.onclose = () => {
 		ws = null;
-		// Auto-reconnect after 2 seconds
-		if (!wsReconnectTimer) {
+		// Auto-reconnect after 2 seconds, but only if we still have
+		// listeners expecting events. If the page already tore down its
+		// listeners, bail out instead of reconnecting to nothing.
+		if (wsReconnectTimer === null && wsListeners.size > 0) {
 			wsReconnectTimer = setTimeout(() => {
 				wsReconnectTimer = null;
 				if (wsListeners.size > 0) {
@@ -138,6 +147,31 @@ function ensureWebSocket(): void {
 	ws.onerror = () => {
 		// onclose will fire after onerror
 	};
+}
+
+/**
+ * Tear down the browser-mode WebSocket transport.
+ *
+ * Clears the pending reconnect timer (if any) and closes the socket.
+ * Safe to call multiple times and in Tauri mode (no-op). The page
+ * should call this from `onDestroy` to prevent orphaned connections
+ * and reconnect timers after navigation.
+ */
+export function disposeTransport(): void {
+	if (IS_TAURI) return;
+	clearReconnectTimer();
+	if (ws) {
+		// Detach handlers so the `onclose` reconnect path doesn't fire.
+		ws.onclose = null;
+		ws.onerror = null;
+		ws.onmessage = null;
+		try {
+			ws.close();
+		} catch {
+			// Ignore — already closing/closed.
+		}
+		ws = null;
+	}
 }
 
 async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<UnlistenFn> {
@@ -160,6 +194,11 @@ async function onEvent<T>(event: string, cb: EventCallback<T>): Promise<Unlisten
 			if (set.size === 0) {
 				wsListeners.delete(event);
 			}
+		}
+		// When no listeners remain, cancel any pending reconnect so we
+		// don't open a zombie socket after the page has torn down.
+		if (wsListeners.size === 0) {
+			clearReconnectTimer();
 		}
 	};
 }

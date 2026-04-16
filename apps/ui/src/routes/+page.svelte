@@ -42,7 +42,8 @@
 		onOpenDesigner,
 		onNpcReaction,
 		onTravelStart,
-		submitInput
+		submitInput,
+		disposeTransport
 	} from '$lib/ipc';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
 	import { getStreamChunkDelayMs, takeNextStreamChunk } from '$lib/stream-pacing';
@@ -155,6 +156,10 @@
 	});
 	onDestroy(() => {
 		mountCleanup?.();
+		// In browser mode, also tear down the shared WebSocket and any
+		// pending reconnect timer so navigation away doesn't leave an
+		// orphan socket or a zombie reconnect queued.
+		disposeTransport();
 	});
 
 	async function setupMount(): Promise<() => void> {

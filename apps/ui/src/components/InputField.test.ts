@@ -510,6 +510,77 @@ describe('InputField', () => {
 		});
 	});
 
+	// ── Paste handling ──────────────────────────────────────────────────
+
+	describe('paste handling', () => {
+		function placeCursorAtEnd(editor: HTMLElement) {
+			const range = document.createRange();
+			const sel = window.getSelection();
+			range.selectNodeContents(editor);
+			range.collapse(false);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		function makePasteEvent(text: string): ClipboardEvent {
+			// jsdom doesn't expose `DataTransfer`, so build a minimal stand-in
+			// that only supports the `getData('text/plain')` call the paste
+			// handler makes, and attach it via a non-enumerable property.
+			const evt = new Event('paste', {
+				bubbles: true,
+				cancelable: true
+			}) as ClipboardEvent;
+			Object.defineProperty(evt, 'clipboardData', {
+				value: {
+					getData: (type: string) => (type === 'text/plain' ? text : '')
+				}
+			});
+			return evt;
+		}
+
+		it('inserts pasted plain text into an empty editor', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox') as HTMLElement;
+			editor.focus();
+			placeCursorAtEnd(editor);
+
+			const evt = makePasteEvent('hello world');
+			editor.dispatchEvent(evt);
+
+			expect(evt.defaultPrevented).toBe(true);
+			expect(editor.textContent).toBe('hello world');
+		});
+
+		it('inserts pasted text at the cursor and keeps editorText state in sync (send enabled)', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox') as HTMLElement;
+			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+			expect(sendBtn.disabled).toBe(true);
+
+			editor.focus();
+			placeCursorAtEnd(editor);
+			editor.dispatchEvent(makePasteEvent('pasted'));
+
+			// Wait a microtask for Svelte reactivity to settle.
+			await Promise.resolve();
+			expect(editor.textContent).toBe('pasted');
+			expect(sendBtn.disabled).toBe(false);
+		});
+
+		it('pasting submits via Enter with the pasted content', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox') as HTMLElement;
+			editor.focus();
+			placeCursorAtEnd(editor);
+
+			editor.dispatchEvent(makePasteEvent('typed via paste'));
+			await Promise.resolve();
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('typed via paste', []);
+		});
+	});
+
 	// ── findMatches utility ─────────────────────────────────────────────
 
 	describe('findMatches', () => {
