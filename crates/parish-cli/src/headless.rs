@@ -537,6 +537,14 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
         match effect {
             CommandEffect::RebuildInference => {
                 if app.provider_name != "simulator" {
+                    if !(app.base_url.starts_with("http://")
+                        || app.base_url.starts_with("https://"))
+                    {
+                        println!(
+                            "[Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.]",
+                            app.base_url
+                        );
+                    }
                     app.client = Some(OpenAiClient::new(&app.base_url, app.api_key.as_deref()));
                 }
                 rebuild = true;

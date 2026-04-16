@@ -186,6 +186,18 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     let any_client = if provider_name == "simulator" {
         AnyClient::simulator()
     } else {
+        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
+            state.event_bus.emit(
+                "text-log",
+                &text_log(
+                    "system",
+                    format!(
+                        "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
+                        base_url
+                    ),
+                ),
+            );
+        }
         let oai = OpenAiClient::new(&base_url, api_key.as_deref());
         let mut client_guard = state.client.lock().await;
         *client_guard = Some(oai.clone());
@@ -748,7 +760,6 @@ async fn run_npc_turn(
     state
         .event_bus
         .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
-    loading_cancel.cancel();
 
     let response = match outcome {
         InferenceAwaitOutcome::Response(r) => r,
@@ -761,6 +772,7 @@ async fn run_npc_turn(
                 "text-log",
                 &text_log("system", "The storyteller has wandered off mid-tale."),
             );
+            loading_cancel.cancel();
             return None;
         }
         InferenceAwaitOutcome::TimedOut { secs } => {
@@ -769,6 +781,7 @@ async fn run_npc_turn(
                 "text-log",
                 &text_log("system", "The storyteller is lost in thought. Try again."),
             );
+            loading_cancel.cancel();
             return None;
         }
     };
@@ -780,8 +793,11 @@ async fn run_npc_turn(
             "text-log",
             &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
         );
+        loading_cancel.cancel();
         return None;
     }
+
+    loading_cancel.cancel();
 
     let parsed = parse_npc_stream_response(&response.text);
     let hints = parsed
