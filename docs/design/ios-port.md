@@ -34,7 +34,7 @@ the trade-off is explicit.
 ┌─────────────┐  ┌──────────────────┐  ┌──────────────────────────────┐
 │ parish-cli  │  │ parish-tauri     │  │ parish-tauri                 │
 │ (headless)  │  │ desktop          │  │ iOS (new)                    │
-│ Ollama HTTP │  │ Ollama HTTP      │  │ llama.cpp + Metal in-process │
+│ Ollama HTTP │  │ Ollama HTTP      │  │ LiteRT-LM + iOS GPU in-proc  │
 └─────────────┘  └──────────────────┘  └──────────────────────────────┘
                  ┌──────────────────┐
                  │ parish-server    │
@@ -46,7 +46,7 @@ iOS becomes a fourth mode alongside the headless CLI, Tauri desktop, and the
 Axum web server. All four consume `crates/parish-core/` unchanged. The only
 iOS-specific code lives in three places:
 
-1. **The inference backend** — `llama.cpp` linked statically into the Rust core
+1. **The inference backend** — LiteRT-LM linked into the Rust core via C++ FFI
 2. **The save-path resolver** — iOS sandbox instead of relative `saves/`
 3. **The Tauri shell glue** — the Xcode project, bundle resources, and a one-line override that forces the embedded backend on iOS
 
@@ -104,36 +104,42 @@ worker's queue / log / streaming machinery stays exactly as it is — only the
 type parameter changes.
 
 The existing `OpenAiClient` becomes one impl (HTTP path, used by every
-non-iOS mode). A new `LlamaCppClient` becomes the other (embedded path),
+non-iOS mode). A new `LiteRtLmClient` becomes the other (embedded path),
 gated behind a `ios-inference` Cargo feature on `parish-core`. No mode
 gets both at once: the choice is made at compile time.
 
 ### The embedded backend
 
-The realistic option is **llama.cpp via the [`llama-cpp-2`](https://crates.io/crates/llama-cpp-2)
-Rust binding (or hand-rolled FFI), statically linked into the Rust core.**
-It already supports Metal on Apple Silicon, runs quantized GGUF models, and
-compiles cleanly for `aarch64-apple-ios`. `LlamaCppClient::new` takes the
-filesystem path of a GGUF model so the Swift layer (or Rust startup code)
+The v1 option is **LiteRT-LM via a thin C++ bridge, statically linked into
+the Rust core.** Google positions LiteRT-LM as the production-ready on-device
+LLM runtime for Android/iOS/web/desktop, and specifically ships Gemma 4 E2B/E4B
+edge variants with iOS GPU acceleration. `LiteRtLmClient::new` should take the
+filesystem path of a `.litertlm` model so the Swift layer (or Rust startup code)
 can hand it whichever file was downloaded for this device.
+
+Web-validated references (checked April 16, 2026):
+
+- LiteRT-LM README: Gemma 4 support and cross-platform (including iOS) positioning — <https://github.com/google-ai-edge/LiteRT-LM>
+- Google Developers blog benchmark post: iOS GPU decode numbers for Gemma4 E2B/E4B — <https://developers.googleblog.com/en/bringing-agentic-ai-to-edge-devices-with-gemma-3n/>
+- Google AI Edge iOS LLM guide: older MediaPipe API is deprecated in favor of LiteRT-LM — <https://ai.google.dev/edge/mediapipe/solutions/genai/llm_inference/ios>
 
 Alternatives considered for v1 and rejected:
 
+- **`llama.cpp` + GGUF** — still viable fallback, but no longer the primary plan now that Gemma 4 has first-party LiteRT-LM packaging and published iOS GPU numbers.
 - **Apple MLX** — solid Apple-Silicon backend, but its Rust story is immature and it would force a Swift-side inference path with a second IPC hop.
-- **Core ML / Apple Neural Engine** — see [Q&A](#qa--common-decisions). Skip for v1.
 
 ### Model choice
 
-A Q4_K_M quantization of a 3B–4B class instruction model:
+Use **Gemma 4 edge variants** as the default local model family:
 
-| Model            | Size on disk | Resident RAM | Notes                          |
-|------------------|--------------|--------------|--------------------------------|
-| Qwen2.5-3B Q4    | ~1.9 GB      | ~3 GB        | Strong roleplay quality        |
-| Llama-3.2-3B Q4  | ~2.0 GB      | ~3 GB        | Solid instruction-following    |
-| Phi-3.5-mini Q4  | ~2.3 GB      | ~3.2 GB      | Stronger reasoning, weaker RP  |
+| Model         | Size on disk | iOS 17 Pro GPU decode | Notes |
+|---------------|--------------|------------------------|-------|
+| Gemma4-E2B-it | 2.58 GB      | ~56–57 tok/s           | Best default for responsiveness + memory |
+| Gemma4-E4B-it | 3.65 GB      | ~25 tok/s              | Better quality; higher memory/thermal pressure |
 
-All three fit comfortably on an 8 GB device alongside `WKWebView` and game
-state.
+Both are explicitly benchmarked by Google AI Edge on iOS GPU. Start with E2B
+as the shipping default and keep E4B as an opt-in "high quality" setting for
+latest Pro-class devices.
 
 The current `qwen3:14b`-tuned prompts in
 `mods/rundale/prompts/tier1_system.txt` will need a revision pass for
@@ -243,13 +249,13 @@ users who would be fine waiting for the model to fetch later.
 
 Apple gives us two clean mechanisms:
 
-1. **On-Demand Resources (ODR)** — tag GGUF variants in the Xcode project and request them at runtime. They don't count against the initial IPA size, download on first launch, and Apple handles the CDN. Recommended.
+1. **On-Demand Resources (ODR)** — tag `.litertlm` model variants in the Xcode project and request them at runtime. They don't count against the initial IPA size, download on first launch, and Apple handles the CDN. Recommended.
 2. **Background `URLSession` from a CDN we control** — write to the app's Application Support directory. More work but gives us full control over hosting and updates.
 
 Either way:
 
-- Detect device class on first launch (`ProcessInfo.processInfo.physicalMemory`, device model) and pick a quant: 3B-Q4 for 6 GB devices, 4B-Q4 or 7B-Q4 for 8 GB devices (15 Pro / 16 / 16 Pro).
-- `LlamaCppClient::new` takes the resolved model path so the Swift layer can hand it whichever file it downloaded.
+- Detect device class on first launch (`ProcessInfo.processInfo.physicalMemory`, device model) and pick a model tier: Gemma4-E2B for baseline compatibility, Gemma4-E4B for higher-end devices.
+- `LiteRtLmClient::new` takes the resolved model path so the Swift layer can hand it whichever `.litertlm` file it downloaded.
 - Show a one-time "Downloading parish brain (~2 GB)" screen on first launch. Reuse the existing `LoadingAnimation` from `crates/parish-core/src/loading.rs` for visual continuity with the desktop boot experience.
 
 ## Q&A — Common Decisions
@@ -270,18 +276,10 @@ account from day one.
 
 Skip for v1.
 
-The ANE is reachable exclusively through Core ML, and Core ML's transformer
-support is geared toward small/medium models with fixed shapes. For
-autoregressive LLM decoding with a sliding KV cache, the practical state of
-the art on Apple Silicon is still Metal/MPS via `llama.cpp` or MLX, both of
-which run on the **GPU**, not the ANE. `llama.cpp`'s Metal backend on an
-A17 Pro / A18 hits roughly 20–30 tokens/sec for a 3B Q4, which is plenty for
-Rundale's tier-1 dialogue.
-
-If we wanted ANE specifically, the path would be: convert the model to Core
-ML packages with `coremltools` (stateful KV-cache support landed in iOS 18),
-then call it from Swift. That's a real research project on its own and would
-re-introduce a Swift inference path with a second IPC hop. Defer to v2; only
+LiteRT-LM's current iOS path is GPU-first and already publishes strong Gemma 4
+decode throughput on iPhone-class hardware, which is enough for Rundale's
+tier-1 dialogue UX. ANE-specific tuning would require a separate Core ML-first
+inference path and a different model packaging workflow. Defer to v2; only
 revisit if battery or thermal measurements demand it.
 
 ### iPhone Simulator?
@@ -431,7 +429,7 @@ App Review reality:
 ## Risks
 
 - **LLM quality on a 3B model is the dominant risk.** Current prompts and the anachronism pipeline (`crates/parish-core/src/npc/anachronism.rs`) were tuned against a 14B model. Expect a real prompt-engineering pass and possibly more frequent fallback to Tier-2 cognition. This is the only piece that can't be derisked just by writing the integration — it has to be measured against real player conversations.
-- **Memory pressure.** 3B Q4 + WKWebView + game state ≈ 3.5–4 GB resident. Fine on 8 GB devices, marginal on 6 GB. Don't target pre-iPhone-15-Pro hardware.
+- **Memory pressure.** Gemma4-E2B plus `WKWebView` + game state should be manageable on 8 GB devices, but E4B can push thermal and memory headroom. Keep pre-iPhone-15-Pro hardware out of scope.
 - **App Store review.** Bundling a multi-GB model is allowed but pushes the IPA over the cellular-download limit. ODR sidesteps this but adds a first-launch download-screen requirement that reviewers will check.
 - **Tauri iOS maturity.** `WKWebView` quirks (no `eval`, stricter CSP) sometimes bite Svelte apps. Budget time for a shakedown pass. `tauri.conf.json` currently sets `security.csp: null`, which simplifies dev but may need tightening for App Store review.
 - **Background termination.** iOS aggressively kills backgrounded apps with high RAM usage. The session-resume path (load from latest snapshot) needs to be fast and reliable on a cold start.
@@ -442,7 +440,7 @@ When this design is implemented:
 
 1. `cargo build --target aarch64-apple-ios --features ios-inference -p parish-core` — core compiles for the device.
 2. `cd crates/parish-tauri && cargo tauri ios build` — produces an `.ipa`.
-3. **Install on a physical iPhone 15 Pro** (the simulator can't run Metal-accelerated `llama.cpp` realistically) and smoke-test:
+3. **Install on a physical iPhone 15 Pro or newer** (the simulator can't represent real on-device GPU LLM perf) and smoke-test:
    - Start a new game, walk between two locations, talk to an NPC. Confirm token streaming arrives in `apps/ui/src/components/ChatPanel.svelte`.
    - Save, kill the app from the multitasker, relaunch, load. Confirm `rusqlite` round-trips through the iOS sandbox path resolved by `ensure_saves_dir`.
    - Confirm the anachronism filter still fires, the conversation log persists across turns, and time advances.
@@ -463,11 +461,11 @@ Forward reference for whoever picks this up:
 | Path                                                              | Change                                                          |
 |-------------------------------------------------------------------|-----------------------------------------------------------------|
 | `crates/parish-core/src/inference/mod.rs`                         | `InferenceBackend` trait, generic worker                        |
-| `crates/parish-core/src/inference/llama_cpp_client.rs` *(new)*    | Embedded backend behind `ios-inference` feature                 |
+| `crates/parish-core/src/inference/litert_lm_client.rs` *(new)*    | Embedded LiteRT-LM backend behind `ios-inference` feature       |
 | `crates/parish-core/src/inference/setup.rs`                       | `cfg`-gate Ollama bootstrap and GPU probe                       |
 | `crates/parish-core/src/inference/client.rs`                      | `cfg`-gate `OllamaProcess`                                      |
 | `crates/parish-core/src/persistence/picker.rs`                    | iOS sandbox branch in `ensure_saves_dir` (and a `saves_dir()` helper) |
-| `crates/parish-core/Cargo.toml`                                   | `ios-inference` feature, conditional `llama-cpp-2` dep          |
+| `crates/parish-core/Cargo.toml`                                   | `ios-inference` feature, conditional LiteRT-LM/C++ bridge deps  |
 | `crates/parish-tauri/tauri.conf.json`                             | iOS bundle target, `bundle.resources` for the mod, iOS icons    |
 | `crates/parish-tauri/src/lib.rs`                                  | Force embedded backend on `target_os = "ios"`; gate `--screenshot` flag parsing |
 | `crates/parish-tauri/gen/apple/` *(generated)*                    | Xcode project from `cargo tauri ios init`                       |
