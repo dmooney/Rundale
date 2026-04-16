@@ -7,8 +7,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::Extension;
 use axum::Json;
-use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
@@ -34,7 +34,7 @@ fn mods_root(state: &AppState) -> PathBuf {
 
 /// `GET /api/editor-list-mods`
 pub async fn editor_list_mods(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<Vec<ModSummary>>, (StatusCode, String)> {
     editor::handle_editor_list_mods(&mods_root(&state))
         .map(Json)
@@ -43,7 +43,7 @@ pub async fn editor_list_mods(
 
 /// `POST /api/editor-open-mod` with JSON body `{ "modPath": "..." }`
 pub async fn editor_open_mod(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<EditorOpenModBody>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
     let path = PathBuf::from(&body.mod_path);
@@ -63,7 +63,7 @@ pub struct EditorOpenModBody {
 
 /// `GET /api/editor-get-snapshot`
 pub async fn editor_get_snapshot(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
     editor::handle_editor_get_snapshot(&state.editor)
         .map(Json)
@@ -72,7 +72,7 @@ pub async fn editor_get_snapshot(
 
 /// `GET /api/editor-validate`
 pub async fn editor_validate(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
     editor::handle_editor_validate(&state.editor)
         .map(Json)
@@ -81,7 +81,7 @@ pub async fn editor_validate(
 
 /// `POST /api/editor-update-npcs` with JSON body `{ "npcs": ... }`
 pub async fn editor_update_npcs(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<EditorUpdateNpcsBody>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
     let npcs = serde_json::from_value(body.npcs)
@@ -98,7 +98,7 @@ pub struct EditorUpdateNpcsBody {
 
 /// `POST /api/editor-update-locations` with JSON body `{ "locations": [...] }`
 pub async fn editor_update_locations(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<EditorUpdateLocationsBody>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
     let locations = serde_json::from_value(body.locations).map_err(|e| {
@@ -119,7 +119,7 @@ pub struct EditorUpdateLocationsBody {
 
 /// `POST /api/editor-save` with JSON body `{ "docs": ["npcs", "world", ...] }`
 pub async fn editor_save(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<EditorSaveBody>,
 ) -> Result<Json<EditorSaveResponse>, (StatusCode, String)> {
     editor::handle_editor_save(&state.editor, body.docs)
@@ -134,7 +134,7 @@ pub struct EditorSaveBody {
 
 /// `POST /api/editor-reload`
 pub async fn editor_reload(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
     editor::handle_editor_reload(&state.editor)
         .map(Json)
@@ -143,7 +143,7 @@ pub async fn editor_reload(
 
 /// `POST /api/editor-close`
 pub async fn editor_close(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     editor::handle_editor_close(&state.editor)
         .map(|_| StatusCode::NO_CONTENT)
@@ -154,7 +154,7 @@ pub async fn editor_close(
 
 /// `GET /api/editor-list-saves`
 pub async fn editor_list_saves(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<Vec<SaveFileSummary>>, (StatusCode, String)> {
     editor::handle_editor_list_saves(&state.saves_dir)
         .map(Json)
@@ -169,7 +169,7 @@ pub struct SavePathBody {
 
 /// `POST /api/editor-list-branches`
 pub async fn editor_list_branches(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<SavePathBody>,
 ) -> Result<Json<Vec<BranchSummary>>, (StatusCode, String)> {
     let raw = PathBuf::from(&body.save_path);
@@ -189,7 +189,7 @@ pub struct SavePathBranchBody {
 
 /// `POST /api/editor-list-snapshots`
 pub async fn editor_list_snapshots(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<SavePathBranchBody>,
 ) -> Result<Json<Vec<SnapshotSummary>>, (StatusCode, String)> {
     let raw = PathBuf::from(&body.save_path);
@@ -202,7 +202,7 @@ pub async fn editor_list_snapshots(
 
 /// `POST /api/editor-read-snapshot`
 pub async fn editor_read_snapshot(
-    State(state): State<Arc<AppState>>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<SavePathBranchBody>,
 ) -> Result<Json<Option<SnapshotDetail>>, (StatusCode, String)> {
     let raw = PathBuf::from(&body.save_path);
@@ -216,7 +216,7 @@ pub async fn editor_read_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::extract::State;
+    use axum::Extension;
 
     #[tokio::test]
     async fn editor_open_mod_rejects_path_traversal() {
@@ -224,7 +224,7 @@ mod tests {
         let body = EditorOpenModBody {
             mod_path: "../../etc/passwd".to_string(),
         };
-        let result = editor_open_mod(State(state), Json(body)).await;
+        let result = editor_open_mod(Extension(state), Json(body)).await;
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -236,7 +236,7 @@ mod tests {
         let body = SavePathBody {
             save_path: "../../etc/passwd".to_string(),
         };
-        let result = editor_list_branches(State(state), Json(body)).await;
+        let result = editor_list_branches(Extension(state), Json(body)).await;
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -249,7 +249,7 @@ mod tests {
             save_path: "../../etc/passwd".to_string(),
             branch_id: 1,
         };
-        let result = editor_list_snapshots(State(state), Json(body)).await;
+        let result = editor_list_snapshots(Extension(state), Json(body)).await;
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -262,7 +262,7 @@ mod tests {
             save_path: "../../etc/passwd".to_string(),
             branch_id: 1,
         };
-        let result = editor_read_snapshot(State(state), Json(body)).await;
+        let result = editor_read_snapshot(Extension(state), Json(body)).await;
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);

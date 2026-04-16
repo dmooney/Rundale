@@ -99,7 +99,12 @@ run-headless:
     cargo run -p parish -- --headless
 
 # Run the axum web server (serves the Svelte UI in a browser)
-web PORT="3001":
+#
+# Always rebuilds the frontend first with a clean cache, because Vite's
+# `.svelte-kit/` cache can hold stale compiled output after git operations
+# (rebase/checkout/merge), making source edits appear invisible in the served
+# UI and spuriously re-emitting already-fixed build warnings.
+web PORT="3001": ui-build
     cargo run -p parish -- --web {{PORT}}
 
 # ─── Tauri & Frontend ────────────────────────────────────────────────────────
@@ -117,8 +122,12 @@ ui-dev:
     eval "$(fnm env)" && cd apps/ui && npm run dev
 
 # Build the Svelte frontend for production
+#
+# Clears `.svelte-kit/` and `dist/` before building so Vite can't serve
+# stale compiled output after git operations (rebase/checkout/merge) that
+# shuffle file mtimes in ways that confuse Vite's cache invalidation.
 ui-build:
-    eval "$(fnm env)" && cd apps/ui && npm run build
+    eval "$(fnm env)" && cd apps/ui && rm -rf .svelte-kit dist && npm run build
 
 # Run svelte-check (TypeScript + Svelte validation)
 ui-check:

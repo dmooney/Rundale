@@ -182,6 +182,24 @@
 		window.addEventListener('touchstart', onTrackerTouch);
 		window.addEventListener('mousemove', onTrackerMousemove);
 
+		// Pause immediately when the tab is hidden; resume when it returns.
+		// Only pauses if the game wasn't already paused, and only resumes if
+		// this handler was the one that paused it.
+		let visibilityPaused = false;
+		const handleVisibilityChange = () => {
+			if (document.hidden) {
+				const alreadyPaused = get(worldState)?.paused ?? false;
+				if (!alreadyPaused) {
+					void submitInput('/pause');
+					visibilityPaused = true;
+				}
+			} else if (visibilityPaused) {
+				void submitInput('/resume');
+				visibilityPaused = false;
+			}
+		};
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+
 		// Initial data fetch (theme first to avoid color flash).
 		//
 		// Use `allSettled` so a single failed endpoint doesn't block the
@@ -524,6 +542,7 @@
 			window.removeEventListener('mousedown', onTrackerMousedown);
 			window.removeEventListener('touchstart', onTrackerTouch);
 			window.removeEventListener('mousemove', onTrackerMousemove);
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			tracker.dispose();
 			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 			listeners.forEach((fn) => fn());

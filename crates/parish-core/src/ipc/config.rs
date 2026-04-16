@@ -12,6 +12,7 @@ use crate::inference::InferenceRateLimiter;
 ///
 /// Each backend wraps this in the appropriate synchronisation primitive
 /// (`Mutex<GameConfig>` for Tauri/web, direct field for headless `App`).
+#[derive(Clone)]
 pub struct GameConfig {
     /// Display name of the current base provider (e.g. "ollama", "openrouter").
     pub provider_name: String,

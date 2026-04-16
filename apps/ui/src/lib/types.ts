@@ -176,6 +176,15 @@ export interface DebugSnapshot {
 	conversations: ConversationsDebug;
 	events: DebugEvent[];
 	inference: InferenceDebug;
+	auth: AuthDebug;
+}
+
+export interface AuthDebug {
+	oauth_enabled: boolean;
+	logged_in: boolean;
+	provider: string | null;
+	display_name: string | null;
+	session_id: string | null;
 }
 
 export interface ClockDebug {

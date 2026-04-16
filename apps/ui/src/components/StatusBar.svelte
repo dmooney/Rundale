@@ -3,6 +3,7 @@
 	import { debugVisible } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { onMount, onDestroy } from 'svelte';
+	import AuthStatus from './AuthStatus.svelte';
 
 	let displayHour = $state(0);
 	let displayMinute = $state(0);
@@ -86,6 +87,7 @@
 		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
 		<a class="designer-link" href="/editor" title="Parish Designer — edit mod data">Designer</a>
 		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
+		<AuthStatus />
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
 		<span class="muted">Loading…</span>
