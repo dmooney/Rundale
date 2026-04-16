@@ -4,6 +4,7 @@
 //! standard HTTP + WebSocket so it can run in any browser. Primarily
 //! intended for automated Chrome testing via Playwright.
 
+pub mod editor_routes;
 pub mod routes;
 pub mod state;
 pub mod ws;
@@ -220,6 +221,44 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/new-game", post(routes::new_game))
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
+        // ── Editor routes (Parish Designer) ─────────────────────────────
+        .route(
+            "/api/editor-list-mods",
+            get(editor_routes::editor_list_mods),
+        )
+        .route("/api/editor-open-mod", post(editor_routes::editor_open_mod))
+        .route(
+            "/api/editor-get-snapshot",
+            get(editor_routes::editor_get_snapshot),
+        )
+        .route("/api/editor-validate", get(editor_routes::editor_validate))
+        .route(
+            "/api/editor-update-npcs",
+            post(editor_routes::editor_update_npcs),
+        )
+        .route(
+            "/api/editor-update-locations",
+            post(editor_routes::editor_update_locations),
+        )
+        .route("/api/editor-save", post(editor_routes::editor_save))
+        .route("/api/editor-reload", post(editor_routes::editor_reload))
+        .route("/api/editor-close", post(editor_routes::editor_close))
+        .route(
+            "/api/editor-list-saves",
+            get(editor_routes::editor_list_saves),
+        )
+        .route(
+            "/api/editor-list-branches",
+            post(editor_routes::editor_list_branches),
+        )
+        .route(
+            "/api/editor-list-snapshots",
+            post(editor_routes::editor_list_snapshots),
+        )
+        .route(
+            "/api/editor-read-snapshot",
+            post(editor_routes::editor_read_snapshot),
+        )
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
         .layer(middleware::from_fn(cf_access_guard))
         .with_state(state);

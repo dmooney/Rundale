@@ -6,6 +6,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod editor;
 pub mod handlers;
 pub mod streaming;
 pub mod types;

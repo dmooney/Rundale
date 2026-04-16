@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
+	import { goto } from '$app/navigation';
 	import StatusBar from '../components/StatusBar.svelte';
 	import ChatPanel from '../components/ChatPanel.svelte';
 	import MapPanel from '../components/MapPanel.svelte';
@@ -37,6 +38,8 @@
 		onTilesSwitch,
 		onDebugUpdate,
 		onSavePicker,
+		onToggleFullMap,
+		onOpenDesigner,
 		onNpcReaction,
 		onTravelStart,
 		submitInput
@@ -490,6 +493,14 @@
 
 			listeners.push(await onDebugUpdate((snap) => {
 				debugSnapshot.set(snap);
+			}));
+
+			listeners.push(await onToggleFullMap(() => {
+				fullMapOpen.update((v) => !v);
+			}));
+
+			listeners.push(await onOpenDesigner(() => {
+				goto('/editor');
 			}));
 
 			listeners.push(await onTravelStart((payload) => {

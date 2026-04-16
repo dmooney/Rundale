@@ -373,6 +373,14 @@ async fn handle_system_command(
                 app.exit(0);
                 return;
             }
+            CommandEffect::ToggleMap => {
+                let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
+                return; // No text log for map toggle
+            }
+            CommandEffect::OpenDesigner => {
+                let _ = app.emit(crate::events::EVENT_OPEN_DESIGNER, ());
+                return; // No text log — navigation handled by frontend
+            }
             CommandEffect::SaveGame => {
                 extra_response = Some(match do_save_game(state).await {
                     Ok(msg) => msg,

@@ -101,6 +101,8 @@ pub enum Command {
     About,
     /// Show or change the map tile source. No arg = list sources; arg = switch to it.
     Map(Option<String>),
+    /// Open the Parish Designer mod editor.
+    Designer,
     /// Show NPCs at the current location with details.
     NpcsHere,
     /// Show detailed time, weather, and season info.
@@ -291,6 +293,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         } else {
             Some(Command::Map(Some(arg)))
         }
+    } else if lower == "/designer" {
+        Some(Command::Designer)
     } else if lower == "/npcs" {
         Some(Command::NpcsHere)
     } else if lower == "/time" {
@@ -1343,6 +1347,16 @@ mod tests {
     fn test_classify_map_command() {
         let result = classify_input("/map");
         assert_eq!(result, InputResult::SystemCommand(Command::Map(None)));
+    }
+
+    #[test]
+    fn test_parse_designer_command() {
+        assert_eq!(parse_system_command("/designer"), Some(Command::Designer));
+        assert_eq!(parse_system_command("/DESIGNER"), Some(Command::Designer));
+        assert_eq!(
+            parse_system_command("  /designer  "),
+            Some(Command::Designer)
+        );
     }
 
     #[test]

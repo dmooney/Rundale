@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <title>Parish app icon</title>
+  <defs>
+    <radialGradient id="bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(34 24) rotate(46.5) scale(86)">
+      <stop offset="0" stop-color="#343a70" />
+      <stop offset="0.6" stop-color="#23284f" />
+      <stop offset="1" stop-color="#171a33" />
+    </radialGradient>
+    <linearGradient id="gold" x1="28" y1="16" x2="72" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f0d796" />
+      <stop offset="0.42" stop-color="#d7b365" />
+      <stop offset="1" stop-color="#9c7432" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="92" height="92" rx="20" fill="url(#bg)" />
+  <rect x="5.5" y="5.5" width="89" height="89" rx="18.5" stroke="#8b6c37" stroke-width="1.8" />
+  <g transform="translate(2.3 2.9)" opacity="0.26">
+    <circle
+      cx="50"
+      cy="50"
+      r="29.2"
+      fill="none"
+      stroke="#0b0d1b"
+      stroke-width="5.4"
+    />
+    <circle
+      cx="50"
+      cy="50"
+      r="15.5"
+      fill="none"
+      stroke="#0b0d1b"
+      stroke-width="5.8"
+      stroke-linecap="round"
+    />
+    <path
+      d="M 50 21
+         A 29 29 0 0 0 75.114 64.5
+         A 29 29 0 0 0 24.886 64.5
+         A 29 29 0 0 0 50 21 Z"
+      fill="none"
+      stroke="#0b0d1b"
+      stroke-width="5.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle
+      cx="50"
+      cy="50"
+      r="29.2"
+      fill="none"
+      stroke="#171a33"
+      stroke-width="7.8"
+      pathLength="360"
+      stroke-dasharray="24 96 24 96 24 96"
+      stroke-dashoffset="-8"
+      stroke-linecap="round"
+    />
+    <circle
+      cx="50"
+      cy="50"
+      r="29.2"
+      fill="none"
+      stroke="#0b0d1b"
+      stroke-width="5.4"
+      pathLength="360"
+      stroke-dasharray="30 90 30 90 30 90"
+      stroke-dashoffset="-66"
+      stroke-linecap="round"
+    />
+  </g>
+  <circle
+    cx="50"
+    cy="50"
+    r="29.2"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-width="5.4"
+  />
+  <circle
+    cx="50"
+    cy="50"
+    r="15.5"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-width="5.8"
+    stroke-linecap="round"
+  />
+  <path
+    d="M 50 21
+       A 29 29 0 0 0 75.114 64.5
+       A 29 29 0 0 0 24.886 64.5
+       A 29 29 0 0 0 50 21 Z"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-width="5.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle
+    cx="50"
+    cy="50"
+    r="29.2"
+    fill="none"
+    stroke="#23284f"
+    stroke-width="7.8"
+    pathLength="360"
+    stroke-dasharray="24 96 24 96 24 96"
+    stroke-dashoffset="-8"
+    stroke-linecap="round"
+  />
+  <circle
+    cx="50"
+    cy="50"
+    r="29.2"
+    fill="none"
+    stroke="url(#gold)"
+    stroke-width="5.4"
+    pathLength="360"
+    stroke-dasharray="30 90 30 90 30 90"
+    stroke-dashoffset="-66"
+    stroke-linecap="round"
+  />
+  <circle cx="50" cy="50" r="15.5" stroke="#f7e8c8" stroke-opacity="0.18" stroke-width="0.9" />
+  <path
+    d="M 50 21
+       A 29 29 0 0 0 75.114 64.5
+       A 29 29 0 0 0 24.886 64.5
+       A 29 29 0 0 0 50 21 Z"
+    fill="none"
+    stroke="#f7e8c8"
+    stroke-opacity="0.14"
+    stroke-width="0.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

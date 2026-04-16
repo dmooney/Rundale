@@ -3070,6 +3070,7 @@
                 "creative": 4
             },
             "home": 20,
+            "workplace": null,
             "mood": "curious",
             "seasonal_schedule": [
                 {
@@ -3360,6 +3361,7 @@
                 "creative": 3
             },
             "home": 15,
+            "workplace": null,
             "mood": "watchful",
             "seasonal_schedule": [
                 {
@@ -3661,6 +3663,7 @@
                 "creative": 2
             },
             "home": 15,
+            "workplace": null,
             "mood": "bitter",
             "seasonal_schedule": [
                 {
@@ -3855,6 +3858,7 @@
                 "creative": 4
             },
             "home": 15,
+            "workplace": null,
             "mood": "sharp",
             "seasonal_schedule": [
                 {

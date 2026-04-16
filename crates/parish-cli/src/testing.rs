@@ -532,6 +532,14 @@ impl GameTestHarness {
                 CommandEffect::ShowLog => {
                     return self.handle_show_log_effect();
                 }
+                CommandEffect::ToggleMap => {
+                    return self.handle_map_effect();
+                }
+                CommandEffect::OpenDesigner => {
+                    return ActionResult::SystemCommand {
+                        response: "The Parish Designer is only available in the GUI.".to_string(),
+                    };
+                }
                 CommandEffect::Debug(sub) => {
                     let lines = crate::debug::handle_debug(sub.as_deref(), &self.app);
                     for line in &lines {
@@ -773,6 +781,21 @@ impl GameTestHarness {
                 response: "Persistence not available.".to_string(),
             }
         }
+    }
+
+    /// Handles the ToggleMap effect — renders the map as text in test mode.
+    fn handle_map_effect(&mut self) -> ActionResult {
+        let player_loc = self.app.world.player_location;
+        let mut lines = vec!["=== Parish Map ===".to_string()];
+        for node_id in self.app.world.graph.location_ids() {
+            if let Some(data) = self.app.world.graph.get(node_id) {
+                let marker = if node_id == player_loc { " * " } else { "   " };
+                lines.push(format!("{}{}", marker, data.name));
+            }
+        }
+        let msg = lines.join("\n");
+        self.app.world.log(msg.clone());
+        ActionResult::SystemCommand { response: msg }
     }
 
     /// Handles the NewGame effect — reinitializes world and NPCs.

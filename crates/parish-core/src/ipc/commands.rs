@@ -26,6 +26,10 @@ pub enum CommandEffect {
     Quit,
     /// The inference pipeline needs to be rebuilt (provider/key changed).
     RebuildInference,
+    /// Toggle the full map overlay (GUI) or show text map (CLI).
+    ToggleMap,
+    /// Open the Parish Designer mod editor (GUI only).
+    OpenDesigner,
     /// Save the game.
     SaveGame,
     /// Fork a new timeline branch with the given name.
@@ -417,6 +421,7 @@ pub fn handle_command(
                 "  /irish             — Toggle Irish pronunciation sidebar",
                 "  /improv            — Toggle improv craft mode",
                 "  /map [id]          — List or switch map tile sources",
+                "  /designer          — Open the Parish Designer",
                 "  /flag list                  — List all feature flags",
                 "  /flag enable <name>         — Enable a feature flag",
                 "  /flag disable <name>        — Disable a feature flag",
@@ -435,6 +440,7 @@ pub fn handle_command(
         Command::Branches => CommandResult::effect_only(CommandEffect::ListBranches),
         Command::Log => CommandResult::effect_only(CommandEffect::ShowLog),
         Command::Map(arg) => handle_map_command(config, arg),
+        Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
         Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
         Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
         Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
