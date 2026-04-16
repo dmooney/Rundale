@@ -169,7 +169,7 @@ pub fn print_summary(locations: &[TrackedLocation]) {
 mod tests {
     use super::*;
     use parish_core::world::LocationId;
-    use parish_core::world::graph::Connection;
+    use parish_core::world::graph::{Connection, GeoKind};
 
     fn make_tracked_locations() -> Vec<TrackedLocation> {
         vec![
@@ -190,6 +190,7 @@ mod tests {
                     associated_npcs: vec![],
                     mythological_significance: None,
                     aliases: vec![],
+                    geo_kind: GeoKind::Real,
                 },
                 description_source: DescriptionSource::Template,
                 osm_id: Some(12345),
@@ -213,6 +214,7 @@ mod tests {
                     associated_npcs: vec![],
                     mythological_significance: None,
                     aliases: vec![],
+                    geo_kind: GeoKind::Real,
                 },
                 description_source: DescriptionSource::Template,
                 osm_id: Some(67890),

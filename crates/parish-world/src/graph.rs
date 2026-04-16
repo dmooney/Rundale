@@ -14,6 +14,18 @@ use crate::geo;
 use parish_config::WorldConfig;
 use parish_types::{LocationId, NpcId, ParishError};
 
+/// Declares whether a map location is grounded in a real place
+/// or authored as fiction.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GeoKind {
+    /// Backed by a real-world place that can be geocoded.
+    Real,
+    /// Authored location in the world fiction.
+    #[default]
+    Fictional,
+}
+
 /// A connection (edge) between two locations in the world graph.
 ///
 /// Each connection has a target location and a prose description of the path.
@@ -64,6 +76,9 @@ pub struct LocationData {
     /// Used by fuzzy name matching to support colloquial and semantic synonyms.
     #[serde(default)]
     pub aliases: Vec<String>,
+    /// Whether this location maps to a real place or is fictional.
+    #[serde(default)]
+    pub geo_kind: GeoKind,
 }
 
 /// The world graph: a collection of locations connected by traversable paths.

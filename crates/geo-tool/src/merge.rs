@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use parish_core::world::LocationId;
-use parish_core::world::graph::{Connection, LocationData, WorldGraph};
+use parish_core::world::graph::{Connection, GeoKind, LocationData, WorldGraph};
 
 use super::descriptions::DescriptionSource;
 use super::osm_model::haversine_distance;
@@ -247,6 +247,7 @@ mod tests {
                 associated_npcs: Vec::<NpcId>::new(),
                 mythological_significance: None,
                 aliases: vec![],
+                geo_kind: GeoKind::Real,
             },
             description_source: source,
             osm_id: None,

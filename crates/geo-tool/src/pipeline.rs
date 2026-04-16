@@ -9,7 +9,7 @@ use anyhow::{Context, Result, bail};
 use tracing::info;
 
 use parish_core::world::LocationId;
-use parish_core::world::graph::{Connection, LocationData};
+use parish_core::world::graph::{Connection, GeoKind, LocationData};
 
 use super::AdminLevel;
 use super::cache::ResponseCache;
@@ -236,6 +236,7 @@ fn build_locations(
                     associated_npcs: vec![],
                     mythological_significance,
                     aliases: vec![],
+                    geo_kind: GeoKind::Real,
                 },
                 description_source,
                 osm_id: Some(feature.osm_id),
