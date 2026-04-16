@@ -19,7 +19,6 @@ use tokio::task::JoinHandle;
 use parish_core::config::{FeatureFlags, Provider};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
-use parish_core::inference::AnyClient;
 use parish_core::inference::{
     AnyClient, InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
 };
