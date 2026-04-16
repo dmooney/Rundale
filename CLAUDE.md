@@ -1,91 +1,57 @@
-# Rundale — Claude Code Guide
+# Repository Guidelines — Rundale on the Parish Engine
 
-Detailed guides live in [docs/agent/](docs/agent/README.md):
+This file is unified with `AGENTS.md`. Keep both in sync.
 
-- [build-test.md](docs/agent/build-test.md) — cargo, harness, frontend, web, Tauri commands
-- [architecture.md](docs/agent/architecture.md) — workspace layout & module ownership
+Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.md):
+
+- [build-test.md](docs/agent/build-test.md) — cargo, harness, frontend, web, and Tauri commands
+- [architecture.md](docs/agent/architecture.md) — workspace layout and module ownership
 - [code-style.md](docs/agent/code-style.md) — Rust + Svelte conventions
-- [gotchas.md](docs/agent/gotchas.md) — tokio, rusqlite, ollama, mode parity
-- [git-workflow.md](docs/agent/git-workflow.md) — commits, standards, /prove
-- [skills.md](docs/agent/skills.md) — `/check`, `/verify`, `/prove`, `/play`, ...
+- [gotchas.md](docs/agent/gotchas.md) — Tokio, SQLite, Ollama, mode parity pitfalls
+- [git-workflow.md](docs/agent/git-workflow.md) — commits, tests, and PR standards
+- [skills.md](docs/agent/skills.md) — `/check`, `/verify`, `/prove`, `/play`, etc.
 
-## Non-negotiable rules
+**Rundale** is the game (Irish living world, 1820). **Parish** is the engine (Rust workspace + frontends).
 
-1. **Module ownership.** Shared game logic lives only in `crates/parish-core/`. The `parish-cli` crate re-exports it. Never duplicate modules under `crates/parish-cli/src/`.
-2. **Mode parity.** Tauri, headless CLI, and the web server must all share behavior — implement in `parish-core` and wire from every entry point.
-3. **Tests on every change.** Coverage must stay above 90% (`cargo tarpaulin`). Run `/check` before any commit and `/verify` before any push.
-4. **Prove gameplay features.** After implementing any gameplay change, run `/prove <feature>` — unit tests passing is not enough.
-5. **No `#[allow]`** without a justifying comment.
-6. **Feature flags for new engine features.** Every new gameplay or engine feature must be gated behind a feature flag (enabled by default). Add the flag check via `config.flags.is_enabled("my-feature-name")` and document the flag name in the PR. Use `/flag disable <name>` to turn it off if issues arise in production.
+## Current project state (quick map)
 
-## Quick start
+- Rust workspace crates under `crates/`:
+  - `parish-core` (shared game logic)
+  - `parish-cli` (CLI/headless binary `parish`)
+  - `parish-server` (Axum web backend)
+  - `parish-tauri` (Tauri desktop backend)
+  - `geo-tool` (OSM extraction CLI)
+- Frontend: `apps/ui/` (Svelte 5 + TypeScript)
+- Game content: `mods/rundale/`
+- Test fixtures: `testing/fixtures/`
+- Deploy artifacts: `deploy/`
+- Documentation hub: `docs/index.md`
+
+## Non-negotiable engineering rules
+
+1. **Module ownership:** Shared logic belongs in `crates/parish-core/` only. Do not duplicate shared modules in `crates/parish-cli/src/`.
+2. **Mode parity:** Tauri, headless CLI, and web server must share behavior.
+3. **Tests with behavior changes:** Add/adjust tests for every behavior change.
+4. **Gameplay proof:** For gameplay features, run `/prove <feature>` (unit tests alone are not sufficient).
+5. **No unexplained `#[allow]`:** Only with explicit justification.
+6. **Feature flags for new engine/gameplay features:** Gate with `config.flags.is_enabled("feature-name")`, default-on, and document in PR.
+
+## Standard commands
 
 ```sh
-just build       # cargo build (default member = parish-cli)
-just run         # cargo tauri dev (desktop)
+just build         # cargo build (default member parish-cli)
+just run           # cargo tauri dev
 just run-headless
-just check       # fmt + clippy + tests
-just verify      # check + harness walkthrough
+just check         # fmt + clippy + tests
+just verify        # check + harness walkthrough
+
+just ui-test       # frontend unit tests
+just ui-e2e        # Playwright end-to-end tests
+just screenshots   # regenerate docs/screenshots/*.png
 ```
 
-See [docs/index.md](docs/index.md) for the documentation hub.
+## Commit and PR expectations
 
-## Coding behavior
-
-Guidelines to reduce common LLM coding mistakes (via [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills)). **Tradeoff:** these bias toward caution over speed — use judgment on trivial tasks.
-
-### 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-### 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-### 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it — don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+- Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
+- One logical change per commit.
+- PRs should explain behavior changes, link issues, list commands run, and include screenshots / updated Playwright baselines for visible UI changes.
