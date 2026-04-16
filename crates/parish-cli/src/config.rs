@@ -359,12 +359,20 @@ fn read_toml_config(path: &Path) -> Result<TomlConfig, ParishError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::io::Write;
 
     /// Clears all PARISH_ env vars so tests don't interfere with each other.
+    ///
+    /// Callers **must** annotate their test with `#[serial(parish_env)]` so
+    /// env-mutating tests never run concurrently — Rust 2024 marks
+    /// `std::env::remove_var` and `set_var` unsafe precisely because
+    /// concurrent access is UB.
     fn clear_parish_env() {
-        // SAFETY: Tests run single-threaded via `cargo test -- --test-threads=1`
-        // or are independent enough that concurrent env mutation is acceptable.
+        // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
+        // which serialises every test that touches `PARISH_*` env vars
+        // across this module (and the sibling `parish-config` tests that
+        // share the same `parish_env` key).
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");
             std::env::remove_var("PARISH_BASE_URL");
@@ -393,6 +401,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_empty_when_no_overrides() {
         clear_parish_env();
         let base = ProviderConfig {
@@ -410,6 +419,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_from_toml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -465,6 +475,7 @@ model = "qwen3:1.5b"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_legacy_cloud_maps_to_dialogue() {
         clear_parish_env();
         let base = ProviderConfig {
@@ -491,6 +502,7 @@ model = "qwen3:1.5b"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_toml_overrides_legacy_cloud() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -535,6 +547,7 @@ model = "new-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_cli_overrides() {
         clear_parish_env();
         let base = ProviderConfig {
@@ -567,6 +580,7 @@ model = "new-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_validates_api_key() {
         clear_parish_env();
         let base = ProviderConfig {
@@ -596,6 +610,7 @@ model = "new-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_category_configs_inherits_base_url() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
