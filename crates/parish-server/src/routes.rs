@@ -1801,7 +1801,7 @@ pub async fn get_save_state(State(state): State<Arc<AppState>>) -> Json<SaveStat
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex as StdMutex};
@@ -1831,7 +1831,7 @@ mod tests {
     }
 
     /// Helper to build a minimal AppState from the real game data.
-    fn test_app_state() -> Arc<AppState> {
+    pub(crate) fn test_app_state() -> Arc<AppState> {
         let data_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../mods/rundale");
         let world =

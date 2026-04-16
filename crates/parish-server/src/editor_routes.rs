@@ -47,7 +47,10 @@ pub async fn editor_open_mod(
     Json(body): Json<EditorOpenModBody>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
     let path = PathBuf::from(&body.mod_path);
-    editor::handle_editor_open_mod(&state.editor, &path)
+    let root = mods_root(&state);
+    let canonical =
+        editor::validate_within(&path, &root).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    editor::handle_editor_open_mod(&state.editor, &canonical)
         .map(|r| Json(r.snapshot))
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }
@@ -166,10 +169,13 @@ pub struct SavePathBody {
 
 /// `POST /api/editor-list-branches`
 pub async fn editor_list_branches(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(body): Json<SavePathBody>,
 ) -> Result<Json<Vec<BranchSummary>>, (StatusCode, String)> {
-    editor::handle_editor_list_branches(&PathBuf::from(body.save_path))
+    let raw = PathBuf::from(&body.save_path);
+    let canonical = editor::validate_within(&raw, state.saves_dir.as_path())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    editor::handle_editor_list_branches(&canonical)
         .map(Json)
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }
@@ -183,20 +189,82 @@ pub struct SavePathBranchBody {
 
 /// `POST /api/editor-list-snapshots`
 pub async fn editor_list_snapshots(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(body): Json<SavePathBranchBody>,
 ) -> Result<Json<Vec<SnapshotSummary>>, (StatusCode, String)> {
-    editor::handle_editor_list_snapshots(&PathBuf::from(body.save_path), body.branch_id)
+    let raw = PathBuf::from(&body.save_path);
+    let canonical = editor::validate_within(&raw, state.saves_dir.as_path())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    editor::handle_editor_list_snapshots(&canonical, body.branch_id)
         .map(Json)
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }
 
 /// `POST /api/editor-read-snapshot`
 pub async fn editor_read_snapshot(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(body): Json<SavePathBranchBody>,
 ) -> Result<Json<Option<SnapshotDetail>>, (StatusCode, String)> {
-    editor::handle_editor_read_snapshot(&PathBuf::from(body.save_path), body.branch_id)
+    let raw = PathBuf::from(&body.save_path);
+    let canonical = editor::validate_within(&raw, state.saves_dir.as_path())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    editor::handle_editor_read_snapshot(&canonical, body.branch_id)
         .map(Json)
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::State;
+
+    #[tokio::test]
+    async fn editor_open_mod_rejects_path_traversal() {
+        let state = crate::routes::tests::test_app_state();
+        let body = EditorOpenModBody {
+            mod_path: "../../etc/passwd".to_string(),
+        };
+        let result = editor_open_mod(State(state), Json(body)).await;
+        assert!(result.is_err());
+        let (status, _msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn editor_list_branches_rejects_path_traversal() {
+        let state = crate::routes::tests::test_app_state();
+        let body = SavePathBody {
+            save_path: "../../etc/passwd".to_string(),
+        };
+        let result = editor_list_branches(State(state), Json(body)).await;
+        assert!(result.is_err());
+        let (status, _msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn editor_list_snapshots_rejects_path_traversal() {
+        let state = crate::routes::tests::test_app_state();
+        let body = SavePathBranchBody {
+            save_path: "../../etc/passwd".to_string(),
+            branch_id: 1,
+        };
+        let result = editor_list_snapshots(State(state), Json(body)).await;
+        assert!(result.is_err());
+        let (status, _msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn editor_read_snapshot_rejects_path_traversal() {
+        let state = crate::routes::tests::test_app_state();
+        let body = SavePathBranchBody {
+            save_path: "../../etc/passwd".to_string(),
+            branch_id: 1,
+        };
+        let result = editor_read_snapshot(State(state), Json(body)).await;
+        assert!(result.is_err());
+        let (status, _msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
 }

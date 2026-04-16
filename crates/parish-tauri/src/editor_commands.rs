@@ -36,8 +36,10 @@ pub async fn editor_open_mod(
     mod_path: String,
     state: State<'_, Arc<AppState>>,
 ) -> Result<EditorModSnapshot, String> {
-    let path = PathBuf::from(mod_path);
-    editor::handle_editor_open_mod(&state.editor, &path).map(|r| r.snapshot)
+    let path = PathBuf::from(&mod_path);
+    let root = mods_root();
+    let canonical = parish_core::ipc::editor::validate_within(&path, &root)?;
+    editor::handle_editor_open_mod(&state.editor, &canonical).map(|r| r.snapshot)
 }
 
 #[tauri::command]
@@ -107,7 +109,10 @@ pub async fn editor_list_branches(
     save_path: String,
     _state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<BranchSummary>, String> {
-    editor::handle_editor_list_branches(&PathBuf::from(save_path))
+    let raw = PathBuf::from(&save_path);
+    let root = saves_dir();
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    editor::handle_editor_list_branches(&canonical)
 }
 
 #[tauri::command]
@@ -116,7 +121,10 @@ pub async fn editor_list_snapshots(
     branch_id: i64,
     _state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<SnapshotSummary>, String> {
-    editor::handle_editor_list_snapshots(&PathBuf::from(save_path), branch_id)
+    let raw = PathBuf::from(&save_path);
+    let root = saves_dir();
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    editor::handle_editor_list_snapshots(&canonical, branch_id)
 }
 
 #[tauri::command]
@@ -125,5 +133,8 @@ pub async fn editor_read_snapshot(
     branch_id: i64,
     _state: State<'_, Arc<AppState>>,
 ) -> Result<Option<SnapshotDetail>, String> {
-    editor::handle_editor_read_snapshot(&PathBuf::from(save_path), branch_id)
+    let raw = PathBuf::from(&save_path);
+    let root = saves_dir();
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    editor::handle_editor_read_snapshot(&canonical, branch_id)
 }
