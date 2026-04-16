@@ -754,11 +754,42 @@
 		syncEditorText();
 	}
 
-	// Prevent pasting rich content — only plain text
+	// Prevent pasting rich content — only plain text.
+	// `document.execCommand('insertText')` is deprecated and doesn't
+	// always fire the `input` event, which would leave `editorText` stale.
+	// We insert a text node at the current selection manually and then
+	// sync the reactive state ourselves.
 	function handlePaste(e: ClipboardEvent) {
 		e.preventDefault();
 		const text = e.clipboardData?.getData('text/plain') ?? '';
-		document.execCommand('insertText', false, text);
+		if (!text || !editorEl) return;
+
+		const sel = window.getSelection();
+		if (!sel || sel.rangeCount === 0) {
+			// No selection (e.g. editor never focused) — append to end.
+			editorEl.appendChild(document.createTextNode(text));
+		} else {
+			const range = sel.getRangeAt(0);
+			// Only insert if the cursor is inside the editor.
+			if (!editorEl.contains(range.startContainer)) return;
+			range.deleteContents();
+			const node = document.createTextNode(text);
+			range.insertNode(node);
+			// Move cursor to the end of the inserted text.
+			range.setStartAfter(node);
+			range.collapse(true);
+			sel.removeAllRanges();
+			sel.addRange(range);
+		}
+
+		// execCommand used to fire 'input'; insertNode does not, so keep
+		// editorText in sync and re-run input-driven logic (mention/slash
+		// detection, history/completion resets) explicitly.
+		if (historyIndex >= 0) historyIndex = -1;
+		if (completion.active) resetCompletion();
+		detectMention();
+		if (dropdownMode !== 'mention') detectSlash();
+		syncEditorText();
 	}
 </script>
 
