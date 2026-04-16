@@ -124,7 +124,7 @@ impl GossipNetwork {
     /// Sorted newest first.
     pub fn recent_known_by(&self, npc_id: NpcId, n: usize) -> Vec<&GossipItem> {
         let mut items: Vec<&GossipItem> = self.known_by(npc_id);
-        items.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        items.sort_by_key(|item| std::cmp::Reverse(item.timestamp));
         items.truncate(n);
         items
     }

@@ -781,7 +781,7 @@ fn build_world_debug(world: &WorldState, npc_manager: &NpcManager) -> WorldDebug
             count: *count,
         })
         .collect();
-    edge_traversals.sort_by(|a, b| b.count.cmp(&a.count));
+    edge_traversals.sort_by_key(|edge| std::cmp::Reverse(edge.count));
 
     let text_log_len = world.text_log.len();
     let text_log_tail: Vec<String> = world
