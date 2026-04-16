@@ -4,10 +4,9 @@
 //! (world graph, NPCs, encounters, etc.). The engine loads a [`GameMod`] at
 //! startup and uses it to access all game-specific content at runtime.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::error::ParishError;
 use crate::ipc::ThemePalette;
@@ -115,7 +114,7 @@ pub struct PromptTemplates {
 }
 
 /// A single anachronism term entry.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnachronismEntry {
     /// The anachronistic term or phrase.
     pub term: String,
@@ -131,7 +130,7 @@ pub struct AnachronismEntry {
 }
 
 /// Anachronism detection data loaded from JSON.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnachronismData {
     /// Prefix injected into the LLM context alert.
     pub context_alert_prefix: String,
@@ -142,7 +141,7 @@ pub struct AnachronismData {
 }
 
 /// A festival or holy day definition.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FestivalDef {
     /// Festival name.
     pub name: String,
@@ -155,11 +154,14 @@ pub struct FestivalDef {
 }
 
 /// Encounter text table keyed by time-of-day label.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// Uses [`BTreeMap`] so the JSON output is deterministic — the editor
+/// relies on this for the empty-`git diff` round-trip invariant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncounterTable {
     /// Encounter flavour text keyed by time-of-day (e.g. "morning", "night").
     #[serde(flatten)]
-    pub by_time: HashMap<String, String>,
+    pub by_time: std::collections::BTreeMap<String, String>,
 }
 
 /// Loading-screen configuration.

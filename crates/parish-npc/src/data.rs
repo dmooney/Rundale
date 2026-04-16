@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::memory::{LongTermMemory, ShortTermMemory};
 use crate::reactions::ReactionLog;
@@ -20,9 +20,12 @@ use parish_types::ParishError;
 use parish_world::time::{DayType, Season};
 
 /// Top-level JSON structure for the NPC data file.
-#[derive(Debug, Deserialize)]
-struct NpcFile {
-    npcs: Vec<NpcFileEntry>,
+///
+/// Exposed publicly so the Parish Designer editor can round-trip
+/// `npcs.json` without duplicating the schema.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NpcFile {
+    pub npcs: Vec<NpcFileEntry>,
 }
 
 /// A single NPC entry in the data file.
@@ -32,49 +35,49 @@ struct NpcFile {
 /// - New: `"seasonal_schedule": [...]` — array of variants with optional season/day_type.
 ///
 /// If both are present, `seasonal_schedule` takes priority.
-#[derive(Debug, Deserialize)]
-struct NpcFileEntry {
-    id: u32,
-    name: String,
-    #[serde(default)]
-    brief_description: Option<String>,
-    age: u8,
-    occupation: String,
-    personality: String,
-    #[serde(default)]
-    intelligence: Option<IntelligenceFileEntry>,
-    home: u32,
-    workplace: Option<u32>,
-    mood: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NpcFileEntry {
+    pub id: u32,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief_description: Option<String>,
+    pub age: u8,
+    pub occupation: String,
+    pub personality: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intelligence: Option<IntelligenceFileEntry>,
+    pub home: u32,
+    pub workplace: Option<u32>,
+    pub mood: String,
     /// Legacy flat schedule (backward compat).
-    #[serde(default)]
-    schedule: Option<Vec<ScheduleFileEntry>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schedule: Option<Vec<ScheduleFileEntry>>,
     /// Season-aware schedule with variants.
-    #[serde(default)]
-    seasonal_schedule: Option<Vec<ScheduleVariantFileEntry>>,
-    relationships: Vec<RelationshipFileEntry>,
-    #[serde(default)]
-    knowledge: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seasonal_schedule: Option<Vec<ScheduleVariantFileEntry>>,
+    pub relationships: Vec<RelationshipFileEntry>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub knowledge: Vec<String>,
 }
 
 /// Intelligence ratings in the data file.
 ///
 /// Maps directly to [`Intelligence`] dimensions. All fields default to 3
 /// (average) if omitted in JSON.
-#[derive(Debug, Deserialize)]
-struct IntelligenceFileEntry {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntelligenceFileEntry {
     #[serde(default = "default_intelligence_value")]
-    verbal: u8,
+    pub verbal: u8,
     #[serde(default = "default_intelligence_value")]
-    analytical: u8,
+    pub analytical: u8,
     #[serde(default = "default_intelligence_value")]
-    emotional: u8,
+    pub emotional: u8,
     #[serde(default = "default_intelligence_value")]
-    practical: u8,
+    pub practical: u8,
     #[serde(default = "default_intelligence_value")]
-    wisdom: u8,
+    pub wisdom: u8,
     #[serde(default = "default_intelligence_value")]
-    creative: u8,
+    pub creative: u8,
 }
 
 /// Default intelligence dimension value (average).
@@ -96,32 +99,32 @@ impl From<IntelligenceFileEntry> for Intelligence {
 }
 
 /// A schedule entry in the data file.
-#[derive(Debug, Deserialize)]
-struct ScheduleFileEntry {
-    start_hour: u8,
-    end_hour: u8,
-    location: u32,
-    activity: String,
-    #[serde(default)]
-    cuaird: bool,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleFileEntry {
+    pub start_hour: u8,
+    pub end_hour: u8,
+    pub location: u32,
+    pub activity: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cuaird: bool,
 }
 
 /// A schedule variant in the seasonal_schedule data file format.
-#[derive(Debug, Deserialize)]
-struct ScheduleVariantFileEntry {
-    #[serde(default)]
-    season: Option<Season>,
-    #[serde(default)]
-    day_type: Option<DayType>,
-    entries: Vec<ScheduleFileEntry>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduleVariantFileEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub season: Option<Season>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day_type: Option<DayType>,
+    pub entries: Vec<ScheduleFileEntry>,
 }
 
 /// A relationship entry in the data file.
-#[derive(Debug, Deserialize)]
-struct RelationshipFileEntry {
-    target_id: u32,
-    kind: RelationshipKind,
-    strength: f64,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelationshipFileEntry {
+    pub target_id: u32,
+    pub kind: RelationshipKind,
+    pub strength: f64,
 }
 
 /// Converts raw file schedule entries into [`ScheduleEntry`] values.
@@ -582,6 +585,40 @@ mod tests {
             .entry_at(10, Season::Summer, DayType::Weekday)
             .unwrap();
         assert!(!entry.cuaird);
+    }
+
+    #[test]
+    fn test_npc_file_schema_round_trip() {
+        // Round-trip the real mods/rundale/npcs.json through the public
+        // NpcFile schema. The re-serialized JSON must deserialize back to a
+        // structurally identical NpcFile. This is the single most important
+        // schema test: it catches drift between the editor and the game
+        // loader, which would silently corrupt source files on save.
+        let path = Path::new("../../mods/rundale/npcs.json");
+        if !path.exists() {
+            return;
+        }
+        let raw = std::fs::read_to_string(path).unwrap();
+        let original: NpcFile = serde_json::from_str(&raw).unwrap();
+        let re_serialized = serde_json::to_string_pretty(&original).unwrap();
+        let roundtripped: NpcFile = serde_json::from_str(&re_serialized).unwrap();
+        assert_eq!(
+            original.npcs.len(),
+            roundtripped.npcs.len(),
+            "NPC count must match after round-trip"
+        );
+        for (a, b) in original.npcs.iter().zip(roundtripped.npcs.iter()) {
+            assert_eq!(a.id, b.id);
+            assert_eq!(a.name, b.name);
+            assert_eq!(a.brief_description, b.brief_description);
+            assert_eq!(a.age, b.age);
+            assert_eq!(a.occupation, b.occupation);
+            assert_eq!(a.home, b.home);
+            assert_eq!(a.workplace, b.workplace);
+            assert_eq!(a.mood, b.mood);
+            assert_eq!(a.relationships.len(), b.relationships.len());
+            assert_eq!(a.knowledge, b.knowledge);
+        }
     }
 
     #[test]

@@ -127,7 +127,11 @@ impl WorldGraph {
     /// - All connection targets exist in the graph
     /// - All connections are bidirectional
     /// - There are no orphan nodes (nodes with no connections)
-    fn validate(&self) -> Result<(), ParishError> {
+    ///
+    /// Called automatically by [`WorldGraph::load_from_str`]; exposed publicly
+    /// so the Parish Designer editor can re-run it on an in-memory graph
+    /// after edits without reloading the JSON file.
+    pub fn validate(&self) -> Result<(), ParishError> {
         for (id, loc) in &self.locations {
             if loc.connections.is_empty() {
                 return Err(ParishError::WorldGraph(format!(

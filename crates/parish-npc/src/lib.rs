@@ -41,6 +41,13 @@ pub use parish_types::{
     floor_char_boundary,
 };
 
+// Re-export the NPC data-file schema so downstream crates (e.g. the Parish
+// Designer editor) can round-trip `npcs.json` without duplicating the schema.
+pub use data::{
+    IntelligenceFileEntry, NpcFile, NpcFileEntry, RelationshipFileEntry, ScheduleFileEntry,
+    ScheduleVariantFileEntry,
+};
+
 /// A non-player character in the game world.
 ///
 /// Contains identity, personality, location, schedule, relationships,

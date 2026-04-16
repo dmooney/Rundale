@@ -6,8 +6,6 @@
             "description_template": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The {weather} sky stretches over the flat midlands. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.618,
-            "lon": -8.095,
             "connections": [
                 {
                     "target": 2,
@@ -42,6 +40,8 @@
                     "path_description": "a short walk past the sound of hammering"
                 }
             ],
+            "lat": 53.618,
+            "lon": -8.095,
             "associated_npcs": [],
             "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin.",
             "aliases": [
@@ -54,14 +54,14 @@
             "description_template": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is {time} and the weather outside is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.622,
-            "lon": -8.088,
             "connections": [
                 {
                     "target": 1,
                     "path_description": "the lane back to the crossroads"
                 }
             ],
+            "lat": 53.622,
+            "lon": -8.088,
             "associated_npcs": [
                 1
             ],
@@ -78,8 +78,6 @@
             "description_template": "A small stone church with a slate roof, its stained-glass windows catching the {time} light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.6215,
-            "lon": -8.099,
             "connections": [
                 {
                     "target": 1,
@@ -90,6 +88,8 @@
                     "path_description": "a muddy track past the graveyard wall"
                 }
             ],
+            "lat": 53.6215,
+            "lon": -8.099,
             "associated_npcs": [],
             "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint.",
             "aliases": [
@@ -104,14 +104,14 @@
             "description_template": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is {time}. The weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.6145,
-            "lon": -8.09,
             "connections": [
                 {
                     "target": 1,
                     "path_description": "back across to the crossroads"
                 }
             ],
+            "lat": 53.6145,
+            "lon": -8.09,
             "associated_npcs": [
                 23
             ],
@@ -129,8 +129,6 @@
             "description_template": "An open field where men play hurling on fair days. Goalposts of ash wood stand at each end. Stone ditches mark the boundary, and a few spectators' stools sit along the edge. The {weather} sky hangs over the flat green. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.61,
-            "lon": -8.106,
             "connections": [
                 {
                     "target": 6,
@@ -141,6 +139,8 @@
                     "path_description": "a grassy track past the ditch to a whitewashed cottage"
                 }
             ],
+            "lat": 53.61,
+            "lon": -8.106,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -155,8 +155,6 @@
             "description_template": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.613,
-            "lon": -8.101,
             "connections": [
                 {
                     "target": 1,
@@ -167,6 +165,8 @@
                     "path_description": "a beaten path down to the hurling green"
                 }
             ],
+            "lat": 53.613,
+            "lon": -8.101,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -180,8 +180,6 @@
             "description_template": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the {weather} sky. Small islands dot the water in the distance. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.621,
-            "lon": -8.043,
             "connections": [
                 {
                     "target": 8,
@@ -192,6 +190,8 @@
                     "path_description": "a rough track climbing away from the shore"
                 }
             ],
+            "lat": 53.621,
+            "lon": -8.043,
             "associated_npcs": [],
             "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie.",
             "aliases": [
@@ -209,8 +209,6 @@
             "description_template": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is {time} and the sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.616,
-            "lon": -8.048,
             "connections": [
                 {
                     "target": 7,
@@ -225,6 +223,8 @@
                     "path_description": "a stony path along the waterline to a thatched cottage"
                 }
             ],
+            "lat": 53.616,
+            "lon": -8.048,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -240,8 +240,6 @@
             "description_template": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": false,
-            "lat": 53.62,
-            "lon": -8.068,
             "connections": [
                 {
                     "target": 1,
@@ -256,6 +254,8 @@
                     "path_description": "a boreen through a gap in the hedge"
                 }
             ],
+            "lat": 53.62,
+            "lon": -8.068,
             "associated_npcs": [
                 18
             ],
@@ -271,8 +271,6 @@
             "description_template": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is {time}. Weather: {weather}.",
             "indoor": false,
             "public": false,
-            "lat": 53.6185,
-            "lon": -8.06,
             "connections": [
                 {
                     "target": 9,
@@ -283,6 +281,8 @@
                     "path_description": "a soggy track across the lower field"
                 }
             ],
+            "lat": 53.6185,
+            "lon": -8.06,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -296,8 +296,6 @@
             "description_template": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is {time}. The sky is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.627,
-            "lon": -8.052,
             "connections": [
                 {
                     "target": 7,
@@ -308,6 +306,8 @@
                     "path_description": "a barely visible path through gorse and bracken"
                 }
             ],
+            "lat": 53.627,
+            "lon": -8.052,
             "associated_npcs": [],
             "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune.",
             "aliases": [
@@ -323,8 +323,6 @@
             "description_template": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The {weather} sky presses down. Pools of dark water gleam between the heather. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.626,
-            "lon": -8.088,
             "connections": [
                 {
                     "target": 3,
@@ -339,6 +337,8 @@
                     "path_description": "a squelching path along the bog's edge"
                 }
             ],
+            "lat": 53.626,
+            "lon": -8.088,
             "associated_npcs": [],
             "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights.",
             "aliases": [
@@ -354,14 +354,14 @@
             "description_template": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is {time}. Outside, the weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.615,
-            "lon": -8.097,
             "connections": [
                 {
                     "target": 1,
                     "path_description": "a few steps back across the road to the crossroads"
                 }
             ],
+            "lat": 53.615,
+            "lon": -8.097,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -377,8 +377,6 @@
             "description_template": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is {time}. The weather is {weather}.",
             "indoor": false,
             "public": true,
-            "lat": 53.623,
-            "lon": -8.072,
             "connections": [
                 {
                     "target": 10,
@@ -389,6 +387,8 @@
                     "path_description": "a path along the bog's edge back to the road"
                 }
             ],
+            "lat": 53.623,
+            "lon": -8.072,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -403,8 +403,6 @@
             "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.606,
-            "lon": -8.11,
             "connections": [
                 {
                     "target": 1,
@@ -435,6 +433,8 @@
                     "path_description": "the southern road toward Knockcroghery"
                 }
             ],
+            "lat": 53.606,
+            "lon": -8.11,
             "associated_npcs": [
                 19,
                 21,
@@ -454,8 +454,6 @@
             "description_template": "A low stone building open at the front, where a bellows feeds a glowing hearth. The anvil sits dark and scarred in the centre. Horseshoes, tongs, and half-finished ironwork hang from hooks along the wall. Sparks drift in the {weather} air. It is {time}.",
             "indoor": true,
             "public": true,
-            "lat": 53.6165,
-            "lon": -8.093,
             "connections": [
                 {
                     "target": 1,
@@ -466,6 +464,8 @@
                     "path_description": "the lane south toward Kilteevan Village"
                 }
             ],
+            "lat": 53.6165,
+            "lon": -8.093,
             "associated_npcs": [
                 9,
                 10,
@@ -485,8 +485,6 @@
             "description_template": "A small stone-lined well set among ancient ash trees, hung with rags and ribbons left as prayers. The water is dark and still. A worn stone cross stands beside it, half-covered in moss. The {weather} sky filters through the canopy. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.604,
-            "lon": -8.113,
             "connections": [
                 {
                     "target": 15,
@@ -497,6 +495,8 @@
                     "path_description": "a narrow track south joining the Knockcroghery road"
                 }
             ],
+            "lat": 53.604,
+            "lon": -8.113,
             "associated_npcs": [],
             "mythological_significance": "St. Tíobán's Well — the holy well that gave Kilteevan its name. People leave offerings here for cures and blessings. The water is said to heal sore eyes on the saint's feast day.",
             "aliases": [
@@ -511,8 +511,6 @@
             "description_template": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is {time}. The weather is {weather}.",
             "indoor": true,
             "public": true,
-            "lat": 53.609,
-            "lon": -8.125,
             "connections": [
                 {
                     "target": 15,
@@ -523,6 +521,8 @@
                     "path_description": "the road continuing west toward Curraghboy"
                 }
             ],
+            "lat": 53.609,
+            "lon": -8.125,
             "associated_npcs": [
                 12,
                 13,
@@ -540,8 +540,6 @@
             "description_template": "A neat whitewashed cottage with a half-door and a garden of herbs and dye-plants. Inside, a great wooden loom takes up most of the front room. Skeins of dyed wool hang from the rafters in greens, browns, and deep reds. It is {time}. The sky is {weather}.",
             "indoor": true,
             "public": false,
-            "lat": 53.608,
-            "lon": -8.105,
             "connections": [
                 {
                     "target": 15,
@@ -552,6 +550,8 @@
                     "path_description": "a grassy track past the ditch to the hurling green"
                 }
             ],
+            "lat": 53.608,
+            "lon": -8.105,
             "associated_npcs": [
                 20
             ],
@@ -568,14 +568,14 @@
             "description_template": "A small thatched cottage perched above the waterline, with nets drying on a stone wall and a currach pulled up on the shingle. The smell of turf smoke and fish mingles in the air. It is {time}. The lake stretches away under the {weather} sky.",
             "indoor": true,
             "public": false,
-            "lat": 53.614,
-            "lon": -8.046,
             "connections": [
                 {
                     "target": 8,
                     "path_description": "the stony path back along the waterline to the bay"
                 }
             ],
+            "lat": 53.614,
+            "lon": -8.046,
             "associated_npcs": [
                 15,
                 16,
@@ -594,8 +594,6 @@
             "description_template": "A winding road heading west through flat fields enclosed by low stone walls. In the distance, the scattered houses of Curraghboy are just visible through the haze. A magpie watches from a gatepost. The {weather} sky stretches wide. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.612,
-            "lon": -8.13,
             "connections": [
                 {
                     "target": 15,
@@ -606,6 +604,8 @@
                     "path_description": "a turn south to the mill by the stream"
                 }
             ],
+            "lat": 53.612,
+            "lon": -8.13,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -619,8 +619,6 @@
             "description_template": "The road south toward Knockcroghery, lined with blackthorn hedges. A milestone reads 'Knockcroghery 2 miles.' Beyond the hedge, cattle graze in sloping fields. The {weather} sky presses down on the quiet road. It is {time}.",
             "indoor": false,
             "public": true,
-            "lat": 53.598,
-            "lon": -8.115,
             "connections": [
                 {
                     "target": 15,
@@ -631,6 +629,8 @@
                     "path_description": "a narrow track to the holy well among the ash trees"
                 }
             ],
+            "lat": 53.598,
+            "lon": -8.115,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [

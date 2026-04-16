@@ -1,6 +1,26 @@
 [
-    {"name": "Imbolc", "month": 2, "day": 1, "description": "Start of spring — the feast of St. Brigid"},
-    {"name": "Bealtaine", "month": 5, "day": 1, "description": "Start of summer — bonfires lit on hilltops"},
-    {"name": "Lughnasa", "month": 8, "day": 1, "description": "Start of autumn — the harvest festival"},
-    {"name": "Samhain", "month": 11, "day": 1, "description": "Start of winter — when the veil between worlds is thin"}
+    {
+        "name": "Imbolc",
+        "month": 2,
+        "day": 1,
+        "description": "Start of spring — the feast of St. Brigid"
+    },
+    {
+        "name": "Bealtaine",
+        "month": 5,
+        "day": 1,
+        "description": "Start of summer — bonfires lit on hilltops"
+    },
+    {
+        "name": "Lughnasa",
+        "month": 8,
+        "day": 1,
+        "description": "Start of autumn — the harvest festival"
+    },
+    {
+        "name": "Samhain",
+        "month": 11,
+        "day": 1,
+        "description": "Start of winter — when the veil between worlds is thin"
+    }
 ]

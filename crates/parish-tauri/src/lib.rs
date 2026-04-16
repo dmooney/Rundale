@@ -4,6 +4,7 @@
 //! typed Tauri commands ([`commands`]) and events ([`events`]).
 
 pub mod commands;
+pub mod editor_commands;
 pub mod events;
 
 use std::path::PathBuf;
@@ -261,6 +262,8 @@ pub struct AppState {
     pub data_dir: PathBuf,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
+    /// Editor session — separate from gameplay state, may be empty.
+    pub editor: std::sync::Mutex<parish_core::ipc::editor::EditorSession>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -592,6 +595,7 @@ pub fn run() {
         transport,
         data_dir: data_dir.clone(),
         worker_handle: Mutex::new(None),
+        editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -634,6 +638,19 @@ pub fn run() {
             commands::new_game,
             commands::get_save_state,
             commands::react_to_message,
+            editor_commands::editor_list_mods,
+            editor_commands::editor_open_mod,
+            editor_commands::editor_get_snapshot,
+            editor_commands::editor_validate,
+            editor_commands::editor_update_npcs,
+            editor_commands::editor_update_locations,
+            editor_commands::editor_save,
+            editor_commands::editor_reload,
+            editor_commands::editor_close,
+            editor_commands::editor_list_saves,
+            editor_commands::editor_list_branches,
+            editor_commands::editor_list_snapshots,
+            editor_commands::editor_read_snapshot,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

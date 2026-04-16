@@ -31,7 +31,7 @@ const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in windo
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
-async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
+export async function command<T>(name: string, args?: Record<string, unknown>): Promise<T> {
 	if (IS_TAURI) {
 		const { invoke } = await import('@tauri-apps/api/core');
 		return invoke<T>(name, args);
@@ -203,6 +203,12 @@ export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
 
 export const onSavePicker = (cb: () => void) =>
 	onEvent<void>('save-picker', () => cb());
+
+export const onToggleFullMap = (cb: () => void) =>
+	onEvent<void>('toggle-full-map', () => cb());
+
+export const onOpenDesigner = (cb: () => void) =>
+	onEvent<void>('open-designer', () => cb());
 
 export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 	onEvent<NpcReactionPayload>('npc-reaction', cb);
