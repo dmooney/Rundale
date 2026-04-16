@@ -273,7 +273,7 @@ pub async fn submit_input(
 ///
 /// Replaces the client and respawns the inference worker so subsequent
 /// NPC conversations use the new configuration.
-async fn rebuild_inference(state: &Arc<AppState>) {
+async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
         (
@@ -286,6 +286,20 @@ async fn rebuild_inference(state: &Arc<AppState>) {
     let any_client = if provider_name == "simulator" {
         AnyClient::simulator()
     } else {
+        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: format!(
+                        "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
+                        base_url
+                    ),
+                },
+            );
+        }
         let oai = OpenAiClient::new(&base_url, api_key.as_deref());
         let mut client_guard = state.client.lock().await;
         *client_guard = Some(oai.clone());
@@ -356,7 +370,7 @@ async fn handle_system_command(
     let mut extra_response: Option<String> = None;
     for effect in &result.effects {
         match effect {
-            CommandEffect::RebuildInference => rebuild_inference(state).await,
+            CommandEffect::RebuildInference => rebuild_inference(state, app).await,
             CommandEffect::RebuildCloudClient => {
                 let config = state.config.lock().await;
                 let base_url = config
@@ -895,7 +909,6 @@ async fn run_npc_turn(
         EVENT_STREAM_TURN_END,
         StreamTurnEndPayload { turn_id: req_id },
     );
-    loading_cancel.cancel();
 
     let response = match outcome {
         InferenceAwaitOutcome::Response(r) => r,
@@ -913,6 +926,7 @@ async fn run_npc_turn(
                     content: "The storyteller has wandered off mid-tale.".to_string(),
                 },
             );
+            loading_cancel.cancel();
             return None;
         }
         InferenceAwaitOutcome::TimedOut { secs } => {
@@ -937,6 +951,7 @@ async fn run_npc_turn(
                     content: "The storyteller is lost in thought. Try again.".to_string(),
                 },
             );
+            loading_cancel.cancel();
             return None;
         }
     };
@@ -963,8 +978,11 @@ async fn run_npc_turn(
                 content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
             },
         );
+        loading_cancel.cancel();
         return None;
     }
+
+    loading_cancel.cancel();
 
     let parsed = parse_npc_stream_response(&response.text);
     let hints = parsed
