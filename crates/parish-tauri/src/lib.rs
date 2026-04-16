@@ -355,6 +355,7 @@ fn capture_gdk_screenshot(_path: &std::path::Path) -> anyhow::Result<()> {
 ///
 /// If the GTK main thread is busy or the capture never completes, we bail
 /// instead of blocking the task indefinitely.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))] // Only called from dispatch_screenshot (Linux); tests exercise this cross-platform.
 const SCREENSHOT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Awaits a screenshot result on `rx`, bounded by `timeout`.
@@ -362,6 +363,7 @@ const SCREENSHOT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Returns the captured result, or an error if the channel closes or the
 /// timeout expires. Extracted so the timeout/close behavior can be unit-tested
 /// without GTK.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))] // Only called from dispatch_screenshot (Linux); tests exercise this cross-platform.
 async fn await_screenshot_result(
     rx: std::sync::mpsc::Receiver<anyhow::Result<()>>,
     timeout: Duration,

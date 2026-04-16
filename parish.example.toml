@@ -103,7 +103,7 @@ journal_compaction_threshold = 1000  # Max journal entries before compaction (re
 # see MapConfig::apply_defaults in crates/parish-config/src/engine.rs.
 #
 # [engine.map]
-# default_tile_source = "osm"
+# default_tile_source = "historic"
 #
 # [engine.map.tile_sources.osm]
 # label = "OpenStreetMap"

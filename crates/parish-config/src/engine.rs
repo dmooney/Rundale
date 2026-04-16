@@ -802,7 +802,7 @@ impl MapConfig {
 }
 
 fn default_tile_source_id() -> String {
-    "osm".to_string()
+    "historic".to_string()
 }
 
 fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
@@ -1075,7 +1075,7 @@ memory_capacity = 30
     #[test]
     fn test_map_config_default_has_both_sources() {
         let cfg = MapConfig::default();
-        assert_eq!(cfg.default_tile_source, "osm");
+        assert_eq!(cfg.default_tile_source, "historic");
         assert!(cfg.tile_sources.contains_key("osm"));
         assert!(cfg.tile_sources.contains_key("historic"));
         let osm = &cfg.tile_sources["osm"];
@@ -1099,7 +1099,7 @@ memory_capacity = 30
     #[test]
     fn test_engine_config_includes_map_defaults() {
         let cfg = EngineConfig::default();
-        assert_eq!(cfg.map.default_tile_source, "osm");
+        assert_eq!(cfg.map.default_tile_source, "historic");
         assert_eq!(cfg.map.tile_sources.len(), 2);
     }
 
@@ -1144,7 +1144,7 @@ memory_capacity = 30
     #[test]
     fn test_load_engine_config_missing_file() {
         let cfg = load_engine_config(Some(Path::new("/nonexistent/parish.toml")));
-        assert_eq!(cfg.map.default_tile_source, "osm");
+        assert_eq!(cfg.map.default_tile_source, "historic");
         assert_eq!(cfg.map.tile_sources.len(), 2);
     }
 
