@@ -99,8 +99,8 @@ pub enum Command {
     SetCategoryKey(InferenceCategory, String),
     /// Show about / credits information.
     About,
-    /// Toggle the full map overlay / show text-based map in CLI.
-    Map,
+    /// Show or change the map tile source. No arg = list sources; arg = switch to it.
+    Map(Option<String>),
     /// Show NPCs at the current location with details.
     NpcsHere,
     /// Show detailed time, weather, and season info.
@@ -279,7 +279,18 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     } else if lower == "/about" {
         Some(Command::About)
     } else if lower == "/map" {
-        Some(Command::Map)
+        Some(Command::Map(None))
+    } else if lower.starts_with("/map ") {
+        let arg = trimmed
+            .get("/map ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if arg.is_empty() {
+            Some(Command::Map(None))
+        } else {
+            Some(Command::Map(Some(arg)))
+        }
     } else if lower == "/npcs" {
         Some(Command::NpcsHere)
     } else if lower == "/time" {
@@ -1307,20 +1318,31 @@ mod tests {
 
     #[test]
     fn test_parse_map_command() {
-        let cmd = parse_system_command("/map");
-        assert_eq!(cmd, Some(Command::Map));
+        assert_eq!(parse_system_command("/map"), Some(Command::Map(None)));
+        assert_eq!(parse_system_command("/map   "), Some(Command::Map(None)));
+        assert_eq!(
+            parse_system_command("/map osm"),
+            Some(Command::Map(Some("osm".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/map historic"),
+            Some(Command::Map(Some("historic".to_string())))
+        );
     }
 
     #[test]
     fn test_parse_map_command_case_insensitive() {
-        let cmd = parse_system_command("/MAP");
-        assert_eq!(cmd, Some(Command::Map));
+        assert_eq!(parse_system_command("/MAP"), Some(Command::Map(None)));
+        assert_eq!(
+            parse_system_command("/MAP OSM"),
+            Some(Command::Map(Some("OSM".to_string())))
+        );
     }
 
     #[test]
     fn test_classify_map_command() {
         let result = classify_input("/map");
-        assert_eq!(result, InputResult::SystemCommand(Command::Map));
+        assert_eq!(result, InputResult::SystemCommand(Command::Map(None)));
     }
 
     #[test]

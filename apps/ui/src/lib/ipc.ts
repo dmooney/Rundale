@@ -192,14 +192,17 @@ export interface ThemeSwitchPayload {
 export const onThemeSwitch = (cb: (payload: ThemeSwitchPayload) => void) =>
 	onEvent<ThemeSwitchPayload>('theme-switch', cb);
 
+export interface TilesSwitchPayload {
+	id: string;
+}
+export const onTilesSwitch = (cb: (payload: TilesSwitchPayload) => void) =>
+	onEvent<TilesSwitchPayload>('tiles-switch', cb);
+
 export const onDebugUpdate = (cb: (payload: DebugSnapshot) => void) =>
 	onEvent<DebugSnapshot>('debug-update', cb);
 
 export const onSavePicker = (cb: () => void) =>
 	onEvent<void>('save-picker', () => cb());
-
-export const onToggleFullMap = (cb: () => void) =>
-	onEvent<void>('toggle-full-map', () => cb());
 
 export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 	onEvent<NpcReactionPayload>('npc-reaction', cb);

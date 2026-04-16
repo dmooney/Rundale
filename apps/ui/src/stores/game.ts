@@ -36,7 +36,9 @@ export const nameHints = writable<LanguageHint[]>([]);
 export const uiConfig = writable<UiConfig>({
 	hints_label: 'Language Hints',
 	default_accent: '#b08531',
-	splash_text: ''
+	splash_text: '',
+	active_tile_source: '',
+	tile_sources: []
 });
 
 export const fullMapOpen = writable<boolean>(false);

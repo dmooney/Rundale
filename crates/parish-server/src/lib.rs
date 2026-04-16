@@ -119,17 +119,33 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .as_ref()
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
+
+    // Load engine config (parish.toml) for the tile-source registry. Missing
+    // file or parse errors fall back to baked defaults
+    // (OSM + Ireland Historic 6").
+    let engine_config = parish_core::config::load_engine_config(None);
+    let tile_sources_snapshot =
+        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
+    let active_tile_source = engine_config.map.default_tile_source.clone();
+    // Populate the /tiles command's registry on the runtime GameConfig.
+    config.active_tile_source = active_tile_source.clone();
+    config.tile_sources = engine_config.map.id_label_pairs();
+
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
             hints_label: gm.ui.sidebar.hints_label.clone(),
             default_accent: theme_palette.accent.clone(),
             splash_text,
+            active_tile_source: active_tile_source.clone(),
+            tile_sources: tile_sources_snapshot.clone(),
         }
     } else {
         UiConfigSnapshot {
             hints_label: "Language Hints".to_string(),
             default_accent: theme_palette.accent.clone(),
             splash_text,
+            active_tile_source,
+            tile_sources: tile_sources_snapshot,
         }
     };
 
@@ -760,6 +776,9 @@ fn build_client_and_config() -> (Option<OpenAiClient>, GameConfig) {
         category_base_url: [None, None, None, None],
         flags: FeatureFlags::default(),
         category_rate_limit: [None, None, None, None],
+        // Tile-source fields populated in build_app_state from engine config.
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
     };
 
     (client, config)

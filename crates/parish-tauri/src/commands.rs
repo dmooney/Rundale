@@ -373,10 +373,6 @@ async fn handle_system_command(
                 app.exit(0);
                 return;
             }
-            CommandEffect::ToggleMap => {
-                let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
-                return; // No text log for map toggle
-            }
             CommandEffect::SaveGame => {
                 extra_response = Some(match do_save_game(state).await {
                     Ok(msg) => msg,
@@ -441,6 +437,12 @@ async fn handle_system_command(
                 let _ = app.emit(
                     crate::events::EVENT_THEME_SWITCH,
                     serde_json::json!({ "name": name, "mode": mode }),
+                );
+            }
+            CommandEffect::ApplyTiles(id) => {
+                let _ = app.emit(
+                    crate::events::EVENT_TILES_SWITCH,
+                    serde_json::json!({ "id": id }),
                 );
             }
         }

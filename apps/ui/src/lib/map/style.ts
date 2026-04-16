@@ -15,7 +15,12 @@
  * theme changes and pass the result to `map.setStyle()`.
  */
 
-import type { StyleSpecification, LayerSpecification } from 'maplibre-gl';
+import type {
+	StyleSpecification,
+	LayerSpecification,
+	RasterSourceSpecification
+} from 'maplibre-gl';
+import type { TileSource } from '$lib/types';
 
 export type MapVariant = 'minimap' | 'full';
 
@@ -52,24 +57,41 @@ const GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
  *
  * The style has two GeoJSON sources (`locations` and `edges`) that start
  * empty — the controller populates them via `setData()` as game state
- * changes. On the full map a raster OSM base is added beneath.
+ * changes. On the full map a raster base is added beneath, sourced from
+ * the `tileSource` parameter (ships with OSM by default; the `/tiles`
+ * slash command swaps this via `MapController.setTileSource()`).
+ *
+ * Passing a `tileSource` with an empty `url` (e.g. a user-added source
+ * that hasn't had its URL filled in yet) falls back to the flat-bg layer
+ * with a one-shot console warning — the feature flag can stay on without
+ * a live endpoint.
  */
-export function buildStyle(variant: MapVariant, theme: ThemeColors): StyleSpecification {
+export function buildStyle(
+	variant: MapVariant,
+	theme: ThemeColors,
+	tileSource?: TileSource
+): StyleSpecification {
 	const layers: LayerSpecification[] = [];
+	const rasterSourceId = 'map-tiles';
+	const hasUsableTiles = variant === 'full' && tileSource && tileSource.url.length > 0;
 
-	// 1. Base layer — flat color on the minimap, OSM raster on the full map.
-	if (variant === 'full') {
+	// 1. Base layer — flat color on the minimap, configured raster on the full map.
+	if (hasUsableTiles) {
 		layers.push({
-			id: 'osm-tiles',
+			id: 'map-tiles-layer',
 			type: 'raster',
-			source: 'osm',
+			source: rasterSourceId,
 			paint: {
-				// Desaturate slightly so game elements stay visually dominant.
-				'raster-saturation': -0.4,
-				'raster-opacity': 0.85
+				'raster-saturation': tileSource!.raster_saturation,
+				'raster-opacity': tileSource!.raster_opacity
 			}
 		});
 	} else {
+		if (variant === 'full' && tileSource && tileSource.url.length === 0) {
+			// Informational — a source was registered without a URL; the
+			// operator needs to paste a real endpoint into parish.toml.
+			warnMissingTileUrl(tileSource.id);
+		}
 		// Minimap: flat panel background, no tiles.
 		layers.push({
 			id: 'background',
@@ -247,32 +269,47 @@ export function buildStyle(variant: MapVariant, theme: ThemeColors): StyleSpecif
 		}
 	});
 
+	const sources: StyleSpecification['sources'] = {
+		locations: {
+			type: 'geojson',
+			data: { type: 'FeatureCollection', features: [] }
+		},
+		edges: {
+			type: 'geojson',
+			data: { type: 'FeatureCollection', features: [] }
+		}
+	};
+	if (hasUsableTiles) {
+		const rasterSource: RasterSourceSpecification = {
+			type: 'raster',
+			tiles: [tileSource!.url],
+			tileSize: tileSource!.tile_size,
+			minzoom: tileSource!.minzoom,
+			maxzoom: tileSource!.maxzoom,
+			attribution: tileSource!.attribution
+		};
+		if (tileSource!.tms) rasterSource.scheme = 'tms';
+		sources[rasterSourceId] = rasterSource;
+	}
+
 	return {
 		version: 8,
 		glyphs: GLYPHS_URL,
-		sources: {
-			...(variant === 'full'
-				? {
-						osm: {
-							type: 'raster',
-							tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-							tileSize: 256,
-							minzoom: 0,
-							maxzoom: 19,
-							attribution:
-								'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-						}
-					}
-				: {}),
-			locations: {
-				type: 'geojson',
-				data: { type: 'FeatureCollection', features: [] }
-			},
-			edges: {
-				type: 'geojson',
-				data: { type: 'FeatureCollection', features: [] }
-			}
-		},
+		sources,
 		layers
 	};
+}
+
+// Shown once per missing id so toggling between sources doesn't spam the
+// console. Scoped module-level so the set persists across `buildStyle` calls.
+const warnedMissingIds = new Set<string>();
+function warnMissingTileUrl(id: string) {
+	if (warnedMissingIds.has(id)) return;
+	warnedMissingIds.add(id);
+	// eslint-disable-next-line no-console
+	console.warn(
+		`[tiles] source '${id}' has no URL; falling back to flat background. ` +
+			`Set [engine.map.tile_sources.${id}] url = "..." in parish.toml ` +
+			'or see docs/design/map-evolution.md.'
+	);
 }

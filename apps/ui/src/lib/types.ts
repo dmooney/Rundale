@@ -90,6 +90,23 @@ export interface UiConfig {
 	hints_label: string;
 	default_accent: string;
 	splash_text: string;
+	active_tile_source: string;
+	tile_sources: TileSource[];
+}
+
+/** A single map tile source sent from the backend. Mirrors
+ *  `parish_core::ipc::TileSourceSnapshot`. */
+export interface TileSource {
+	id: string;
+	label: string;
+	url: string;
+	tile_size: number;
+	minzoom: number;
+	maxzoom: number;
+	attribution: string;
+	raster_saturation: number;
+	raster_opacity: number;
+	tms: boolean;
 }
 
 export interface Reaction {

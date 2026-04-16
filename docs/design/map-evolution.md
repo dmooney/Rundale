@@ -123,6 +123,7 @@ The map could be more than navigation:
 | ~~**Phase B**~~ | ~~Fog of war / progressive disclosure (#4) + hover tooltips (#5)~~ | **Done** |
 | ~~**Phase C**~~ | ~~Animated travel (#7) + time-of-day atmosphere (#6)~~ | **Done** |
 | ~~**Phase D (map)**~~ | ~~OSM tile background for full map (#9), migrated to MapLibre GL JS for polished label placement (variable anchors, zoom-aware decluttering, symbol-sort priority)~~ | **Done** |
+| ~~**Phase D.1 (tiles)**~~ | ~~`/tiles` slash command + configurable tile-source registry (OSM + Ireland Historic 6" 1829–1842 via NLS), gated behind `period-map-tiles` feature flag~~ | **Done** |
 | **Phase D (TUI)** | TUI ASCII map (#8) | Medium |
 | **Phase E** | Narrative annotations (#10) + NPC trails | Large |
 
@@ -133,6 +134,46 @@ The map could be more than navigation:
 - Should fog of war persist across save/load? (Probably yes — it's part of game state.)
 - How does the `/map` overlay interact with the input field? Does it capture keyboard focus?
 - Do we want the minimap in the TUI as well, or only GUI mode?
+
+## Phase D.1 — Period tiles (configurable tile-source registry)
+
+The OSM background shipped in Phase D is anachronistic for Rundale's 1820
+setting — it renders modern motorways, housing estates, wind farms, etc.
+Phase D.1 adds a **registry of named tile sources** data-driven from
+`parish.toml`'s `[engine.map]` section and a `/tiles <id>` slash command
+to switch between them at runtime.
+
+Two sources ship baked-in:
+
+- **`osm`** — the current OSM raster (working default).
+- **`historic-6inch`** — Ordnance Survey of Ireland First Edition 6-inch
+  (surveyed 1829–1842), the most period-accurate cartography for
+  Kiltoom. Ships wired to the [National Library of Scotland's free public
+  S3-hosted tile service][nls-ireland] — no signup, CORS-open. Operators
+  who want higher-fidelity tiles can override the URL in `parish.toml`
+  with a Tailte Éireann MapGenie endpoint (gated behind the National
+  Mapping Agreement) or a captured GeoHive tile URL.
+
+[nls-ireland]: https://maps.nls.uk/geo/explore/
+
+If an operator registers a new source without filling in a URL, the
+frontend falls back to the flat panel background with a one-shot console
+warning instead of a broken map.
+
+Adding further sources (custom sepia-styled tiles, scanned grand-jury
+maps georeferenced via MapWarper, etc.) is a pure TOML add; no code
+changes needed.
+
+The feature is gated behind the **`period-map-tiles`** flag
+(default-enabled, per CLAUDE.md rule #6). Kill-switch:
+`/flag disable period-map-tiles`.
+
+**Scope limits (defer to later phases):**
+- Only XYZ raster URL templates (`{z}/{x}/{y}.png`, optional TMS y-flip)
+  — no WMS/WMTS adapters yet.
+- No custom MapLibre style (still the Phase D sepia-via-desaturation look).
+- No offline tile bundling — still on-demand fetch.
+- Minimap stays flat-bg only.
 
 ## Related
 

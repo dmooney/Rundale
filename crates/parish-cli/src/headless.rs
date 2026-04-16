@@ -565,33 +565,6 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                 app.should_quit = true;
                 should_quit = true;
             }
-            CommandEffect::ToggleMap => {
-                println!("=== Parish Map ===");
-                let player_loc = app.world.player_location;
-                for node_id in app.world.graph.location_ids() {
-                    if let Some(data) = app.world.graph.get(node_id) {
-                        let marker = if node_id == player_loc { " * " } else { "   " };
-                        println!("{}{}", marker, data.name);
-                    }
-                }
-                println!();
-                println!("Connections:");
-                for node_id in app.world.graph.location_ids() {
-                    if let Some(data) = app.world.graph.get(node_id) {
-                        for (neighbor_id, _) in app.world.graph.neighbors(node_id) {
-                            if node_id.0 < neighbor_id.0 {
-                                let neighbor_name = app
-                                    .world
-                                    .graph
-                                    .get(neighbor_id)
-                                    .map(|d| d.name.as_str())
-                                    .unwrap_or("???");
-                                println!("  {} — {}", data.name, neighbor_name);
-                            }
-                        }
-                    }
-                }
-            }
             CommandEffect::SaveGame => {
                 if let Some(ref db) = app.db {
                     let snapshot =
@@ -725,6 +698,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
             }
             CommandEffect::ApplyTheme(..) => {
                 // No visual theme in headless mode; response text is printed below.
+            }
+            CommandEffect::ApplyTiles(..) => {
+                // No map in headless mode; response text is printed below.
             }
         }
     }
@@ -1734,7 +1710,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_map() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map).await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map(None)).await;
         assert!(!quit);
         assert!(!rebuild);
     }

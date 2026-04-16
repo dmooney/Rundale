@@ -30,6 +30,10 @@ pub struct UiConfigSnapshot {
     pub default_accent: String,
     /// Splash text displayed on game start (Zork-style).
     pub splash_text: String,
+    /// Id of the currently-active tile source (matches a `tile_sources` key).
+    pub active_tile_source: String,
+    /// Registry of available map tile sources, alphabetical by id.
+    pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
 }
 
 /// Current save state for display in the StatusBar.
