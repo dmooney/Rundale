@@ -11,12 +11,30 @@
 # ---------------------------------------------------------------------------
 # Provider (existing — not part of engine config)
 # ---------------------------------------------------------------------------
+#
+# See docs/design/inference-pipeline.md (Recommended Models) for current picks.
+# The engine resolves four inference categories — Dialogue, Simulation, Intent,
+# Reaction — each of which can override the base provider below.
 
 # [provider]
 # name = "ollama"
 # base_url = "http://localhost:11434"
-# model = "qwen3:14b"
+# model = "qwen3.5:9b"        # or "gemma4:9b" — see inference-pipeline.md
 # api_key = ""
+
+# Example: "Cloud-light" starter — Claude for dialogue, Gemini Flash-Lite for
+# background simulation, local Ministral 3 3B for intent + reaction. Uncomment
+# and populate keys to use. Remove or swap categories you don't want to split.
+#
+# [provider.dialogue]
+# name = "openrouter"
+# model = "anthropic/claude-sonnet-4-6"
+# api_key = "$OPENROUTER_API_KEY"
+#
+# [provider.simulation]
+# name = "google"
+# model = "gemini-2.5-flash-lite"
+# api_key = "$GOOGLE_API_KEY"
 
 # ---------------------------------------------------------------------------
 # Engine Configuration
