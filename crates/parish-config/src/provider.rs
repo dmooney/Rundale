@@ -526,12 +526,20 @@ fn read_toml_config(path: &Path) -> Result<TomlConfig, ParishError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::io::Write;
 
     /// Clears all PARISH_ env vars so tests don't interfere with each other.
+    ///
+    /// Callers **must** annotate their test with `#[serial(parish_env)]` so
+    /// env-mutating tests never run concurrently — Rust 2024 marks
+    /// `std::env::remove_var` and `set_var` unsafe precisely because
+    /// concurrent access is UB.
     fn clear_parish_env() {
-        // SAFETY: Tests run single-threaded via `cargo test -- --test-threads=1`
-        // or are independent enough that concurrent env mutation is acceptable.
+        // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
+        // which serialises every test that touches `PARISH_*` env vars
+        // across this module (and the sibling `parish-cli` tests that
+        // share the same `parish_env` key).
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");
             std::env::remove_var("PARISH_BASE_URL");
@@ -734,6 +742,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_vllm() {
         clear_parish_env();
 
@@ -751,6 +760,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_vllm_custom_base_url() {
         clear_parish_env();
 
@@ -766,6 +776,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_defaults() {
         clear_parish_env();
 
@@ -778,6 +789,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_from_toml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -803,6 +815,7 @@ model = "my-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_cli_overrides_toml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -831,6 +844,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_openrouter_requires_api_key() {
         clear_parish_env();
 
@@ -847,6 +861,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_openrouter_with_api_key() {
         clear_parish_env();
 
@@ -863,6 +878,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_builtin_cloud_providers() {
         clear_parish_env();
 
@@ -899,6 +915,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_cloud_provider_requires_api_key() {
         clear_parish_env();
 
@@ -923,6 +940,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_custom_requires_base_url() {
         clear_parish_env();
 
@@ -939,6 +957,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_empty_strings_filtered() {
         clear_parish_env();
 
@@ -989,6 +1008,7 @@ model = "toml-model"
     // --- Cloud config tests ---
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_none_when_not_configured() {
         clear_parish_env();
         let cli = CliCloudOverrides::default();
@@ -997,6 +1017,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_from_toml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -1026,6 +1047,7 @@ model = "anthropic/claude-sonnet-4-20250514"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_from_cli() {
         clear_parish_env();
 
@@ -1044,6 +1066,7 @@ model = "anthropic/claude-sonnet-4-20250514"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_requires_model() {
         clear_parish_env();
 
@@ -1060,6 +1083,7 @@ model = "anthropic/claude-sonnet-4-20250514"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_openrouter_requires_api_key() {
         clear_parish_env();
 
@@ -1076,6 +1100,7 @@ model = "anthropic/claude-sonnet-4-20250514"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_defaults_to_openrouter() {
         clear_parish_env();
 
@@ -1094,6 +1119,7 @@ model = "anthropic/claude-sonnet-4-20250514"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_cli_overrides_toml() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("parish.toml");
@@ -1123,6 +1149,7 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
     fn test_resolve_cloud_config_ollama_no_key_needed() {
         clear_parish_env();
 
