@@ -13,7 +13,7 @@
 	let anchorRealMs = 0;
 	let anchorGameMs = 0;
 	let speedFactor = 36.0;
-	let paused = false;
+	let clockFrozen = false;
 
 	let rafId: number;
 
@@ -28,7 +28,7 @@
 	}
 
 	function tick() {
-		if (paused) {
+		if (clockFrozen) {
 			// Use the anchored game time directly
 			const d = new Date(anchorGameMs);
 			displayHour = d.getUTCHours();
@@ -51,7 +51,7 @@
 			anchorRealMs = Date.now();
 			anchorGameMs = snap.game_epoch_ms;
 			speedFactor = snap.speed_factor;
-			paused = snap.paused;
+			clockFrozen = snap.paused || snap.inference_paused;
 		}
 	});
 

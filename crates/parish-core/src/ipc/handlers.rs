@@ -57,7 +57,8 @@ pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> Wo
         weather: weather_str,
         season: season.to_string(),
         festival,
-        paused: world.clock.is_paused() || world.clock.is_inference_paused(),
+        paused: world.clock.is_paused(),
+        inference_paused: world.clock.is_inference_paused(),
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
         name_hints: vec![],
@@ -761,6 +762,17 @@ mod tests {
         assert!(snap.hour <= 23);
         assert!(snap.minute <= 59);
         assert!(snap.speed_factor > 0.0);
+    }
+
+    #[test]
+    fn snapshot_keeps_inference_pause_separate_from_player_pause() {
+        let mut world = WorldState::new();
+        world.clock.inference_pause();
+
+        let snap = snapshot_from_world(&world, &TransportMode::walking());
+
+        assert!(!snap.paused);
+        assert!(snap.inference_paused);
     }
 
     #[test]

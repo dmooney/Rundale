@@ -85,6 +85,7 @@ fn snapshot_from_world(
         season: core.season,
         festival: core.festival,
         paused: core.paused,
+        inference_paused: core.inference_paused,
         game_epoch_ms: core.game_epoch_ms,
         speed_factor: core.speed_factor,
         name_hints: vec![],

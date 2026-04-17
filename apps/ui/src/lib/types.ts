@@ -10,6 +10,7 @@ export interface WorldSnapshot {
 	season: string;
 	festival: string | null;
 	paused: boolean;
+	inference_paused: boolean;
 	game_epoch_ms: number;
 	speed_factor: number;
 	name_hints: LanguageHint[];
