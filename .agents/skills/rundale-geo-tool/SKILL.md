@@ -1,28 +1,20 @@
 ---
 name: rundale-geo-tool
-description: >-
-  Use whenever touching Rundale world geography: `realign_rundale_coords`,
-  `mods/rundale/world.json` coordinates, pinning real-world locations to
-  historical maps, subordinating village clusters via `relative_to`, choosing
-  between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern
-  geocoders vs historical OS maps. Covers the `parish-geo-tool` CLI suite, the
-  coordinate resolver (absolute + relative + graph-delta fallback), how to
-  compute historical offsets from earlier commits, and why Nominatim alone is
-  the wrong primary source for a 1820s Irish world. Trigger eagerly: any task
-  involving lat/lon in Rundale, the Parish Designer editor's geographic fields,
-  "pin X to coord Y", "move the Kilteevan cluster", "the fictional
-  establishments didn't follow the village", or similar.
+description: Use whenever touching Rundale world geography — `realign_rundale_coords`, `mods/rundale/world.json` coordinates, pinning real-world locations to historical maps, subordinating village clusters via `relative_to`, choosing between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern geocoders vs historical OS maps. Covers the `geo-tool` CLI suite, the coordinate resolver (absolute + relative + graph-delta fallback), how to compute historical offsets from earlier commits, and why Nominatim alone is the wrong primary source for a 1820s Irish world. Trigger eagerly — any task involving lat/lon in Rundale, the Parish Designer editor's geographic fields, "pin X to coord Y", "move the Kilteevan cluster", "the fictional establishments didn't follow the village", or similar.
 ---
 
 How to work with Rundale's geographic coordinate system.
 
 The game is set in 1820s rural Ireland. `mods/rundale/world.json` stores lat/lon for ~22 locations. Some are real places (geocoded from modern OSM), some are author-pinned to historical map features (OS 6-inch First Edition, ~1837), and most are fictional villages/farms/churches/pubs whose positions need to stay spatially coherent with the anchors they're near. Two CLI binaries handle this, plus a runtime resolver in the game itself.
 
-## The two binaries
+## The binaries
 
-**`parish-geo-tool`** (`crates/parish-geo-tool/src/main.rs`) — the OSM extraction pipeline. Runs Overpass queries against OpenStreetMap, extracts game-relevant features (pubs, churches, roads, holy wells, etc.) within a bounding box, and emits a candidate `world.json`. This is the world-generation side; you'll rarely rerun it unless bootstrapping a new mod or expanding the world footprint.
+**`geo-tool`** (`crates/geo-tool/src/main.rs`) — a multi-subcommand CLI. Two flows:
 
-**`realign_rundale_coords`** (`crates/parish-geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`.
+- *Legacy top-level flags* (`geo-tool -- --area …`) run the **OSM Overpass pipeline**: queries OpenStreetMap, extracts modern game-relevant features within a bounding box, and emits a candidate `world.json`. This is the modern-world seeding side; rerun when bootstrapping a new mod or expanding the footprint. All existing justfile recipes (`just geo-tool`, `just geo-tool-merge`) still drive this.
+- *`historic-discover` subcommand* (`geo-tool historic-discover --bbox … --zoom 16`) runs the **AI-assisted OS 6-inch pipeline**: fetches tiled raster imagery from a historic tile source (NLS Roscommon sheet by default), feeds 2×2 tile chunks to a vision-capable LLM (OpenRouter → Claude/GPT-4o or a local Ollama vision model) to identify every man-made or named feature on the engraved map, and emits a `parish.json` of candidate 1820s locations already placed on the historical map. Labelled features come out as `geo_kind: Manual` (authoritative 1820s pins); unlabelled features come out as `geo_kind: Fictional` with batched LLM-generated plausible 1820s Irish names. Output is a drop-in `--merge` source for the legacy Overpass flow. See the "Seed a new area from OS 6-inch" recipe.
+
+**`realign_rundale_coords`** (`crates/geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`. Only geocodes `Real`, so `Manual` entries emitted by `historic-discover` stay pinned.
 
 ## The coordinate model
 
@@ -53,21 +45,28 @@ Resolution order inside `realign_rundale_coords`:
 ## Decision tree: which mode for a new coordinate task?
 
 ```
-Is this a real-world place that still exists today and modern geocoders find correctly?
-├─ YES → geo_kind = real. Set name to match OSM. Let Nominatim handle it.
+Am I bootstrapping an entire new area from scratch, with no curated Rundale data?
+├─ YES → Run `geo-tool historic-discover --bbox ...` to get a first-pass
+│        world.json already placed on the OS 6" First Edition. Then iterate
+│        with --merge against curated data. (See "Seed a new area" recipe.)
 │
-└─ NO → Is it a historical feature (on OS 6-inch / 25-inch / Down Survey) but not today?
-    ├─ YES → geo_kind = manual. Get coord from GeoHive (map.geohive.ie), set
-    │        geo_source to cite the map sheet. Use --set-coord for the pin.
+└─ NO → Is this a single location you already know about?
     │
-    └─ NO → It's fictional. Does it need to track another location rigidly
-            (e.g. "the forge sits 50 m east of the church")?
-        ├─ YES → geo_kind = fictional + relative_to = { anchor, dnorth_m, deast_m }.
-        │        It will follow its anchor exactly through any future pin or move.
+    Is this a real-world place that still exists today and modern geocoders find correctly?
+    ├─ YES → geo_kind = real. Set name to match OSM. Let Nominatim handle it.
+    │
+    └─ NO → Is it a historical feature (on OS 6-inch / 25-inch / Down Survey) but not today?
+        ├─ YES → geo_kind = manual. Get coord from GeoHive (map.geohive.ie), set
+        │        geo_source to cite the map sheet. Use --set-coord for the pin.
         │
-        └─ NO → geo_kind = fictional, absolute lat/lon. The graph-delta realign
-                will nudge it via weighted average of nearby anchor shifts.
-                (Works for small shifts; fails to preserve clusters on big moves.)
+        └─ NO → It's fictional. Does it need to track another location rigidly
+                (e.g. "the forge sits 50 m east of the church")?
+            ├─ YES → geo_kind = fictional + relative_to = { anchor, dnorth_m, deast_m }.
+            │        It will follow its anchor exactly through any future pin or move.
+            │
+            └─ NO → geo_kind = fictional, absolute lat/lon. The graph-delta realign
+                    will nudge it via weighted average of nearby anchor shifts.
+                    (Works for small shifts; fails to preserve clusters on big moves.)
 ```
 
 ## Canonical recipes
@@ -75,7 +74,7 @@ Is this a real-world place that still exists today and modern geocoders find cor
 ### Pin a real-world location to a historical coord
 
 ```bash
-cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
+cargo run -p geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json --in-place \
   --set-coord "Kilteevan Village=53.6320798910683,-8.102070946274374" \
   --set-source "Kilteevan Village=OS 6-inch First Edition, Roscommon sheet, ca. 1837"
@@ -90,13 +89,13 @@ If you're pinning an anchor (e.g. The Crossroads) and want its village cluster t
 1. Identify the cluster — the fictional locations that should always sit near the anchor (not all of them, just the ones that belong to the cluster).
 2. Compute historical offsets using the helper:
    ```bash
-   python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \
+   python3 .skills/rundale-geo-tool/scripts/compute_historical_offsets.py \
      --anchor-id 1 --cluster 2,3,4,6,9,13 --baseline-commit 91c996c
    ```
    The baseline commit is "the last commit where the cluster was spatially coherent." For Rundale, that's typically `91c996c` (before any realign pipeline ran) or `cc3d85f` (before the OS-6" pinning work).
 3. Apply the offsets with the helper:
    ```bash
-   python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \
+   python3 .skills/rundale-geo-tool/scripts/add_relative_to.py \
      --anchor-id 1 \
      --offsets '{"2":{"dnorth_m":445,"deast_m":462}, ...}'
    ```
@@ -109,6 +108,49 @@ If you're pinning an anchor (e.g. The Crossroads) and want its village cluster t
 
 See commits `7d05463` (Kilteevan cluster) and `e1f3aa0` (Crossroads cluster) for worked examples.
 
+### Seed a new area from OS 6-inch (AI-assisted first pass)
+
+When bootstrapping a brand-new bbox where no curated Rundale data exists, let a vision-capable LLM read the OS 6" sheet and emit a candidate `parish.json`:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-...
+cargo run -p geo-tool -- historic-discover \
+  --bbox 53.600,-8.130,53.650,-8.080 \
+  --zoom 16 \
+  --tile-source nls-roscommon \
+  --provider-url https://openrouter.ai/api \
+  --model anthropic/claude-opus-4-7 \
+  --api-key-env OPENROUTER_API_KEY \
+  --cache-dir data/cache/historic \
+  --output /tmp/rundale-historic.json
+```
+
+What it does:
+- Fetches NLS tile PNGs covering the bbox at `z=16` (cache at `data/cache/historic/nls-roscommon/{z}/{x}/{y}.png`).
+- Stitches 2×2 tile groups into 512×512 images, sends each to the vision model with a 1830s-OS-6" system prompt asking for every man-made/named feature as JSON (`px`, `py`, label, feature_kind, connected road segments).
+- Filters at `--confidence-floor` (default 0.5), projects pixel → WGS-84, dedupes within 30 m.
+- Batches a second text-only call to the same model to name any unlabelled features with plausible 1820s Irish names.
+- Builds bidirectional connections: vision-reported road segment endpoints snap to the nearest feature within 60 m; isolated features get a nearest-neighbour fallback at ≤ 2 000 m.
+- Writes `parish.json` + `.meta.json` + `.audit.json` (confidence drops, dedup counts, attribution, tile source id).
+
+Output contract:
+- Labelled features → `geo_kind: Manual`, `geo_source: "OS 6-inch First Edition, Roscommon sheet, ca. 1829–42 (NLS)"`.
+- Unlabelled features → `geo_kind: Fictional`, `geo_source` ending `"(unlabelled feature)"`.
+
+`Manual` means `realign_rundale_coords` will leave them pinned on subsequent runs — that's the whole point. Merge into an existing mod:
+
+```bash
+cargo run -p geo-tool -- \
+  --bbox 53.600,-8.130,53.650,-8.080 \
+  --merge /tmp/rundale-historic.json \
+  --output mods/rundale/world.json
+just realign-coords   # Manual entries untouched; any Real entries get Nominatim
+```
+
+Tile sources beyond NLS Roscommon are pluggable via the `HistoricTileSource` trait in `crates/geo-tool/src/historic/tile_source.rs`; only Roscommon ships today. If `--tile-source` is omitted, the first registered source whose coverage overlaps the bbox wins. Kerry/Cork/etc. will return "no registered tile source covers bbox" until more sources are added.
+
+**When to use this vs hand-pinning from GeoHive:** use `historic-discover` when you're populating dozens of features across a fresh bbox (e.g. a new county or parish) — it's hours of GeoHive clicks in one command. Use hand-pinning via GeoHive + `--set-coord` for individual refinements, for anchors that need pixel-perfect placement, or when you don't want to burn LLM tokens for a single location.
+
 ### Offline realignment from a baseline
 
 When you've edited `world.json` coords by hand and want the graph-delta to apply without hitting Nominatim:
@@ -116,7 +158,7 @@ When you've edited `world.json` coords by hand and want the graph-delta to apply
 ```bash
 cp mods/rundale/world.json /tmp/world_baseline.json
 # ... hand-edit the anchor coords ...
-cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
+cargo run -p geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --baseline-world /tmp/world_baseline.json \
   --no-geocode --in-place
@@ -140,9 +182,9 @@ print({k: loc[k] for k in ['name','lat','lon','geo_kind','relative_to','geo_sour
 | Source | URL | Used? | For what |
 |---|---|---|---|
 | **Nominatim** | `nominatim.openstreetmap.org/search` | Yes, runtime | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale. |
-| **Overpass** | `overpass-api.de/api/interpreter` | Yes, runtime | Bulk OSM feature extraction in the main `parish-geo-tool` binary. Run rarely. |
+| **Overpass** | `overpass-api.de/api/interpreter` | Yes, runtime | Bulk OSM feature extraction in the main `geo-tool` binary. Run rarely. |
 | **OSM raster tiles** | `tile.openstreetmap.org` | Yes, UI | Map background layer in the frontend. |
-| **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer) | Yes, **manually** | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins. |
+| **OS 6-inch First Edition** (ca. 1829–42) | `map.geohive.ie` (viewer) + NLS Roscommon tile set (`mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png`) | Yes, **both manual and automated** | Authoritative source for 1820s Irish settlements. For single pins, get coords by clicking labels in the GeoHive viewer and `--set-coord` them. For bulk seeding of a new area, use `geo-tool historic-discover --bbox …`, which calls a vision LLM over the NLS raster. Pluggable `HistoricTileSource` trait in `crates/geo-tool/src/historic/tile_source.rs` for adding GeoHive / NLS-Ireland / etc. |
 | **OS 25-inch** (ca. 1887–1913) | `map.geohive.ie` | Occasionally | Higher-resolution historical map for later-era details. |
 | **Tailte Éireann MapGenie / WMTS** | `tailte.ie/services/mapgenie/` | No (referenced in `parish.example.toml:145`, commented out) | Planned future source for tiled historical maps. |
 | **logainm.ie** | `logainm.ie` | No (only cited in `docs/research/irish-language.md`) | Authoritative for Irish placename etymology and admin hierarchy. Does **not** have "village" as a category — it describes administrative identity (townland/civil parish/etc.), not physical settlements. Good for name disambiguation, not for village-center coords. |
@@ -163,6 +205,8 @@ print({k: loc[k] for k in ['name','lat','lon','geo_kind','relative_to','geo_sour
 7. **Travel-time bound.** `test_parish_computed_travel_times_reasonable` asserts every edge fits in `1..=300` minutes at 1.25 m/s walking. Currently the longest edge is Kilteevan ↔ Curraghboy Road at ~16 km / 220 min. If a future coord shift pushes an edge past 300 min, consider adding intermediate nodes rather than bumping the bound further.
 8. **Nominatim usage policy.** Rate-limited at ~1 req/sec and production use requires a self-hosted instance. The current tool has 4 real locations so fine; at island scale (thousands of places) the plan is to switch to a local canonical registry built from logainm + townlands.ie + Geofabrik bulk exports.
 9. **`logainm` vs `OS 6"` for historical geocoding.** logainm is the Irish state placename authority but it only covers administrative identity (townland, civil parish, ED). It has no "village" category and no 1830s point features. The OS 6-inch First Edition is what you want for "where was the physical settlement in 1830."
+10. **`historic-discover` is a first-pass seeder, not a replacement for review.** The vision LLM confidently hallucinates features on noisy or low-zoom tiles and transcribes labels from period script imperfectly (long-s as "f", worn engraving misread, etc.). Always review the `.audit.json` sidecar (confidence floor drops, dedup counts) and spot-check the output in the editor with the OS-6" overlay before committing. Zoom 16 is the sweet spot — 15 is too coarse to read labels, 17 multiplies tile count by 4 without much quality gain.
+11. **`historic-discover` coverage is currently Roscommon-only.** The `TileSourceRegistry` ships only `NlsRoscommonSource`; a bbox outside the Roscommon sheet returns "no registered tile source covers bbox". Add more implementations of `HistoricTileSource` (`tile_source.rs`) as island-wide sources come online; the discover pipeline speaks the XYZ convention, so TMS sources must y-flip internally.
 
 ## Canonical commits to reference
 
