@@ -39,11 +39,8 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
   - **Samhain** (Nov 1) — Start of winter, when the veil between worlds is thin
 - Festivals display in the status bar and debug panel when active
 
-### Travel Encounters
-- Random en-route encounters during travel (~20% base probability per trip)
-- Probability influenced by time of day (higher at dawn/morning, lower at night)
-- Encounter flavour text varies by time period (dawn, morning, midday, afternoon, dusk, night, midnight)
-- Encounters are data-driven from mod JSON files
+### Travel Encounters (shelf-ready, not yet wired)
+The encounter engine is implemented in `crates/parish-world/src/encounter.rs` with full unit-test coverage — ~20% base probability modulated by time of day, mod-driven flavour text in `encounters.json` keyed by time period. However, `move_player` in `crates/parish-core/src/game_session.rs` does **not** currently invoke `check_encounter`, so no encounter events fire at runtime. Wiring this into the movement path is a small follow-up.
 
 ---
 
@@ -230,11 +227,11 @@ Provider config is resolved by `resolve_config` in `crates/parish-config/src/pro
 - Auto-starts `ollama serve` if not running; shuts down cleanly on exit
 - Binary detection via PATH; auto-installs if missing
 - **GPU detection** via `nvidia-smi` or `rocm-smi`
-- **Automatic model selection by VRAM:**
+- **Automatic model selection by VRAM** (`crates/parish-inference/src/setup.rs`):
   - ≥12 GB → `qwen3:14b`
   - ≥6 GB → `qwen3:8b`
-  - ≥3 GB → `qwen3:3b`
-  - <3 GB → `qwen3:1.5b`
+  - ≥3 GB → `qwen3:4b`
+  - <3 GB or CPU-only → `qwen3:1.7b`
 - Auto-pulls models not already cached; warmup before gameplay begins
 
 ### Streaming
