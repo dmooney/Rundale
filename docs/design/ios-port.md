@@ -627,6 +627,169 @@ When this design is implemented:
    - `cargo test -p parish-core -p parish-inference -p parish-persistence`
    - `just check` and `just verify` (CLI / Tauri desktop / web server still build and pass)
 
+## Implementation Spec (Execution-Ready)
+
+This section turns the design above into a concrete v1 implementation contract so
+the work can be delivered in one pass.
+
+### Locked v1 decisions
+
+- **Inference runtime:** LiteRT-LM (no `llama.cpp` fallback in v1)
+- **Model delivery:** **On-Demand Resources (ODR)** (no custom CDN path in v1)
+- **Default model:** `Gemma4-E2B-it` (E4B as opt-in device-gated setting)
+- **Streaming UX:** token-streaming required (no "wait for full response" fallback)
+- **Target devices:** iPhone 15 Pro / 16-class and newer only for launch
+
+### Rust ↔ C++ FFI contract (normative)
+
+Add a C ABI bridge consumed by `crates/parish-core/src/inference/litert_lm_client.rs`.
+
+#### Ownership and lifetime
+
+- Rust owns request buffers and passes UTF-8 pointers + lengths into C.
+- C++ must copy request text before returning from the FFI call.
+- C++ owns model/session state behind an opaque handle.
+- Rust owns the opaque handle pointer and must call `parish_litert_free` exactly once.
+- All FFI functions return a status code; failures are mapped to `ParishError`.
+
+#### Threading
+
+- `parish_litert_generate*` calls are serialized per model handle.
+- Creating multiple handles is allowed, but v1 uses a single shared handle.
+- Streaming callbacks may be invoked on a LiteRT worker thread; callback
+  implementation must be `Send + 'static` and non-blocking.
+
+#### C ABI surface
+
+```c
+typedef struct ParishLiteRtHandle ParishLiteRtHandle;
+
+typedef enum {
+  PARISH_LITERT_OK = 0,
+  PARISH_LITERT_INVALID_ARG = 1,
+  PARISH_LITERT_MODEL_LOAD_FAILED = 2,
+  PARISH_LITERT_INFERENCE_FAILED = 3,
+  PARISH_LITERT_CANCELLED = 4,
+  PARISH_LITERT_INTERNAL = 255
+} ParishLiteRtStatus;
+
+typedef void (*ParishTokenCallback)(const char* token_utf8,
+                                    size_t token_len,
+                                    void* user_data);
+
+typedef int (*ParishCancelCallback)(void* user_data); // non-zero => cancel
+
+ParishLiteRtStatus parish_litert_new(const char* model_path_utf8,
+                                     size_t model_path_len,
+                                     ParishLiteRtHandle** out_handle);
+
+ParishLiteRtStatus parish_litert_generate(ParishLiteRtHandle* handle,
+                                          const char* system_utf8,
+                                          size_t system_len,
+                                          const char* prompt_utf8,
+                                          size_t prompt_len,
+                                          uint32_t max_tokens,
+                                          char** out_text_utf8,
+                                          size_t* out_text_len);
+
+ParishLiteRtStatus parish_litert_generate_stream(
+    ParishLiteRtHandle* handle,
+    const char* system_utf8,
+    size_t system_len,
+    const char* prompt_utf8,
+    size_t prompt_len,
+    uint32_t max_tokens,
+    ParishTokenCallback on_token,
+    ParishCancelCallback should_cancel,
+    void* user_data,
+    char** out_text_utf8,
+    size_t* out_text_len);
+
+void parish_litert_string_free(char* s);
+void parish_litert_free(ParishLiteRtHandle* handle);
+```
+
+#### Error mapping in Rust
+
+- `INVALID_ARG` -> `ParishError::InvalidInput`
+- `MODEL_LOAD_FAILED` -> `ParishError::Config`
+- `INFERENCE_FAILED` / `INTERNAL` -> `ParishError::Inference`
+- `CANCELLED` -> `ParishError::Inference` with `"cancelled"` marker text
+
+`generate_stream` must always return the final accumulated text, even if token
+callbacks were emitted.
+
+### ODR model download spec (normative)
+
+Use ODR only in v1 with two asset packs:
+
+- tag `model-e2b` => `Gemma4-E2B-it.litertlm`
+- tag `model-e4b` => `Gemma4-E4B-it.litertlm`
+
+#### Selection rule
+
+At first launch:
+
+1. Probe device memory class via `ProcessInfo.processInfo.physicalMemory`.
+2. Default to `model-e2b`.
+3. Offer `model-e4b` only on devices with >= 8 GB RAM and A17 Pro / newer.
+
+#### First-launch state machine
+
+`NotStarted -> Downloading -> Verifying -> Ready -> Failed`
+
+- **Downloading:** show progress UI with bytes downloaded.
+- **Verifying:** check file exists, non-zero size, and extension `.litertlm`.
+- **Ready:** persist selected model tag + resolved absolute path.
+- **Failed:** show retry action and keep app unusable for gameplay until model is ready.
+
+#### Retry/backoff
+
+- Automatic retries: 3 attempts (1s, 3s, 10s)
+- Then surface manual "Retry download" control.
+
+### Persistence path contract
+
+Implement `saves_dir()` in `parish-core`:
+
+- non-iOS: unchanged relative `saves/`
+- iOS: app Application Support directory + `/saves`
+
+`ensure_saves_dir()` must:
+
+1. Resolve `saves_dir()`
+2. `create_dir_all`
+3. Return absolute path
+4. Log resolved path at `info` level once at startup
+
+### UI acceptance criteria (must pass)
+
+- Input bar is never occluded by the software keyboard in portrait mode.
+- Status/header and bottom input respect iOS safe area insets.
+- Pinch zoom works on map panel and full map overlay.
+- Chat token streaming remains progressive (new tokens visible within 250 ms of emission).
+
+### Performance SLOs and fail criteria
+
+On physical iPhone 15 Pro (release build):
+
+- Tier-1 dialogue decode throughput: **>= 15 tokens/sec** (median over 5 prompts)
+- Peak RSS over 10-minute session: **< 6.5 GB**
+- Battery drain over 10-minute scripted session: **<= 8%**
+- No jetsam termination during 10-minute session + one background/foreground cycle
+
+If any fail criterion is missed, do not ship v1 without an explicit waiver.
+
+### Prompt-retuning done definition
+
+`mods/rundale/prompts/tier1_system.txt` update is complete when:
+
+1. 20-turn scripted conversation corpus passes with no malformed outputs.
+2. Anachronism filter triggers on all known fixture prompts.
+3. NPC response coherence is rated "acceptable or better" in at least 16/20 turns by two reviewers.
+
+Store the scripted corpus and outcomes in `testing/fixtures/ios_prompt_eval/`.
+
 ## Files That Would Be Modified
 
 Forward reference for whoever picks this up:
