@@ -51,8 +51,8 @@ ACTUAL = [
 ]
 
 START_DATE = date(2026, 3, 18)
-CURRENT_LOC = 82536
-CURRENT_DAY = (date(2026, 4, 15) - START_DATE).days  # day 28
+CURRENT_LOC = sum(net for _, net in ACTUAL)
+CURRENT_DAY = (date.fromisoformat(ACTUAL[-1][0]) - START_DATE).days
 
 MILESTONES = [100_000, 250_000, 500_000, 1_000_000]
 
@@ -182,8 +182,8 @@ for name, desc, fn in scenarios:
 
 # ── Fun stats ─────────────────────────────────────────────────────
 
-total_days = CURRENT_DAY
-avg_all = CURRENT_LOC / total_days
+total_days = len(ACTUAL)
+avg_all = sum(net for _, net in ACTUAL) / total_days
 lines_per_hour = avg_all / 16
 
 print(f"{BOLD}{'─' * 55}")
