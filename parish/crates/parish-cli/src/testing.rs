@@ -2056,6 +2056,8 @@ mod tests {
             intelligence: parish_core::npc::types::Intelligence::default(),
             location: LocationId(6),
             mood: "calm".to_string(),
+            emotion: parish_types::EmotionState::default(),
+            temperament: parish_types::Temperament::default(),
             home: Some(LocationId(6)),
             workplace: None,
             schedule: None,

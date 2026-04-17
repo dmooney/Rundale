@@ -38,7 +38,9 @@ use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 
 // Re-export shared types from parish-types
 pub use parish_types::{
-    IrishWordHint, LanguageHint, NpcId, extract_dialogue_from_partial_json, floor_char_boundary,
+    EmotionFamily, EmotionGates, EmotionImpulse, EmotionState, IrishWordHint, LanguageHint, NpcId,
+    SEPARATOR_HOLDBACK, Temperament, extract_dialogue_from_partial_json, find_response_separator,
+    floor_char_boundary,
 };
 
 // Re-export the NPC data-file schema so downstream crates (e.g. the Parish
@@ -73,8 +75,23 @@ pub struct Npc {
     pub intelligence: Intelligence,
     /// Current location.
     pub location: LocationId,
-    /// Current emotional state.
+    /// Current emotional state as a one-word label.
+    ///
+    /// Kept as the canonical serialisation surface for persistence,
+    /// gossip, the sidebar emoji map, and legacy prompts. Written by
+    /// [`Npc::set_emotion`] whenever the structured [`Self::emotion`]
+    /// state changes — do not write to this directly; it will fall
+    /// out of sync with the PAD + family-vector model. Reads are
+    /// always safe.
     pub mood: String,
+    /// Structured emotional state: PAD (pleasure/arousal/dominance)
+    /// plus per-family intensities, decay baseline, and non-linear
+    /// behaviour gates. See [`EmotionState`] for the full model.
+    pub emotion: EmotionState,
+    /// Stable temperament shaping how [`Self::emotion`] responds to
+    /// impulses and decays between events. Loaded from mod content
+    /// (defaults if omitted).
+    pub temperament: Temperament,
     /// Home location (where the NPC sleeps).
     pub home: Option<LocationId>,
     /// Workplace location (where the NPC works).
@@ -139,6 +156,8 @@ impl Npc {
             intelligence: Intelligence::new(3, 3, 4, 4, 5, 4),
             location: LocationId(1),
             mood: "content".to_string(),
+            emotion: EmotionState::initial_from(&Temperament::default(), "content"),
+            temperament: Temperament::default(),
             home: None,
             workplace: None,
             schedule: None,
@@ -154,6 +173,26 @@ impl Npc {
             doom: None,
             banshee_heralded: false,
         }
+    }
+
+    /// Replaces [`Self::emotion`] and re-derives the legacy [`Self::mood`]
+    /// string from the new state.
+    ///
+    /// This is the **only** path that should touch `mood` — anywhere
+    /// else, direct assignment risks `mood` drifting out of sync with
+    /// the structured emotion model. Tier 1/2/3/4 apply functions and
+    /// the decay/contagion ticks all go through here.
+    pub fn set_emotion(&mut self, new_state: EmotionState) {
+        self.emotion = new_state;
+        self.mood = self.emotion.label().to_string();
+    }
+
+    /// Applies an [`EmotionImpulse`] to this NPC, scaled by their
+    /// [`Self::temperament`]'s reactivity, and re-derives `mood`.
+    pub fn apply_emotion_impulse(&mut self, impulse: &EmotionImpulse) {
+        self.emotion
+            .apply_impulse(impulse, self.temperament.reactivity);
+        self.mood = self.emotion.label().to_string();
     }
 
     /// Returns the name to display to the player.

@@ -15,8 +15,7 @@ use crate::types::{
     SeasonalSchedule,
 };
 use crate::{Npc, NpcId};
-use parish_types::LocationId;
-use parish_types::ParishError;
+use parish_types::{EmotionState, LocationId, ParishError, Temperament};
 use parish_world::time::{DayType, Season};
 
 /// Top-level JSON structure for the NPC data file.
@@ -58,6 +57,10 @@ pub struct NpcFileEntry {
     pub relationships: Vec<RelationshipFileEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub knowledge: Vec<String>,
+    /// Optional stable temperament shaping emotion decay and
+    /// reactivity. Missing blocks use [`Temperament::default`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperament: Option<Temperament>,
 }
 
 /// Intelligence ratings in the data file.
@@ -248,6 +251,11 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                     .unwrap_or_default(),
                 location: LocationId(entry.home),
                 mood: entry.mood.clone(),
+                temperament: entry.temperament.unwrap_or_default(),
+                emotion: EmotionState::initial_from(
+                    &entry.temperament.unwrap_or_default(),
+                    &entry.mood,
+                ),
                 home: Some(LocationId(entry.home)),
                 workplace: entry.workplace.map(LocationId),
                 schedule: Some(schedule),

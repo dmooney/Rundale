@@ -998,6 +998,8 @@ mod tests {
             intelligence: crate::types::Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
+            emotion: parish_types::EmotionState::default(),
+            temperament: parish_types::Temperament::default(),
             home: Some(LocationId(location)),
             workplace: None,
             schedule: None,

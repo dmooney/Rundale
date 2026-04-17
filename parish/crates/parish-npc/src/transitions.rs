@@ -202,6 +202,8 @@ mod tests {
             intelligence: Intelligence::default(),
             location: LocationId(1),
             mood: "calm".to_string(),
+            emotion: parish_types::EmotionState::default(),
+            temperament: parish_types::Temperament::default(),
             home: Some(LocationId(1)),
             workplace: None,
             schedule: None,

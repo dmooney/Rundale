@@ -135,6 +135,18 @@ pub struct NpcSnapshot {
     /// (pre-#338) loadable.
     #[serde(default)]
     pub deflated_summary: Option<parish_npc::transitions::NpcSummary>,
+    /// Structured emotional state (PAD + family vector + baseline).
+    ///
+    /// `#[serde(default)]` so pre-emotion-system save files load by
+    /// reconstructing a neutral state; the first runtime tick will
+    /// seed sensible values from the legacy `mood` string via
+    /// [`Npc::from_snapshot_repair`] if we add it later.
+    #[serde(default)]
+    pub emotion: parish_types::EmotionState,
+    /// Stable temperament. `#[serde(default)]` covers pre-emotion
+    /// snapshots.
+    #[serde(default)]
+    pub temperament: parish_types::Temperament,
 }
 
 impl NpcSnapshot {
@@ -157,6 +169,8 @@ impl NpcSnapshot {
             intelligence,
             location,
             mood,
+            emotion,
+            temperament,
             home,
             workplace,
             schedule,
@@ -183,6 +197,8 @@ impl NpcSnapshot {
             intelligence: *intelligence,
             location: *location,
             mood: mood.clone(),
+            emotion: *emotion,
+            temperament: *temperament,
             home: *home,
             workplace: *workplace,
             schedule: schedule.clone(),
@@ -208,59 +224,43 @@ impl NpcSnapshot {
     /// [`NpcSnapshot`] produces a compile error here until it is mapped back
     /// to [`Npc`] or explicitly excluded.
     pub fn into_npc(self) -> Npc {
-        // Exhaustive destructuring — no `..`.
-        let NpcSnapshot {
-            id,
-            name,
-            brief_description,
-            age,
-            occupation,
-            personality,
-            intelligence,
-            location,
-            mood,
-            home,
-            workplace,
-            schedule,
-            relationships,
-            memory,
-            long_term_memory,
-            knowledge,
-            state,
-            last_activity,
-            is_ill,
-            doom,
-            banshee_heralded,
-            deflated_summary,
-        } = self;
-
+        // If loading a pre-emotion-system save, `emotion` is
+        // `EmotionState::default()` from the serde default — which
+        // is a neutral baseline state and discards the information
+        // we *do* have in the legacy `mood` string. Re-seed the
+        // state from the mood string so post-load NPCs feel like
+        // themselves rather than uniformly flat.
+        let is_default_emotion = self.emotion == parish_types::EmotionState::default();
+        let emotion = if is_default_emotion {
+            parish_types::EmotionState::initial_from(&self.temperament, &self.mood)
+        } else {
+            self.emotion
+        };
         Npc {
-            id,
-            name,
-            brief_description,
-            age,
-            occupation,
-            personality,
-            intelligence,
-            location,
-            mood,
-            home,
-            workplace,
-            schedule,
-            relationships,
-            memory,
-            long_term_memory,
-            knowledge,
-            state,
-            last_activity,
-            is_ill,
-            doom,
-            banshee_heralded,
-            // #338: previously hard-coded to None, erasing the
-            // demotion summary on every save/load cycle. Round-tripped
-            // through NpcSnapshot.deflated_summary now.
-            deflated_summary,
-            // intentionally not persisted: transient runtime state, reset to default on load
+            id: self.id,
+            name: self.name,
+            brief_description: self.brief_description,
+            age: self.age,
+            occupation: self.occupation,
+            personality: self.personality,
+            intelligence: self.intelligence,
+            location: self.location,
+            mood: self.mood,
+            emotion,
+            temperament: self.temperament,
+            home: self.home,
+            workplace: self.workplace,
+            schedule: self.schedule,
+            relationships: self.relationships,
+            memory: self.memory,
+            long_term_memory: self.long_term_memory,
+            knowledge: self.knowledge,
+            state: self.state,
+            last_activity: self.last_activity,
+            is_ill: self.is_ill,
+            doom: self.doom,
+            banshee_heralded: self.banshee_heralded,
+            deflated_summary: self.deflated_summary,
             reaction_log: parish_npc::reactions::ReactionLog::default(),
         }
     }
@@ -482,6 +482,8 @@ mod tests {
             intelligence: Intelligence::default(),
             location: LocationId(location),
             mood: "calm".to_string(),
+            emotion: parish_types::EmotionState::default(),
+            temperament: parish_types::Temperament::default(),
             home: Some(LocationId(location)),
             workplace: None,
             schedule: None,

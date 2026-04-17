@@ -345,6 +345,8 @@ mod tests {
             intelligence: parish_npc::types::Intelligence::default(),
             location: LocationId(1),
             mood: "calm".to_string(),
+            emotion: parish_types::EmotionState::default(),
+            temperament: parish_types::Temperament::default(),
             home: None,
             workplace: None,
             schedule: None,

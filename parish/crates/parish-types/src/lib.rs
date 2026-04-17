@@ -5,6 +5,8 @@
 
 pub mod conversation;
 pub mod dice;
+pub mod emotion;
+pub mod emotion_leaves;
 pub mod error;
 pub mod events;
 pub mod gossip;
@@ -13,6 +15,10 @@ pub mod time;
 
 pub use conversation::{ConversationExchange, ConversationLog};
 pub use dice::{DiceRoll, fixed_n, roll_n};
+pub use emotion::{
+    Baseline, EmotionFamily, EmotionGates, EmotionImpulse, EmotionState, FamilyVec, Temperament,
+};
+pub use emotion_leaves::{EMOTION_LEAVES, LeafWord, project_top_k};
 pub use error::ParishError;
 pub use events::{EventBus, GameEvent};
 pub use gossip::{GossipItem, GossipNetwork};
