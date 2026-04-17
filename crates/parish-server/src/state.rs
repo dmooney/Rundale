@@ -1,10 +1,13 @@
 //! Shared application state and event bus for the web server.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::{Mutex, broadcast};
+// `tokio::sync::Mutex` used for `active_ws` so the guard can be held across
+// await points without blocking Tokio workers.
 use tokio::task::JoinHandle;
 
 use parish_core::debug_snapshot::DebugEvent;
@@ -158,6 +161,12 @@ pub struct AppState {
     pub editor_sessions: tokio::sync::Mutex<
         std::collections::HashMap<String, parish_core::ipc::editor::EditorSession>,
     >,
+    /// Set of emails that currently have an active WebSocket connection.
+    ///
+    /// Enforces single-WS-per-email (#334): a second upgrade from the same
+    /// email is rejected with 409 Conflict until the first socket closes.
+    /// Uses a `tokio::sync::Mutex` so it can be held across await points.
+    pub active_ws: tokio::sync::Mutex<HashSet<String>>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -270,6 +279,7 @@ pub fn build_app_state(
         flags_path,
         worker_handle: Mutex::new(None),
         editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
+        active_ws: tokio::sync::Mutex::new(HashSet::new()),
     })
 }
 
