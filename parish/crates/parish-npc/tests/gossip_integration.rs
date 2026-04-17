@@ -43,6 +43,7 @@ fn tier2_event_seeds_gossip_and_propagates_to_colocated_npc() {
             to: NpcId(99),
             delta: 0.5, // > 0.3 → notable
         }],
+        emotion_deltas: Vec::new(),
     };
     create_gossip_from_tier2_event(&event, &mut network, game_time());
 
@@ -113,6 +114,7 @@ fn trivial_tier2_event_does_not_seed_gossip() {
             to: NpcId(2),
             delta: 0.05, // below the 0.3 notability threshold
         }],
+        emotion_deltas: Vec::new(),
     };
     create_gossip_from_tier2_event(&event, &mut network, game_time());
     assert_eq!(
@@ -138,6 +140,7 @@ fn gossip_propagates_transitively_across_two_rounds() {
         participants: vec![alice],
         mood_changes: Vec::new(),
         relationship_changes: Vec::new(),
+        emotion_deltas: Vec::new(),
     };
     create_gossip_from_tier2_event(&event, &mut network, game_time());
     assert_eq!(network.len(), 1);
