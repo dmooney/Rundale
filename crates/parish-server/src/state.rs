@@ -151,8 +151,13 @@ pub struct AppState {
     /// or shutdown so orphaned workers (each holding an HTTP client and channel)
     /// don't accumulate.  See bugs #224 and #231.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
-    /// Editor session — separate from gameplay state, may be empty.
-    pub editor: std::sync::Mutex<parish_core::ipc::editor::EditorSession>,
+    /// Per-user editor sessions — keyed by CF-Access email.
+    ///
+    /// Uses a `tokio::sync::Mutex` so handlers can hold the guard across
+    /// `.await` points without blocking Tokio workers.
+    pub editor_sessions: tokio::sync::Mutex<
+        std::collections::HashMap<String, parish_core::ipc::editor::EditorSession>,
+    >,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -264,7 +269,7 @@ pub fn build_app_state(
         pronunciations,
         flags_path,
         worker_handle: Mutex::new(None),
-        editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
+        editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     })
 }
 

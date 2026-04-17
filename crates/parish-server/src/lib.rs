@@ -295,6 +295,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
         // ── Editor routes (Parish Designer) ─────────────────────────────
+        // #376 — update endpoints carry a 256 KiB body limit.
         .route(
             "/api/editor-list-mods",
             get(editor_routes::editor_list_mods),
@@ -307,13 +308,19 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/editor-validate", get(editor_routes::editor_validate))
         .route(
             "/api/editor-update-npcs",
-            post(editor_routes::editor_update_npcs),
+            post(editor_routes::editor_update_npcs)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-update-locations",
-            post(editor_routes::editor_update_locations),
+            post(editor_routes::editor_update_locations)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
-        .route("/api/editor-save", post(editor_routes::editor_save))
+        .route(
+            "/api/editor-save",
+            post(editor_routes::editor_save)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
+        )
         .route("/api/editor-reload", post(editor_routes::editor_reload))
         .route("/api/editor-close", post(editor_routes::editor_close))
         .route(
@@ -322,15 +329,18 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         )
         .route(
             "/api/editor-list-branches",
-            post(editor_routes::editor_list_branches),
+            post(editor_routes::editor_list_branches)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-list-snapshots",
-            post(editor_routes::editor_list_snapshots),
+            post(editor_routes::editor_list_snapshots)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-read-snapshot",
-            post(editor_routes::editor_read_snapshot),
+            post(editor_routes::editor_read_snapshot)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route("/api/auth/status", get(auth::get_auth_status));
 
