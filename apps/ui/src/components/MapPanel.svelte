@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { mapData, fullMapOpen, pushErrorLog, formatIpcError } from '../stores/game';
 	import { travelState } from '../stores/travel';
+	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
 	import type { MapLocation } from '$lib/types';
@@ -122,7 +123,8 @@
 		controller = new MapController({
 			container,
 			variant: 'minimap',
-			interactive: false
+			interactive: false,
+			tileSource: currentTileSource($tiles)
 		});
 
 		controller.onLocationClick(async (info) => {
@@ -205,6 +207,12 @@
 		} else {
 			controller.stopTravel();
 		}
+	});
+
+	// Keep minimap base tiles in sync with `/tiles` selection.
+	$effect(() => {
+		if (!mounted || !controller) return;
+		controller.setTileSource(currentTileSource($tiles));
 	});
 
 	function toggleFullMap() {

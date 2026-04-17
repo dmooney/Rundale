@@ -44,8 +44,8 @@ export interface MapControllerOptions {
 	interactive: boolean;
 	/** Initial zoom level. Minimap uses a fixed zoom; full map fits bounds. */
 	initialZoom?: number;
-	/** Raster tile source to use for the base layer (full map only). Undefined
-	 *  or a source with an empty URL yields a flat-bg fallback. */
+	/** Raster tile source to use for the base layer. Undefined or a source
+	 *  with an empty URL yields a flat-background fallback. */
 	tileSource?: TileSource;
 }
 
@@ -127,8 +127,8 @@ export class MapController {
 	 * to restore the location/edge overlays. Using `.once()` avoids re-entry
 	 * on repeated `styledata` fires.
 	 *
-	 * Called by the full-map component's `$effect` when the `tiles` store's
-	 * active id changes (driven by the `tiles-switch` event from `/tiles`).
+	 * Called by map components' `$effect`s when the `tiles` store's active id
+	 * changes (driven by the `tiles-switch` event from `/tiles`).
 	 */
 	setTileSource(source: TileSource | undefined): void {
 		this.tileSource = source;

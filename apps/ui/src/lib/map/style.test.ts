@@ -79,11 +79,17 @@ describe('buildStyle', () => {
 		expect(style.layers.find((l) => l.id === 'background')).toBeDefined();
 	});
 
-	it('minimap ignores tileSource and always uses flat background', () => {
+	it('minimap uses raster tiles when a tile source is provided', () => {
 		const style = buildStyle('minimap', THEME, osm());
+		expect(style.sources['map-tiles']).toBeDefined();
+		expect(style.layers.find((l) => l.id === 'background')).toBeUndefined();
+		expect(style.layers.find((l) => l.id === 'map-tiles-layer')).toBeDefined();
+	});
+
+	it('minimap with no tile source falls back to flat background', () => {
+		const style = buildStyle('minimap', THEME);
 		expect(style.sources['map-tiles']).toBeUndefined();
 		expect(style.layers.find((l) => l.id === 'background')).toBeDefined();
-		expect(style.layers.find((l) => l.id === 'map-tiles-layer')).toBeUndefined();
 	});
 
 	it('always carries empty GeoJSON sources for locations and edges', () => {

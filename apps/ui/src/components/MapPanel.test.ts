@@ -9,6 +9,9 @@ import MapPanel from './MapPanel.svelte';
 vi.mock('maplibre-gl', () => {
 	class FakeMap {
 		on() {}
+		once(_event: string, cb: () => void) {
+			cb();
+		}
 		remove() {}
 		getCanvas() {
 			const el = document.createElement('canvas');

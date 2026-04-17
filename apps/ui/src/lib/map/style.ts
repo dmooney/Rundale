@@ -4,7 +4,7 @@
  * Produces a `StyleSpecification` tailored to either the minimap or the
  * full-parish overlay. The style wires up:
  *
- *   - a raster OSM base (full map only) or a flat panel-bg (minimap)
+ *   - a raster tile base (when configured) or a flat panel background
  *   - an `edges` line layer with data-driven width for traversal footprints
  *   - a `locations` symbol layer with MapLibre's production-grade label
  *     placement — variable anchors, symbol sort keys, halo, and zoom-level
@@ -57,9 +57,9 @@ const GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
  *
  * The style has two GeoJSON sources (`locations` and `edges`) that start
  * empty — the controller populates them via `setData()` as game state
- * changes. On the full map a raster base is added beneath, sourced from
- * the `tileSource` parameter (ships with OSM by default; the `/tiles`
- * slash command swaps this via `MapController.setTileSource()`).
+ * changes. A raster base is added beneath when `tileSource` has a URL
+ * (ships with OSM by default; the `/tiles` slash command swaps this via
+ * `MapController.setTileSource()`).
  *
  * Passing a `tileSource` with an empty `url` (e.g. a user-added source
  * that hasn't had its URL filled in yet) falls back to the flat-bg layer
@@ -73,9 +73,9 @@ export function buildStyle(
 ): StyleSpecification {
 	const layers: LayerSpecification[] = [];
 	const rasterSourceId = 'map-tiles';
-	const hasUsableTiles = variant === 'full' && tileSource && tileSource.url.length > 0;
+	const hasUsableTiles = !!tileSource && tileSource.url.length > 0;
 
-	// 1. Base layer — flat color on the minimap, configured raster on the full map.
+	// 1. Base layer — configured raster when available, otherwise flat background.
 	if (hasUsableTiles) {
 		layers.push({
 			id: 'map-tiles-layer',
@@ -87,12 +87,11 @@ export function buildStyle(
 			}
 		});
 	} else {
-		if (variant === 'full' && tileSource && tileSource.url.length === 0) {
+		if (tileSource && tileSource.url.length === 0) {
 			// Informational — a source was registered without a URL; the
 			// operator needs to paste a real endpoint into parish.toml.
 			warnMissingTileUrl(tileSource.id);
 		}
-		// Minimap: flat panel background, no tiles.
 		layers.push({
 			id: 'background',
 			type: 'background',
