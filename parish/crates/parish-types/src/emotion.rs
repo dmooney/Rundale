@@ -342,8 +342,12 @@ impl EmotionState {
         } else if has_any(&m, &["calm", "serene", "peaceful", "tranquil"]) {
             pad = (0.3, -0.3, 0.1);
         } else if has_any(&m, &["content", "satisfied", "pleased"]) {
-            families.joy = 0.2;
-            pad = (0.3, -0.1, 0.1);
+            // `pleasure` must clear the PAD "content" threshold
+            // (0.3) so label() round-trips the string back. Keep
+            // `joy` below 0.3 so we stay in the PAD branch rather
+            // than jumping up to "cheerful".
+            families.joy = 0.25;
+            pad = (0.35, -0.1, 0.1);
         } else if has_any(&m, &["restless", "agitated", "fidgety"]) {
             pad = (-0.1, 0.5, 0.0);
             families.fear = 0.2;

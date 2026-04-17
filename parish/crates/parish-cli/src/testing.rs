@@ -1118,6 +1118,7 @@ impl GameTestHarness {
                         internal_thought: None,
                         language_hints: Vec::new(),
                         mentioned_people: Vec::new(),
+                        emotion_delta: None,
                     }),
                 };
                 let game_time = self.app.world.clock.now();

@@ -84,7 +84,10 @@ pub fn build_enhanced_system_prompt_with_config(
     npc_names: &std::collections::HashMap<NpcId, String>,
     known_roster: Option<&[(NpcId, String, String)]>,
 ) -> String {
-    let mut prompt = build_tier1_system_prompt(npc, improv);
+    // TODO(emotion-flag): thread `emotions_enabled` from `config` once
+    // NpcConfig gains the field (task 9). Until then, default to on —
+    // matches the intended default state of the feature flag.
+    let mut prompt = build_tier1_system_prompt(npc, improv, true);
 
     // Add known NPC roster (relationships + memory + co-located NPCs)
     // NpcId(0) is the player — shown first with a special "currently speaking with" note.
@@ -307,8 +310,43 @@ pub fn apply_tier1_response_with_config(
 ) -> Vec<String> {
     let mut events = Vec::new();
 
-    // Update mood from metadata
+    // Apply structured emotion delta from metadata. This is the
+    // write-back half of the Tier 1 emotion loop: the LLM reads the
+    // state via the prompt preamble, and here we consume the
+    // LLM-reported impulse to update internal state. The legacy
+    // mood string is re-derived after this so downstream readers
+    // stay consistent.
+    let mut emotion_already_applied = false;
     if let Some(ref meta) = response.metadata
+        && let Some(ref impulse) = meta.emotion_delta
+    {
+        let prev_label = npc.emotion.label();
+        npc.apply_emotion_impulse(impulse);
+        let new_label = npc.emotion.label();
+        if prev_label != new_label {
+            events.push(format!(
+                "{} emotion: {} -> {} ({:?} {:+.2}{})",
+                npc.name,
+                prev_label,
+                new_label,
+                impulse.family,
+                impulse.delta,
+                impulse
+                    .cause
+                    .as_deref()
+                    .map(|c| format!(", {c}"))
+                    .unwrap_or_default(),
+            ));
+        }
+        emotion_already_applied = true;
+    }
+
+    // Legacy mood-string fallback. If the LLM returned a structured
+    // delta, `apply_emotion_impulse` has already re-derived `mood`
+    // from `emotion.label()` and we must *not* overwrite it with the
+    // free-form string (which would break mood/emotion sync).
+    if !emotion_already_applied
+        && let Some(ref meta) = response.metadata
         && !meta.mood.is_empty()
         && meta.mood != npc.mood
     {
@@ -1086,6 +1124,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                emotion_delta: None,
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1599,6 +1638,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                emotion_delta: None,
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1621,6 +1661,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                emotion_delta: None,
             }),
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
