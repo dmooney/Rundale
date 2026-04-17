@@ -7,9 +7,9 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 ## Game World
 
 ### Setting
-- **Location:** Kiltoom parish, County Roscommon, Ireland (1820)
+- **Location:** Rural Ireland (1820) — default mod is Rundale, set in the Kiltoom/Roscommon area
 - **Historical context:** Post-Acts of Union (1800), pre-Catholic Emancipation (1829) and Great Famine (1845)
-- **15 hand-authored locations** based on real Irish geography with lat/lon coordinates
+- **22 hand-authored locations** based on real Irish geography with lat/lon coordinates
 
 ### World Graph
 - Graph-based location system with named connections between places
@@ -101,7 +101,7 @@ Profile dimensions are translated into behavioral directives and injected into t
 - Both hardcoded dictionary and mod-driven `anachronisms.json`
 
 ### Improv Mode
-- Toggleable "improv craft" mode for NPC dialogue (`/toggle-improv`)
+- Toggleable "improv craft" mode for NPC dialogue (`/improv`)
 - Enhances NPC responses with theatrical improvisation techniques
 
 ---
@@ -139,10 +139,17 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 - `/log` — Show save history
 
 **Display:**
-- `/map` — Toggle full map overlay
+- `/map` — List available tile sources; `/map <id>` switches to the named tile source (gated on the `period-map-tiles` flag)
+- `/designer` — Open the parish designer
+- `/theme [arg]` — Show or set the UI theme
 - `/irish` — Toggle the Focail (Irish pronunciation) sidebar
 - `/improv` — Toggle improv craft mode for NPC dialogue
 - `/speed [preset]` — Show or set game speed (`slow`, `normal`, `fast`, `fastest`, `ludicrous`)
+
+**Feature Flags:**
+- `/flags` — List all feature flags and their states
+- `/flag list` — List flags (same as above)
+- `/flag enable <name>` / `/flag disable <name>` — Toggle a specific flag
 
 **Provider Configuration (base):**
 - `/provider [name]` — Show or set the base LLM provider
@@ -185,12 +192,14 @@ Categories are `dialogue`, `simulation`, or `intent`.
 ## LLM / Inference
 
 ### Provider Support
-10 LLM providers supported out of the box:
+13 LLM backends supported out of the box:
 
 | Provider | Type |
 |----------|------|
-| **Ollama** | Local (default) |
+| **Simulator** | Offline (default) — generates nonsense locally, no network or model download |
+| **Ollama** | Local |
 | **LM Studio** | Local |
+| **vLLM** | Local |
 | **OpenRouter** | Cloud |
 | **OpenAI** | Cloud |
 | **Google Gemini** | Cloud |
@@ -199,7 +208,7 @@ Categories are `dialogue`, `simulation`, or `intent`.
 | **Mistral** | Cloud |
 | **DeepSeek** | Cloud |
 | **Together AI** | Cloud |
-| **Custom** | User-provided endpoint |
+| **Custom** | User-provided OpenAI-compatible endpoint |
 
 ### Inference Categories
 Three independent inference categories, each independently configurable:
@@ -208,11 +217,11 @@ Three independent inference categories, each independently configurable:
 - **Intent** — Player input parsing and classification
 
 ### Configuration Resolution
-Provider config resolves in priority order:
-1. CLI flags (`--provider`, `--model`, `--api-key`, `--base-url`)
-2. Environment variables (`PARISH_*` prefix, including per-category `PARISH_DIALOGUE_*`, `PARISH_SIMULATION_*`, `PARISH_INTENT_*`)
-3. TOML config file (`parish.toml`) with per-category overrides
-4. Defaults (Ollama on localhost:11434)
+Provider config is resolved by `resolve_config` in `crates/parish-config/src/provider.rs`. Later layers override earlier ones:
+1. Hardcoded defaults (default provider is **Simulator**; no network or API key required)
+2. TOML config file (`parish.toml`) with per-category overrides
+3. Environment variables (`PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_API_KEY`, `PARISH_MODEL`)
+4. CLI flags (`--provider`, `--model`, `--api-key`, `--base-url`)
 
 ### Ollama Bootstrap
 - Auto-starts `ollama serve` if not running; shuts down cleanly on exit
@@ -258,14 +267,15 @@ Provider config resolves in priority order:
   - Smooth tweened panning (400ms, cubic-out easing)
   - Auto-zoom based on nearby location bounding box
   - Click-to-navigate on visible locations
-- **Full map overlay:** Complete parish map with zoom and pan (toggled with M hotkey or `/map`)
+- **Full map overlay:** Complete parish map with zoom and pan (toggled with the M hotkey)
+- **Tile sources:** `/map` lists configured tile sources; `/map <id>` switches to one (requires the `period-map-tiles` flag)
 - Fixed-scale Mercator projection from real lat/lon coordinates
 - Label collision avoidance using force-directed repulsion
 
 ### Sidebar
 - **NPCs Here:** Lists all NPCs at the player's current location
 - **Focail (Irish Words):** Irish language pronunciation guide panel
-- Toggleable via `/toggle-sidebar`
+- Toggleable via `/irish`
 
 ### Theme System
 - Time-of-day color theming with smooth RGB gradient interpolation
@@ -323,9 +333,11 @@ mods/<mod-name>/
 └── transport.toml        # Transport configuration
 ```
 
-### Default Mod: Kilteevan 1820
-- 15 locations in Kiltoom parish with real geographic coordinates
-- 8 NPCs with distinct personalities, occupations, and schedules
+### Default Mod: Rundale
+Shipped at `mods/rundale/` (`mod.toml` id: `rundale`, title: "Rundale", description: "Rural Ireland, 1820 — a living world of land, labour, and community").
+
+- **22 locations** with real geographic coordinates
+- **23 NPCs** with distinct personalities, occupations, and schedules
 - 4 Irish festivals
 - 7 time-of-day encounter variants
 - 25 culturally themed loading phrases
@@ -350,8 +362,8 @@ All modes share the same core game logic from `crates/parish-core/`.
 
 ### Geo Tool
 - Standalone OSM (OpenStreetMap) geographic data extraction tool
-- Located at `src/bin/geo_tool/`
-- Used to generate real-world location coordinates for the world graph
+- Lives as its own crate at `crates/geo-tool/`
+- Used to pin world locations to real-world coordinates and build the world graph
 
 ---
 
