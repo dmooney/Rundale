@@ -31,10 +31,12 @@ import {
 	locationsToGeoJSON,
 	edgesToGeoJSON,
 	computeOffMapCounts,
+	edgeKey,
 	type LocationFeatureProps,
 	type EdgeFeatureProps
 } from './geojson';
 import type { FeatureCollection, Point, LineString } from 'geojson';
+import { ICON_PATHS, type LocationIcon } from '$lib/map-icons';
 
 /** Options passed to the controller at construction time. */
 export interface MapControllerOptions {
@@ -84,6 +86,8 @@ export class MapController {
 	private lastVisibleIds: Set<string> | null = null;
 	/** Active travel animation, cleared when travel ends. */
 	private travelAnim: TravelAnimation | null = null;
+	/** Canonical edge keys for the active travel path (for line highlighting). */
+	private activeTravelEdgeKeys = new Set<string>();
 	/** Registered click handler, if any. */
 	private clickHandler: ((info: LocationClickInfo) => void) | null = null;
 	/** Registered hover handler, if any. */
@@ -110,6 +114,7 @@ export class MapController {
 		});
 
 		this.map.on('load', () => {
+			registerLocationIcons(this.map);
 			this.ready = true;
 			this.wireLayerEvents();
 			if (this.pendingMapData) {
@@ -136,6 +141,7 @@ export class MapController {
 		this.ready = false;
 		this.map.setStyle(buildStyle(this.variant, theme, source));
 		this.map.once('styledata', () => {
+			registerLocationIcons(this.map);
 			this.ready = true;
 			this.wireLayerEvents();
 			const data = this.pendingMapData ?? this.lastMapData;
@@ -171,7 +177,10 @@ export class MapController {
 			filterIds: visibleIds,
 			offMapCounts
 		});
-		const edgeFC = edgesToGeoJSON(mapData, { filterIds: visibleIds });
+		const edgeFC = edgesToGeoJSON(mapData, {
+			filterIds: visibleIds,
+			traversingEdgeKeys: this.activeTravelEdgeKeys
+		});
 
 		setSourceData(this.map, 'locations', locationFC);
 		setSourceData(this.map, 'edges', edgeFC);
@@ -216,6 +225,10 @@ export class MapController {
 	startTravel(waypoints: TravelWaypoint[], durationMs: number): void {
 		this.stopTravel();
 		if (waypoints.length < 2) return;
+		this.activeTravelEdgeKeys = buildTravelEdgeKeys(waypoints);
+		if (this.lastMapData) {
+			this.updateMap(this.lastMapData, this.lastVisibleIds ?? undefined);
+		}
 
 		const el = document.createElement('div');
 		el.className = 'travel-dot-marker';
@@ -248,6 +261,11 @@ export class MapController {
 
 	/** Stops and removes any active travel animation. */
 	stopTravel(): void {
+		const hadActivePath = this.activeTravelEdgeKeys.size > 0;
+		this.activeTravelEdgeKeys.clear();
+		if (hadActivePath && this.lastMapData) {
+			this.updateMap(this.lastMapData, this.lastVisibleIds ?? undefined);
+		}
 		if (!this.travelAnim) return;
 		cancelAnimationFrame(this.travelAnim.rafId);
 		this.travelAnim.marker.remove();
@@ -352,4 +370,40 @@ function setSourceData(
 	if (source && source.type === 'geojson') {
 		(source as maplibregl.GeoJSONSource).setData(data);
 	}
+}
+
+function buildTravelEdgeKeys(waypoints: TravelWaypoint[]): Set<string> {
+	const keys = new Set<string>();
+	for (let i = 0; i < waypoints.length - 1; i += 1) {
+		const a = waypoints[i];
+		const b = waypoints[i + 1];
+		keys.add(edgeKey(a.id, b.id));
+	}
+	return keys;
+}
+
+function registerLocationIcons(map: MapLibreMap): void {
+	for (const [icon, path] of Object.entries(ICON_PATHS) as Array<[LocationIcon, string]>) {
+		const imageId = `icon-${icon}`;
+		if (map.hasImage(imageId)) continue;
+		map.addImage(imageId, drawIconImage(path), { sdf: true });
+	}
+}
+
+function drawIconImage(pathData: string): ImageData {
+	const size = 64;
+	const canvas = document.createElement('canvas');
+	canvas.width = size;
+	canvas.height = size;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) {
+		throw new Error('Could not initialize icon canvas context');
+	}
+	ctx.clearRect(0, 0, size, size);
+	ctx.fillStyle = '#ffffff';
+	ctx.translate(0, size);
+	ctx.scale(size / 256, -size / 256);
+	const path = new Path2D(pathData);
+	ctx.fill(path);
+	return ctx.getImageData(0, 0, size, size);
 }

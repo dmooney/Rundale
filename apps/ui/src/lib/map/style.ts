@@ -114,12 +114,26 @@ export function buildStyle(
 		filter: ['!', ['get', 'frontier']],
 		layout: { 'line-cap': 'round', 'line-join': 'round' },
 		paint: {
-			'line-color': theme.border,
-			'line-opacity': 0.85,
+			'line-color': ['case', ['get', 'traversing'], theme.accent, theme.border],
+			'line-opacity': ['case', ['get', 'traversing'], 1, 0.85],
 			'line-width': [
-				'interpolate', ['linear'], ['zoom'],
-				10, ['+', 1, ['*', ['get', 'traversalWeight'], 2]],
-				18, ['+', 2, ['*', ['get', 'traversalWeight'], 4]]
+				'interpolate',
+				['linear'],
+				['zoom'],
+				10,
+				[
+					'case',
+					['get', 'traversing'],
+					4,
+					['+', 1, ['*', ['get', 'traversalWeight'], 2]]
+				],
+				18,
+				[
+					'case',
+					['get', 'traversing'],
+					7,
+					['+', 2, ['*', ['get', 'traversalWeight'], 4]]
+				]
 			]
 		}
 	});
@@ -143,20 +157,30 @@ export function buildStyle(
 		}
 	});
 
-	// 3. Location dots — small circle beneath each symbol so there's always
-	//    something visible even when the icon sprite fails to register.
+	// 3. Glow underlay for lit and player locations.
 	layers.push({
-		id: 'location-circles',
+		id: 'location-glow',
 		type: 'circle',
 		source: 'locations',
 		paint: {
 			'circle-radius': [
 				'case',
 				['get', 'isPlayer'],
-				variant === 'minimap' ? 9 : 11,
-				variant === 'minimap' ? 5 : 7
+				variant === 'minimap' ? 12 : 16,
+				['get', 'lit'],
+				variant === 'minimap' ? 8 : 10,
+				0.01
 			],
-			'circle-color': [
+			'circle-blur': [
+				'case',
+				['get', 'isPlayer'],
+				0.9,
+				['get', 'lit'],
+				0.75,
+				0
+			],
+			'circle-color': theme.accent,
+			'circle-stroke-color': [
 				'case',
 				['get', 'isPlayer'],
 				theme.accent,
@@ -164,25 +188,19 @@ export function buildStyle(
 				theme.accent,
 				theme.panelBg
 			],
-			'circle-stroke-color': [
-				'case',
-				['get', 'isPlayer'],
-				theme.fg,
-				['get', 'adjacent'],
-				theme.accent,
-				theme.muted
-			],
 			'circle-stroke-width': [
 				'case',
 				['get', 'isPlayer'],
-				2,
-				1.25
+				2.5,
+				['get', 'lit'],
+				1.5,
+				0
 			],
 			'circle-opacity': [
 				'case',
-				['get', 'visited'],
+				['any', ['get', 'isPlayer'], ['get', 'lit']],
 				1,
-				0.45
+				0
 			],
 			'circle-stroke-opacity': [
 				'case',
@@ -193,7 +211,49 @@ export function buildStyle(
 		}
 	});
 
-	// 4. Location labels — the whole point of this migration.
+	// 4. Location icons (custom Phosphor glyphs registered at runtime).
+	layers.push({
+		id: 'location-circles',
+		type: 'symbol',
+		source: 'locations',
+		layout: {
+			'icon-image': ['concat', 'icon-', ['get', 'icon']],
+			'icon-size': [
+				'interpolate',
+				['linear'],
+				['zoom'],
+				10,
+				['case', ['get', 'isPlayer'], 0.09, 0.075],
+				18,
+				['case', ['get', 'isPlayer'], 0.12, 0.1]
+			],
+			'icon-allow-overlap': true,
+			'icon-ignore-placement': true
+		},
+		paint: {
+			'icon-color': [
+				'case',
+				['get', 'isPlayer'],
+				theme.fg,
+				['get', 'lit'],
+				theme.accent,
+				['get', 'adjacent'],
+				theme.accent,
+				theme.muted
+			],
+			'icon-opacity': [
+				'case',
+				['get', 'visited'],
+				1,
+				0.45
+			],
+			'icon-halo-color': theme.bg,
+			'icon-halo-width': 0.8,
+			'icon-halo-blur': 0.2
+		}
+	});
+
+	// 5. Location labels — the whole point of this migration.
 	//
 	//    MapLibre's symbol layer does the collision-aware placement we were
 	//    hand-rolling in `map-labels.ts`: variable anchors pick the best side
