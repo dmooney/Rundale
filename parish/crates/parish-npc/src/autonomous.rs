@@ -43,6 +43,32 @@ pub fn pick_next_speaker<'a>(
     recently_spoken: &[NpcId],
     addressed_this_turn: &[NpcId],
 ) -> Option<&'a Npc> {
+    // Back-compat wrapper — defaults emotion gates to on, matching
+    // the shipping default of `NpcConfig::emotions_enabled`.
+    pick_next_speaker_with_config(
+        npcs_at_location,
+        last_speaker_id,
+        recently_spoken,
+        addressed_this_turn,
+        true,
+    )
+}
+
+/// Flag-aware variant of [`pick_next_speaker`].
+///
+/// When `emotions_enabled` is true, the full gate-aware scoring is
+/// used ([`energy_bonus`] including `public_outburst`, `effusive`,
+/// and `withdraws_silent` contributions). When false, only the
+/// arousal component applies — matching the approximate behaviour of
+/// the old string-matching `is_high_energy_mood` without the gate
+/// penalties that can suppress a grief-struck NPC.
+pub fn pick_next_speaker_with_config<'a>(
+    npcs_at_location: &[&'a Npc],
+    last_speaker_id: Option<NpcId>,
+    recently_spoken: &[NpcId],
+    addressed_this_turn: &[NpcId],
+    emotions_enabled: bool,
+) -> Option<&'a Npc> {
     let mut best: Option<(&Npc, f32)> = None;
 
     for &candidate in npcs_at_location {
@@ -66,7 +92,7 @@ pub fn pick_next_speaker<'a>(
             score += 0.2;
         }
 
-        score += energy_bonus(&candidate.emotion);
+        score += energy_bonus(&candidate.emotion, emotions_enabled);
 
         if let Some((_, best_score)) = best {
             if score > best_score {
@@ -84,26 +110,30 @@ pub fn pick_next_speaker<'a>(
 /// Emotion-derived score bonus (or penalty) for an NPC's likelihood
 /// to speak up unprompted.
 ///
-/// Sums three contributions:
+/// When `use_gates` is false, only the arousal component fires —
+/// preserving approximate legacy behaviour under the `emotions`
+/// kill-switch. When true, all three contributions apply:
 /// - +0.1 for high arousal (the classic "activation" component of PAD)
 /// - +0.15 for `public_outburst` or `effusive` gates
 /// - -0.4 for `withdraws_silent`
 ///
-/// Net effect: a simmering-angry NPC gets +0.25 (visibly more likely to
-/// interject), a grief-struck NPC gets -0.3 to -0.4 (unlikely to chime
-/// in unless directly addressed).
-pub fn energy_bonus(emotion: &EmotionState) -> f32 {
-    let gates = emotion.gates();
+/// Net with gates on: a simmering-angry NPC gets +0.25 (visibly more
+/// likely to interject), a grief-struck NPC gets -0.3 to -0.4
+/// (unlikely to chime in unless directly addressed).
+pub fn energy_bonus(emotion: &EmotionState, use_gates: bool) -> f32 {
     let mut bonus = 0.0;
 
     if emotion.arousal > 0.3 {
         bonus += 0.1;
     }
-    if gates.public_outburst || gates.effusive {
-        bonus += 0.15;
-    }
-    if gates.withdraws_silent {
-        bonus -= 0.4;
+    if use_gates {
+        let gates = emotion.gates();
+        if gates.public_outburst || gates.effusive {
+            bonus += 0.15;
+        }
+        if gates.withdraws_silent {
+            bonus -= 0.4;
+        }
     }
 
     bonus
@@ -349,7 +379,7 @@ mod tests {
         for mood in &["angry", "scared", "joyful"] {
             let npc = make_npc(1, "Test", mood);
             assert!(
-                energy_bonus(&npc.emotion) > 0.05,
+                energy_bonus(&npc.emotion, true) > 0.05,
                 "mood {mood:?} should produce a positive energy bonus"
             );
         }
@@ -359,7 +389,7 @@ mod tests {
     fn energy_bonus_neutral_states_add_little() {
         for mood in &["content", "calm", "tired", "serene"] {
             let npc = make_npc(1, "Test", mood);
-            let b = energy_bonus(&npc.emotion);
+            let b = energy_bonus(&npc.emotion, true);
             assert!(
                 b.abs() < 0.05,
                 "mood {mood:?} should produce a near-zero bonus, got {b}"
@@ -373,7 +403,7 @@ mod tests {
         // → large negative bonus.
         let mut npc = Npc::new_test_npc();
         npc.emotion.families.sadness = 0.9;
-        let b = energy_bonus(&npc.emotion);
+        let b = energy_bonus(&npc.emotion, true);
         assert!(
             b < -0.2,
             "grief-struck NPC should have a strongly negative bonus, got {b}"
