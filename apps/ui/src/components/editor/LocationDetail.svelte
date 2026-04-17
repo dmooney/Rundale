@@ -12,6 +12,13 @@
 	} from '../../stores/editor';
 	import { editorUpdateLocations, editorSave } from '$lib/editor-ipc';
 	import type { GeoKind, LocationData } from '$lib/editor-types';
+	import {
+		applyDraggedCoordinates,
+		buildEditorMapData,
+		getEditorMapCenter,
+		normalizeLocationCaches,
+		offsetLatLon
+	} from '$lib/editor-map';
 	import { getUiConfig } from '$lib/ipc';
 	import { buildStyle, readThemeColors } from '$lib/map/style';
 	import type { TileSource } from '$lib/types';
@@ -19,7 +26,10 @@
 	let mapContainer: HTMLDivElement | undefined;
 	let map: maplibregl.Map | null = null;
 	let mapLoaded = false;
-	let activeTile: TileSource | undefined;
+	let mapInitializing = false;
+	let componentDisposed = false;
+	let dragTargetId: number | null = null;
+	let dragMoved = false;
 
 	$: loc = $editorSelectedLocation;
 	$: locations = $editorLocations;
@@ -34,18 +44,12 @@
 		return npcs.find((n) => n.id === id)?.name ?? `#${id}`;
 	}
 
-	function moveLatLon(lat: number, lon: number, northM: number, eastM: number) {
-		const dLat = northM / 111_320;
-		const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
-		const dLon = eastM / (111_320 * cosLat);
-		return { lat: lat + dLat, lon: lon + dLon };
-	}
-
 	async function persistLocations(nextLocations: LocationData[]) {
-		const report = await editorUpdateLocations(nextLocations);
+		const normalizedLocations = normalizeLocationCaches(nextLocations);
+		const report = await editorUpdateLocations(normalizedLocations);
 		editorSnapshot.update((s) => {
 			if (!s) return s;
-			return { ...s, locations: nextLocations, validation: report };
+			return { ...s, locations: normalizedLocations, validation: report };
 		});
 		editorValidation.set(report);
 		editorDirty.set(true);
@@ -98,7 +102,7 @@
 			});
 			return;
 		}
-		const moved = moveLatLon(loc.lat, loc.lon, northM, eastM);
+		const moved = offsetLatLon(loc.lat, loc.lon, northM, eastM);
 		await updateSelectedLocation((current) => ({ ...current, ...moved }));
 	}
 
@@ -141,37 +145,9 @@
 		}
 	}
 
-	function refreshMapData() {
+	function setMapData(nextLocations: LocationData[], nextSelectedId: number | null, preview?: { id: number; lat: number; lon: number }) {
 		if (!map || !mapLoaded) return;
-		const features = locations.map((entry) => ({
-			type: 'Feature' as const,
-			properties: {
-				id: entry.id,
-				name: entry.name,
-				selected: entry.id === selectedId ? 1 : 0,
-				relative: entry.relative_to ? 1 : 0
-			},
-			geometry: { type: 'Point' as const, coordinates: [entry.lon, entry.lat] }
-		}));
-		const edgeFeatures = [];
-		for (const entry of locations) {
-			for (const conn of entry.connections) {
-				if (entry.id > conn.target) continue;
-				const target = locations.find((loc) => loc.id === conn.target);
-				if (!target) continue;
-				edgeFeatures.push({
-					type: 'Feature' as const,
-					properties: { a: entry.id, b: target.id },
-					geometry: {
-						type: 'LineString' as const,
-						coordinates: [
-							[entry.lon, entry.lat],
-							[target.lon, target.lat]
-						]
-					}
-				});
-			}
-		}
+		const { features, edgeFeatures } = buildEditorMapData(nextLocations, nextSelectedId, preview);
 		(map.getSource('editor-locations') as maplibregl.GeoJSONSource)?.setData({
 			type: 'FeatureCollection',
 			features
@@ -180,45 +156,70 @@
 			type: 'FeatureCollection',
 			features: edgeFeatures
 		});
-		if (loc) map.easeTo({ center: [loc.lon, loc.lat], duration: 250 });
+		const center = getEditorMapCenter(features, nextSelectedId, preview);
+		if (!center) return;
+		const [lon, lat] = center;
+		map.easeTo({ center: [lon, lat], duration: 250 });
 	}
 
-	onMount(() => {
-		if (!mapContainer) return;
-		let disposed = false;
-		void (async () => {
-			try {
-				const cfg = await getUiConfig();
-				activeTile =
-					cfg.tile_sources.find((t) => t.id === cfg.active_tile_source) ?? cfg.tile_sources[0];
-			} catch {
-				activeTile = undefined;
-			}
-			if (disposed) return;
-			map = new maplibregl.Map({
-				container: mapContainer!,
-				style: buildStyle('full', readThemeColors(), activeTile),
-				center: [-8.0, 53.5],
-				zoom: 12
+	function destroyMap() {
+		mapLoaded = false;
+		map?.remove();
+		map = null;
+	}
+
+	function readLocationId(event: { features?: Array<{ properties?: { id?: number | string } }> }): number | null {
+		const rawId = event.features?.[0]?.properties?.id;
+		const id = typeof rawId === 'number' ? rawId : Number(rawId);
+		return Number.isNaN(id) ? null : id;
+	}
+
+	async function ensureMap() {
+		if (!mapContainer || map || mapInitializing || componentDisposed) return;
+		mapInitializing = true;
+
+		let initialTile: TileSource | undefined;
+		try {
+			const cfg = await getUiConfig();
+			initialTile =
+				cfg.tile_sources.find((t) => t.id === cfg.active_tile_source) ?? cfg.tile_sources[0];
+		} catch {
+			initialTile = undefined;
+		}
+
+		if (!mapContainer || map || componentDisposed) {
+			mapInitializing = false;
+			return;
+		}
+
+		const nextMap = new maplibregl.Map({
+			container: mapContainer,
+			style: buildStyle('full', readThemeColors(), initialTile),
+			center: [-8.0, 53.5],
+			zoom: 12,
+			boxZoom: false
+		});
+		map = nextMap;
+		nextMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+		nextMap.on('load', () => {
+			if (map !== nextMap || componentDisposed) return;
+			mapLoaded = true;
+			const canvas = nextMap.getCanvas();
+			nextMap.addSource('editor-locations', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features: [] }
 			});
-			map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-			map.on('load', () => {
-				mapLoaded = true;
-				map?.addSource('editor-locations', {
-					type: 'geojson',
-					data: { type: 'FeatureCollection', features: [] }
-				});
-				map?.addSource('editor-edges', {
-					type: 'geojson',
-					data: { type: 'FeatureCollection', features: [] }
-				});
-				map?.addLayer({
+			nextMap.addSource('editor-edges', {
+				type: 'geojson',
+				data: { type: 'FeatureCollection', features: [] }
+			});
+			nextMap.addLayer({
 				id: 'editor-edges',
 				type: 'line',
 				source: 'editor-edges',
 				paint: { 'line-color': '#8f7e56', 'line-width': 2, 'line-opacity': 0.85 }
 			});
-				map?.addLayer({
+			nextMap.addLayer({
 				id: 'editor-locations',
 				type: 'circle',
 				source: 'editor-locations',
@@ -234,69 +235,73 @@
 					'circle-stroke-color': '#1a140a'
 				}
 			});
-				map?.on('click', 'editor-locations', async (event) => {
-				const rawId = event.features?.[0]?.properties?.id;
-				const id = typeof rawId === 'number' ? rawId : Number(rawId);
-				if (Number.isNaN(id)) return;
-				if (selectedId && selectedId !== id && (event.originalEvent as MouseEvent).shiftKey) {
+			nextMap.on('click', 'editor-locations', async (event) => {
+				const id = readLocationId(event);
+				if (id === null) return;
+				if (selectedId !== null && selectedId !== id && (event.originalEvent as MouseEvent).shiftKey) {
 					await toggleConnection(id);
 					return;
 				}
 				editorSelectedLocationId.set(id);
-				});
-				refreshMapData();
 			});
+			nextMap.on('mouseenter', 'editor-locations', () => {
+				canvas.style.cursor = 'pointer';
+			});
+			nextMap.on('mouseleave', 'editor-locations', () => {
+				canvas.style.cursor = '';
+			});
+			setMapData(locations, selectedId);
+		});
 
-			let dragging = false;
-			let dragLat = 0;
-			let dragLon = 0;
-			map.on('mousedown', 'editor-locations', () => {
+		let dragging = false;
+		let dragLat = 0;
+		let dragLon = 0;
+		nextMap.on('mousedown', 'editor-locations', (event) => {
+			const id = readLocationId(event);
+			if (id === null || id !== selectedId || !loc) return;
+			if ((event.originalEvent as MouseEvent).shiftKey) return;
 			dragging = true;
-			if (loc) {
-				dragLat = loc.lat;
-				dragLon = loc.lon;
-			}
-			map?.dragPan.disable();
-			});
-			map.on('mousemove', (event) => {
-			if (!dragging || !loc) return;
+			dragTargetId = id;
+			dragMoved = false;
+			dragLat = loc.lat;
+			dragLon = loc.lon;
+			nextMap.dragPan.disable();
+		});
+		nextMap.on('mousemove', (event) => {
+			if (!dragging || !loc || dragTargetId !== loc.id) return;
 			dragLat = event.lngLat.lat;
 			dragLon = event.lngLat.lng;
-			const previewFeatures = locations.map((entry) => ({
-				type: 'Feature' as const,
-				properties: {
-					id: entry.id,
-					name: entry.name,
-					selected: entry.id === selectedId ? 1 : 0,
-					relative: entry.relative_to ? 1 : 0
-				},
-				geometry: {
-					type: 'Point' as const,
-					coordinates: entry.id === loc.id ? [dragLon, dragLat] : [entry.lon, entry.lat]
-				}
-			}));
-			(map?.getSource('editor-locations') as maplibregl.GeoJSONSource)?.setData({
-				type: 'FeatureCollection',
-				features: previewFeatures
-			});
-			});
-			map.on('mouseup', async () => {
-			if (dragging && loc) {
-				await updateSelectedLocation((current) => ({ ...current, lat: dragLat, lon: dragLon }));
+			dragMoved = true;
+			setMapData(locations, selectedId, { id: loc.id, lat: dragLat, lon: dragLon });
+		});
+		nextMap.on('mouseup', async () => {
+			if (dragging && dragMoved && loc && dragTargetId === loc.id) {
+				await updateSelectedLocation((current) =>
+					applyDraggedCoordinates(current, locations, dragLat, dragLon)
+				);
 			}
 			dragging = false;
-			map?.dragPan.enable();
-			});
-		})();
+			dragTargetId = null;
+			dragMoved = false;
+			nextMap.dragPan.enable();
+		});
+		mapInitializing = false;
+	}
 
+	onMount(() => {
 		return () => {
-			disposed = true;
-			map?.remove();
-			map = null;
+			componentDisposed = true;
+			destroyMap();
 		};
 	});
 
-	$: refreshMapData();
+	$: if (mapContainer && !map) {
+		void ensureMap();
+	}
+	$: if (!mapContainer && map) {
+		destroyMap();
+	}
+	$: setMapData(locations, selectedId);
 </script>
 
 <div class="loc-detail">
@@ -566,7 +571,7 @@
 	}
 
 	.map-frame {
-		height: 320px;
+		height: 640px;
 		border: 1px solid var(--color-border);
 		border-radius: 6px;
 		overflow: hidden;
