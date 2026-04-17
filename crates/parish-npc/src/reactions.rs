@@ -904,6 +904,7 @@ mod tests {
     use chrono::TimeZone;
     use parish_types::LocationId;
     use parish_types::dice::{DiceRoll, fixed_n};
+    use parish_world::graph::GeoKind;
     use std::collections::HashMap;
 
     fn test_npc(id: u32, name: &str, occupation: &str, workplace: Option<LocationId>) -> Npc {
@@ -952,6 +953,9 @@ mod tests {
             associated_npcs: vec![],
             mythological_significance: None,
             aliases: vec![],
+            geo_kind: GeoKind::Fictional,
+            relative_to: None,
+            geo_source: None,
         }
     }
 

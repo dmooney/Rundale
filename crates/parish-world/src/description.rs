@@ -91,7 +91,7 @@ fn time_display(tod: TimeOfDay) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::LocationData;
+    use crate::graph::{GeoKind, LocationData};
     use parish_types::LocationId;
     use parish_types::NpcId;
 
@@ -109,6 +109,9 @@ mod tests {
             lat: 0.0,
             lon: 0.0,
             aliases: vec![],
+            geo_kind: GeoKind::Fictional,
+            relative_to: None,
+            geo_source: None,
         }
     }
 
@@ -182,6 +185,9 @@ mod tests {
             lat: 0.0,
             lon: 0.0,
             aliases: vec![],
+            geo_kind: GeoKind::Fictional,
+            relative_to: None,
+            geo_source: None,
         };
         let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
         assert_eq!(result, "A plain description with no placeholders.");

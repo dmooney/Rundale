@@ -109,10 +109,13 @@ fn test_parish_path_pub_to_fairy_fort() {
     let path = graph.shortest_path(LocationId(2), LocationId(11)).unwrap();
     // Should be a multi-hop path
     assert!(path.len() >= 3);
-    // Total time should be reasonable
+    // Total time should be reasonable. 300-minute ceiling matches
+    // test_parish_computed_travel_times_reasonable — realistic
+    // rural-1820s geography means multi-hop paths across the parish
+    // can legitimately run hours.
     let time = graph.path_travel_time(&path, 1.25);
     assert!(
-        time > 0 && time < 120,
+        time > 0 && time < 300,
         "travel time should be reasonable: {}",
         time
     );
@@ -267,13 +270,17 @@ fn test_parish_description_templates_have_placeholders() {
 
 #[test]
 fn test_parish_computed_travel_times_reasonable() {
+    // Upper bound reflects realistic Irish-rural geography: a game-edge
+    // connection spans at most one cross-parish walk (~4-5 hours), enough
+    // to cover the 16 km Kilteevan ↔ Curraghboy Road connection that
+    // naturally emerges once real historical coordinates are used.
     let graph = load_parish_graph();
     for id in graph.location_ids() {
         for (target_id, _) in graph.neighbors(id) {
             let minutes = graph.edge_travel_minutes(id, target_id, 1.25);
             assert!(
-                (1..=60).contains(&minutes),
-                "travel time {} min from {:?} to {:?} should be 1-60 minutes",
+                (1..=300).contains(&minutes),
+                "travel time {} min from {:?} to {:?} should be 1-300 minutes",
                 minutes,
                 id,
                 target_id
