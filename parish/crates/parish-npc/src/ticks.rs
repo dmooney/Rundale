@@ -89,10 +89,7 @@ pub fn build_enhanced_system_prompt_with_config(
     npc_names: &std::collections::HashMap<NpcId, String>,
     known_roster: Option<&[(NpcId, String, String)]>,
 ) -> String {
-    // TODO(emotion-flag): thread `emotions_enabled` from `config` once
-    // NpcConfig gains the field (task 9). Until then, default to on —
-    // matches the intended default state of the feature flag.
-    let mut prompt = build_tier1_system_prompt(npc, improv, true);
+    let mut prompt = build_tier1_system_prompt(npc, improv, config.emotions_enabled);
 
     // Add known NPC roster (relationships + memory + co-located NPCs)
     // NpcId(0) is the player — shown first with a special "currently speaking with" note.
