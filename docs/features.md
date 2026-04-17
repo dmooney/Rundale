@@ -26,10 +26,10 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 - Manual time advancement (`/wait <minutes>`, `/tick`)
 
 ### Weather System
-- **Five weather types:** Clear, Overcast, Rain, Fog, Storm
+- **Seven weather states:** Clear, PartlyCloudy, Overcast, LightRain, HeavyRain, Fog, Storm (`crates/parish-types/src/ids.rs`)
+- Weather transition engine runs in the simulation tick path
 - Weather affects UI palette tinting (desaturation, brightness, color temperature)
 - Weather influences en-route encounter probability
-- Planned: expanded weather state machine with PartlyCloudy, LightRain, HeavyRain transitions (Phase 5B)
 
 ### Festivals
 - Four traditional Irish calendar festivals, data-driven from mod files:
@@ -211,10 +211,13 @@ Categories are `dialogue`, `simulation`, or `intent`.
 | **Custom** | User-provided OpenAI-compatible endpoint |
 
 ### Inference Categories
-Three independent inference categories, each independently configurable:
+Four independent inference categories, each with its own provider/model/key override:
 - **Dialogue** — NPC conversations with the player
 - **Simulation** — World state updates and NPC behavior ticks
 - **Intent** — Player input parsing and classification
+- **Reaction** — NPC emote/mood reactions
+
+Use dot-notation commands (e.g. `/provider.reaction openai`) or `PARISH_REACTION_*` env vars to route a specific category.
 
 ### Configuration Resolution
 Provider config is resolved by `resolve_config` in `crates/parish-config/src/provider.rs`. Later layers override earlier ones:
@@ -417,13 +420,11 @@ All modes share the same core game logic from `crates/parish-core/`.
 
 ### Partially Implemented (Infrastructure Ready)
 - Tier 3 (batch) and Tier 4 (rules-only) NPC inference — framework exists, dispatch pending
-- Advanced weather state machine (Phase 5B)
 - Gossip propagation between NPCs (memory structures exist)
 - Mythology hooks (data fields exist, no active effects)
 
 ### Planned (Future Phases)
 - **Phase 5A:** Event bus, cognitive tier transitions with context inflation/deflation
-- **Phase 5B:** Weather engine with seasonal transition probabilities
 - **Phase 5C:** Long-term memory with keyword retrieval; gossip network with distortion
 - **Phase 5D:** Tier 3 batch inference (8–10 NPCs per call, daily)
 - **Phase 5E:** Tier 4 rules engine — illness, death, birth, trade, seasonal overrides
