@@ -1301,6 +1301,17 @@ pub async fn react_to_message(
         return StatusCode::BAD_REQUEST;
     }
 
+    // Reject message_snippet values that could inject content into NPC system
+    // prompts: newlines would break prompt structure; backslashes and quotes
+    // could escape out of surrounding string literals.
+    if body
+        .message_snippet
+        .chars()
+        .any(|c| c == '\n' || c == '\r' || c == '"' || c == '\\')
+    {
+        return StatusCode::BAD_REQUEST;
+    }
+
     // Store the reaction in the target NPC's reaction log
     let mut npc_manager = state.npc_manager.lock().await;
     if let Some(npc) = npc_manager.find_by_name_mut(&body.npc_name) {
