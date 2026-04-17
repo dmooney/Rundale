@@ -19,12 +19,17 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 - Dynamic location descriptions using template interpolation (time, weather, season, NPCs present)
 
 ### Time System
-- Continuous game clock: day/night cycle with 7 named periods (Dawn, Morning, Midday, Afternoon, Dusk, Night, Midnight)
+- Continuous game clock: day/night cycle with 7 named periods (Midnight, Dawn, Morning, Midday, Afternoon, Dusk, Night)
 - Four seasons (Spring, Summer, Autumn, Winter)
-- Configurable game speed presets (adjustable in-game via `/set-speed`)
-- Default time scale: 20 real minutes = 1 in-game day
+- **Five game speed presets:** Slow (80 min/day), Normal (40 min/day, default), Fast (20 min/day), Fastest (10 min/day), Ludicrous (100 sec/day for testing)
 - Pause and resume simulation (`/pause`, `/resume`)
 - Manual time advancement (`/wait <minutes>`, `/tick`)
+
+### Weather System
+- **Five weather types:** Clear, Overcast, Rain, Fog, Storm
+- Weather affects UI palette tinting (desaturation, brightness, color temperature)
+- Weather influences en-route encounter probability
+- Planned: expanded weather state machine with PartlyCloudy, LightRain, HeavyRain transitions (Phase 5B)
 
 ### Festivals
 - Four traditional Irish calendar festivals, data-driven from mod files:
@@ -56,10 +61,31 @@ Parish's core innovation: NPCs are simulated at different fidelity levels based 
 
 ### NPC Entity Model
 - **Identity:** Name, age, occupation, personality traits
-- **Schedule:** Time-of-day-driven movement between locations (e.g. farmer goes to fields in morning, pub in evening)
-- **Relationships:** Named relationships between NPCs
+- **Schedule:** Time-of-day-driven movement between locations (e.g. farmer goes to fields in morning, pub in evening), with optional home and workplace assignments
 - **Short-term memory:** 20-entry ring buffer of recent interactions and observations
 - **Tier assignment:** Dynamic promotion/demotion based on player proximity
+
+### NPC Intelligence Profile
+Every NPC has a 6-dimension intelligence profile (each rated 1–5) that shapes LLM prompt guidance and speech patterns:
+- **Verbal** — Eloquence and vocabulary (high = precise word choice; low = simple phrasing)
+- **Analytical** — Abstract reasoning (low = concrete thinking only)
+- **Emotional** — Emotional perception (high = reads people like a book)
+- **Practical** — Common sense and real-world skills
+- **Wisdom** — Life experience and judgment
+- **Creative** — Imagination and novel thinking
+
+Profile dimensions are translated into behavioral directives and injected into the NPC's prompt.
+
+### NPC Mood
+- Real-time mood tracking with 20+ emoji states (anger, fear, joy, contemplation, etc.)
+- Mood displayed alongside NPCs in the `/npcs` listing and debug panel
+- Mood and relationships update from Tier 2 interactions
+
+### Relationships
+- **Seven relationship types:** Family, Friend, Neighbor, Rival, Enemy, Romantic, Professional
+- **Strength scale:** -1.0 (hostile) to 1.0 (close), with configurable label thresholds
+- Relationship history stored as an append-only event log with timestamps
+- Strength visualized as bars in the debug panel
 
 ### Conversation
 - Natural language conversation with any NPC at the player's location
@@ -90,43 +116,54 @@ Parish's core innovation: NPCs are simulated at different fidelity levels based 
 
 ### Slash Commands
 
+Most configuration commands follow a **unified show/set pattern**: running the command with no argument shows the current value; running it with an argument sets it.
+
 **Game Control:**
 - `/pause` / `/resume` — Pause or resume the simulation
 - `/quit` — Exit game
-- `/new-game` — Start a fresh game
+- `/new` — Start a fresh game
 - `/status` — Show current game state
 - `/time` — Display current in-game time
-- `/npcs-here` — List NPCs at current location
-- `/wait <minutes>` — Advance time
+- `/where` — Show current location
+- `/npcs` — List NPCs at current location (with mood emoji)
+- `/wait [minutes]` — Advance time without moving
 - `/tick` — Advance one simulation tick
 - `/help` — Show available commands
 - `/about` — Credits and version info
 
 **Save/Load (Git-like branching):**
 - `/save` — Create a manual snapshot
-- `/fork <name>` — Create a named save branch
-- `/load <name>` — Load a named branch
+- `/fork [name]` — Create a named save branch
+- `/load [name]` — Load a named branch
 - `/branches` — List all save branches
 - `/log` — Show save history
 
 **Display:**
 - `/map` — Toggle full map overlay
-- `/toggle-sidebar` — Toggle Irish pronunciation sidebar
-- `/toggle-improv` — Toggle improv craft mode
-- `/show-speed` / `/set-speed <preset>` — View or change game speed
+- `/irish` — Toggle the Focail (Irish pronunciation) sidebar
+- `/improv` — Toggle improv craft mode for NPC dialogue
+- `/speed [preset]` — Show or set game speed (`slow`, `normal`, `fast`, `fastest`, `ludicrous`)
 
-**Provider Configuration (10 commands):**
-- `/show-provider` / `/set-provider <name>` — Base LLM provider
-- `/show-model` / `/set-model <name>` — Model selection
-- `/show-key` / `/set-key <key>` — API key
-- `/show-cloud-provider` / `/set-cloud-provider` — Cloud provider
-- `/show-cloud-model` / `/set-cloud-model` — Cloud model
-- `/show-cloud-key` / `/set-cloud-key` — Cloud API key
-- Per-category overrides: `/show-category-provider`, `/set-category-provider`, etc.
+**Provider Configuration (base):**
+- `/provider [name]` — Show or set the base LLM provider
+- `/model [name]` — Show or set the base model
+- `/key [value]` — Show or set the base API key
+
+**Provider Configuration (cloud, legacy subcommand form):**
+- `/cloud` — Show cloud provider config
+- `/cloud provider [name]` — Show or set the cloud provider
+- `/cloud model [name]` — Show or set the cloud model
+- `/cloud key [value]` — Show or set the cloud API key
+
+**Per-Category Overrides (dot notation):**
+Categories are `dialogue`, `simulation`, or `intent`.
+- `/provider.<category> [name]` — e.g. `/provider.dialogue openai`
+- `/model.<category> [name]` — e.g. `/model.intent qwen3:3b`
+- `/key.<category> [value]` — e.g. `/key.dialogue sk-...`
 
 **Debug:**
 - `/debug [subcommand]` — Debug operations and metrics
-- `/spinner <seconds>` — Show loading spinner (testing)
+- `/spinner [seconds]` — Show loading spinner (testing; default 30s)
 
 ---
 
@@ -173,14 +210,30 @@ Three independent inference categories, each independently configurable:
 ### Configuration Resolution
 Provider config resolves in priority order:
 1. CLI flags (`--provider`, `--model`, `--api-key`, `--base-url`)
-2. Environment variables (`PARISH_*` prefix)
+2. Environment variables (`PARISH_*` prefix, including per-category `PARISH_DIALOGUE_*`, `PARISH_SIMULATION_*`, `PARISH_INTENT_*`)
 3. TOML config file (`parish.toml`) with per-category overrides
 4. Defaults (Ollama on localhost:11434)
 
+### Ollama Bootstrap
+- Auto-starts `ollama serve` if not running; shuts down cleanly on exit
+- Binary detection via PATH; auto-installs if missing
+- **GPU detection** via `nvidia-smi` or `rocm-smi`
+- **Automatic model selection by VRAM:**
+  - ≥12 GB → `qwen3:14b`
+  - ≥6 GB → `qwen3:8b`
+  - ≥3 GB → `qwen3:3b`
+  - <3 GB → `qwen3:1.5b`
+- Auto-pulls models not already cached; warmup before gameplay begins
+
 ### Streaming
-- Token-by-token streaming of NPC responses
+- Token-by-token streaming of NPC responses via an unbounded channel
 - Streaming cursor in the chat panel
-- Input disabled during active streaming
+- Input auto-disabled during active streaming
+
+### Inference Logging
+- Ring buffer of recent LLM calls (configurable capacity, default 100)
+- Logs prompt, response, model, timing, streaming flag, and error status
+- Viewable in the Debug Panel's Inference tab
 
 ---
 
@@ -188,8 +241,12 @@ Provider config resolves in priority order:
 
 ### Chat Panel
 - Scrolling chat log with full conversation history
-- Real-time NPC response streaming with animated cursor
+- Speaker labels distinguishing player, NPC, and system messages
+- **Emote parsing:** asterisk-wrapped text (`*nods slowly*`) renders as italic action text
+- Real-time NPC response streaming with animated cursor (▋)
+- Auto-scroll to bottom on new messages
 - Celtic knot loading spinner with culturally themed phrases (25 mod-driven phrases like "Pondering the craic...", "Consulting the sheep...", "Muttering in Irish...")
+- Spinner color cycles through mod-defined RGB palette during load
 
 ### Status Bar
 - Current location, in-game time, weather, season
@@ -232,8 +289,13 @@ Provider config resolves in priority order:
 - **Inference:** LLM call monitoring
 
 ### Input Field
-- Text input with enter-to-submit
+- Contenteditable multi-line input with enter-to-submit
+- **@mention autocomplete:** type `@` to list NPCs at current location with tab/arrow navigation; mentions render as styled chips
+- **Slash command autocomplete:** type `/` to see filtered command list
+- **Input history:** localStorage-persisted, 50 entries, up/down arrow navigation
+- **Quick travel buttons:** one-click navigation to adjacent locations
 - Auto-disabled during NPC streaming responses
+- Auto-refocus when streaming stops
 
 ---
 
@@ -278,9 +340,18 @@ mods/<mod-name>/
 | **Tauri Desktop** | `cargo tauri dev` | Full GUI with Svelte frontend in native window |
 | **Web Server** | `cargo run -- --web [port]` | Browser-based play via HTTP + WebSocket (default port 3001) |
 | **Headless CLI** | `cargo run` | Terminal stdin/stdout REPL |
-| **Script Testing** | `cargo run -- --script <file>` | Automated test harness for game behavior verification |
+| **Script Testing** | `cargo run -- --script <file>` | JSON-output test harness for automated behavior verification |
 
 All modes share the same core game logic from `crates/parish-core/`.
+
+---
+
+## Developer Tools
+
+### Geo Tool
+- Standalone OSM (OpenStreetMap) geographic data extraction tool
+- Located at `src/bin/geo_tool/`
+- Used to generate real-world location coordinates for the world graph
 
 ---
 
@@ -316,3 +387,35 @@ All modes share the same core game logic from `crates/parish-core/`.
 | Time | chrono |
 | Web server | axum |
 | CLI parsing | clap |
+
+---
+
+## Implementation Status
+
+### Fully Implemented
+- **Phases 1–4 complete:** Core loop, world graph, NPC system with Tier 1 & 2 inference, SQLite persistence with branching saves
+- **Phase 8 in progress:** Tauri GUI rewrite with Svelte 5 frontend
+- All 40+ slash commands
+- Multi-provider LLM support with per-category routing
+- Short-term NPC memory, relationships, mood, intelligence profiles
+- Anachronism detection
+- Interactive map with Mercator projection
+- Irish mod system with data-driven content loading
+- Token-level streaming inference
+
+### Partially Implemented (Infrastructure Ready)
+- Tier 3 (batch) and Tier 4 (rules-only) NPC inference — framework exists, dispatch pending
+- Advanced weather state machine (Phase 5B)
+- Gossip propagation between NPCs (memory structures exist)
+- Mythology hooks (data fields exist, no active effects)
+
+### Planned (Future Phases)
+- **Phase 5A:** Event bus, cognitive tier transitions with context inflation/deflation
+- **Phase 5B:** Weather engine with seasonal transition probabilities
+- **Phase 5C:** Long-term memory with keyword retrieval; gossip network with distortion
+- **Phase 5D:** Tier 3 batch inference (8–10 NPCs per call, daily)
+- **Phase 5E:** Tier 4 rules engine — illness, death, birth, trade, seasonal overrides
+- **Phase 5F:** World expansion — Roscommon town, Athlone, Dublin with inter-region travel
+- **Phase 6:** Mythology layer (legends, fairy fort encounters), `/help` and ASCII `/map` commands
+- **Phase 7:** Web and mobile clients with axum server and authentication
+- **Audio system (designed, feature-gated):** ambient location sounds, distance attenuation, weather dampening
