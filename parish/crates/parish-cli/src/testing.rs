@@ -209,6 +209,7 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
+<<<<<<< HEAD:parish/crates/parish-cli/src/testing.rs
         // Test-harness-only /doom command: /doom NpcName [hours_from_now]
         //
         // Marks the named NPC as fated to die `hours_from_now` game-hours out
@@ -251,6 +252,19 @@ impl GameTestHarness {
                 }
             } else {
                 format!("No NPC named '{}'.", name)
+=======
+        // Harness-only /stub-emotion: /stub-emotion NpcName family=value [family=value ...]
+        //
+        // Directly seeds structured emotion state on an NPC so
+        // gameplay-proof scripts can exercise gate thresholds
+        // without needing an LLM to cooperate. Family names match
+        // EmotionFamily's serde lowercase form
+        // (joy, sadness, fear, anger, disgust, surprise, shame, affection).
+        if let Some(rest) = trimmed.strip_prefix("/stub-emotion ") {
+            let msg = match stub_emotion(&mut self.app, rest) {
+                Ok(summary) => summary,
+                Err(e) => format!("/stub-emotion error: {e}"),
+>>>>>>> a444906 (test(emotion): add /debug emotion + /stub-emotion harness commands and /prove script):crates/parish-cli/src/testing.rs
             };
             self.app.world.log(msg.clone());
             return ActionResult::SystemCommand { response: msg };
@@ -1259,6 +1273,78 @@ pub struct ScriptResult {
 }
 
 /// Runs the game in script mode, reading commands from a file.
+/// Directly seeds structured emotion state on a named NPC.
+///
+/// Input shape: `<NpcName> <family>=<value> [<family>=<value> ...]`
+///
+/// - Family names are the lowercase forms from
+///   [`parish_types::EmotionFamily`]: joy, sadness, fear, anger,
+///   disgust, surprise, shame, affection.
+/// - Values are floats in `[0.0, 1.0]` and clamp into range.
+///
+/// Example: `/stub-emotion Padraig fear=0.95`
+///
+/// This is a test-harness escape hatch for gameplay proof scripts
+/// so they can exercise gate thresholds (panic_truth, etc.) without
+/// needing an LLM to cooperate with the emotion_delta JSON field.
+fn stub_emotion(app: &mut crate::app::App, rest: &str) -> Result<String, String> {
+    let parts: Vec<&str> = rest.split_whitespace().collect();
+    if parts.len() < 2 {
+        return Err("Usage: /stub-emotion <NpcName> family=value [family=value ...]".to_string());
+    }
+
+    // Name may be multi-word — consume tokens until we see the first
+    // `key=value` pair, treat everything before as the name.
+    let first_assign = parts
+        .iter()
+        .position(|t| t.contains('='))
+        .ok_or_else(|| "expected at least one family=value pair".to_string())?;
+    if first_assign == 0 {
+        return Err("missing NPC name before family assignments".to_string());
+    }
+    let name = parts[..first_assign].join(" ");
+
+    let npc_id = app
+        .npc_manager
+        .all_npcs()
+        .find(|n| n.name.eq_ignore_ascii_case(&name))
+        .map(|n| n.id)
+        .ok_or_else(|| format!("NPC not found: {name}"))?;
+
+    let mut applied: Vec<String> = Vec::new();
+    for assign in &parts[first_assign..] {
+        let (family_str, value_str) = assign
+            .split_once('=')
+            .ok_or_else(|| format!("bad assignment: {assign} (expected family=value)"))?;
+        let value: f32 = value_str
+            .parse()
+            .map_err(|_| format!("bad value: {value_str}"))?;
+        let family = match family_str.to_lowercase().as_str() {
+            "joy" => crate::npc::EmotionFamily::Joy,
+            "sadness" | "sad" => crate::npc::EmotionFamily::Sadness,
+            "fear" => crate::npc::EmotionFamily::Fear,
+            "anger" | "angry" => crate::npc::EmotionFamily::Anger,
+            "disgust" => crate::npc::EmotionFamily::Disgust,
+            "surprise" => crate::npc::EmotionFamily::Surprise,
+            "shame" => crate::npc::EmotionFamily::Shame,
+            "affection" => crate::npc::EmotionFamily::Affection,
+            other => return Err(format!("unknown family: {other}")),
+        };
+        // Mutate the NPC's emotion state directly. Bypasses the
+        // normal apply_emotion_impulse scaling because this is a
+        // *seeding* operation for tests — we want exact values.
+        let npc = app
+            .npc_manager
+            .get_mut(npc_id)
+            .ok_or_else(|| format!("NPC disappeared: {name}"))?;
+        *npc.emotion.families.get_mut(family) = value.clamp(0.0, 1.0);
+        npc.mood = npc.emotion.label().to_string();
+        applied.push(format!("{:?}={:.2}", family, value.clamp(0.0, 1.0)));
+    }
+
+    Ok(format!("Stub emotion for {name}: {}", applied.join(", ")))
+}
+
 ///
 /// Each command is executed through [`GameTestHarness`] and produces
 /// one JSON line of output. This allows Claude Code (or any script)

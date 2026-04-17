@@ -32,6 +32,7 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "memory" => debug_memory(app, arg),
                 "relationships" | "rels" => debug_relationships(app, arg),
                 "gossip" => debug_gossip(app, arg),
+                "emotion" | "emotions" => debug_emotion(app, arg),
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -370,6 +371,80 @@ fn debug_relationships(app: &App, name: Option<&str>) -> Vec<String> {
             ));
         }
     }
+
+    lines
+}
+
+/// NPC's structured emotional state.
+///
+/// Shows the PAD axes, per-family intensities, dominant leaf words,
+/// and any active non-linear gates. Used by the /prove emotions
+/// gameplay proof to inspect state before and after impulses.
+fn debug_emotion(app: &App, name: Option<&str>) -> Vec<String> {
+    let Some(name) = name else {
+        return vec!["Usage: /debug emotion <npc name>".to_string()];
+    };
+
+    let Some(npc) = find_npc_by_name(&app.npc_manager, name) else {
+        return vec![format!("NPC not found: {}", name)];
+    };
+
+    let e = &npc.emotion;
+    let mut lines = vec![format!("[DEBUG EMOTION: {}]", npc.name)];
+    lines.push(format!(
+        "  label: {}  (mood field: {})",
+        e.label(),
+        npc.mood
+    ));
+    lines.push(format!(
+        "  PAD: pleasure={:+.2} arousal={:+.2} dominance={:+.2}",
+        e.pleasure, e.arousal, e.dominance,
+    ));
+    lines.push(format!(
+        "  families: joy={:.2} sad={:.2} fear={:.2} anger={:.2} disgust={:.2} surprise={:.2} shame={:.2} affection={:.2}",
+        e.families.joy,
+        e.families.sadness,
+        e.families.fear,
+        e.families.anger,
+        e.families.disgust,
+        e.families.surprise,
+        e.families.shame,
+        e.families.affection,
+    ));
+
+    // parish-cli reaches parish-types through parish-core's public
+    // aggregation. Keeping the existing crate surface untouched.
+    let top_leaves = parish_core::npc::project_top_k(e, 3);
+    let leaf_words: Vec<&str> = top_leaves.iter().map(|l| l.word).collect();
+    lines.push(format!("  top leaves: {}", leaf_words.join(", ")));
+
+    let gates = e.gates();
+    let mut active: Vec<&str> = Vec::new();
+    if gates.panic_truth {
+        active.push("panic_truth");
+    }
+    if gates.public_outburst {
+        active.push("public_outburst");
+    }
+    if gates.withdraws_silent {
+        active.push("withdraws_silent");
+    }
+    if gates.effusive {
+        active.push("effusive");
+    }
+    if active.is_empty() {
+        lines.push("  gates: none active".to_string());
+    } else {
+        lines.push(format!("  gates: {}", active.join(", ")));
+    }
+    lines.push(format!(
+        "  temperament: cheerfulness={:+.2} reactivity={:.2} persistence={:.2} (half-life={:.0}s)",
+        npc.temperament.cheerfulness,
+        npc.temperament.reactivity,
+        npc.temperament.persistence,
+        e.baseline.half_life_secs,
+    ));
+    lines.push(format!("  short_descriptor: {}", e.short_descriptor()));
 
     lines
 }

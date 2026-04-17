@@ -1,0 +1,106 @@
+# Prove: structured emotion system — gates drive dialogue choice
+#
+# This script exercises the three paper-motivated non-linear gates:
+#   - withdraws_silent (high sadness)   : NPC goes quiet under grief
+#   - panic_truth      (extreme fear)   : NPC blurts honest answers
+#   - public_outburst  (moderate anger) : NPC speaks up unprompted
+#
+# It uses the harness-only /stub-emotion command to seed state
+# directly (bypasses the need for an LLM to cooperate with the
+# emotion_delta JSON schema), and /debug emotion to verify.
+
+# ---------------------------------------------------------------
+# Phase 0: Establish a known starting state.
+# ---------------------------------------------------------------
+
+/flags
+/flag enable emotions
+/flag list
+
+go to Darcy's Pub
+
+# Baseline inspection — Padraig starts "content" per the mod data.
+/debug emotion Padraig Darcy
+/debug emotion Niamh Darcy
+
+# ---------------------------------------------------------------
+# Phase 1: Grief -> withdraws_silent gate.
+# Sadness > 0.8 should flip the label away from "content" and make
+# Padraig reluctant to interject.
+# ---------------------------------------------------------------
+
+/stub-emotion Padraig Darcy sadness=0.9 joy=0.0
+
+# Expected: label is in {grieving, sorrowful, mournful, heartbroken, ...}
+# withdraws_silent gate is active.
+/debug emotion Padraig Darcy
+
+# Stub a short, withdrawn reply so we can see it render.
+/stub Padraig Darcy: I've no words in me just now.
+---
+{"action": "stares at the fire", "mood": "grieving", "internal_thought": "Tommy is dead.", "irish_words": []}
+
+Good evening, Padraig
+
+# Padraig's state after the exchange should still label as grief-family
+# (the apply-tier1 path doesn't mutate state when emotion_delta is
+# absent, only updates the legacy mood string — which in our new
+# world is re-derived anyway).
+/debug emotion Padraig Darcy
+
+# ---------------------------------------------------------------
+# Phase 2: Extreme fear -> panic_truth gate.
+# ---------------------------------------------------------------
+
+/stub-emotion Niamh Darcy fear=0.95
+
+# Expected: terrified label, panic_truth gate active.
+/debug emotion Niamh Darcy
+
+# Stub her blurting a normally-guarded truth. The structured state
+# is what activates the gate in the prompt preamble — any real LLM
+# would see the gate sentence "You are so frightened right now you
+# will say true things you would normally hide."
+/stub Niamh Darcy: He owes them twelve pounds at Michaelmas and five more at Christmas.
+
+Niamh, do the men from Boyle have claim on your da?
+
+# ---------------------------------------------------------------
+# Phase 3: Moderate anger -> public_outburst gate.
+# anger ∈ [0.5, 0.85] should light the outburst band AND keep
+# panic_truth off (the paper's non-linearity: above 0.85 anger
+# actually DROPS OUT of the outburst band).
+# ---------------------------------------------------------------
+
+# Reset Niamh to a neutral joy-0.2 baseline, then push anger.
+/stub-emotion Niamh Darcy fear=0.0 sadness=0.0 anger=0.0 joy=0.2
+/debug emotion Niamh Darcy
+
+# Moderate anger band.
+/stub-emotion Niamh Darcy anger=0.7
+/debug emotion Niamh Darcy
+# Expected in the dump: gates: public_outburst
+
+# Extreme anger — passes the upper threshold, drops out of the band.
+/stub-emotion Niamh Darcy anger=0.95
+/debug emotion Niamh Darcy
+# Expected in the dump: gates: none active
+# (furious label, but no public_outburst — mirrors the paper's
+# "extreme anger produces disclosure, not aggression" finding at
+# the behavioural-gate layer)
+
+# ---------------------------------------------------------------
+# Phase 4: Flag off — emotion gates should disappear from autonomous
+# scoring, though state still ticks underneath.
+# ---------------------------------------------------------------
+
+/flag disable emotions
+/flag list
+
+# The state vector is unchanged by the flag — decay and contagion
+# always run regardless. Re-inspect to prove state persistence.
+/debug emotion Niamh Darcy
+
+# Re-enable for completeness.
+/flag enable emotions
+/flag list

@@ -40,7 +40,7 @@ use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 pub use parish_types::{
     EmotionFamily, EmotionGates, EmotionImpulse, EmotionState, IrishWordHint, LanguageHint, NpcId,
     SEPARATOR_HOLDBACK, Temperament, extract_dialogue_from_partial_json, find_response_separator,
-    floor_char_boundary,
+    floor_char_boundary, project_top_k,
 };
 
 // Re-export the NPC data-file schema so downstream crates (e.g. the Parish
