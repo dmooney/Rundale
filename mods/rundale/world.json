@@ -480,8 +480,8 @@
                     "path_description": "the lane south toward Kilteevan Village"
                 }
             ],
-            "lat": 53.537951826195965,
-            "lon": -8.050735866284727,
+            "lat": 53.642579920478205,
+            "lon": -8.085060418010046,
             "associated_npcs": [
                 9,
                 10,
@@ -494,7 +494,12 @@
                 "smithy",
                 "blacksmith"
             ],
-            "geo_kind": "fictional"
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 1167.55,
+                "deast_m": 1121.59
+            }
         },
         {
             "id": 17,
@@ -512,8 +517,8 @@
                     "path_description": "a narrow track south joining the Knockcroghery road"
                 }
             ],
-            "lat": 53.54874470772643,
-            "lon": -8.077728725737447,
+            "lat": 53.6300798897489,
+            "lon": -8.105072839889116,
             "associated_npcs": [],
             "mythological_significance": "St. Tíobán's Well — the holy well that gave Kilteevan its name. People leave offerings here for cures and blessings. The water is said to heal sore eyes on the saint's feast day.",
             "aliases": [
@@ -521,7 +526,12 @@
                 "the well",
                 "well"
             ],
-            "geo_kind": "fictional"
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": -222.39,
+                "deast_m": -197.93
+            }
         },
         {
             "id": 18,
@@ -539,8 +549,8 @@
                     "path_description": "the road continuing west toward Curraghboy"
                 }
             ],
-            "lat": 53.526678041059775,
-            "lon": -8.089800520609243,
+            "lat": 53.635079848081325,
+            "lon": -8.117080262683675,
             "associated_npcs": [
                 12,
                 13,
@@ -551,7 +561,12 @@
                 "mill",
                 "the mill"
             ],
-            "geo_kind": "fictional"
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 333.58,
+                "deast_m": -989.64
+            }
         },
         {
             "id": 19,
@@ -569,8 +584,8 @@
                     "path_description": "a grassy track past the ditch to the hurling green"
                 }
             ],
-            "lat": 53.53452463699257,
-            "lon": -8.06464181150226,
+            "lat": 53.6340798923877,
+            "lon": -8.097067840804607,
             "associated_npcs": [
                 20
             ],
@@ -580,7 +595,12 @@
                 "weavers",
                 "weaver cottage"
             ],
-            "geo_kind": "fictional"
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 222.39,
+                "deast_m": 329.88
+            }
         },
         {
             "id": 20,
