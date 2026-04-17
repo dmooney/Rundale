@@ -42,6 +42,40 @@ pub struct DebugSnapshot {
     pub events: Vec<DebugEvent>,
     /// Inference pipeline configuration.
     pub inference: InferenceDebug,
+    /// Auth state for this session (web-server only; disabled on Tauri).
+    pub auth: AuthDebug,
+}
+
+/// Auth state for debug display.
+///
+/// On the web server, reflects the current visitor's session + OAuth linkage.
+/// On Tauri (single local user), `oauth_enabled` is always `false`.
+#[derive(Debug, Clone, Serialize)]
+pub struct AuthDebug {
+    /// Whether the server has Google OAuth credentials configured.
+    pub oauth_enabled: bool,
+    /// Whether the current session is linked to an OAuth account.
+    pub logged_in: bool,
+    /// OAuth provider name when `logged_in` (currently always `"google"`).
+    pub provider: Option<String>,
+    /// Display name or stable id for the linked account.
+    pub display_name: Option<String>,
+    /// Current session id (the `parish_sid` cookie). `None` on Tauri.
+    pub session_id: Option<String>,
+}
+
+impl AuthDebug {
+    /// Returns an `AuthDebug` for contexts where OAuth is not applicable
+    /// (e.g. the Tauri desktop app).
+    pub fn disabled() -> Self {
+        Self {
+            oauth_enabled: false,
+            logged_in: false,
+            provider: None,
+            display_name: None,
+            session_id: None,
+        }
+    }
 }
 
 /// Game clock state for debug display.
@@ -495,6 +529,7 @@ pub fn build_debug_snapshot(
     events: &VecDeque<DebugEvent>,
     game_events: &VecDeque<crate::world::events::GameEvent>,
     inference: &InferenceDebug,
+    auth: &AuthDebug,
 ) -> DebugSnapshot {
     let clock = build_clock_debug(world);
     let weather = build_weather_debug(world);
@@ -526,6 +561,7 @@ pub fn build_debug_snapshot(
         conversations,
         events: event_list,
         inference: inference.clone(),
+        auth: auth.clone(),
     }
 }
 
@@ -781,7 +817,7 @@ fn build_world_debug(world: &WorldState, npc_manager: &NpcManager) -> WorldDebug
             count: *count,
         })
         .collect();
-    edge_traversals.sort_by(|a, b| b.count.cmp(&a.count));
+    edge_traversals.sort_by_key(|edge| std::cmp::Reverse(edge.count));
 
     let text_log_len = world.text_log.len();
     let text_log_tail: Vec<String> = world
@@ -1079,8 +1115,14 @@ mod tests {
         let game_events: VecDeque<GameEvent> = VecDeque::new();
         let inference = test_inference();
 
-        let snapshot =
-            build_debug_snapshot(&world, &npc_manager, &events, &game_events, &inference);
+        let snapshot = build_debug_snapshot(
+            &world,
+            &npc_manager,
+            &events,
+            &game_events,
+            &inference,
+            &AuthDebug::disabled(),
+        );
 
         assert!(snapshot.clock.game_time.contains("08:00"));
         assert_eq!(snapshot.clock.weather, "Clear");
@@ -1106,8 +1148,14 @@ mod tests {
         let mut inference = test_inference();
         inference.has_queue = true;
 
-        let snapshot =
-            build_debug_snapshot(&world, &npc_manager, &events, &game_events, &inference);
+        let snapshot = build_debug_snapshot(
+            &world,
+            &npc_manager,
+            &events,
+            &game_events,
+            &inference,
+            &AuthDebug::disabled(),
+        );
 
         assert_eq!(snapshot.npcs.len(), 1);
         assert_eq!(snapshot.npcs[0].name, "Padraig O'Brien");
@@ -1251,7 +1299,14 @@ mod tests {
         let mut inference = test_inference();
         inference.call_log = vec![entry];
 
-        let snapshot = build_debug_snapshot(&world, &mgr, &events, &game_events, &inference);
+        let snapshot = build_debug_snapshot(
+            &world,
+            &mgr,
+            &events,
+            &game_events,
+            &inference,
+            &AuthDebug::disabled(),
+        );
         assert_eq!(snapshot.inference.call_log.len(), 1);
         assert_eq!(snapshot.inference.call_log[0].request_id, 1);
         assert_eq!(snapshot.inference.call_log[0].duration_ms, 500);
@@ -1275,7 +1330,14 @@ mod tests {
         });
         let inference = test_inference();
 
-        let snapshot = build_debug_snapshot(&world, &mgr, &events, &game_events, &inference);
+        let snapshot = build_debug_snapshot(
+            &world,
+            &mgr,
+            &events,
+            &game_events,
+            &inference,
+            &AuthDebug::disabled(),
+        );
         assert_eq!(snapshot.events.len(), 2);
         assert_eq!(snapshot.events[0].message, "Test event");
         assert_eq!(snapshot.events[1].category, "schedule");
@@ -1358,7 +1420,14 @@ mod tests {
             improv_enabled: false,
             call_log: vec![],
         };
-        let snapshot = build_debug_snapshot(&world, &mgr, &events, &game_events, &inference);
+        let snapshot = build_debug_snapshot(
+            &world,
+            &mgr,
+            &events,
+            &game_events,
+            &inference,
+            &AuthDebug::disabled(),
+        );
         let json = serde_json::to_string(&snapshot).unwrap();
         assert!(json.contains("gossip"));
         assert!(json.contains("item_count"));

@@ -1428,6 +1428,7 @@ pub fn run() {
                             &debug_events,
                             &game_events,
                             &inference,
+                            &parish_core::debug_snapshot::AuthDebug::disabled(),
                         );
                         let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);
                     }

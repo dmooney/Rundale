@@ -27,7 +27,19 @@ export const loadingSpinner = writable<string>('');
 export const loadingPhrase = writable<string>('');
 
 /// Current loading spinner colour as `[R, G, B]`.
-export const loadingColor = writable<[number, number, number]>([72, 199, 142]);
+function clampChannel(n: unknown): number {
+	const x = Math.round(Number(n));
+	return Number.isFinite(x) ? Math.max(0, Math.min(255, x)) : 0;
+}
+function createLoadingColor() {
+	const inner = writable<[number, number, number]>([72, 199, 142]);
+	return {
+		subscribe: inner.subscribe,
+		set: (c: [number, number, number]) =>
+			inner.set([clampChannel(c?.[0]), clampChannel(c?.[1]), clampChannel(c?.[2])]),
+	};
+}
+export const loadingColor = createLoadingColor();
 
 export const languageHints = writable<LanguageHint[]>([]);
 

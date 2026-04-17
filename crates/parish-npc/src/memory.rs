@@ -316,7 +316,7 @@ impl LongTermMemory {
     /// Returns all entries for debug display, sorted newest first.
     pub fn all_entries(&self) -> Vec<&LongTermEntry> {
         let mut entries: Vec<&LongTermEntry> = self.entries.iter().collect();
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        entries.sort_by_key(|entry| std::cmp::Reverse(entry.timestamp));
         entries
     }
 
