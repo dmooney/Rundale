@@ -17,6 +17,7 @@ anyhow = "1"
 tracing = "0.1"
 chrono = "0.4"
 governor = "0.10"
+base64 = "0.22"
 
 [dev-dependencies]
 wiremock = "0.6"

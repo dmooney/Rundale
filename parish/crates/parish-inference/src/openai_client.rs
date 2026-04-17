@@ -86,6 +86,87 @@ struct ResponseFormat {
     format_type: String,
 }
 
+/// An image attachment for a vision-capable chat completion.
+///
+/// Encoded as an OpenAI-compatible `image_url` content part with a
+/// `data:` URL containing base64 image bytes. Works with OpenRouter,
+/// OpenAI, and Ollama vision models that speak the `/v1/chat/completions`
+/// multimodal content format.
+#[derive(Debug, Clone)]
+pub struct ImageInput {
+    /// MIME type (e.g. `"image/png"`, `"image/jpeg"`).
+    pub mime_type: String,
+    /// Raw image bytes — this helper will base64-encode them.
+    pub bytes: Vec<u8>,
+}
+
+impl ImageInput {
+    /// Builds a PNG input from raw bytes.
+    pub fn png(bytes: Vec<u8>) -> Self {
+        Self {
+            mime_type: "image/png".to_string(),
+            bytes,
+        }
+    }
+
+    /// Returns a `data:` URL suitable for the `image_url.url` field.
+    pub fn as_data_url(&self) -> String {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&self.bytes);
+        format!("data:{};base64,{}", self.mime_type, b64)
+    }
+}
+
+/// A single content part in a multimodal chat message.
+#[derive(Serialize, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ContentPart<'a> {
+    /// Plain text content.
+    Text { text: &'a str },
+    /// An image referenced by URL (accepts `data:` URLs).
+    ImageUrl { image_url: ImageUrl },
+}
+
+/// The `image_url` object inside a multimodal content part.
+#[derive(Serialize, Debug)]
+struct ImageUrl {
+    url: String,
+}
+
+/// Multimodal chat message: `content` is an array of text/image parts.
+#[derive(Serialize, Debug)]
+struct MultimodalChatMessage<'a> {
+    role: &'a str,
+    content: Vec<ContentPart<'a>>,
+}
+
+/// Multimodal chat-completion request body.
+#[derive(Serialize, Debug)]
+struct MultimodalChatCompletionRequest<'a> {
+    model: &'a str,
+    messages: Vec<MultimodalMessageWire<'a>>,
+    stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<ResponseFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+}
+
+/// Wire representation of a message in a multimodal request.
+///
+/// The system message uses a plain string for `content`; the user
+/// message uses a parts array. The `ChatCompletionsAPI` accepts both.
+#[derive(Serialize, Debug)]
+#[serde(untagged)]
+enum MultimodalMessageWire<'a> {
+    /// Plain-text message (used for system prompts).
+    Text(ChatMessage<'a>),
+    /// Parts message (used for the user turn carrying images).
+    Parts(MultimodalChatMessage<'a>),
+}
+
 /// Non-streaming response from chat completions.
 #[derive(Deserialize, Debug)]
 struct ChatCompletionResponse {
@@ -379,6 +460,69 @@ impl OpenAiClient {
         Ok(parsed)
     }
 
+    /// Multimodal variant of [`Self::generate_json`] — sends text plus one or
+    /// more images and deserializes the JSON response into `T`.
+    ///
+    /// Images are encoded as base64 `data:` URLs in `image_url` content parts,
+    /// per the OpenAI multimodal chat-completions schema. Providers that
+    /// expose vision-capable models (OpenRouter → Claude / GPT-4o, Ollama
+    /// with `llava` / `llama3.2-vision`, etc.) accept this format as-is.
+    pub async fn generate_json_with_images<T: DeserializeOwned>(
+        &self,
+        model: &str,
+        user_text: &str,
+        system: Option<&str>,
+        images: &[ImageInput],
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<T, ParishError> {
+        self.acquire_slot().await;
+        let data_urls: Vec<String> = images.iter().map(ImageInput::as_data_url).collect();
+        let mut messages: Vec<MultimodalMessageWire<'_>> = Vec::new();
+        if let Some(sys) = system {
+            messages.push(MultimodalMessageWire::Text(ChatMessage {
+                role: "system",
+                content: sys,
+            }));
+        }
+        let mut parts: Vec<ContentPart<'_>> = Vec::with_capacity(1 + data_urls.len());
+        parts.push(ContentPart::Text { text: user_text });
+        for url in &data_urls {
+            parts.push(ContentPart::ImageUrl {
+                image_url: ImageUrl { url: url.clone() },
+            });
+        }
+        messages.push(MultimodalMessageWire::Parts(MultimodalChatMessage {
+            role: "user",
+            content: parts,
+        }));
+
+        let body = MultimodalChatCompletionRequest {
+            model,
+            messages,
+            stream: false,
+            response_format: Some(ResponseFormat {
+                format_type: "json_object".to_string(),
+            }),
+            max_tokens,
+            temperature,
+        };
+
+        let url = format!("{}/v1/chat/completions", self.base_url);
+        let mut req = self.client.post(&url).json(&body);
+        req = self.apply_auth_headers(req);
+        let resp = req
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| ParishError::Inference(e.to_string()))?;
+
+        let completion: ChatCompletionResponse = resp.json().await?;
+        let content = extract_content(&completion);
+        let parsed: T = serde_json::from_str(&content)?;
+        Ok(parsed)
+    }
+
     /// Builds a chat completion request body.
     #[allow(clippy::too_many_arguments)] // builder pattern with all params explicit
     fn build_request<'a>(
@@ -601,6 +745,72 @@ mod tests {
     fn test_openai_client_starts_without_rate_limiter() {
         let client = OpenAiClient::new("http://localhost:11434", None);
         assert!(!client.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_image_input_as_data_url_roundtrip() {
+        use base64::Engine;
+        let bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        let img = ImageInput::png(bytes.clone());
+        let url = img.as_data_url();
+        assert!(url.starts_with("data:image/png;base64,"));
+        let expected = base64::engine::general_purpose::STANDARD.encode(&bytes);
+        assert!(url.ends_with(&expected));
+    }
+
+    #[test]
+    fn test_multimodal_request_serializes_parts_array() {
+        let img = ImageInput::png(vec![1, 2, 3, 4]);
+        let data_url = img.as_data_url();
+        let req = MultimodalChatCompletionRequest {
+            model: "test-vision",
+            messages: vec![
+                MultimodalMessageWire::Text(ChatMessage {
+                    role: "system",
+                    content: "you are a map reader",
+                }),
+                MultimodalMessageWire::Parts(MultimodalChatMessage {
+                    role: "user",
+                    content: vec![
+                        ContentPart::Text {
+                            text: "list the features",
+                        },
+                        ContentPart::ImageUrl {
+                            image_url: ImageUrl {
+                                url: data_url.clone(),
+                            },
+                        },
+                    ],
+                }),
+            ],
+            stream: false,
+            response_format: Some(ResponseFormat {
+                format_type: "json_object".to_string(),
+            }),
+            max_tokens: Some(256),
+            temperature: None,
+        };
+        let json = serde_json::to_value(&req).expect("serialize");
+
+        // System message: plain string content (untagged Text variant).
+        let sys = &json["messages"][0];
+        assert_eq!(sys["role"], "system");
+        assert_eq!(sys["content"], "you are a map reader");
+
+        // User message: parts array.
+        let user = &json["messages"][1];
+        assert_eq!(user["role"], "user");
+        let parts = user["content"].as_array().expect("array");
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0]["type"], "text");
+        assert_eq!(parts[0]["text"], "list the features");
+        assert_eq!(parts[1]["type"], "image_url");
+        assert_eq!(parts[1]["image_url"]["url"], data_url);
+
+        // response_format and other top-level fields.
+        assert_eq!(json["response_format"]["type"], "json_object");
+        assert_eq!(json["max_tokens"], 256);
+        assert!(json.get("temperature").is_none_or(|v| v.is_null()));
     }
 
     #[test]
