@@ -15,7 +15,7 @@
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
-	import { debugVisible, debugSnapshot } from '../stores/debug';
+	import { debugVisible, debugSnapshot, debugDockLeft } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
 	import { tiles } from '../stores/tiles';
@@ -552,7 +552,11 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="app-shell" class:debug-open={$debugVisible}>
+<div
+	class="app-shell"
+	class:debug-open-bottom={$debugVisible && !$debugDockLeft}
+	class:debug-open-left={$debugVisible && $debugDockLeft}
+>
 	<StatusBar />
 
 	<!-- Mobile-only toggle toolbar -->
@@ -618,8 +622,15 @@
 		padding-bottom: env(safe-area-inset-bottom);
 	}
 
-	.app-shell.debug-open {
+	.app-shell.debug-open-bottom {
 		height: 60vh;
+	}
+
+	@media (min-width: 1200px) {
+		.app-shell.debug-open-left {
+			margin-left: min(28rem, 36vw);
+			width: calc(100vw - min(28rem, 36vw));
+		}
 	}
 
 	.main-area {

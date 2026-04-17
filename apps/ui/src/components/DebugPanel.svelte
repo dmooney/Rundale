@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { debugVisible, debugSnapshot, debugTab, selectedNpcId } from '../stores/debug';
+	import {
+		debugVisible,
+		debugSnapshot,
+		debugTab,
+		debugDockLeft,
+		selectedNpcId
+	} from '../stores/debug';
 	import type { NpcDebug, ScheduleVariantDebug } from '$lib/types';
 
 	const tabs = [
@@ -58,10 +64,15 @@
 </script>
 
 {#if $debugVisible && snap}
-	<div class="debug-panel">
+	<div class="debug-panel" class:left-dock={$debugDockLeft}>
 		<div class="debug-header">
 			<span class="debug-title">Debug</span>
-			<button class="debug-close" onclick={() => debugVisible.set(false)}>X</button>
+			<div class="debug-actions">
+				<button class="debug-dock-toggle" onclick={() => debugDockLeft.update((v) => !v)}>
+					{$debugDockLeft ? 'Dock Bottom' : 'Dock Left'}
+				</button>
+				<button class="debug-close" onclick={() => debugVisible.set(false)}>X</button>
+			</div>
 		</div>
 
 		<div class="tab-bar">
@@ -565,6 +576,13 @@
 		font-size: 0.7rem;
 	}
 
+	.debug-actions {
+		display: flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+
+	.debug-dock-toggle,
 	.debug-close {
 		background: none;
 		border: 1px solid var(--color-border);
@@ -574,9 +592,23 @@
 		font-size: 0.65rem;
 	}
 
+	.debug-dock-toggle:hover,
 	.debug-close:hover {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
+	}
+
+	@media (min-width: 1200px) {
+		.debug-panel.left-dock {
+			position: fixed;
+			left: 0;
+			top: 0;
+			height: 100dvh;
+			width: min(28rem, 36vw);
+			border-top: none;
+			border-right: 2px solid var(--color-accent);
+			z-index: 45;
+		}
 	}
 
 	.tab-bar {
