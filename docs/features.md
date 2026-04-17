@@ -56,8 +56,8 @@ Parish's core innovation: NPCs are simulated at different fidelity levels based 
 |------|-----------|--------|-------------|
 | **Tier 1** | Same location | Full LLM inference | Rich, contextual conversation with memory and personality |
 | **Tier 2** | Nearby locations | Lighter LLM inference | Background activity, "overhear" mechanic |
-| **Tier 3** | Distant | Batch inference (planned) | 8-10 NPCs per LLM call, daily updates |
-| **Tier 4** | Far away | CPU-only rules (planned) | Probabilistic life events, no LLM required |
+| **Tier 3** | Distant | Batch inference | 8-10 NPCs per LLM call, daily updates |
+| **Tier 4** | Far away | CPU-only rules engine | Probabilistic life events, no LLM required |
 
 ### NPC Entity Model
 - **Identity:** Name, age, occupation, personality traits
@@ -408,7 +408,7 @@ All modes share the same core game logic from `crates/parish-core/`.
 ## Implementation Status
 
 ### Fully Implemented
-- **Phases 1–4 complete:** Core loop, world graph, NPC system with Tier 1 & 2 inference, SQLite persistence with branching saves
+- **Phases 1–4 complete:** Core loop, world graph, NPC system with all four cognitive tiers dispatched, SQLite persistence with branching saves
 - **Phase 8 in progress:** Tauri GUI rewrite with Svelte 5 frontend
 - All 40+ slash commands
 - Multi-provider LLM support with per-category routing
@@ -419,7 +419,6 @@ All modes share the same core game logic from `crates/parish-core/`.
 - Token-level streaming inference
 
 ### Partially Implemented (Infrastructure Ready)
-- Tier 3 (batch) and Tier 4 (rules-only) NPC inference — framework exists, dispatch pending
 - Gossip propagation between NPCs (memory structures exist)
 - Mythology hooks (data fields exist, no active effects)
 
