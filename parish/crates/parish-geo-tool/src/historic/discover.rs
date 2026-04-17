@@ -158,18 +158,34 @@ pub struct DiscoverAudit {
     pub features_emitted: usize,
     pub features_dropped_low_confidence: usize,
     pub features_dropped_duplicate: usize,
+    /// Dropped because the projected `(lat, lon)` landed outside `config.bbox`.
+    /// Happens at the bbox edge when the tile grid covers one or two extra
+    /// rows/columns beyond the requested area.
+    pub features_dropped_out_of_bbox: usize,
+}
+
+/// Returns true if `(lat, lon)` falls inside `bbox` (inclusive edges).
+fn bbox_contains(bbox: &BoundingBox, lat: f64, lon: f64) -> bool {
+    lat >= bbox.south && lat <= bbox.north && lon >= bbox.west && lon <= bbox.east
 }
 
 /// Intermediate record: a vision feature already normalised to WGS-84.
 ///
-/// Confidence is not retained — low-confidence features are dropped before
-/// this stage, so downstream code never needs to reconsider the score.
+/// `map_labelled` records whether the *map* carried a label for this feature
+/// (i.e. the vision model transcribed a name off the engraving). Labels
+/// invented later by the naming pass are written to `label_text` but keep
+/// `map_labelled = false`, so downstream `GeoKind` stays `Fictional`.
 #[derive(Debug, Clone)]
 struct GeolocatedVisionFeature {
     lat: f64,
     lon: f64,
     label_text: Option<String>,
     feature_kind: VisionFeatureKind,
+    /// True iff the label originated on the map (not from the naming LLM).
+    map_labelled: bool,
+    /// Vision-reported confidence (0..1). Kept so dedup can prefer higher-
+    /// confidence detections when collapsing near-duplicates.
+    confidence: f32,
     /// Road/path endpoints in lat/lon — already projected from pixel coords.
     connected_segments: Vec<(f64, f64)>,
 }
@@ -208,8 +224,15 @@ where
 
     let mut collected: Vec<GeolocatedVisionFeature> = Vec::new();
     let mut dropped_low_conf = 0usize;
+    let mut dropped_out_of_bbox = 0usize;
 
     // Iterate 2-tile-by-2-tile chunks aligned to the min corner.
+    //
+    // Edge chunks may overlap neighbours by one tile (or fetch tiles that
+    // lie just outside the bbox tile range) when the range has an odd span.
+    // We fetch the full 2x2 regardless — the source's own coverage check
+    // already rejected clearly out-of-region bboxes — and filter any
+    // projected features that land outside `config.bbox` after projection.
     let mut cy = min_y;
     while cy <= max_y {
         let mut cx = min_x;
@@ -231,7 +254,12 @@ where
                     dropped_low_conf += 1;
                     continue;
                 }
-                collected.push(project_feature(f, config.zoom, cx, cy));
+                let projected = project_feature(f, config.zoom, cx, cy);
+                if !bbox_contains(&config.bbox, projected.lat, projected.lon) {
+                    dropped_out_of_bbox += 1;
+                    continue;
+                }
+                collected.push(projected);
             }
 
             cx += CHUNK_TILE_SIDE;
@@ -261,6 +289,7 @@ where
         features_emitted: tracked.len(),
         features_dropped_low_confidence: dropped_low_conf,
         features_dropped_duplicate: dropped_dup,
+        features_dropped_out_of_bbox: dropped_out_of_bbox,
     };
 
     Ok((tracked, audit))
@@ -332,18 +361,22 @@ fn project_feature(
         .iter()
         .map(|seg: &PxSegment| chunk_px_to_lonlat(seg.to_px, seg.to_py, z, chunk_x0, chunk_y0))
         .collect();
+    let label_text = f.label_text.and_then(|s| {
+        let trimmed = s.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+    let map_labelled = label_text.is_some();
     GeolocatedVisionFeature {
         lat,
         lon,
-        label_text: f.label_text.and_then(|s| {
-            let trimmed = s.trim().to_string();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed)
-            }
-        }),
+        label_text,
         feature_kind: f.feature_kind,
+        map_labelled,
+        confidence: f.confidence,
         connected_segments,
     }
 }
@@ -368,12 +401,26 @@ fn chunk_px_to_lonlat(px: u32, py: u32, z: u8, chunk_x0: u32, chunk_y0: u32) -> 
 
 /// Drops features whose position is within `threshold_m` of an earlier feature
 /// of the same kind. Keeps the earliest entry per cluster.
+/// Drops features whose position is within `threshold_m` of an earlier feature
+/// of the same kind. Vision output order is not stable, so we first sort to
+/// put preferred detections (map-labelled, then higher confidence) ahead of
+/// unlabelled / lower-confidence ones — this way the "keep-first" collapse
+/// never discards a labelled detection in favour of an unlabelled duplicate.
 fn dedupe_by_proximity(
     features: Vec<GeolocatedVisionFeature>,
     threshold_m: f64,
 ) -> Vec<GeolocatedVisionFeature> {
+    let mut sorted = features;
+    sorted.sort_by(|a, b| {
+        // `map_labelled` first (true > false), then confidence desc.
+        b.map_labelled.cmp(&a.map_labelled).then_with(|| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
     let mut kept: Vec<GeolocatedVisionFeature> = Vec::new();
-    for f in features {
+    for f in sorted {
         let is_dup = kept.iter().any(|k| {
             k.feature_kind == f.feature_kind
                 && haversine_distance(k.lat, k.lon, f.lat, f.lon) < threshold_m
@@ -475,20 +522,27 @@ fn build_tracked_locations(
 
     let mut out: Vec<TrackedLocation> = Vec::with_capacity(features.len());
     for (i, f) in features.iter().enumerate() {
-        let (name, geo_kind, geo_source) = match &f.label_text {
-            Some(label) => (
-                label.clone(),
-                GeoKind::Manual,
-                Some(attribution.to_string()),
-            ),
-            None => (
-                // Placeholder — should not happen if naming pass ran
-                // successfully; still valid because `Fictional` features
-                // don't need stable real-world names.
-                default_placeholder_name(f.feature_kind, i),
+        // `Manual` is reserved for features whose label was *on the map*
+        // (authoritative 1820s pin). Features that the vision model left
+        // unlabelled — even if the naming pass later invented a plausible
+        // name — stay `Fictional` so downstream tooling doesn't treat
+        // LLM-hallucinated placenames as historical ground truth.
+        let (name, geo_kind, geo_source) = if f.map_labelled {
+            let label = f
+                .label_text
+                .clone()
+                .expect("map_labelled=true implies label_text is Some");
+            (label, GeoKind::Manual, Some(attribution.to_string()))
+        } else {
+            let name = f
+                .label_text
+                .clone()
+                .unwrap_or_else(|| default_placeholder_name(f.feature_kind, i));
+            (
+                name,
                 GeoKind::Fictional,
                 Some(format!("{attribution} (unlabelled feature)")),
-            ),
+            )
         };
 
         let location_type = f.feature_kind.to_location_type();
@@ -697,53 +751,73 @@ mod tests {
 
     #[tokio::test]
     async fn test_discover_pipeline_end_to_end_with_mocks() {
-        // Pick a small bbox inside the Roscommon coverage so the tile range
-        // is exactly one 2×2 chunk at z=15.
+        // Pick a bbox a little larger than one z=15 tile (~1.2 km) so the
+        // tile grid resolves to (min_x, min_y) = (max_x, max_y) + 1 in each
+        // dim. Then position each scripted vision feature at a known lat/lon
+        // inside the bbox and convert that to chunk-local pixels — this way
+        // the bbox filter definitely keeps them.
+        // Anchor the bbox inside a single z=15 tile by centring on a known
+        // point and extending ±0.002° (~200m). One tile at z=15 is ~1.2 km,
+        // so the bbox cannot straddle a tile boundary, guaranteeing the
+        // pipeline makes exactly one vision call.
         let bbox = BoundingBox {
-            south: 53.632,
-            west: -8.103,
-            north: 53.634,
-            east: -8.100,
+            south: 53.633,
+            west: -8.102,
+            north: 53.637,
+            east: -8.098,
         };
         let z = 15u8;
 
+        let (min_x, min_y, max_x, max_y) = tile_range_for_bbox(&bbox, z);
+        assert!(max_x - min_x <= 1 && max_y - min_y <= 1);
+        let mk_px = |lat: f64, lon: f64| {
+            let tp = crate::historic::tile_math::lonlat_to_tile_pixel(lat, lon, z);
+            let px = (tp.x - min_x) * TILE_SIZE_PX + tp.px;
+            let py = (tp.y - min_y) * TILE_SIZE_PX + tp.py;
+            (px, py)
+        };
+        let (k_px, k_py) = mk_px(53.636, -8.101);
+        let (c_px, c_py) = mk_px(53.635, -8.099);
+        let (f_px, f_py) = mk_px(53.634, -8.0985);
+        let (g_px, g_py) = mk_px(53.6345, -8.1005);
+
         // Two labelled features + one unlabelled, one below threshold, and
-        // one connected pair.
+        // one connected pair between the two labelled ones.
         let scripted = VisionResponse {
             features: vec![
                 VisionFeature {
-                    px: 100,
-                    py: 120,
+                    px: k_px,
+                    py: k_py,
                     label_text: Some("Kilteevan".to_string()),
                     feature_kind: VisionFeatureKind::Village,
                     confidence: 0.95,
                     connected_px_segments: vec![PxSegment {
-                        to_px: 260,
-                        to_py: 180,
+                        to_px: c_px,
+                        to_py: c_py,
                     }],
                 },
                 VisionFeature {
-                    px: 260,
-                    py: 180,
+                    px: c_px,
+                    py: c_py,
                     label_text: Some("Ch.".to_string()),
                     feature_kind: VisionFeatureKind::Church,
                     confidence: 0.9,
                     connected_px_segments: vec![PxSegment {
-                        to_px: 100,
-                        to_py: 120,
+                        to_px: k_px,
+                        to_py: k_py,
                     }],
                 },
                 VisionFeature {
-                    px: 400,
-                    py: 400,
+                    px: f_px,
+                    py: f_py,
                     label_text: None,
                     feature_kind: VisionFeatureKind::Forge,
                     confidence: 0.8,
                     connected_px_segments: vec![],
                 },
                 VisionFeature {
-                    px: 300,
-                    py: 300,
+                    px: g_px,
+                    py: g_py,
                     label_text: Some("ghost".to_string()),
                     feature_kind: VisionFeatureKind::Other,
                     confidence: 0.1, // dropped
@@ -841,31 +915,47 @@ mod tests {
         assert_eq!(audit.features_emitted, 0);
     }
 
+    /// Helper for building dense dedupe/adjacency fixtures.
+    fn mk_feature(
+        lat: f64,
+        lon: f64,
+        label: Option<&str>,
+        kind: VisionFeatureKind,
+        confidence: f32,
+        segments: Vec<(f64, f64)>,
+    ) -> GeolocatedVisionFeature {
+        GeolocatedVisionFeature {
+            lat,
+            lon,
+            label_text: label.map(str::to_string),
+            feature_kind: kind,
+            map_labelled: label.is_some(),
+            confidence,
+            connected_segments: segments,
+        }
+    }
+
     #[test]
     fn test_dedupe_collapses_close_features_of_same_kind() {
-        let a = GeolocatedVisionFeature {
-            lat: 53.5,
-            lon: -8.0,
-            label_text: Some("A".to_string()),
-            feature_kind: VisionFeatureKind::Mill,
-            connected_segments: vec![],
-        };
+        let a = mk_feature(53.5, -8.0, Some("A"), VisionFeatureKind::Mill, 0.9, vec![]);
         // 10m north of A — same kind → should be dropped.
-        let b = GeolocatedVisionFeature {
-            lat: 53.5001,
-            lon: -8.0,
-            label_text: Some("B".to_string()),
-            feature_kind: VisionFeatureKind::Mill,
-            connected_segments: vec![],
-        };
+        let b = mk_feature(
+            53.5001,
+            -8.0,
+            Some("B"),
+            VisionFeatureKind::Mill,
+            0.8,
+            vec![],
+        );
         // Same spot but different kind — kept.
-        let c = GeolocatedVisionFeature {
-            lat: 53.5001,
-            lon: -8.0,
-            label_text: Some("C".to_string()),
-            feature_kind: VisionFeatureKind::Church,
-            connected_segments: vec![],
-        };
+        let c = mk_feature(
+            53.5001,
+            -8.0,
+            Some("C"),
+            VisionFeatureKind::Church,
+            0.9,
+            vec![],
+        );
         let out = dedupe_by_proximity(vec![a, b, c], 30.0);
         assert_eq!(out.len(), 2);
         assert!(out.iter().any(|f| f.label_text.as_deref() == Some("A")));
@@ -873,31 +963,172 @@ mod tests {
     }
 
     #[test]
+    fn test_dedupe_prefers_labelled_over_unlabelled_duplicate() {
+        // Vision returned the unlabelled detection first and the labelled
+        // one second; dedup must keep the labelled detection either way.
+        let unlabelled_first = mk_feature(53.5, -8.0, None, VisionFeatureKind::Mill, 0.95, vec![]);
+        let labelled_second = mk_feature(
+            53.5001, // ~11m away
+            -8.0,
+            Some("Murphy's Mill"),
+            VisionFeatureKind::Mill,
+            0.7,
+            vec![],
+        );
+        let out = dedupe_by_proximity(vec![unlabelled_first, labelled_second], 30.0);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].label_text.as_deref(), Some("Murphy's Mill"));
+        assert!(out[0].map_labelled);
+    }
+
+    #[test]
+    fn test_dedupe_prefers_higher_confidence_among_unlabelled() {
+        let low = mk_feature(53.5, -8.0, None, VisionFeatureKind::Forge, 0.55, vec![]);
+        let high = mk_feature(53.5, -8.0, None, VisionFeatureKind::Forge, 0.92, vec![]);
+        let out = dedupe_by_proximity(vec![low, high], 30.0);
+        assert_eq!(out.len(), 1);
+        assert!((out[0].confidence - 0.92).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_bbox_contains_inclusive_edges() {
+        let bbox = BoundingBox {
+            south: 53.60,
+            west: -8.15,
+            north: 53.65,
+            east: -8.05,
+        };
+        assert!(bbox_contains(&bbox, 53.625, -8.10));
+        // Corners are inclusive.
+        assert!(bbox_contains(&bbox, 53.60, -8.15));
+        assert!(bbox_contains(&bbox, 53.65, -8.05));
+        // Just outside.
+        assert!(!bbox_contains(&bbox, 53.66, -8.10));
+        assert!(!bbox_contains(&bbox, 53.625, -8.04));
+    }
+
+    #[tokio::test]
+    async fn test_discover_drops_features_outside_bbox() {
+        // Use the known centre of a tight bbox as the "inside" feature, and
+        // a pixel near the SE corner of the 2×2 chunk (which at z=15 covers
+        // ~2.4 km — well outside a 200 m bbox) as the "outside" feature.
+        let bbox = BoundingBox {
+            south: 53.633,
+            west: -8.103,
+            north: 53.634,
+            east: -8.102,
+        };
+        let z = 15u8;
+
+        // Find the chunk origin + the pixel of a known point inside the bbox.
+        let (min_x, min_y, _, _) = tile_range_for_bbox(&bbox, z);
+        let centre = crate::historic::tile_math::lonlat_to_tile_pixel(53.6335, -8.1025, z);
+        let inside_px = (centre.x - min_x) * TILE_SIZE_PX + centre.px;
+        let inside_py = (centre.y - min_y) * TILE_SIZE_PX + centre.py;
+
+        let resp = VisionResponse {
+            features: vec![
+                VisionFeature {
+                    px: inside_px,
+                    py: inside_py,
+                    label_text: Some("Inside".to_string()),
+                    feature_kind: VisionFeatureKind::Village,
+                    confidence: 0.95,
+                    connected_px_segments: vec![],
+                },
+                // SE corner of the 2×2 chunk — far from the tight bbox.
+                VisionFeature {
+                    px: CHUNK_PX - 1,
+                    py: CHUNK_PX - 1,
+                    label_text: Some("Outside".to_string()),
+                    feature_kind: VisionFeatureKind::Church,
+                    confidence: 0.95,
+                    connected_px_segments: vec![],
+                },
+            ],
+        };
+        let vision = ScriptedVision {
+            responses: Mutex::new(vec![resp]),
+            calls: Mutex::new(0),
+        };
+        let config = DiscoverConfig::new(bbox, z, 1);
+        let (tracked, audit) = run(&SyntheticTiles, &vision, None, &config)
+            .await
+            .expect("discover run");
+        assert_eq!(audit.features_dropped_out_of_bbox, 1);
+        assert_eq!(tracked.len(), 1);
+        assert_eq!(tracked[0].data.name, "Inside");
+    }
+
+    #[test]
+    fn test_llm_named_features_stay_fictional() {
+        // One labelled village + one unlabelled forge. A naming client that
+        // invents names must not cause the forge to be emitted as `Manual`.
+        let unnamed = mk_feature(53.633, -8.102, None, VisionFeatureKind::Forge, 0.8, vec![]);
+        // Ask resolve_names with a nil client — it must short-circuit and
+        // leave provenance untouched. We use `build_tracked_locations` directly
+        // with a pre-named feature that carries `map_labelled = false` to
+        // assert the Manual/Fictional branch:
+        let mut after_naming = unnamed.clone();
+        after_naming.label_text = Some("Murphy's Forge".to_string());
+        // map_labelled stays false — this is the naming-pass mutation.
+        assert!(!after_naming.map_labelled);
+
+        let tracked = build_tracked_locations(vec![after_naming], "test-attr", 1);
+        assert_eq!(tracked.len(), 1);
+        assert_eq!(tracked[0].data.name, "Murphy's Forge");
+        assert!(matches!(tracked[0].data.geo_kind, GeoKind::Fictional));
+        assert!(
+            tracked[0]
+                .data
+                .geo_source
+                .as_deref()
+                .is_some_and(|s| s.contains("unlabelled"))
+        );
+
+        // And a map-labelled feature at the same point still becomes Manual.
+        let labelled = mk_feature(
+            53.633,
+            -8.102,
+            Some("Kilteevan"),
+            VisionFeatureKind::Village,
+            0.95,
+            vec![],
+        );
+        let tracked = build_tracked_locations(vec![labelled], "test-attr", 1);
+        assert!(matches!(tracked[0].data.geo_kind, GeoKind::Manual));
+        assert_eq!(tracked[0].data.geo_source.as_deref(), Some("test-attr"));
+    }
+
+    #[test]
     fn test_build_adjacency_snaps_vision_segments_and_falls_back() {
         // Two features within SEGMENT_SNAP_M of each other with an explicit
         // vision segment pointing between them — the segment should win.
-        let a = GeolocatedVisionFeature {
-            lat: 53.50,
-            lon: -8.00,
-            label_text: Some("A".into()),
-            feature_kind: VisionFeatureKind::Village,
-            connected_segments: vec![(53.5002, -8.0002)], // ~30m from B
-        };
-        let b = GeolocatedVisionFeature {
-            lat: 53.5003,
-            lon: -8.0003,
-            label_text: Some("B".into()),
-            feature_kind: VisionFeatureKind::Church,
-            connected_segments: vec![],
-        };
+        let a = mk_feature(
+            53.50,
+            -8.00,
+            Some("A"),
+            VisionFeatureKind::Village,
+            0.9,
+            vec![(53.5002, -8.0002)], // ~30m from B
+        );
+        let b = mk_feature(
+            53.5003,
+            -8.0003,
+            Some("B"),
+            VisionFeatureKind::Church,
+            0.9,
+            vec![],
+        );
         // C is isolated → should pick up fallback edges.
-        let c = GeolocatedVisionFeature {
-            lat: 53.501,
-            lon: -8.001,
-            label_text: Some("C".into()),
-            feature_kind: VisionFeatureKind::Mill,
-            connected_segments: vec![],
-        };
+        let c = mk_feature(
+            53.501,
+            -8.001,
+            Some("C"),
+            VisionFeatureKind::Mill,
+            0.9,
+            vec![],
+        );
         let adj = build_adjacency(&[a, b, c]);
         assert!(adj.get(&0).unwrap().contains(&1));
         assert!(adj.get(&1).unwrap().contains(&0));

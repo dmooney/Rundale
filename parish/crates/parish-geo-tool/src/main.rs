@@ -337,10 +337,11 @@ async fn run_historic_discover(args: HistoricDiscoverArgs) -> Result<()> {
         historic::discover::run(&fetcher, &vision, naming_client, &config).await?;
 
     println!(
-        "historic-discover: {} locations ({} dropped low-confidence, {} dropped as duplicates)",
+        "historic-discover: {} locations ({} dropped low-confidence, {} dropped as duplicates, {} dropped outside bbox)",
         audit.features_emitted,
         audit.features_dropped_low_confidence,
         audit.features_dropped_duplicate,
+        audit.features_dropped_out_of_bbox,
     );
 
     output::write_output(&args.output, &tracked)?;
