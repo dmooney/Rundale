@@ -122,14 +122,79 @@ pub async fn editor_save(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<EditorSaveBody>,
 ) -> Result<Json<EditorSaveResponse>, (StatusCode, String)> {
-    editor::handle_editor_save(&state.editor, body.docs)
-        .map(Json)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
+    let docs = body.docs;
+    let saved_mod_path = {
+        let session = state
+            .editor
+            .lock()
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        session.snapshot.as_ref().map(|snap| snap.mod_path.clone())
+    };
+    let result = editor::handle_editor_save(&state.editor, docs.clone())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    if result.saved
+        && docs.contains(&EditorDoc::World)
+        && is_active_game_mod(&state, saved_mod_path.as_deref())
+    {
+        reload_live_world_from_disk(&state)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
+
+    Ok(Json(result))
 }
 
 #[derive(serde::Deserialize)]
 pub struct EditorSaveBody {
     pub docs: Vec<EditorDoc>,
+}
+
+fn is_active_game_mod(state: &AppState, path: Option<&std::path::Path>) -> bool {
+    let Some(path) = path else {
+        return false;
+    };
+    let Ok(path) = path.canonicalize() else {
+        return false;
+    };
+    let Some(active_mod) = state
+        .game_mod
+        .as_ref()
+        .map(|gm| gm.mod_dir.clone())
+        .or_else(parish_core::game_mod::find_default_mod)
+    else {
+        return false;
+    };
+    let Ok(active_mod) = active_mod.canonicalize() else {
+        return false;
+    };
+    path == active_mod
+}
+
+async fn reload_live_world_from_disk(state: &Arc<AppState>) -> Result<(), String> {
+    let game_mod = state
+        .game_mod
+        .clone()
+        .or_else(|| {
+            parish_core::game_mod::find_default_mod()
+                .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok())
+        })
+        .ok_or_else(|| "active game mod not found".to_string())?;
+
+    let snapshot = {
+        let mut world = state.world.lock().await;
+        parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
+            .map_err(|e| format!("failed to reload world graph: {e}"))?;
+        let npc_manager = state.npc_manager.lock().await;
+        let transport = state.transport.default_mode();
+        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        ws
+    };
+
+    state.event_bus.emit("world-update", &snapshot);
+    Ok(())
 }
 
 /// `POST /api/editor-reload`

@@ -13,6 +13,7 @@
 //! [`validate::validate_snapshot`], not `GameMod::load`, for the same reason.
 
 pub mod format;
+pub mod live_reload;
 #[cfg(test)]
 mod maintenance_tool;
 pub mod mod_io;
@@ -22,6 +23,7 @@ pub mod types;
 pub mod validate;
 
 pub use format::write_json_deterministic;
+pub use live_reload::reload_world_graph_preserving_runtime;
 pub use mod_io::{list_mods, load_mod_snapshot};
 pub use persist::{
     SaveResult, save_anachronisms, save_encounters, save_festivals, save_mod, save_npcs, save_world,
