@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use tauri::State;
+use tauri::{Emitter, State};
 
 use parish_core::editor::save_inspect::{
     BranchSummary, SaveFileSummary, SnapshotDetail, SnapshotSummary,
@@ -17,6 +17,8 @@ use parish_core::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, Valid
 use parish_core::ipc::editor::{self, EditorSaveResponse};
 
 use crate::AppState;
+use crate::commands::get_world_snapshot_inner;
+use crate::events::EVENT_WORLD_UPDATE;
 
 /// Finds the `mods/` directory by walking up from the working directory.
 fn mods_root() -> PathBuf {
@@ -76,9 +78,21 @@ pub async fn editor_update_locations(
 #[tauri::command]
 pub async fn editor_save(
     docs: Vec<EditorDoc>,
+    app: tauri::AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<EditorSaveResponse, String> {
-    editor::handle_editor_save(&state.editor, docs)
+    let saved_mod_path = {
+        let session = state.editor.lock().map_err(|e| e.to_string())?;
+        session.snapshot.as_ref().map(|snap| snap.mod_path.clone())
+    };
+    let result = editor::handle_editor_save(&state.editor, docs.clone())?;
+    if result.saved
+        && docs.contains(&EditorDoc::World)
+        && is_active_default_mod(saved_mod_path.as_deref())
+    {
+        reload_live_world_from_disk(&state, &app).await?;
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -89,6 +103,48 @@ pub async fn editor_reload(state: State<'_, Arc<AppState>>) -> Result<EditorModS
 #[tauri::command]
 pub async fn editor_close(state: State<'_, Arc<AppState>>) -> Result<(), String> {
     editor::handle_editor_close(&state.editor)
+}
+
+fn is_active_default_mod(path: Option<&std::path::Path>) -> bool {
+    let Some(path) = path else {
+        return false;
+    };
+    let Ok(path) = path.canonicalize() else {
+        return false;
+    };
+    let Some(active_mod) = parish_core::game_mod::find_default_mod() else {
+        return false;
+    };
+    let Ok(active_mod) = active_mod.canonicalize() else {
+        return false;
+    };
+    path == active_mod
+}
+
+async fn reload_live_world_from_disk(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+) -> Result<(), String> {
+    let mod_dir = parish_core::game_mod::find_default_mod()
+        .ok_or_else(|| "active game mod not found".to_string())?;
+    let game_mod = parish_core::game_mod::GameMod::load(&mod_dir)
+        .map_err(|e| format!("failed to reload game mod: {e}"))?;
+
+    let snapshot = {
+        let mut world = state.world.lock().await;
+        parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
+            .map_err(|e| format!("failed to reload world graph: {e}"))?;
+        let npc_manager = state.npc_manager.lock().await;
+        get_world_snapshot_inner(
+            &world,
+            state.transport.default_mode(),
+            Some(&npc_manager),
+            &state.pronunciations,
+        )
+    };
+
+    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+    Ok(())
 }
 
 // ── Save inspector (read-only) ──────────────────────────────────────────────

@@ -76,6 +76,14 @@ export interface Connection {
 	path_description: string;
 }
 
+export type GeoKind = 'real' | 'manual' | 'fictional';
+
+export interface RelativeRef {
+	anchor: number;
+	dnorth_m: number;
+	deast_m: number;
+}
+
 export interface LocationData {
 	id: number;
 	name: string;
@@ -88,6 +96,9 @@ export interface LocationData {
 	associated_npcs: number[];
 	mythological_significance?: string | null;
 	aliases: string[];
+	geo_kind?: GeoKind;
+	relative_to?: RelativeRef | null;
+	geo_source?: string | null;
 }
 
 export interface AnachronismEntry {
