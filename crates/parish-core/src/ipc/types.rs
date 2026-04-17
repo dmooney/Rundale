@@ -32,8 +32,11 @@ pub struct WorldSnapshot {
     pub season: String,
     /// Optional festival name if today is a festival day.
     pub festival: Option<String>,
-    /// Whether the game clock is currently paused.
+    /// Whether the game clock is currently player-paused.
     pub paused: bool,
+    /// Whether the game clock is frozen while waiting on inference.
+    #[serde(default)]
+    pub inference_paused: bool,
     /// Game time as milliseconds since Unix epoch (for client-side interpolation).
     pub game_epoch_ms: f64,
     /// Clock speed multiplier (1 real second = speed_factor game seconds).
@@ -358,6 +361,7 @@ mod tests {
             season: "Summer".to_string(),
             festival: None,
             paused: false,
+            inference_paused: false,
             game_epoch_ms: 1234567890.0,
             speed_factor: 36.0,
             name_hints: vec![],

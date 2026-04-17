@@ -18,7 +18,7 @@ export interface AutoPauseTrackerOptions {
 	mousemoveThrottleMs: number;
 	/** Function to invoke pause/resume commands. */
 	submitInput: (text: string) => Promise<void>;
-	/** Returns whether the world is currently paused (any source). */
+	/** Returns whether the world is currently player-paused. */
 	isWorldPaused: () => boolean;
 }
 

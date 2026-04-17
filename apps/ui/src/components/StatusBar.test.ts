@@ -24,6 +24,7 @@ const snapshot: WorldSnapshot = {
 	season: 'Spring',
 	festival: null,
 	paused: false,
+	inference_paused: false,
 	game_epoch_ms: morningEpoch(),
 	speed_factor: 0,
 	name_hints: [],
@@ -63,6 +64,12 @@ describe('StatusBar', () => {
 		worldState.set({ ...snapshot, paused: true });
 		const { getByText } = render(StatusBar);
 		expect(getByText('⏸ Paused')).toBeTruthy();
+	});
+
+	it('does not show paused indicator when only inference is paused', () => {
+		worldState.set({ ...snapshot, inference_paused: true });
+		const { queryByText } = render(StatusBar);
+		expect(queryByText('⏸ Paused')).toBeNull();
 	});
 
 	it('renders the clock element', () => {
