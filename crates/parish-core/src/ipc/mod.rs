@@ -11,7 +11,9 @@ pub mod handlers;
 pub mod streaming;
 pub mod types;
 
-pub use commands::{CommandEffect, CommandResult, handle_command, render_look_text};
+pub use commands::{
+    CommandEffect, CommandResult, TextPresentation, handle_command, render_look_text,
+};
 pub use config::GameConfig;
 pub use handlers::*;
 pub use streaming::{stream_npc_tokens, strip_trailing_json};

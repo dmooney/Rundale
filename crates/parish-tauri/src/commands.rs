@@ -474,15 +474,15 @@ async fn handle_system_command(
     // Emit the command response text (shared response or mode-specific override).
     let response = extra_response.unwrap_or(result.response);
     if !response.is_empty() {
-        let _ = app.emit(
-            EVENT_TEXT_LOG,
-            TextLogPayload {
-                id: String::new(),
-                stream_turn_id: None,
-                source: "system".to_string(),
-                content: response,
-            },
-        );
+        // Route through the core helpers so tabular responses (e.g. `/help`)
+        // carry `subtype: "tabular"` for the chat UI to render in monospace.
+        let payload = match result.presentation {
+            parish_core::ipc::TextPresentation::Tabular => {
+                text_log_typed("system", response, "tabular")
+            }
+            parish_core::ipc::TextPresentation::Prose => text_log("system", response),
+        };
+        let _ = app.emit(EVENT_TEXT_LOG, payload);
     }
 
     // Emit updated world state for status bar.

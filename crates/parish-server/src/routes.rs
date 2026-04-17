@@ -22,7 +22,8 @@ use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
     NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
-    ThemePalette, WorldSnapshot, capitalize_first, text_log, text_log_for_stream_turn,
+    TextPresentation, ThemePalette, WorldSnapshot, capitalize_first, text_log,
+    text_log_for_stream_turn, text_log_typed,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::manager::NpcManager;
@@ -395,11 +396,14 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
         }
     }
 
-    // Emit the command response text.
+    // Emit the command response text. Tabular responses (e.g. `/help`) carry
+    // a `subtype: "tabular"` hint so the chat UI can render them in monospace.
     if !result.response.is_empty() {
-        state
-            .event_bus
-            .emit("text-log", &text_log("system", result.response));
+        let payload = match result.presentation {
+            TextPresentation::Tabular => text_log_typed("system", result.response, "tabular"),
+            TextPresentation::Prose => text_log("system", result.response),
+        };
+        state.event_bus.emit("text-log", &payload);
     }
 
     // Emit updated world snapshot.

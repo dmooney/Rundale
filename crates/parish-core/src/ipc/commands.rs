@@ -59,6 +59,21 @@ pub enum CommandEffect {
     ApplyTiles(String),
 }
 
+/// How a command's response text should be presented by the frontend.
+///
+/// Most command output is prose rendered in the chat panel's proportional
+/// serif font. Tabular output (e.g. the `/help` two-column list) needs a
+/// monospace font so that column-aligned padding actually lines up.
+/// Frontends translate this into a `subtype` on the text-log payload.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TextPresentation {
+    /// Default — render with the normal chat font.
+    #[default]
+    Prose,
+    /// Render with a monospace font so column alignment is preserved.
+    Tabular,
+}
+
 /// The result of processing a system command.
 #[derive(Debug, Clone)]
 pub struct CommandResult {
@@ -67,6 +82,8 @@ pub struct CommandResult {
     pub response: String,
     /// Side effects the backend must handle after emitting the response.
     pub effects: Vec<CommandEffect>,
+    /// How the frontend should render [`Self::response`].
+    pub presentation: TextPresentation,
 }
 
 impl CommandResult {
@@ -74,6 +91,15 @@ impl CommandResult {
         Self {
             response: response.into(),
             effects: vec![],
+            presentation: TextPresentation::Prose,
+        }
+    }
+
+    fn text_tabular(response: impl Into<String>) -> Self {
+        Self {
+            response: response.into(),
+            effects: vec![],
+            presentation: TextPresentation::Tabular,
         }
     }
 
@@ -81,6 +107,7 @@ impl CommandResult {
         Self {
             response: response.into(),
             effects: vec![effect],
+            presentation: TextPresentation::Prose,
         }
     }
 
@@ -88,8 +115,63 @@ impl CommandResult {
         Self {
             response: String::new(),
             effects: vec![effect],
+            presentation: TextPresentation::Prose,
         }
     }
+}
+
+/// Canonical list of user-facing system commands shown by `/help`.
+///
+/// Kept in alphabetical order by command name so the rendered output is
+/// stable and easy to scan. Descriptions are short so the list fits
+/// comfortably in the chat panel.
+const HELP_ENTRIES: &[(&str, &str)] = &[
+    ("/about", "About this game"),
+    ("/branches", "List save branches"),
+    ("/designer", "Open the Parish Designer"),
+    ("/flag disable <name>", "Disable a feature flag"),
+    ("/flag enable <name>", "Enable a feature flag"),
+    ("/flag list", "List all feature flags"),
+    ("/fork <name>", "Fork a new branch from here"),
+    ("/help", "Show this help"),
+    ("/improv", "Toggle improv craft mode"),
+    ("/irish", "Toggle Irish pronunciation sidebar"),
+    ("/load <name>", "Load a named branch"),
+    ("/log", "Show branch history"),
+    ("/map [id]", "List or switch map tile sources"),
+    ("/new-game", "Start a fresh game"),
+    ("/npcs", "Who is nearby?"),
+    ("/pause", "Hold time still"),
+    ("/resume", "Let time flow again"),
+    ("/save", "Save the game"),
+    (
+        "/speed [slow|normal|fast|fastest|ludicrous]",
+        "Show or change game speed",
+    ),
+    ("/status", "Where am I?"),
+    ("/time", "Time, weather, and season details"),
+    ("/wait [minutes]", "Wait in place (default: 15 min)"),
+];
+
+/// Renders the `/help` body as a monospace-aligned two-column list.
+///
+/// Command names are left-padded to the widest entry so the em-dash
+/// separator lines up in a fixed-width font. Frontends tag this response
+/// with [`TextPresentation::Tabular`] so the chat UI picks a monospace
+/// font — see [`CommandResult::text_tabular`].
+fn render_help_text() -> String {
+    let max_cmd_width = HELP_ENTRIES
+        .iter()
+        .map(|(cmd, _)| cmd.chars().count())
+        .max()
+        .unwrap_or(0);
+
+    let mut out = String::from("Available commands:");
+    for (cmd, desc) in HELP_ENTRIES {
+        out.push('\n');
+        out.push_str(&format!("  {cmd:<max_cmd_width$} — {desc}"));
+    }
+    out
 }
 
 /// Processes a system command, mutating world/NPC/config state and returning
@@ -406,34 +488,7 @@ pub fn handle_command(
 
         // ── Mode-specific commands (delegated to backend) ───────────────
         Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
-        Command::Help => CommandResult::text(
-            [
-                "A few things ye might say:",
-                "  /help              — Show this help",
-                "  /about             — About this game",
-                "  /status            — Where am I?",
-                "  /time              — Time, weather, and season details",
-                "  /npcs              — Who is nearby?",
-                "  /wait [minutes]    — Wait in place (default: 15 min)",
-                "  /pause             — Hold time still",
-                "  /resume            — Let time flow again",
-                "  /speed [slow|normal|fast|fastest|ludicrous]  — Show or change game speed",
-                "  /irish             — Toggle Irish pronunciation sidebar",
-                "  /improv            — Toggle improv craft mode",
-                "  /map [id]          — List or switch map tile sources",
-                "  /designer          — Open the Parish Designer",
-                "  /flag list                  — List all feature flags",
-                "  /flag enable <name>         — Enable a feature flag",
-                "  /flag disable <name>        — Disable a feature flag",
-                "  /save              — Save the game",
-                "  /fork <name>       — Fork a new branch from here",
-                "  /load <name>       — Load a named branch",
-                "  /branches          — List save branches",
-                "  /log               — Show branch history",
-                "  /new-game          — Start a fresh game",
-            ]
-            .join("\n"),
-        ),
+        Command::Help => CommandResult::text_tabular(render_help_text()),
         Command::Save => CommandResult::effect_only(CommandEffect::SaveGame),
         Command::Fork(name) => CommandResult::effect_only(CommandEffect::ForkBranch(name)),
         Command::Load(name) => CommandResult::effect_only(CommandEffect::LoadBranch(name)),
@@ -743,6 +798,20 @@ mod tests {
         assert!(result.response.contains("/help"));
         assert!(result.response.contains("/save"));
         assert!(result.response.contains("/pause"));
+        let about_pos = result
+            .response
+            .find("/about")
+            .expect("help text should include /about");
+        let help_pos = result
+            .response
+            .find("/help")
+            .expect("help text should include /help");
+        let time_pos = result
+            .response
+            .find("/time")
+            .expect("help text should include /time");
+        assert!(about_pos < help_pos);
+        assert!(help_pos < time_pos);
         assert!(result.effects.is_empty());
     }
 
@@ -1378,5 +1447,36 @@ mod tests {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(Command::Help, &mut world, &mut npc, &mut config);
         assert!(result.response.contains("/map"));
+    }
+
+    #[test]
+    fn help_output_is_tabular_and_column_aligned() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Help, &mut world, &mut npc, &mut config);
+
+        assert_eq!(result.presentation, TextPresentation::Tabular);
+
+        // Every row after the "Available commands:" header must contain
+        // exactly one em-dash separator, and all em-dashes must share the
+        // same character column — that's what makes the list tabular in a
+        // monospace font.
+        let mut dash_col: Option<usize> = None;
+        for line in result.response.lines().skip(1) {
+            let matches: Vec<usize> = line.match_indices('—').map(|(i, _)| i).collect();
+            assert_eq!(
+                matches.len(),
+                1,
+                "help row should contain exactly one em-dash: {:?}",
+                line
+            );
+            let col = line[..matches[0]].chars().count();
+            match dash_col {
+                None => dash_col = Some(col),
+                Some(expected) => {
+                    assert_eq!(col, expected, "em-dash column mismatch on row: {:?}", line)
+                }
+            }
+        }
+        assert!(dash_col.is_some(), "help body had no rows");
     }
 }

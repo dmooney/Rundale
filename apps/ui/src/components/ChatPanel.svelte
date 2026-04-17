@@ -32,6 +32,24 @@
 		return entry.source;
 	}
 
+	type TabularRow = { kind: 'header'; text: string } | { kind: 'pair'; cmd: string; desc: string };
+
+	/** Parses a `subtype: "tabular"` message body into header / (cmd, desc) rows.
+	 *  Lines containing " — " are split into two cells; other lines become headers
+	 *  spanning both columns. This lets a CSS grid handle alignment, so descriptions
+	 *  line up in the proportional chat font without needing monospace. */
+	function parseTabularRows(content: string): TabularRow[] {
+		return content.split('\n').map((line): TabularRow => {
+			const idx = line.indexOf(' — ');
+			if (idx === -1) return { kind: 'header', text: line };
+			return {
+				kind: 'pair',
+				cmd: line.slice(0, idx).trim(),
+				desc: line.slice(idx + ' — '.length).trim()
+			};
+		});
+	}
+
 	interface TextSegment {
 		text: string;
 		isAction: boolean;
@@ -133,8 +151,20 @@
 		{#if entryType(entry) === 'system'}
 			{@const isSplash = entry.content.includes('Copyright \u00A9')}
 			{@const lines = entry.content.split('\n')}
-			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'}>
-				{#if isSplash}
+			<div class="entry system" class:location={entry.subtype === 'location'} class:error={entry.subtype === 'error'} class:tabular={entry.subtype === 'tabular'}>
+				{#if entry.subtype === 'tabular'}
+					{@const rows = parseTabularRows(entry.content)}
+					<div class="tabular-grid">
+						{#each rows as row}
+							{#if row.kind === 'header'}
+								<div class="tabular-header">{row.text}</div>
+							{:else}
+								<div class="tabular-cmd">{row.cmd}</div>
+								<div class="tabular-desc">— {row.desc}</div>
+							{/if}
+						{/each}
+					</div>
+				{:else if isSplash}
 					<span class="content"><strong>{lines[0]}</strong>{'\n' + lines.slice(1).join('\n')}</span>
 				{:else}
 					<span class="content">{#each parseEmotes(entry.content) as seg}{#if seg.isAction}<span class="emote">{seg.text}</span>{:else}{#each richify(seg.text) as rs}<span class="term-{rs.kind}">{rs.text}</span>{/each}{/if}{/each}</span>
@@ -248,6 +278,19 @@
 		padding-left: 0.75rem;
 		color: var(--color-muted);
 		font-size: 0.95rem;
+	}
+
+	/* Tabular system output (e.g. /help): a two-column grid so commands
+	   and descriptions line up regardless of font metrics. Keeps the
+	   chat's proportional serif instead of switching to monospace. */
+	.entry.system.tabular .tabular-grid {
+		display: grid;
+		grid-template-columns: max-content 1fr;
+		column-gap: 0.75em;
+		row-gap: 0;
+	}
+	.entry.system.tabular .tabular-header {
+		grid-column: 1 / -1;
 	}
 
 	/* Inline term highlighting */
