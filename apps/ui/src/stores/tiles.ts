@@ -18,6 +18,7 @@ import type { TileSource, UiConfig } from '$lib/types';
 const STORAGE_KEY = 'parish.tile-source';
 
 function loadActiveIdFromStorage(): string | null {
+	// localStorage (not sessionStorage) — deliberate trade-off: tile-source preference is low-sensitivity UX data; persisting across sessions is a better UX than losing the choice on tab close.
 	try {
 		return typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
 	} catch {
@@ -26,6 +27,7 @@ function loadActiveIdFromStorage(): string | null {
 }
 
 function saveActiveIdToStorage(id: string): void {
+	// localStorage (not sessionStorage) — deliberate trade-off: tile-source preference is low-sensitivity UX data; persisting across sessions is a better UX than losing the choice on tab close.
 	try {
 		if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, id);
 	} catch {

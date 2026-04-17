@@ -31,15 +31,17 @@
 	const HISTORY_MAX = 50;
 
 	function loadHistory(): string[] {
+		// sessionStorage (not localStorage) — input history may contain sensitive user typing; limit to tab lifetime
 		try {
-			const raw = localStorage.getItem(HISTORY_KEY);
+			const raw = sessionStorage.getItem(HISTORY_KEY);
 			if (raw) return JSON.parse(raw);
 		} catch { /* ignore corrupt data */ }
 		return [];
 	}
 
 	function saveHistory(h: string[]) {
-		try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* quota */ }
+		// sessionStorage (not localStorage) — input history may contain sensitive user typing; limit to tab lifetime
+		try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* quota */ }
 	}
 
 	let history: string[] = $state(loadHistory());
