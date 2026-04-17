@@ -138,7 +138,7 @@
 		// Empty editor — no text node yet, insert one
 		if (node.nodeType !== Node.TEXT_NODE) {
 			const textNode = document.createTextNode(match.text);
-			editorEl.innerHTML = '';
+			editorEl.textContent = '';
 			editorEl.appendChild(textNode);
 			completion.replacedLength = match.text.length;
 			const newRange = document.createRange();
@@ -226,7 +226,7 @@
 	/** Clears the editor content. */
 	function clearEditor() {
 		if (editorEl) {
-			editorEl.innerHTML = '';
+			editorEl.textContent = '';
 		}
 		editorText = '';
 	}
@@ -368,7 +368,7 @@
 			chip.contentEditable = 'false';
 			chip.dataset.npc = npcName;
 			chip.textContent = `@${npcName}`;
-			editorEl.innerHTML = '';
+			editorEl.textContent = '';
 			editorEl.appendChild(chip);
 			const trailing = document.createTextNode('\u00A0');
 			editorEl.appendChild(trailing);
