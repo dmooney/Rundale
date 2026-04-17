@@ -226,6 +226,18 @@ geo-tool-dry-run AREA:
 geo-tool-merge AREA:
     cargo run -p geo-tool -- --area "{{AREA}}" --merge mods/rundale/world.json
 
+# Build the real-coordinate alignment utility binary
+realign-coords-build:
+    cargo build -p geo-tool --bin realign_rundale_coords
+
+# Run the real-coordinate alignment utility against Rundale (in place)
+realign-coords:
+    cargo run -p geo-tool --bin realign_rundale_coords -- --world mods/rundale/world.json --in-place
+
+# Run the real-coordinate alignment utility with custom args
+realign-coords-run *ARGS:
+    cargo run -p geo-tool --bin realign_rundale_coords -- {{ARGS}}
+
 # ─── Dependencies ────────────────────────────────────────────────────────────
 
 # Check for outdated dependencies (requires cargo-outdated)

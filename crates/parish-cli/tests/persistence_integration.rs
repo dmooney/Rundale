@@ -186,9 +186,6 @@ fn test_full_world_state_roundtrip() {
     );
     assert!(expected_visited.len() >= 3);
 
-    // (b) weather
-    h.app.world.weather = parish::world::Weather::Storm;
-
     // (c) text_log: execute a look so the log contains something meaningful.
     h.execute("look");
     let expected_log = h.app.world.text_log.clone();
@@ -198,6 +195,12 @@ fn test_full_world_state_roundtrip() {
     h.advance_time(45);
     h.app.world.clock.set_speed(GameSpeed::Fast);
     h.app.world.clock.pause();
+
+    // (b) weather — set AFTER time advancement so the weather_engine tick
+    // inside `advance_time` can't transition weather away from Storm before
+    // we save. (The stochastic weather engine otherwise made this test
+    // geometry-sensitive.)
+    h.app.world.weather = parish::world::Weather::Storm;
     let expected_game_time = h.app.world.clock.now();
     let expected_speed = h.app.world.clock.speed_factor();
     let expected_paused = h.app.world.clock.is_paused();

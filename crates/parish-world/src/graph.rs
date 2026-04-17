@@ -14,6 +14,36 @@ use crate::geo;
 use parish_config::WorldConfig;
 use parish_types::{LocationId, NpcId, ParishError};
 
+/// Declares whether a map location is grounded in a real place,
+/// author-pinned to a specific coordinate, or authored as fiction.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GeoKind {
+    /// Backed by a real-world place that can be geocoded at runtime.
+    Real,
+    /// Author-pinned to an explicit coordinate (e.g. a historic map feature
+    /// that modern geocoders would misplace). Never geocoded; acts as an
+    /// anchor for relative positioning and fictional realignment.
+    Manual,
+    /// Authored location in the world fiction.
+    #[default]
+    Fictional,
+}
+
+/// Position expressed as a signed offset (in meters, north and east) from
+/// another location. When present, it overrides a location's stored
+/// `lat`/`lon` for resolution purposes — the stored pair acts as a cache of
+/// the last resolved absolute coordinate.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct RelativeRef {
+    /// The location this one is positioned relative to.
+    pub anchor: LocationId,
+    /// Offset north in meters (negative = south).
+    pub dnorth_m: f64,
+    /// Offset east in meters (negative = west).
+    pub deast_m: f64,
+}
+
 /// A connection (edge) between two locations in the world graph.
 ///
 /// Each connection has a target location and a prose description of the path.
@@ -64,6 +94,19 @@ pub struct LocationData {
     /// Used by fuzzy name matching to support colloquial and semantic synonyms.
     #[serde(default)]
     pub aliases: Vec<String>,
+    /// Whether this location maps to a real place, is author-pinned, or is fictional.
+    #[serde(default)]
+    pub geo_kind: GeoKind,
+    /// Optional relative-position override. When set, `lat`/`lon` are a
+    /// cache derived from `anchor.lat`/`anchor.lon` plus the offset; the
+    /// realign tool resolves and rewrites them on each run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_to: Option<RelativeRef>,
+    /// Provenance note for `Manual` locations (e.g. "OS 6-inch First
+    /// Edition, Roscommon sheet, ca. 1837"). Ignored at runtime; intended
+    /// as authoring metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub geo_source: Option<String>,
 }
 
 /// The world graph: a collection of locations connected by traversable paths.

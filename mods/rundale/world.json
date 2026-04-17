@@ -40,13 +40,15 @@
                     "path_description": "a short walk past the sound of hammering"
                 }
             ],
-            "lat": 53.618,
-            "lon": -8.095,
+            "lat": 53.63610233978225,
+            "lon": -8.115467722483066,
             "associated_npcs": [],
             "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin.",
             "aliases": [
                 "crossroads"
-            ]
+            ],
+            "geo_kind": "manual",
+            "geo_source": "manually placed from modern Kilteevan crossroads coord"
         },
         {
             "id": 2,
@@ -60,8 +62,8 @@
                     "path_description": "the lane back to the crossroads"
                 }
             ],
-            "lat": 53.622,
-            "lon": -8.088,
+            "lat": 53.640104320928586,
+            "lon": -8.10846015877706,
             "associated_npcs": [
                 1
             ],
@@ -70,7 +72,13 @@
                 "pub",
                 "the pub",
                 "tavern"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": 445.0,
+                "deast_m": 462.0
+            }
         },
         {
             "id": 3,
@@ -88,15 +96,21 @@
                     "path_description": "a muddy track past the graveyard wall"
                 }
             ],
-            "lat": 53.6215,
-            "lon": -8.099,
+            "lat": 53.63960070082927,
+            "lon": -8.119472044600784,
             "associated_npcs": [],
             "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint.",
             "aliases": [
                 "church",
                 "the church",
                 "chapel"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": 389.0,
+                "deast_m": -264.0
+            }
         },
         {
             "id": 4,
@@ -110,8 +124,8 @@
                     "path_description": "back across to the crossroads"
                 }
             ],
-            "lat": 53.6145,
-            "lon": -8.09,
+            "lat": 53.632603978735226,
+            "lon": -8.11046231983592,
             "associated_npcs": [
                 23
             ],
@@ -121,7 +135,13 @@
                 "post",
                 "letters",
                 "mail"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": -389.0,
+                "deast_m": 330.0
+            }
         },
         {
             "id": 5,
@@ -139,15 +159,16 @@
                     "path_description": "a grassy track past the ditch to a whitewashed cottage"
                 }
             ],
-            "lat": 53.61,
-            "lon": -8.106,
+            "lat": 53.59675417924797,
+            "lon": -8.108332634905555,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "pitch",
                 "the pitch",
                 "hurling field"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 6,
@@ -165,14 +186,20 @@
                     "path_description": "a beaten path down to the hurling green"
                 }
             ],
-            "lat": 53.613,
-            "lon": -8.101,
+            "lat": 53.63110211165334,
+            "lon": -8.121474205659643,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "school",
                 "schoolhouse"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": -556.0,
+                "deast_m": -396.0
+            }
         },
         {
             "id": 7,
@@ -190,8 +217,8 @@
                     "path_description": "a rough track climbing away from the shore"
                 }
             ],
-            "lat": 53.621,
-            "lon": -8.043,
+            "lat": 53.52799837676905,
+            "lon": -8.0061533217087,
             "associated_npcs": [],
             "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie.",
             "aliases": [
@@ -201,7 +228,8 @@
                 "the lake",
                 "shore",
                 "lakeshore"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 8,
@@ -223,8 +251,8 @@
                     "path_description": "a stony path along the waterline to a thatched cottage"
                 }
             ],
-            "lat": 53.616,
-            "lon": -8.048,
+            "lat": 53.467185,
+            "lon": -7.9871901,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -232,7 +260,8 @@
                 "the bay",
                 "harbour",
                 "harbor"
-            ]
+            ],
+            "geo_kind": "real"
         },
         {
             "id": 9,
@@ -254,8 +283,8 @@
                     "path_description": "a boreen through a gap in the hedge"
                 }
             ],
-            "lat": 53.62,
-            "lon": -8.068,
+            "lat": 53.638098833747385,
+            "lon": -8.088453716075282,
             "associated_npcs": [
                 18
             ],
@@ -263,7 +292,13 @@
             "aliases": [
                 "murphy's",
                 "murphys"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": 222.0,
+                "deast_m": 1781.0
+            }
         },
         {
             "id": 10,
@@ -281,14 +316,15 @@
                     "path_description": "a soggy track across the lower field"
                 }
             ],
-            "lat": 53.6185,
-            "lon": -8.06,
+            "lat": 53.56601550353809,
+            "lon": -8.046985293417402,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "o'brien's",
                 "obriens"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 11,
@@ -306,8 +342,8 @@
                     "path_description": "a barely visible path through gorse and bracken"
                 }
             ],
-            "lat": 53.627,
-            "lon": -8.052,
+            "lat": 53.557148938220166,
+            "lon": -8.027546388824595,
             "associated_npcs": [],
             "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune.",
             "aliases": [
@@ -315,7 +351,8 @@
                 "ring fort",
                 "the rath",
                 "fort"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 12,
@@ -337,8 +374,8 @@
                     "path_description": "a squelching path along the bog's edge"
                 }
             ],
-            "lat": 53.626,
-            "lon": -8.088,
+            "lat": 53.58995380206708,
+            "lon": -8.079585849026367,
             "associated_npcs": [],
             "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights.",
             "aliases": [
@@ -346,7 +383,8 @@
                 "turf bog",
                 "bog",
                 "bogland"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 13,
@@ -360,8 +398,8 @@
                     "path_description": "a few steps back across the road to the crossroads"
                 }
             ],
-            "lat": 53.615,
-            "lon": -8.097,
+            "lat": 53.63309860561848,
+            "lon": -8.117469883541926,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -369,7 +407,13 @@
                 "the store",
                 "general store",
                 "shop"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 1,
+                "dnorth_m": -334.0,
+                "deast_m": -132.0
+            }
         },
         {
             "id": 14,
@@ -387,15 +431,16 @@
                     "path_description": "a path along the bog's edge back to the road"
                 }
             ],
-            "lat": 53.623,
-            "lon": -8.072,
+            "lat": 53.57285641114005,
+            "lon": -8.058844871168095,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "kiln",
                 "the kiln",
                 "limekiln"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 15,
@@ -433,8 +478,8 @@
                     "path_description": "the southern road toward Knockcroghery"
                 }
             ],
-            "lat": 53.606,
-            "lon": -8.11,
+            "lat": 53.6320798910683,
+            "lon": -8.102070946274374,
             "associated_npcs": [
                 19,
                 21,
@@ -446,7 +491,9 @@
                 "the town",
                 "village",
                 "kilteevan"
-            ]
+            ],
+            "geo_kind": "manual",
+            "geo_source": "OS 6-inch First Edition, Roscommon sheet, ca. 1837"
         },
         {
             "id": 16,
@@ -464,8 +511,8 @@
                     "path_description": "the lane south toward Kilteevan Village"
                 }
             ],
-            "lat": 53.6165,
-            "lon": -8.093,
+            "lat": 53.642579920478205,
+            "lon": -8.085060418010046,
             "associated_npcs": [
                 9,
                 10,
@@ -477,7 +524,13 @@
                 "the forge",
                 "smithy",
                 "blacksmith"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 1167.55,
+                "deast_m": 1121.59
+            }
         },
         {
             "id": 17,
@@ -495,15 +548,21 @@
                     "path_description": "a narrow track south joining the Knockcroghery road"
                 }
             ],
-            "lat": 53.604,
-            "lon": -8.113,
+            "lat": 53.6300798897489,
+            "lon": -8.105072839889116,
             "associated_npcs": [],
             "mythological_significance": "St. Tíobán's Well — the holy well that gave Kilteevan its name. People leave offerings here for cures and blessings. The water is said to heal sore eyes on the saint's feast day.",
             "aliases": [
                 "holy well",
                 "the well",
                 "well"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": -222.39,
+                "deast_m": -197.93
+            }
         },
         {
             "id": 18,
@@ -521,8 +580,8 @@
                     "path_description": "the road continuing west toward Curraghboy"
                 }
             ],
-            "lat": 53.609,
-            "lon": -8.125,
+            "lat": 53.635079848081325,
+            "lon": -8.117080262683675,
             "associated_npcs": [
                 12,
                 13,
@@ -532,7 +591,13 @@
             "aliases": [
                 "mill",
                 "the mill"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 333.58,
+                "deast_m": -989.64
+            }
         },
         {
             "id": 19,
@@ -550,8 +615,8 @@
                     "path_description": "a grassy track past the ditch to the hurling green"
                 }
             ],
-            "lat": 53.608,
-            "lon": -8.105,
+            "lat": 53.6340798923877,
+            "lon": -8.097067840804607,
             "associated_npcs": [
                 20
             ],
@@ -560,7 +625,13 @@
                 "weaver's",
                 "weavers",
                 "weaver cottage"
-            ]
+            ],
+            "geo_kind": "fictional",
+            "relative_to": {
+                "anchor": 15,
+                "dnorth_m": 222.39,
+                "deast_m": 329.88
+            }
         },
         {
             "id": 20,
@@ -574,8 +645,8 @@
                     "path_description": "the stony path back along the waterline to the bay"
                 }
             ],
-            "lat": 53.614,
-            "lon": -8.046,
+            "lat": 53.518209955716415,
+            "lon": -8.012844900656068,
             "associated_npcs": [
                 15,
                 16,
@@ -586,7 +657,8 @@
                 "boatman's",
                 "boatmans",
                 "boatman cottage"
-            ]
+            ],
+            "geo_kind": "fictional"
         },
         {
             "id": 21,
@@ -604,14 +676,15 @@
                     "path_description": "a turn south to the mill by the stream"
                 }
             ],
-            "lat": 53.612,
-            "lon": -8.13,
+            "lat": 53.484,
+            "lon": -8.11,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "curraghboy",
                 "west road"
-            ]
+            ],
+            "geo_kind": "real"
         },
         {
             "id": 22,
@@ -629,14 +702,15 @@
                     "path_description": "a narrow track to the holy well among the ash trees"
                 }
             ],
-            "lat": 53.598,
-            "lon": -8.115,
+            "lat": 53.57556,
+            "lon": -8.09472,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
                 "knockcroghery",
                 "south road"
-            ]
+            ],
+            "geo_kind": "real"
         }
     ]
 }
