@@ -1311,6 +1311,170 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tier1_response_emotion_delta_updates_state_and_mood() {
+        // The structured emotion_delta path should (a) nudge the
+        // family vector, (b) re-derive the legacy mood string from
+        // the updated state, and (c) suppress the freeform `mood`
+        // field in the same metadata (so the two don't fight).
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        // Start him content so a fear nudge lands cleanly.
+        npc.emotion = parish_types::EmotionState::initial_from(
+            &parish_types::Temperament::default(),
+            "content",
+        );
+        npc.mood = npc.emotion.label().to_string();
+        let original_mood = npc.mood.clone();
+
+        let response = NpcStreamResponse {
+            dialogue: "Good day, now.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "speaks".to_string(),
+                // Legacy mood claims "jovial" but the LLM also returns
+                // a structured fear delta — the structured path must
+                // win, so the legacy string should be ignored here.
+                mood: "jovial".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                emotion_delta: Some(parish_types::EmotionImpulse {
+                    family: parish_types::EmotionFamily::Fear,
+                    delta: 0.6,
+                    pad: None,
+                    cause: Some("heard the riders outside".to_string()),
+                }),
+            }),
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+
+        apply_tier1_response(&mut npc, &response, "waves", game_time);
+
+        assert!(
+            npc.emotion.families.fear > 0.2,
+            "fear delta should have landed, got {}",
+            npc.emotion.families.fear
+        );
+        assert_ne!(
+            npc.mood, original_mood,
+            "mood should have shifted from the original 'content' label"
+        );
+        assert_ne!(
+            npc.mood, "jovial",
+            "legacy mood string must lose to the structured delta"
+        );
+    }
+
+    #[test]
+    fn test_apply_tier2_event_emotion_deltas_apply_to_multiple_npcs() {
+        // Two NPCs, two deltas — both should land, both moods should
+        // re-derive independently.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+        npcs.insert(NpcId(2), make_test_npc(2, "Tommy", 2));
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "A row breaks out over the rent".to_string(),
+            participants: vec![NpcId(1), NpcId(2)],
+            mood_changes: Vec::new(),
+            relationship_changes: Vec::new(),
+            emotion_deltas: vec![
+                crate::types::EmotionDeltaChange {
+                    npc_id: NpcId(1),
+                    impulse: parish_types::EmotionImpulse {
+                        family: parish_types::EmotionFamily::Anger,
+                        delta: 0.65,
+                        pad: None,
+                        cause: Some("argued back".to_string()),
+                    },
+                },
+                crate::types::EmotionDeltaChange {
+                    npc_id: NpcId(2),
+                    impulse: parish_types::EmotionImpulse {
+                        family: parish_types::EmotionFamily::Fear,
+                        delta: 0.5,
+                        pad: None,
+                        cause: Some("watched the row".to_string()),
+                    },
+                },
+            ],
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+
+        apply_tier2_event(&event, &mut npcs, game_time);
+
+        // Note: delta 0.65 clamps to 0.5 per impulse contract, then
+        // scales by default reactivity (0.5) -> landing magnitude 0.25.
+        let padraig = npcs.get(&NpcId(1)).unwrap();
+        assert!(
+            padraig.emotion.families.anger >= 0.2,
+            "Padraig's anger should have risen, got {}",
+            padraig.emotion.families.anger
+        );
+        let tommy = npcs.get(&NpcId(2)).unwrap();
+        assert!(
+            tommy.emotion.families.fear >= 0.2,
+            "Tommy's fear should have risen, got {}",
+            tommy.emotion.families.fear
+        );
+        // State vectors must have diverged even if both land on the
+        // same PAD-fallback label ("calm") — the label() threshold
+        // for a family-derived name is 0.3, and our 0.25 post-clamp
+        // landing sits just under that. What matters is that the
+        // family intensities now differ, not that the coarse labels do.
+        assert_ne!(
+            padraig.emotion.families.anger, tommy.emotion.families.anger,
+            "two NPCs with distinct impulses should have distinct anger"
+        );
+        assert_ne!(
+            padraig.emotion.families.fear, tommy.emotion.families.fear,
+            "two NPCs with distinct impulses should have distinct fear"
+        );
+    }
+
+    #[test]
+    fn test_apply_tier2_event_mood_change_does_not_override_structured_delta() {
+        // Both an emotion_deltas entry and a mood_changes entry for
+        // the same NPC — the structured path wins; the legacy path
+        // is skipped for that NPC.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "Padraig stews over the news".to_string(),
+            participants: vec![NpcId(1)],
+            mood_changes: vec![MoodChange {
+                npc_id: NpcId(1),
+                new_mood: "jubilant".to_string(), // contradicts the delta
+            }],
+            relationship_changes: Vec::new(),
+            emotion_deltas: vec![crate::types::EmotionDeltaChange {
+                npc_id: NpcId(1),
+                impulse: parish_types::EmotionImpulse {
+                    family: parish_types::EmotionFamily::Anger,
+                    delta: 0.7,
+                    pad: None,
+                    cause: None,
+                },
+            }],
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
+
+        apply_tier2_event(&event, &mut npcs, game_time);
+
+        let npc = npcs.get(&NpcId(1)).unwrap();
+        assert_ne!(
+            npc.mood, "jubilant",
+            "legacy mood_changes must not overwrite the structured-delta-derived mood"
+        );
+        assert!(
+            npc.emotion.families.anger >= 0.2,
+            "anger delta should have landed (note: clamp+reactivity caps at ~0.25), got {}",
+            npc.emotion.families.anger,
+        );
+    }
+
+    #[test]
     fn test_build_tier2_prompt() {
         let group = Tier2Group {
             location: LocationId(2),
