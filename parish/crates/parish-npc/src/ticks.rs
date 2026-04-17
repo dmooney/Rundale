@@ -1079,6 +1079,106 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Per-tick emotion background: decay + relationship contagion.
+// ---------------------------------------------------------------------------
+
+/// Decays every NPC's emotional state toward its temperament-derived
+/// baseline over `dt_secs` of game time, then re-derives the
+/// `mood` label from the decayed state.
+///
+/// Always safe to call regardless of the `emotions` feature flag —
+/// pure float math with zero LLM cost. Running decay unconditionally
+/// keeps `Npc.emotion` coherent so toggling the flag mid-session
+/// reveals up-to-date state rather than a frozen snapshot from when
+/// the flag was last disabled.
+pub fn decay_emotions_tick(npcs: &mut std::collections::HashMap<NpcId, Npc>, dt_secs: f32) {
+    if dt_secs <= 0.0 {
+        return;
+    }
+    for npc in npcs.values_mut() {
+        npc.emotion.decay(dt_secs);
+        // Re-derive the canonical mood label from the decayed state.
+        // If decay is small this is usually a no-op, but it prevents
+        // drift when a strong emotion gradually subsides.
+        npc.mood = npc.emotion.label().to_string();
+    }
+}
+
+/// Propagates a fraction of each NPC's family intensities to NPCs
+/// they have strong positive relationships with (strength > 0.6).
+///
+/// Two-phase: first collects the full set of inbound impulses for
+/// every NPC, then applies them all at once. This makes contagion
+/// symmetric (A→B and B→A produce the same result regardless of
+/// HashMap iteration order) and caps the per-tick mutation.
+///
+/// The total absolute delta any single NPC can receive in one tick
+/// is capped at `MAX_CONTAGION_DELTA` per family, so a single
+/// distraught NPC can't catastrophically cascade a whole village in
+/// one tick.
+///
+/// Always safe to call regardless of the `emotions` flag — see
+/// [`decay_emotions_tick`] for the same reasoning.
+pub fn propagate_contagion(npcs: &mut std::collections::HashMap<NpcId, Npc>, fraction: f32) {
+    /// Maximum net change to any family per NPC per contagion tick.
+    const MAX_CONTAGION_DELTA: f32 = 0.1;
+    /// Only relationships with strength above this threshold transmit
+    /// emotional contagion.
+    const MIN_STRONG_REL: f64 = 0.6;
+
+    if fraction <= 0.0 {
+        return;
+    }
+    let fraction = fraction.clamp(0.0, 1.0);
+
+    // Phase 1: collect per-target inbound deltas keyed by family.
+    // Snapshot family vectors up front so subsequent apply doesn't
+    // feed back into later source reads in the same tick.
+    let snapshot: Vec<(NpcId, parish_types::FamilyVec)> = npcs
+        .iter()
+        .map(|(id, npc)| (*id, npc.emotion.families))
+        .collect();
+
+    let mut inbound: std::collections::HashMap<NpcId, parish_types::FamilyVec> =
+        std::collections::HashMap::new();
+
+    for (target_id, target_npc) in npcs.iter() {
+        for (source_id, rel) in &target_npc.relationships {
+            if rel.strength <= MIN_STRONG_REL {
+                continue;
+            }
+            let Some((_, source_families)) = snapshot.iter().find(|(id, _)| id == source_id) else {
+                continue;
+            };
+            let weight = fraction * (rel.strength as f32);
+            let entry = inbound.entry(*target_id).or_default();
+            for fam in parish_types::EmotionFamily::ALL.iter().copied() {
+                let slot = entry.get_mut(fam);
+                *slot += source_families.get(fam) * weight;
+            }
+        }
+    }
+
+    // Phase 2: apply each NPC's capped inbound contribution.
+    for (target_id, deltas) in inbound {
+        let Some(npc) = npcs.get_mut(&target_id) else {
+            continue;
+        };
+        for fam in parish_types::EmotionFamily::ALL.iter().copied() {
+            let delta = deltas
+                .get(fam)
+                .clamp(-MAX_CONTAGION_DELTA, MAX_CONTAGION_DELTA);
+            if delta.abs() < 0.001 {
+                continue;
+            }
+            let slot = npc.emotion.families.get_mut(fam);
+            *slot = (*slot + delta).clamp(0.0, 1.0);
+        }
+        npc.mood = npc.emotion.label().to_string();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2152,6 +2252,7 @@ mod tests {
         assert!(mem[0].participants.contains(&NpcId(2)));
     }
 
+<<<<<<< HEAD:parish/crates/parish-npc/src/ticks.rs
     #[test]
     fn test_spoke_with_npc_memory_records_partner_not_self() {
         const PADRAIG: NpcId = NpcId(1);
@@ -2187,4 +2288,150 @@ mod tests {
             "Tommy's memory should reference Padraig, not himself"
         );
     }
+=======
+    // -----------------------------------------------------------------
+    // decay_emotions_tick / propagate_contagion
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn test_decay_emotions_tick_moves_all_npcs_toward_baseline() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut alice = make_test_npc(1, "Alice", 1);
+        // Push Alice well off baseline.
+        alice.emotion.families.anger = 0.9;
+        alice.emotion.baseline.half_life_secs = 100.0;
+        npcs.insert(NpcId(1), alice);
+
+        decay_emotions_tick(&mut npcs, 100.0); // one half-life
+
+        let anger = npcs.get(&NpcId(1)).unwrap().emotion.families.anger;
+        // One half-life: 0.9 -> 0.45 (±epsilon for f32 rounding).
+        assert!((anger - 0.45).abs() < 0.01, "got {anger}");
+    }
+
+    #[test]
+    fn test_decay_emotions_tick_zero_dt_is_noop() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npc = make_test_npc(1, "A", 1);
+        npc.emotion.families.fear = 0.7;
+        npcs.insert(NpcId(1), npc);
+
+        decay_emotions_tick(&mut npcs, 0.0);
+
+        assert_eq!(npcs.get(&NpcId(1)).unwrap().emotion.families.fear, 0.7);
+    }
+
+    #[test]
+    fn test_decay_emotions_tick_refreshes_mood_label() {
+        // A grief-stricken NPC whose state decays toward neutral
+        // should also see the derived `mood` string update.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut alice = make_test_npc(1, "Alice", 1);
+        alice.emotion.families.sadness = 0.9;
+        alice.mood = "grieving".to_string();
+        alice.emotion.baseline.half_life_secs = 10.0;
+        npcs.insert(NpcId(1), alice);
+
+        // Decay for 10 half-lives: effectively to baseline.
+        decay_emotions_tick(&mut npcs, 100.0);
+
+        let npc = npcs.get(&NpcId(1)).unwrap();
+        assert!(npc.emotion.families.sadness < 0.01);
+        // Mood should no longer be a grief word.
+        assert!(
+            !["grieving", "sorrowful", "melancholy"].contains(&npc.mood.as_str()),
+            "mood should have refreshed away from grief, got {}",
+            npc.mood
+        );
+    }
+
+    #[test]
+    fn test_propagate_contagion_transmits_to_strongly_related_npc() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+
+        // Alice grieves; Bob is her close friend; Carol is a stranger.
+        let mut alice = make_test_npc(1, "Alice", 1);
+        alice.emotion.families.sadness = 0.9;
+        npcs.insert(NpcId(1), alice);
+
+        let mut bob = make_test_npc(2, "Bob", 1);
+        // Bob → Alice relationship must be STRONG POSITIVE for
+        // grief to leak from source (Alice) to target (Bob).
+        bob.relationships
+            .insert(NpcId(1), Relationship::new(RelationshipKind::Friend, 0.9));
+        npcs.insert(NpcId(2), bob);
+
+        let mut carol = make_test_npc(3, "Carol", 1);
+        carol
+            .relationships
+            .insert(NpcId(1), Relationship::new(RelationshipKind::Friend, 0.0));
+        npcs.insert(NpcId(3), carol);
+
+        propagate_contagion(&mut npcs, 0.1);
+
+        let bob_sadness = npcs.get(&NpcId(2)).unwrap().emotion.families.sadness;
+        let carol_sadness = npcs.get(&NpcId(3)).unwrap().emotion.families.sadness;
+        assert!(
+            bob_sadness > 0.05,
+            "Bob should have picked up Alice's grief, got {bob_sadness}"
+        );
+        assert_eq!(
+            carol_sadness, 0.0,
+            "Carol has no strong bond with Alice and should be untouched"
+        );
+    }
+
+    #[test]
+    fn test_propagate_contagion_caps_delta() {
+        // Even with many distraught friends, one tick can only shift
+        // an NPC's family by the per-tick cap.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+
+        for i in 1..=5 {
+            let mut friend = make_test_npc(i, &format!("Friend{i}"), 1);
+            friend.emotion.families.sadness = 1.0;
+            npcs.insert(NpcId(i), friend);
+        }
+
+        let mut target = make_test_npc(100, "Target", 1);
+        for i in 1..=5 {
+            target
+                .relationships
+                .insert(NpcId(i), Relationship::new(RelationshipKind::Friend, 1.0));
+        }
+        npcs.insert(NpcId(100), target);
+
+        propagate_contagion(&mut npcs, 1.0);
+
+        let target_sadness = npcs.get(&NpcId(100)).unwrap().emotion.families.sadness;
+        // Without the cap this would be 5.0 pre-clamp. The cap is
+        // 0.1 and clamping to [0,1] would be 1.0 if the cap didn't
+        // fire first.
+        assert!(
+            target_sadness <= 0.1 + 0.0001,
+            "expected cap at 0.1, got {target_sadness}"
+        );
+    }
+
+    #[test]
+    fn test_propagate_contagion_ignores_weak_relationships() {
+        // Relationship strength below the threshold (0.6) must not
+        // transmit contagion.
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut source = make_test_npc(1, "Source", 1);
+        source.emotion.families.anger = 0.9;
+        npcs.insert(NpcId(1), source);
+
+        let mut acquaintance = make_test_npc(2, "Acquaintance", 1);
+        acquaintance.relationships.insert(
+            NpcId(1),
+            Relationship::new(RelationshipKind::Friend, 0.5), // below threshold
+        );
+        npcs.insert(NpcId(2), acquaintance);
+
+        propagate_contagion(&mut npcs, 0.5);
+
+        assert_eq!(npcs.get(&NpcId(2)).unwrap().emotion.families.anger, 0.0);
+    }
+>>>>>>> 4c6bc0a (feat(emotion): add decay and relationship-contagion tick functions):crates/parish-npc/src/ticks.rs
 }
