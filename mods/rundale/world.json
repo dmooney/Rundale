@@ -24,10 +24,6 @@
                     "path_description": "a muddy path along the schoolmaster's wall"
                 },
                 {
-                    "target": 9,
-                    "path_description": "a narrow road between stone walls"
-                },
-                {
                     "target": 13,
                     "path_description": "a few steps across the road"
                 },
@@ -36,12 +32,12 @@
                     "path_description": "the Kilteevan road heading south past low fields"
                 },
                 {
-                    "target": 16,
-                    "path_description": "a short walk past the sound of hammering"
+                    "target": 5,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.63610233978225,
-            "lon": -8.115467722483066,
+            "lat": 53.63621173776622,
+            "lon": -8.115314764346493,
             "associated_npcs": [],
             "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin.",
             "aliases": [
@@ -62,8 +58,8 @@
                     "path_description": "the lane back to the crossroads"
                 }
             ],
-            "lat": 53.640104320928586,
-            "lon": -8.10846015877706,
+            "lat": 53.63613446772578,
+            "lon": -8.114934853790567,
             "associated_npcs": [
                 1
             ],
@@ -76,8 +72,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": 445.0,
-                "deast_m": 462.0
+                "dnorth_m": -8.601700901274398,
+                "deast_m": 25.075140805615625
             }
         },
         {
@@ -92,12 +88,12 @@
                     "path_description": "the boreen back to the crossroads"
                 },
                 {
-                    "target": 12,
-                    "path_description": "a muddy track past the graveyard wall"
+                    "target": 15,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.63960070082927,
-            "lon": -8.119472044600784,
+            "lat": 53.63793806161644,
+            "lon": -8.103992498132557,
             "associated_npcs": [],
             "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint.",
             "aliases": [
@@ -108,8 +104,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": 389.0,
-                "deast_m": -264.0
+                "dnorth_m": 192.17437100659936,
+                "deast_m": 747.3006872920224
             }
         },
         {
@@ -122,10 +118,14 @@
                 {
                     "target": 1,
                     "path_description": "back across to the crossroads"
+                },
+                {
+                    "target": 15,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.632603978735226,
-            "lon": -8.11046231983592,
+            "lat": 53.634067421809334,
+            "lon": -8.11368891105749,
             "associated_npcs": [
                 23
             ],
@@ -139,8 +139,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": -389.0,
-                "deast_m": 330.0
+                "dnorth_m": -238.70525232024303,
+                "deast_m": 107.3107854337992
             }
         },
         {
@@ -155,12 +155,12 @@
                     "path_description": "a beaten path back past the schoolmaster's cabin"
                 },
                 {
-                    "target": 19,
-                    "path_description": "a grassy track past the ditch to a whitewashed cottage"
+                    "target": 1,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.59675417924797,
-            "lon": -8.108332634905555,
+            "lat": 53.63510887444414,
+            "lon": -8.119190715148449,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -186,8 +186,8 @@
                     "path_description": "a beaten path down to the hurling green"
                 }
             ],
-            "lat": 53.63110211165334,
-            "lon": -8.121474205659643,
+            "lat": 53.635478876253416,
+            "lon": -8.115063784498846,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -197,8 +197,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": -556.0,
-                "deast_m": -396.0
+                "dnorth_m": -81.58214360508737,
+                "deast_m": 16.565359716842824
             }
         },
         {
@@ -209,16 +209,12 @@
             "public": true,
             "connections": [
                 {
-                    "target": 8,
-                    "path_description": "a lakeside path through reeds and willow"
-                },
-                {
-                    "target": 11,
-                    "path_description": "a rough track climbing away from the shore"
+                    "target": 12,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.52799837676905,
-            "lon": -8.0061533217087,
+            "lat": 53.627485628457435,
+            "lon": -8.063465222584824,
             "associated_npcs": [],
             "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie.",
             "aliases": [
@@ -239,20 +235,12 @@
             "public": true,
             "connections": [
                 {
-                    "target": 7,
-                    "path_description": "the lakeside path back along the shore"
-                },
-                {
-                    "target": 9,
-                    "path_description": "a lane winding uphill from the bay"
-                },
-                {
                     "target": 20,
                     "path_description": "a stony path along the waterline to a thatched cottage"
                 }
             ],
-            "lat": 53.467185,
-            "lon": -7.9871901,
+            "lat": 53.4667761235753,
+            "lon": -7.988621859797576,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -271,20 +259,16 @@
             "public": false,
             "connections": [
                 {
-                    "target": 1,
-                    "path_description": "the narrow road back between stone walls"
+                    "target": 15,
+                    "path_description": "an old lane between settlements"
                 },
                 {
-                    "target": 8,
-                    "path_description": "a lane winding down toward the bay"
-                },
-                {
-                    "target": 10,
-                    "path_description": "a boreen through a gap in the hedge"
+                    "target": 12,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.638098833747385,
-            "lon": -8.088453716075282,
+            "lat": 53.63579941155877,
+            "lon": -8.079662971357214,
             "associated_npcs": [
                 18
             ],
@@ -296,8 +280,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": 222.0,
-                "deast_m": 1781.0
+                "dnorth_m": -45.90015341365756,
+                "deast_m": 2353.1163197069695
             }
         },
         {
@@ -308,16 +292,12 @@
             "public": false,
             "connections": [
                 {
-                    "target": 9,
-                    "path_description": "a boreen back through the hedge to Murphy's"
-                },
-                {
-                    "target": 14,
-                    "path_description": "a soggy track across the lower field"
+                    "target": 12,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.56601550353809,
-            "lon": -8.046985293417402,
+            "lat": 53.62329606869045,
+            "lon": -8.066286827184342,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -334,16 +314,12 @@
             "public": true,
             "connections": [
                 {
-                    "target": 7,
-                    "path_description": "the rough track back down to the shore"
-                },
-                {
                     "target": 12,
                     "path_description": "a barely visible path through gorse and bracken"
                 }
             ],
-            "lat": 53.557148938220166,
-            "lon": -8.027546388824595,
+            "lat": 53.62831265298641,
+            "lon": -8.081709439766257,
             "associated_npcs": [],
             "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune.",
             "aliases": [
@@ -362,20 +338,24 @@
             "public": true,
             "connections": [
                 {
-                    "target": 3,
-                    "path_description": "the muddy track back toward the church"
-                },
-                {
                     "target": 11,
                     "path_description": "a barely visible path through gorse to the fort"
                 },
                 {
-                    "target": 14,
-                    "path_description": "a squelching path along the bog's edge"
+                    "target": 10,
+                    "path_description": "an old lane between settlements"
+                },
+                {
+                    "target": 9,
+                    "path_description": "an old lane between settlements"
+                },
+                {
+                    "target": 7,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.58995380206708,
-            "lon": -8.079585849026367,
+            "lat": 53.62783820367662,
+            "lon": -8.07181578456263,
             "associated_npcs": [],
             "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights.",
             "aliases": [
@@ -398,8 +378,8 @@
                     "path_description": "a few steps back across the road to the crossroads"
                 }
             ],
-            "lat": 53.63309860561848,
-            "lon": -8.117469883541926,
+            "lat": 53.63629408681962,
+            "lon": -8.1157497504246,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -411,8 +391,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 1,
-                "dnorth_m": -334.0,
-                "deast_m": -132.0
+                "dnorth_m": 9.167096624523763,
+                "deast_m": -28.710276634529905
             }
         },
         {
@@ -423,16 +403,12 @@
             "public": true,
             "connections": [
                 {
-                    "target": 10,
-                    "path_description": "the soggy track back up to O'Brien's"
-                },
-                {
-                    "target": 12,
-                    "path_description": "a path along the bog's edge back to the road"
+                    "target": 15,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.57285641114005,
-            "lon": -8.058844871168095,
+            "lat": 53.63209033386352,
+            "lon": -8.101956398487857,
             "associated_npcs": [],
             "mythological_significance": null,
             "aliases": [
@@ -470,16 +446,28 @@
                     "path_description": "a short walk past the cottages to the weaver's door"
                 },
                 {
-                    "target": 21,
-                    "path_description": "the westward road toward Curraghboy"
-                },
-                {
                     "target": 22,
                     "path_description": "the southern road toward Knockcroghery"
+                },
+                {
+                    "target": 3,
+                    "path_description": "an old lane between settlements"
+                },
+                {
+                    "target": 9,
+                    "path_description": "an old lane between settlements"
+                },
+                {
+                    "target": 14,
+                    "path_description": "an old lane between settlements"
+                },
+                {
+                    "target": 4,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.6320798910683,
-            "lon": -8.102070946274374,
+            "lat": 53.632544989054054,
+            "lon": -8.102168938364912,
             "associated_npcs": [
                 19,
                 21,
@@ -503,16 +491,12 @@
             "public": true,
             "connections": [
                 {
-                    "target": 1,
-                    "path_description": "a short walk back to the crossroads"
-                },
-                {
                     "target": 15,
                     "path_description": "the lane south toward Kilteevan Village"
                 }
             ],
-            "lat": 53.642579920478205,
-            "lon": -8.085060418010046,
+            "lat": 53.63318486094661,
+            "lon": -8.102232997701996,
             "associated_npcs": [
                 9,
                 10,
@@ -528,8 +512,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 15,
-                "dnorth_m": 1167.55,
-                "deast_m": 1121.59
+                "dnorth_m": 71.23053907972803,
+                "deast_m": -4.228459792213757
             }
         },
         {
@@ -542,14 +526,10 @@
                 {
                     "target": 15,
                     "path_description": "the mossy path north back to the village"
-                },
-                {
-                    "target": 22,
-                    "path_description": "a narrow track south joining the Knockcroghery road"
                 }
             ],
-            "lat": 53.6300798897489,
-            "lon": -8.105072839889116,
+            "lat": 53.6329651682621,
+            "lon": -8.102393252512787,
             "associated_npcs": [],
             "mythological_significance": "St. Tíobán's Well — the holy well that gave Kilteevan its name. People leave offerings here for cures and blessings. The water is said to heal sore eyes on the saint's feast day.",
             "aliases": [
@@ -560,8 +540,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 15,
-                "dnorth_m": -222.39,
-                "deast_m": -197.93
+                "dnorth_m": 46.77434944005654,
+                "deast_m": -14.80663706951403
             }
         },
         {
@@ -574,14 +554,10 @@
                 {
                     "target": 15,
                     "path_description": "the track east along the stream back to the village"
-                },
-                {
-                    "target": 21,
-                    "path_description": "the road continuing west toward Curraghboy"
                 }
             ],
-            "lat": 53.635079848081325,
-            "lon": -8.117080262683675,
+            "lat": 53.6329229156473,
+            "lon": -8.101864954810662,
             "associated_npcs": [
                 12,
                 13,
@@ -595,8 +571,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 15,
-                "dnorth_m": 333.58,
-                "deast_m": -989.64
+                "dnorth_m": 42.07078836004371,
+                "deast_m": 20.06549388666182
             }
         },
         {
@@ -609,14 +585,10 @@
                 {
                     "target": 15,
                     "path_description": "a short walk back through the cottages to the village"
-                },
-                {
-                    "target": 5,
-                    "path_description": "a grassy track past the ditch to the hurling green"
                 }
             ],
-            "lat": 53.6340798923877,
-            "lon": -8.097067840804607,
+            "lat": 53.63312735860117,
+            "lon": -8.100697364521832,
             "associated_npcs": [
                 20
             ],
@@ -629,8 +601,8 @@
             "geo_kind": "fictional",
             "relative_to": {
                 "anchor": 15,
-                "dnorth_m": 222.39,
-                "deast_m": 329.88
+                "dnorth_m": 64.82937798516218,
+                "deast_m": 97.13635997478424
             }
         },
         {
@@ -643,10 +615,14 @@
                 {
                     "target": 8,
                     "path_description": "the stony path back along the waterline to the bay"
+                },
+                {
+                    "target": 21,
+                    "path_description": "an old lane between settlements"
                 }
             ],
-            "lat": 53.518209955716415,
-            "lon": -8.012844900656068,
+            "lat": 53.46782011849603,
+            "lon": -7.988983899475215,
             "associated_npcs": [
                 15,
                 16,
@@ -662,18 +638,18 @@
         },
         {
             "id": 21,
-            "name": "Curraghboy Road",
+            "name": "Curraghboy Village",
             "description_template": "A winding road heading west through flat fields enclosed by low stone walls. In the distance, the scattered houses of Curraghboy are just visible through the haze. A magpie watches from a gatepost. The {weather} sky stretches wide. It is {time}.",
             "indoor": false,
             "public": true,
             "connections": [
                 {
-                    "target": 15,
-                    "path_description": "the road back east toward Kilteevan Village"
+                    "target": 22,
+                    "path_description": "an old lane between settlements"
                 },
                 {
-                    "target": 18,
-                    "path_description": "a turn south to the mill by the stream"
+                    "target": 20,
+                    "path_description": "an old lane between settlements"
                 }
             ],
             "lat": 53.484,
@@ -688,7 +664,7 @@
         },
         {
             "id": 22,
-            "name": "Knockcroghery Road",
+            "name": "Knockcroghery Village",
             "description_template": "The road south toward Knockcroghery, lined with blackthorn hedges. A milestone reads 'Knockcroghery 2 miles.' Beyond the hedge, cattle graze in sloping fields. The {weather} sky presses down on the quiet road. It is {time}.",
             "indoor": false,
             "public": true,
@@ -698,8 +674,8 @@
                     "path_description": "the road north back to Kilteevan Village"
                 },
                 {
-                    "target": 17,
-                    "path_description": "a narrow track to the holy well among the ash trees"
+                    "target": 21,
+                    "path_description": "an old lane between settlements"
                 }
             ],
             "lat": 53.57556,
