@@ -351,6 +351,15 @@ impl EmotionState {
         } else if has_any(&m, &["restless", "agitated", "fidgety"]) {
             pad = (-0.1, 0.5, 0.0);
             families.fear = 0.2;
+        } else if has_any(
+            &m,
+            &["excited", "thrilled", "energetic", "eager", "boisterous"],
+        ) {
+            families.joy = 0.25;
+            pad = (0.4, 0.6, 0.3);
+        } else if has_any(&m, &["indignant", "outraged"]) {
+            families.anger = 0.55;
+            pad = (-0.4, 0.6, 0.55);
         } else if has_any(&m, &["tired", "weary", "exhausted", "sleepy"]) {
             pad = (-0.1, -0.6, -0.2);
         } else if has_any(&m, &["stoic", "guarded", "reserved", "neutral"]) {

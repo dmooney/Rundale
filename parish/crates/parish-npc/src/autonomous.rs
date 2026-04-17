@@ -3,9 +3,14 @@
 //! After the player addresses a set of NPCs and each addressed NPC has had a
 //! turn, the conversation can extend autonomously: bystanders may chime in,
 //! addressed NPCs may bounce off each other. This module decides who speaks
-//! next based on relationships, mood, and recent participation.
+//! next based on relationships, emotional state, and recent participation.
+//!
+//! The emotion-aware scoring is where the paper's non-linear gates land in
+//! behaviour (not just in dialogue text): `public_outburst` and `effusive`
+//! states amplify an NPC's score, while `withdraws_silent` suppresses it.
 
 use crate::{Npc, NpcId};
+use parish_types::EmotionState;
 
 /// Maximum number of autonomous turns to chain before forcing the player back in.
 pub const MAX_CHAIN_TURNS: usize = 3;
@@ -23,7 +28,11 @@ pub const SPEAK_UP_THRESHOLD: f32 = 0.5;
 /// - Baseline: every candidate starts at 0.4.
 /// - +0.3 if the candidate has a non-trivial relationship to the last speaker.
 /// - +0.2 if the candidate was directly addressed earlier this turn.
-/// - +0.1 if the candidate is in a high-energy mood.
+/// - +0.1 if the candidate is in a high-arousal emotional state.
+/// - +0.15 if the `public_outburst` gate is active (moderate anger) OR
+///   the `effusive` gate is active (high joy / strong affection at arousal).
+/// - -0.4 if the `withdraws_silent` gate is active (high sadness/shame) —
+///   usually enough to drop the NPC below the speak-up threshold entirely.
 ///
 /// Excludes:
 /// - The most recent speaker (NPCs don't immediately reply to themselves).
@@ -57,9 +66,7 @@ pub fn pick_next_speaker<'a>(
             score += 0.2;
         }
 
-        if is_high_energy_mood(&candidate.mood) {
-            score += 0.1;
-        }
+        score += energy_bonus(&candidate.emotion);
 
         if let Some((_, best_score)) = best {
             if score > best_score {
@@ -74,22 +81,32 @@ pub fn pick_next_speaker<'a>(
         .map(|(npc, _)| npc)
 }
 
-/// Whether a mood string belongs to the "high energy" set that makes an NPC
-/// more likely to speak up unprompted.
-fn is_high_energy_mood(mood: &str) -> bool {
-    matches!(
-        mood.to_lowercase().as_str(),
-        "excited"
-            | "agitated"
-            | "joyful"
-            | "angry"
-            | "indignant"
-            | "outraged"
-            | "elated"
-            | "boisterous"
-            | "anxious"
-            | "scared"
-    )
+/// Emotion-derived score bonus (or penalty) for an NPC's likelihood
+/// to speak up unprompted.
+///
+/// Sums three contributions:
+/// - +0.1 for high arousal (the classic "activation" component of PAD)
+/// - +0.15 for `public_outburst` or `effusive` gates
+/// - -0.4 for `withdraws_silent`
+///
+/// Net effect: a simmering-angry NPC gets +0.25 (visibly more likely to
+/// interject), a grief-struck NPC gets -0.3 to -0.4 (unlikely to chime
+/// in unless directly addressed).
+pub fn energy_bonus(emotion: &EmotionState) -> f32 {
+    let gates = emotion.gates();
+    let mut bonus = 0.0;
+
+    if emotion.arousal > 0.3 {
+        bonus += 0.1;
+    }
+    if gates.public_outburst || gates.effusive {
+        bonus += 0.15;
+    }
+    if gates.withdraws_silent {
+        bonus -= 0.4;
+    }
+
+    bonus
 }
 
 #[cfg(test)]
@@ -103,6 +120,12 @@ mod tests {
         npc.id = NpcId(id);
         npc.name = name.to_string();
         npc.mood = mood.to_string();
+        // Keep the structured emotion state in sync with the legacy
+        // mood string so the speaker-selection heuristic — which now
+        // reads from `emotion` — sees the intended affect instead of
+        // new_test_npc's baseline "content" state.
+        npc.emotion =
+            parish_types::EmotionState::initial_from(&parish_types::Temperament::default(), mood);
         npc.relationships = HashMap::new();
         npc
     }
@@ -320,28 +343,83 @@ mod tests {
     }
 
     #[test]
-    fn high_energy_mood_recognition() {
-        for mood in [
-            "excited",
-            "agitated",
-            "joyful",
-            "angry",
-            "indignant",
-            "outraged",
-            "elated",
-            "boisterous",
-            "anxious",
-            "scared",
-            "EXCITED", // case-insensitive
-        ] {
-            assert!(is_high_energy_mood(mood), "{} should be high-energy", mood);
-        }
-        for mood in ["content", "calm", "tired", "serene", "pensive"] {
+    fn energy_bonus_rewards_high_arousal_states() {
+        // "angry", "scared", "joyful" all seed initial_from to high
+        // arousal; the bonus should reflect that.
+        for mood in &["angry", "scared", "joyful"] {
+            let npc = make_npc(1, "Test", mood);
             assert!(
-                !is_high_energy_mood(mood),
-                "{} should not be high-energy",
-                mood
+                energy_bonus(&npc.emotion) > 0.05,
+                "mood {mood:?} should produce a positive energy bonus"
             );
         }
+    }
+
+    #[test]
+    fn energy_bonus_neutral_states_add_little() {
+        for mood in &["content", "calm", "tired", "serene"] {
+            let npc = make_npc(1, "Test", mood);
+            let b = energy_bonus(&npc.emotion);
+            assert!(
+                b.abs() < 0.05,
+                "mood {mood:?} should produce a near-zero bonus, got {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn energy_bonus_penalises_withdrawn_states() {
+        // Grief-struck NPC: high sadness → withdraws_silent gate
+        // → large negative bonus.
+        let mut npc = Npc::new_test_npc();
+        npc.emotion.families.sadness = 0.9;
+        let b = energy_bonus(&npc.emotion);
+        assert!(
+            b < -0.2,
+            "grief-struck NPC should have a strongly negative bonus, got {b}"
+        );
+    }
+
+    #[test]
+    fn withdrawn_npc_stays_silent_even_when_addressed() {
+        // Integration: a grief-struck NPC directly addressed earlier
+        // this turn would ordinarily pass the threshold (0.4 baseline
+        // + 0.2 addressed = 0.6). With the withdraws_silent penalty
+        // (-0.4), they fall back below threshold — mirroring the
+        // paper's "high sadness causes withdrawal" finding.
+        let mut alice = Npc::new_test_npc();
+        alice.id = NpcId(1);
+        alice.name = "Alice".to_string();
+        alice.relationships = HashMap::new();
+        alice.emotion.families.sadness = 0.9;
+
+        let candidates = vec![&alice];
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[NpcId(1)]);
+        assert!(
+            result.is_none(),
+            "withdrawn NPC should not speak up even when addressed"
+        );
+    }
+
+    #[test]
+    fn outburst_npc_speaks_up_unprompted() {
+        // Integration: an NPC in the public_outburst band (moderate
+        // anger) should clear the threshold even with no relationship
+        // bonus and no addressed bonus — 0.4 baseline + 0.1 arousal
+        // + 0.15 gate = 0.65.
+        let mut alice = Npc::new_test_npc();
+        alice.id = NpcId(1);
+        alice.name = "Alice".to_string();
+        alice.relationships = HashMap::new();
+        alice.emotion.families.anger = 0.7;
+        alice.emotion.arousal = 0.6;
+
+        let candidates = vec![&alice];
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[]);
+        assert_eq!(
+            result.map(|n| n.id),
+            Some(NpcId(1)),
+            "outburst-band NPC should chime in unprompted"
+        );
     }
 }
