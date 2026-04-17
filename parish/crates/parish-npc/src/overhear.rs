@@ -68,6 +68,7 @@ mod tests {
             participants: vec![NpcId(1), NpcId(2)],
             mood_changes: Vec::new(),
             relationship_changes: Vec::new(),
+            emotion_deltas: Vec::new(),
         }
     }
 

@@ -29,6 +29,7 @@ fn two_npc_group() -> Tier2Group {
                 personality: "Warm and welcoming".to_string(),
                 intelligence_tag: "INT[V3 A3 E4 P4 W5 C4]".to_string(),
                 mood: "content".to_string(),
+                feeling: "content".to_string(),
                 relationship_context: String::new(),
             },
             NpcSnapshot {
@@ -38,6 +39,7 @@ fn two_npc_group() -> Tier2Group {
                 personality: "Gruff but kind".to_string(),
                 intelligence_tag: "INT[V2 A4 E3 P3 W4 C2]".to_string(),
                 mood: "tired".to_string(),
+                feeling: "weary".to_string(),
                 relationship_context: String::new(),
             },
         ],

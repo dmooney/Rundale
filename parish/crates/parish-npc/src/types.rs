@@ -519,6 +519,21 @@ pub struct Tier2Event {
     pub mood_changes: Vec<MoodChange>,
     /// Relationship strength deltas to apply.
     pub relationship_changes: Vec<RelationshipChange>,
+    /// Structured emotion deltas for participating NPCs. When
+    /// present, takes precedence over the freeform `mood_changes`
+    /// for the same NPC — the structured update drives the mood
+    /// string rather than the other way round.
+    pub emotion_deltas: Vec<EmotionDeltaChange>,
+}
+
+/// An emotion delta targeted at a specific NPC, produced by a
+/// Tier 2 or Tier 3 LLM response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmotionDeltaChange {
+    /// Which NPC to nudge.
+    pub npc_id: NpcId,
+    /// The impulse to apply (family + signed delta + optional cause).
+    pub impulse: parish_types::EmotionImpulse,
 }
 
 /// A mood change resulting from a Tier 2 event.
@@ -549,12 +564,18 @@ pub struct Tier2Response {
     /// Summary of what happened at this location.
     #[serde(default)]
     pub summary: String,
-    /// Mood changes for participating NPCs.
+    /// Mood changes for participating NPCs (legacy path — only
+    /// consulted when an NPC has no matching `emotion_deltas` entry).
     #[serde(default)]
     pub mood_changes: Vec<MoodChange>,
     /// Relationship strength adjustments.
     #[serde(default)]
     pub relationship_changes: Vec<RelationshipChange>,
+    /// Structured per-NPC emotion impulses. `#[serde(default)]`
+    /// keeps older LLM responses (and local models that ignore
+    /// the new schema field) compatible.
+    #[serde(default)]
+    pub emotion_deltas: Vec<EmotionDeltaChange>,
 }
 
 /// The result of a Tier 3 batch simulation for a single NPC.
@@ -568,7 +589,8 @@ pub struct Tier3Update {
     /// New location (if NPC moved during the simulated period).
     #[serde(default)]
     pub new_location: Option<LocationId>,
-    /// Updated mood string.
+    /// Updated mood string (legacy — `emotion_delta` below is the
+    /// preferred path when the model supports it).
     #[serde(default)]
     pub mood: String,
     /// Summary of what the NPC did during the simulated period.
@@ -577,6 +599,11 @@ pub struct Tier3Update {
     /// Relationship changes: (from, to, strength_delta).
     #[serde(default)]
     pub relationship_changes: Vec<RelationshipChange>,
+    /// Optional structured emotion nudge for this NPC. When present,
+    /// drives `mood` via `emotion.label()` rather than the freeform
+    /// `mood` string.
+    #[serde(default)]
+    pub emotion_delta: Option<parish_types::EmotionImpulse>,
 }
 
 /// The full response from a Tier 3 batch LLM call.
