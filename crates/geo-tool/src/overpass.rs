@@ -188,11 +188,29 @@ impl OverpassClient {
     }
 }
 
+/// Escapes a string for safe interpolation inside an Overpass QL double-quoted string.
+///
+/// Overpass QL uses `\` as an escape character and `"` as a string delimiter.
+/// A `\` in the input must become `\\`, and a `"` must become `\"`, to prevent
+/// the value from breaking out of the surrounding string literal.
+fn escape_overpass(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str(r"\\"),
+            '"' => out.push_str(r#"\""#),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 /// Builds an Overpass QL query for POIs within a named administrative area.
 ///
 /// Searches for features relevant to an 1820s Irish setting: churches, pubs,
 /// farms, historic sites, natural features, etc.
 fn build_poi_query_by_area(area_name: &str, level: AdminLevel) -> String {
+    let area_name = escape_overpass(area_name);
     let admin_level = level.osm_admin_level();
     format!(
         r#"[out:json][timeout:120];
@@ -254,6 +272,7 @@ out center;"#
 
 /// Builds an Overpass QL query for the road network within a named area.
 fn build_road_query_by_area(area_name: &str, level: AdminLevel) -> String {
+    let area_name = escape_overpass(area_name);
     let admin_level = level.osm_admin_level();
     format!(
         r#"[out:json][timeout:120];
@@ -401,5 +420,40 @@ mod tests {
         };
         let s = format!("{bbox}");
         assert_eq!(s, "53.45,-8.05,53.55,-7.95");
+    }
+
+    // ── escape_overpass tests ────────────────────────────────────────────────
+
+    #[test]
+    fn escape_overpass_normal_name_unchanged() {
+        assert_eq!(escape_overpass("Killeen"), "Killeen");
+        assert_eq!(escape_overpass("County Roscommon"), "County Roscommon");
+    }
+
+    #[test]
+    fn escape_overpass_quotes_escaped() {
+        // A quote must not be able to break out of the surrounding QL string.
+        assert_eq!(escape_overpass(r#"Killeen"; bad;"#), r#"Killeen\"; bad;"#);
+    }
+
+    #[test]
+    fn escape_overpass_backslash_escaped() {
+        assert_eq!(escape_overpass(r"Foo\bar"), r"Foo\\bar");
+    }
+
+    #[test]
+    fn escape_overpass_both_special_chars() {
+        // backslash then quote
+        assert_eq!(escape_overpass("a\\\"b"), r#"a\\\"b"#);
+    }
+
+    #[test]
+    fn escape_overpass_injected_name_does_not_appear_raw_in_query() {
+        let malicious = r#"Killeen"; out body;"#;
+        let query = build_poi_query_by_area(malicious, AdminLevel::Parish);
+        // The raw injection string must not appear verbatim in the query.
+        assert!(!query.contains(r#"Killeen"; out body;"#));
+        // But the escaped form should be present.
+        assert!(query.contains(r#"Killeen\"; out body;"#));
     }
 }
