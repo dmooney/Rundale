@@ -22,10 +22,17 @@ use crate::events::EVENT_WORLD_UPDATE;
 
 /// Finds the `mods/` directory by walking up from the working directory.
 fn mods_root() -> PathBuf {
-    // Reuse find_default_mod's parent: if mods/rundale exists, its grandparent is the workspace.
     parish_core::game_mod::find_default_mod()
         .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("mods"))
+        .unwrap_or_else(|| {
+            let fallback = PathBuf::from("mods");
+            tracing::warn!(
+                path = %fallback.display(),
+                "Could not find mods directory from workspace — falling back to relative path. \
+                 The editor may list no mods on packaged builds."
+            );
+            fallback
+        })
 }
 
 #[tauri::command]
