@@ -40,6 +40,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Persistence](design/persistence.md) | WAL journal, snapshots, branching saves | [ADR-003](adr/003-sqlite-wal-persistence.md), [ADR-004](adr/004-git-like-branching-saves.md) |
 | [NPC System](design/npc-system.md) | Entity model, context construction, gossip | [ADR-008](adr/008-structured-json-llm-output.md) |
 | [Inference Pipeline](design/inference-pipeline.md) | LLM integration, queue, model selection | [ADR-005](adr/005-ollama-local-inference.md), [ADR-010](adr/010-prompt-injection-defenses.md), [ADR-015](adr/015-per-category-inference-providers.md) |
+| [Emotion-Driven Dialogue & Simulation](design/emotion-driven-dialogue-and-simulation.md) | Brainstorm: emotional state model, dialogue policies, simulation hooks, safety monitoring | RFC |
 | [Gemma 4 Rundale Training Plan](design/gemma4-rundale-training-plan.md) | QLoRA post-training plan for 1820s Hiberno-English NPC dialogue | [Irish English Resources](research/Irish-English-1820s-resources.md) |
 | [Debug System](design/debug-system.md) | Debug commands, metrics (feature-gated) | — |
 | [Debug UI](design/debug-ui.md) | Tabbed debug panel for Tauri GUI (state inspector) | — |
