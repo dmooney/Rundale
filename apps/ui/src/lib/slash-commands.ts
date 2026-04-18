@@ -37,6 +37,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/tick', description: 'Advance NPC schedules', hasArgs: false },
 	{ command: '/new', description: 'Start a new game', hasArgs: false },
 	{ command: '/theme', description: 'Change UI theme (solarized, default)', hasArgs: true },
+	{ command: '/unexplored', description: 'Reveal or hide all unexplored locations', hasArgs: true },
 	{ command: '/quit', description: 'Take your leave', hasArgs: false },
 	{ command: '/flag', description: 'Feature flags: enable/disable/list', hasArgs: true },
 	{ command: '/flags', description: 'List all feature flags', hasArgs: false }
