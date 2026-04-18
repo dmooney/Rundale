@@ -27,6 +27,22 @@ if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'func
 	});
 }
 
+const sessionStore: Record<string, string> = {};
+if (typeof sessionStorage === 'undefined' || typeof sessionStorage.getItem !== 'function') {
+	Object.defineProperty(globalThis, 'sessionStorage', {
+		configurable: true,
+		value: {
+			getItem: (key: string) => sessionStore[key] ?? null,
+			setItem: (key: string, value: string) => {
+				sessionStore[key] = value;
+			},
+			clear: () => {
+				for (const key of Object.keys(sessionStore)) delete sessionStore[key];
+			}
+		}
+	});
+}
+
 describe('InputField', () => {
 	beforeEach(() => {
 		streamingActive.set(false);
@@ -36,6 +52,7 @@ describe('InputField', () => {
 		mockSubmitInput.mockReset();
 		mockSubmitInput.mockImplementation(async () => {});
 		localStorage.clear?.();
+		sessionStorage.clear?.();
 	});
 
 	it('renders an editable input area', () => {
@@ -348,7 +365,7 @@ describe('InputField', () => {
 			expect(editor.textContent).toBe('my draft');
 		});
 
-		it('persists history to localStorage', async () => {
+		it('persists history to sessionStorage', async () => {
 			const { getByRole } = render(InputField);
 			const editor = getByRole('textbox');
 
@@ -356,7 +373,7 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			const stored = JSON.parse(localStorage.getItem('parish-input-history') ?? '[]');
+			const stored = JSON.parse(sessionStorage.getItem('parish-input-history') ?? '[]');
 			expect(stored).toContain('persist me');
 		});
 
@@ -372,7 +389,7 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			const stored = JSON.parse(localStorage.getItem('parish-input-history') ?? '[]');
+			const stored = JSON.parse(sessionStorage.getItem('parish-input-history') ?? '[]');
 			expect(stored.filter((s: string) => s === 'same').length).toBe(1);
 		});
 	});
