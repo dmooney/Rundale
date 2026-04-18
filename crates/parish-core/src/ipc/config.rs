@@ -65,6 +65,12 @@ pub struct GameConfig {
     /// so the `/tiles` command handler can list and validate without taking
     /// a reference to the whole engine config.
     pub tile_sources: Vec<(String, String)>,
+    /// Whether the map should reveal all unexplored locations.
+    ///
+    /// When `false` (default), fog-of-war shows only visited locations and the
+    /// immediate frontier. When `true`, all graph nodes are shown with
+    /// unvisited locations still marked `visited: false`.
+    pub reveal_unexplored_locations: bool,
 }
 
 impl GameConfig {
@@ -163,6 +169,7 @@ impl Default for GameConfig {
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
         }
     }
 }
@@ -182,6 +189,7 @@ mod tests {
         assert_eq!(c.auto_pause_after_secs, 60);
         assert!(c.active_tile_source.is_empty());
         assert!(c.tile_sources.is_empty());
+        assert!(!c.reveal_unexplored_locations);
     }
 
     #[test]

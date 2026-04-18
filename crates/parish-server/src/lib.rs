@@ -341,6 +341,7 @@ fn build_client_and_config() -> (
         // Tile-source fields populated in build_app_state from engine config.
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
+        reveal_unexplored_locations: false,
     };
 
     (client, config)

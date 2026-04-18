@@ -115,6 +115,12 @@ pub enum Command {
     Tick,
     /// Show or change the UI theme.
     Theme(Option<String>),
+    /// Show or set whether unexplored map locations are fully revealed.
+    ///
+    /// `None` reports current usage/status text.
+    /// `Some(true)` reveals all unexplored locations.
+    /// `Some(false)` restores normal fog-of-war frontier visibility.
+    Unexplored(Option<bool>),
     /// Invalid branch name was provided.
     InvalidBranchName(String),
     /// Feature flag management (`/flag enable|disable|list <name>`).
@@ -322,6 +328,19 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::Theme(None))
         } else {
             Some(Command::Theme(Some(arg)))
+        }
+    } else if lower == "/unexplored" {
+        Some(Command::Unexplored(None))
+    } else if lower.starts_with("/unexplored ") {
+        let arg = trimmed
+            .get("/unexplored ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_lowercase();
+        match arg.as_str() {
+            "reveal" | "show" | "on" => Some(Command::Unexplored(Some(true))),
+            "hide" | "off" => Some(Command::Unexplored(Some(false))),
+            _ => Some(Command::Unexplored(None)),
         }
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
@@ -1417,6 +1436,34 @@ mod tests {
         assert_eq!(
             parse_system_command("/THEME Solarized Dark"),
             Some(Command::Theme(Some("Solarized Dark".to_string())))
+        );
+    }
+
+    #[test]
+    fn test_parse_unexplored_command() {
+        assert_eq!(
+            parse_system_command("/unexplored"),
+            Some(Command::Unexplored(None))
+        );
+        assert_eq!(
+            parse_system_command("/unexplored reveal"),
+            Some(Command::Unexplored(Some(true)))
+        );
+        assert_eq!(
+            parse_system_command("/unexplored hide"),
+            Some(Command::Unexplored(Some(false)))
+        );
+        assert_eq!(
+            parse_system_command("/unexplored on"),
+            Some(Command::Unexplored(Some(true)))
+        );
+        assert_eq!(
+            parse_system_command("/unexplored off"),
+            Some(Command::Unexplored(Some(false)))
+        );
+        assert_eq!(
+            parse_system_command("/unexplored whatever"),
+            Some(Command::Unexplored(None))
         );
     }
 

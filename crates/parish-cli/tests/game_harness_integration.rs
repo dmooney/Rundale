@@ -464,6 +464,7 @@ fn test_fog_of_war_frontier_at_pub() {
     let map = build_map_data(
         &h.app.world,
         &parish_core::world::transport::TransportMode::walking(),
+        false,
     );
 
     // The player is at the pub

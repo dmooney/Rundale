@@ -619,6 +619,7 @@ pub fn run() {
             category_rate_limit: [None, None, None, None],
             active_tile_source,
             tile_sources: engine_config.map.id_label_pairs(),
+            reveal_unexplored_locations: false,
         }),
     });
 
