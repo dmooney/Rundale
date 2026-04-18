@@ -197,12 +197,18 @@ async fn main() -> Result<()> {
     let clients = build_inference_clients(&client, &model, &category_configs);
 
     for (cat, cfg) in &category_configs {
+        let key_status = if cfg.api_key.is_some() {
+            "(set)"
+        } else {
+            "(not set)"
+        };
         tracing::info!(
-            "{:?} category: {:?} provider at {} with model {}",
+            "{:?} category: {:?} provider at {} with model {} (API key: {})",
             cat,
             cfg.provider,
             cfg.base_url,
-            cfg.model.as_deref().unwrap_or("(auto)")
+            cfg.model.as_deref().unwrap_or("(auto)"),
+            key_status
         );
     }
 

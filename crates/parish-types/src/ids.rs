@@ -321,6 +321,19 @@ mod tests {
         assert_eq!(floor_char_boundary("", 10), 0);
     }
 
+    #[test]
+    fn floor_char_boundary_four_byte_char() {
+        // 🍀 is 4 bytes (F0 9F 8D 80)
+        let s = "a🍀b";
+        // bytes: a(0) F0(1) 9F(2) 8D(3) 80(4) b(5)
+        assert_eq!(floor_char_boundary(s, 0), 0);
+        assert_eq!(floor_char_boundary(s, 1), 1);
+        assert_eq!(floor_char_boundary(s, 2), 1);
+        assert_eq!(floor_char_boundary(s, 3), 1);
+        assert_eq!(floor_char_boundary(s, 4), 1);
+        assert_eq!(floor_char_boundary(s, 5), 5);
+    }
+
     // ── find_response_separator ──────────────────────────────────────────────
 
     #[test]
