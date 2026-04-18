@@ -418,6 +418,7 @@ pub async fn run_headless(
 
                     app.npc_manager.set_tier3_in_flight(true);
 
+                    let emotions_enabled = !app.flags.is_disabled("emotions");
                     let ctx = parish_core::npc::ticks::Tier3Context {
                         snapshots: &snapshots,
                         queue,
@@ -427,6 +428,7 @@ pub async fn run_headless(
                         season: &season_str,
                         hours,
                         batch_size: 0,
+                        emotions_enabled,
                     };
 
                     match parish_core::npc::ticks::tick_tier3(&ctx).await {
@@ -496,6 +498,7 @@ pub async fn run_headless(
 
                         app.npc_manager.set_tier2_in_flight(true);
 
+                        let emotions_enabled = !app.flags.is_disabled("emotions");
                         let mut events = Vec::new();
                         for group in &groups {
                             if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
@@ -504,6 +507,7 @@ pub async fn run_headless(
                                 group,
                                 &app.world.clock.time_of_day().to_string(),
                                 &app.world.weather.to_string(),
+                                emotions_enabled,
                             )
                             .await
                             {

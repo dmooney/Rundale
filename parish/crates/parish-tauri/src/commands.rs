@@ -1245,17 +1245,19 @@ async fn handle_npc_conversation(
 
     // Phase 2: autonomous chain via the bystander-aware heuristic.
     let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    let emotions_enabled = state.config.lock().await.emotions_enabled();
     for _ in 0..chain_cap {
         let next_speaker_id = {
             let world = state.world.lock().await;
             let npc_manager = state.npc_manager.lock().await;
             let candidates: Vec<&parish_core::npc::Npc> =
                 npc_manager.npcs_at(world.player_location);
-            parish_core::npc::autonomous::pick_next_speaker(
+            parish_core::npc::autonomous::pick_next_speaker_with_config(
                 &candidates,
                 last_speaker,
                 &spoken_this_chain,
                 &targets,
+                emotions_enabled,
             )
             .map(|npc| npc.id)
         };
@@ -1377,17 +1379,19 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
 
     // Follow-up turns: heuristic-based selection.
     let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
+    let emotions_enabled = state.config.lock().await.emotions_enabled();
     for _ in 0..chain_cap {
         let next_speaker_id = {
             let world = state.world.lock().await;
             let npc_manager = state.npc_manager.lock().await;
             let candidates: Vec<&parish_core::npc::Npc> =
                 npc_manager.npcs_at(world.player_location);
-            parish_core::npc::autonomous::pick_next_speaker(
+            parish_core::npc::autonomous::pick_next_speaker_with_config(
                 &candidates,
                 last_speaker,
                 &spoken_this_chain,
                 &[],
+                emotions_enabled,
             )
             .map(|npc| npc.id)
         };

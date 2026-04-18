@@ -464,21 +464,29 @@ pub fn record_witness_memories(
 }
 
 /// Builds the system prompt for a Tier 2 interaction between NPCs at a location.
-pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) -> String {
+pub fn build_tier2_prompt(
+    group: &Tier2Group,
+    time_desc: &str,
+    weather: &str,
+    emotions_enabled: bool,
+) -> String {
     let npc_descriptions: Vec<String> = group
         .npcs
         .iter()
         .map(|snap| {
+            // With emotions off, fall back to the legacy `mood:` descriptor
+            // so the prompt is byte-identical to the pre-feature shape.
+            let state_field = if emotions_enabled {
+                format!("feeling: {}", snap.feeling)
+            } else {
+                format!("mood: {}", snap.mood)
+            };
             format!(
-                "- NPC {id} \"{name}\" ({occ}), feeling: {feeling}, {intel}",
+                "- NPC {id} \"{name}\" ({occ}), {state}, {intel}",
                 id = snap.id.0,
                 name = snap.name,
                 occ = snap.occupation,
-                // `feeling` is the short descriptor from the
-                // structured emotion state. Tier 2 batches many
-                // NPCs per prompt so we use the compact form, not
-                // the multi-sentence Tier 1 preamble.
-                feeling = snap.feeling,
+                state = state_field,
                 intel = snap.intelligence_tag,
             )
         })
@@ -487,6 +495,15 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
     let weather_commentary = match weather {
         "Light Rain" | "Heavy Rain" | "Storm" => " People are commenting on the weather.",
         _ => "",
+    };
+
+    // With emotions off, drop the `emotion_deltas` schema line. Apply
+    // functions treat the field as optional, so omitting it matches the
+    // legacy Tier 2 response shape exactly.
+    let emotion_deltas_line = if emotions_enabled {
+        ",\n          \"emotion_deltas\": [{\"npc_id\": <id>, \"impulse\": {\"family\": \"joy|sadness|fear|anger|disgust|surprise|shame|affection\", \"delta\": <-0.3 to 0.3>, \"cause\": \"one short phrase\"}}]"
+    } else {
+        ""
     };
 
     format!(
@@ -503,13 +520,13 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
         {{\n\
           \"summary\": \"Brief description of the interaction\",\n\
           \"mood_changes\": [{{\"npc_id\": <id>, \"new_mood\": \"<mood>\"}}],\n\
-          \"relationship_changes\": [{{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}}],\n\
-          \"emotion_deltas\": [{{\"npc_id\": <id>, \"impulse\": {{\"family\": \"joy|sadness|fear|anger|disgust|surprise|shame|affection\", \"delta\": <-0.3 to 0.3>, \"cause\": \"one short phrase\"}}}}]\n\
+          \"relationship_changes\": [{{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}}]{emotion_deltas}\n\
         }}",
         location = group.location_name,
         time = time_desc,
         weather = weather,
         characters = npc_descriptions.join("\n"),
+        emotion_deltas = emotion_deltas_line,
     )
 }
 
@@ -558,6 +575,7 @@ pub async fn run_tier2_for_group(
     group: &Tier2Group,
     time_desc: &str,
     weather: &str,
+    emotions_enabled: bool,
 ) -> Option<Tier2Event> {
     if group.npcs.len() < 2 {
         // Solo NPC: generate a simple template event, no inference needed
@@ -577,7 +595,7 @@ pub async fn run_tier2_for_group(
         return None;
     }
 
-    let prompt = build_tier2_prompt(group, time_desc, weather);
+    let prompt = build_tier2_prompt(group, time_desc, weather, emotions_enabled);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     match parish_inference::submit_json::<Tier2Response>(
@@ -816,6 +834,7 @@ pub fn build_tier3_prompt(
     weather: &str,
     season: &str,
     hours: u32,
+    emotions_enabled: bool,
 ) -> String {
     let npc_summaries: Vec<String> = snapshots
         .iter()
@@ -830,19 +849,37 @@ pub fn build_tier3_prompt(
             } else {
                 format!("\nRelationships: {}", snap.relationship_context)
             };
+            // With emotions off, fall back to the legacy `Mood:` label so
+            // the prompt is byte-identical to the pre-feature Tier 3 shape.
+            let state_field = if emotions_enabled {
+                format!("Feeling: {}", snap.feeling)
+            } else {
+                format!("Mood: {}", snap.mood)
+            };
             format!(
-                "NPC {id} \"{name}\" ({occupation}, age {age}): At {location}. Feeling: {feeling}.{context}{rels}",
+                "NPC {id} \"{name}\" ({occupation}, age {age}): At {location}. {state}.{context}{rels}",
                 id = snap.id.0,
                 name = snap.name,
                 occupation = snap.occupation,
                 age = snap.age,
                 location = snap.location_name,
-                feeling = snap.feeling,
+                state = state_field,
                 context = context_line,
                 rels = rel_line,
             )
         })
         .collect();
+
+    // With emotions off, drop the structured `emotion_delta` schema line
+    // and the "prefer emotion_delta" note on the `mood` field.
+    let (mood_note, emotion_delta_line) = if emotions_enabled {
+        (
+            " — kept for back-compat; prefer emotion_delta",
+            "\n        - emotion_delta (object or null): {{\"family\": one of joy|sadness|fear|anger|disgust|surprise|shame|affection, \"delta\": signed number from -0.3 to 0.3, \"cause\": short phrase}}",
+        )
+    } else {
+        ("", "")
+    };
 
     format!(
         "You are simulating background NPC activity in a rural Irish parish in 1820.\n\
@@ -850,17 +887,18 @@ pub fn build_tier3_prompt(
         The weather is {weather}. The season is {season}. The time is {time}.\n\n\
         Return a JSON object with an \"updates\" array. Each update has:\n\
         - npc_id (integer)\n\
-        - mood (string, one word) — kept for back-compat; prefer emotion_delta\n\
+        - mood (string, one word){mood_note}\n\
         - activity_summary (string, 1 sentence)\n\
         - new_location (integer or null)\n\
-        - relationship_changes (array of {{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}})\n\
-        - emotion_delta (object or null): {{\"family\": one of joy|sadness|fear|anger|disgust|surprise|shame|affection, \"delta\": signed number from -0.3 to 0.3, \"cause\": short phrase}}\n\n\
+        - relationship_changes (array of {{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}}){emotion_delta}\n\n\
         NPCs:\n{npcs}",
         hours = hours,
         weather = weather,
         season = season,
         time = time_desc,
         npcs = npc_summaries.join("\n\n"),
+        mood_note = mood_note,
+        emotion_delta = emotion_delta_line,
     )
 }
 
@@ -922,6 +960,10 @@ pub struct Tier3Context<'a> {
     pub hours: u32,
     /// Maximum NPCs per batch LLM call.
     pub batch_size: usize,
+    /// Whether the structured emotion system is active this session.
+    /// When `false`, the prompt reverts to the legacy `Mood:` label and
+    /// omits the `emotion_delta` schema line.
+    pub emotions_enabled: bool,
 }
 
 /// Runs a Tier 3 batch simulation for distant NPCs.
@@ -940,7 +982,14 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
     let mut all_updates = Vec::new();
 
     for batch in ctx.snapshots.chunks(batch_size) {
-        let prompt = build_tier3_prompt(batch, ctx.time_desc, ctx.weather, ctx.season, ctx.hours);
+        let prompt = build_tier3_prompt(
+            batch,
+            ctx.time_desc,
+            ctx.weather,
+            ctx.season,
+            ctx.hours,
+            ctx.emotions_enabled,
+        );
 
         match parish_inference::submit_json::<Tier3Response>(
             ctx.queue,
@@ -1503,7 +1552,7 @@ mod tests {
             ],
         };
 
-        let prompt = build_tier2_prompt(&group, "Evening", "Overcast");
+        let prompt = build_tier2_prompt(&group, "Evening", "Overcast", true);
         assert!(prompt.contains("Darcy's Pub"));
         // New richer per-NPC prefix: `NPC <id> "<name>" (<occupation>)`.
         // The id prefix matches Tier 3's convention and lets the model
@@ -1905,7 +1954,7 @@ mod tests {
         let (btx, _brx) = tokio::sync::mpsc::channel(1);
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", true).await;
         assert!(event.is_some());
         let event = event.unwrap();
         assert!(event.summary.contains("Padraig"));
@@ -1928,7 +1977,7 @@ mod tests {
         let (btx, _brx) = tokio::sync::mpsc::channel(1);
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", true).await;
         assert!(event.is_none());
     }
 
@@ -1963,11 +2012,56 @@ mod tests {
             ],
         };
 
-        let prompt = build_tier2_prompt(&group, "Afternoon", "Heavy Rain");
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Heavy Rain", true);
         assert!(prompt.contains("commenting on the weather"));
 
-        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear");
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear", true);
         assert!(!prompt.contains("commenting on the weather"));
+    }
+
+    #[test]
+    fn test_build_tier2_prompt_emotions_disabled_legacy_shape() {
+        // With emotions_enabled=false, the Tier 2 prompt reverts to the
+        // pre-feature byte shape: `mood:` descriptor in the NPC list and
+        // no `emotion_deltas` schema line.
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "The Crossroads".to_string(),
+            npcs: vec![
+                NpcSnapshot {
+                    id: NpcId(1),
+                    name: "Padraig".to_string(),
+                    occupation: "Publican".to_string(),
+                    personality: "Warm".to_string(),
+                    intelligence_tag: "INT[V3]".to_string(),
+                    mood: "calm".to_string(),
+                    feeling: "serene".to_string(),
+                    relationship_context: String::new(),
+                },
+                NpcSnapshot {
+                    id: NpcId(2),
+                    name: "Tommy".to_string(),
+                    occupation: "Farmer".to_string(),
+                    personality: "Gruff".to_string(),
+                    intelligence_tag: "INT[V2]".to_string(),
+                    mood: "tired".to_string(),
+                    feeling: "weary".to_string(),
+                    relationship_context: String::new(),
+                },
+            ],
+        };
+
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear", false);
+        assert!(prompt.contains("mood: calm"));
+        assert!(prompt.contains("mood: tired"));
+        assert!(
+            !prompt.contains("feeling:"),
+            "emotion-off prompt must omit the `feeling:` descriptor"
+        );
+        assert!(
+            !prompt.contains("emotion_deltas"),
+            "emotion-off prompt must omit the `emotion_deltas` schema line"
+        );
     }
 
     // --- apply_tier1_response same mood no change event ---
@@ -2101,7 +2195,7 @@ mod tests {
             },
         ];
 
-        let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24);
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24, true);
         assert!(prompt.contains("simulate 24 hours"));
         assert!(prompt.contains("Overcast"));
         assert!(prompt.contains("Spring"));
@@ -2122,6 +2216,38 @@ mod tests {
         assert!(
             prompt.contains("emotion_delta"),
             "Tier 3 schema should request structured emotion_delta"
+        );
+    }
+
+    #[test]
+    fn test_tier3_prompt_emotions_disabled_legacy_shape() {
+        // With emotions_enabled=false, Tier 3 reverts to the pre-feature
+        // byte shape: `Mood:` per-NPC label and no `emotion_delta` schema.
+        let snapshots = vec![Tier3Snapshot {
+            id: NpcId(1),
+            name: "Padraig".to_string(),
+            occupation: "Publican".to_string(),
+            age: 58,
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            mood: "content".to_string(),
+            feeling: "serene, grounded".to_string(),
+            context: String::new(),
+            relationship_context: String::new(),
+        }];
+
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Clear", "Spring", 24, false);
+        assert!(
+            prompt.contains("Mood: content"),
+            "emotion-off prompt must use legacy `Mood:` label"
+        );
+        assert!(
+            !prompt.contains("Feeling:"),
+            "emotion-off prompt must omit `Feeling:` descriptor"
+        );
+        assert!(
+            !prompt.contains("emotion_delta"),
+            "emotion-off prompt must omit `emotion_delta` schema line"
         );
     }
 
