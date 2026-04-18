@@ -183,6 +183,8 @@ pub struct App {
     pub flags: crate::config::FeatureFlags,
     /// Path to the flags persistence file (None disables persistence).
     pub flags_path: Option<PathBuf>,
+    /// Advisory file lock for the currently active save file.
+    pub save_lock: Option<crate::persistence::SaveFileLock>,
 }
 
 impl App {
@@ -240,6 +242,7 @@ impl App {
             game_mod: None,
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
+            save_lock: None,
         }
     }
 

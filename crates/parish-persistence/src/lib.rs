@@ -7,11 +7,13 @@
 pub mod database;
 pub mod journal;
 pub mod journal_bridge;
+pub mod lock;
 pub mod picker;
 pub mod snapshot;
 
 pub use database::{AsyncDatabase, BranchInfo, Database, SnapshotInfo};
 pub use journal::{WorldEvent, replay_journal};
+pub use lock::SaveFileLock;
 pub use snapshot::{ClockSnapshot, GameSnapshot, NpcSnapshot};
 
 /// Formats an RFC 3339 timestamp into a short, human-readable local-time string.
