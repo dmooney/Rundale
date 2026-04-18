@@ -2,10 +2,10 @@
 //!
 //! Supports Ollama (local, default), LM Studio (local), vLLM (local),
 //! and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
-//! xAI (Grok), Mistral, DeepSeek, and Together AI. A custom
-//! OpenAI-compatible endpoint is also available. Configuration is resolved
-//! from a TOML file, environment variables, and CLI flags (in that priority
-//! order).
+//! xAI (Grok), Mistral, DeepSeek, Together AI, and Anthropic (Claude) via
+//! the native Messages API. A custom OpenAI-compatible endpoint is also
+//! available. Configuration is resolved from a TOML file, environment
+//! variables, and CLI flags (in that priority order).
 
 use parish_types::ParishError;
 use serde::Deserialize;
@@ -23,6 +23,7 @@ const DEFAULT_XAI_URL: &str = "https://api.x.ai";
 const DEFAULT_MISTRAL_URL: &str = "https://api.mistral.ai";
 const DEFAULT_DEEPSEEK_URL: &str = "https://api.deepseek.com";
 const DEFAULT_TOGETHER_URL: &str = "https://api.together.xyz";
+const DEFAULT_ANTHROPIC_URL: &str = "https://api.anthropic.com";
 
 /// Supported LLM provider backends.
 ///
@@ -53,6 +54,13 @@ pub enum Provider {
     DeepSeek,
     /// Together AI (requires API key).
     Together,
+    /// Anthropic Claude via the native Messages API (requires API key).
+    ///
+    /// Unlike every other cloud provider, Anthropic does not use the
+    /// OpenAI `/v1/chat/completions` schema. Requests are routed through
+    /// the dedicated `AnthropicClient` (native `/v1/messages` with
+    /// `x-api-key` + `anthropic-version` headers).
+    Anthropic,
     /// Any OpenAI-compatible endpoint (requires base_url).
     Custom,
     /// Built-in offline simulator — generates funny nonsense locally,
@@ -76,11 +84,12 @@ impl Provider {
             "mistral" => Ok(Provider::Mistral),
             "deepseek" | "deep-seek" | "deep_seek" => Ok(Provider::DeepSeek),
             "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
+            "anthropic" | "claude" => Ok(Provider::Anthropic),
             "custom" => Ok(Provider::Custom),
             "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
                 "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
-                 google, groq, xai, mistral, deepseek, together, custom, simulator",
+                 google, groq, xai, mistral, deepseek, together, anthropic, custom, simulator",
                 other
             ))),
         }
@@ -100,6 +109,7 @@ impl Provider {
             Provider::Mistral => DEFAULT_MISTRAL_URL,
             Provider::DeepSeek => DEFAULT_DEEPSEEK_URL,
             Provider::Together => DEFAULT_TOGETHER_URL,
+            Provider::Anthropic => DEFAULT_ANTHROPIC_URL,
             Provider::Custom => "",
             Provider::Simulator => "",
         }
@@ -117,6 +127,7 @@ impl Provider {
                 | Provider::Mistral
                 | Provider::DeepSeek
                 | Provider::Together
+                | Provider::Anthropic
         )
     }
 
@@ -649,6 +660,18 @@ mod tests {
             Provider::from_str_loose("together_ai").unwrap(),
             Provider::Together
         );
+        assert_eq!(
+            Provider::from_str_loose("anthropic").unwrap(),
+            Provider::Anthropic
+        );
+        assert_eq!(
+            Provider::from_str_loose("claude").unwrap(),
+            Provider::Anthropic
+        );
+        assert_eq!(
+            Provider::from_str_loose("Anthropic").unwrap(),
+            Provider::Anthropic
+        );
 
         assert!(Provider::from_str_loose("unknown").is_err());
     }
@@ -692,6 +715,10 @@ mod tests {
             Provider::Together.default_base_url(),
             "https://api.together.xyz"
         );
+        assert_eq!(
+            Provider::Anthropic.default_base_url(),
+            "https://api.anthropic.com"
+        );
         assert_eq!(Provider::Custom.default_base_url(), "");
     }
 
@@ -712,6 +739,7 @@ mod tests {
         assert!(Provider::Mistral.requires_api_key());
         assert!(Provider::DeepSeek.requires_api_key());
         assert!(Provider::Together.requires_api_key());
+        assert!(Provider::Anthropic.requires_api_key());
 
         // Only Ollama auto-detects model
         assert!(!Provider::Ollama.requires_model());
@@ -725,6 +753,7 @@ mod tests {
         assert!(Provider::Mistral.requires_model());
         assert!(Provider::DeepSeek.requires_model());
         assert!(Provider::Together.requires_model());
+        assert!(Provider::Anthropic.requires_model());
         assert!(Provider::Custom.requires_model());
     }
 
@@ -895,6 +924,11 @@ model = "toml-model"
             ("mistral", "https://api.mistral.ai", Provider::Mistral),
             ("deepseek", "https://api.deepseek.com", Provider::DeepSeek),
             ("together", "https://api.together.xyz", Provider::Together),
+            (
+                "anthropic",
+                "https://api.anthropic.com",
+                Provider::Anthropic,
+            ),
         ];
 
         for (name, expected_url, expected_provider) in providers {
@@ -921,7 +955,14 @@ model = "toml-model"
 
         // All cloud providers should fail without an API key
         for name in [
-            "openai", "google", "groq", "xai", "mistral", "deepseek", "together",
+            "openai",
+            "google",
+            "groq",
+            "xai",
+            "mistral",
+            "deepseek",
+            "together",
+            "anthropic",
         ] {
             let cli = CliOverrides {
                 provider: Some(name.to_string()),

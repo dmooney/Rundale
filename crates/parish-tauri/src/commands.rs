@@ -11,7 +11,6 @@ use tokio::sync::mpsc;
 
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
-use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::inference::{
     AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
     await_inference_response, spawn_inference_worker,
@@ -304,10 +303,17 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
                 },
             );
         }
-        let oai = OpenAiClient::new(&base_url, api_key.as_deref());
+        let provider_enum =
+            parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
+        let built = parish_core::inference::build_client(
+            &provider_enum,
+            &base_url,
+            api_key.as_deref(),
+            &parish_core::config::InferenceConfig::default(),
+        );
         let mut client_guard = state.client.lock().await;
-        *client_guard = Some(oai.clone());
-        AnyClient::open_ai(oai)
+        *client_guard = Some(built.clone());
+        built
     };
 
     // Abort the old inference worker before spawning a replacement to prevent
@@ -383,9 +389,19 @@ async fn handle_system_command(
                     .unwrap_or("https://openrouter.ai/api")
                     .to_string();
                 let api_key = config.cloud_api_key.clone();
+                let provider_enum = config
+                    .cloud_provider_name
+                    .as_deref()
+                    .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
+                    .unwrap_or(parish_core::config::Provider::OpenRouter);
                 drop(config);
                 let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(OpenAiClient::new(&base_url, api_key.as_deref()));
+                *cloud_guard = Some(parish_core::inference::build_client(
+                    &provider_enum,
+                    &base_url,
+                    api_key.as_deref(),
+                    &parish_core::config::InferenceConfig::default(),
+                ));
             }
             CommandEffect::Quit => {
                 app.exit(0);

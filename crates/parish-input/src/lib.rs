@@ -5,7 +5,7 @@
 //! intent parsing (move, talk, look, interact, examine).
 
 use parish_config::InferenceCategory;
-use parish_inference::openai_client::OpenAiClient;
+use parish_inference::AnyClient;
 use parish_types::GameSpeed;
 use parish_types::ParishError;
 use serde::Deserialize;
@@ -806,7 +806,7 @@ pub fn extract_mention(raw: &str) -> Option<MentionExtraction> {
 /// Falls back to LLM for ambiguous input. If the LLM call fails,
 /// returns `IntentKind::Unknown`.
 pub async fn parse_intent(
-    client: &OpenAiClient,
+    client: &AnyClient,
     raw_input: &str,
     model: &str,
 ) -> Result<PlayerIntent, ParishError> {

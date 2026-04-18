@@ -20,6 +20,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use parish_core::game_session::stream_reaction_texts;
+use parish_core::inference::AnyClient;
 use parish_core::inference::openai_client::OpenAiClient;
 use parish_core::npc::Npc;
 use parish_core::npc::reactions::{NpcReaction, ReactionKind};
@@ -87,7 +88,7 @@ async fn stream_reaction_texts_streams_llm_response_on_success() {
     let server = MockServer::start().await;
     mount_sse_response(&server, "Well, good day to ye").await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("(canned greeting)")];
     let (log_names, tokens, emit_log, emit_token) = make_collectors();
@@ -130,7 +131,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_http_error() {
         .mount(&server)
         .await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("canned fallback")];
     let (_log_names, tokens, emit_log, emit_token) = make_collectors();
@@ -172,7 +173,7 @@ async fn stream_reaction_texts_falls_back_to_canned_on_timeout() {
         .mount(&server)
         .await;
 
-    let client = OpenAiClient::new(&server.uri(), None);
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
     let npc = test_npc();
     let reactions = [llm_reaction("timed-out canned")];
     let (_log_names, tokens, emit_log, emit_token) = make_collectors();
@@ -210,7 +211,7 @@ async fn stream_reaction_texts_honors_use_llm_false() {
         introduces: false,
         use_llm: false,
     }];
-    let bogus_client = OpenAiClient::new("http://127.0.0.1:1", None);
+    let bogus_client = AnyClient::open_ai(OpenAiClient::new("http://127.0.0.1:1", None));
     let (log_names, tokens, emit_log, emit_token) = make_collectors();
 
     stream_reaction_texts(

@@ -431,28 +431,35 @@ fn build_oauth_config() -> Option<OAuthConfig> {
     })
 }
 /// Builds the local LLM client and config from environment variables.
-fn build_client_and_config() -> (
-    Option<parish_core::inference::openai_client::OpenAiClient>,
-    GameConfig,
-) {
-    use parish_core::inference::openai_client::OpenAiClient;
-
-    let provider = std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
+fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, GameConfig) {
+    let provider_name =
+        std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
+    let provider_enum =
+        parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
-        parish_core::config::Provider::from_str_loose(&provider)
-            .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|_| "http://localhost:11434".to_string())
+        let default = provider_enum.default_base_url();
+        if default.is_empty() {
+            "http://localhost:11434".to_string()
+        } else {
+            default.to_string()
+        }
     });
     let api_key = std::env::var("PARISH_API_KEY")
         .ok()
         .filter(|s| !s.is_empty());
 
-    let client = if model.is_empty() && provider != "ollama" {
+    let client = if model.is_empty() && provider_name != "ollama" {
         None
     } else {
-        Some(OpenAiClient::new(&base_url, api_key.as_deref()))
+        Some(parish_core::inference::build_client(
+            &provider_enum,
+            &base_url,
+            api_key.as_deref(),
+            &parish_core::config::InferenceConfig::default(),
+        ))
     };
+    let provider = provider_name;
 
     let model_name = if model.is_empty() {
         "qwen3:14b".to_string()

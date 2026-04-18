@@ -21,6 +21,18 @@
 # base_url = "http://localhost:11434"
 # model = "qwen3.5:9b"        # or "gemma4:9b" — see inference-pipeline.md
 # api_key = ""
+#
+# Anthropic (Claude) via the native Messages API. Uses the
+# dedicated AnthropicClient (x-api-key + anthropic-version headers,
+# /v1/messages endpoint) rather than the OpenAI-compatible path.
+# Model names are Anthropic-native IDs (no `anthropic/` prefix —
+# that prefix is only for OpenRouter).
+#
+# [provider]
+# name = "anthropic"
+# base_url = "https://api.anthropic.com"
+# model = "claude-sonnet-4-5"
+# api_key = "sk-ant-..."
 
 # Example: "Cloud-light" starter — Claude for dialogue, Gemini Flash-Lite for
 # background simulation, local Ministral 3 3B for intent + reaction. Uncomment

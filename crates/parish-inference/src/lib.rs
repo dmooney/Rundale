@@ -4,6 +4,7 @@
 //! to the configured LLM provider (Ollama, LM Studio, OpenRouter, etc.),
 //! and returns responses via oneshot channels.
 
+pub mod anthropic_client;
 pub mod client;
 pub mod openai_client;
 pub mod rate_limit;
@@ -11,6 +12,7 @@ pub mod setup;
 pub mod simulator;
 pub(crate) mod utf8_stream;
 
+pub use anthropic_client::AnthropicClient;
 pub use rate_limit::InferenceRateLimiter;
 
 use std::collections::VecDeque;
@@ -23,8 +25,41 @@ use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use parish_config::InferenceConfig;
+use parish_config::{InferenceConfig, Provider};
 use parish_types::ParishError;
+
+/// Builds the right [`AnyClient`] variant for a given [`Provider`].
+///
+/// Every call site that currently does `OpenAiClient::new(url, key)` should
+/// route through this helper instead so that
+/// [`Provider::Anthropic`] is correctly dispatched to [`AnthropicClient`]
+/// rather than silently misrouted through the OpenAI-compat client (which
+/// would fail with a 404 because Anthropic's endpoint is `/v1/messages`,
+/// not `/v1/chat/completions`).
+///
+/// The returned client is always unrate-limited; attach a limiter via
+/// [`AnyClient::with_rate_limit`] (not implemented — do it on the inner
+/// variant before wrapping) when per-provider throttling is required.
+pub fn build_client(
+    provider: &Provider,
+    base_url: &str,
+    api_key: Option<&str>,
+    inference_config: &InferenceConfig,
+) -> AnyClient {
+    match provider {
+        Provider::Anthropic => AnyClient::Anthropic(AnthropicClient::new_with_config(
+            base_url,
+            api_key,
+            inference_config,
+        )),
+        Provider::Simulator => AnyClient::simulator(),
+        _ => AnyClient::OpenAi(OpenAiClient::new_with_config(
+            base_url,
+            api_key,
+            inference_config,
+        )),
+    }
+}
 
 /// A single logged inference call for the debug panel.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -331,9 +366,9 @@ pub async fn submit_json<T: serde::de::DeserializeOwned>(
 #[derive(Clone)]
 pub struct InferenceClients {
     /// Per-category (client, model) overrides.
-    overrides: std::collections::HashMap<parish_config::InferenceCategory, (OpenAiClient, String)>,
+    overrides: std::collections::HashMap<parish_config::InferenceCategory, (AnyClient, String)>,
     /// Base client used when no per-category override exists.
-    pub base: OpenAiClient,
+    pub base: AnyClient,
     /// Base model name (e.g. "qwen3:14b").
     pub base_model: String,
 }
@@ -341,12 +376,9 @@ pub struct InferenceClients {
 impl InferenceClients {
     /// Creates a new `InferenceClients` with the given base client and per-category overrides.
     pub fn new(
-        base: OpenAiClient,
+        base: AnyClient,
         base_model: String,
-        overrides: std::collections::HashMap<
-            parish_config::InferenceCategory,
-            (OpenAiClient, String),
-        >,
+        overrides: std::collections::HashMap<parish_config::InferenceCategory, (AnyClient, String)>,
     ) -> Self {
         Self {
             overrides,
@@ -358,7 +390,7 @@ impl InferenceClients {
     /// Returns the client and model for a given inference category.
     ///
     /// Uses the per-category override if configured, otherwise falls back to the base.
-    pub fn client_for(&self, category: parish_config::InferenceCategory) -> (&OpenAiClient, &str) {
+    pub fn client_for(&self, category: parish_config::InferenceCategory) -> (&AnyClient, &str) {
         match self.overrides.get(&category) {
             Some((client, model)) => (client, model),
             None => (&self.base, &self.base_model),
@@ -366,22 +398,22 @@ impl InferenceClients {
     }
 
     /// Returns the client and model to use for player dialogue (Tier 1).
-    pub fn dialogue_client(&self) -> (&OpenAiClient, &str) {
+    pub fn dialogue_client(&self) -> (&AnyClient, &str) {
         self.client_for(parish_config::InferenceCategory::Dialogue)
     }
 
     /// Returns the client and model to use for background NPC simulation (Tier 2).
-    pub fn simulation_client(&self) -> (&OpenAiClient, &str) {
+    pub fn simulation_client(&self) -> (&AnyClient, &str) {
         self.client_for(parish_config::InferenceCategory::Simulation)
     }
 
     /// Returns the client and model to use for intent parsing.
-    pub fn intent_client(&self) -> (&OpenAiClient, &str) {
+    pub fn intent_client(&self) -> (&AnyClient, &str) {
         self.client_for(parish_config::InferenceCategory::Intent)
     }
 
     /// Returns the client and model to use for NPC arrival reactions.
-    pub fn reaction_client(&self) -> (&OpenAiClient, &str) {
+    pub fn reaction_client(&self) -> (&AnyClient, &str) {
         self.client_for(parish_config::InferenceCategory::Reaction)
     }
 
@@ -392,15 +424,20 @@ impl InferenceClients {
     }
 }
 
-/// A unified client handle that can be either a real OpenAI-compatible
-/// HTTP client or the built-in offline simulator.
+/// A unified client handle covering every supported provider transport.
 ///
-/// Use `AnyClient::OpenAi` for all real providers (Ollama, OpenRouter, etc.)
-/// and `AnyClient::Simulator` to run without any LLM for testing.
+/// - [`AnyClient::OpenAi`] wraps the OpenAI-compatible HTTP client used by
+///   Ollama, LM Studio, OpenRouter, OpenAI, Google, Groq, xAI, Mistral,
+///   DeepSeek, Together, vLLM, and any custom OpenAI-compatible endpoint.
+/// - [`AnyClient::Anthropic`] wraps [`AnthropicClient`], the native client
+///   for Anthropic's Messages API (distinct schema, auth, and SSE events).
+/// - [`AnyClient::Simulator`] is the built-in offline mock.
 #[derive(Clone)]
 pub enum AnyClient {
     /// A real OpenAI-compatible HTTP client.
     OpenAi(OpenAiClient),
+    /// Anthropic's native Messages API client (see [`AnthropicClient`]).
+    Anthropic(AnthropicClient),
     /// The built-in offline simulator (generates funny nonsense locally).
     Simulator(Arc<SimulatorClient>),
 }
@@ -409,6 +446,11 @@ impl AnyClient {
     /// Wraps a real `OpenAiClient`.
     pub fn open_ai(client: OpenAiClient) -> Self {
         Self::OpenAi(client)
+    }
+
+    /// Wraps a real `AnthropicClient`.
+    pub fn anthropic(client: AnthropicClient) -> Self {
+        Self::Anthropic(client)
     }
 
     /// Creates a new simulator client.
@@ -427,6 +469,10 @@ impl AnyClient {
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Anthropic(c) => {
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -452,6 +498,10 @@ impl AnyClient {
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
+            Self::Anthropic(c) => {
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
             Self::Simulator(c) => {
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
@@ -473,6 +523,10 @@ impl AnyClient {
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
             }
+            Self::Anthropic(c) => {
+                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
             Self::Simulator(c) => {
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
@@ -484,13 +538,33 @@ impl AnyClient {
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
             Self::OpenAi(c) => Some(c),
-            Self::Simulator(_) => None,
+            Self::Anthropic(_) | Self::Simulator(_) => None,
+        }
+    }
+
+    /// Returns a reference to the inner `AnthropicClient`, if this is an Anthropic client.
+    pub fn as_anthropic(&self) -> Option<&AnthropicClient> {
+        match self {
+            Self::Anthropic(c) => Some(c),
+            Self::OpenAi(_) | Self::Simulator(_) => None,
         }
     }
 
     /// Returns `true` if this is the offline simulator.
     pub fn is_simulator(&self) -> bool {
         matches!(self, Self::Simulator(_))
+    }
+
+    /// Returns `true` if the underlying client has a rate limiter attached.
+    ///
+    /// The simulator is always unlimited (no network calls), so this is
+    /// `false` for `Self::Simulator`.
+    pub fn has_rate_limiter(&self) -> bool {
+        match self {
+            Self::OpenAi(c) => c.has_rate_limiter(),
+            Self::Anthropic(c) => c.has_rate_limiter(),
+            Self::Simulator(_) => false,
+        }
     }
 }
 
@@ -841,8 +915,11 @@ mod tests {
         use parish_config::InferenceCategory;
         use std::collections::HashMap;
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
-        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let cloud = AnyClient::open_ai(OpenAiClient::new(
+            "https://openrouter.ai/api",
+            Some("sk-test"),
+        ));
         let mut overrides = HashMap::new();
         overrides.insert(
             InferenceCategory::Dialogue,
@@ -858,7 +935,7 @@ mod tests {
     fn test_inference_clients_dialogue_falls_back_to_base() {
         use std::collections::HashMap;
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
         let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.dialogue_client();
         assert_eq!(model, "qwen3:14b");
@@ -870,8 +947,11 @@ mod tests {
         use parish_config::InferenceCategory;
         use std::collections::HashMap;
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
-        let cloud = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let cloud = AnyClient::open_ai(OpenAiClient::new(
+            "https://openrouter.ai/api",
+            Some("sk-test"),
+        ));
         let mut overrides = HashMap::new();
         overrides.insert(InferenceCategory::Dialogue, (cloud, "gpt-4".to_string()));
         let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
@@ -884,10 +964,13 @@ mod tests {
         use parish_config::InferenceCategory;
         use std::collections::HashMap;
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
-        let dial = OpenAiClient::new("https://openrouter.ai/api", Some("sk-dial"));
-        let sim = OpenAiClient::new("http://localhost:11434", None);
-        let intent = OpenAiClient::new("http://localhost:1234", None);
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let dial = AnyClient::open_ai(OpenAiClient::new(
+            "https://openrouter.ai/api",
+            Some("sk-dial"),
+        ));
+        let sim = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let intent = AnyClient::open_ai(OpenAiClient::new("http://localhost:1234", None));
         let mut overrides = HashMap::new();
         overrides.insert(InferenceCategory::Dialogue, (dial, "claude-4".to_string()));
         overrides.insert(InferenceCategory::Simulation, (sim, "qwen3:8b".to_string()));
@@ -911,7 +994,7 @@ mod tests {
     fn test_inference_clients_intent_falls_back_to_base() {
         use std::collections::HashMap;
 
-        let base = OpenAiClient::new("http://localhost:11434", None);
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
         let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.intent_client();
         assert_eq!(model, "qwen3:14b");

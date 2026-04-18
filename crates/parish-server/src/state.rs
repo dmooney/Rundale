@@ -12,8 +12,7 @@ use tokio::task::JoinHandle;
 
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
-use parish_core::inference::openai_client::OpenAiClient;
-use parish_core::inference::{InferenceLog, InferenceQueue};
+use parish_core::inference::{AnyClient, InferenceLog, InferenceQueue};
 use parish_core::ipc::ConversationLine;
 use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
@@ -114,9 +113,9 @@ pub struct AppState {
     /// Shared ring buffer of recent inference calls (for the debug panel).
     pub inference_log: InferenceLog,
     /// Local LLM client (None if no provider is configured).
-    pub client: Mutex<Option<OpenAiClient>>,
+    pub client: Mutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
-    pub cloud_client: Mutex<Option<OpenAiClient>>,
+    pub cloud_client: Mutex<Option<AnyClient>>,
     /// Mutable runtime configuration.
     pub config: Mutex<GameConfig>,
     /// Local conversation transcript and inactivity tracking.
@@ -236,9 +235,9 @@ impl EventBus {
 pub fn build_app_state(
     world: WorldState,
     npc_manager: NpcManager,
-    client: Option<OpenAiClient>,
+    client: Option<AnyClient>,
     config: GameConfig,
-    cloud_client: Option<OpenAiClient>,
+    cloud_client: Option<AnyClient>,
     transport: TransportConfig,
     ui_config: UiConfigSnapshot,
     theme_palette: ThemePalette,
