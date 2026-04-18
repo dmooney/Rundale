@@ -115,6 +115,9 @@ def project(name, daily_fn):
     """
     loc = CURRENT_LOC
     results = {}
+    for m in MILESTONES:
+        if loc >= m:
+            results[m] = (CURRENT_DAY, START_DATE + timedelta(days=CURRENT_DAY))
     for day in range(CURRENT_DAY + 1, CURRENT_DAY + 1100):
         loc += daily_fn(day)
         for m in MILESTONES:
@@ -182,8 +185,8 @@ for name, desc, fn in scenarios:
 
 # ── Fun stats ─────────────────────────────────────────────────────
 
-total_days = len(ACTUAL)
-avg_all = sum(net for _, net in ACTUAL) / total_days
+total_days = CURRENT_DAY + 1  # elapsed calendar days, not commit days
+avg_all = CURRENT_LOC / total_days
 lines_per_hour = avg_all / 16
 
 print(f"{BOLD}{'─' * 55}")
