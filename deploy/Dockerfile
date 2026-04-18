@@ -23,8 +23,25 @@ RUN cargo build --release -p parish --bin parish
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libssl3 \
+    ca-certificates curl libssl3 \
     && rm -rf /var/lib/apt/lists/*
+
+# Download cloudflared at a pinned version and verify its SHA-256 checksum
+# before installing.  Never fetch an unpinned "latest" binary from the internet.
+# The upstream .sha256 file is tied to the original asset filename, so we must
+# verify under that filename and only then install to /usr/local/bin.
+ARG CLOUDFLARED_VERSION=2024.12.2
+RUN cd /tmp \
+ && curl -fsSL \
+      "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64" \
+      -o cloudflared-linux-amd64 \
+ && curl -fsSL \
+      "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.sha256" \
+      -o cloudflared-linux-amd64.sha256 \
+ && sha256sum -c cloudflared-linux-amd64.sha256 \
+ && install -m 0755 cloudflared-linux-amd64 /usr/local/bin/cloudflared \
+ && rm cloudflared-linux-amd64 cloudflared-linux-amd64.sha256
+
 WORKDIR /app
 COPY --from=builder /build/target/release/parish ./
 COPY --from=frontend /build/dist ./apps/ui/dist/

@@ -42,6 +42,7 @@ export const DEFAULT_PREFERENCE: ThemePreference = { name: 'default', mode: '' }
 const PREF_KEY = 'parish-theme-preference';
 
 export function loadThemePreference(): ThemePreference {
+	// localStorage (not sessionStorage) — deliberate trade-off: theme preference is low-sensitivity UX data; persisting across sessions avoids a flash-of-wrong-theme on reload.
 	try {
 		const raw = localStorage.getItem(PREF_KEY);
 		if (raw) return JSON.parse(raw) as ThemePreference;
@@ -52,6 +53,7 @@ export function loadThemePreference(): ThemePreference {
 }
 
 export function saveThemePreference(pref: ThemePreference): void {
+	// localStorage (not sessionStorage) — deliberate trade-off: theme preference is low-sensitivity UX data; persisting across sessions avoids a flash-of-wrong-theme on reload.
 	try {
 		localStorage.setItem(PREF_KEY, JSON.stringify(pref));
 	} catch {

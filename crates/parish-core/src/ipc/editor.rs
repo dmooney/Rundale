@@ -30,6 +30,12 @@ use crate::editor::validate;
 pub struct EditorSession {
     /// Current snapshot being edited, if a mod is open.
     pub snapshot: Option<EditorModSnapshot>,
+    /// Monotonic counter bumped on every mutating operation (open, update,
+    /// reload, close). Used by `editor_save` to detect that another in-flight
+    /// request overwrote the snapshot between clone-out and write-back, so
+    /// the stale cloned copy is not written back and silently clobber newer
+    /// edits — see codex P2 review on #439.
+    pub version: u64,
 }
 
 // ── IPC request/response types ──────────────────────────────────────────────

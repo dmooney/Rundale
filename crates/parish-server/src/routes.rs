@@ -32,7 +32,7 @@ use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::{LocationId, WorldState};
 
-use parish_core::debug_snapshot::{self, AuthDebug, DebugSnapshot, InferenceDebug};
+use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
 use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
@@ -98,19 +98,26 @@ pub async fn get_ui_config(
     Json(state.ui_config.clone())
 }
 
-/// `GET /api/debug-snapshot` — returns full debug state for the debug panel.
+/// `GET /api/debug-snapshot` — returns debug state for the debug panel.
+///
+/// The inference call log is **redacted** for web clients (#333): `prompt_text`,
+/// `response_text`, `system_prompt`, and `base_url` are stripped so that one
+/// user's LLM prompts are never exposed to other authenticated visitors.
 pub async fn get_debug_snapshot(
     Extension(state): Extension<Arc<AppState>>,
     Extension(session_id): Extension<SessionId>,
     State(global): State<Arc<GlobalState>>,
-) -> Json<DebugSnapshot> {
+) -> impl IntoResponse {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let config = state.config.lock().await;
     let events = state.debug_events.lock().await;
     let game_events = state.game_events.lock().await;
-    let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+    let raw_call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
         state.inference_log.lock().await.iter().cloned().collect();
+
+    // Build a full inference debug block (used internally; base_url included
+    // for accurate `has_queue` / `reaction_req_id` etc.).
     let inference = InferenceDebug {
         provider_name: config.provider_name.clone(),
         model_name: config.model_name.clone(),
@@ -120,7 +127,7 @@ pub async fn get_debug_snapshot(
         has_queue: state.inference_queue.lock().await.is_some(),
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled: config.improv_enabled,
-        call_log,
+        call_log: raw_call_log.clone(),
     };
     let linked = global.sessions.google_account_for_session(&session_id.0);
     let auth = AuthDebug {
@@ -130,14 +137,41 @@ pub async fn get_debug_snapshot(
         display_name: linked.map(|(_sub, name)| name),
         session_id: Some(session_id.0.clone()),
     };
-    Json(debug_snapshot::build_debug_snapshot(
+
+    // Build the full snapshot then redact the inference section (#333).
+    let mut snapshot = debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
         &events,
         &game_events,
         &inference,
         &auth,
-    ))
+    );
+
+    // Replace call_log entries with redacted forms (no prompt/response text,
+    // no system_prompt, no base_url).
+    snapshot.inference.call_log = raw_call_log
+        .iter()
+        .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
+            request_id: e.request_id,
+            timestamp: e.timestamp.clone(),
+            model: e.model.clone(),
+            streaming: e.streaming,
+            duration_ms: e.duration_ms,
+            prompt_len: e.prompt_len,
+            response_len: e.response_len,
+            error: e.error.clone(),
+            max_tokens: e.max_tokens,
+            // Redacted fields:
+            system_prompt: None,
+            prompt_text: String::new(),
+            response_text: String::new(),
+        })
+        .collect();
+    // Also redact base_url from the inference config block.
+    snapshot.inference.base_url = String::new();
+
+    Json(snapshot)
 }
 
 // ── Input endpoint ──────────────────────────────────────────────────────────
@@ -156,6 +190,7 @@ pub struct SubmitInputRequest {
 /// `POST /api/submit-input` — processes player text input.
 pub async fn submit_input(
     Extension(state): Extension<Arc<AppState>>,
+    Extension(auth): Extension<crate::cf_auth::AuthContext>,
     Json(body): Json<SubmitInputRequest>,
 ) -> impl IntoResponse {
     let text = body.text.trim().to_string();
@@ -164,6 +199,13 @@ pub async fn submit_input(
     }
     if text.len() > 2000 {
         return StatusCode::BAD_REQUEST;
+    }
+
+    // #332 — admin command gate: provider/key/model mutations are operator-only.
+    if is_admin_command(&text)
+        && let Err(status) = check_admin(&auth.email, &text)
+    {
+        return status;
     }
 
     touch_player_activity(&state).await;
@@ -1301,6 +1343,17 @@ pub async fn react_to_message(
         return StatusCode::BAD_REQUEST;
     }
 
+    // Reject message_snippet values that could inject content into NPC system
+    // prompts: newlines would break prompt structure; backslashes and quotes
+    // could escape out of surrounding string literals.
+    if body
+        .message_snippet
+        .chars()
+        .any(|c| c == '\n' || c == '\r' || c == '"' || c == '\\')
+    {
+        return StatusCode::BAD_REQUEST;
+    }
+
     // Store the reaction in the target NPC's reaction log
     let mut npc_manager = state.npc_manager.lock().await;
     if let Some(npc) = npc_manager.find_by_name_mut(&body.npc_name) {
@@ -1411,6 +1464,11 @@ async fn do_fork_branch_inner(
     name: &str,
     parent_branch_id: i64,
 ) -> Result<String, String> {
+    // #335 — validate at the inner call-site so the ForkBranch command path
+    // (which bypasses the HTTP handler) is also protected.
+    validate_branch_name(name)
+        .map_err(|_| "Invalid branch name: must be 1–64 ASCII alphanumeric/underscore/hyphen/space characters.".to_string())?;
+
     let save_path_guard = state.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
@@ -1751,6 +1809,8 @@ pub async fn create_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<CreateBranchRequest>,
 ) -> Result<Json<String>, (StatusCode, String)> {
+    // #335 — validate branch name before touching the database.
+    validate_branch_name(&body.name).map_err(|s| (s, "Invalid branch name".to_string()))?;
     let msg = do_fork_branch_inner(&state, &body.name, body.parent_branch_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -1822,6 +1882,115 @@ pub async fn get_save_state(Extension(state): Extension<Arc<AppState>>) -> Json<
         branch_id: *branch_id,
         branch_name: branch_name.clone(),
     })
+}
+
+// ── #373 — Health check (CF-Access exempt) ──────────────────────────────────
+
+/// `GET /api/health` — lightweight liveness probe; no auth required.
+pub async fn get_health() -> StatusCode {
+    StatusCode::OK
+}
+
+// ── #335 — Branch name validation ───────────────────────────────────────────
+
+/// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.
+///
+/// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
+fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
+    if name.is_empty() || name.len() > 64 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    Ok(())
+}
+
+// ── #332 — Admin-only command guard ─────────────────────────────────────────
+
+/// Slash-command prefixes whose effects mutate LLM provider config.
+///
+/// Any first token (or two-token pair for `/cloud <sub>`) matching this list
+/// is considered an admin command and is gated by `PARISH_ADMIN_EMAILS`.
+const ADMIN_COMMANDS: &[&str] = &[
+    "/key",
+    "/provider",
+    "/model",
+    "/cloud",
+    "/key.",
+    "/model.",
+    "/provider.",
+];
+
+/// Returns `Ok(())` if the caller is permitted to run an admin command, or
+/// `Err(StatusCode::FORBIDDEN)` otherwise.
+///
+/// Admin status is determined by `PARISH_ADMIN_EMAILS` (comma-separated).
+/// If the env var is unset: **allowed** in debug builds (local dev), **denied**
+/// in release builds (fail-closed).
+fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
+    match std::env::var("PARISH_ADMIN_EMAILS") {
+        Ok(list) => {
+            if list.split(',').any(|e| e.trim() == email) {
+                Ok(())
+            } else {
+                tracing::warn!(user = %email, command = %cmd, "admin command rejected");
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+        Err(_) => {
+            // Env var unset.
+            if cfg!(debug_assertions) {
+                // Allow in debug builds so local dev works without env config.
+                Ok(())
+            } else {
+                // Fail-closed in release builds.
+                tracing::warn!(user = %email, command = %cmd, "admin command rejected — PARISH_ADMIN_EMAILS unset");
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+    }
+}
+
+/// Returns `true` if `text` starts with an admin-only slash command.
+///
+/// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
+/// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
+/// `starts_with` since the dot is part of the prefix, not a space separator.
+fn is_admin_command(text: &str) -> bool {
+    let lower = text.trim().to_ascii_lowercase();
+    ADMIN_COMMANDS.iter().any(|prefix| {
+        if prefix.ends_with('.') {
+            // Dotted prefix: `/key.`, `/model.`, `/provider.` — matched by starts_with
+            // so `/key.dialogue sk-abc` is caught.
+            lower.starts_with(*prefix)
+        } else {
+            // Plain prefix: exact match (bare command) or `<prefix> <args>`.
+            lower == *prefix || lower.starts_with(&format!("{} ", prefix))
+        }
+    })
+}
+
+// ── #377 — WS session-token issuance ────────────────────────────────────────
+
+/// Response body for `POST /api/session-init`.
+#[derive(serde::Serialize)]
+pub struct SessionInitResponse {
+    pub token: String,
+}
+
+/// `POST /api/session-init` — issues a short-lived HMAC token for WS auth.
+///
+/// Reads the `AuthContext` injected by `cf_access_guard` and mints a 5-minute
+/// token.  The caller passes `?token=<value>` when opening `/api/ws`.
+pub async fn session_init(
+    Extension(auth): Extension<crate::cf_auth::AuthContext>,
+) -> impl IntoResponse {
+    let token = crate::cf_auth::SessionToken::mint_full(&auth.email);
+    (StatusCode::OK, Json(SessionInitResponse { token }))
 }
 
 #[cfg(test)]
@@ -2424,5 +2593,86 @@ pub(crate) mod tests {
             state.inference_queue.lock().await.is_some(),
             "rebuild_inference must install an inference queue"
         );
+    }
+
+    // ── #335 — Branch name validation tests ─────────────────────────────────
+
+    #[test]
+    fn branch_name_empty_is_rejected() {
+        assert_eq!(validate_branch_name(""), Err(StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn branch_name_65_chars_is_rejected() {
+        let name = "a".repeat(65);
+        assert_eq!(validate_branch_name(&name), Err(StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn branch_name_64_chars_is_accepted() {
+        let name = "a".repeat(64);
+        assert_eq!(validate_branch_name(&name), Ok(()));
+    }
+
+    #[test]
+    fn branch_name_with_slash_is_rejected() {
+        assert_eq!(
+            validate_branch_name("bad/name"),
+            Err(StatusCode::BAD_REQUEST)
+        );
+    }
+
+    #[test]
+    fn branch_name_with_emoji_is_rejected() {
+        assert_eq!(
+            validate_branch_name("branch🎉"),
+            Err(StatusCode::BAD_REQUEST)
+        );
+    }
+
+    #[test]
+    fn branch_name_valid_alphanumeric_underscore_hyphen_space() {
+        assert_eq!(validate_branch_name("my-branch_v2 alt"), Ok(()));
+    }
+
+    // ── #332 — Admin command detection tests ─────────────────────────────────
+
+    #[test]
+    fn is_admin_command_detects_key() {
+        assert!(is_admin_command("/key sk-abc"));
+        assert!(is_admin_command("/key"));
+    }
+
+    #[test]
+    fn is_admin_command_detects_provider() {
+        assert!(is_admin_command("/provider ollama"));
+        assert!(is_admin_command("/provider"));
+    }
+
+    #[test]
+    fn is_admin_command_detects_model() {
+        assert!(is_admin_command("/model llama3"));
+        assert!(is_admin_command("/model"));
+    }
+
+    #[test]
+    fn is_admin_command_detects_cloud() {
+        assert!(is_admin_command("/cloud key sk-evil"));
+        assert!(is_admin_command("/cloud provider openrouter"));
+    }
+
+    #[test]
+    fn is_admin_command_detects_dotted_category() {
+        assert!(is_admin_command("/key.dialogue sk-abc"));
+        assert!(is_admin_command("/model.dialogue gpt-4"));
+        assert!(is_admin_command("/provider.dialogue openai"));
+    }
+
+    #[test]
+    fn is_admin_command_does_not_flag_gameplay() {
+        assert!(!is_admin_command("say hello"));
+        assert!(!is_admin_command("/save"));
+        assert!(!is_admin_command("/fork my-branch"));
+        assert!(!is_admin_command("/status"));
     }
 }

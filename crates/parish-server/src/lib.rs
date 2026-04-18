@@ -8,6 +8,7 @@
 //! `saves/<session_id>/` directories and `saves/sessions.db`.
 
 pub mod auth;
+pub mod cf_auth;
 pub mod editor_routes;
 pub mod middleware;
 pub mod routes;
@@ -18,16 +19,21 @@ pub mod ws;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use axum::Router;
 use axum::extract::ConnectInfo;
-use axum::http::{Request, StatusCode};
+use axum::http::header::{
+    CONTENT_SECURITY_POLICY, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+};
+use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware as axum_mw;
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
+use tower_http::set_header::SetResponseHeaderLayer;
 
 use parish_core::game_mod::{GameMod, find_default_mod};
 use parish_core::world::transport::TransportConfig;
@@ -36,31 +42,95 @@ use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
-/// Middleware that enforces Cloudflare Access authentication on non-localhost traffic.
+/// Global auth-failure counter — exposed via `GET /metrics`.
+static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
+
+/// Middleware that enforces Cloudflare Access authentication.
 ///
-/// Requests from loopback addresses (127.0.0.1 / ::1) are always allowed so local
-/// development works without a Cloudflare tunnel.  All other requests must carry the
-/// `CF-Access-Authenticated-User-Email` header that Cloudflare Access injects after a
-/// successful login.  Requests that lack the header are rejected with 401.
+/// **Production** (`CF_ACCESS_AUD` env set): validates `Cf-Access-Jwt-Assertion`
+/// against the team JWKS; injects [`cf_auth::AuthContext`] into request extensions.
+///
+/// **Debug-only fallback** (`debug_assertions` + loopback): skipped entirely so
+/// local dev works without a Cloudflare tunnel.
+///
+/// **Fail-closed**: if `CF_ACCESS_AUD` is unset in a release build, every
+/// request returns 401 to avoid running unauthenticated in production.
 async fn cf_access_guard(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    req: Request<axum::body::Body>,
+    mut req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    if addr.ip().is_loopback() {
+    // #379 — loopback bypass is debug-only.
+    if cfg!(debug_assertions) && addr.ip().is_loopback() {
+        // In debug+loopback: inject a synthetic AuthContext so downstream
+        // handlers that require it don't panic.
+        req.extensions_mut().insert(cf_auth::AuthContext {
+            email: "dev@localhost".to_string(),
+        });
         return Ok(next.run(req).await);
     }
-    // Allow the health-check endpoint without auth so Railway can probe it.
-    if req.uri().path() == "/api/ui-config" {
+
+    // #373 — only /api/health is exempt; /api/ui-config must be authenticated.
+    if req.uri().path() == "/api/health" {
         return Ok(next.run(req).await);
     }
-    if req
-        .headers()
-        .contains_key("CF-Access-Authenticated-User-Email")
+
+    // #276 — real JWT validation path.
+    if let Some(verifier) = cf_auth::global_verifier() {
+        let jwt_header = req
+            .headers()
+            .get("Cf-Access-Jwt-Assertion")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+
+        match jwt_header {
+            Some(token) => match verifier.validate(&token).await {
+                Ok(ctx) => {
+                    req.extensions_mut().insert(ctx);
+                    return Ok(next.run(req).await);
+                }
+                Err(e) => {
+                    tracing::warn!(source_ip = %addr, error = %e, "cf_access_guard: 401 — JWT validation failed");
+                    AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
+                    return Err(StatusCode::UNAUTHORIZED);
+                }
+            },
+            None => {
+                tracing::warn!(source_ip = %addr, "cf_access_guard: 401 — missing Cf-Access-Jwt-Assertion");
+                AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        }
+    }
+
+    // #276 — no verifier: CF_ACCESS_AUD unset.
+    #[cfg(not(debug_assertions))]
     {
-        return Ok(next.run(req).await);
+        // Fail closed in release builds — no token infrastructure configured.
+        tracing::error!(
+            source_ip = %addr,
+            "cf_access_guard: CF_ACCESS_AUD not set in release build — rejecting all requests"
+        );
+        AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
+        return Err(StatusCode::UNAUTHORIZED);
     }
-    Err(StatusCode::UNAUTHORIZED)
+
+    // Debug build with no verifier: fall back to header-presence check.
+    #[cfg(debug_assertions)]
+    {
+        let debug_email: Option<String> = req
+            .headers()
+            .get("CF-Access-Authenticated-User-Email")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        if let Some(email) = debug_email {
+            req.extensions_mut().insert(cf_auth::AuthContext { email });
+            return Ok(next.run(req).await);
+        }
+        tracing::warn!(source_ip = %addr, "cf_access_guard: 401 — debug fallback, missing CF-Access-Authenticated-User-Email");
+        AUTH_FAILURES.fetch_add(1, Ordering::Relaxed);
+        Err(StatusCode::UNAUTHORIZED)
+    }
 }
 
 /// Starts the Parish web server on the given port.
@@ -89,15 +159,11 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .and_then(|gm| gm.manifest.meta.title.clone())
         .unwrap_or_else(|| "Parish".to_string());
 
-    let commit_sha = std::env::var("RAILWAY_GIT_COMMIT_SHA")
-        .or_else(|_| std::env::var("PARISH_COMMIT_SHA"))
-        .unwrap_or_else(|_| "unknown".to_string());
-    let short_sha: String = commit_sha.chars().take(7).collect();
+    // #373 — omit commit SHA from splash text to avoid leaking RAILWAY_GIT_COMMIT_SHA.
     let splash_text = format!(
-        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {} - build {}",
+        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
         game_title,
-        chrono::Local::now().format("%Y-%m-%d %H:%M"),
-        short_sha,
+        chrono::Local::now().format("%Y-%m-%d"),
     );
 
     let theme_palette = game_mod
@@ -156,6 +222,22 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         tracing::info!("Google OAuth enabled");
     }
 
+    // ── #377: WS signing key ──
+    // Release builds require PARISH_WS_SIGNING_KEY (signing_key() panics
+    // otherwise). Debug builds auto-generate an ephemeral key; warn so
+    // developers notice tokens invalidate on restart.
+    if std::env::var("PARISH_WS_SIGNING_KEY")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_none()
+        && cfg!(debug_assertions)
+    {
+        tracing::warn!(
+            "PARISH_WS_SIGNING_KEY is not set — debug build will use a random ephemeral signing key. \
+             WS session tokens will be invalidated on server restart."
+        );
+    }
+
     // ── Global state ──────────────────────────────────────────────────────────
     let global = Arc::new(GlobalState {
         sessions,
@@ -183,10 +265,23 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         });
     }
 
+    // ── #381: Global per-IP rate limiter (120 req/min) ────────────────────────
+    use governor::{Quota, RateLimiter};
+    use std::num::NonZeroU32;
+    let ip_limiter = Arc::new(RateLimiter::keyed(Quota::per_minute(
+        NonZeroU32::new(120).unwrap(),
+    )));
+
     // ── Build router ──────────────────────────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
 
     let mut app = Router::new()
+        // #373 — /api/health: exempt from auth, returns 200 for health probes.
+        .route("/api/health", get(routes::get_health))
+        // #373 — /metrics: auth-protected, exposes auth failure counter.
+        .route("/metrics", get(get_metrics))
+        // #377 — /api/session-init: issues short-lived WS session tokens.
+        .route("/api/session-init", post(routes::session_init))
         .route("/api/world-snapshot", get(routes::get_world_snapshot))
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
@@ -204,6 +299,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
         // ── Editor routes (Parish Designer) ─────────────────────────────
+        // #376 — update endpoints carry a 256 KiB body limit.
         .route(
             "/api/editor-list-mods",
             get(editor_routes::editor_list_mods),
@@ -216,13 +312,19 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/editor-validate", get(editor_routes::editor_validate))
         .route(
             "/api/editor-update-npcs",
-            post(editor_routes::editor_update_npcs),
+            post(editor_routes::editor_update_npcs)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-update-locations",
-            post(editor_routes::editor_update_locations),
+            post(editor_routes::editor_update_locations)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
-        .route("/api/editor-save", post(editor_routes::editor_save))
+        .route(
+            "/api/editor-save",
+            post(editor_routes::editor_save)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
+        )
         .route("/api/editor-reload", post(editor_routes::editor_reload))
         .route("/api/editor-close", post(editor_routes::editor_close))
         .route(
@@ -231,15 +333,18 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         )
         .route(
             "/api/editor-list-branches",
-            post(editor_routes::editor_list_branches),
+            post(editor_routes::editor_list_branches)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-list-snapshots",
-            post(editor_routes::editor_list_snapshots),
+            post(editor_routes::editor_list_snapshots)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route(
             "/api/editor-read-snapshot",
-            post(editor_routes::editor_read_snapshot),
+            post(editor_routes::editor_read_snapshot)
+                .layer(axum::extract::DefaultBodyLimit::max(256 * 1024)),
         )
         .route("/api/auth/status", get(auth::get_auth_status));
 
@@ -257,6 +362,42 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .layer(axum_mw::from_fn_with_state(
             Arc::clone(&global),
             middleware::session_middleware,
+        ))
+        // ── #381: Global per-IP rate limiter (outside auth guard, throttles floods) ──
+        .layer(axum_mw::from_fn_with_state(
+            ip_limiter,
+            ip_rate_limit_middleware,
+        ))
+        // ── Security hardening headers (outermost layer — covers all routes) ──
+        .layer(SetResponseHeaderLayer::overriding(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(
+                "default-src 'self'; \
+                 script-src 'self' 'unsafe-inline'; \
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                 img-src 'self' data: blob: https:; \
+                 connect-src 'self' ws: wss: https:; \
+                 font-src 'self' https://fonts.gstatic.com; \
+                 frame-ancestors 'none'; \
+                 base-uri 'self'; \
+                 form-action 'self'",
+            ),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            REFERRER_POLICY,
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
         ));
 
     let addr = format!("0.0.0.0:{}", port);
@@ -378,6 +519,51 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
         model_name: model,
         api_key,
         base_url: Some(base_url),
+    }
+}
+
+/// `GET /metrics` — returns the current auth-failure counter.
+///
+/// Protected by CF-Access.  Returns plain text so it can be scraped by simple
+/// tooling without a JSON parser.
+async fn get_metrics() -> String {
+    let failures = AUTH_FAILURES.load(Ordering::Relaxed);
+    format!(
+        "# HELP parish_auth_failures_total Total CF-Access auth failures since startup\n# TYPE parish_auth_failures_total counter\nparish_auth_failures_total {failures}\n"
+    )
+}
+
+/// #381 — Per-IP global rate limiter middleware (120 req/min).
+///
+/// Placed *outside* the auth guard so pre-auth floods are throttled before
+/// the JWT validation overhead is incurred.
+///
+/// Debug + loopback traffic is exempt: Playwright and local devtools make
+/// bursts of legitimate requests (status bar polls, WS reconnects, tile
+/// fetches, e2e test setup) that otherwise trip 429 and break UX.
+async fn ip_rate_limit_middleware(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    axum::extract::State(limiter): axum::extract::State<
+        Arc<
+            governor::RateLimiter<
+                std::net::IpAddr,
+                governor::state::keyed::DefaultKeyedStateStore<std::net::IpAddr>,
+                governor::clock::DefaultClock,
+            >,
+        >,
+    >,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    if cfg!(debug_assertions) && addr.ip().is_loopback() {
+        return Ok(next.run(req).await);
+    }
+    match limiter.check_key(&addr.ip()) {
+        Ok(_) => Ok(next.run(req).await),
+        Err(_) => {
+            tracing::warn!(source_ip = %addr, "ip_rate_limit_middleware: 429 — too many requests");
+            Err(StatusCode::TOO_MANY_REQUESTS)
+        }
     }
 }
 
