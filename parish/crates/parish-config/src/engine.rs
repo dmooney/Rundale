@@ -365,24 +365,6 @@ pub struct NpcConfig {
     /// which people the NPC intends to reference before generating dialogue).
     #[serde(default)]
     pub two_pass_dialogue: bool,
-    /// Whether the structured character-emotion system is active.
-    ///
-    /// When `true`, Tier 1/2/3 prompts include the emotion preamble
-    /// from [`parish_types::EmotionState::prompt_guidance`] and the
-    /// extended JSON schema with `emotion_delta`; autonomous speaker
-    /// selection consults [`parish_types::EmotionGates`].
-    ///
-    /// When `false`, prompts are byte-identical to the pre-feature
-    /// shape and speaker selection falls back to arousal-only
-    /// scoring. Decay and contagion ticks always run regardless —
-    /// toggling the flag mid-session reveals accurate state rather
-    /// than a stale snapshot.
-    #[serde(default = "default_emotions_enabled")]
-    pub emotions_enabled: bool,
-}
-
-fn default_emotions_enabled() -> bool {
-    true
 }
 
 impl Default for NpcConfig {
@@ -400,7 +382,6 @@ impl Default for NpcConfig {
             reaction_context_count: 5,
             reactions: ReactionConfig::default(),
             two_pass_dialogue: false,
-            emotions_enabled: default_emotions_enabled(),
         }
     }
 }

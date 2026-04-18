@@ -228,6 +228,24 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
     npcs.into_iter()
         .map(|npc| {
             let introduced = npc_manager.is_introduced(npc.id);
+            let top_leaves = parish_types::project_top_k(&npc.emotion, 3)
+                .into_iter()
+                .map(|l| l.word.to_string())
+                .collect();
+            let gates = npc.emotion.gates();
+            let mut active_gates = Vec::new();
+            if gates.panic_truth {
+                active_gates.push("panic_truth".to_string());
+            }
+            if gates.public_outburst {
+                active_gates.push("public_outburst".to_string());
+            }
+            if gates.withdraws_silent {
+                active_gates.push("withdraws_silent".to_string());
+            }
+            if gates.effusive {
+                active_gates.push("effusive".to_string());
+            }
             NpcInfo {
                 name: npc_manager.display_name(npc).to_string(),
                 real_name: npc.name.clone(),
@@ -235,6 +253,8 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
                 mood_emoji: mood_emoji(&npc.mood).to_string(),
                 mood: npc.mood.clone(),
                 introduced,
+                top_leaves,
+                active_gates,
             }
         })
         .collect()
@@ -542,6 +562,7 @@ pub fn prepare_npc_conversation_turn(
     speaker_id: NpcId,
     transcript: &[ConversationLine],
     improv_enabled: bool,
+    emotions_enabled: bool,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
     // Mark NPC as introduced before computing display_name so first conversation
@@ -581,6 +602,7 @@ pub fn prepare_npc_conversation_turn(
     let system_prompt = ticks::build_enhanced_system_prompt_with_config(
         &npc,
         improv_enabled,
+        emotions_enabled,
         &crate::config::NpcConfig::default(),
         &npc_names,
         Some(&roster),
@@ -631,6 +653,7 @@ pub fn prepare_npc_conversation(
     raw: &str,
     target_name: Option<&str>,
     improv_enabled: bool,
+    emotions_enabled: bool,
 ) -> Option<NpcConversationSetup> {
     let target_names = target_name
         .map(|name| vec![name.to_string()])
@@ -638,7 +661,15 @@ pub fn prepare_npc_conversation(
     let speaker_id = resolve_npc_targets(world, npc_manager, &target_names)
         .into_iter()
         .next()?;
-    prepare_npc_conversation_turn(world, npc_manager, raw, speaker_id, &[], improv_enabled)
+    prepare_npc_conversation_turn(
+        world,
+        npc_manager,
+        raw,
+        speaker_id,
+        &[],
+        improv_enabled,
+        emotions_enabled,
+    )
 }
 
 /// Detects if the player is introducing themselves and records the name.

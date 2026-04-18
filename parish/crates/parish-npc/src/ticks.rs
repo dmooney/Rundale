@@ -85,11 +85,12 @@ pub fn relationship_label(strength: f64) -> &'static str {
 pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
+    emotions_enabled: bool,
     config: &NpcConfig,
     npc_names: &std::collections::HashMap<NpcId, String>,
     known_roster: Option<&[(NpcId, String, String)]>,
 ) -> String {
-    let mut prompt = build_tier1_system_prompt(npc, improv, config.emotions_enabled);
+    let mut prompt = build_tier1_system_prompt(npc, improv, emotions_enabled);
 
     // Add known NPC roster (relationships + memory + co-located NPCs)
     // NpcId(0) is the player — shown first with a special "currently speaking with" note.
@@ -153,7 +154,14 @@ pub fn build_enhanced_system_prompt(
     improv: bool,
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
-    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names, None)
+    build_enhanced_system_prompt_with_config(
+        npc,
+        improv,
+        true,
+        &NpcConfig::default(),
+        npc_names,
+        None,
+    )
 }
 
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
@@ -1694,7 +1702,7 @@ mod tests {
         let npc_names: HashMap<NpcId, String> =
             [(NpcId(2), "Brigid".to_string())].into_iter().collect();
         let prompt =
-            build_enhanced_system_prompt_with_config(&npc, false, &config, &npc_names, None);
+            build_enhanced_system_prompt_with_config(&npc, false, true, &config, &npc_names, None);
         // 0.8 is below 0.9 threshold, so should be "friendly" not "very close"
         assert!(prompt.contains("friendly"));
         assert!(!prompt.contains("very close"));

@@ -968,7 +968,13 @@
 					disabled={$streamingActive}
 					onclick={() => insertNpcMention(npc.name)}
 				>
-					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
+					<span class="npc-chip-mood"
+						><MoodIcon
+							mood={npc.mood}
+							topLeaves={npc.top_leaves}
+							activeGates={npc.active_gates}
+						/></span
+					>
 					<span class="npc-chip-copy">
 						<span class="npc-chip-name">{npc.name}</span>
 						{#if npc.introduced}

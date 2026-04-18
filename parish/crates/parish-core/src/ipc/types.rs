@@ -121,6 +121,14 @@ pub struct NpcInfo {
     pub introduced: bool,
     /// Emoji representation of the mood.
     pub mood_emoji: String,
+    /// Top-3 leaf descriptors from the structured emotion state — lets
+    /// the sidebar tooltip show a richer read than the bare mood string.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub top_leaves: Vec<String>,
+    /// Active behavioural gate names (e.g. "panic_truth"). Empty when no
+    /// gate fires — only populated for interesting states.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_gates: Vec<String>,
 }
 
 // ── Theme palette ───────────────────────────────────────────────────────────
@@ -406,6 +414,8 @@ mod tests {
             mood: "content".to_string(),
             introduced: true,
             mood_emoji: "😌".to_string(),
+            top_leaves: Vec::new(),
+            active_gates: Vec::new(),
         };
         let json = serde_json::to_string(&info).unwrap();
         let deser: NpcInfo = serde_json::from_str(&json).unwrap();

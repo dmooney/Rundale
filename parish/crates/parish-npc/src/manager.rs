@@ -911,6 +911,25 @@ impl NpcManager {
         // Collect short descriptions for the recent_tier4_events ring buffer.
         let mut life_descriptions: Vec<String> = Vec::new();
 
+        // Small helper: apply an emotion impulse AND push the matching
+        // EmotionChanged event onto game_events so downstream
+        // subscribers (debug panel, future journal) see the change.
+        fn apply_and_emit(
+            npc: &mut crate::Npc,
+            impulse: &parish_types::EmotionImpulse,
+            timestamp: DateTime<Utc>,
+            game_events: &mut Vec<GameEvent>,
+        ) {
+            npc.apply_emotion_impulse(impulse);
+            game_events.push(GameEvent::EmotionChanged {
+                npc_id: npc.id,
+                family: impulse.family,
+                delta: impulse.delta,
+                cause: impulse.cause.clone().unwrap_or_default(),
+                timestamp,
+            });
+        }
+
         for event in events {
             match event {
                 Tier4Event::Illness { npc_id } => {
@@ -920,18 +939,28 @@ impl NpcManager {
                         // mood string is re-derived from the state via
                         // apply_emotion_impulse so downstream readers
                         // (persistence, emoji map) stay consistent.
-                        npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Sadness,
-                            delta: 0.35,
-                            pad: None,
-                            cause: Some("fallen ill".to_string()),
-                        });
-                        npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Fear,
-                            delta: 0.15,
-                            pad: None,
-                            cause: Some("fallen ill".to_string()),
-                        });
+                        apply_and_emit(
+                            npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Sadness,
+                                delta: 0.35,
+                                pad: None,
+                                cause: Some("fallen ill".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
+                        apply_and_emit(
+                            npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Fear,
+                                delta: 0.15,
+                                pad: None,
+                                cause: Some("fallen ill".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
                         let new_mood = npc.mood.clone();
                         let desc = format!("{} has fallen ill.", npc.name);
                         life_descriptions.push(desc.clone());
@@ -953,24 +982,39 @@ impl NpcManager {
                         // Recovery is an unambiguous relief — nudge
                         // joy upward while also trimming the sadness
                         // and fear that illness seeded.
-                        npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Joy,
-                            delta: 0.3,
-                            pad: None,
-                            cause: Some("recovered from illness".to_string()),
-                        });
-                        npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Sadness,
-                            delta: -0.3,
-                            pad: None,
-                            cause: Some("recovered from illness".to_string()),
-                        });
-                        npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Fear,
-                            delta: -0.2,
-                            pad: None,
-                            cause: Some("recovered from illness".to_string()),
-                        });
+                        apply_and_emit(
+                            npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Joy,
+                                delta: 0.3,
+                                pad: None,
+                                cause: Some("recovered from illness".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
+                        apply_and_emit(
+                            npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Sadness,
+                                delta: -0.3,
+                                pad: None,
+                                cause: Some("recovered from illness".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
+                        apply_and_emit(
+                            npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Fear,
+                                delta: -0.2,
+                                pad: None,
+                                cause: Some("recovered from illness".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
                         let new_mood = npc.mood.clone();
                         let desc = format!("{} has recovered from illness.", npc.name);
                         life_descriptions.push(desc.clone());
@@ -1053,12 +1097,17 @@ impl NpcManager {
                         .unwrap_or_default();
                     for (target_id, strength) in grief_targets {
                         if let Some(relative) = self.npcs.get_mut(&target_id) {
-                            relative.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                                family: parish_types::EmotionFamily::Sadness,
-                                delta: 0.5 * strength,
-                                pad: None,
-                                cause: Some(format!("{name} has passed away")),
-                            });
+                            apply_and_emit(
+                                relative,
+                                &parish_types::EmotionImpulse {
+                                    family: parish_types::EmotionFamily::Sadness,
+                                    delta: 0.5 * strength,
+                                    pad: None,
+                                    cause: Some(format!("{name} has passed away")),
+                                },
+                                timestamp,
+                                &mut game_events,
+                            );
                         }
                     }
 
@@ -1080,18 +1129,28 @@ impl NpcManager {
                     // Joy + affection impulse to both parents.
                     for pid in [parent_ids.0, parent_ids.1] {
                         if let Some(npc) = self.npcs.get_mut(&pid) {
-                            npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                                family: parish_types::EmotionFamily::Joy,
-                                delta: 0.4,
-                                pad: None,
-                                cause: Some("a child has been born".to_string()),
-                            });
-                            npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                                family: parish_types::EmotionFamily::Affection,
-                                delta: 0.3,
-                                pad: None,
-                                cause: Some("a child has been born".to_string()),
-                            });
+                            apply_and_emit(
+                                npc,
+                                &parish_types::EmotionImpulse {
+                                    family: parish_types::EmotionFamily::Joy,
+                                    delta: 0.4,
+                                    pad: None,
+                                    cause: Some("a child has been born".to_string()),
+                                },
+                                timestamp,
+                                &mut game_events,
+                            );
+                            apply_and_emit(
+                                npc,
+                                &parish_types::EmotionImpulse {
+                                    family: parish_types::EmotionFamily::Affection,
+                                    delta: 0.3,
+                                    pad: None,
+                                    cause: Some("a child has been born".to_string()),
+                                },
+                                timestamp,
+                                &mut game_events,
+                            );
                         }
                     }
                     let desc =
@@ -1135,23 +1194,33 @@ impl NpcManager {
                         if let Some(rel) = buyer_npc.relationships.get_mut(seller) {
                             rel.adjust_strength(0.1);
                         }
-                        buyer_npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Joy,
-                            delta: 0.08,
-                            pad: None,
-                            cause: Some("completed a trade".to_string()),
-                        });
+                        apply_and_emit(
+                            buyer_npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Joy,
+                                delta: 0.08,
+                                pad: None,
+                                cause: Some("completed a trade".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
                     }
                     if let Some(seller_npc) = self.npcs.get_mut(seller) {
                         if let Some(rel) = seller_npc.relationships.get_mut(buyer) {
                             rel.adjust_strength(0.1);
                         }
-                        seller_npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                            family: parish_types::EmotionFamily::Joy,
-                            delta: 0.08,
-                            pad: None,
-                            cause: Some("completed a trade".to_string()),
-                        });
+                        apply_and_emit(
+                            seller_npc,
+                            &parish_types::EmotionImpulse {
+                                family: parish_types::EmotionFamily::Joy,
+                                delta: 0.08,
+                                pad: None,
+                                cause: Some("completed a trade".to_string()),
+                            },
+                            timestamp,
+                            &mut game_events,
+                        );
                     }
 
                     let desc = format!("{buyer_name} completed a trade with {seller_name}.");
@@ -1185,18 +1254,28 @@ impl NpcManager {
                             if let Some(rel) = npc.relationships.get_mut(&other) {
                                 rel.adjust_strength(0.05);
                             }
-                            npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                                family: parish_types::EmotionFamily::Joy,
-                                delta: 0.15,
-                                pad: None,
-                                cause: Some("festival gathering".to_string()),
-                            });
-                            npc.apply_emotion_impulse(&parish_types::EmotionImpulse {
-                                family: parish_types::EmotionFamily::Affection,
-                                delta: 0.1,
-                                pad: None,
-                                cause: Some("festival gathering".to_string()),
-                            });
+                            apply_and_emit(
+                                npc,
+                                &parish_types::EmotionImpulse {
+                                    family: parish_types::EmotionFamily::Joy,
+                                    delta: 0.15,
+                                    pad: None,
+                                    cause: Some("festival gathering".to_string()),
+                                },
+                                timestamp,
+                                &mut game_events,
+                            );
+                            apply_and_emit(
+                                npc,
+                                &parish_types::EmotionImpulse {
+                                    family: parish_types::EmotionFamily::Affection,
+                                    delta: 0.1,
+                                    pad: None,
+                                    cause: Some("festival gathering".to_string()),
+                                },
+                                timestamp,
+                                &mut game_events,
+                            );
                         }
                     }
                     game_events.push(GameEvent::RelationshipChanged {
@@ -2298,7 +2377,29 @@ mod tests {
 
         let now = Utc.with_ymd_and_hms(1820, 6, 1, 12, 0, 0).unwrap();
         let events = vec![crate::tier4::Tier4Event::Death { npc_id: NpcId(1) }];
-        let _game_events = mgr.apply_tier4_events(&events, now);
+        let game_events = mgr.apply_tier4_events(&events, now);
+
+        // EmotionChanged events should fire for the bonded relatives.
+        let emotion_events: Vec<_> = game_events
+            .iter()
+            .filter_map(|ev| match ev {
+                GameEvent::EmotionChanged {
+                    npc_id,
+                    family,
+                    cause,
+                    ..
+                } => Some((*npc_id, *family, cause.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            emotion_events.len(),
+            2,
+            "expected one EmotionChanged per surviving bonded relative; got {emotion_events:?}"
+        );
+        assert!(emotion_events.iter().all(|(_, fam, cause)| {
+            *fam == parish_types::EmotionFamily::Sadness && cause.contains("passed away")
+        }));
 
         // Dead NPC is gone.
         assert!(mgr.get(NpcId(1)).is_none());

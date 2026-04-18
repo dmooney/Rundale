@@ -900,6 +900,7 @@ async fn run_npc_turn(
             speaker_id,
             transcript,
             config.improv_enabled,
+            config.emotions_enabled(),
         )
     }?;
 

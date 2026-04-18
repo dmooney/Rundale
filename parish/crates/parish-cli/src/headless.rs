@@ -1077,6 +1077,7 @@ async fn handle_headless_game_input(
                 &dialogue,
                 target_name.as_deref(),
                 app.improv_enabled,
+                !app.flags.is_disabled("emotions"),
             ) {
                 // Teach this NPC the player's name if introduced
                 if app.world.player_name.is_some()

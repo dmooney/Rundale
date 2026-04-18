@@ -66,6 +66,11 @@ export interface NpcInfo {
 	mood: string;
 	introduced: boolean;
 	mood_emoji: string;
+	/** Top-3 leaf descriptors from the structured emotion state. May be
+	 * absent when the backend is running an older build. */
+	top_leaves?: string[];
+	/** Active behavioural gate names. May be absent on older backends. */
+	active_gates?: string[];
 }
 
 export interface ThemePalette {
