@@ -70,6 +70,8 @@ pub struct SaveFileInfo {
     pub file_size: String,
     /// Branches within the save file.
     pub branches: Vec<SaveBranchDisplay>,
+    /// Whether this save file is currently locked by another running instance.
+    pub locked: bool,
 }
 
 /// Ensures the saves directory exists and returns its path.
@@ -129,11 +131,14 @@ pub fn discover_saves(saves_dir: &Path, graph: &WorldGraph) -> Vec<SaveFileInfo>
             .map(|m| format_file_size(m.len()))
             .unwrap_or_default();
 
+        let locked = crate::lock::is_locked(&path);
+
         saves.push(SaveFileInfo {
             path,
             filename,
             file_size,
             branches,
+            locked,
         });
     }
 

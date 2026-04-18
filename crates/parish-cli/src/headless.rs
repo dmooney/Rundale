@@ -166,6 +166,9 @@ pub async fn run_headless(
     let db_path = crate::persistence::picker::run_picker(&saves_dir, &app.world.graph);
     app.save_file_path = Some(db_path.clone());
 
+    // Acquire advisory lock so other instances know this save is in use.
+    app.save_lock = crate::persistence::SaveFileLock::try_acquire(&db_path);
+
     match crate::persistence::Database::open(&db_path) {
         Ok(db) => {
             let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
@@ -783,6 +786,9 @@ async fn handle_headless_load(app: &mut App, name: &str) {
                     app.npc_manager = mgr;
                 }
             }
+            // Release old lock and acquire lock on the new save file.
+            app.save_lock = crate::persistence::SaveFileLock::try_acquire(&new_path);
+
             match crate::persistence::Database::open(&new_path) {
                 Ok(new_db) => {
                     let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));

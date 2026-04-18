@@ -1531,7 +1531,21 @@ pub async fn load_branch(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    use parish_core::persistence::SaveFileLock;
+
     let path = std::path::PathBuf::from(&file_path);
+
+    // If switching to a different save file, acquire a new lock first.
+    let current_path = state.save_path.lock().await.clone();
+    let switching_files = current_path.as_ref() != Some(&path);
+
+    if switching_files {
+        let lock = SaveFileLock::try_acquire(&path)
+            .ok_or_else(|| "This save file is in use by another instance.".to_string())?;
+        // Release old lock and store new one.
+        *state.save_lock.lock().await = Some(lock);
+    }
+
     let db = Database::open(&path).map_err(|e| e.to_string())?;
 
     let (_, snapshot) = db
@@ -1650,8 +1664,16 @@ async fn do_create_branch(
 /// Creates a new save file and saves the current state.
 #[tauri::command]
 pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    use parish_core::persistence::SaveFileLock;
+
     let sd = saves_dir();
     let path = new_save_path(&sd);
+
+    // Acquire lock on the new save file, releasing any previous lock.
+    let lock = SaveFileLock::try_acquire(&path)
+        .ok_or_else(|| "Could not lock the new save file.".to_string())?;
+    *state.save_lock.lock().await = Some(lock);
+
     let db = Database::open(&path).map_err(|e| e.to_string())?;
 
     let branch = db

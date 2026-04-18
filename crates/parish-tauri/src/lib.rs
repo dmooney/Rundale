@@ -266,6 +266,8 @@ pub struct AppState {
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
     /// Editor session — separate from gameplay state, may be empty.
     pub editor: std::sync::Mutex<parish_core::ipc::editor::EditorSession>,
+    /// Advisory file lock for the currently active save file.
+    pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -598,6 +600,7 @@ pub fn run() {
         data_dir: data_dir.clone(),
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
+        save_lock: Mutex::new(None),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -757,6 +760,7 @@ pub fn run() {
                 // ── Persistence: auto-load or create save file ──────────────
                 {
                     use parish_core::persistence::Database;
+                    use parish_core::persistence::SaveFileLock;
                     use parish_core::persistence::picker::{
                         discover_saves, ensure_saves_dir, new_save_path,
                     };
@@ -785,8 +789,17 @@ pub fn run() {
                     let saves = discover_saves(&saves_dir, &world.graph);
                     drop(world);
 
-                    if let Some(save) = saves.last() {
-                        // Load the most recent save file
+                    // Find the most recent unlocked save (iterate in reverse).
+                    let unlocked_save = saves.iter().rev().find(|s| !s.locked);
+
+                    if let Some(save) = unlocked_save {
+                        // Acquire the advisory lock before loading.
+                        let lock = SaveFileLock::try_acquire(&save.path);
+                        if lock.is_some() {
+                            *state_setup.save_lock.lock().await = lock;
+                        }
+
+                        // Load the most recent unlocked save file
                         match Database::open(&save.path) {
                             Ok(db) => {
                                 // Find the "main" branch or first branch
@@ -838,9 +851,13 @@ pub fn run() {
                                 tracing::warn!("Failed to open save file {}: {}", save.filename, e);
                             }
                         }
-                    } else {
+                    } else if saves.is_empty() {
                         // No saves exist — create a new save file
                         let path = new_save_path(&saves_dir);
+                        let lock = SaveFileLock::try_acquire(&path);
+                        if lock.is_some() {
+                            *state_setup.save_lock.lock().await = lock;
+                        }
                         match Database::open(&path) {
                             Ok(db) => {
                                 if let Ok(Some(branch)) = db.find_branch("main") {
@@ -862,6 +879,14 @@ pub fn run() {
                                 tracing::warn!("Failed to create save file: {}", e);
                             }
                         }
+                    } else {
+                        // All saves are locked by other instances.
+                        // Show the save picker so the user can choose or create a new ledger.
+                        tracing::info!(
+                            "All {} save file(s) are locked by other instances — opening save picker",
+                            saves.len()
+                        );
+                        let _ = handle.emit(events::EVENT_SAVE_PICKER, ());
                     }
                 }
 

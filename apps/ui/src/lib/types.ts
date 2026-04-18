@@ -456,6 +456,7 @@ export interface SaveFileInfo {
 	filename: string;
 	file_size: string;
 	branches: SaveBranchDisplay[];
+	locked: boolean;
 }
 
 export interface SaveState {

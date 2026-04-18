@@ -89,10 +89,24 @@ clean:
 
 # ─── Run ─────────────────────────────────────────────────────────────────────
 
-# Run the game (Tauri desktop GUI) — installs frontend deps if missing
+# Run the game (Tauri desktop GUI) — installs frontend deps if missing.
+# Auto-detects a free dev port so multiple instances can run simultaneously.
 run:
-    @eval "$(fnm env)" && test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
-    eval "$(fnm env)" && cargo tauri dev
+    #!/usr/bin/env bash
+    eval "$(fnm env)"
+    test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
+    PORT=5173
+    while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
+        PORT=$((PORT + 1))
+    done
+    export PARISH_DEV_PORT=$PORT
+    if [ "$PORT" -eq 5173 ]; then
+        echo "Dev server port: $PORT"
+        cargo tauri dev
+    else
+        echo "Dev server port: $PORT (default 5173 was in use)"
+        cargo tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:$PORT\"}}"
+    fi
 
 # Run the game in headless REPL mode (plain stdin/stdout)
 run-headless:
@@ -109,9 +123,9 @@ web PORT="3001": ui-build
 
 # ─── Tauri & Frontend ────────────────────────────────────────────────────────
 
-# Start the Tauri desktop app in dev mode (frontend + backend)
+# Start the Tauri desktop app in dev mode (same as `run`)
 tauri-dev:
-    eval "$(fnm env)" && cargo tauri dev
+    just run
 
 # Build the Tauri desktop app for production
 tauri-build:
