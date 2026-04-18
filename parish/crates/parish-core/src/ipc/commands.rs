@@ -312,6 +312,11 @@ pub fn handle_command(
             ))
         }
         Command::Tick => {
+            // NOTE: no emotion decay here — Command::Tick re-runs schedule
+            // processing at the current game time without advancing it.
+            // Decay is a function of elapsed time, so it lives on the paths
+            // that actually move the clock forward (Command::Wait and
+            // apply_movement above).
             npc_manager.assign_tiers(world, &[]);
             let events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
             let count = events.len();
