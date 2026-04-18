@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "deploy/Dockerfile"
 
 [deploy]
-# /api/ui-config is a lightweight endpoint — good for health checks
-healthcheckPath = "/api/ui-config"
+# /api/health is the public liveness probe; /api/ui-config is auth-gated (#373).
+healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
