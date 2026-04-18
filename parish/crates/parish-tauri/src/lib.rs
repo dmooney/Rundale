@@ -1461,6 +1461,10 @@ pub fn run() {
                                                     game_time,
                                                 );
                                             }
+                                            // Emotional contagion leaks family intensities
+                                            // along strong positive relationships once per
+                                            // Tier 2 cycle, after events land.
+                                            npc_mgr.propagate_emotion_contagion(0.05);
                                             npc_mgr.record_tier2_tick(game_time);
                                             npc_mgr.set_tier2_in_flight(false);
 

@@ -90,6 +90,27 @@ Niamh, do the men from Boyle have claim on your da?
 # the behavioural-gate layer)
 
 # ---------------------------------------------------------------
+# Phase 3b: Decay via /wait.
+# apply_movement and /wait both advance the clock AND decay every
+# NPC's emotional state over the same window. Seed a strong anger
+# spike, then /wait long enough for the state to relax toward baseline.
+# ---------------------------------------------------------------
+
+# Reset to a clean slate then push Niamh's anger to 0.8.
+/stub-emotion Niamh Darcy anger=0.8 joy=0.0 fear=0.0 sadness=0.0
+/debug emotion Niamh Darcy
+
+# Default half-life is 4050s (67 game-minutes). Waiting 67 minutes
+# should roughly halve the anger; 134 minutes should quarter it.
+/wait 67
+/debug emotion Niamh Darcy
+# Expected: anger roughly halved (~0.4 +/- epsilon)
+
+/wait 67
+/debug emotion Niamh Darcy
+# Expected: anger roughly quartered (~0.2)
+
+# ---------------------------------------------------------------
 # Phase 4: Flag off — emotion gates should disappear from autonomous
 # scoring, though state still ticks underneath.
 # ---------------------------------------------------------------

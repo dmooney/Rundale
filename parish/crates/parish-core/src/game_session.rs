@@ -135,6 +135,10 @@ pub fn apply_movement(
             // Apply world state changes
             world.record_path_traversal(&path);
             world.clock.advance(minutes as i64);
+            // Emotional state decays toward the temperament baseline
+            // over the same game-time window. Runs unconditionally
+            // (not flag-gated) — see Npc.emotion docs for why.
+            npc_manager.decay_emotions((minutes as f32) * 60.0);
             world.player_location = destination;
             world.mark_visited(destination);
 

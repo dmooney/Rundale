@@ -525,6 +525,14 @@ pub async fn run_headless(
                                 game_time,
                             );
                         }
+                        // Emotional contagion runs once per Tier 2
+                        // cycle, after the batch events have landed.
+                        // A 5% leak along strong positive relationships
+                        // lets a distraught NPC's state gradually colour
+                        // their closest ties. Capped per-family inside
+                        // propagate_contagion so cascades can't detonate.
+                        app.npc_manager.propagate_emotion_contagion(0.05);
+
                         app.npc_manager.record_tier2_tick(game_time);
                         app.debug_event(format!(
                             "[tier2] {} events from {} groups",

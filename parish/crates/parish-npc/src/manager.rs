@@ -236,6 +236,25 @@ impl NpcManager {
         removed
     }
 
+    /// Exponentially decays every NPC's emotional state toward the
+    /// trait-derived baseline over `dt_secs` of game time.
+    ///
+    /// Safe to call every game-time advance — pure float math with
+    /// no LLM cost. See [`crate::ticks::decay_emotions_tick`].
+    pub fn decay_emotions(&mut self, dt_secs: f32) {
+        crate::ticks::decay_emotions_tick(&mut self.npcs, dt_secs);
+    }
+
+    /// Propagates a fraction of each NPC's family intensities to
+    /// NPCs they have strong positive relationships with.
+    ///
+    /// Intended to run once per Tier 2 cycle. See
+    /// [`crate::ticks::propagate_contagion`] for capping and
+    /// symmetry guarantees.
+    pub fn propagate_emotion_contagion(&mut self, fraction: f32) {
+        crate::ticks::propagate_contagion(&mut self.npcs, fraction);
+    }
+
     /// Invalidates the cached BFS distances.
     ///
     /// Must be called whenever the world graph is replaced wholesale — for
@@ -247,7 +266,6 @@ impl NpcManager {
     /// automatically inside `assign_tiers`.
     pub fn invalidate_bfs_cache(&mut self) {
         self.bfs_distances_cache = None;
-    }
 
     /// Returns a reference to an NPC by id.
     pub fn get(&self, id: NpcId) -> Option<&Npc> {

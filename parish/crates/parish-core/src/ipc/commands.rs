@@ -296,6 +296,9 @@ pub fn handle_command(
         }
         Command::Wait(minutes) => {
             world.clock.advance(minutes as i64);
+            // Decay emotional state over the wait window. Always
+            // runs — the feature flag only gates prompt-layer use.
+            npc_manager.decay_emotions((minutes as f32) * 60.0);
             npc_manager.assign_tiers(world, &[]);
             let _events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
             let now = world.clock.now();
@@ -997,6 +1000,32 @@ mod tests {
         let delta = (end - start).num_minutes();
         assert_eq!(delta, 30);
         assert!(result.response.contains("30 minutes"));
+    }
+
+    #[test]
+    fn wait_command_decays_emotions_toward_baseline() {
+        // /wait advances the clock AND decays every NPC's emotional
+        // state over the same window. Verify that a distraught NPC
+        // cools off by roughly one half-life after /wait covering
+        // that duration.
+        let (mut world, mut npc, mut config) = default_state();
+
+        // Default state may ship without NPCs — inject one.
+        let mut padraig = parish_npc::Npc::new_test_npc();
+        padraig.emotion.families.sadness = 0.8;
+        padraig.emotion.baseline.half_life_secs = 600.0; // 10 game-minutes
+        let id = padraig.id;
+        npc.add_npc(padraig);
+
+        // /wait 10 minutes = 600 seconds of game time = one half-life.
+        let _ = handle_command(Command::Wait(10), &mut world, &mut npc, &mut config);
+
+        let after = npc.get(id).unwrap().emotion.families.sadness;
+        // 0.8 -> ~0.4 after one half-life.
+        assert!(
+            (after - 0.4).abs() < 0.05,
+            "expected sadness to halve toward baseline, got {after}"
+        );
     }
 
     #[test]

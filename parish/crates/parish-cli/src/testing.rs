@@ -402,6 +402,12 @@ impl GameTestHarness {
     /// Useful for testing NPC movement without player actions.
     pub fn advance_time(&mut self, minutes: i64) {
         self.app.world.clock.advance(minutes);
+        // Decay every NPC's emotional state over the same window.
+        // Always runs regardless of the `emotions` flag — see
+        // Npc.emotion documentation.
+        self.app
+            .npc_manager
+            .decay_emotions((minutes.max(0) as f32) * 60.0);
 
         // Tick the weather engine for each hour that elapsed, so large time jumps
         // don't skip weather checks. The engine deduplicates by game-hour internally.
