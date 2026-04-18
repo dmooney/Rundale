@@ -41,7 +41,14 @@
 	 * lat/lon bounding box centered on the player that encloses every
 	 * neighbor plus a small halo. Feeding this into `fitBounds` produces a
 	 * player-centered view whose zoom scales with neighbor spread.
+	 *
+	 * The half-span is clamped to `MAX_HALF_SPAN` so one unusually distant
+	 * 1-hop neighbor (e.g. a road connection to the next townland) can't
+	 * force the camera so far out that the tile base becomes unreadable.
+	 * Neighbors beyond the clamp render as dots on the map edge with their
+	 * connection line sailing off the canvas.
 	 */
+	const MAX_HALF_SPAN = 0.008;
 	function computePlayerCenteredBounds(
 		player: MapLocation,
 		neighbors: MapLocation[]
@@ -60,6 +67,8 @@
 			maxDLat = Math.max(maxDLat, Math.abs(n.lat - player.lat));
 			maxDLon = Math.max(maxDLon, Math.abs(n.lon - player.lon));
 		}
+		maxDLat = Math.min(maxDLat, MAX_HALF_SPAN);
+		maxDLon = Math.min(maxDLon, MAX_HALF_SPAN);
 		// Add a small halo so the edge nodes aren't flush against the border.
 		maxDLat *= 1.4;
 		maxDLon *= 1.4;
