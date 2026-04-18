@@ -65,15 +65,28 @@ fn test_time_advances_with_travel() {
     let mut h = GameTestHarness::new();
     assert_eq!(h.time_of_day(), TimeOfDay::Morning);
 
-    // Move to crossroads first, then make many trips
-    h.execute("go to crossroads");
-    for _ in 0..20 {
-        h.execute("go to pub");
-        h.execute("go to crossroads");
+    // Move through the world until we've spent at least two in-game hours
+    // traveling. This keeps the test stable if map coordinates change.
+    let mut elapsed_minutes = match h.execute("go to crossroads") {
+        ActionResult::Moved { minutes, .. } => i64::from(minutes),
+        other => panic!("expected initial move to crossroads, got {other:?}"),
+    };
+
+    while elapsed_minutes < 120 {
+        let to_pub = h.execute("go to pub");
+        let ActionResult::Moved { minutes, .. } = to_pub else {
+            panic!("expected move to pub, got {to_pub:?}");
+        };
+        elapsed_minutes += i64::from(minutes);
+
+        let to_crossroads = h.execute("go to crossroads");
+        let ActionResult::Moved { minutes, .. } = to_crossroads else {
+            panic!("expected move to crossroads, got {to_crossroads:?}");
+        };
+        elapsed_minutes += i64::from(minutes);
     }
 
-    // After 20+ round trips, time should have advanced past Morning
-    // (each trip is ~5 min, so 40 trips × 5 min = ~200 game minutes)
+    // Starting from 08:00, two hours of travel must cross the Morning boundary.
     let tod = h.time_of_day();
     assert_ne!(tod, TimeOfDay::Morning, "Time should have advanced");
 }
