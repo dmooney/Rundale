@@ -66,12 +66,65 @@ pub enum InferencePriority {
     Batch = 2,
 }
 
-/// Shared ring buffer of inference call log entries.
-pub type InferenceLog = Arc<Mutex<VecDeque<InferenceLogEntry>>>;
+/// Bounded ring buffer of inference call log entries.
+///
+/// Enforces a hard `max_entries` cap independent of `VecDeque::capacity()`.
+/// `VecDeque::with_capacity` rounds up to the next power of two and reallocates
+/// on overflow, so using `capacity()` as a bound leaks memory exponentially —
+/// see issue #340. This struct stores the configured cap explicitly and evicts
+/// the oldest entry whenever `push` would exceed it.
+#[derive(Debug)]
+pub struct BoundedInferenceLog {
+    entries: VecDeque<InferenceLogEntry>,
+    max_entries: usize,
+}
 
-/// Creates a new empty inference log with pre-allocated capacity from config.
+impl BoundedInferenceLog {
+    /// Creates an empty log bounded to `max_entries`. A value of 0 is treated
+    /// as 1 so that a `push` always leaves exactly one entry in the log.
+    pub fn new(max_entries: usize) -> Self {
+        let cap = max_entries.max(1);
+        Self {
+            entries: VecDeque::with_capacity(cap),
+            max_entries: cap,
+        }
+    }
+
+    /// Appends `entry`, evicting the oldest entries until `len <= max_entries`.
+    pub fn push(&mut self, entry: InferenceLogEntry) {
+        while self.entries.len() >= self.max_entries {
+            self.entries.pop_front();
+        }
+        self.entries.push_back(entry);
+    }
+
+    /// Iterates over stored entries, oldest first.
+    pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, InferenceLogEntry> {
+        self.entries.iter()
+    }
+
+    /// Returns the current number of stored entries.
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// Returns true if the log is empty.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// Returns the configured maximum number of entries.
+    pub fn max_entries(&self) -> usize {
+        self.max_entries
+    }
+}
+
+/// Shared bounded ring buffer of inference call log entries.
+pub type InferenceLog = Arc<Mutex<BoundedInferenceLog>>;
+
+/// Creates a new empty inference log with capacity from config.
 pub fn new_inference_log_with_config(config: &InferenceConfig) -> InferenceLog {
-    Arc::new(Mutex::new(VecDeque::with_capacity(config.log_capacity)))
+    Arc::new(Mutex::new(BoundedInferenceLog::new(config.log_capacity)))
 }
 
 /// Creates a new empty inference log with default capacity.
@@ -541,10 +594,7 @@ pub fn spawn_inference_worker(
                     max_tokens,
                 };
                 let mut log = log.lock().await;
-                if log.len() >= log.capacity().max(1) {
-                    log.pop_front();
-                }
-                log.push_back(entry);
+                log.push(entry);
             }
 
             // Ignore send error — the caller may have dropped the receiver
@@ -556,6 +606,60 @@ pub fn spawn_inference_worker(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn log_entry(request_id: u64) -> InferenceLogEntry {
+        InferenceLogEntry {
+            request_id,
+            timestamp: "00:00:00".to_string(),
+            model: "test".to_string(),
+            streaming: false,
+            duration_ms: 0,
+            prompt_len: 0,
+            response_len: 0,
+            error: None,
+            system_prompt: None,
+            prompt_text: String::new(),
+            response_text: String::new(),
+            max_tokens: None,
+        }
+    }
+
+    /// Regression test for issue #340: the ring buffer must enforce its
+    /// configured cap regardless of `VecDeque::capacity()`'s rounded-up value.
+    #[test]
+    fn bounded_inference_log_enforces_configured_cap() {
+        let mut log = BoundedInferenceLog::new(50);
+        for i in 0..1000u64 {
+            log.push(log_entry(i));
+        }
+        assert_eq!(log.len(), 50, "log must never exceed its configured cap");
+        assert_eq!(log.max_entries(), 50);
+        // Oldest entry should have been evicted; we should see the last 50 IDs.
+        let ids: Vec<u64> = log.iter().map(|e| e.request_id).collect();
+        assert_eq!(ids.first().copied(), Some(950));
+        assert_eq!(ids.last().copied(), Some(999));
+    }
+
+    /// A zero cap is clamped to 1 so pushes always leave one entry.
+    #[test]
+    fn bounded_inference_log_zero_cap_is_clamped() {
+        let mut log = BoundedInferenceLog::new(0);
+        assert_eq!(log.max_entries(), 1);
+        log.push(log_entry(1));
+        log.push(log_entry(2));
+        assert_eq!(log.len(), 1);
+        assert_eq!(log.iter().next().unwrap().request_id, 2);
+    }
+
+    #[test]
+    fn bounded_inference_log_is_empty_and_len() {
+        let mut log = BoundedInferenceLog::new(4);
+        assert!(log.is_empty());
+        assert_eq!(log.len(), 0);
+        log.push(log_entry(1));
+        assert!(!log.is_empty());
+        assert_eq!(log.len(), 1);
+    }
 
     /// Helper to build a three-lane InferenceQueue and return the matching receivers.
     fn make_queue() -> (
