@@ -12,38 +12,42 @@ The player arrives as a newcomer to **Kilteevan Village** in the parish of Kilto
 
 ## Current Status
 
-**Phases 1–3 complete** (Core Loop, World Graph, NPCs & Simulation). **Phase 4 — Persistence** is next.
+**Phases 1–4 complete** (Core Loop, World Graph, NPCs & Simulation, Persistence). **Phase 5 — Full LOD & Scale** is in progress: sub-phases 5A–5E are done (event bus, weather state machine, long-term memory & gossip, Tier 3 batch inference, Tier 4 rules engine & seasonal effects), and 5F (world graph expansion to Roscommon/Athlone/Dublin) is the next open item. **Phase 8 — Tauri GUI** is landed (one screenshot-capture polish item outstanding).
 
 See the [Roadmap](docs/requirements/roadmap.md) for per-item status tracking.
 
 ## Quick Start
 
+The workspace ships with a [`justfile`](justfile); run `just --list` for the full set of recipes.
+
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an OpenAI-compatible LLM endpoint (e.g. [Ollama](https://ollama.ai/) on `localhost:11434`, LM Studio, OpenRouter, or a custom provider configured in `parish.toml`).
+
+```sh
+# One-time: install system deps, Rust, Node, and frontend packages
+just setup
+```
+
 ### GUI Mode (Tauri Desktop App)
 
 The default experience is a Tauri 2 desktop app with a Svelte 5 frontend.
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [Ollama](https://ollama.ai/) on `localhost:11434`
-
 ```sh
-# Install the Tauri CLI (one-time)
-cargo install tauri-cli
-
-# Install frontend dependencies (one-time)
-cd apps/ui && npm install && cd ../..
-
-# Launch the desktop app
-cargo tauri dev
+just run          # launches cargo tauri dev
 ```
 
 ### Headless Mode (Terminal REPL)
 
-The default mode is a plain stdin/stdout REPL:
+Plain stdin/stdout REPL — useful for scripting, fixtures, and servers without a display:
 
 ```sh
-cargo run
+just run-headless
 ```
 
 On startup, a save picker shows existing save files (in `saves/`) with their timeline branches, or lets you start a new game. In-game, use `/load` to switch saves, `/save` to snapshot, `/fork <name>` to branch timelines.
+
+### Web Server
+
+An Axum backend in `crates/parish-server` serves the Svelte UI over WebSockets (see [OAuth setup](docs/oauth-setup.md) and the `deploy/` artifacts for Dockerfile + Railway config).
 
 **Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)
 
