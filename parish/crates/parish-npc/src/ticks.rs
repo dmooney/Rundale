@@ -355,12 +355,25 @@ pub fn apply_tier1_response_with_config(
     // delta, `apply_emotion_impulse` has already re-derived `mood`
     // from `emotion.label()` and we must *not* overwrite it with the
     // free-form string (which would break mood/emotion sync).
+    //
+    // When the LLM omits `emotion_delta` (emotions flag off, legacy
+    // schema, or a model that ignored the field), re-seed the
+    // structured `emotion` from the reported mood via the same
+    // `initial_from` heuristic used at NPC load. Without this,
+    // `npc.emotion` stays stale while `npc.mood` moves — and the
+    // next decay tick silently reverts `npc.mood` back to
+    // `emotion.label()`, undoing the LLM's reported shift. We
+    // assign `emotion` directly (not via `set_emotion`) so the LLM's
+    // exact string is preserved in `mood`; subsequent decay ticks
+    // will naturally normalise it to `emotion.label()` as the family
+    // vector evolves.
     if !emotion_already_applied
         && let Some(ref meta) = response.metadata
         && !meta.mood.is_empty()
         && meta.mood != npc.mood
     {
         events.push(format!("{} mood: {} -> {}", npc.name, npc.mood, meta.mood));
+        npc.emotion = parish_types::EmotionState::initial_from(&npc.temperament, &meta.mood);
         npc.mood = meta.mood.clone();
     }
 
@@ -1350,6 +1363,70 @@ mod tests {
 
         assert_eq!(npc.mood, "cheerful");
         assert_eq!(npc.memory.len(), 1);
+    }
+
+    #[test]
+    fn test_apply_tier1_legacy_mood_syncs_structured_emotion() {
+        // Regression: when the LLM omits emotion_delta and returns
+        // only a legacy mood string, the structured emotion must
+        // also be updated. Otherwise `npc.emotion` stays stale and
+        // the next decay tick silently reverts the mood back to
+        // `emotion.label()`, undoing the reported shift. Codex
+        // flagged this as a P1 on PR #443.
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        // Seed Padraig with a strong anger state so drift would be
+        // visible: his dominant family is Anger before the LLM
+        // reports a mood shift to "grieving".
+        npc.emotion.families.anger = 0.9;
+        npc.emotion.pleasure = -0.4;
+        npc.emotion.arousal = 0.7;
+        npc.emotion.dominance = 0.5;
+        npc.mood = npc.emotion.label().to_string();
+        let pre_label = npc.emotion.label().to_string();
+        assert!(
+            pre_label.contains("angry") || pre_label == "furious" || pre_label == "irritated",
+            "precondition: NPC should start in an anger label, got {pre_label}"
+        );
+
+        let response = NpcStreamResponse {
+            dialogue: "I've no words in me just now.".into(),
+            metadata: Some(NpcMetadata {
+                action: "stares at the floor".into(),
+                mood: "grieving".into(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                emotion_delta: None,
+            }),
+        };
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        apply_tier1_response(&mut npc, &response, "says softly", game_time);
+
+        // Mood string reflects the LLM's report exactly.
+        assert_eq!(npc.mood, "grieving");
+
+        // Critically: structured emotion is re-seeded from "grieving"
+        // so Sadness now dominates the family vector. Without the
+        // sync, Anger would still be 0.9 and Sadness ~0.
+        let (dom_family, dom_intensity) = npc.emotion.dominant_family();
+        assert_eq!(
+            dom_family,
+            parish_types::EmotionFamily::Sadness,
+            "structured emotion should re-seed to Sadness to match 'grieving' mood"
+        );
+        assert!(
+            dom_intensity > 0.5,
+            "sadness intensity should be meaningful, got {dom_intensity}"
+        );
+
+        // The drift sentinel: after a decay tick, mood should NOT
+        // snap back to an anger-family label, because emotion is
+        // already in the sadness family. Running decay and checking
+        // the label confirms the sync held.
+        decay_emotions_tick(
+            &mut std::collections::HashMap::from_iter([(npc.id, npc)]),
+            60.0,
+        );
     }
 
     #[test]
