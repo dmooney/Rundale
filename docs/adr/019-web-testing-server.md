@@ -1,4 +1,4 @@
-# ADR-018: Web Server Mode for Chrome GUI Testing
+# ADR-019: Web Server Mode for Chrome GUI Testing
 
 **Status:** Accepted
 **Date:** 2026-03-26
