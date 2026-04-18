@@ -72,7 +72,11 @@ pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> Wo
 /// adjacent to any visited location — also appears so the player can see
 /// where they could explore next. Frontier locations are marked with
 /// `visited: false` and have limited tooltip data.
-pub fn build_map_data(world: &WorldState, transport: &TransportMode) -> MapData {
+pub fn build_map_data(
+    world: &WorldState,
+    transport: &TransportMode,
+    reveal_unexplored_locations: bool,
+) -> MapData {
     let speed_m_per_s = transport.speed_m_per_s;
     let player_loc = world.player_location;
     let visited = &world.visited_locations;
@@ -90,12 +94,21 @@ pub fn build_map_data(world: &WorldState, transport: &TransportMode) -> MapData 
     // location at once, instead of running a separate BFS per visited location.
     let travel_time_map = world.graph.travel_times_from(player_loc, speed_m_per_s);
 
-    // Frontier: unvisited locations that neighbor at least one visited location
+    // Frontier: by default only unvisited locations neighboring the visited set.
+    // With reveal mode enabled, include all unvisited locations.
     let mut frontier: HashSet<LocationId> = HashSet::new();
-    for &v in visited {
-        for (neighbor_id, _) in world.graph.neighbors(v) {
-            if !visited.contains(&neighbor_id) {
-                frontier.insert(neighbor_id);
+    if reveal_unexplored_locations {
+        for id in world.graph.location_ids() {
+            if !visited.contains(&id) {
+                frontier.insert(id);
+            }
+        }
+    } else {
+        for &v in visited {
+            for (neighbor_id, _) in world.graph.neighbors(v) {
+                if !visited.contains(&neighbor_id) {
+                    frontier.insert(neighbor_id);
+                }
             }
         }
     }
@@ -778,7 +791,7 @@ mod tests {
     #[test]
     fn build_map_data_from_default_world() {
         let world = WorldState::new();
-        let map = build_map_data(&world, &TransportMode::walking());
+        let map = build_map_data(&world, &TransportMode::walking(), false);
         assert!(!map.player_location.is_empty());
         // At least the player's location should exist
         assert!(
@@ -795,7 +808,7 @@ mod tests {
             let start = world.player_location;
             let neighbor_count = world.graph.neighbors(start).len();
 
-            let map = build_map_data(&world, &TransportMode::walking());
+            let map = build_map_data(&world, &TransportMode::walking(), false);
 
             // Start location (visited) + its neighbors (frontier)
             assert_eq!(
@@ -854,7 +867,7 @@ mod tests {
             let neighbors = world.graph.neighbors(start);
             if let Some((neighbor_id, _)) = neighbors.first() {
                 world.mark_visited(*neighbor_id);
-                let map = build_map_data(&world, &TransportMode::walking());
+                let map = build_map_data(&world, &TransportMode::walking(), false);
 
                 // Visited locations should have visited=true
                 let visited: Vec<_> = map.locations.iter().filter(|l| l.visited).collect();
@@ -875,6 +888,25 @@ mod tests {
                     "frontier should appear unless all neighbors are visited"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn reveal_unexplored_shows_entire_graph_as_frontier_plus_visited() {
+        use crate::game_mod::{GameMod, find_default_mod};
+        if let Some(mod_dir) = find_default_mod() {
+            let game_mod = GameMod::load(&mod_dir).expect("should load default mod");
+            let world = crate::game_mod::world_state_from_mod(&game_mod).expect("world from mod");
+            let full_count = world.graph.location_ids().len();
+            let visited_count = world.visited_locations.len();
+
+            let map = build_map_data(&world, &TransportMode::walking(), true);
+            assert_eq!(map.locations.len(), full_count);
+
+            let visited_rendered = map.locations.iter().filter(|l| l.visited).count();
+            let frontier_rendered = map.locations.iter().filter(|l| !l.visited).count();
+            assert_eq!(visited_rendered, visited_count);
+            assert_eq!(visited_rendered + frontier_rendered, full_count);
         }
     }
 
@@ -991,7 +1023,7 @@ mod tests {
                 world.record_path_traversal(&[start, neighbor_id]);
                 world.mark_visited(neighbor_id);
 
-                let map = build_map_data(&world, &TransportMode::walking());
+                let map = build_map_data(&world, &TransportMode::walking(), false);
                 assert!(
                     !map.edge_traversals.is_empty(),
                     "should include edge traversals"

@@ -118,8 +118,10 @@ pub async fn get_world_snapshot(
 #[tauri::command]
 pub async fn get_map(state: tauri::State<'_, Arc<AppState>>) -> Result<MapData, String> {
     let world = state.world.lock().await;
+    let config = state.config.lock().await;
     let transport = state.transport.default_mode();
-    let core_map = parish_core::ipc::build_map_data(&world, transport);
+    let core_map =
+        parish_core::ipc::build_map_data(&world, transport, config.reveal_unexplored_locations);
 
     let player_loc = world.player_location;
     let (player_lat, player_lon) = world

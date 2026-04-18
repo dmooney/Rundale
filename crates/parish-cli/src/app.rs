@@ -99,6 +99,8 @@ pub struct App {
     pub pronunciation_hints: Vec<LanguageHint>,
     /// Whether improv craft mode is enabled for NPC dialogue.
     pub improv_enabled: bool,
+    /// Whether map APIs should reveal all unexplored locations.
+    pub reveal_unexplored_locations: bool,
     /// Whether the debug sidebar panel is visible.
     pub debug_sidebar_visible: bool,
     /// Active debug panel tab index (0=Overview, 1=NPCs, 2=World, 3=Events, 4=Inference).
@@ -196,6 +198,7 @@ impl App {
             sidebar_visible: false,
             pronunciation_hints: Vec::new(),
             improv_enabled: false,
+            reveal_unexplored_locations: false,
             debug_sidebar_visible: false,
             debug_tab: 0,
             debug_selected_npc: None,
@@ -368,6 +371,7 @@ impl App {
             cloud_api_key: self.cloud_api_key.clone(),
             cloud_base_url: self.cloud_base_url.clone(),
             improv_enabled: self.improv_enabled,
+            reveal_unexplored_locations: self.reveal_unexplored_locations,
             max_follow_up_turns: 2,
             idle_banter_after_secs: 25,
             auto_pause_after_secs: 60,
@@ -405,6 +409,7 @@ impl App {
         self.cloud_api_key = cfg.cloud_api_key.clone();
         self.cloud_base_url = cfg.cloud_base_url.clone();
         self.improv_enabled = cfg.improv_enabled;
+        self.reveal_unexplored_locations = cfg.reveal_unexplored_locations;
         self.flags = cfg.flags.clone();
 
         // Apply per-category overrides
@@ -447,6 +452,7 @@ mod tests {
         assert_eq!(app.scroll.offset, 0);
         assert!(!app.sidebar_visible);
         assert!(!app.improv_enabled);
+        assert!(!app.reveal_unexplored_locations);
         assert!(app.pronunciation_hints.is_empty());
         assert_eq!(app.idle_counter, 0);
     }

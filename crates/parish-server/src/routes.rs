@@ -60,8 +60,13 @@ pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> J
 /// `GET /api/map` — returns visited locations, edges, and player position.
 pub async fn get_map(Extension(state): Extension<Arc<AppState>>) -> Json<MapData> {
     let world = state.world.lock().await;
+    let config = state.config.lock().await;
     let transport = state.transport.default_mode();
-    Json(parish_core::ipc::build_map_data(&world, transport))
+    Json(parish_core::ipc::build_map_data(
+        &world,
+        transport,
+        config.reveal_unexplored_locations,
+    ))
 }
 
 /// `GET /api/npcs-here` — returns NPCs at the player's current location.
@@ -1891,6 +1896,7 @@ pub(crate) mod tests {
                 category_rate_limit: [None, None, None, None],
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
             },
             None,
             transport,

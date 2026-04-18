@@ -150,6 +150,10 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ),
     ("/status", "Where am I?"),
     ("/time", "Time, weather, and season details"),
+    (
+        "/unexplored [reveal|hide]",
+        "Reveal or hide all unexplored locations",
+    ),
     ("/wait [minutes]", "Wait in place (default: 15 min)"),
 ];
 
@@ -495,6 +499,7 @@ pub fn handle_command(
         Command::Branches => CommandResult::effect_only(CommandEffect::ListBranches),
         Command::Log => CommandResult::effect_only(CommandEffect::ShowLog),
         Command::Map(arg) => handle_map_command(config, arg),
+        Command::Unexplored(arg) => handle_unexplored_command(config, arg),
         Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
         Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
         Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
@@ -543,6 +548,33 @@ pub fn handle_command(
                 }
             }
         },
+    }
+}
+
+/// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
+fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
+    match arg {
+        Some(true) => {
+            config.reveal_unexplored_locations = true;
+            CommandResult::text(
+                "All unexplored locations are now revealed on the map (still marked unvisited).",
+            )
+        }
+        Some(false) => {
+            config.reveal_unexplored_locations = false;
+            CommandResult::text("Unexplored locations are hidden again (fog-of-war frontier only).")
+        }
+        None => {
+            let status = if config.reveal_unexplored_locations {
+                "revealed"
+            } else {
+                "hidden"
+            };
+            CommandResult::text(format!(
+                "Unexplored locations are currently {}.\nUsage: /unexplored reveal|hide",
+                status
+            ))
+        }
     }
 }
 
@@ -1447,6 +1479,45 @@ mod tests {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(Command::Help, &mut world, &mut npc, &mut config);
         assert!(result.response.contains("/map"));
+        assert!(result.response.contains("/unexplored"));
+    }
+
+    #[test]
+    fn unexplored_reveal_updates_config() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::Unexplored(Some(true)),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(config.reveal_unexplored_locations);
+        assert!(result.response.contains("revealed"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn unexplored_hide_updates_config() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.reveal_unexplored_locations = true;
+        let result = handle_command(
+            Command::Unexplored(Some(false)),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(!config.reveal_unexplored_locations);
+        assert!(result.response.contains("hidden"));
+        assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn unexplored_none_reports_status_and_usage() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Unexplored(None), &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("currently hidden"));
+        assert!(result.response.contains("/unexplored reveal|hide"));
+        assert!(result.effects.is_empty());
     }
 
     #[test]
