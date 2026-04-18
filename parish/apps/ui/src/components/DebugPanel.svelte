@@ -284,6 +284,26 @@
 							<div class="field">Verbal: {selectedNpc.intelligence.verbal} | Analytical: {selectedNpc.intelligence.analytical} | Emotional: {selectedNpc.intelligence.emotional} | Practical: {selectedNpc.intelligence.practical} | Wisdom: {selectedNpc.intelligence.wisdom} | Creative: {selectedNpc.intelligence.creative}</div>
 						</div>
 
+						<div class="section">
+							<h5>Emotion</h5>
+							<div class="field">Label: <span class="accent">{selectedNpc.emotion.label}</span></div>
+							<div class="field">Top leaves: {selectedNpc.emotion.top_leaves.join(', ') || '—'}</div>
+							<div class="field">PAD: P{selectedNpc.emotion.pleasure.toFixed(2)} A{selectedNpc.emotion.arousal.toFixed(2)} D{selectedNpc.emotion.dominance.toFixed(2)}</div>
+							<div class="field">
+								Families:
+								{#each Object.entries(selectedNpc.emotion.families).filter(([, v]) => v > 0.05) as [fam, v]}
+									<span class="emotion-family">{fam} {v.toFixed(2)}</span>
+								{/each}
+							</div>
+							{#if selectedNpc.emotion.active_gates.length > 0}
+								<div class="field">
+									Gates: {#each selectedNpc.emotion.active_gates as g}<span class="accent">{g}</span>{' '}{/each}
+								</div>
+							{:else}
+								<div class="field muted">Gates: none active</div>
+							{/if}
+						</div>
+
 						{#if selectedNpc.schedule.length > 0}
 							<div class="section">
 								<h5>Schedule</h5>

@@ -196,6 +196,29 @@ pub struct GraphEdgeDebug {
     pub walking_minutes: u16,
 }
 
+/// Structured emotion state, flattened for IPC / UI consumption.
+#[derive(Debug, Clone, Serialize)]
+pub struct EmotionDebug {
+    /// Short descriptor (e.g. "grieving", "furious") derived from the
+    /// dominant family + intensity.
+    pub label: String,
+    /// Top-3 leaf descriptors from `project_top_k` — richer than the
+    /// label, useful for prompt-injection debugging.
+    pub top_leaves: Vec<String>,
+    /// Family intensities in `[0.0, 1.0]`, keyed by family name
+    /// (lowercase: "joy", "sadness", …).
+    pub families: std::collections::BTreeMap<String, f32>,
+    /// Pleasure dimension of PAD, in `[-1.0, 1.0]`.
+    pub pleasure: f32,
+    /// Arousal dimension of PAD, in `[-1.0, 1.0]`.
+    pub arousal: f32,
+    /// Dominance dimension of PAD, in `[-1.0, 1.0]`.
+    pub dominance: f32,
+    /// Active behavioural gate names (e.g. "panic_truth",
+    /// "withdraws_silent"). Empty when no gate fires.
+    pub active_gates: Vec<String>,
+}
+
 /// Full NPC state for deep-dive inspection.
 #[derive(Debug, Clone, Serialize)]
 pub struct NpcDebug {
@@ -223,6 +246,11 @@ pub struct NpcDebug {
     pub workplace_name: Option<String>,
     /// Current mood.
     pub mood: String,
+    /// Structured emotion state — family intensities, PAD coordinates,
+    /// and active behavioural gates. Populated from
+    /// [`parish_types::EmotionState`] so frontends can render bars
+    /// and tooltips without re-deriving from the mood string.
+    pub emotion: EmotionDebug,
     /// Whether the Tier 4 rules engine currently flags this NPC as ill.
     pub is_ill: bool,
     /// Current state description ("Present" or "InTransit -> Dest @HH:MM").
@@ -625,6 +653,47 @@ pub fn build_debug_snapshot(
         events: event_list,
         inference: inference.clone(),
         auth: auth.clone(),
+    }
+}
+
+/// Builds a debug view of an NPC's structured emotion state.
+fn build_emotion_debug(state: &parish_types::EmotionState) -> EmotionDebug {
+    use parish_types::EmotionFamily;
+
+    let f = &state.families;
+    let families: std::collections::BTreeMap<String, f32> = EmotionFamily::ALL
+        .iter()
+        .map(|fam| (format!("{:?}", fam).to_lowercase(), f.get(*fam)))
+        .collect();
+
+    let top_leaves = parish_types::project_top_k(state, 3)
+        .into_iter()
+        .map(|l| l.word.to_string())
+        .collect();
+
+    let gates = state.gates();
+    let mut active_gates = Vec::new();
+    if gates.panic_truth {
+        active_gates.push("panic_truth".to_string());
+    }
+    if gates.public_outburst {
+        active_gates.push("public_outburst".to_string());
+    }
+    if gates.withdraws_silent {
+        active_gates.push("withdraws_silent".to_string());
+    }
+    if gates.effusive {
+        active_gates.push("effusive".to_string());
+    }
+
+    EmotionDebug {
+        label: state.label().to_string(),
+        top_leaves,
+        families,
+        pleasure: state.pleasure,
+        arousal: state.arousal,
+        dominance: state.dominance,
+        active_gates,
     }
 }
 
@@ -1086,6 +1155,7 @@ fn build_npc_debug_list(
                 home_name: npc.home.map(|h| loc_name(h, graph)),
                 workplace_name: npc.workplace.map(|w| loc_name(w, graph)),
                 mood: npc.mood.clone(),
+                emotion: build_emotion_debug(&npc.emotion),
                 is_ill: npc.is_ill,
                 state: state_str,
                 tier,
