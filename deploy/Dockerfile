@@ -26,21 +26,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Download cloudflared at a pinned version and verify its SHA-256 checksum
-# before installing.  Never fetch an unpinned "latest" binary from the internet.
-# The upstream .sha256 file is tied to the original asset filename, so we must
-# verify under that filename and only then install to /usr/local/bin.
+# Download cloudflared at a pinned version and verify against an inline SHA-256.
+# Cloudflare does not publish per-asset .sha256 files, so we pin the digest here
+# and verify locally. Bump CLOUDFLARED_VERSION and CLOUDFLARED_SHA256 together.
 ARG CLOUDFLARED_VERSION=2024.12.2
+ARG CLOUDFLARED_SHA256=5237675a5e806120729acc78c5be02f9db5f406717699587abfa72b49b39fe40
 RUN cd /tmp \
  && curl -fsSL \
       "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64" \
       -o cloudflared-linux-amd64 \
- && curl -fsSL \
-      "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.sha256" \
-      -o cloudflared-linux-amd64.sha256 \
- && sha256sum -c cloudflared-linux-amd64.sha256 \
+ && echo "${CLOUDFLARED_SHA256}  cloudflared-linux-amd64" | sha256sum -c - \
  && install -m 0755 cloudflared-linux-amd64 /usr/local/bin/cloudflared \
- && rm cloudflared-linux-amd64 cloudflared-linux-amd64.sha256
+ && rm cloudflared-linux-amd64
 
 WORKDIR /app
 COPY --from=builder /build/target/release/parish ./
