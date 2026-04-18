@@ -823,4 +823,52 @@ mod tests {
         assert_eq!(action.mood, "");
         assert!(action.internal_thought.is_none());
     }
+
+    #[test]
+    fn test_parse_npc_stream_response_empty_metadata() {
+        let text = "Hello there!\n---\n{}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Hello there!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "");
+        assert_eq!(meta.mood, "");
+        assert!(meta.internal_thought.is_none());
+        assert!(meta.language_hints.is_empty());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_separator_only_newlines() {
+        let text = "\n---\n";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_multiline_dialogue() {
+        let text = "Ah, hello there!\nWelcome to Kilteevan.\nCome in, come in.\n---\n{\"action\": \"beckons\", \"mood\": \"welcoming\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert!(parsed.dialogue.contains("Welcome to Kilteevan."));
+        assert!(parsed.dialogue.contains("Come in, come in."));
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "beckons");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_triple_dash_in_dialogue() {
+        let text = "The road is long --- perhaps too long.\n---\n{\"mood\": \"weary\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "The road is long --- perhaps too long.");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.mood, "weary");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_whitespace_only_dialogue() {
+        let text = "   \n---\n{\"action\": \"silent\", \"mood\": \"pensive\"}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "silent");
+    }
 }
