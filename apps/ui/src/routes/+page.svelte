@@ -562,8 +562,11 @@
 	<!-- Mobile-only toggle toolbar -->
 	<div class="mobile-toolbar">
 		<button
+			type="button"
 			class="mobile-btn"
 			class:active={$fullMapOpen}
+			aria-pressed={$fullMapOpen}
+			aria-label="Toggle full map"
 			onclick={() => {
 				if ($fullMapOpen) {
 					fullMapOpen.set(false);
@@ -575,8 +578,11 @@
 			}}
 		>Map</button>
 		<button
+			type="button"
 			class="mobile-btn"
 			class:active={$focailOpen}
+			aria-pressed={$focailOpen}
+			aria-label="Toggle Irish words panel"
 			onclick={() => {
 				if ($focailOpen) {
 					focailOpen.set(false);

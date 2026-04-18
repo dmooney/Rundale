@@ -84,9 +84,9 @@
 			<span class="paused">⏸ Paused</span>
 		{/if}
 		<span class="spacer"></span>
-		<button class="save-toggle" class:save-active={$savePickerVisible} onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
+		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
 		<a class="designer-link" href="/editor" title="Parish Designer — edit mod data">Designer</a>
-		<button class="debug-toggle" class:debug-active={$debugVisible} onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
+		<button type="button" class="debug-toggle" class:debug-active={$debugVisible} aria-pressed={$debugVisible} aria-label="Toggle debug panel" onclick={() => debugVisible.update(v => !v)} title="Toggle debug panel (F12)">Dbg</button>
 		<AuthStatus />
 		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d}<span class="digit">{d}</span>{/each}</span>
 	{:else}
