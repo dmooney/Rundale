@@ -222,14 +222,18 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         tracing::info!("Google OAuth enabled");
     }
 
-    // ── #377: warn if WS signing key is not set (a random key will be used) ──
+    // ── #377: WS signing key ──
+    // Release builds require PARISH_WS_SIGNING_KEY (signing_key() panics
+    // otherwise). Debug builds auto-generate an ephemeral key; warn so
+    // developers notice tokens invalidate on restart.
     if std::env::var("PARISH_WS_SIGNING_KEY")
         .ok()
         .filter(|s| !s.is_empty())
         .is_none()
+        && cfg!(debug_assertions)
     {
         tracing::warn!(
-            "PARISH_WS_SIGNING_KEY is not set — a random ephemeral signing key will be used. \
+            "PARISH_WS_SIGNING_KEY is not set — debug build will use a random ephemeral signing key. \
              WS session tokens will be invalidated on server restart."
         );
     }
@@ -369,11 +373,11 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(
                 "default-src 'self'; \
-                 script-src 'self'; \
-                 style-src 'self' 'unsafe-inline'; \
+                 script-src 'self' 'unsafe-inline'; \
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                  img-src 'self' data: blob: https:; \
                  connect-src 'self' ws: wss: https:; \
-                 font-src 'self'; \
+                 font-src 'self' https://fonts.gstatic.com; \
                  frame-ancestors 'none'; \
                  base-uri 'self'; \
                  form-action 'self'",

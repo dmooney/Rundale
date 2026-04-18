@@ -120,7 +120,15 @@ impl CfAccessVerifier {
             return Ok(Arc::clone(cached));
         }
 
-        // Fetch fresh JWKS.
+        self.refresh_jwks().await
+    }
+
+    /// Unconditionally fetches a fresh JWKS, updating the cache.
+    ///
+    /// Called on the TTL-miss path above and on a `kid` miss inside
+    /// [`Self::validate`] so Cloudflare key rotations don't 401 every
+    /// request until the 10-minute TTL expires.
+    async fn refresh_jwks(&self) -> Result<Arc<Jwks>, String> {
         let resp = reqwest::get(&self.jwks_url)
             .await
             .map_err(|e| format!("JWKS fetch failed: {e}"))?;
@@ -132,6 +140,10 @@ impl CfAccessVerifier {
         if let Ok(mut guard) = self.jwks.lock() {
             *guard = Some(Arc::clone(&arc));
         }
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
         self.last_refresh.store(now_secs, Ordering::Relaxed);
         Ok(arc)
     }
@@ -144,10 +156,19 @@ impl CfAccessVerifier {
         let header: Header = decode_header(token).map_err(|e| format!("JWT header parse: {e}"))?;
         let kid = header.kid.ok_or("JWT missing kid")?;
 
+        // Try cached JWKS first; on a kid miss, force-refresh once before rejecting.
+        // Cloudflare rotates keys outside our 10-minute TTL; without this retry a
+        // rotation would 401 every request until the cache expires naturally.
         let jwks = self.get_jwks().await?;
-        let key = jwks
-            .find_key(&kid)
-            .ok_or_else(|| format!("Unknown JWKS kid: {kid}"))?;
+        let key_arc: Arc<Jwks>;
+        let key = if let Some(k) = jwks.find_key(&kid) {
+            k
+        } else {
+            key_arc = self.refresh_jwks().await?;
+            key_arc
+                .find_key(&kid)
+                .ok_or_else(|| format!("Unknown JWKS kid: {kid}"))?
+        };
 
         // Build decoding key.
         let decoding_key = match key.kty.as_str() {
@@ -197,20 +218,36 @@ pub fn global_verifier() -> Option<Arc<CfAccessVerifier>> {
 pub struct SessionToken;
 
 fn signing_key() -> Vec<u8> {
-    // Initialised once. If PARISH_WS_SIGNING_KEY is not set a random key is
-    // generated at startup (logged as a warning in lib.rs).
+    // Initialised once.
+    //
+    // Release builds **require** `PARISH_WS_SIGNING_KEY` to be set. A random
+    // ephemeral key would make tokens minted by one replica unverifiable by
+    // any other replica — any non-sticky LB path between `/api/session-init`
+    // and `/api/ws` would 401 valid tokens and trigger reconnect loops.
+    // Debug builds still auto-generate a key for local dev convenience.
     static KEY: OnceCell<Vec<u8>> = OnceCell::new();
     KEY.get_or_init(|| {
-        std::env::var("PARISH_WS_SIGNING_KEY")
+        if let Some(k) = std::env::var("PARISH_WS_SIGNING_KEY")
             .ok()
             .filter(|s| !s.is_empty())
-            .map(|s| s.into_bytes())
-            .unwrap_or_else(|| {
-                use rand::RngCore;
-                let mut key = vec![0u8; 32];
-                rand::thread_rng().fill_bytes(&mut key);
-                key
-            })
+        {
+            return k.into_bytes();
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            panic!(
+                "PARISH_WS_SIGNING_KEY must be set in release builds \
+                 (shared across replicas so WS session tokens are verifiable \
+                 regardless of which instance served /api/session-init)"
+            );
+        }
+        #[cfg(debug_assertions)]
+        {
+            use rand::RngCore;
+            let mut key = vec![0u8; 32];
+            rand::thread_rng().fill_bytes(&mut key);
+            key
+        }
     })
     .clone()
 }

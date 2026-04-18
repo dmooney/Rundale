@@ -107,15 +107,36 @@ function clearReconnectTimer(): void {
 	}
 }
 
+async function mintSessionToken(): Promise<string | null> {
+	// #377 — ws_handler rejects upgrades without a valid HMAC token minted by
+	// /api/session-init. In debug+loopback the server bypasses this, so an
+	// empty token string is fine; in release the token is required.
+	try {
+		const resp = await fetch('/api/session-init', { method: 'POST' });
+		if (!resp.ok) return null;
+		const body = (await resp.json()) as { token?: string };
+		return body.token ?? null;
+	} catch {
+		return null;
+	}
+}
+
 function ensureWebSocket(): void {
 	if (IS_TAURI || ws) return;
 
 	const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-	const url = `${protocol}//${window.location.host}/api/ws`;
+	const baseUrl = `${protocol}//${window.location.host}/api/ws`;
 
-	ws = new WebSocket(url);
+	void mintSessionToken().then((token) => {
+		if (ws) return; // another caller raced us
+		const url = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+		ws = new WebSocket(url);
+		attachHandlers(ws);
+	});
+}
 
-	ws.onmessage = (event) => {
+function attachHandlers(socket: WebSocket): void {
+	socket.onmessage = (event) => {
 		try {
 			const data = JSON.parse(event.data) as { event: string; payload: unknown };
 			const callbacks = wsListeners.get(data.event);
@@ -129,7 +150,7 @@ function ensureWebSocket(): void {
 		}
 	};
 
-	ws.onclose = () => {
+	socket.onclose = () => {
 		ws = null;
 		// Auto-reconnect after 2 seconds, but only if we still have
 		// listeners expecting events. If the page already tore down its
@@ -144,7 +165,7 @@ function ensureWebSocket(): void {
 		}
 	};
 
-	ws.onerror = () => {
+	socket.onerror = () => {
 		// onclose will fire after onerror
 	};
 }

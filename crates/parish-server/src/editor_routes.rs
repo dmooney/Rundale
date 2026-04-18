@@ -104,6 +104,7 @@ pub async fn editor_open_mod(
     let mut sessions = state.editor_sessions.lock().await;
     let session = sessions.entry(email).or_insert_with(EditorSession::default);
     session.snapshot = Some(snapshot.clone());
+    session.version = session.version.wrapping_add(1);
 
     Ok(Json(snapshot))
 }
@@ -241,7 +242,9 @@ pub async fn editor_update_npcs(
     })?;
     snap.npcs = npcs;
     parish_core::editor::validate::validate_snapshot(snap);
-    Ok(Json(snap.validation.clone()))
+    let validation = snap.validation.clone();
+    session.version = session.version.wrapping_add(1);
+    Ok(Json(validation))
 }
 
 #[derive(serde::Deserialize)]
@@ -306,7 +309,9 @@ pub async fn editor_update_locations(
     })?;
     snap.locations = locations;
     parish_core::editor::validate::validate_snapshot(snap);
-    Ok(Json(snap.validation.clone()))
+    let validation = snap.validation.clone();
+    session.version = session.version.wrapping_add(1);
+    Ok(Json(validation))
 }
 
 #[derive(serde::Deserialize)]
@@ -324,9 +329,15 @@ pub async fn editor_save(
     let docs = body.docs;
 
     // Clone snapshot out of session so we can do blocking I/O outside the lock.
-    let snapshot_opt = {
+    // Capture the session version too — on write-back we refuse to clobber a
+    // concurrent update that bumped the version in between (codex P2).
+    let (snapshot_opt, captured_version) = {
         let sessions = state.editor_sessions.lock().await;
-        sessions.get(&email).and_then(|s| s.snapshot.clone())
+        let s = sessions.get(&email);
+        (
+            s.and_then(|s| s.snapshot.clone()),
+            s.map(|s| s.version).unwrap_or(0),
+        )
     };
     let mut snapshot = snapshot_opt.ok_or_else(|| {
         (
@@ -348,11 +359,20 @@ pub async fn editor_save(
 
     let (was_saved, report, updated_snapshot) = result;
 
-    // Write the (potentially-mutated) snapshot back.
+    // Write the snapshot back only if no other request mutated the session
+    // while save_mod was running on the blocking pool. Otherwise we'd clobber
+    // a concurrent editor_update_{npcs,locations} with the stale clone.
     {
         let mut sessions = state.editor_sessions.lock().await;
         if let Some(session) = sessions.get_mut(&email) {
+            if session.version != captured_version {
+                return Err((
+                    StatusCode::CONFLICT,
+                    "editor session was modified during save; retry".to_string(),
+                ));
+            }
             session.snapshot = Some(updated_snapshot);
+            session.version = session.version.wrapping_add(1);
         }
     }
 
@@ -457,6 +477,7 @@ pub async fn editor_reload(
     let mut sessions = state.editor_sessions.lock().await;
     let session = sessions.entry(email).or_insert_with(EditorSession::default);
     session.snapshot = Some(snapshot.clone());
+    session.version = session.version.wrapping_add(1);
 
     Ok(Json(snapshot))
 }
@@ -470,6 +491,7 @@ pub async fn editor_close(
     let mut sessions = state.editor_sessions.lock().await;
     if let Some(session) = sessions.get_mut(&email) {
         session.snapshot = None;
+        session.version = session.version.wrapping_add(1);
     }
     Ok(StatusCode::NO_CONTENT)
 }
