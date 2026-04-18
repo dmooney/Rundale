@@ -153,6 +153,33 @@ impl Default for Temperament {
 }
 
 impl Temperament {
+    /// Validates that all fields are within the documented ranges.
+    ///
+    /// Returns an error describing the first out-of-range field so
+    /// mod authors see a specific message at load time instead of
+    /// silently getting clamped values during gameplay.
+    pub fn validate(&self) -> Result<(), String> {
+        if !(-1.0..=1.0).contains(&self.cheerfulness) {
+            return Err(format!(
+                "cheerfulness must be in [-1.0, 1.0], got {}",
+                self.cheerfulness
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.reactivity) {
+            return Err(format!(
+                "reactivity must be in [0.0, 1.0], got {}",
+                self.reactivity
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.persistence) {
+            return Err(format!(
+                "persistence must be in [0.0, 1.0], got {}",
+                self.persistence
+            ));
+        }
+        Ok(())
+    }
+
     /// Returns the decay half-life (seconds of game time) implied by
     /// `persistence`. Range: 15 game-minutes (persistence=0) to 2
     /// game-hours (persistence=1).

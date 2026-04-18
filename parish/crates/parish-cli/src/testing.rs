@@ -1165,6 +1165,9 @@ impl GameTestHarness {
                         self.app.debug_event(event);
                     }
                 }
+                // Light contagion so strongly-bonded NPCs feel immediate
+                // coupling from player-driven dialogue in test scripts.
+                self.app.npc_manager.propagate_emotion_contagion(0.02);
 
                 // Record conversation exchange for scene awareness
                 let location = self.app.world.player_location;

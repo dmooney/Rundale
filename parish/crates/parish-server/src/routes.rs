@@ -1026,6 +1026,9 @@ async fn run_npc_turn(
                 player_name.as_deref(),
             );
         }
+        // Light contagion after player-driven dialogue so strongly-bonded
+        // NPCs feel immediate coupling without waiting for Tier 2.
+        npc_manager.propagate_emotion_contagion(0.02);
     }
 
     let line = if parsed.dialogue.trim().is_empty() {

@@ -1097,6 +1097,11 @@ async fn run_npc_turn(
                 player_name.as_deref(),
             );
         }
+        // Light contagion after player-driven dialogue so strongly-bonded
+        // NPCs feel immediate coupling ("if my wife is shaken, I am too"),
+        // without waiting for the next Tier 2 cycle. Capped per-family by
+        // propagate_contagion's internal MAX_CONTAGION_DELTA.
+        npc_manager.propagate_emotion_contagion(0.02);
     }
 
     let line = if parsed.dialogue.trim().is_empty() {

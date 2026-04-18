@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
+use crate::emotion::EmotionFamily;
 use crate::ids::{LocationId, NpcId};
 
 /// Capacity of the broadcast channel.
@@ -98,6 +99,23 @@ pub enum GameEvent {
         /// When the event occurred.
         timestamp: DateTime<Utc>,
     },
+    /// A structured emotion family delta was applied to an NPC.
+    ///
+    /// Emitted after any `apply_impulse` / Tier 1-2-3 response that
+    /// mutates an emotion family. Enables journal replay, debug-panel
+    /// trace views, and analytics for tuning the leaf projection table.
+    EmotionChanged {
+        /// Which NPC's emotion changed.
+        npc_id: NpcId,
+        /// The family whose intensity shifted.
+        family: EmotionFamily,
+        /// Signed change in the family's intensity ([-1.0, 1.0]).
+        delta: f32,
+        /// Short cause phrase (e.g. "news of Tommy", "pub quarrel").
+        cause: String,
+        /// When the change occurred.
+        timestamp: DateTime<Utc>,
+    },
 }
 
 impl GameEvent {
@@ -111,7 +129,8 @@ impl GameEvent {
             | GameEvent::NpcDeparted { timestamp, .. }
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
-            | GameEvent::LifeEvent { timestamp, .. } => *timestamp,
+            | GameEvent::LifeEvent { timestamp, .. }
+            | GameEvent::EmotionChanged { timestamp, .. } => *timestamp,
         }
     }
 
@@ -126,6 +145,7 @@ impl GameEvent {
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::LifeEvent { .. } => "LifeEvent",
+            GameEvent::EmotionChanged { .. } => "EmotionChanged",
         }
     }
 }
@@ -312,5 +332,23 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"NpcDeparted\""));
+    }
+
+    #[test]
+    fn test_emotion_changed_roundtrip() {
+        let event = GameEvent::EmotionChanged {
+            npc_id: NpcId(7),
+            family: EmotionFamily::Sadness,
+            delta: -0.12,
+            cause: "decayed toward baseline".into(),
+            timestamp: test_timestamp(),
+        };
+        assert_eq!(event.event_type(), "EmotionChanged");
+        assert_eq!(event.timestamp(), test_timestamp());
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"EmotionChanged\""));
+        let restored: GameEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, restored);
     }
 }

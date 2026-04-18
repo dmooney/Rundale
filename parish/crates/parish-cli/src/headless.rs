@@ -1195,6 +1195,9 @@ async fn handle_headless_game_input(
                                                 app.debug_event(event.clone());
                                             }
                                         }
+                                        // Light contagion so strongly-bonded NPCs feel
+                                        // immediate coupling from player-driven dialogue.
+                                        app.npc_manager.propagate_emotion_contagion(0.02);
 
                                         // Record conversation exchange
                                         let game_time = app.world.clock.now();

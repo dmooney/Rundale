@@ -198,6 +198,7 @@ pub fn load_npcs_from_file(path: &Path) -> Result<Vec<Npc>, ParishError> {
 pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
     let file: NpcFile = serde_json::from_str(json).map_err(ParishError::Serialization)?;
 
+<<<<<<< HEAD:parish/crates/parish-npc/src/data.rs
     // Pre-pass: reject duplicate NPC IDs before doing any further work.
     // Mirrors the pattern in WorldGraph::load_from_str (parish-world/src/graph.rs).
     let mut seen_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
@@ -206,6 +207,17 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
             return Err(ParishError::Setup(format!(
                 "duplicate NPC id: {}",
                 entry.id
+=======
+    // Validate temperament ranges up-front so mod authors see a
+    // specific error at load rather than silent clamping at runtime.
+    for entry in &file.npcs {
+        if let Some(t) = entry.temperament
+            && let Err(msg) = t.validate()
+        {
+            return Err(ParishError::Setup(format!(
+                "NPC {} (id {}) has invalid temperament: {msg}",
+                entry.name, entry.id
+>>>>>>> 60a6279 (feat(emotion): grief propagation, Tier1 contagion, EmotionChanged event, temperament validation):crates/parish-npc/src/data.rs
             )));
         }
     }
@@ -485,6 +497,73 @@ mod tests {
                 npc.name
             );
         }
+    }
+
+    #[test]
+    fn test_load_rejects_invalid_temperament() {
+        let json = r#"{
+            "npcs": [{
+                "id": 1,
+                "name": "Bad Temp",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "relationships": [],
+                "temperament": { "cheerfulness": 999.0, "reactivity": 0.5, "persistence": 0.5 }
+            }]
+        }"#;
+        let err = load_npcs_from_str(json).unwrap_err();
+        let msg = format!("{err:?}");
+        assert!(msg.contains("Bad Temp"), "error must name the NPC: {msg}");
+        assert!(
+            msg.contains("cheerfulness"),
+            "error must name the field: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_load_rejects_negative_reactivity() {
+        let json = r#"{
+            "npcs": [{
+                "id": 2,
+                "name": "Bad React",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "relationships": [],
+                "temperament": { "cheerfulness": 0.0, "reactivity": -2.0, "persistence": 0.5 }
+            }]
+        }"#;
+        let err = load_npcs_from_str(json).unwrap_err();
+        let msg = format!("{err:?}");
+        assert!(msg.contains("reactivity"), "error must name field: {msg}");
+    }
+
+    #[test]
+    fn test_load_accepts_boundary_temperament_values() {
+        let json = r#"{
+            "npcs": [{
+                "id": 3,
+                "name": "Boundary",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "relationships": [],
+                "temperament": { "cheerfulness": -1.0, "reactivity": 0.0, "persistence": 1.0 }
+            }]
+        }"#;
+        let npcs = load_npcs_from_str(json).expect("boundary values must load");
+        assert_eq!(npcs.len(), 1);
+        assert_eq!(npcs[0].temperament.cheerfulness, -1.0);
     }
 
     #[test]

@@ -738,6 +738,19 @@ fn build_event_bus_debug(
                     description,
                     ..
                 } => format!("{}: {}", name_of(*npc_id), description),
+                GameEvent::EmotionChanged {
+                    npc_id,
+                    family,
+                    delta,
+                    cause,
+                    ..
+                } => format!(
+                    "{} {:?} {:+.2} ({})",
+                    name_of(*npc_id),
+                    family,
+                    delta,
+                    cause
+                ),
             };
             GameEventDebug {
                 timestamp,

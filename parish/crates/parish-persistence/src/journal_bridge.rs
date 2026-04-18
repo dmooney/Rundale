@@ -55,8 +55,12 @@ pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
         GameEvent::WeatherChanged { new_weather, .. } => Some(WorldEvent::WeatherChanged {
             new_weather: new_weather.clone(),
         }),
-        // Festival and life events are informational — no state mutation to replay
-        GameEvent::FestivalStarted { .. } | GameEvent::LifeEvent { .. } => None,
+        // Festival, life, and emotion events are informational — no state
+        // mutation to replay (emotion state is re-derived from impulses on
+        // restart rather than journalled).
+        GameEvent::FestivalStarted { .. }
+        | GameEvent::LifeEvent { .. }
+        | GameEvent::EmotionChanged { .. } => None,
     }
 }
 
