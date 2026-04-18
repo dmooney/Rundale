@@ -264,6 +264,7 @@ export interface NpcDebug {
 	home_name: string | null;
 	workplace_name: string | null;
 	mood: string;
+	emotion: EmotionDebug;
 	is_ill: boolean;
 	state: string;
 	tier: string;
@@ -277,6 +278,25 @@ export interface NpcDebug {
 	intelligence: IntelligenceDebug;
 	last_activity: string | null;
 	knows_player_name: boolean;
+}
+
+/** Structured emotion state surfaced to the debug panel. Mirrors
+ * `EmotionDebug` in parish-core/src/debug_snapshot.rs. */
+export interface EmotionDebug {
+	/** Short descriptor (e.g. "grieving", "furious"). */
+	label: string;
+	/** Top-3 leaf descriptors from `project_top_k`. */
+	top_leaves: string[];
+	/** Family intensities in [0, 1], keyed by lowercase family name. */
+	families: Record<string, number>;
+	/** PAD pleasure dimension in [-1, 1]. */
+	pleasure: number;
+	/** PAD arousal dimension in [-1, 1]. */
+	arousal: number;
+	/** PAD dominance dimension in [-1, 1]. */
+	dominance: number;
+	/** Active behavioural gate names (empty if none active). */
+	active_gates: string[];
 }
 
 export interface LongTermMemoryDebug {
