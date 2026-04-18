@@ -552,7 +552,17 @@ pub fn handle_command(
 }
 
 /// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
+///
+/// Gated by the `reveal-unexplored` feature flag (default-enabled per
+/// CLAUDE.md rule #6). Uses `is_disabled` semantics so the feature ships
+/// on without needing to seed the flags file.
 fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
+    if config.flags.is_disabled("reveal-unexplored") {
+        return CommandResult::text(
+            "The /unexplored command is disabled. Re-enable with /flag enable reveal-unexplored.",
+        );
+    }
+
     match arg {
         Some(true) => {
             config.reveal_unexplored_locations = true;
@@ -1518,6 +1528,21 @@ mod tests {
         assert!(result.response.contains("currently hidden"));
         assert!(result.response.contains("/unexplored reveal|hide"));
         assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn unexplored_disabled_flag_returns_refusal() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.flags.disable("reveal-unexplored");
+        let result = handle_command(
+            Command::Unexplored(Some(true)),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("/flag enable"));
+        assert!(result.effects.is_empty());
+        assert!(!config.reveal_unexplored_locations);
     }
 
     #[test]
