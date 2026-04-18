@@ -587,6 +587,11 @@ impl GameTestHarness {
                     self.app.world.weather = new_weather;
                 }
 
+                // NOTE: no emotion decay here — Command::Tick's contract is
+                // "re-run scheduling at the current game time", not "advance
+                // time by N minutes". Decay lives on the paths that actually
+                // move the clock forward (apply_movement, Command::Wait,
+                // GameTestHarness::advance_time).
                 self.app.npc_manager.assign_tiers(&self.app.world, &[]);
                 let events = self.app.npc_manager.tick_schedules(
                     &self.app.world.clock,

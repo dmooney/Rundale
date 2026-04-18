@@ -1095,9 +1095,22 @@ pub const EMOTION_LEAVES: &[LeafWord] = &[
 /// Euclidean distance in PAD space, then penalty for mismatched
 /// family intensity.
 ///
+/// The `INTENSITY_GAP_WEIGHT` is set so that a high-intensity state
+/// (e.g. anger = 0.95) prefers high-weight leaves (`furious`, `enraged`)
+/// over low-weight ones (`annoyed`, `irritated`) even when PAD has not
+/// been explicitly aligned with the family. This matters for harness
+/// stubs and for mid-decay states where intensity and PAD can drift
+/// apart.
+///
 /// This is deliberately cheap — the table is small and this runs at
 /// most a handful of times per dialogue turn.
 pub fn project_top_k(state: &EmotionState, k: usize) -> Vec<&'static LeafWord> {
+    // Higher values pull the top-K toward leaves whose `family_weight`
+    // matches the state's intensity — at 0.5, PAD distance dominated
+    // for mid-range PAD states and low-weight leaves won even when
+    // the state's intensity was pinned high.
+    const INTENSITY_GAP_WEIGHT: f32 = 2.0;
+
     if k == 0 {
         return Vec::new();
     }
@@ -1113,7 +1126,7 @@ pub fn project_top_k(state: &EmotionState, k: usize) -> Vec<&'static LeafWord> {
             let dd = leaf.pad.2 - state.dominance;
             let pad_dist = (dp * dp + da * da + dd * dd).sqrt();
             let intensity_gap = (leaf.family_weight - dom_intensity).abs();
-            let score = family_bonus + pad_dist + intensity_gap * 0.5;
+            let score = family_bonus + pad_dist + intensity_gap * INTENSITY_GAP_WEIGHT;
             (score, leaf)
         })
         .collect();
@@ -1204,6 +1217,51 @@ mod tests {
         assert!(
             ["enraged", "furious", "livid", "incensed", "irate"].contains(&top[0].word),
             "unexpected top leaf: {}",
+            top[0].word
+        );
+    }
+
+    #[test]
+    fn project_top_k_high_intensity_without_pad_alignment() {
+        // Reproduces the /stub-emotion path: families.anger is forced to
+        // 0.95 directly, but PAD has not been shifted (it still sits at
+        // the NPC's previous baseline, here default ~neutral). With the
+        // old 0.5× intensity_gap weight, PAD distance dominated and
+        // low-weight leaves like `annoyed` / `irritated` beat the
+        // high-weight leaves that actually match the state's intensity.
+        let mut s = EmotionState::default();
+        s.families.anger = 0.95;
+        // PAD deliberately left at defaults — no apply_impulse call.
+        let top = project_top_k(&s, 1);
+        assert_eq!(top[0].family, EmotionFamily::Anger);
+        assert!(
+            ["enraged", "furious", "livid", "incensed", "irate"].contains(&top[0].word),
+            "high-anger state must pick a high-weight leaf even with \
+             unaligned PAD; got: {}",
+            top[0].word
+        );
+    }
+
+    #[test]
+    fn project_top_k_low_intensity_still_picks_low_weight_leaf() {
+        // Guard against over-tuning: a mild anger state should not end
+        // up with `furious` just because the intensity_gap weight was
+        // pushed up. Low intensity should still match low-weight leaves.
+        let mut s = EmotionState::default();
+        s.families.anger = 0.25;
+        let top = project_top_k(&s, 1);
+        assert_eq!(top[0].family, EmotionFamily::Anger);
+        assert!(
+            [
+                "annoyed",
+                "irritated",
+                "cross",
+                "grumpy",
+                "frustrated",
+                "testy"
+            ]
+            .contains(&top[0].word),
+            "low-anger state must pick a low-weight leaf; got: {}",
             top[0].word
         );
     }
