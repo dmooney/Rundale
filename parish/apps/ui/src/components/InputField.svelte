@@ -659,17 +659,21 @@
 		if (arg === 'reset' || arg === 'auto') {
 			clearStoredModelId();
 			pushErrorLog('WebGPU model reset to auto-detect.');
-			// Clear the server-side override too so it doesn't pin the
-			// stale name in the next `webgpu-generate` frame.
-			submitInput('/model ').catch(() => {});
+			// We deliberately don't try to clear `config.model_name` on
+			// the server: `/model` with no arg parses as `ShowModel` (see
+			// `crates/parish-input/src/lib.rs`), so it wouldn't actually
+			// clear anything. The bridge's `resolveModelChoice` already
+			// rejects non-HF-repo ids like `qwen3:14b`, so a stale server
+			// default falls through to GPU-tier auto-detect on its own.
 			return true;
 		}
 		setStoredModelId(arg);
 		pushErrorLog(`WebGPU model set to ${arg}. Next request will reload the engine.`);
-		// Mirror the choice into the server's GameConfig so the next
-		// `webgpu-generate` frame carries the same model id; the bridge
-		// in the browser still gives precedence to the localStorage value.
-		submitInput(`/model ${arg}`).catch(() => {});
+		// Don't mirror the choice into `config.model_name`: localStorage
+		// already wins inside `resolveModelChoice`, and writing the HF
+		// repo id into a config field designed for Ollama tags would
+		// confuse other (non-WebGPU) provider switches the player makes
+		// later.
 		return true;
 	}
 

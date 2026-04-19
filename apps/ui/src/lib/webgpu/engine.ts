@@ -62,6 +62,50 @@ export function getStoredModelId(): string | null {
 	return stored && stored.length > 0 ? stored : null;
 }
 
+/**
+ * Heuristic: does `id` look like a valid Hugging Face repo id (`org/name`)?
+ *
+ * Used to filter out the server's `model_name` default (`qwen3:14b` in a
+ * fresh `GameConfig` — a perfectly good Ollama tag, but utterly wrong for
+ * `transformers.js`) so that selecting `/provider webgpu` on a brand-new
+ * session falls back to GPU-tier auto-detect rather than trying to load a
+ * non-existent HF repo.
+ */
+export function isLikelyHfRepoId(id: string | null | undefined): boolean {
+	if (!id) return false;
+	const trimmed = id.trim();
+	// Must be `org/name` with no colons (Ollama-style tags like
+	// `qwen3:14b` carry a colon and are rejected on purpose).
+	return /^[^\s/:]+\/[^\s/:]+$/.test(trimmed);
+}
+
+/**
+ * Pure resolver that decides which model id the engine should load.
+ *
+ * Priority order — locked down so the precedence stays explicit:
+ * 1. The player's localStorage override (`/webgpu-model <id>` or the
+ *    "change model" link in the overlay) — the user has opted in, so it
+ *    always wins.
+ * 2. The server-passed `requestedModelId`, but only if it looks like a
+ *    real HF repo id (per [`isLikelyHfRepoId`]). This protects against
+ *    the server pinning the WebGPU model to its non-WebGPU default.
+ * 3. Otherwise, request GPU-tier auto-detection.
+ */
+export type ModelChoice =
+	| { kind: 'fixed'; id: string }
+	| { kind: 'detect' };
+
+export function resolveModelChoice(
+	requestedModelId: string | null | undefined,
+	storedModelId: string | null
+): ModelChoice {
+	if (storedModelId) return { kind: 'fixed', id: storedModelId };
+	if (isLikelyHfRepoId(requestedModelId)) {
+		return { kind: 'fixed', id: requestedModelId!.trim() };
+	}
+	return { kind: 'detect' };
+}
+
 /** Persists the user's chosen model so subsequent visits skip auto-detect. */
 export function setStoredModelId(id: string): void {
 	if (typeof localStorage === 'undefined') return;
@@ -76,16 +120,14 @@ export function clearStoredModelId(): void {
 
 /**
  * Returns the engine handle for `requestedModelId`, loading it on the first
- * call. Concurrent calls share the same in-flight load.
- *
- * Pass an empty string or a falsy value to use the user's stored override
- * (or fall back to GPU-tier auto-detection if none is set).
+ * call. Concurrent calls share the same in-flight load. Resolution order
+ * (locked down by [`resolveModelChoice`]): player's localStorage pick,
+ * then server-passed id (only if it looks like an HF repo), else GPU-tier
+ * auto-detect.
  */
 export async function getEngine(requestedModelId?: string | null): Promise<PipelineHandle> {
-	const effectiveId =
-		(requestedModelId && requestedModelId.trim()) ||
-		getStoredModelId() ||
-		(await pickModelByTier());
+	const choice = resolveModelChoice(requestedModelId, getStoredModelId());
+	const effectiveId = choice.kind === 'fixed' ? choice.id : await pickModelByTier();
 
 	if (activeHandle && activeModelId === effectiveId) {
 		return activeHandle;
