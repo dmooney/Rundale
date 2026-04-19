@@ -29,6 +29,10 @@ vi.mock('maplibre-gl', () => {
 		fitBounds() {}
 		addControl() {}
 		removeControl() {}
+		hasImage() {
+			return false;
+		}
+		addImage() {}
 	}
 	class FakeMarker {
 		setLngLat() {
