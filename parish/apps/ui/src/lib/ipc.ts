@@ -27,7 +27,7 @@ import type {
 
 // ── Transport detection ─────────────────────────────────────────────────────
 
-const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const IS_TAURI = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 // ── Commands ────────────────────────────────────────────────────────────────
 
@@ -193,6 +193,28 @@ function attachHandlers(socket: WebSocket): void {
 }
 
 /**
+ * Sends a `{event, payload}` frame back to the server over the existing
+ * WebSocket. No-op in Tauri mode and when the socket isn't open yet.
+ *
+ * Used by the WebGPU bridge to deliver `webgpu-token`, `webgpu-end`, and
+ * `webgpu-error` frames in response to an inbound `webgpu-generate` event.
+ */
+export function sendWsFrame(event: string, payload: unknown): void {
+	if (IS_TAURI) return;
+	ensureWebSocket();
+	if (!ws || ws.readyState !== WebSocket.OPEN) {
+		// Not yet open — try once on the next tick.
+		setTimeout(() => sendWsFrame(event, payload), 100);
+		return;
+	}
+	try {
+		ws.send(JSON.stringify({ event, payload }));
+	} catch (e) {
+		console.warn('Failed to send WebSocket frame', event, e);
+	}
+}
+
+/**
  * Tear down the browser-mode WebSocket transport.
  *
  * Clears the pending reconnect timer (if any) and closes the socket.
@@ -297,3 +319,20 @@ export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 
 export const onTravelStart = (cb: (payload: TravelStartPayload) => void) =>
 	onEvent<TravelStartPayload>('travel-start', cb);
+
+// ── WebGPU bridge ──────────────────────────────────────────────────────────
+
+/** Server → browser request to run a generation locally on WebGPU. */
+export interface WebGpuGeneratePayload {
+	request_id: number;
+	model: string;
+	prompt: string;
+	system: string | null;
+	max_tokens: number | null;
+	temperature: number | null;
+	streaming: boolean;
+	json_mode: boolean;
+}
+
+export const onWebGpuGenerate = (cb: (payload: WebGpuGeneratePayload) => void) =>
+	onEvent<WebGpuGeneratePayload>('webgpu-generate', cb);

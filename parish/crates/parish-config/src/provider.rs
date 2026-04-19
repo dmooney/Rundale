@@ -67,6 +67,16 @@ pub enum Provider {
     Anthropic,
     /// Any OpenAI-compatible endpoint (requires base_url).
     Custom,
+    /// Browser-side WebGPU inference (web build only).
+    ///
+    /// When selected, the server forwards each prompt over the existing
+    /// WebSocket to the calling browser, which runs the model locally via
+    /// `transformers.js` on top of WebGPU and streams tokens back. Requires
+    /// the `webgpu-provider` feature flag and a Chromium-based browser
+    /// (Chrome 113+, Edge, or Safari Technology Preview). Selecting this
+    /// provider in Tauri or headless CLI returns a clear error because there
+    /// is no browser bridge available.
+    WebGpu,
     /// Built-in offline simulator — generates funny nonsense locally,
     /// no network, no model download. Default when no provider is configured.
     #[default]
@@ -110,10 +120,11 @@ impl Provider {
             "nvidia-nim" | "nvidia_nim" | "nvidianim" | "nim" | "nvidia" => Ok(Provider::NvidiaNim),
             "anthropic" | "claude" => Ok(Provider::Anthropic),
             "custom" => Ok(Provider::Custom),
+            "webgpu" | "web-gpu" | "web_gpu" | "browser" => Ok(Provider::WebGpu),
             "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
                 "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
-                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, \
+                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, webgpu, \
                  simulator",
                 other
             ))),
@@ -137,6 +148,9 @@ impl Provider {
             Provider::NvidiaNim => DEFAULT_NVIDIA_NIM_URL,
             Provider::Anthropic => DEFAULT_ANTHROPIC_URL,
             Provider::Custom => "",
+            // WebGPU has no HTTP endpoint — the "transport" is the per-session
+            // WebSocket bridge to the player's browser.
+            Provider::WebGpu => "",
             Provider::Simulator => "",
         }
     }
@@ -160,8 +174,16 @@ impl Provider {
 
     /// Whether this provider requires an explicit model name
     /// (no auto-detection available).
+    ///
+    /// WebGPU technically auto-selects a Hugging Face repo ID from the
+    /// browser's GPU capabilities, but the user can still override via
+    /// `/model <hf-repo-id>`, so we report `false` to mirror Ollama's
+    /// "auto-detect" semantics.
     pub fn requires_model(&self) -> bool {
-        !matches!(self, Provider::Ollama | Provider::Simulator)
+        !matches!(
+            self,
+            Provider::Ollama | Provider::Simulator | Provider::WebGpu
+        )
     }
 
     /// The well-known environment variable that carries this provider's API key.
@@ -778,6 +800,28 @@ mod tests {
             Provider::Anthropic
         );
 
+        // WebGPU
+        assert_eq!(
+            Provider::from_str_loose("webgpu").unwrap(),
+            Provider::WebGpu
+        );
+        assert_eq!(
+            Provider::from_str_loose("WEBGPU").unwrap(),
+            Provider::WebGpu
+        );
+        assert_eq!(
+            Provider::from_str_loose("web-gpu").unwrap(),
+            Provider::WebGpu
+        );
+        assert_eq!(
+            Provider::from_str_loose("web_gpu").unwrap(),
+            Provider::WebGpu
+        );
+        assert_eq!(
+            Provider::from_str_loose("browser").unwrap(),
+            Provider::WebGpu
+        );
+
         assert!(Provider::from_str_loose("unknown").is_err());
     }
 
@@ -829,6 +873,7 @@ mod tests {
             "https://api.anthropic.com"
         );
         assert_eq!(Provider::Custom.default_base_url(), "");
+        assert_eq!(Provider::WebGpu.default_base_url(), "");
     }
 
     #[test]
@@ -838,6 +883,7 @@ mod tests {
         assert!(!Provider::LmStudio.requires_api_key());
         assert!(!Provider::Vllm.requires_api_key());
         assert!(!Provider::Custom.requires_api_key());
+        assert!(!Provider::WebGpu.requires_api_key());
 
         // All cloud providers require API keys
         assert!(Provider::OpenRouter.requires_api_key());
@@ -851,8 +897,10 @@ mod tests {
         assert!(Provider::NvidiaNim.requires_api_key());
         assert!(Provider::Anthropic.requires_api_key());
 
-        // Only Ollama auto-detects model
+        // Ollama, simulator, and WebGPU auto-detect a model
         assert!(!Provider::Ollama.requires_model());
+        assert!(!Provider::Simulator.requires_model());
+        assert!(!Provider::WebGpu.requires_model());
         assert!(Provider::LmStudio.requires_model());
         assert!(Provider::OpenRouter.requires_model());
         assert!(Provider::Vllm.requires_model());

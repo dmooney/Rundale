@@ -129,6 +129,11 @@ pub async fn ws_handler(
 ///
 /// Subscribes to the per-session [`EventBus`] and forwards each event as a
 /// JSON text frame until the client disconnects or the bus is dropped.
+/// Inbound text frames are first offered to the per-session WebGPU bridge
+/// (so `webgpu-token` / `webgpu-end` / `webgpu-error` replies route back to
+/// the in-process [`crate::webgpu_bridge::WebGpuBridge`]); anything else is
+/// ignored — gameplay commands still travel over REST.
+///
 /// The `_guard` is kept alive for the duration of the connection and removes
 /// the email from `active_ws` when it is dropped.
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: ActiveWsGuard) {
@@ -161,14 +166,36 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: Acti
             }
             msg = socket.recv() => {
                 match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        // Try the WebGPU bridge first. It returns false for
+                        // unrelated frames so we don't pay the cost of
+                        // parsing every non-WebGPU client ping.
+                        match crate::webgpu_bridge::route_inbound(&state.webgpu_bridge, &text) {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                // Not a recognised WebGPU frame; ignored
+                                // (gameplay commands use REST).
+                            }
+                            Err(e) => {
+                                tracing::warn!(
+                                    error = %e,
+                                    "WebGPU bridge: malformed inbound frame"
+                                );
+                            }
+                        }
+                    }
                     Some(Ok(_)) => {
-                        // Client messages are ignored (commands use REST)
+                        // Other message types (Binary, Ping, Pong) ignored.
                     }
                     _ => break,
                 }
             }
         }
     }
+
+    // Reject every in-flight WebGPU request so callers don't block forever
+    // waiting on a browser that has gone away.
+    state.webgpu_bridge.cancel_all("browser disconnected");
 
     tracing::info!("WebSocket client disconnected");
     // `_guard` drops here, removing the email from `active_ws`.

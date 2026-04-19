@@ -235,8 +235,11 @@ fn attach_rate_limit(
     match (client, limiter) {
         (AnyClient::OpenAi(c), lim) => AnyClient::OpenAi(c.maybe_with_rate_limit(lim)),
         (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
-        // Simulator has no network calls and ignores rate limiting.
+        // Simulator and WebGPU have no shared network bottleneck (WebGPU
+        // runs in the user's own browser), so per-category rate limits
+        // would be meaningless and are silently ignored.
         (c @ AnyClient::Simulator(_), _) => c,
+        (c @ AnyClient::WebGpu(_), _) => c,
     }
 }
 

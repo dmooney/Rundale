@@ -10,6 +10,11 @@
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
+	import {
+		setStoredModelId,
+		clearStoredModelId,
+		getStoredModelId
+	} from '$lib/webgpu/engine';
 
 	let editorEl: HTMLDivElement;
 	let editorText = $state('');
@@ -623,6 +628,14 @@
 
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
+
+		// Intercept the WebGPU model picker entirely client-side: the model
+		// override lives in localStorage so the next inference request from
+		// the server gets routed to the new weights without a server round-
+		// trip. We also forward `/model <id>` so the server's GameConfig
+		// reflects the same value (so the bridge passes it through verbatim).
+		if (handleWebGpuModelCommand(trimmed)) return;
+
 		try {
 			await submitInput(trimmed, addressedTo);
 		} catch (err) {
@@ -630,6 +643,34 @@
 		} finally {
 			isSubmitting = false;
 		}
+	}
+
+	function handleWebGpuModelCommand(trimmed: string): boolean {
+		const lower = trimmed.toLowerCase();
+		if (!lower.startsWith('/webgpu-model')) return false;
+		const arg = trimmed.slice('/webgpu-model'.length).trim();
+		if (arg.length === 0) {
+			const current = getStoredModelId();
+			pushErrorLog(
+				`WebGPU model: ${current ?? '(auto-detect based on your GPU)'}`
+			);
+			return true;
+		}
+		if (arg === 'reset' || arg === 'auto') {
+			clearStoredModelId();
+			pushErrorLog('WebGPU model reset to auto-detect.');
+			// Clear the server-side override too so it doesn't pin the
+			// stale name in the next `webgpu-generate` frame.
+			submitInput('/model ').catch(() => {});
+			return true;
+		}
+		setStoredModelId(arg);
+		pushErrorLog(`WebGPU model set to ${arg}. Next request will reload the engine.`);
+		// Mirror the choice into the server's GameConfig so the next
+		// `webgpu-generate` frame carries the same model id; the bridge
+		// in the browser still gives precedence to the localStorage value.
+		submitInput(`/model ${arg}`).catch(() => {});
+		return true;
 	}
 
 	// ── Keyboard handling ───────────────────────────────────────────────────
