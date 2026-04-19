@@ -194,7 +194,12 @@ function attachHandlers(socket: WebSocket): void {
 
 /**
  * Sends a `{event, payload}` frame back to the server over the existing
- * WebSocket. No-op in Tauri mode and when the socket isn't open yet.
+ * WebSocket. No-op in Tauri mode.
+ *
+ * When the socket isn't open yet, the call is retried a bounded number of
+ * times on a fixed interval, then logged and dropped. Without a cap every
+ * streamed WebGPU token would spawn its own retry chain on disconnect and
+ * run forever, then flood the link with stale frames after reconnect.
  *
  * Used by the WebGPU bridge to deliver `webgpu-token`, `webgpu-end`, and
  * `webgpu-error` frames in response to an inbound `webgpu-generate` event.
@@ -202,16 +207,35 @@ function attachHandlers(socket: WebSocket): void {
 export function sendWsFrame(event: string, payload: unknown): void {
 	if (IS_TAURI) return;
 	ensureWebSocket();
-	if (!ws || ws.readyState !== WebSocket.OPEN) {
-		// Not yet open — try once on the next tick.
-		setTimeout(() => sendWsFrame(event, payload), 100);
+	attemptWsSend(event, payload, 0);
+}
+
+/** Retry interval in ms between WebSocket send attempts. */
+const WS_SEND_RETRY_MS = 100;
+/** Maximum retries per `sendWsFrame` call (≈2 s total before giving up). */
+const WS_SEND_MAX_RETRIES = 20;
+
+function attemptWsSend(event: string, payload: unknown, attempt: number): void {
+	if (ws && ws.readyState === WebSocket.OPEN) {
+		try {
+			ws.send(JSON.stringify({ event, payload }));
+		} catch (e) {
+			console.warn('Failed to send WebSocket frame', event, e);
+		}
 		return;
 	}
-	try {
-		ws.send(JSON.stringify({ event, payload }));
-	} catch (e) {
-		console.warn('Failed to send WebSocket frame', event, e);
+	if (attempt >= WS_SEND_MAX_RETRIES) {
+		// The socket may have closed permanently (auth failure, network
+		// partition) or is just taking longer than our cap to open. Either
+		// way, the caller — typically a WebGPU token handler — is better
+		// served by losing a frame than by hoarding a retry chain per
+		// token that could still fire after a reconnect.
+		console.warn(
+			`sendWsFrame: giving up on '${event}' after ${attempt} retries (socket still not open)`
+		);
+		return;
 	}
+	setTimeout(() => attemptWsSend(event, payload, attempt + 1), WS_SEND_RETRY_MS);
 }
 
 /**

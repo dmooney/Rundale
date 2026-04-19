@@ -540,7 +540,15 @@ impl AnyClient {
                     .await
             }
             Self::WebGpu(c) => {
-                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                // Convert bounded Sender to UnboundedSender for WebGpu.
+                let (unbounded_tx, mut unbounded_rx) = mpsc::unbounded_channel();
+                let bounded_tx = token_tx.clone();
+                tokio::spawn(async move {
+                    while let Some(token) = unbounded_rx.recv().await {
+                        let _ = bounded_tx.send(token).await;
+                    }
+                });
+                c.generate_stream(model, prompt, system, unbounded_tx, max_tokens, temperature)
                     .await
             }
             Self::Simulator(c) => {
@@ -555,6 +563,9 @@ impl AnyClient {
     /// Like [`generate_stream`] but constrains the provider to emit valid JSON.
     /// Used for Tier 1 NPC responses where dialogue is embedded in a JSON
     /// structure and extracted incrementally during streaming.
+    ///
+    /// WebGpu does not support streaming JSON (browser-side inference doesn't
+    /// require token-streaming JSON); use [`generate_json`] instead.
     pub async fn generate_stream_json(
         &self,
         model: &str,
@@ -572,6 +583,12 @@ impl AnyClient {
             Self::Anthropic(c) => {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
+            }
+            Self::WebGpu(_) => {
+                Err(ParishError::Inference(
+                    "streaming JSON not supported for WebGPU provider; use generate_json instead"
+                        .to_string(),
+                ))
             }
             Self::Simulator(c) => {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
@@ -641,6 +658,30 @@ impl AnyClient {
     /// Returns `true` if this is the WebGPU bridge (with or without an attached transport).
     pub fn is_webgpu(&self) -> bool {
         matches!(self, Self::WebGpu(_))
+    }
+
+    /// Swaps an unavailable [`WebGpuClient`] for one backed by `transport`.
+    ///
+    /// Every call site that hands a `Provider::WebGpu` selection to
+    /// [`build_client`] receives a [`WebGpuClient::unavailable`] handle by
+    /// design — `build_client` lives in `parish-inference` and cannot see
+    /// the web server's per-session bridge. This helper lets those call
+    /// sites (session startup, `/provider.<category>` overrides, cloud
+    /// rebuilds) post-process the result and inject a real transport so
+    /// valid WebGPU configs don't end up permanently unusable.
+    ///
+    /// For non-WebGPU variants, or when the handle already carries a
+    /// transport, the client is returned unchanged.
+    pub fn with_webgpu_transport(
+        self,
+        transport: &Arc<dyn webgpu_client::WebGpuTransport>,
+    ) -> Self {
+        match self {
+            Self::WebGpu(c) if !c.is_available() => {
+                Self::WebGpu(WebGpuClient::with_transport(Arc::clone(transport)))
+            }
+            other => other,
+        }
     }
 
     /// Returns `true` if the underlying client has a rate limiter attached.

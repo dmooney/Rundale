@@ -439,13 +439,20 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                     .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
                     .unwrap_or(parish_core::config::Provider::OpenRouter);
                 drop(config);
-                let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(parish_core::inference::build_client(
+                let built = parish_core::inference::build_client(
                     &provider_enum,
                     &base_url,
                     api_key.as_deref(),
                     &state.inference_config, // (#417) use TOML-configured timeouts
-                ));
+                );
+                // If someone configured WebGPU as the cloud provider (rare
+                // but not disallowed by `Provider::from_str_loose`), swap
+                // the unavailable handle for a bridge-backed one instead
+                // of leaving a permanently-unusable variant in state.
+                let transport: std::sync::Arc<dyn parish_core::inference::WebGpuTransport> =
+                    std::sync::Arc::new(state.webgpu_bridge.clone());
+                let mut cloud_guard = state.cloud_client.lock().await;
+                *cloud_guard = Some(built.with_webgpu_transport(&transport));
             }
             CommandEffect::Quit => {
                 // Web server cannot be quit from the game.
@@ -570,13 +577,28 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     state.event_bus.emit("world-update", &ws);
 }
 
+/// Wraps an `Option<AnyClient>` so any `Provider::WebGpu` variant it
+/// carries is backed by this session's bridge. `resolve_category_client`
+/// lives in `parish-core` and can't see the bridge, so category overrides
+/// like `/provider.intent webgpu` would otherwise come out unavailable.
+fn attach_webgpu_to_category(
+    client: Option<AnyClient>,
+    state: &Arc<AppState>,
+) -> Option<AnyClient> {
+    let transport: std::sync::Arc<dyn parish_core::inference::WebGpuTransport> =
+        std::sync::Arc::new(state.webgpu_bridge.clone());
+    client.map(|c| c.with_webgpu_transport(&transport))
+}
+
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<AppState>) {
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
         let config = state.config.lock().await;
         let base_client = state.client.lock().await;
-        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
+        let (c, m) =
+            config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref());
+        (attach_webgpu_to_category(c, state), m)
     };
 
     // Parse intent: tries local keywords first, then LLM for ambiguous input.
@@ -757,6 +779,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             let base_client = state.client.lock().await;
             let (rc, rm) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
+            let rc = attach_webgpu_to_category(rc, state);
             (
                 npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
                 world.player_location,
@@ -2308,6 +2331,20 @@ pub fn check_admin_against(
     }
 }
 
+/// Slash-command prefixes whose effects mutate LLM provider config.
+///
+/// Any first token (or two-token pair for `/cloud <sub>`) matching this list
+/// is considered an admin command and is gated by `PARISH_ADMIN_EMAILS`.
+const ADMIN_COMMANDS: &[&str] = &[
+    "/key",
+    "/provider",
+    "/model",
+    "/cloud",
+    "/key.",
+    "/model.",
+    "/provider.",
+];
+
 /// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
 /// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
 /// `starts_with` since the dot is part of the prefix, not a space separator.
@@ -2317,7 +2354,7 @@ pub fn check_admin_against(
 /// risk that warrants restricting opt-in. Other `/provider <name>` values
 /// stay admin-only because they would force the server to talk to a paid
 /// API on behalf of every session.
-fn is_admin_command(text: &str) -> bool {
+fn is_admin_command_text(text: &str) -> bool {
     let lower = text.trim().to_ascii_lowercase();
     if lower == "/provider webgpu" || lower.starts_with("/provider webgpu ") {
         return false;

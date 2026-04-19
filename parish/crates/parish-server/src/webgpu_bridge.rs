@@ -28,9 +28,7 @@ use parish_core::inference::{WebGpuRequest, WebGpuTransport};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::state::EventBus;
-#[cfg(test)]
-use crate::state::ServerEvent;
+use crate::state::{EventBus, ServerEvent};
 
 /// Shared default model when neither the user nor the browser overrides
 /// it. Picked to match the linked `webml-community/Gemma-4-WebGPU` demo
@@ -217,14 +215,83 @@ impl WebGpuTransport for WebGpuBridge {
             json_mode: req.json_mode,
         };
 
-        // EventBus::emit handles serialization + broadcast. If no
-        // subscribers are listening (browser tab closed mid-request) the
-        // pending entry will sit until the WS close handler calls
-        // `cancel_all`.
-        self.inner.event_bus.emit("webgpu-generate", &frame);
+        // Serialise manually so we can use `EventBus::send` directly and
+        // observe the receiver count — `emit` drops that signal.
+        let payload = match serde_json::to_value(&frame) {
+            Ok(v) => v,
+            Err(e) => {
+                self.reject_pending(
+                    request_id,
+                    format!("failed to serialise webgpu-generate frame: {e}"),
+                );
+                return response_rx;
+            }
+        };
+        let subscriber_count = self.inner.event_bus.send(ServerEvent {
+            event: "webgpu-generate".to_string(),
+            payload,
+        });
+
+        // Fast-fail when no WebSocket is currently subscribed — otherwise
+        // the pending entry sits forever (no `webgpu-end` frame can ever
+        // arrive) until the next `cancel_all` runs. This turns a silent
+        // hang into an immediate, actionable error.
+        if subscriber_count == 0 {
+            self.reject_pending(
+                request_id,
+                "WebGPU bridge has no connected browser; open the web UI in a WebGPU-capable \
+                 tab or switch to a different provider."
+                    .to_string(),
+            );
+        }
 
         response_rx
     }
+}
+
+impl WebGpuBridge {
+    /// Resolves the pending entry for `request_id` with `ParishError::Inference(message)`
+    /// if it still exists. Used by the fast-fail paths in `submit`.
+    fn reject_pending(&self, request_id: u64, message: String) {
+        if let Some((_, pending)) = self.inner.pending.remove(&request_id) {
+            let _ = pending
+                .response_tx
+                .send(Err(ParishError::Inference(message)));
+        }
+    }
+}
+
+/// Post-build attachment helper: walks the session's base/cloud clients
+/// and swaps any `WebGpuClient::unavailable` handles for ones backed by
+/// this session's bridge.
+///
+/// `build_session_client` and `build_session_cloud_client` run before the
+/// [`AppState`] (and therefore the bridge) exist, so this has to run as a
+/// follow-up step on the constructed state.
+///
+/// Returns a clone of the updated base client so callers can feed it
+/// straight into `init_inference_queue` without re-locking.
+pub async fn attach_webgpu_bridge_to_session_clients(
+    app_state: &crate::state::AppState,
+) -> Option<parish_core::inference::AnyClient> {
+    let transport: Arc<dyn WebGpuTransport> = Arc::new(app_state.webgpu_bridge.clone());
+
+    // Base client.
+    let updated = {
+        let mut guard = app_state.client.lock().await;
+        let updated = guard.take().map(|c| c.with_webgpu_transport(&transport));
+        *guard = updated.clone();
+        updated
+    };
+
+    // Cloud client (rare with WebGPU but handle consistently).
+    {
+        let mut guard = app_state.cloud_client.lock().await;
+        let updated_cloud = guard.take().map(|c| c.with_webgpu_transport(&transport));
+        *guard = updated_cloud;
+    }
+
+    updated
 }
 
 /// Opaque wrapper around an inbound text frame from the WebSocket so the
@@ -337,6 +404,9 @@ mod tests {
     #[tokio::test]
     async fn end_frame_resolves_pending_response() {
         let bus = EventBus::new(16);
+        // Keep a subscriber alive so `submit` doesn't fast-fail on the
+        // zero-receiver path — that path has its own dedicated test.
+        let _keep_alive = bus.subscribe();
         let bridge = WebGpuBridge::new(bus);
 
         let resp_rx = bridge.submit(WebGpuRequest {
@@ -362,6 +432,7 @@ mod tests {
     #[tokio::test]
     async fn token_frames_forward_into_stream_channel() {
         let bus = EventBus::new(16);
+        let _keep_alive = bus.subscribe();
         let bridge = WebGpuBridge::new(bus);
         let (tok_tx, mut tok_rx) = mpsc::unbounded_channel();
 
@@ -397,6 +468,7 @@ mod tests {
     #[tokio::test]
     async fn error_frame_rejects_pending_response() {
         let bus = EventBus::new(16);
+        let _keep_alive = bus.subscribe();
         let bridge = WebGpuBridge::new(bus);
 
         let resp_rx = bridge.submit(WebGpuRequest {
@@ -421,6 +493,7 @@ mod tests {
     #[tokio::test]
     async fn cancel_all_rejects_every_pending_request() {
         let bus = EventBus::new(16);
+        let _keep_alive = bus.subscribe();
         let bridge = WebGpuBridge::new(bus);
 
         let r1 = bridge.submit(WebGpuRequest {
@@ -463,6 +536,7 @@ mod tests {
     #[tokio::test]
     async fn route_inbound_dispatches_known_events() {
         let bus = EventBus::new(16);
+        let _keep_alive = bus.subscribe();
         let bridge = WebGpuBridge::new(bus);
         let resp_rx = bridge.submit(WebGpuRequest {
             model: "m".into(),
@@ -495,5 +569,52 @@ mod tests {
         let bus = EventBus::new(16);
         let bridge = WebGpuBridge::new(bus);
         assert!(!route_inbound(&bridge, "not json at all").unwrap());
+    }
+
+    /// Regression guard for the "no subscriber" stall: if `submit` fires
+    /// while no WebSocket is listening the bridge must reject the pending
+    /// request immediately instead of leaving it to time out elsewhere.
+    #[tokio::test]
+    async fn submit_fast_fails_when_no_subscriber_is_connected() {
+        let bus = EventBus::new(16);
+        // Deliberately do NOT call `subscribe` — the bridge should detect
+        // the zero-receiver state and resolve the oneshot with an error.
+        let bridge = WebGpuBridge::new(bus);
+
+        let rx = bridge.submit(WebGpuRequest {
+            model: "m".into(),
+            prompt: "p".into(),
+            system: None,
+            max_tokens: None,
+            temperature: None,
+            json_mode: false,
+            token_tx: None,
+        });
+        let err = rx.await.unwrap().unwrap_err();
+        assert!(
+            err.to_string().contains("no connected browser"),
+            "got: {err}"
+        );
+        assert_eq!(bridge.in_flight(), 0);
+    }
+
+    /// When at least one subscriber is listening, `submit` should stay in
+    /// its normal path (pending entry remains, no pre-emptive error).
+    #[tokio::test]
+    async fn submit_leaves_pending_entry_when_subscriber_present() {
+        let bus = EventBus::new(16);
+        let _rx_keep_alive = bus.subscribe();
+        let bridge = WebGpuBridge::new(bus);
+
+        let _resp_rx = bridge.submit(WebGpuRequest {
+            model: "m".into(),
+            prompt: "p".into(),
+            system: None,
+            max_tokens: None,
+            temperature: None,
+            json_mode: false,
+            token_tx: None,
+        });
+        assert_eq!(bridge.in_flight(), 1);
     }
 }
