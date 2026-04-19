@@ -317,7 +317,7 @@ pub async fn submit_input(
 ///
 /// Config is read in a scoped block so the lock is dropped before any other
 /// lock is acquired, minimising the race window between concurrent rebuilds.
-async fn rebuild_inference(state: &Arc<AppState>) {
+async fn rebuild_inference(state: &Arc<AppState>, caller_email: &str) {
     // Read config first, then drop the lock before acquiring any other lock.
     let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
@@ -403,7 +403,11 @@ async fn emit_world_update(state: &Arc<AppState>) {
 }
 
 /// Handles `/command` system inputs using the shared command handler.
-async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
+async fn handle_system_command(
+    cmd: parish_core::input::Command,
+    state: &Arc<AppState>,
+    caller_email: &str,
+) {
     use parish_core::ipc::{CommandEffect, handle_command};
 
     // Acquire all locks, run the shared handler, then release.
@@ -417,7 +421,7 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     // Handle mode-specific side effects.
     for effect in &result.effects {
         match effect {
-            CommandEffect::RebuildInference => rebuild_inference(state).await,
+            CommandEffect::RebuildInference => rebuild_inference(state, caller_email).await,
             CommandEffect::RebuildCloudClient => {
                 let config = state.config.lock().await;
                 let base_url = config
@@ -2986,7 +2990,7 @@ pub(crate) mod tests {
             "sentinel should be running before rebuild"
         );
 
-        rebuild_inference(&state).await;
+        rebuild_inference(&state, "").await;
 
         // Yield + brief sleep so the runtime processes the abort.
         for _ in 0..10 {
@@ -3020,7 +3024,7 @@ pub(crate) mod tests {
         }
         assert!(state.worker_handle.lock().await.is_none());
 
-        rebuild_inference(&state).await;
+        rebuild_inference(&state, "").await;
 
         assert!(
             state.worker_handle.lock().await.is_some(),
