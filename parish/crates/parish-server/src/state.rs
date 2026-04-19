@@ -21,6 +21,8 @@ use parish_core::world::events::GameEvent;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{LocationId, WorldState};
 
+use crate::webgpu_bridge::WebGpuBridge;
+
 /// Maximum number of debug/game events retained in the server's ring buffer.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
@@ -253,6 +255,11 @@ pub struct AppState {
     /// Lock ordering: acquired after `save_lock`.
     pub save_db:
         tokio::sync::Mutex<Option<(std::path::PathBuf, parish_core::persistence::AsyncDatabase)>>,
+    /// Per-session WebGPU bridge — forwards `Provider::WebGpu` requests to
+    /// this visitor's browser over the existing WebSocket. Always present;
+    /// the [`AnyClient::WebGpu`] handle only routes through it when the
+    /// player has selected `/provider webgpu`.
+    pub webgpu_bridge: WebGpuBridge,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -270,6 +277,10 @@ pub struct ServerEvent {
 /// Broadcast channel for server-push events.
 ///
 /// Events emitted here are forwarded to all connected WebSocket clients.
+/// Cheaply cloneable — every clone shares the same underlying channel,
+/// so the WebGPU bridge can hold its own handle without borrowing
+/// [`AppState`] across `await` points.
+#[derive(Clone)]
 pub struct EventBus {
     tx: broadcast::Sender<ServerEvent>,
 }
@@ -337,6 +348,8 @@ pub fn build_app_state(
         .as_ref()
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
+    let event_bus = EventBus::new(256);
+    let webgpu_bridge = WebGpuBridge::new(event_bus.clone());
     Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -352,7 +365,7 @@ pub fn build_app_state(
         game_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
         )),
-        event_bus: EventBus::new(256),
+        event_bus,
         transport,
         ui_config,
         theme_palette,
@@ -370,6 +383,7 @@ pub fn build_app_state(
         save_lock: Mutex::new(None),
         inference_config,
         save_db: tokio::sync::Mutex::new(None),
+        webgpu_bridge,
     })
 }
 

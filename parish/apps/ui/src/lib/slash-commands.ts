@@ -41,7 +41,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/unexplored', description: 'Reveal or hide all unexplored locations', hasArgs: true },
 	{ command: '/quit', description: 'Take your leave', hasArgs: false },
 	{ command: '/flag', description: 'Feature flags: enable/disable/list', hasArgs: true },
-	{ command: '/flags', description: 'List all feature flags', hasArgs: false }
+	{ command: '/flags', description: 'List all feature flags', hasArgs: false },
+	{
+		command: '/webgpu-model',
+		description: 'Pick the WebGPU model (HF repo id, e.g. onnx-community/gemma-4-E2B-it-ONNX)',
+		hasArgs: true
+	}
 ];
 
 /// Filter commands by prefix query (the text after `/`).

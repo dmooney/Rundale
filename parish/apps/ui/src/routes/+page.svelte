@@ -10,6 +10,8 @@
 	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
+	import WebGpuLoadingOverlay from '../components/WebGpuLoadingOverlay.svelte';
+	import { startWebGpuBridge, stopWebGpuBridge } from '$lib/webgpu/bridge';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
 
@@ -581,6 +583,15 @@
 			console.warn('Failed to set up some event listeners:', e);
 		}
 
+		// Start the per-tab WebGPU bridge. No-op in Tauri builds and
+		// always idempotent — subsequent mounts won't open a second
+		// subscription.
+		try {
+			await startWebGpuBridge();
+		} catch (e) {
+			console.warn('Failed to start WebGPU bridge:', e);
+		}
+
 		return () => {
 			window.removeEventListener('keydown', onTrackerKey);
 			window.removeEventListener('mousedown', onTrackerMousedown);
@@ -590,6 +601,7 @@
 			tracker.dispose();
 			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 			listeners.forEach((fn) => fn());
+			stopWebGpuBridge();
 		};
 	}
 </script>
@@ -661,6 +673,7 @@
 
 <DebugPanel />
 <SavePicker />
+<WebGpuLoadingOverlay />
 
 <style>
 	.app-shell {
