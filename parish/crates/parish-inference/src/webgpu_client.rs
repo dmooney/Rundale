@@ -22,7 +22,6 @@
 //! it only talks through `mpsc`/`oneshot` channels. The `parish-server` crate
 //! owns the bridge between those channels and the WebSocket transport.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::de::DeserializeOwned;
@@ -31,6 +30,13 @@ use tokio::sync::{mpsc, oneshot};
 use parish_types::ParishError;
 
 // ── Wire types ────────────────────────────────────────────────────────────────
+
+// Global monotonic ID counter shared across all WebGpuClient instances.
+// Using a global (rather than per-instance) counter ensures request IDs are
+// never reused across rebuild_inference calls, so stale timeout cleanup tasks
+// from old bridge generations cannot accidentally remove new requests that
+// happened to receive the same ID.
+static NEXT_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 /// An outbound inference request forwarded from [`WebGpuClient`] to the bridge task.
 pub struct WebGpuRequest {
@@ -62,20 +68,16 @@ pub struct WebGpuRequest {
 #[derive(Clone)]
 pub struct WebGpuClient {
     request_tx: mpsc::Sender<WebGpuRequest>,
-    next_id: Arc<AtomicU64>,
 }
 
 impl WebGpuClient {
     /// Creates a new client that forwards requests over `request_tx`.
     pub fn new(request_tx: mpsc::Sender<WebGpuRequest>) -> Self {
-        Self {
-            request_tx,
-            next_id: Arc::new(AtomicU64::new(1)),
-        }
+        Self { request_tx }
     }
 
     fn next_id(&self) -> u64 {
-        self.next_id.fetch_add(1, Ordering::Relaxed)
+        NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed)
     }
 
     /// Generates text (non-streaming). Blocks until the browser responds.

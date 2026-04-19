@@ -87,6 +87,14 @@ class WebGpuProvider {
 
 		this.loading = true;
 		try {
+			// Unload the existing engine before allocating a new one so the old
+			// and new model weights don't coexist in GPU memory during the load.
+			// Without this, switching models requires old+new model size available.
+			if (this.engine) {
+				await this.engine.unload();
+				this.engine = null;
+				this.loadedModelId = null;
+			}
 			const engine = new webllm.MLCEngine();
 			engine.setInitProgressCallback((report: webllm.InitProgressReport) => {
 				onProgress?.({ progress: report.progress, text: report.text });
