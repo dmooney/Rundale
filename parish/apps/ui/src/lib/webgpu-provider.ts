@@ -107,6 +107,7 @@ class WebGpuProvider {
 		prompt: string,
 		system: string | null,
 		maxTokens: number | null,
+		temperature: number | null,
 		onToken: (token: string) => void
 	): Promise<string> {
 		if (!this.engine) {
@@ -122,7 +123,8 @@ class WebGpuProvider {
 		const chunks = await this.engine.chat.completions.create({
 			messages,
 			stream: true,
-			max_tokens: maxTokens ?? undefined
+			max_tokens: maxTokens ?? undefined,
+			temperature: temperature ?? undefined
 		});
 
 		let fullText = '';

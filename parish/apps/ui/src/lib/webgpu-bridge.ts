@@ -35,6 +35,7 @@ export function startWebGpuBridge(): () => void {
 				req.prompt,
 				req.system,
 				req.max_tokens,
+				req.temperature,
 				(token) => {
 					if (!cancelled.has(req.id)) {
 						sendWebSocketMessage({ type: 'inference-token', id: req.id, token });
