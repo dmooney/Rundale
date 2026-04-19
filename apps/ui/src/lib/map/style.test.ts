@@ -97,4 +97,27 @@ describe('buildStyle', () => {
 		expect(style.sources.locations.type).toBe('geojson');
 		expect(style.sources.edges.type).toBe('geojson');
 	});
+
+	it('renders custom icon symbols and glow layer for locations', () => {
+		const style = buildStyle('full', THEME, osm());
+		const glow = style.layers.find((l) => l.id === 'location-glow');
+		expect(glow).toBeDefined();
+		expect(glow?.type).toBe('circle');
+
+		const icons = style.layers.find((l) => l.id === 'location-circles');
+		expect(icons).toBeDefined();
+		expect(icons?.type).toBe('symbol');
+	});
+
+	it('adds traversing-edge highlight styling to solid edges', () => {
+		const style = buildStyle('full', THEME, osm());
+		const solid = style.layers.find((l) => l.id === 'edges-solid');
+		expect(solid).toBeDefined();
+		expect((solid as { paint: { 'line-color': unknown } }).paint['line-color']).toEqual([
+			'case',
+			['get', 'traversing'],
+			THEME.accent,
+			THEME.border
+		]);
+	});
 });

@@ -374,6 +374,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             HeaderValue::from_static(
                 "default-src 'self'; \
                  script-src 'self' 'unsafe-inline'; \
+                 worker-src 'self' blob:; \
                  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                  img-src 'self' data: blob: https:; \
                  connect-src 'self' ws: wss: https:; \

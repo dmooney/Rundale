@@ -176,26 +176,28 @@
 		width: 100%;
 	}
 
-	/* ── Travel animation dot (HTML marker) ── */
+	/* ── Travel animation dot (HTML marker) ──
+	   Animating `transform` would clobber the `translate(…)` MapLibre sets
+	   each frame to position the marker, collapsing it to the canvas
+	   top-left. Pulse via opacity + box-shadow only. */
 	:global(.travel-dot-marker) {
 		width: 14px;
 		height: 14px;
 		border-radius: 50%;
 		background: var(--color-accent);
 		border: 2px solid var(--color-fg);
-		box-shadow: 0 0 8px var(--color-accent);
 		animation: travel-pulse 0.6s ease-in-out infinite alternate;
 		pointer-events: none;
 	}
 
 	@keyframes travel-pulse {
 		from {
-			opacity: 0.8;
-			transform: scale(0.9);
+			opacity: 0.85;
+			box-shadow: 0 0 4px var(--color-accent);
 		}
 		to {
 			opacity: 1;
-			transform: scale(1.1);
+			box-shadow: 0 0 12px var(--color-accent);
 		}
 	}
 

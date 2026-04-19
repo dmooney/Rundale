@@ -71,6 +71,14 @@ describe('locationsToGeoJSON', () => {
 		expect(plain?.properties.lit).toBe(false);
 	});
 
+	it('assigns a semantic icon key from the location name', () => {
+		const fc = locationsToGeoJSON(buildMap());
+		const church = fc.features.find((f) => f.properties.id === 'b');
+		const plain = fc.features.find((f) => f.properties.id === 'a');
+		expect(church?.properties.icon).toBe('church');
+		expect(plain?.properties.icon).toBe('map-pin');
+	});
+
 	it('filters to the given id set when provided', () => {
 		const fc = locationsToGeoJSON(buildMap(), {
 			filterIds: new Set(['a', 'b'])
@@ -106,6 +114,16 @@ describe('edgesToGeoJSON', () => {
 		const bc = fc.features.find((f) => f.properties.src === 'b');
 		expect(ab?.properties.frontier).toBe(false);
 		expect(bc?.properties.frontier).toBe(true); // touches unvisited 'c'
+	});
+
+	it('marks active travel path edges as traversing', () => {
+		const fc = edgesToGeoJSON(buildMap(), {
+			traversingEdgeKeys: new Set([edgeKey('a', 'b')])
+		});
+		const ab = fc.features.find((f) => f.properties.src === 'a');
+		const bc = fc.features.find((f) => f.properties.src === 'b');
+		expect(ab?.properties.traversing).toBe(true);
+		expect(bc?.properties.traversing).toBe(false);
 	});
 
 	it('filters edges whose endpoints are not all in the visible set', () => {

@@ -9,6 +9,7 @@
 
 import type { FeatureCollection, Point, LineString } from 'geojson';
 import type { MapData, MapLocation } from '$lib/types';
+import { getLocationIcon, type LocationIcon } from '$lib/map-icons';
 
 /** Feature-state hint patterns for "lit" locations (glow at night / standout). */
 const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;
@@ -17,6 +18,7 @@ const LIT_PATTERNS = /pub|church|house|village|town|shop|school|letter/i;
 export interface LocationFeatureProps {
 	id: string;
 	name: string;
+	icon: LocationIcon;
 	isPlayer: boolean;
 	adjacent: boolean;
 	hops: number;
@@ -38,6 +40,8 @@ export interface EdgeFeatureProps {
 	traversalWeight: number;
 	/** True when either endpoint is unvisited (fog-of-war frontier). */
 	frontier: boolean;
+	/** True when the edge is part of the currently active travel path. */
+	traversing: boolean;
 }
 
 /**
@@ -101,6 +105,7 @@ function buildLocationProps(
 	return {
 		id: loc.id,
 		name: loc.name,
+		icon: getLocationIcon(loc.name),
 		isPlayer: loc.id === playerLocation,
 		adjacent: loc.adjacent,
 		hops: loc.hops,
@@ -121,9 +126,12 @@ function buildLocationProps(
  */
 export function edgesToGeoJSON(
 	map: MapData,
-	options: { filterIds?: ReadonlySet<string> } = {}
+	options: {
+		filterIds?: ReadonlySet<string>;
+		traversingEdgeKeys?: ReadonlySet<string>;
+	} = {}
 ): FeatureCollection<LineString, EdgeFeatureProps> {
-	const { filterIds } = options;
+	const { filterIds, traversingEdgeKeys } = options;
 	const locById = new Map(map.locations.map((l) => [l.id, l]));
 	const traversalsByKey = buildTraversalMap(map.edge_traversals);
 	const maxTraversal = Math.max(1, ...(map.edge_traversals ?? []).map(([, , c]) => c));
@@ -153,7 +161,8 @@ export function edgesToGeoJSON(
 				dst: b,
 				traversals,
 				traversalWeight: weight,
-				frontier: srcLoc.visited === false || dstLoc.visited === false
+				frontier: srcLoc.visited === false || dstLoc.visited === false,
+				traversing: traversingEdgeKeys?.has(key) ?? false
 			}
 		});
 	}
