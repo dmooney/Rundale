@@ -171,6 +171,17 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: Acti
     }
 
     tracing::info!("WebSocket client disconnected");
+
+    // Fail any in-flight WebGPU inference requests so the inference worker
+    // is not blocked waiting for a browser response that will never arrive.
+    // Without this, each stalled request would occupy the worker until the
+    // INFERENCE_RESPONSE_TIMEOUT_SECS wall-clock timeout fires.
+    let mut pending = state.webgpu_pending.lock().await;
+    for (_, waiter) in pending.drain() {
+        let _ = waiter.done_tx.send(Err("WebSocket disconnected".into()));
+    }
+    drop(pending);
+
     // `_guard` drops here, removing the email from `active_ws`.
 }
 
