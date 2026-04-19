@@ -71,7 +71,7 @@
 				<button class="debug-dock-toggle" onclick={() => debugDockLeft.update((v) => !v)}>
 					{$debugDockLeft ? 'Dock Bottom' : 'Dock Left'}
 				</button>
-				<button class="debug-close" onclick={() => debugVisible.set(false)}>X</button>
+				<button class="debug-close" aria-label="Close debug panel" title="Close debug panel" onclick={() => debugVisible.set(false)}>X</button>
 			</div>
 		</div>
 
