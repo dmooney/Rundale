@@ -32,6 +32,7 @@ use crate::cf_auth::AuthContext;
 use crate::state::AppState;
 
 /// Per-field validation caps (issue #376).
+/// Limits are in Unicode characters, not bytes (fix #481).
 const NPC_NAME_MAX: usize = 80;
 const NPC_BIO_MAX: usize = 4096;
 const NPC_PERSONALITY_MAX: usize = 2048;
@@ -39,6 +40,11 @@ const NPC_RELATIONSHIPS_MAX: usize = 256;
 const NPCS_PER_FILE_MAX: usize = 2000;
 const LOCATION_DESCRIPTION_MAX: usize = 4096;
 const LOCATIONS_PER_FILE_MAX: usize = 5000;
+
+/// Returns true if the string contains ASCII control characters (fix #463).
+fn contains_control_chars(s: &str) -> bool {
+    s.chars().any(|c| c.is_ascii_control())
+}
 
 // ── Helper: extract auth email from request extensions ───────────────────────
 
@@ -185,33 +191,57 @@ pub async fn editor_update_npcs(
         ));
     }
     for npc in &npcs.npcs {
-        if npc.name.len() > NPC_NAME_MAX {
+        if contains_control_chars(&npc.name) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "NPC name '{}' contains control characters",
+                    npc.name.escape_debug()
+                ),
+            ));
+        }
+        if npc.name.chars().count() > NPC_NAME_MAX {
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!(
                     "NPC name too long: {} chars (max {NPC_NAME_MAX})",
-                    npc.name.len()
+                    npc.name.chars().count()
                 ),
             ));
         }
-        if let Some(ref bio) = npc.brief_description
-            && bio.len() > NPC_BIO_MAX
-        {
+        if let Some(ref bio) = npc.brief_description {
+            if contains_control_chars(bio) {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("NPC bio for '{}' contains control characters", npc.name),
+                ));
+            }
+            if bio.chars().count() > NPC_BIO_MAX {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!(
+                        "NPC bio too long for '{}': {} chars (max {NPC_BIO_MAX})",
+                        npc.name,
+                        bio.chars().count()
+                    ),
+                ));
+            }
+        }
+        if contains_control_chars(&npc.personality) {
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!(
-                    "NPC bio too long for '{}': {} chars (max {NPC_BIO_MAX})",
-                    npc.name,
-                    bio.len()
+                    "NPC personality for '{}' contains control characters",
+                    npc.name
                 ),
             ));
         }
-        if npc.personality.len() > NPC_PERSONALITY_MAX {
+        if npc.personality.chars().count() > NPC_PERSONALITY_MAX {
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!(
                     "NPC personality too long: {} chars (max {NPC_PERSONALITY_MAX})",
-                    npc.personality.len()
+                    npc.personality.chars().count()
                 ),
             ));
         }
@@ -282,13 +312,22 @@ pub async fn editor_update_locations(
         ));
     }
     for loc in &locations {
-        if loc.description_template.len() > LOCATION_DESCRIPTION_MAX {
+        if contains_control_chars(&loc.description_template) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "location description for '{}' contains control characters",
+                    loc.name
+                ),
+            ));
+        }
+        if loc.description_template.chars().count() > LOCATION_DESCRIPTION_MAX {
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!(
                     "location description too long for '{}': {} chars (max {LOCATION_DESCRIPTION_MAX})",
                     loc.name,
-                    loc.description_template.len()
+                    loc.description_template.chars().count()
                 ),
             ));
         }
@@ -795,5 +834,123 @@ mod tests {
         assert!(result.is_ok(), "alice should have a session");
         let Json(snap) = result.unwrap();
         assert_eq!(snap.manifest.id, "alice_mod");
+    }
+
+    #[tokio::test]
+    async fn editor_update_npcs_accepts_fada_name_within_char_limit() {
+        // "Pádraig Ó Flaithbheartaigh" is 26 chars but 28 bytes in UTF-8.
+        // Under the old byte-counting logic, a name at exactly NPC_NAME_MAX
+        // chars with fadas would be rejected. This test verifies char counting.
+        let state = crate::routes::tests::test_app_state();
+        let fada_name = "á".repeat(NPC_NAME_MAX); // 80 chars, 160 bytes
+        let npcs = serde_json::json!({
+            "npcs": [{
+                "id": 1,
+                "name": fada_name,
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "stoic",
+                "home": 1,
+                "workplace": null,
+                "mood": "neutral",
+                "relationships": [],
+                "schedule": []
+            }]
+        });
+        let body = EditorUpdateNpcsBody { npcs };
+
+        // This needs an open session to succeed past validation; we just
+        // check it doesn't fail with "name too long".
+        let result =
+            editor_update_npcs(Extension(state), make_auth("user@example.com"), Json(body)).await;
+        match result {
+            Err((StatusCode::BAD_REQUEST, msg)) if msg.contains("name too long") => {
+                panic!("fada name at char limit was wrongly rejected: {msg}");
+            }
+            _ => {} // any other outcome is fine (e.g. no open session)
+        }
+    }
+
+    #[tokio::test]
+    async fn editor_update_npcs_rejects_name_with_control_chars() {
+        let state = crate::routes::tests::test_app_state();
+        let npcs = serde_json::json!({
+            "npcs": [{
+                "id": 1,
+                "name": "Pádraig\x00Evil",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "stoic",
+                "home": 1,
+                "workplace": null,
+                "mood": "neutral",
+                "relationships": [],
+                "schedule": []
+            }]
+        });
+        let body = EditorUpdateNpcsBody { npcs };
+        let result =
+            editor_update_npcs(Extension(state), make_auth("user@example.com"), Json(body)).await;
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            msg.contains("control characters"),
+            "expected 'control characters', got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn editor_update_npcs_rejects_personality_with_control_chars() {
+        let state = crate::routes::tests::test_app_state();
+        let npcs = serde_json::json!({
+            "npcs": [{
+                "id": 1,
+                "name": "Valid Name",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "stoic\x07bell",
+                "home": 1,
+                "workplace": null,
+                "mood": "neutral",
+                "relationships": [],
+                "schedule": []
+            }]
+        });
+        let body = EditorUpdateNpcsBody { npcs };
+        let result =
+            editor_update_npcs(Extension(state), make_auth("user@example.com"), Json(body)).await;
+        assert!(result.is_err());
+        let (status, msg) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(
+            msg.contains("control characters"),
+            "expected 'control characters', got: {msg}"
+        );
+    }
+
+    #[test]
+    fn contains_control_chars_detects_null_byte() {
+        assert!(contains_control_chars("hello\x00world"));
+    }
+
+    #[test]
+    fn contains_control_chars_detects_bell() {
+        assert!(contains_control_chars("text\x07here"));
+    }
+
+    #[test]
+    fn contains_control_chars_detects_delete() {
+        assert!(contains_control_chars("text\x7Fhere"));
+    }
+
+    #[test]
+    fn contains_control_chars_allows_normal_unicode() {
+        assert!(!contains_control_chars("Pádraig Ó Flaithbheartaigh"));
+    }
+
+    #[test]
+    fn contains_control_chars_allows_empty() {
+        assert!(!contains_control_chars(""));
     }
 }
