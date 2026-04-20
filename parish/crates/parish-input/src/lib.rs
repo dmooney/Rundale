@@ -65,6 +65,13 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_omen_command() {
+        assert_eq!(parse_system_command("/omen"), Some(Command::Omen));
+        assert_eq!(parse_system_command("/liminal"), Some(Command::Omen));
+        assert_eq!(parse_system_command("/OMEN"), Some(Command::Omen));
+    }
+
+    #[test]
     fn test_parse_unknown_command() {
         assert_eq!(parse_system_command("/unknown"), None);
         assert_eq!(parse_system_command("quit"), None);

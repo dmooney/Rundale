@@ -1,0 +1,112 @@
+# Liminal Moments Playtest
+# =========================
+# Demonstrates /omen readings at mythologically significant sites.
+# Uses the script harness (no LLM) — all output is deterministic.
+#
+# Narrative arc:
+#   Act I.   Baseline morning at Kilteevan — no strong reading
+#   Act II.  Fairy Fort in daylight — faint reading
+#   Act III. Wait until dusk at the rath — reading strengthens to distinct
+#   Act IV.  Pilgrim pattern — the Holy Well
+#   Act V.   Fast-forward to Samhain at midnight — the veil thins
+#   Act VI.  Feature-flag kill-switch works
+#
+# Start:  1820-03-20 08:00  (Spring morning)
+# End:    1820-11-01 00:00  (Samhain midnight)
+
+# ── Act I — baseline: an ordinary morning in the village ──────────────────
+/status
+/omen
+
+# ── Act II — the Fairy Fort in daylight ───────────────────────────────────
+go to crossroads
+/omen
+go to the fairy fort
+look
+/time
+/omen
+
+# ── Act III — wait until dusk, still at the rath ──────────────────────────
+# After walking here (13 + 57 min), we're at 09:10. Dusk runs 17:00–18:00.
+# Wait 8 hours to reach ~17:10.
+/wait 480
+/time
+/omen
+
+# ── Act IV — the Holy Well (hawthorn-rag pilgrim site) ────────────────────
+go to kilteevan
+go to the holy well
+/omen
+
+# ── Act V — fast-forward to Samhain at midnight ──────────────────────────
+# From The Holy Well (afternoon-ish) jump forward 32 weeks + 1 day + 6h 50m
+# to land at 1820-11-01 00:00 back at the Fairy Fort.
+# We do the time travel standing at the Fairy Fort so the /time + /omen
+# line up cleanly.
+go to the crossroads
+go to the fairy fort
+/time
+
+# 32 × one week forward (total 224 days).
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+/wait 10080
+
+/time
+/omen
+
+# Nudge the clock forward in smaller increments until we cross into
+# Samhain at midnight (the harness ticks in-minute, so the exact landing
+# depends on accumulated travel time earlier in the run).
+/wait 1440
+/time
+/omen
+/wait 360
+/time
+/omen
+/wait 60
+/time
+/omen
+/wait 60
+/time
+/omen
+
+# Crossroads on Samhain night — the dead walk the road.
+go to the crossroads
+/time
+/omen
+
+# ── Act VI — feature-flag kill-switch ─────────────────────────────────────
+/flag disable liminal-moments
+/omen
+/flag enable liminal-moments
+/omen

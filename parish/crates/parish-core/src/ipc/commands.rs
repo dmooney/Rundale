@@ -141,6 +141,7 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/map [id]", "List or switch map tile sources"),
     ("/new-game", "Start a fresh game"),
     ("/npcs", "Who is nearby?"),
+    ("/omen", "Read the liminal mood of this place"),
     ("/pause", "Hold time still"),
     ("/resume", "Let time flow again"),
     ("/save", "Save the game"),
@@ -266,6 +267,37 @@ pub fn handle_command(
                     ));
                 }
                 CommandResult::text(lines.join("\n"))
+            }
+        }
+        Command::Omen => {
+            if config.flags.is_disabled("liminal-moments") {
+                return CommandResult::text(
+                    "You stand quiet, but notice nothing out of the ordinary.\n\
+                     (Liminal moments are disabled. Re-enable with /flag enable liminal-moments.)",
+                );
+            }
+            let loc_name = world.current_location().name.clone();
+            let significance = world
+                .current_location_data()
+                .and_then(|d| d.mythological_significance.as_deref());
+            let reading = crate::world::liminal::liminal_reading(
+                significance,
+                world.clock.time_of_day(),
+                world.weather,
+                world.clock.check_festival(),
+            );
+            match reading {
+                Some(r) => CommandResult::text(format!(
+                    "[{}] {:?} — {} reading\n{}",
+                    loc_name,
+                    r.site,
+                    r.intensity_word(),
+                    r.flavor,
+                )),
+                None => CommandResult::text(format!(
+                    "[{}] You stand quiet and listen. It is only a place.",
+                    loc_name
+                )),
             }
         }
         Command::Time => {
@@ -869,6 +901,30 @@ mod tests {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(Command::NpcsHere, &mut world, &mut npc, &mut config);
         assert!(result.response.contains("No one"));
+    }
+
+    #[test]
+    fn omen_on_ordinary_location_is_quiet() {
+        // The default WorldState has no mythological_significance on its graph.
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Omen, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("only a place"));
+    }
+
+    #[test]
+    fn omen_honors_disabled_flag() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.flags.disable("liminal-moments");
+        let result = handle_command(Command::Omen, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("out of the ordinary"));
+        assert!(result.response.contains("/flag enable liminal-moments"));
+    }
+
+    #[test]
+    fn help_lists_omen() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Help, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("/omen"));
     }
 
     #[test]
