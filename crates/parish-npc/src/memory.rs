@@ -10,7 +10,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use parish_types::LocationId;
 use parish_types::NpcId;
@@ -464,48 +464,37 @@ pub fn extract_keywords(
     participant_names: &[String],
     location_name: &str,
 ) -> Vec<String> {
-    let mut keywords: Vec<String> = Vec::new();
+    // Perf: HashSet for O(1) dedup instead of Vec::contains O(k). Called per
+    // memory promotion — once per evicted short-term entry, per NPC, per turn.
+    let mut keywords = HashSet::new();
 
-    // Add participant names
     for name in participant_names {
         if !name.is_empty() {
-            keywords.push(name.to_lowercase());
+            keywords.insert(name.to_lowercase());
         }
     }
 
-    // Add location name
     if !location_name.is_empty() {
-        keywords.push(location_name.to_lowercase());
+        keywords.insert(location_name.to_lowercase());
     }
 
-    // Extract content words >4 chars (simple noun/verb heuristic)
     let stop_words = [
         "about", "after", "again", "being", "between", "could", "doing", "during", "every",
         "found", "going", "heard", "their", "there", "these", "thing", "think", "those", "under",
         "until", "wants", "which", "while", "would", "spoke", "asked", "should",
     ];
     for word in entry.content.split_whitespace() {
-        // Perf: collect filtered chars lowercased in one pass. The previous
-        // `collect::<String>().to_lowercase()` chain heap-allocated twice per
-        // word (once for the filtered String, once for its lowercase copy).
-        // `flat_map(char::to_lowercase)` lowercases each kept char inline and
-        // collects directly, saving one allocation per word. Called per
-        // memory promotion (`try_promote`) — once per evicted short-term
-        // entry, per NPC, per conversation turn.
         let cleaned: String = word
             .chars()
             .filter(|c| c.is_alphanumeric())
             .flat_map(|c| c.to_lowercase())
             .collect();
-        if cleaned.len() > 4
-            && !stop_words.contains(&cleaned.as_str())
-            && !keywords.contains(&cleaned)
-        {
-            keywords.push(cleaned);
+        if cleaned.len() > 4 && !stop_words.contains(&cleaned.as_str()) {
+            keywords.insert(cleaned);
         }
     }
 
-    keywords
+    keywords.into_iter().collect()
 }
 
 /// Attempts to promote an evicted short-term memory entry to long-term storage.
