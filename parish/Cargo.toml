@@ -15,6 +15,7 @@ members = [
     "crates/parish-npc-tool",
     "crates/parish-persistence",
     "crates/parish-input",
+    "crates/parish-rag",
 ]
 default-members = ["crates/parish-cli"]
 
