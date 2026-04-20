@@ -106,6 +106,8 @@ pub enum Command {
     Designer,
     /// Show NPCs at the current location with details.
     NpcsHere,
+    /// Read the liminal / mythological atmosphere of the current location.
+    Omen,
     /// Show detailed time, weather, and season info.
     Time,
     /// Wait in place for a number of game minutes, advancing time.

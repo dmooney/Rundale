@@ -4,6 +4,13 @@
 
 Irish mythology should have structural hooks in the prototype even if no content exists yet. **No mythological content or events for v1. Just ensure the data model doesn't preclude it.**
 
+**Update (2026-04):** A first pass at surfacing the mythology layer lives in
+[`crates/parish-world/src/liminal.rs`](../../crates/parish-world/src/liminal.rs).
+The `/omen` command and the `liminal-moments` feature flag expose atmospheric
+readings at mythologically significant locations, scored from a site's
+classification × time-of-day × weather × festival. See the playtest fixture
+[`testing/fixtures/play_liminal.txt`](../../testing/fixtures/play_liminal.txt).
+
 ## Festival Date Hooks
 
 The time system tracks the four traditional Irish seasonal festivals:
