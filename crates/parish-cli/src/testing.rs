@@ -209,6 +209,53 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
+        // Test-harness-only /doom command: /doom NpcName [hours_from_now]
+        //
+        // Marks the named NPC as fated to die `hours_from_now` game-hours out
+        // (default 18, matching what Tier 4 would schedule). Used by banshee
+        // play-test scripts so we don't need to wait on random rolls.
+        //
+        // Names may contain spaces ("Maire Gallagher"). The optional trailing
+        // hours argument is detected by parsing the last whitespace-separated
+        // token as an integer — if parsing fails, the whole remainder is the
+        // name and the default lead time is used.
+        if let Some(rest) = trimmed.strip_prefix("/doom ") {
+            let rest = rest.trim();
+            let (name, hours): (&str, i64) = match rest.rsplit_once(char::is_whitespace) {
+                Some((name, tail)) if tail.parse::<i64>().is_ok() => {
+                    (name.trim(), tail.parse().unwrap())
+                }
+                _ => (rest, crate::npc::banshee::DOOM_LEAD_TIME_HOURS),
+            };
+            let now = self.app.world.clock.now();
+            let doom = now + chrono::Duration::hours(hours);
+            let lower = name.to_lowercase();
+            let matched = self
+                .app
+                .npc_manager
+                .all_npcs()
+                .find(|n| n.name.to_lowercase() == lower)
+                .map(|n| n.id);
+            let msg = if let Some(id) = matched {
+                if let Some(npc) = self.app.npc_manager.npcs_mut().get_mut(&id) {
+                    npc.doom = Some(doom);
+                    npc.banshee_heralded = false;
+                    format!(
+                        "Doom set for {} at {} ({}h from now).",
+                        npc.name,
+                        doom.format("%Y-%m-%d %H:%M"),
+                        hours
+                    )
+                } else {
+                    format!("Could not find NPC '{}'.", name)
+                }
+            } else {
+                format!("No NPC named '{}'.", name)
+            };
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
+        }
+
         let result = match input::classify_input(trimmed) {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
@@ -229,6 +276,25 @@ impl GameTestHarness {
             self.app.world.weather,
         );
         self.process_schedule_events(&schedule_events);
+
+        // Banshee tick after every action; default-on unless explicitly disabled.
+        if !self.app.flags.is_disabled("banshee") {
+            let player_loc = self.app.world.player_location;
+            let report = self.app.npc_manager.tick_banshee(
+                &self.app.world.clock,
+                &self.app.world.graph,
+                &mut self.app.world.text_log,
+                &self.app.world.event_bus,
+                player_loc,
+            );
+            if !report.is_empty() {
+                self.app.debug_event(format!(
+                    "[banshee] {} wail(s), {} death(s)",
+                    report.wails.len(),
+                    report.deaths.len()
+                ));
+            }
+        }
 
         result
     }
@@ -349,6 +415,26 @@ impl GameTestHarness {
         );
         self.process_schedule_events(&events);
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+
+        // Banshee tick: herald and finalise doomed NPCs.
+        // Default-on; gated by the `banshee` feature flag being explicitly disabled.
+        if !self.app.flags.is_disabled("banshee") {
+            let player_loc = self.app.world.player_location;
+            let report = self.app.npc_manager.tick_banshee(
+                &self.app.world.clock,
+                &self.app.world.graph,
+                &mut self.app.world.text_log,
+                &self.app.world.event_bus,
+                player_loc,
+            );
+            if !report.is_empty() {
+                self.app.debug_event(format!(
+                    "[banshee] {} wail(s), {} death(s)",
+                    report.wails.len(),
+                    report.deaths.len()
+                ));
+            }
+        }
 
         // Propagate gossip between co-located NPCs
         if !self.app.world.gossip_network.is_empty() {
@@ -485,10 +571,30 @@ impl GameTestHarness {
                 );
                 let count = events.len();
                 self.process_schedule_events(&events);
-                let msg = if count == 0 {
+
+                // Banshee tick: herald and finalise doomed NPCs.
+                let mut banshee_count = 0;
+                if !self.app.flags.is_disabled("banshee") {
+                    let player_loc = self.app.world.player_location;
+                    let report = self.app.npc_manager.tick_banshee(
+                        &self.app.world.clock,
+                        &self.app.world.graph,
+                        &mut self.app.world.text_log,
+                        &self.app.world.event_bus,
+                        player_loc,
+                    );
+                    banshee_count = report.wails.len() + report.deaths.len();
+                }
+
+                let msg = if count == 0 && banshee_count == 0 {
                     "No NPC activity.".to_string()
-                } else {
+                } else if banshee_count == 0 {
                     format!("{} schedule event(s) processed.", count)
+                } else {
+                    format!(
+                        "{} schedule event(s) processed, {} banshee event(s).",
+                        count, banshee_count
+                    )
                 };
                 self.app.world.log(msg.clone());
                 return ActionResult::SystemCommand { response: msg };
@@ -1097,6 +1203,12 @@ struct ScriptOutputLine {
     location: String,
     time: String,
     season: String,
+    /// Any new entries appended to the world text log since the previous
+    /// script step — this is where ambient events like banshee wails and
+    /// NPC arrivals surface. Omitted when empty so routine commands stay
+    /// terse.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    new_log_lines: Vec<String>,
 }
 
 /// Captured result of executing one script command (for test assertions).
@@ -1125,6 +1237,7 @@ pub struct ScriptResult {
 pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
     let contents = std::fs::read_to_string(script_path)?;
     let mut harness = GameTestHarness::new();
+    let mut last_log_len = harness.text_log().len();
 
     for line in contents.lines() {
         let trimmed = line.trim();
@@ -1133,12 +1246,20 @@ pub fn run_script_mode(script_path: &Path) -> anyhow::Result<()> {
         }
 
         let result = harness.execute(trimmed);
+        let new_log_lines: Vec<String> = harness
+            .text_log()
+            .iter()
+            .skip(last_log_len)
+            .cloned()
+            .collect();
+        last_log_len = harness.text_log().len();
         let output = ScriptOutputLine {
             command: trimmed.to_string(),
             result,
             location: harness.player_location().to_string(),
             time: harness.time_of_day().to_string(),
             season: harness.season().to_string(),
+            new_log_lines,
         };
         println!("{}", serde_json::to_string(&output)?);
 
@@ -1919,6 +2040,8 @@ mod tests {
             reaction_log: parish_core::npc::reactions::ReactionLog::default(),
             last_activity: None,
             is_ill: false,
+            doom: None,
+            banshee_heralded: false,
         };
 
         let mut app = crate::app::App::new();

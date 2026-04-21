@@ -505,6 +505,14 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                 }
 
                 {
+                    // Snapshot the banshee flag outside the world/npc locks to avoid
+                    // nesting config → world, which inverts the project-wide
+                    // lock order.
+                    let banshee_enabled = {
+                        let cfg = s.config.lock().await;
+                        !cfg.flags.is_disabled("banshee")
+                    };
+
                     let mut world = s.world.lock().await;
                     let mut npc_mgr = s.npc_manager.lock().await;
 
@@ -523,6 +531,18 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
 
                     npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
                     npc_mgr.assign_tiers(&world, &[]);
+
+                    // Banshee tick — herald and finalise doomed NPCs.
+                    if banshee_enabled {
+                        let world = &mut *world;
+                        let _ = npc_mgr.tick_banshee(
+                            &world.clock,
+                            &world.graph,
+                            &mut world.text_log,
+                            &world.event_bus,
+                            world.player_location,
+                        );
+                    }
 
                     if !world.gossip_network.is_empty() {
                         let groups = npc_mgr.tier2_groups();

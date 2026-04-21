@@ -278,6 +278,31 @@ pub async fn run_headless(
                 .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
         process_headless_schedule_events(&mut app, &schedule_events);
 
+        // Banshee tick — herald and finalise doomed NPCs. Default-on; the
+        // `banshee` flag kill-switches it.
+        if !app.flags.is_disabled("banshee") {
+            let player_loc = app.world.player_location;
+            let before_len = app.world.text_log.len();
+            let report = app.npc_manager.tick_banshee(
+                &app.world.clock,
+                &app.world.graph,
+                &mut app.world.text_log,
+                &app.world.event_bus,
+                player_loc,
+            );
+            // Echo any new lines to stdout so the headless REPL sees the wail.
+            for line in app.world.text_log.iter().skip(before_len) {
+                println!("{}", line);
+            }
+            if !report.is_empty() {
+                app.debug_event(format!(
+                    "[banshee] {} wail(s), {} death(s)",
+                    report.wails.len(),
+                    report.deaths.len()
+                ));
+            }
+        }
+
         // Dispatch Tier 4 rules engine if enough game time has elapsed.
         // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
         {

@@ -1,0 +1,11 @@
+# Banshee feature flag — kill-switch verification.
+# When /flag disable banshee, no wail fires, and NPCs with doom set
+# stay alive and unremoved.
+
+/flag disable banshee
+/doom Padraig Darcy 18
+/wait 800
+/wait 300
+# Padraig should still be at the pub — no death fired.
+go to the pub
+/npcs

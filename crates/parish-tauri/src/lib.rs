@@ -1008,6 +1008,41 @@ pub fn run() {
                                 npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
                             let tier_transitions = npc_mgr.assign_tiers(&world, &[]);
 
+                            // Banshee tick — herald and finalise doomed NPCs.
+                            // Default-on; kill-switched by the `banshee` feature flag.
+                            let banshee_enabled = {
+                                let cfg = state_tick.config.lock().await;
+                                !cfg.flags.is_disabled("banshee")
+                            };
+                            let banshee_report = if banshee_enabled {
+                                let world_ref = &mut *world;
+                                npc_mgr.tick_banshee(
+                                    &world_ref.clock,
+                                    &world_ref.graph,
+                                    &mut world_ref.text_log,
+                                    &world_ref.event_bus,
+                                    world_ref.player_location,
+                                )
+                            } else {
+                                parish_core::npc::banshee::BansheeReport::default()
+                            };
+                            if !banshee_report.is_empty() {
+                                let mut debug_events =
+                                    state_tick.debug_events.lock().await;
+                                if debug_events.len() >= crate::DEBUG_EVENT_CAPACITY {
+                                    debug_events.pop_front();
+                                }
+                                debug_events.push_back(DebugEvent {
+                                    timestamp: world.clock.now().format("%H:%M %Y-%m-%d").to_string(),
+                                    category: "banshee".to_string(),
+                                    message: format!(
+                                        "{} wail(s), {} death(s)",
+                                        banshee_report.wails.len(),
+                                        banshee_report.deaths.len()
+                                    ),
+                                });
+                            }
+
                             // Log schedule events and tier transitions to debug panel
                             if !schedule_events.is_empty() || !tier_transitions.is_empty() {
                                 let ts =

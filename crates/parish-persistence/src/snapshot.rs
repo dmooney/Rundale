@@ -116,6 +116,14 @@ pub struct NpcSnapshot {
     /// Whether the NPC is currently ill. Set by Tier 4 rules engine.
     #[serde(default)]
     pub is_ill: bool,
+    /// Game-time at which this NPC is fated to die, if set.
+    ///
+    /// See [`parish_npc::Npc::doom`] for semantics.
+    #[serde(default)]
+    pub doom: Option<DateTime<Utc>>,
+    /// Whether the banshee wail has already been emitted for the current doom.
+    #[serde(default)]
+    pub banshee_heralded: bool,
 }
 
 impl NpcSnapshot {
@@ -141,6 +149,8 @@ impl NpcSnapshot {
             state: npc.state.clone(),
             last_activity: npc.last_activity.clone(),
             is_ill: npc.is_ill,
+            doom: npc.doom,
+            banshee_heralded: npc.banshee_heralded,
         }
     }
 
@@ -166,6 +176,8 @@ impl NpcSnapshot {
             state: self.state,
             last_activity: self.last_activity,
             is_ill: self.is_ill,
+            doom: self.doom,
+            banshee_heralded: self.banshee_heralded,
             deflated_summary: None,
             reaction_log: parish_npc::reactions::ReactionLog::default(),
         }
@@ -400,6 +412,8 @@ mod tests {
             reaction_log: parish_npc::reactions::ReactionLog::default(),
             last_activity: None,
             is_ill: false,
+            doom: None,
+            banshee_heralded: false,
         }
     }
 
