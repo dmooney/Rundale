@@ -122,7 +122,8 @@ async fn cf_access_guard(
             .headers()
             .get("CF-Access-Authenticated-User-Email")
             .and_then(|v| v.to_str().ok())
-            .map(str::to_string);
+            .map(str::to_string)
+            .filter(|e| !e.is_empty() && e.contains('@'));
         if let Some(email) = debug_email {
             req.extensions_mut().insert(cf_auth::AuthContext { email });
             return Ok(next.run(req).await);
@@ -441,8 +442,9 @@ fn build_oauth_config() -> Option<OAuthConfig> {
     let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
         .ok()
         .filter(|s| !s.is_empty())?;
-    let base_url =
-        std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+    let base_url = std::env::var("PARISH_PUBLIC_URL")
+        .or_else(|_| std::env::var("PARISH_BASE_URL"))
+        .unwrap_or_else(|_| "http://localhost:3001".to_string());
     Some(OAuthConfig {
         client_id,
         client_secret,
@@ -678,5 +680,42 @@ mod tests {
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
         }
         assert!(build_oauth_config().is_none());
+    }
+
+    #[test]
+    fn build_oauth_config_prefers_public_url() {
+        // SAFETY: single-threaded test; no other thread reads these vars.
+        unsafe {
+            std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
+            std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
+            std::env::set_var("PARISH_PUBLIC_URL", "https://myapp.example.com");
+            std::env::set_var("PARISH_BASE_URL", "https://api.openrouter.ai");
+        }
+        let cfg = build_oauth_config().expect("should build with credentials set");
+        assert_eq!(cfg.base_url, "https://myapp.example.com");
+        unsafe {
+            std::env::remove_var("GOOGLE_CLIENT_ID");
+            std::env::remove_var("GOOGLE_CLIENT_SECRET");
+            std::env::remove_var("PARISH_PUBLIC_URL");
+            std::env::remove_var("PARISH_BASE_URL");
+        }
+    }
+
+    #[test]
+    fn build_oauth_config_falls_back_to_base_url() {
+        // SAFETY: single-threaded test; no other thread reads these vars.
+        unsafe {
+            std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
+            std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
+            std::env::remove_var("PARISH_PUBLIC_URL");
+            std::env::set_var("PARISH_BASE_URL", "https://myapp.example.com");
+        }
+        let cfg = build_oauth_config().expect("should build with credentials set");
+        assert_eq!(cfg.base_url, "https://myapp.example.com");
+        unsafe {
+            std::env::remove_var("GOOGLE_CLIENT_ID");
+            std::env::remove_var("GOOGLE_CLIENT_SECRET");
+            std::env::remove_var("PARISH_BASE_URL");
+        }
     }
 }
