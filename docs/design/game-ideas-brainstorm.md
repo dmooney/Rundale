@@ -179,6 +179,7 @@ When sleeping, the player could experience dream sequences — fragments of memo
 
 - **Connects to**: Time system (night/sleep), mythology hooks, ambient atmosphere
 - **Phase fit**: 6 (mythology layer)
+- **Detailed design**: [Night Visions](night-visions.md) — generator shape, tables, prerequisites, open questions
 - **Research**: [Mythology & Folklore](../research/mythology-folklore.md)
 
 ---
