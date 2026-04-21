@@ -10,7 +10,7 @@ The web server (`crates/parish-server/`) reads three environment variables on st
 |----------|---------|
 | `GOOGLE_CLIENT_ID` | OAuth client ID from Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | OAuth client secret from Google Cloud Console |
-| `PARISH_BASE_URL` | Public base URL of the server (defaults to `http://localhost:3001`) |
+| `PARISH_PUBLIC_URL` | Public base URL of the server (defaults to `http://localhost:3001`). Falls back to `PARISH_BASE_URL` if unset. |
 
 These are loaded via `dotenvy::dotenv()`, so a `.env` file at the repo root works. If either `GOOGLE_CLIENT_ID` or `GOOGLE_CLIENT_SECRET` is missing or empty, OAuth is silently disabled and the `/auth/login/google` + `/auth/callback/google` routes are not registered.
 
@@ -47,7 +47,7 @@ Put the credentials into a `.env` file at the repo root:
 ```env
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
-PARISH_BASE_URL=http://localhost:3001
+PARISH_PUBLIC_URL=http://localhost:3001
 ```
 
 Start the web server. On startup you should see:
@@ -61,13 +61,13 @@ in the logs — that confirms both credentials were picked up. Then visit http:/
 ## Gotchas
 
 - **Test users only.** While the consent screen is in "Testing" status, Google rejects logins from accounts not on the test user list. Publish the app (or add more test users) to widen access.
-- **Redirect URI must match exactly.** The code builds the callback URL as `${PARISH_BASE_URL}/auth/callback/google` (with any trailing slash on `PARISH_BASE_URL` trimmed via `trim_end_matches('/')`). Whatever you register in Google Cloud must match byte-for-byte, including scheme (`http` vs `https`) and port.
+- **Redirect URI must match exactly.** The code builds the callback URL as `${PARISH_PUBLIC_URL}/auth/callback/google` (with any trailing slash trimmed via `trim_end_matches('/')`). Whatever you register in Google Cloud must match byte-for-byte, including scheme (`http` vs `https`) and port. If `PARISH_PUBLIC_URL` is not set, `PARISH_BASE_URL` is used as a fallback.
 - **Silent disable.** Missing or empty credentials don't raise an error — the auth routes just aren't registered. If `/auth/login/google` returns 404, check that both env vars are actually set in the process's environment.
 
 ## Railway deployment
 
 When deploying to Railway (or any other host):
 
-1. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `PARISH_BASE_URL` in the service's environment variables. `PARISH_BASE_URL` must be the public URL Railway assigns you (e.g. `https://parish-production.up.railway.app`).
-2. Add the production callback URL (`${PARISH_BASE_URL}/auth/callback/google`) to the authorized redirect URIs list in Google Cloud Console **before** the first production login attempt — Google rejects unregistered redirect URIs.
+1. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `PARISH_PUBLIC_URL` in the service's environment variables. `PARISH_PUBLIC_URL` must be the public URL Railway assigns you (e.g. `https://parish-production.up.railway.app`).
+2. Add the production callback URL (`${PARISH_PUBLIC_URL}/auth/callback/google`) to the authorized redirect URIs list in Google Cloud Console **before** the first production login attempt — Google rejects unregistered redirect URIs.
 3. You can reuse the same OAuth client for local and production by listing both redirect URIs on the same credential, or create separate clients per environment.
