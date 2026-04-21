@@ -730,7 +730,7 @@ fn handle_post_command(
     // Bare `/post` — just list recipients.
     let id = match correspondent.as_deref() {
         None => return CommandResult::text(render_correspondents_list()),
-        Some(s) if s.is_empty() => return CommandResult::text(render_correspondents_list()),
+        Some("") => return CommandResult::text(render_correspondents_list()),
         Some(s) => s,
     };
 
