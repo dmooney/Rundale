@@ -138,10 +138,12 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/irish", "Toggle Irish pronunciation sidebar"),
     ("/load <name>", "Load a named branch"),
     ("/log", "Show branch history"),
+    ("/mail", "Check the Letter Office for mail"),
     ("/map [id]", "List or switch map tile sources"),
     ("/new-game", "Start a fresh game"),
     ("/npcs", "Who is nearby?"),
     ("/pause", "Hold time still"),
+    ("/post <id> [topic]", "Post a letter at the Letter Office"),
     ("/resume", "Let time flow again"),
     ("/save", "Save the game"),
     (
@@ -578,6 +580,11 @@ pub fn handle_command(
         Command::Unexplored(arg) => handle_unexplored_command(config, arg),
         Command::Weather(arg) => handle_weather_command(world, arg),
         Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
+        Command::Mail => handle_mail_command(world, config),
+        Command::PostLetter {
+            correspondent,
+            topic,
+        } => handle_post_command(world, npc_manager, config, correspondent, topic),
         Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
         Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
         Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
@@ -679,6 +686,168 @@ fn handle_weather_command(
             )),
         },
     }
+}
+
+/// Name of the Letter Office in `mods/rundale/world.json`. Kept as a string
+/// match (rather than an id) so mods are free to rename the location; the
+/// feature simply requires a location named "Letter Office".
+const LETTER_OFFICE_NAME: &str = "The Letter Office";
+
+/// Renders the list of correspondents as a single text block.
+fn render_correspondents_list() -> String {
+    let mut lines =
+        vec!["Correspondents — post to one of these with `/post <id> [topic]`:".to_string()];
+    for c in parish_world::letters::CORRESPONDENTS {
+        let delay = if c.delay_hours >= 48 {
+            format!("about {} days", c.delay_hours / 24)
+        } else {
+            format!("about {} hours", c.delay_hours)
+        };
+        lines.push(format!(
+            "  /post {:<7} {} ({}) — round trip {}",
+            c.id, c.name, c.place, delay
+        ));
+    }
+    lines.join("\n")
+}
+
+/// Handles `/post [id] [topic]` — writes a letter at the Letter Office.
+///
+/// Feature-gated on the `letters` flag (default-on, kill-switchable). Requires
+/// the player to be at the Letter Office; writing the letter advances the
+/// clock by ten minutes.
+fn handle_post_command(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    config: &GameConfig,
+    correspondent: Option<String>,
+    topic: String,
+) -> CommandResult {
+    if config.flags.is_disabled("letters") {
+        return CommandResult::text("Letter writing is disabled.");
+    }
+
+    // Bare `/post` — just list recipients.
+    let id = match correspondent.as_deref() {
+        None => return CommandResult::text(render_correspondents_list()),
+        Some(s) if s.is_empty() => return CommandResult::text(render_correspondents_list()),
+        Some(s) => s,
+    };
+
+    // Must be at the Letter Office.
+    let at_office = world.current_location().name == LETTER_OFFICE_NAME;
+    if !at_office {
+        return CommandResult::text(format!(
+            "You've no pen nor paper to hand. Come back to {} to post a letter.",
+            LETTER_OFFICE_NAME
+        ));
+    }
+
+    let correspondent = match parish_world::letters::find_correspondent(id) {
+        Some(c) => c,
+        None => {
+            return CommandResult::text(format!(
+                "No one by the name of \"{}\" on the mail rolls. Try `/post` alone for the list.",
+                id
+            ));
+        }
+    };
+
+    let now = world.clock.now();
+    let letter_id = world.letter_book.post(correspondent, &topic, now);
+
+    // Writing takes time. Advance the clock ten minutes (and let schedules
+    // catch up); same pattern `/wait` uses.
+    world.clock.advance(10);
+    let _ = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+
+    let topic_line = if topic.is_empty() {
+        String::new()
+    } else {
+        format!(" You write of {topic}.")
+    };
+
+    CommandResult::text(format!(
+        "Letter #{} to {} ({}).{}\n{}\nExpect a reply in about {} hours.",
+        letter_id,
+        correspondent.name,
+        correspondent.place,
+        topic_line,
+        correspondent.send_blurb,
+        correspondent.delay_hours,
+    ))
+}
+
+/// Handles `/mail` — reports status of all posted letters and, if the player
+/// is at the Letter Office, hands over any letters whose reply has arrived.
+fn handle_mail_command(world: &mut WorldState, config: &GameConfig) -> CommandResult {
+    if config.flags.is_disabled("letters") {
+        return CommandResult::text("Letter writing is disabled.");
+    }
+
+    let now = world.clock.now();
+    let season = world.clock.season();
+    let at_office = world.current_location().name == LETTER_OFFICE_NAME;
+
+    if world.letter_book.posted_count() == 0 {
+        return CommandResult::text(
+            "You've written no letters yet. Try `/post` at the Letter Office.",
+        );
+    }
+
+    let mut out: Vec<String> = Vec::new();
+
+    // Letters in transit — show count + ETA of the soonest arrival.
+    let in_transit = world.letter_book.in_transit(now);
+    if !in_transit.is_empty() {
+        let soonest = in_transit.iter().map(|l| l.reply_at).min().unwrap();
+        let hours = (soonest - now).num_hours().max(0);
+        out.push(format!(
+            "{} letter(s) still in transit (next reply in about {} hour(s)).",
+            in_transit.len(),
+            hours
+        ));
+    }
+
+    // Waiting letters — only delivered at the Letter Office.
+    let waiting_count = world.letter_book.waiting(now).len();
+    if waiting_count == 0 {
+        if !in_transit.is_empty() {
+            out.push("No letters waiting at the office yet.".to_string());
+        } else {
+            out.push(
+                "No mail at the office. All posted letters have been received and read."
+                    .to_string(),
+            );
+        }
+        return CommandResult::text(out.join("\n"));
+    }
+
+    if !at_office {
+        out.push(format!(
+            "{} letter(s) waiting at {}. Call in to collect them.",
+            waiting_count, LETTER_OFFICE_NAME
+        ));
+        return CommandResult::text(out.join("\n"));
+    }
+
+    // At the office, with mail — render every waiting letter in full.
+    let read = world.letter_book.collect_waiting(now, season);
+    out.push(format!(
+        "The postmaster thumbs through the bag and hands you {} letter(s).",
+        read.len()
+    ));
+    for letter in &read {
+        let from = format!(
+            "From {} ({}):",
+            letter.correspondent.name, letter.correspondent.place
+        );
+        out.push(String::new());
+        out.push(from);
+        out.push(letter.body.clone());
+    }
+
+    CommandResult::text(out.join("\n"))
 }
 
 /// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
