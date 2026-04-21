@@ -19,7 +19,7 @@
 # [provider]
 # name = "ollama"
 # base_url = "http://localhost:11434"
-# model = "qwen3.5:9b"        # or "gemma4:9b" — see inference-pipeline.md
+# model = "gemma4:e4b"        # or gemma4:26b / gemma4:31b — see inference-pipeline.md
 # api_key = ""
 #
 # Anthropic (Claude) via the native Messages API. Uses the

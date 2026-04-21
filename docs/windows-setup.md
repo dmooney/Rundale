@@ -54,7 +54,14 @@ curl http://localhost:11434/api/tags
 ### 6. Pull a Model
 
 ```powershell
-ollama pull qwen3:14b
+# Default pick on most machines (~10 GB edge model)
+ollama pull gemma4:e4b
+
+# 24 GB+ VRAM — MoE, 4B active
+ollama pull gemma4:26b
+
+# 36 GB+ VRAM — dense 31B
+ollama pull gemma4:31b
 ```
 
 See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
@@ -119,7 +126,7 @@ You need the MSVC C++ Build Tools. Install them via:
 ### Model runs slowly
 
 - Check GPU utilization while the model is running.
-- Try a smaller model (`qwen3:4b` or `qwen3:1.7b`) for CPU-only systems.
+- Try a smaller model (`gemma4:e2b`) for CPU-only systems.
 
 ## Alternative: WSL
 

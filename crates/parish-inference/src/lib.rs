@@ -174,7 +174,7 @@ pub fn new_inference_log() -> InferenceLog {
 pub struct InferenceRequest {
     /// Unique request identifier for correlation.
     pub id: u64,
-    /// The Ollama model to use (e.g. "qwen3:14b").
+    /// The Ollama model to use (e.g. "gemma4:e4b").
     pub model: String,
     /// The prompt text to send to the model.
     pub prompt: String,
@@ -369,7 +369,7 @@ pub struct InferenceClients {
     overrides: std::collections::HashMap<parish_config::InferenceCategory, (AnyClient, String)>,
     /// Base client used when no per-category override exists.
     pub base: AnyClient,
-    /// Base model name (e.g. "qwen3:14b").
+    /// Base model name (e.g. "gemma4:e4b").
     pub base_model: String,
 }
 

@@ -105,19 +105,22 @@ GPU acceleration is optional but strongly recommended for larger models.
 
 **AMD (ROCm):** Install ROCm following the [official guide](https://rocm.docs.amd.com/). Verify with `rocm-smi`.
 
-**CPU-only:** No extra setup needed. Use a smaller model (`qwen3:4b` or `qwen3:1.7b`).
+**CPU-only:** No extra setup needed. Use a smaller model (`gemma4:e2b`).
 
 ### 7. Pull a Model
 
 ```sh
-# 12 GB+ VRAM — full quality
-ollama pull qwen3:14b
+# 36 GB+ VRAM — dense 31B, top quality
+ollama pull gemma4:31b
 
-# 6 GB+ VRAM — good quality
-ollama pull qwen3:8b
+# 24 GB+ VRAM — MoE (4B active), fast
+ollama pull gemma4:26b
 
-# 3 GB+ VRAM or CPU — lighter model
-ollama pull qwen3:4b
+# Default pick on most machines (~10 GB edge model)
+ollama pull gemma4:e4b
+
+# 8 GB or CPU — lighter edge model
+ollama pull gemma4:e2b
 ```
 
 See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
@@ -197,4 +200,4 @@ Build tools or WebKit2GTK dev headers are missing. See step 1 above.
 ### Model runs slowly
 
 - Check GPU utilization with `nvidia-smi` (NVIDIA) or `rocm-smi` (AMD).
-- Try a smaller model (`qwen3:4b` or `qwen3:1.7b`) for CPU-only systems.
+- Try a smaller model (`gemma4:e2b`) for CPU-only systems.

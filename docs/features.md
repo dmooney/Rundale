@@ -226,12 +226,12 @@ Provider config is resolved by `resolve_config` in `crates/parish-config/src/pro
 ### Ollama Bootstrap
 - Auto-starts `ollama serve` if not running; shuts down cleanly on exit
 - Binary detection via PATH; auto-installs if missing
-- **GPU detection** via `nvidia-smi` or `rocm-smi`
+- **GPU detection** via `nvidia-smi`, `rocm-smi`, or `sysctl hw.memsize` (Apple Silicon unified memory)
 - **Automatic model selection by VRAM** (`crates/parish-inference/src/setup.rs`):
-  - ≥12 GB → `qwen3:14b`
-  - ≥6 GB → `qwen3:8b`
-  - ≥3 GB → `qwen3:4b`
-  - <3 GB or CPU-only → `qwen3:1.7b`
+  - ≥25 GB → `gemma4:31b` (dense)
+  - ≥17 GB → `gemma4:26b` (MoE, 4B active)
+  - ≥11 GB → `gemma4:e4b` (edge, 4.5B effective)
+  - <11 GB → `gemma4:e2b` (edge, 2.3B effective)
 - Auto-pulls models not already cached; warmup before gameplay begins
 
 ### Streaming

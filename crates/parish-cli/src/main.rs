@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use clap::Parser;
 use parish::config::{
-    CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, Provider,
-    ProviderConfig, resolve_category_configs, resolve_cloud_config, resolve_config,
+    CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, ProviderConfig,
+    resolve_category_configs, resolve_cloud_config, resolve_config,
 };
 use parish::headless;
 use parish::inference::InferenceClients;
@@ -260,8 +260,9 @@ async fn main() -> Result<()> {
 
 /// Sets up the inference client based on the resolved provider configuration.
 ///
-/// For Ollama: runs the full setup sequence (GPU detect, auto-start, model pull, warmup).
-/// For other providers: creates an OpenAI-compatible client directly.
+/// Thin wrapper over [`setup::setup_provider_client`] — the shared helper
+/// used by Tauri and the web server so all modes start with the same
+/// Ollama bootstrap behaviour (CLAUDE.md rule #2 — mode parity).
 async fn setup_provider(
     _cli: &Cli,
     config: &ProviderConfig,
@@ -270,53 +271,20 @@ async fn setup_provider(
     String,
     parish::inference::client::OllamaProcess,
 )> {
-    use parish::inference::AnyClient;
-    match config.provider {
-        Provider::Simulator => {
-            // Built-in simulator: no network, no model download required.
-            tracing::info!("Using built-in inference simulator (GPT-0 mode)");
-            let dummy_process = parish::inference::client::OllamaProcess::none();
-            Ok((
-                AnyClient::simulator(),
-                "simulator".to_string(),
-                dummy_process,
-            ))
-        }
-        Provider::Ollama => {
-            let progress = StdoutProgress;
-            let setup =
-                setup::setup_ollama(&config.base_url, config.model.as_deref(), &progress).await?;
-            let model = setup.model_name.clone();
-            let client = AnyClient::open_ai(setup.client.clone());
-            let process = setup.process;
-            Ok((client, model, process))
-        }
-        _ => {
-            // Non-Ollama providers: require model name
-            let model = config.model.clone().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "{:?} provider requires a model name. Set --model or PARISH_MODEL.",
-                    config.provider
-                )
-            })?;
-            let client = parish::inference::build_client(
-                &config.provider,
-                &config.base_url,
-                config.api_key.as_deref(),
-                &parish::config::InferenceConfig::default(),
-            );
-            tracing::info!(
-                "Using {:?} provider at {} with model {}",
-                config.provider,
-                config.base_url,
-                model
-            );
-
-            // No OllamaProcess management for non-Ollama providers
-            let dummy_process = parish::inference::client::OllamaProcess::none();
-            Ok((client, model, dummy_process))
-        }
-    }
+    let progress = StdoutProgress;
+    let (client, model, process) = setup::setup_provider_client(
+        config,
+        &parish::config::InferenceConfig::default(),
+        &progress,
+    )
+    .await?;
+    tracing::info!(
+        "Using {:?} provider at {} with model {}",
+        config.provider,
+        config.base_url,
+        model
+    );
+    Ok((client, model, process))
 }
 
 /// Builds the per-category inference routing struct from base and category configs.

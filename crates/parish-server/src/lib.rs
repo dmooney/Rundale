@@ -145,12 +145,29 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     };
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (_, mut config) = build_client_and_config();
+    let (provider_cfg, mut config) = build_client_and_config();
     let cloud_env = build_cloud_client_from_env();
     config.cloud_provider_name = cloud_env.provider_name;
     config.cloud_model_name = cloud_env.model_name;
     config.cloud_api_key = cloud_env.api_key;
     config.cloud_base_url = cloud_env.base_url;
+
+    // Run the shared provider bootstrap (Ollama install / auto-start / GPU
+    // detect / model pull / warmup) — CLAUDE.md rule #2 (mode parity).
+    // Per-session clients are built from the template config, which at this
+    // point has the auto-selected model tag resolved. The returned client
+    // is discarded — sessions build their own. The `OllamaProcess` is kept
+    // in `GlobalState` so the child server dies with this process.
+    let progress = parish_core::inference::setup::StdoutProgress;
+    let (_setup_client, resolved_model, ollama_process) =
+        parish_core::inference::setup::setup_provider_client(
+            &provider_cfg,
+            &parish_core::config::InferenceConfig::default(),
+            &progress,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
+    config.model_name = resolved_model;
 
     // ── Game mod ──────────────────────────────────────────────────────────────
     let game_mod = find_default_mod().and_then(|dir| GameMod::load(&dir).ok());
@@ -251,6 +268,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         theme_palette,
         transport: TransportConfig::default(),
         template_config: config,
+        ollama_process: tokio::sync::Mutex::new(ollama_process),
     });
 
     // ── Session cleanup background task ───────────────────────────────────────
@@ -431,8 +449,15 @@ fn build_oauth_config() -> Option<OAuthConfig> {
         base_url,
     })
 }
-/// Builds the local LLM client and config from environment variables.
-fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, GameConfig) {
+/// Builds the provider-setup input and the template `GameConfig` from
+/// environment variables.
+///
+/// Returns a [`ProviderConfig`] suitable for the shared
+/// [`parish_core::inference::setup::setup_provider_client`] bootstrap and
+/// the session `GameConfig` template. The caller runs the bootstrap and
+/// then overwrites `config.model_name` with the auto-resolved tag (for
+/// Ollama, the tier selector's pick).
+fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig) {
     let provider_name =
         std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
@@ -450,26 +475,28 @@ fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, Game
         .ok()
         .filter(|s| !s.is_empty());
 
-    let client = if model.is_empty() && provider_name != "ollama" {
-        None
-    } else {
-        Some(parish_core::inference::build_client(
-            &provider_enum,
-            &base_url,
-            api_key.as_deref(),
-            &parish_core::config::InferenceConfig::default(),
-        ))
+    let provider_cfg = parish_core::config::ProviderConfig {
+        provider: provider_enum,
+        base_url: base_url.clone(),
+        api_key: api_key.clone(),
+        model: if model.is_empty() {
+            None
+        } else {
+            Some(model.clone())
+        },
     };
-    let provider = provider_name;
 
+    // `model_name` starts as the env override (if any) or `gemma4:e4b` as a
+    // placeholder; the bootstrap replaces it with the auto-selected tier tag
+    // before sessions are built.
     let model_name = if model.is_empty() {
-        "qwen3:14b".to_string()
+        "gemma4:e4b".to_string()
     } else {
         model
     };
 
     let config = GameConfig {
-        provider_name: provider,
+        provider_name,
         base_url,
         api_key,
         model_name,
@@ -493,7 +520,7 @@ fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, Game
         reveal_unexplored_locations: false,
     };
 
-    (client, config)
+    (provider_cfg, config)
 }
 
 /// Cloud LLM environment configuration loaded from `PARISH_CLOUD_*` vars.

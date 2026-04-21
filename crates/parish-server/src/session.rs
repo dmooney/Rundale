@@ -57,6 +57,10 @@ pub struct GlobalState {
     pub transport: TransportConfig,
     /// Template game config cloned into each new session.
     pub template_config: GameConfig,
+    /// Child `ollama serve` process handle (no-op for non-Ollama providers).
+    /// Held for the server's lifetime so dropping `GlobalState` stops the
+    /// server. Wrapped in a `Mutex` so the struct stays `Sync`.
+    pub ollama_process: tokio::sync::Mutex<parish_core::inference::client::OllamaProcess>,
 }
 
 /// A single visitor's isolated game session.

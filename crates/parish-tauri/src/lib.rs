@@ -16,7 +16,7 @@ use tauri::Emitter;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use parish_core::config::{FeatureFlags, Provider};
+use parish_core::config::{FeatureFlags, Provider, ProviderConfig};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::{
@@ -267,6 +267,10 @@ pub struct AppState {
     pub editor: std::sync::Mutex<parish_core::ipc::editor::EditorSession>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
+    /// Child `ollama serve` process handle (no-op for non-Ollama providers).
+    /// Stored here so it lives for the app's lifetime — dropping it kills the
+    /// server. See [`parish_core::inference::client::OllamaProcess`].
+    pub ollama_process: Mutex<parish_core::inference::client::OllamaProcess>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -505,8 +509,21 @@ pub fn run() {
     // Initial tier assignment
     npc_manager.assign_tiers(&world, &[]);
 
-    // Read provider config from env vars (optional)
-    let (client, model_name, provider_name, base_url, api_key) = build_client_from_env();
+    // Read provider config from env vars (optional).
+    // On Ollama this runs the full install / auto-start / GPU-detect / pull
+    // / warmup sequence — so the desktop app matches the CLI on first launch.
+    let (provider_config, provider_name, base_url, api_key) = provider_config_from_env();
+    let setup_runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("failed to build tokio runtime for provider bootstrap");
+    let (client, model_name, ollama_process) = setup_runtime
+        .block_on(bootstrap_provider(&provider_config))
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to initialise inference provider: {}", e);
+            eprintln!("[Parish] Failed to initialise inference provider: {}", e);
+            std::process::exit(1);
+        });
     let cloud_env = build_cloud_client_from_env();
 
     // Build splash text from mod title + build info
@@ -600,6 +617,7 @@ pub fn run() {
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
+        ollama_process: Mutex::new(ollama_process),
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -1501,14 +1519,15 @@ pub fn run() {
 
 // ── Client initialisation from env ───────────────────────────────────────────
 
-/// Returns `(client, model_name, provider_name, base_url, api_key)`.
-fn build_client_from_env() -> (Option<AnyClient>, String, String, String, Option<String>) {
+/// Reads `PARISH_*` env vars into a [`ProviderConfig`] plus the display
+/// strings that populate [`GameConfig`].
+fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>) {
     let provider_name =
         std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
-    let provider_enum = Provider::from_str_loose(&provider_name).unwrap_or_default();
-    let model = std::env::var("PARISH_MODEL").unwrap_or_default();
+    let provider = Provider::from_str_loose(&provider_name).unwrap_or_default();
+    let model_override = std::env::var("PARISH_MODEL").ok().filter(|s| !s.is_empty());
     let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
-        let default = provider_enum.default_base_url();
+        let default = provider.default_base_url();
         if default.is_empty() {
             "http://localhost:11434".to_string()
         } else {
@@ -1519,29 +1538,48 @@ fn build_client_from_env() -> (Option<AnyClient>, String, String, String, Option
         .ok()
         .filter(|s| !s.is_empty());
 
-    if model.is_empty() && provider_name != "ollama" {
-        return (None, String::new(), provider_name, base_url, api_key);
+    let config = ProviderConfig {
+        provider,
+        base_url: base_url.clone(),
+        api_key: api_key.clone(),
+        model: model_override,
+    };
+    (config, provider_name, base_url, api_key)
+}
+
+/// Runs the full provider bootstrap (Ollama install / auto-start / GPU
+/// detect / model pull / warmup when applicable) and returns the ready
+/// client, the resolved model tag, and the child-process handle that must
+/// live for the app's lifetime.
+///
+/// Shared plumbing with the CLI and web-server paths via
+/// [`parish_core::inference::setup::setup_provider_client`] — CLAUDE.md
+/// rule #2 (mode parity).
+async fn bootstrap_provider(
+    config: &ProviderConfig,
+) -> anyhow::Result<(
+    Option<AnyClient>,
+    String,
+    parish_core::inference::client::OllamaProcess,
+)> {
+    // Non-Ollama providers without a model → leave the client unset so the
+    // UI can surface a config error instead of failing hard at startup.
+    if config.model.is_none() && config.provider != Provider::Ollama {
+        return Ok((
+            None,
+            String::new(),
+            parish_core::inference::client::OllamaProcess::none(),
+        ));
     }
 
-    let client = parish_core::inference::build_client(
-        &provider_enum,
-        &base_url,
-        api_key.as_deref(),
+    let progress = parish_core::inference::setup::StdoutProgress;
+    let (client, model, process) = parish_core::inference::setup::setup_provider_client(
+        config,
         &parish_core::config::InferenceConfig::default(),
-    );
-    let model_name = if model.is_empty() {
-        "qwen3:14b".to_string() // Ollama default
-    } else {
-        model
-    };
-
-    (
-        Some(client),
-        model_name,
-        provider_name,
-        base_url.clone(),
-        api_key,
+        &progress,
     )
+    .await?;
+    Ok((Some(client), model, process))
 }
 
 /// Resolved cloud provider configuration from environment variables.
