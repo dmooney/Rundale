@@ -1,0 +1,35 @@
+# Mail play-test — demonstrates idea #19 ("Letter Writing") from
+# game-ideas-brainstorm.md.
+#
+# Setup: start in Kilteevan Village, Monday 20 March 1820, morning.
+# Act 1: Try /mail away from The Letter Office — should get a hint.
+# Act 2: Walk to The Letter Office and collect the backlog.
+# Act 3: Wait to the next coach day and collect a fresh letter.
+# Act 4: Disable the feature flag; confirm kill-switch works.
+# Act 5: Re-enable, then /help to show the new command in the listing.
+
+/status
+/time
+
+# Act 1 — away from the office, no post.
+/mail
+
+# Act 2 — walk to The Letter Office and check the holding fortnight.
+go to crossroads
+go to letter office
+/status
+/mail
+
+# Act 3 — skip forward about three days so at least one new coach-day rolls.
+# (1820-03-22 is a Wednesday; /wait 4320 = 72 game-hours from the morning.)
+/wait 4320
+/time
+/mail
+
+# Act 4 — flip the kill-switch.
+/flag disable letters
+/mail
+
+# Act 5 — re-enable and check /help mentions the command.
+/flag enable letters
+/help

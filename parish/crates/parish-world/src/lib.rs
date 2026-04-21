@@ -4,6 +4,7 @@ pub mod description;
 pub mod encounter;
 pub mod geo;
 pub mod graph;
+pub mod mail;
 pub mod movement;
 pub mod transport;
 pub mod weather;

@@ -138,6 +138,7 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/irish", "Toggle Irish pronunciation sidebar"),
     ("/load <name>", "Load a named branch"),
     ("/log", "Show branch history"),
+    ("/mail", "Collect letters at The Letter Office"),
     ("/map [id]", "List or switch map tile sources"),
     ("/new-game", "Start a fresh game"),
     ("/npcs", "Who is nearby?"),
@@ -566,6 +567,9 @@ pub fn handle_command(
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
 
+        // ── The mail coach ──────────────────────────────────────────────
+        Command::Mail => handle_mail_command(world, config),
+
         // ── Mode-specific commands (delegated to backend) ───────────────
         Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
         Command::Help => CommandResult::text_tabular(render_help_text()),
@@ -835,6 +839,66 @@ pub fn render_look_text(
 
 // ── Tests ────────���──────────────────────────────────────────────────────────
 
+/// Window, in game-days, over which the postmaster holds letters for
+/// collection. Letters older than this have been sent on or returned.
+const MAIL_HOLDING_DAYS: i64 = 21;
+
+/// Handles the `/mail` command — check mail at the Letter Office.
+///
+/// Gated by the `letters` feature flag using kill-switch semantics: the
+/// feature ships enabled, `/flag disable letters` turns it off. Only
+/// surfaces letters when the player is at the Letter Office; elsewhere
+/// the command prints a hint so players learn where to go.
+fn handle_mail_command(world: &crate::world::WorldState, config: &GameConfig) -> CommandResult {
+    if config.flags.is_disabled("letters") {
+        return CommandResult::text(
+            "The Letter Office is shuttered. Re-enable with /flag enable letters.",
+        );
+    }
+
+    let loc_name = world.current_location().name.clone();
+    if !is_letter_office(&loc_name) {
+        return CommandResult::text(format!(
+            "There is no post to be had at {loc_name}. The mail coach leaves its sacks at \
+             The Letter Office."
+        ));
+    }
+
+    let now = world.clock.now();
+    let since = now - chrono::Duration::days(MAIL_HOLDING_DAYS);
+    let letters = crate::world::mail::letters_between(since, now);
+
+    if letters.is_empty() {
+        return CommandResult::text(
+            "The postmaster shakes his head. \"Not a word from beyond the parish this fortnight.\"",
+        );
+    }
+
+    let mut out = String::new();
+    let count = letters.len();
+    let plural = if count == 1 { "letter" } else { "letters" };
+    out.push_str(&format!(
+        "The postmaster rifles through a pigeonhole and hands you {count} {plural}.\n\n"
+    ));
+    for (i, letter) in letters.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str(&letter.render());
+        out.push('\n');
+    }
+    CommandResult::text(out)
+}
+
+/// Returns `true` if the given location name is The Letter Office.
+///
+/// Matches case-insensitively on the phrase "letter office" / "post
+/// office" so mods that rename the building still work.
+fn is_letter_office(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("letter office") || lower.contains("post office")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -850,6 +914,69 @@ mod tests {
         let result = handle_command(Command::Pause, &mut world, &mut npc, &mut config);
         assert!(result.response.contains("stand still"));
         assert!(world.clock.is_paused());
+    }
+
+    #[test]
+    fn mail_away_from_letter_office_hints_at_location() {
+        let (mut world, mut npc, mut config) = default_state();
+        // default WorldState starts at "The Crossroads"
+        let result = handle_command(Command::Mail, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("Letter Office"));
+        assert!(result.response.contains("Crossroads"));
+    }
+
+    #[test]
+    fn mail_at_letter_office_renders_letters() {
+        use parish_types::{Location, LocationId};
+        let (mut world, mut npc, mut config) = default_state();
+        // Drop a Letter Office in and move the player there.
+        let loc_id = LocationId(42);
+        world.locations.insert(
+            loc_id,
+            Location {
+                id: loc_id,
+                name: "The Letter Office".to_string(),
+                description: String::new(),
+                indoor: true,
+                public: true,
+                lat: 0.0,
+                lon: 0.0,
+            },
+        );
+        world.player_location = loc_id;
+
+        let result = handle_command(Command::Mail, &mut world, &mut npc, &mut config);
+        let text = &result.response;
+        // The default clock is 1820-03-20 (Mon); the 21-day window back covers
+        // at least one Wednesday and one Saturday, so letters must be present.
+        assert!(text.contains("postmaster"));
+        assert!(text.contains("Dear "));
+        assert!(text.contains("1820"));
+    }
+
+    #[test]
+    fn mail_disabled_flag_kills_feature() {
+        use parish_types::{Location, LocationId};
+        let (mut world, mut npc, mut config) = default_state();
+        config.flags.disable("letters");
+        let loc_id = LocationId(42);
+        world.locations.insert(
+            loc_id,
+            Location {
+                id: loc_id,
+                name: "The Letter Office".to_string(),
+                description: String::new(),
+                indoor: true,
+                public: true,
+                lat: 0.0,
+                lon: 0.0,
+            },
+        );
+        world.player_location = loc_id;
+
+        let result = handle_command(Command::Mail, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("shuttered"));
+        assert!(!result.response.contains("Dear "));
     }
 
     #[test]
