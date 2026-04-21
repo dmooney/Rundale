@@ -312,6 +312,9 @@ pub struct GameSnapshot {
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// The player's letter-book (posted letters and pending replies).
+    #[serde(default)]
+    pub letter_book: parish_world::letters::LetterBook,
 }
 
 impl GameSnapshot {
@@ -344,6 +347,7 @@ impl GameSnapshot {
             conversation_log: world.conversation_log.clone(),
             player_name: world.player_name.clone(),
             npcs_who_know_player_name: npc_manager.player_name_known_set(),
+            letter_book: world.letter_book.clone(),
         }
     }
 
@@ -458,6 +462,9 @@ impl GameSnapshot {
 
         // Restore NPC knowledge of player name
         npc_manager.restore_player_name_known(self.npcs_who_know_player_name);
+
+        // Restore letter-book
+        world.letter_book = self.letter_book;
     }
 }
 

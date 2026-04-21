@@ -40,24 +40,21 @@ pub const CORRESPONDENTS: &[Correspondent] = &[
         name: "Máire",
         place: "your sister, in Dublin",
         delay_hours: 60,
-        send_blurb:
-            "You seal the letter with a daub of candle-wax and slide it into the Dublin bag.",
+        send_blurb: "You seal the letter with a daub of candle-wax and slide it into the Dublin bag.",
     },
     Correspondent {
         id: "aodh",
         name: "Aodh",
         place: "your cousin, in Galway",
         delay_hours: 30,
-        send_blurb:
-            "A drover bound for Galway promises to carry the letter as far as Athenry himself.",
+        send_blurb: "A drover bound for Galway promises to carry the letter as far as Athenry himself.",
     },
     Correspondent {
         id: "brown",
         name: "Mr. Brown",
         place: "the attorney, in Athlone",
         delay_hours: 14,
-        send_blurb:
-            "The postmaster takes the letter with a nod; Athlone is only half a day's ride.",
+        send_blurb: "The postmaster takes the letter with a nod; Athlone is only half a day's ride.",
     },
     Correspondent {
         id: "gerald",
@@ -71,8 +68,7 @@ pub const CORRESPONDENTS: &[Correspondent] = &[
         name: "Uncle Peadar",
         place: "your uncle, emigrated to Boston",
         delay_hours: 900,
-        send_blurb:
-            "You hand the letter over for the Liverpool packet; it'll be weeks before Boston sees it.",
+        send_blurb: "You hand the letter over for the Liverpool packet; it'll be weeks before Boston sees it.",
     },
 ];
 
@@ -300,8 +296,6 @@ fn reply_bank(id: &str, season: Season) -> &'static [&'static str] {
             "Dear nephew, — There is no going back — not for me — but I will not let you be forgotten here. Write again. Tell me of the land and the weather and who is living and who is not.",
         ],
 
-        _ => &[
-            "Your letter reached me and I am grateful for it. Write again when you can.",
-        ],
+        _ => &["Your letter reached me and I am grateful for it. Write again when you can."],
     }
 }
