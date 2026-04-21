@@ -299,3 +299,107 @@ fn reply_bank(id: &str, season: Season) -> &'static [&'static str] {
         _ => &["Your letter reached me and I am grateful for it. Write again when you can."],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn t(hours: i64) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap() + Duration::hours(hours)
+    }
+
+    #[test]
+    fn find_correspondent_is_case_insensitive() {
+        assert!(find_correspondent("MAIRE").is_some());
+        assert!(find_correspondent("Maire").is_some());
+        assert!(find_correspondent("nobody").is_none());
+    }
+
+    #[test]
+    fn post_schedules_reply_at_delay() {
+        let mut book = LetterBook::new();
+        let aodh = find_correspondent("aodh").unwrap();
+        let id = book.post(aodh, "the harvest", t(0));
+        assert_eq!(id, 1);
+        assert_eq!(book.posted_count(), 1);
+        let letter = &book.letters[0];
+        assert_eq!(letter.reply_at, t(aodh.delay_hours));
+        assert_eq!(letter.topic, "the harvest");
+        assert!(!letter.read);
+    }
+
+    #[test]
+    fn post_ids_are_monotonic() {
+        let mut book = LetterBook::new();
+        let c = find_correspondent("aodh").unwrap();
+        assert_eq!(book.post(c, "", t(0)), 1);
+        assert_eq!(book.post(c, "", t(0)), 2);
+        assert_eq!(book.post(c, "", t(0)), 3);
+    }
+
+    #[test]
+    fn letter_waiting_vs_in_transit_by_time() {
+        let mut book = LetterBook::new();
+        let brown = find_correspondent("brown").unwrap();
+        book.post(brown, "land title", t(0));
+        // Still in transit just before arrival.
+        assert_eq!(book.waiting(t(brown.delay_hours - 1)).len(), 0);
+        assert_eq!(book.in_transit(t(brown.delay_hours - 1)).len(), 1);
+        // Arrived at the delay threshold.
+        assert_eq!(book.waiting(t(brown.delay_hours)).len(), 1);
+        assert_eq!(book.in_transit(t(brown.delay_hours)).len(), 0);
+    }
+
+    #[test]
+    fn collect_waiting_marks_letters_read_and_renders_reply() {
+        let mut book = LetterBook::new();
+        let c = find_correspondent("aodh").unwrap();
+        book.post(c, "the oats", t(0));
+        let now = t(c.delay_hours);
+        let read = book.collect_waiting(now, Season::Spring);
+        assert_eq!(read.len(), 1);
+        let letter = &read[0];
+        assert!(letter.body.contains("Aodh"));
+        assert!(letter.body.contains("the oats"));
+        // Second call returns nothing — the letter is now marked read.
+        assert!(book.collect_waiting(now, Season::Spring).is_empty());
+        assert!(book.letters[0].read);
+    }
+
+    #[test]
+    fn collect_waiting_leaves_in_transit_untouched() {
+        let mut book = LetterBook::new();
+        let peadar = find_correspondent("peadar").unwrap();
+        let aodh = find_correspondent("aodh").unwrap();
+        book.post(peadar, "", t(0)); // 900h — still in transit
+        book.post(aodh, "", t(0)); // 30h — will arrive first
+
+        let read = book.collect_waiting(t(30), Season::Spring);
+        assert_eq!(read.len(), 1);
+        assert_eq!(read[0].correspondent.id, "aodh");
+        assert!(!book.letters[0].read);
+        assert_eq!(book.in_transit(t(30)).len(), 1);
+    }
+
+    #[test]
+    fn reply_selection_is_deterministic() {
+        let c = find_correspondent("maire").unwrap();
+        let a = render_reply_body(c, "news", 7, Season::Autumn);
+        let b = render_reply_body(c, "news", 7, Season::Autumn);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn letter_book_serialises_round_trip() {
+        let mut book = LetterBook::new();
+        let c = find_correspondent("gerald").unwrap();
+        book.post(c, "the bishop's visit", t(0));
+        book.post(c, "", t(5));
+        let _ = book.collect_waiting(t(c.delay_hours + 10), Season::Summer);
+
+        let json = serde_json::to_string(&book).unwrap();
+        let restored: LetterBook = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, book);
+    }
+}
