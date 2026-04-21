@@ -4,6 +4,7 @@ pub mod description;
 pub mod encounter;
 pub mod geo;
 pub mod graph;
+pub mod letters;
 pub mod movement;
 pub mod transport;
 pub mod weather;
@@ -26,6 +27,7 @@ use std::path::Path;
 use parish_types::{ConversationLog, EventBus, GameClock, GossipNetwork, ParishError};
 
 use graph::{LocationData, WorldGraph};
+use letters::LetterBook;
 use weather::WeatherEngine;
 
 /// Maximum number of entries kept in the backend text log, matching the
@@ -75,6 +77,8 @@ pub struct WorldState {
     /// changed (NPCs moved, clock advanced, weather shifted) while the
     /// intent was being parsed.  See issue #283.
     pub tick_generation: u64,
+    /// The player's letter-book — posted letters and pending replies.
+    pub letter_book: LetterBook,
 }
 
 impl WorldState {
@@ -120,6 +124,7 @@ impl WorldState {
             conversation_log: ConversationLog::new(),
             player_name: None,
             tick_generation: 0,
+            letter_book: LetterBook::new(),
         }
     }
 
@@ -169,6 +174,7 @@ impl WorldState {
             conversation_log: ConversationLog::new(),
             player_name: None,
             tick_generation: 0,
+            letter_book: LetterBook::new(),
         })
     }
 
@@ -231,6 +237,7 @@ impl WorldState {
             conversation_log: ConversationLog::new(),
             player_name: None,
             tick_generation: 0,
+            letter_book: LetterBook::new(),
         })
     }
 
