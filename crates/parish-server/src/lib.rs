@@ -449,6 +449,29 @@ fn build_oauth_config() -> Option<OAuthConfig> {
         base_url,
     })
 }
+/// Returns a copy of `url` safe to emit in logs: strips `user:pass@` userinfo
+/// and any `?query` string, since `PARISH_BASE_URL` may embed basic-auth
+/// credentials or signed proxy tokens.
+fn sanitize_base_url(url: &str) -> String {
+    let (prefix, rest) = match url.find("://") {
+        Some(i) => {
+            let (a, b) = url.split_at(i + 3);
+            (a.to_string(), b)
+        }
+        None => (String::new(), url),
+    };
+    let path_start = rest.find('/').unwrap_or(rest.len());
+    let authority_and_path = match rest[..path_start].find('@') {
+        Some(at) => format!("{}{}", &rest[at + 1..path_start], &rest[path_start..]),
+        None => rest.to_string(),
+    };
+    let trimmed = match authority_and_path.find('?') {
+        Some(q) => authority_and_path[..q].to_string(),
+        None => authority_and_path,
+    };
+    format!("{}{}", prefix, trimmed)
+}
+
 /// Builds the provider-setup input and the template `GameConfig` from
 /// environment variables.
 ///
@@ -494,6 +517,14 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
     } else {
         model
     };
+
+    tracing::info!(
+        provider = %provider_name,
+        model = %model_name,
+        base_url = %sanitize_base_url(&base_url),
+        has_api_key = api_key.is_some(),
+        "Resolved inference configuration"
+    );
 
     let config = GameConfig {
         provider_name,
@@ -611,6 +642,31 @@ mod tests {
         // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
         let (_client, config) = build_client_and_config();
         assert_eq!(config.provider_name, "simulator");
+    }
+
+    #[test]
+    fn sanitize_base_url_strips_userinfo_and_query() {
+        assert_eq!(
+            sanitize_base_url("https://user:pass@api.example.com/v1"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("https://api.example.com/v1?token=secret"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("https://user:pass@api.example.com/v1?token=secret"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("http://localhost:11434"),
+            "http://localhost:11434"
+        );
+        // '@' in path (after the authority) must not be treated as userinfo.
+        assert_eq!(
+            sanitize_base_url("https://api.example.com/foo@bar"),
+            "https://api.example.com/foo@bar"
+        );
     }
 
     #[test]
