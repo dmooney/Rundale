@@ -59,7 +59,15 @@ fn mods_root(state: &AppState) -> PathBuf {
     }
     parish_core::game_mod::find_default_mod()
         .and_then(|p| p.parent().map(|pp| pp.to_path_buf()))
-        .unwrap_or_else(|| PathBuf::from("mods"))
+        .unwrap_or_else(|| {
+            let fallback = PathBuf::from("mods");
+            tracing::warn!(
+                path = %fallback.display(),
+                "Could not find mods directory from game mod or workspace — falling back to \
+                 relative path. The editor may list no mods on packaged builds."
+            );
+            fallback
+        })
 }
 
 // ── Route handlers ────────────────────────────────────────────────────────────
