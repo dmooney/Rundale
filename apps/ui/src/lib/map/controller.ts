@@ -231,17 +231,13 @@ export class MapController {
 	/**
 	 * Starts (or updates) a travel-dot animation along the given waypoints.
 	 *
-	 * The dot is placed at the first waypoint and the camera animates toward
-	 * the destination over `durationMs`. Callers that pass `targetBounds`
-	 * (the minimap, typically the destination's neighborhood box) get a
-	 * `fitBounds` — so both center and zoom interpolate smoothly in-flight
-	 * and the post-travel fitBounds has nothing left to snap. Without
-	 * target bounds we fall back to a straight `easeTo` on the last waypoint,
-	 * preserving zoom (used by the full-map overlay).
-	 *
-	 * On each animation frame we sync the marker's world position to the
-	 * camera's current center so the dot reads as a follow-cam — the
-	 * traveller stays at screen center while the map tiles scroll beneath.
+	 * The dot is interpolated along the waypoint polyline in world coordinates
+	 * (distance-proportional over `durationMs`), so it tracks the true path
+	 * regardless of where the user has panned the camera. The camera animates
+	 * independently: when `targetBounds` is supplied (minimap case) we
+	 * `fitBounds` so center AND zoom interpolate smoothly to the destination
+	 * neighborhood; otherwise (full map) we leave the camera alone so user
+	 * pans aren't overridden mid-travel.
 	 *
 	 * Call `stopTravel()` when the animation should end.
 	 */
@@ -274,18 +270,28 @@ export class MapController {
 				easing: (t) => t,
 				linear: true
 			});
-		} else {
-			const last = waypoints[waypoints.length - 1];
-			this.map.easeTo({
-				center: [last.lon, last.lat],
-				duration: durationMs,
-				easing: (t) => t,
-				animate: true
-			});
 		}
 
+		// Flat-earth distance is fine at parish scale — all travel fits inside
+		// a few kilometres, so lat/lon Euclidean approximates arc length well
+		// enough for a pulsing dot.
+		const segLengths: number[] = [];
+		let totalLength = 0;
+		for (let i = 1; i < waypoints.length; i += 1) {
+			const a = waypoints[i - 1];
+			const b = waypoints[i];
+			const d = Math.hypot(b.lon - a.lon, b.lat - a.lat);
+			segLengths.push(d);
+			totalLength += d;
+		}
+
+		const startTime = performance.now();
 		const tick = () => {
-			marker.setLngLat(this.map.getCenter());
+			const t = durationMs > 0
+				? Math.min(1, (performance.now() - startTime) / durationMs)
+				: 1;
+			const [lon, lat] = positionAlongPath(waypoints, segLengths, totalLength, t);
+			marker.setLngLat([lon, lat]);
 			if (this.travelAnim) {
 				this.travelAnim.rafId = requestAnimationFrame(tick);
 			}
@@ -433,6 +439,42 @@ function setSourceData(
 	if (source && source.type === 'geojson') {
 		(source as maplibregl.GeoJSONSource).setData(data);
 	}
+}
+
+/**
+ * Returns `[lon, lat]` at fractional progress `t ∈ [0, 1]` along the polyline
+ * formed by `waypoints`, weighted by segment length so progress matches
+ * distance travelled rather than waypoint count.
+ */
+export function positionAlongPath(
+	waypoints: TravelWaypoint[],
+	segLengths: number[],
+	totalLength: number,
+	t: number
+): [number, number] {
+	if (waypoints.length === 0) return [0, 0];
+	if (t <= 0 || totalLength === 0) {
+		const first = waypoints[0];
+		return [first.lon, first.lat];
+	}
+	if (t >= 1) {
+		const last = waypoints[waypoints.length - 1];
+		return [last.lon, last.lat];
+	}
+	const target = t * totalLength;
+	let consumed = 0;
+	for (let i = 0; i < segLengths.length; i += 1) {
+		const segLen = segLengths[i];
+		if (consumed + segLen >= target) {
+			const frac = segLen === 0 ? 0 : (target - consumed) / segLen;
+			const a = waypoints[i];
+			const b = waypoints[i + 1];
+			return [a.lon + (b.lon - a.lon) * frac, a.lat + (b.lat - a.lat) * frac];
+		}
+		consumed += segLen;
+	}
+	const last = waypoints[waypoints.length - 1];
+	return [last.lon, last.lat];
 }
 
 function buildTravelEdgeKeys(waypoints: TravelWaypoint[]): Set<string> {
