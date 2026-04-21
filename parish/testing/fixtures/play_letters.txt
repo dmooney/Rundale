@@ -1,0 +1,70 @@
+# Letter Writing Play-Test (idea #19)
+# ====================================
+# Walks a player through the full letter-writing loop:
+#   1. Try to post from outside the Letter Office — refused.
+#   2. Walk to the Letter Office, list correspondents.
+#   3. Post three letters with varying delays (14h / 30h / 60h).
+#   4. Leave the office; /mail reports status from outside.
+#   5. Wait out the delays; watch each reply land in order.
+#   6. Return to the office and collect the replies.
+#   7. Post the long-range Boston letter; show it stays in transit.
+
+# ── 1. Baseline: try /post from the starting square ─────────────────
+/status
+/mail
+/post aodh the oats
+# (expected: refused, "come back to The Letter Office…")
+
+# ── 2. Walk to the Letter Office and list recipients ────────────────
+go to the letter office
+/status
+/post
+# (expected: correspondents list)
+
+# ── 3. Post three letters with a spread of delays ───────────────────
+/post brown the disputed boundary
+/post aodh the hay is in
+/post maire all the parish news
+/mail
+# (expected: 3 letters in transit, ETA ~ brown.delay_hours - 10m)
+
+# ── 4. Leave the office; /mail from outside ─────────────────────────
+go to the crossroads
+/mail
+# (expected: still in transit, no waiting mail to fetch from outside)
+
+# ── 5. Wait past the first reply (Brown, 14h) ───────────────────────
+/speed fastest
+/wait 900
+/mail
+# (expected: 1 letter waiting at the office; 2 in transit)
+
+# ── 6. Go and collect it ────────────────────────────────────────────
+go to the letter office
+/mail
+# (expected: full reply body from Mr. Brown printed)
+
+# Confirm the same letter is not re-delivered on a second check.
+/mail
+# (expected: only 2 in-transit status, no body re-printed)
+
+# ── 7. Wait past Aodh (30h total) then Máire (60h) ──────────────────
+/wait 1200
+/mail
+# (expected: Aodh's reply body printed; Máire still in transit)
+
+/wait 2000
+/mail
+# (expected: Máire's reply body printed; nothing else in transit)
+
+# ── 8. Post the long-haul Boston letter — stays in transit ──────────
+/post peadar the farm, the weather, who is living and who is not
+/mail
+# (expected: 1 letter in transit, ETA ~ 900h)
+
+# A short wait doesn't bring Boston any closer.
+/wait 240
+/mail
+
+/status
+/time
