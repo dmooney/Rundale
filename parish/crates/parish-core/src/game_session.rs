@@ -10,7 +10,7 @@
 //! [`GameEffects`] value describing what the caller must then broadcast
 //! to its own frontend or event bus.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -20,8 +20,11 @@ use crate::dice;
 use crate::inference::AnyClient;
 use crate::inference::InferenceLog;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
+use crate::npc::familiarity::FamiliarityTier;
 use crate::npc::manager::{NpcManager, TierTransition};
-use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
+use crate::npc::reactions::{
+    NpcReaction, ReactionTemplates, generate_arrival_reactions_with_familiarity,
+};
 use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::encounter::check_encounter;
@@ -280,10 +283,6 @@ pub fn apply_arrival_reactions(
     templates: &ReactionTemplates,
     config: &ReactionConfig,
 ) -> Vec<NpcReaction> {
-    let npcs = npc_manager.npcs_at(world.player_location);
-    if npcs.is_empty() {
-        return Vec::new();
-    }
     let loc_data = match world.current_location_data() {
         Some(d) => d.clone(),
         None => return Vec::new(),
@@ -291,11 +290,36 @@ pub fn apply_arrival_reactions(
     let tod = world.clock.time_of_day();
     let weather = world.weather.to_string();
     let introduced = npc_manager.introduced_set();
+    let game_day = game_day_ordinal(world);
+
+    // Snapshot the present roster as ids first so we can mutate the
+    // manager to bump familiarity without holding an immutable borrow.
+    let present_ids: Vec<NpcId> = npc_manager
+        .npcs_at_ids(world.player_location)
+        .into_iter()
+        .collect();
+    if present_ids.is_empty() {
+        return Vec::new();
+    }
+    // The player is standing at this location: every NPC present earns an
+    // encounter-day credit, regardless of whether they actually greet the
+    // player this arrival. Shared space is the currency of familiarity,
+    // not the dice-rolled greeting itself.
+    for id in &present_ids {
+        npc_manager.bump_familiarity(*id, game_day);
+    }
+    let familiarity: HashMap<NpcId, FamiliarityTier> = present_ids
+        .iter()
+        .map(|id| (*id, npc_manager.familiarity_tier(*id)))
+        .collect();
+
+    let npcs = npc_manager.npcs_at(world.player_location);
     let roll_dice = dice::roll_n(npcs.len() * 2);
 
-    let reactions = generate_arrival_reactions(
+    let reactions = generate_arrival_reactions_with_familiarity(
         &npcs,
         &introduced,
+        &familiarity,
         &loc_data,
         tod,
         &weather,
@@ -311,6 +335,15 @@ pub fn apply_arrival_reactions(
         world.log(reaction.canned_text.clone());
     }
     reactions
+}
+
+/// Returns the ordinal day of the in-game clock (days since Unix epoch).
+///
+/// Used to gate the once-per-day familiarity bump: two arrivals on the
+/// same calendar day return the same integer, a new dawn returns a new
+/// one.
+fn game_day_ordinal(world: &WorldState) -> i32 {
+    (world.clock.now().timestamp().div_euclid(86_400)) as i32
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -354,40 +387,8 @@ fn apply_arrival_reactions_inner(
     npc_manager: &mut NpcManager,
     templates: &ReactionTemplates,
 ) -> Vec<NpcReaction> {
-    let npcs = npc_manager.npcs_at(world.player_location);
-    if npcs.is_empty() {
-        return Vec::new();
-    }
-    let loc_data = match world.current_location_data() {
-        Some(d) => d.clone(),
-        None => return Vec::new(),
-    };
-    let tod = world.clock.time_of_day();
-    let weather = world.weather.to_string();
-    let introduced = npc_manager.introduced_set();
     let config = ReactionConfig::default();
-    let roll_dice = dice::roll_n(npcs.len() * 2);
-
-    let reactions = generate_arrival_reactions(
-        &npcs,
-        &introduced,
-        &loc_data,
-        tod,
-        &weather,
-        templates,
-        &config,
-        &roll_dice,
-    );
-
-    for reaction in &reactions {
-        if reaction.introduces {
-            npc_manager.mark_introduced(reaction.npc_id);
-        }
-        // Log canned text as the persistent record; backends may emit LLM
-        // text to the frontend instead but the world log always has canned.
-        world.log(reaction.canned_text.clone());
-    }
-    reactions
+    apply_arrival_reactions(world, npc_manager, templates, &config)
 }
 
 /// Streams NPC arrival reaction texts to the frontend gradually, upgrading
@@ -908,6 +909,116 @@ mod tests {
         let config = ReactionConfig::default();
         let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
         assert!(reactions.is_empty());
+    }
+
+    /// Regression: the "blow-in arc" familiarity counter advances exactly
+    /// once per game-day per NPC. Two arrivals at the same location on
+    /// the same in-game day must only bump the encounter count by 1.
+    #[test]
+    fn familiarity_bump_is_capped_once_per_game_day() {
+        let Some((mut world, mut mgr, templates, _)) = setup() else {
+            return;
+        };
+        let Some(loc_with_npc) = find_location_with_present_npc(&world, &mgr) else {
+            return;
+        };
+        world.player_location = loc_with_npc;
+        let npc_id = mgr
+            .npcs_at(loc_with_npc)
+            .first()
+            .map(|n| n.id)
+            .expect("fixture NPC");
+
+        let config = ReactionConfig {
+            base_chance: 1.0,
+            ..Default::default()
+        };
+
+        // Two arrivals within the same game-day should only bump encounters by 1.
+        let _ = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+        let _ = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+        assert_eq!(
+            mgr.familiarity_of(npc_id).encounters,
+            1,
+            "two same-day arrivals should count as one shared day"
+        );
+
+        // Advance the clock past midnight and arrive again.
+        world.clock.advance(24 * 60);
+        let _ = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+        assert_eq!(
+            mgr.familiarity_of(npc_id).encounters,
+            2,
+            "a new game-day should unlock another familiarity bump"
+        );
+    }
+
+    /// Regression: once an NPC has enough shared days to reach
+    /// `FamiliarityTier::Familiar`, arriving again must be able to surface a
+    /// `ReactionKind::Familiar` greeting drawn from the familiar pool — the
+    /// reserve heuristic should not hold the warmest tier unreachable.
+    #[test]
+    fn familiar_tier_unlocks_warm_greeting() {
+        use crate::npc::familiarity::{Familiarity, FamiliarityTier};
+        use crate::npc::reactions::ReactionKind;
+
+        let Some((mut world, mut mgr, templates, _)) = setup() else {
+            return;
+        };
+        let Some(loc_with_npc) = find_location_with_present_npc(&world, &mgr) else {
+            return;
+        };
+        world.player_location = loc_with_npc;
+        let npc_id = mgr
+            .npcs_at(loc_with_npc)
+            .first()
+            .map(|n| n.id)
+            .expect("fixture NPC");
+
+        // Pre-introduce the NPC and hand-wind their familiarity counter high
+        // enough that — even at maximum reserve — they sit in the Familiar
+        // tier. 120 shared days is well past the scaled threshold.
+        mgr.mark_introduced(npc_id);
+        {
+            let mut fam_map = mgr.familiarity_map();
+            fam_map.set(
+                npc_id,
+                Familiarity {
+                    encounters: 120,
+                    last_encounter_day: Some(-1),
+                },
+            );
+            mgr.restore_familiarity(fam_map);
+        }
+        assert_eq!(mgr.familiarity_tier(npc_id), FamiliarityTier::Familiar);
+
+        // Force every NPC to react and drive the `type_roll` high enough
+        // that the familiar branch is taken (it fires at 95% for Familiar).
+        let config = ReactionConfig {
+            base_chance: 1.0,
+            ..Default::default()
+        };
+
+        // Run arrivals repeatedly on successive days so dice variance can't
+        // mask a regression here: *at least one* should draw from the Familiar
+        // pool once the tier is locked in.
+        let mut saw_familiar = false;
+        for day_offset in 0..30 {
+            world.clock.advance(24 * 60);
+            let reactions = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
+            if reactions
+                .iter()
+                .any(|r| matches!(r.kind, ReactionKind::Familiar(FamiliarityTier::Familiar)))
+            {
+                saw_familiar = true;
+                break;
+            }
+            let _ = day_offset;
+        }
+        assert!(
+            saw_familiar,
+            "an NPC at Familiar tier should draw a Familiar greeting within 30 arrivals"
+        );
     }
 
     #[tokio::test]

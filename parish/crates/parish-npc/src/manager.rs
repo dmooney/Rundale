@@ -10,6 +10,7 @@ use std::path::Path;
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
 use crate::data::load_npcs_from_file;
+use crate::familiarity::{Familiarity, FamiliarityMap, FamiliarityTier, Reserve, derive_reserve};
 use crate::transitions::{deflate_npc_state, inflate_npc_context};
 use crate::types::{CogTier, NpcState};
 use crate::{Npc, NpcId};
@@ -117,6 +118,8 @@ pub struct NpcManager {
     introduced_npcs: HashSet<NpcId>,
     /// Set of NPC ids that know the player's name (learned via dialogue or gossip).
     npcs_who_know_player_name: HashSet<NpcId>,
+    /// Per-NPC familiarity counters ("blow-in arc").
+    familiarity: FamiliarityMap,
     /// Ring buffer of the last 5 Tier 4 life-event descriptions (newest last).
     recent_tier4_events: VecDeque<String>,
     /// Cached BFS distances from the last player location.
@@ -144,6 +147,7 @@ impl NpcManager {
             last_tier4_game_time: None,
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
+            familiarity: FamiliarityMap::default(),
             recent_tier4_events: VecDeque::with_capacity(RECENT_TIER4_CAPACITY),
             bfs_distances_cache: None,
         }
@@ -182,6 +186,45 @@ impl NpcManager {
     /// Restores the set of NPC ids that know the player's name (for snapshot restore).
     pub fn restore_player_name_known(&mut self, ids: HashSet<NpcId>) {
         self.npcs_who_know_player_name = ids;
+    }
+
+    /// Returns the familiarity counter and last-encounter day for `id`.
+    ///
+    /// Unencountered NPCs return the default (zero encounters).
+    pub fn familiarity_of(&self, id: NpcId) -> Familiarity {
+        self.familiarity.get(id)
+    }
+
+    /// Returns the familiarity tier for `id` using the NPC's derived reserve.
+    ///
+    /// Falls back to [`Reserve::DEFAULT`] if the NPC is unknown to this
+    /// manager.
+    pub fn familiarity_tier(&self, id: NpcId) -> FamiliarityTier {
+        let reserve = self
+            .npcs
+            .get(&id)
+            .map(|npc| derive_reserve(&npc.personality, &npc.occupation))
+            .unwrap_or(Reserve::DEFAULT);
+        self.familiarity.get(id).tier(reserve)
+    }
+
+    /// Registers an encounter between the player and NPC `id` on the
+    /// ordinal `game_day`.
+    ///
+    /// The counter advances at most once per game-day per NPC. Returns
+    /// `true` if this bump actually advanced the counter.
+    pub fn bump_familiarity(&mut self, id: NpcId, game_day: i32) -> bool {
+        self.familiarity.bump(id, game_day)
+    }
+
+    /// Clones the familiarity map for snapshotting.
+    pub fn familiarity_map(&self) -> FamiliarityMap {
+        self.familiarity.clone()
+    }
+
+    /// Restores the familiarity map from a snapshot.
+    pub fn restore_familiarity(&mut self, map: FamiliarityMap) {
+        self.familiarity = map;
     }
 
     /// Returns the display name for an NPC: their name if introduced,

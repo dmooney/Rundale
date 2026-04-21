@@ -8,6 +8,7 @@ pub mod anachronism;
 pub mod autonomous;
 pub mod banshee;
 pub mod data;
+pub mod familiarity;
 pub mod manager;
 pub mod memory;
 pub mod mood;

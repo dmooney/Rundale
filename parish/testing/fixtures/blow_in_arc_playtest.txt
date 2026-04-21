@@ -1,0 +1,169 @@
+# The Blow-In Arc play-test.
+#
+# A stranger steps off the Bog Road on a spring morning in 1820 and
+# starts walking the parish. On day one the publican serves them like
+# any stranger — a nod, a brief name, nothing more. By the end of the
+# month Padraig has the kettle on before the door closes behind them.
+#
+# This script walks the player through three weeks of the same daily
+# rounds (pub, shop, church, farm) and prints `/standing` four times so
+# we can watch the familiarity tiers actually move.
+#
+# Deterministic time advances only (no LLM needed). Run with:
+#   cargo run --bin parish -- --script testing/fixtures/blow_in_arc_playtest.txt
+
+# ── Day 0 — arrival as a blow-in ─────────────────────────────────────
+/time
+/standing
+go to Darcy's Pub
+/npcs
+/standing
+go to Connolly's Shop
+/npcs
+go to St. Brigid's Church
+/npcs
+go to Murphy's Farm
+/npcs
+go to The Crossroads
+/standing
+
+# ── Fast-forward a fortnight of the same rounds ─────────────────────
+# 14 game-days of walking the same four locations. The harness
+# advances the clock for every `go to ...` + `/wait 60`, so the
+# familiarity counters bump roughly once per in-game day per NPC.
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+# Check-in halfway through — warmth should be showing by now.
+/standing
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+go to Darcy's Pub
+/wait 60
+go to Connolly's Shop
+/wait 60
+go to St. Brigid's Church
+/wait 60
+go to Murphy's Farm
+/wait 600
+
+# ── After three weeks, the blow-in should be a known face ───────────
+/time
+go to Darcy's Pub
+/npcs
+go to The Crossroads
+/standing

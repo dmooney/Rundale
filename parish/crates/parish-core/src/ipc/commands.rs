@@ -141,6 +141,7 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/map [id]", "List or switch map tile sources"),
     ("/new-game", "Start a fresh game"),
     ("/npcs", "Who is nearby?"),
+    ("/standing", "How the parish sees you (the blow-in arc)"),
     ("/pause", "Hold time still"),
     ("/resume", "Let time flow again"),
     ("/save", "Save the game"),
@@ -269,6 +270,7 @@ pub fn handle_command(
                 CommandResult::text(lines.join("\n"))
             }
         }
+        Command::Standing => render_standing(world, npc_manager),
         Command::Time => {
             let now = world.clock.now();
             let tod = world.clock.time_of_day();
@@ -759,6 +761,62 @@ fn location_is_pub(world: &WorldState) -> bool {
                 .any(|a| a.to_lowercase().contains("pub"))
         })
         .unwrap_or(false)
+}
+
+/// Handles the `/standing` command: prints the player's blow-in-arc
+/// standing with every NPC they have shared space with.
+///
+/// Introduced NPCs are listed with their display name; un-introduced
+/// NPCs are elided (the command respects the same name-anonymity
+/// discipline as the rest of the UI). Anyone still at tier
+/// [`FamiliarityTier::Stranger`] is omitted — a truly un-met NPC has
+/// nothing to say about the player's standing.
+fn render_standing(world: &WorldState, npc_manager: &NpcManager) -> CommandResult {
+    use crate::npc::familiarity::FamiliarityTier;
+
+    let mut entries: Vec<(String, FamiliarityTier, u16, bool)> = Vec::new();
+    for (npc_id, fam) in npc_manager.familiarity_map().iter() {
+        let tier = npc_manager.familiarity_tier(npc_id);
+        if tier == FamiliarityTier::Stranger {
+            // No standing to report; skip.
+            continue;
+        }
+        let Some(npc) = npc_manager.get(npc_id) else {
+            continue;
+        };
+        let here = npc.location == world.player_location;
+        let display = npc_manager.display_name(npc).to_string();
+        entries.push((display, tier, fam.encounters, here));
+    }
+
+    if entries.is_empty() {
+        return CommandResult::text(
+            "You are a blow-in still. No one has yet learned your face on a second day.",
+        );
+    }
+
+    // Sort by (tier descending, encounters descending, name) so the
+    // warmest relationships surface first.
+    entries.sort_by(|a, b| {
+        b.1.cmp(&a.1)
+            .then(b.2.cmp(&a.2))
+            .then_with(|| a.0.cmp(&b.0))
+    });
+
+    let mut lines = vec!["Your standing in the parish:".to_string()];
+    for (name, tier, encounters, here) in entries {
+        let day_word = if encounters == 1 { "day" } else { "days" };
+        let here_mark = if here { " [here now]" } else { "" };
+        lines.push(format!(
+            "  {:<24} {:<13} ({} {}){}",
+            name,
+            tier.label(),
+            encounters,
+            day_word,
+            here_mark
+        ));
+    }
+    CommandResult::text(lines.join("\n"))
 }
 
 /// Handles the `/unexplored` command (reveal/hide all unexplored map locations).

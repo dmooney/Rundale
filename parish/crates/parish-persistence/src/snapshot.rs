@@ -312,6 +312,13 @@ pub struct GameSnapshot {
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// Per-NPC familiarity counters ("blow-in arc").
+    ///
+    /// Defaulted on load so saves predating the feature deserialise as
+    /// "all NPCs are strangers again", which is the correct interpretation
+    /// for a player mid-way through their arrival.
+    #[serde(default)]
+    pub familiarity: parish_npc::familiarity::FamiliarityMap,
 }
 
 impl GameSnapshot {
@@ -344,6 +351,7 @@ impl GameSnapshot {
             conversation_log: world.conversation_log.clone(),
             player_name: world.player_name.clone(),
             npcs_who_know_player_name: npc_manager.player_name_known_set(),
+            familiarity: npc_manager.familiarity_map(),
         }
     }
 
@@ -458,6 +466,9 @@ impl GameSnapshot {
 
         // Restore NPC knowledge of player name
         npc_manager.restore_player_name_known(self.npcs_who_know_player_name);
+
+        // Restore per-NPC familiarity counters ("blow-in arc").
+        npc_manager.restore_familiarity(self.familiarity);
     }
 }
 
