@@ -21,10 +21,6 @@
           },
           {
             "type": "command",
-            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PostToolUse--compile-check.sh'"
-          },
-          {
-            "type": "command",
             "command": "bash -c 'cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && bash .claude/hooks/PostToolUse--dep-audit-reminder.sh'"
           }
         ]
