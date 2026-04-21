@@ -1,0 +1,41 @@
+# Banshee play-test — demonstrates idea #10 ("The Banshee") from game-ideas-brainstorm.md.
+#
+# Setup: start in Kilteevan Village in the morning.
+# Act 1: Meet the people of the parish, get a sense of the day.
+# Act 2: Mark Maire Gallagher as doomed (as Tier 4 would do on a random roll).
+# Act 3: Fast-forward to the evening and hear the banshee's cry.
+# Act 4: Wait through the night — the doom arrives.
+# Act 5: Confirm she has passed and the epitaph is in the log.
+
+/status
+/npcs
+/time
+
+# Wander a bit so the sim warms up.
+go to crossroads
+/npcs
+go to the pub
+/npcs
+
+# Return to the village square — we'll hear the banshee from here.
+go to village
+
+# Simulate Tier 4 rolling a Death for Maire Gallagher, 18 game-hours ahead.
+# This is what the random life-events engine does each in-game season.
+/doom Maire Gallagher 18
+
+# Move time forward to just after dusk. (It is 08:00 start + travel; we want ~22:00.)
+/wait 800
+
+# Check — we should have heard a wail.
+/status
+
+# Wait through the remainder of the night. The doom (18h ahead of 08:00) falls ~02:28.
+/wait 240
+
+# Nudge past the doom timestamp — the death is finalised on the next tick.
+/wait 60
+
+# Morning. Confirm Maire is no longer in the parish and the epitaph was logged.
+/npcs
+/status

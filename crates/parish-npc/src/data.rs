@@ -248,6 +248,8 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 reaction_log: ReactionLog::default(),
                 last_activity: None,
                 is_ill: false,
+                doom: None,
+                banshee_heralded: false,
             }
         })
         .collect();

@@ -1,0 +1,13 @@
+# Banshee play-test — scene 2: player at the doomed NPC's home.
+#
+# This time we doom Padraig Darcy (home: Darcy's Pub) while the player is
+# inside the pub. The banshee's cry should use the close voicing —
+# "just beyond the thatch" — instead of the distance voicing.
+
+go to the pub
+/npcs
+/doom Padraig Darcy 18
+/wait 800
+/status
+/wait 300
+/npcs
