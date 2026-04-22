@@ -125,6 +125,7 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 - `/npcs` — List NPCs at current location (with mood emoji)
 - `/wait [minutes]` — Advance time without moving
 - `/tick` — Advance one simulation tick
+- `/forage` — Forage the hedgerows, bog, or lakeshore for wild food (finds depend on habitat × season × time × weather; gated by the `foraging` flag)
 - `/help` — Show available commands
 - `/about` — Credits and version info
 
