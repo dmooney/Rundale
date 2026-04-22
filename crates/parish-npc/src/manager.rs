@@ -811,6 +811,7 @@ impl NpcManager {
         &mut self,
         events: &[crate::tier4::Tier4Event],
         timestamp: DateTime<Utc>,
+        banshee_enabled: bool,
     ) -> Vec<GameEvent> {
         use crate::tier4::Tier4Event;
 
@@ -857,24 +858,35 @@ impl NpcManager {
                     }
                 }
                 Tier4Event::Death { npc_id } => {
-                    // Schedule the doom a game-day ahead so the banshee tick has a
-                    // chance to herald it before the NPC is actually removed.
-                    // If the banshee feature is disabled at tick time, `tick_banshee`
-                    // is simply not called and the NPC will remain alive until a
-                    // future tick removes them — this preserves mode parity without
-                    // requiring the flag check here.
-                    if let Some(npc) = self.npcs.get_mut(npc_id) {
-                        let doom = timestamp
-                            + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
-                        npc.doom = Some(doom);
-                        npc.banshee_heralded = false;
-                        let desc = format!("{} is fated to die.", npc.name);
-                        life_descriptions.push(desc.clone());
-                        game_events.push(GameEvent::LifeEvent {
-                            npc_id: *npc_id,
-                            description: desc,
-                            timestamp,
-                        });
+                    if banshee_enabled {
+                        // Schedule the doom a game-day ahead so the banshee tick
+                        // has a chance to herald it before the NPC is removed.
+                        if let Some(npc) = self.npcs.get_mut(npc_id) {
+                            let doom = timestamp
+                                + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
+                            npc.doom = Some(doom);
+                            npc.banshee_heralded = false;
+                            let desc = format!("{} is fated to die.", npc.name);
+                            life_descriptions.push(desc.clone());
+                            game_events.push(GameEvent::LifeEvent {
+                                npc_id: *npc_id,
+                                description: desc,
+                                timestamp,
+                            });
+                        }
+                    } else {
+                        // Banshee disabled — immediate removal (pre-banshee behavior).
+                        if let Some(npc) = self.npcs.get(npc_id) {
+                            let desc = format!("{} has passed away.", npc.name);
+                            life_descriptions.push(desc.clone());
+                            game_events.push(GameEvent::LifeEvent {
+                                npc_id: *npc_id,
+                                description: desc,
+                                timestamp,
+                            });
+                        }
+                        self.npcs.remove(npc_id);
+                        self.tier_assignments.remove(npc_id);
                     }
                 }
                 Tier4Event::Birth { parent_ids } => {
@@ -2035,7 +2047,7 @@ mod tests {
             let mut rng = rand::thread_rng();
             tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
         };
-        let game_events = mgr.apply_tier4_events(&events, now);
+        let game_events = mgr.apply_tier4_events(&events, now, true);
         for evt in game_events {
             world.event_bus.publish(evt);
         }
@@ -2324,7 +2336,7 @@ mod tests {
 
         let now = Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
         let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
-        let game_events = mgr.apply_tier4_events(&events, now);
+        let game_events = mgr.apply_tier4_events(&events, now, true);
 
         assert!(
             mgr.get(NpcId(42)).is_some(),
@@ -2335,6 +2347,23 @@ mod tests {
         assert_eq!(
             doom - now,
             chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS)
+        );
+        assert!(!game_events.is_empty(), "should still emit a life event");
+    }
+
+    #[test]
+    fn tier4_death_with_banshee_disabled_removes_npc_immediately() {
+        use crate::tier4::Tier4Event;
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(42, 2));
+
+        let now = Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
+        let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
+        let game_events = mgr.apply_tier4_events(&events, now, false);
+
+        assert!(
+            mgr.get(NpcId(42)).is_none(),
+            "NPC should be removed immediately when banshee is disabled"
         );
         assert!(!game_events.is_empty(), "should still emit a life event");
     }
