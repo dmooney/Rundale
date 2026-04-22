@@ -107,11 +107,6 @@ pub struct LanguageHint {
 /// Backward-compatible alias for [`LanguageHint`].
 pub type IrishWordHint = LanguageHint;
 
-/// Maximum number of bytes to hold back during streaming to detect
-/// the separator pattern. Must be large enough to catch ` --- ` inline
-/// or `  ---\n` on its own line, even when preceded by text on the same line.
-pub const SEPARATOR_HOLDBACK: usize = 24;
-
 /// Rounds a byte offset down to the nearest UTF-8 char boundary in `s`.
 ///
 /// If `pos` is already a char boundary, returns it unchanged. Otherwise
@@ -128,41 +123,80 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
     p
 }
 
-/// Finds the separator between dialogue and metadata in an NPC response.
+/// Extracts the dialogue field value from a partial JSON string during streaming.
 ///
-/// Looks for `---` as a separator. Handles two cases:
-/// 1. `---` on its own line (with optional whitespace)
-/// 2. `---` appearing inline, e.g. `(smiles) --- {"action": ...}`
+/// Scans the accumulated JSON buffer for the `"dialogue"` field and extracts
+/// its string value as it streams in. Returns `Some(text)` with the dialogue
+/// content extracted so far, or `None` if the dialogue field hasn't started yet.
 ///
-/// Returns `Some((dialogue_end, metadata_start))` — the byte offset where
-/// dialogue ends and where metadata begins (after the separator).
-/// Returns `None` if no separator is found.
-pub fn find_response_separator(text: &str) -> Option<(usize, usize)> {
-    // First try: --- on its own line
-    let mut byte_offset = 0;
-    for line in text.split('\n') {
-        if line.trim() == "---" {
-            let dialogue_end = byte_offset;
-            let metadata_start = (byte_offset + line.len() + 1).min(text.len());
-            return Some((dialogue_end, metadata_start));
+/// This enables token-by-token streaming of NPC dialogue to the player while
+/// the full JSON response (including metadata) is still being generated.
+pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
+    let dialogue_key_patterns = ["\"dialogue\":\"", "\"dialogue\": \""];
+    let mut value_start = None;
+
+    for pattern in &dialogue_key_patterns {
+        if let Some(pos) = buffer.find(pattern) {
+            value_start = Some(pos + pattern.len());
+            break;
         }
-        byte_offset += line.len() + 1; // +1 for the \n
     }
 
-    // Second try: --- appearing inline (e.g. "text --- {json}")
-    // Look for " --- " or " ---\n" pattern
-    if let Some(pos) = text.find(" --- ") {
-        let dialogue_end = pos;
-        let metadata_start = pos + 5; // skip " --- "
-        return Some((dialogue_end, metadata_start));
-    }
-    if let Some(pos) = text.find(" ---\n") {
-        let dialogue_end = pos;
-        let metadata_start = pos + 5;
-        return Some((dialogue_end, metadata_start));
+    let start = value_start?;
+    let value_bytes = &buffer.as_bytes()[start..];
+
+    let mut result = String::new();
+    let mut i = 0;
+    while i < value_bytes.len() {
+        match value_bytes[i] {
+            b'"' => {
+                return Some(result);
+            }
+            b'\\' if i + 1 < value_bytes.len() => {
+                match value_bytes[i + 1] {
+                    b'"' => result.push('"'),
+                    b'\\' => result.push('\\'),
+                    b'n' => result.push('\n'),
+                    b'r' => result.push('\r'),
+                    b't' => result.push('\t'),
+                    b'/' => result.push('/'),
+                    b'u' => {
+                        if i + 5 < value_bytes.len() {
+                            if let Ok(hex) = std::str::from_utf8(&value_bytes[i + 2..i + 6])
+                                && let Ok(code) = u32::from_str_radix(hex, 16)
+                                && let Some(c) = char::from_u32(code)
+                            {
+                                result.push(c);
+                            }
+                            i += 6;
+                            continue;
+                        } else {
+                            return Some(result);
+                        }
+                    }
+                    _ => {
+                        result.push('\\');
+                        result.push(value_bytes[i + 1] as char);
+                    }
+                }
+                i += 2;
+            }
+            _ => {
+                if let Some(rest) = buffer.get(start + i..) {
+                    if let Some(ch) = rest.chars().next() {
+                        result.push(ch);
+                        i += ch.len_utf8();
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
     }
 
-    None
+    Some(result)
 }
 
 #[cfg(test)]
@@ -334,49 +368,74 @@ mod tests {
         assert_eq!(floor_char_boundary(s, 5), 5);
     }
 
-    // ── find_response_separator ──────────────────────────────────────────────
+    // ── extract_dialogue_from_partial_json ─────────────────────────────────
 
     #[test]
-    fn separator_found_on_own_line() {
-        let text = "Hello there.\n---\n{\"action\":\"speaks\"}";
-        let (d, m) = find_response_separator(text).unwrap();
-        // dialogue_end sits just past the newline that ends the dialogue —
-        // callers trim trailing whitespace themselves.
-        assert_eq!(&text[..d], "Hello there.\n");
-        assert_eq!(&text[m..], "{\"action\":\"speaks\"}");
+    fn extract_dialogue_complete() {
+        let buf = r#"{"dialogue": "Hello there!", "action": "speaks"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Hello there!".to_string())
+        );
     }
 
     #[test]
-    fn separator_found_inline() {
-        let text = "Quick line --- {\"action\":\"speaks\"}";
-        let (d, m) = find_response_separator(text).unwrap();
-        assert_eq!(&text[..d], "Quick line");
-        assert_eq!(&text[m..], "{\"action\":\"speaks\"}");
+    fn extract_dialogue_streaming() {
+        let buf = r#"{"dialogue": "Hello th"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Hello th".to_string())
+        );
     }
 
     #[test]
-    fn separator_inline_with_newline_suffix() {
-        let text = "Short ---\n{\"a\":1}";
-        let (d, m) = find_response_separator(text).unwrap();
-        assert_eq!(&text[..d], "Short");
-        assert_eq!(&text[m..], "{\"a\":1}");
+    fn extract_dialogue_not_yet_started() {
+        assert_eq!(extract_dialogue_from_partial_json(r#"{"act"#), None);
     }
 
     #[test]
-    fn separator_absent_returns_none() {
-        assert!(find_response_separator("no separator here").is_none());
-        assert!(find_response_separator("").is_none());
+    fn extract_dialogue_with_escapes() {
+        let buf = r#"{"dialogue": "He said \"hello\" to me"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("He said \"hello\" to me".to_string())
+        );
     }
 
     #[test]
-    fn separator_own_line_takes_precedence() {
-        // When both patterns are present, the own-line one wins because
-        // it's checked first.
-        let text = "Intro\n---\ntail --- more";
-        let (d, m) = find_response_separator(text).unwrap();
-        assert_eq!(&text[..d], "Intro\n");
-        // After the own-line separator, the rest includes "tail --- more".
-        assert!(text[m..].starts_with("tail"));
+    fn extract_dialogue_with_newlines() {
+        let buf = r#"{"dialogue": "Line one\nLine two"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Line one\nLine two".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_with_unicode() {
+        let buf = r#"{"dialogue": "Sláinte!"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Sláinte!".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_no_space_after_colon() {
+        let buf = r#"{"dialogue":"Hello!"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Hello!".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_empty_string() {
+        let buf = r#"{"dialogue": ""}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some(String::new())
+        );
     }
 
     // ── LanguageHint serde ───────────────────────────────────────────────────
