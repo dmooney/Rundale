@@ -598,6 +598,13 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_forage_command() {
+        assert_eq!(parse_system_command("/forage"), Some(Command::Forage));
+        assert_eq!(parse_system_command("/FORAGE"), Some(Command::Forage));
+        assert_eq!(parse_system_command("  /forage  "), Some(Command::Forage));
+    }
+
+    #[test]
     fn test_parse_theme_command() {
         assert_eq!(parse_system_command("/theme"), Some(Command::Theme(None)));
         assert_eq!(

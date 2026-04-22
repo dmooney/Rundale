@@ -1,0 +1,80 @@
+# Foraging play-test — demonstrates the /forage feature.
+#
+# Setup: start in Kilteevan Village, spring morning, clear weather.
+#  Act 1: Try the command in the mundane spring hedgerow.
+#  Act 2: Walk the habitats — crossroads, farm, bog, lakeshore, fairy fort,
+#         and an indoor room — showing both finds and principled refusals.
+#  Act 3: Roll the calendar forward into summer, then autumn — same ground,
+#         very different bounty.
+#  Act 4: Push past dusk into midnight, then on into deep winter, to see the
+#         gating logic refuse gracefully.
+
+# ── Act 1 — A spring morning in Kilteevan Village ────────────────────────
+/status
+/time
+/forage
+
+# ── Act 2 — Walk the habitats in spring ──────────────────────────────────
+go to the crossroads
+/forage
+
+# Murphy's farm — foraging in a stranger's yard is not done.
+go to murphy's farm
+/forage
+
+# The bog road — a different habitat entirely.
+go to the bog road
+/forage
+
+# The lough shore.
+go to lough ree shore
+/forage
+
+# The fairy fort — taboo ground, even for hungry foragers.
+go to the fairy fort
+/forage
+
+# Back to the crossroads, then duck into the pub — no foraging indoors.
+go to the crossroads
+go to darcy's pub
+/forage
+
+# ── Act 3 — Forward into summer, then autumn ─────────────────────────────
+# Step back out into open country.
+go to the crossroads
+
+# Roll the calendar forward ~90 days into summer.
+/wait 129600
+/time
+/forage
+
+# A summer bog at the same hour.
+go to the bog road
+/forage
+
+# Another ~90 days on — into autumn. The same hedgerow is transformed.
+go to the crossroads
+/wait 129600
+/time
+/forage
+
+# An autumn bog — the last of the bilberries and a few cranberries.
+go to the bog road
+/forage
+
+# ── Act 4 — Late light and hard weather ──────────────────────────────────
+# Push to dusk at the hedgerow and try again — the yield is less.
+go to the crossroads
+/wait 360
+/time
+/forage
+
+# On past midnight — now it's too dark to forage at all.
+/wait 420
+/time
+/forage
+
+# Finally, on into the dead of winter.
+/wait 129600
+/time
+/forage

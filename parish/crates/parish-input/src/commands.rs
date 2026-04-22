@@ -130,6 +130,8 @@ pub enum Command {
     Flags,
     /// Invalid flag name was provided.
     InvalidFlagName(String),
+    /// Forage the current location for wild food.
+    Forage,
     /// Show or set the current weather.
     ///
     /// `None` reports the current weather; `Some(name)` forces a weather

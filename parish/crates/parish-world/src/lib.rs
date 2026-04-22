@@ -2,6 +2,7 @@
 
 pub mod description;
 pub mod encounter;
+pub mod foraging;
 pub mod geo;
 pub mod graph;
 pub mod movement;

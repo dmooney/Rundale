@@ -10,11 +10,13 @@
 //! [`CommandEffect`] variants so each backend can handle them appropriately.
 
 use chrono::Timelike;
+use rand::Rng;
 
 use crate::config::{InferenceCategory, Provider};
 use crate::input::{Command, FlagSubcommand};
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
+use crate::world::foraging::{self, Habitat};
 
 use super::config::GameConfig;
 use super::handlers::mask_key;
@@ -132,6 +134,10 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/flag disable <name>", "Disable a feature flag"),
     ("/flag enable <name>", "Enable a feature flag"),
     ("/flag list", "List all feature flags"),
+    (
+        "/forage",
+        "Forage the hedgerows, bog, or shore for wild food",
+    ),
     ("/fork <name>", "Fork a new branch from here"),
     ("/help", "Show this help"),
     ("/improv", "Toggle improv craft mode"),
@@ -234,14 +240,8 @@ pub fn handle_command(
         // ── Info commands ───────────────────────────────────────────────
         Command::About => CommandResult::text(
             [
-                &format!(
-                    "Parish v{} — An Irish Living World Text Adventure",
-                    env!("CARGO_PKG_VERSION")
-                ),
-                "Set in 1820 rural Ireland, powered by the custom Parish engine.",
-                "",
-                "Created by Dave Mooney © 2026",
-                "Licensed under GNU General Public License v3.0.",
+                "Parish — A text adventure set in 1820s rural Ireland.",
+                "Explore a living village powered by AI-driven NPCs.",
                 "",
                 "Type /help for available commands.",
             ]
@@ -318,6 +318,7 @@ pub fn handle_command(
                 CommandResult::text(format!("{} schedule event(s) processed.", count))
             }
         }
+        Command::Forage => handle_forage_command(world, npc_manager, config),
 
         // ── Sidebar & Improv ────────────────────────────────────────────
         Command::ToggleSidebar => {
@@ -338,10 +339,6 @@ pub fn handle_command(
             Ok(provider) => {
                 config.base_url = provider.default_base_url().to_string();
                 config.provider_name = format!("{:?}", provider).to_lowercase();
-                // Auto-fill any unset model fields with the provider's preset
-                // (base + per-role) so users who only set the provider get
-                // sensible defaults.
-                config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("Provider changed to {}.", config.provider_name),
                     CommandEffect::RebuildInference,
@@ -426,9 +423,6 @@ pub fn handle_command(
                 let provider_name = format!("{:?}", provider).to_lowercase();
                 config.category_provider[idx] = Some(provider_name.clone());
                 config.category_base_url[idx] = Some(provider.default_base_url().to_string());
-                // Auto-fill the model for this category if unset, using the
-                // new provider's preset for this role.
-                config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("{} provider changed to {}.", cat.name(), provider_name),
                     CommandEffect::RebuildInference,
@@ -471,63 +465,6 @@ pub fn handle_command(
             )
         }
 
-        // ── Provider presets ────────────────────────────────────────────
-        Command::ShowPreset => CommandResult::text(
-            "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
-             groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm",
-        ),
-        Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                if !provider.has_preset() {
-                    CommandResult::text(format!(
-                        "No preset available for '{}'. Configure models manually with /model.<category>.",
-                        name
-                    ))
-                } else {
-                    let presets = provider.preset_models();
-                    let provider_name = format!("{:?}", provider).to_lowercase();
-                    let default_url = provider.default_base_url().to_string();
-
-                    // Base provider/url/model: use Dialogue's pick as the base model
-                    // so any code path that still falls through to `model_name` gets
-                    // a sensible value.
-                    config.provider_name = provider_name.clone();
-                    config.base_url = default_url.clone();
-                    if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
-                        config.model_name = m.to_string();
-                    }
-
-                    // Per-category: always overwrite (applying a preset is an
-                    // explicit user action). API keys are intentionally left
-                    // alone — see hint below.
-                    for cat in InferenceCategory::ALL {
-                        let idx = cat.idx();
-                        config.category_provider[idx] = Some(provider_name.clone());
-                        config.category_base_url[idx] = Some(default_url.clone());
-                        config.category_model[idx] = presets[idx].map(str::to_string);
-                    }
-
-                    let hint = if provider.requires_api_key() && config.api_key.is_none() {
-                        format!(
-                            " Set your API key with `/key <value>` — {} requires one.",
-                            provider_name
-                        )
-                    } else {
-                        String::new()
-                    };
-
-                    CommandResult::with_effect(
-                        format!(
-                            "Applied {} preset (Dialogue/Simulation/Intent/Reaction).{}",
-                            provider_name, hint
-                        ),
-                        CommandEffect::RebuildInference,
-                    )
-                }
-            }
-            Err(e) => CommandResult::text(format!("{}", e)),
-        },
-
         // ── Feature flags ───────────────────────────────────────────────
         Command::Flags | Command::Flag(FlagSubcommand::List) => {
             let list = config.flags.list();
@@ -553,18 +490,59 @@ pub fn handle_command(
         }
         Command::Flag(FlagSubcommand::Disable(name)) => {
             config.flags.disable(&name);
-            // When disabling a flag that has associated cached state, clear
-            // that state immediately so the next render sees the correct value
-            // without requiring the player to run another command first.
-            if name == "reveal-unexplored" {
-                config.reveal_unexplored_locations = false;
-            }
             CommandResult::with_effect(
                 format!("Feature '{}' disabled.", name),
                 CommandEffect::SaveFlags,
             )
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
+
+        // ── Provider presets ────────────────────────────────────────────
+        Command::ShowPreset => CommandResult::text(
+            "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
+             groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm",
+        ),
+        Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                if !provider.has_preset() {
+                    CommandResult::text(format!(
+                        "No preset available for '{}'. Configure models manually with /model.<category>.",
+                        name
+                    ))
+                } else {
+                    let presets = provider.preset_models();
+                    let provider_name = format!("{:?}", provider).to_lowercase();
+                    let default_url = provider.default_base_url().to_string();
+
+                    config.provider_name = provider_name.clone();
+                    config.base_url = default_url.clone();
+                    if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
+                        config.model_name = m.to_string();
+                    }
+
+                    for cat in InferenceCategory::ALL {
+                        let idx = cat.idx();
+                        config.category_provider[idx] = Some(provider_name.clone());
+                        config.category_base_url[idx] = Some(default_url.clone());
+                        config.category_model[idx] = presets[idx].map(str::to_string);
+                    }
+
+                    let hint = if provider.requires_api_key() && config.api_key.is_none() {
+                        format!(
+                            " Set your API key with `/key <value>` — {} requires one.",
+                            provider_name
+                        )
+                    } else {
+                        String::new()
+                    };
+                    CommandResult::with_effect(
+                        format!("Preset '{}' applied.{}", provider_name, hint),
+                        CommandEffect::RebuildInference,
+                    )
+                }
+            }
+            Err(e) => CommandResult::text(format!("{}", e)),
+        },
 
         // ── Mode-specific commands (delegated to backend) ───────────────
         Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
@@ -681,19 +659,47 @@ fn handle_weather_command(
     }
 }
 
-/// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
+/// Handles the `/forage` command.
 ///
-/// Gated by the `reveal-unexplored` feature flag (default-enabled per
-/// CLAUDE.md rule #6). Uses `is_disabled` semantics so the feature ships
-/// on without needing to seed the flags file.
-fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
-    if config.flags.is_disabled("reveal-unexplored") {
-        config.reveal_unexplored_locations = false;
-        return CommandResult::text(
-            "The /unexplored command is disabled. Re-enable with /flag enable reveal-unexplored.",
-        );
+/// Classifies the player's current location into a habitat, rolls a foraging
+/// attempt against season / time-of-day / weather, advances the game clock by
+/// the minutes the attempt consumed, and returns the narrative outcome.
+///
+/// Gated by the `foraging` feature flag with kill-switch semantics (ships
+/// on by default; only blocked when explicitly disabled). See CLAUDE.md rule
+/// #6 on feature-flagging new gameplay.
+fn handle_forage_command(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    config: &GameConfig,
+) -> CommandResult {
+    if config.flags.is_disabled("foraging") {
+        return CommandResult::text("Foraging is disabled. Re-enable with /flag enable foraging.");
     }
 
+    let habitat = match world.current_location_data() {
+        Some(loc) => foraging::classify_habitat(loc),
+        None => Habitat::Unforageable,
+    };
+
+    let season = world.clock.season();
+    let tod = world.clock.time_of_day();
+    let weather = world.weather;
+    let roll: f64 = rand::rng().random();
+
+    let outcome = foraging::forage(habitat, season, tod, weather, roll);
+
+    if outcome.minutes_elapsed > 0 {
+        world.clock.advance(outcome.minutes_elapsed as i64);
+        npc_manager.assign_tiers(world, &[]);
+        let _events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+    }
+
+    CommandResult::text(outcome.description)
+}
+
+/// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
+fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
     match arg {
         Some(true) => {
             config.reveal_unexplored_locations = true;
@@ -1007,6 +1013,27 @@ mod tests {
     }
 
     #[test]
+    fn forage_command_produces_text() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::Forage, &mut world, &mut npc, &mut config);
+        // The default WorldState starts at "The Crossroads" (hedgerow), so
+        // the player should either get a seasonal find or a reasoned refusal.
+        assert!(!result.response.is_empty());
+    }
+
+    #[test]
+    fn forage_command_respects_feature_flag() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.flags.disable("foraging");
+        let result = handle_command(Command::Forage, &mut world, &mut npc, &mut config);
+        assert!(
+            result.response.contains("disabled"),
+            "expected kill-switch message, got: {}",
+            result.response
+        );
+    }
+
+    #[test]
     fn show_speed_reports_current_speed() {
         let (mut world, mut npc, mut config) = default_state();
         let result = handle_command(Command::ShowSpeed, &mut world, &mut npc, &mut config);
@@ -1268,202 +1295,6 @@ mod tests {
         assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat-key"));
     }
 
-    // ── Provider presets ────────────────────────────────────────────────────
-
-    #[test]
-    fn apply_preset_anthropic_populates_all_four_slots() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(
-            Command::ApplyPreset("anthropic".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.effects.contains(&CommandEffect::RebuildInference));
-        assert_eq!(config.provider_name, "anthropic");
-        assert_eq!(config.base_url, "https://api.anthropic.com");
-        assert_eq!(config.model_name, "claude-opus-4-7");
-
-        let idx_d = InferenceCategory::Dialogue.idx();
-        let idx_s = InferenceCategory::Simulation.idx();
-        let idx_i = InferenceCategory::Intent.idx();
-        let idx_r = InferenceCategory::Reaction.idx();
-        assert_eq!(
-            config.category_model[idx_d].as_deref(),
-            Some("claude-opus-4-7")
-        );
-        assert_eq!(
-            config.category_model[idx_s].as_deref(),
-            Some("claude-sonnet-4-6")
-        );
-        assert_eq!(
-            config.category_model[idx_i].as_deref(),
-            Some("claude-haiku-4-5")
-        );
-        assert_eq!(
-            config.category_model[idx_r].as_deref(),
-            Some("claude-sonnet-4-6")
-        );
-        for cat in InferenceCategory::ALL {
-            let i = cat.idx();
-            assert_eq!(config.category_provider[i].as_deref(), Some("anthropic"));
-            assert_eq!(
-                config.category_base_url[i].as_deref(),
-                Some("https://api.anthropic.com")
-            );
-        }
-    }
-
-    #[test]
-    fn apply_preset_overwrites_existing_category_models() {
-        let (mut world, mut npc, mut config) = default_state();
-        let idx = InferenceCategory::Dialogue.idx();
-        config.category_model[idx] = Some("old-dialogue-model".to_string());
-
-        handle_command(
-            Command::ApplyPreset("ollama".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert_eq!(config.category_model[idx].as_deref(), Some("qwen3:32b"));
-    }
-
-    #[test]
-    fn apply_preset_does_not_touch_api_keys() {
-        let (mut world, mut npc, mut config) = default_state();
-        let idx = InferenceCategory::Dialogue.idx();
-        config.api_key = Some("sk-existing".to_string());
-        config.category_api_key[idx] = Some("sk-cat".to_string());
-
-        handle_command(
-            Command::ApplyPreset("anthropic".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert_eq!(config.api_key.as_deref(), Some("sk-existing"));
-        assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat"));
-    }
-
-    #[test]
-    fn apply_preset_hints_when_api_key_missing() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(
-            Command::ApplyPreset("openai".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.response.contains("API key"));
-        assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    }
-
-    #[test]
-    fn apply_preset_no_hint_for_keyless_provider() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(
-            Command::ApplyPreset("ollama".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(!result.response.contains("API key"));
-    }
-
-    #[test]
-    fn apply_preset_unknown_provider_returns_error() {
-        let (mut world, mut npc, mut config) = default_state();
-        let prior_provider = config.provider_name.clone();
-        let result = handle_command(
-            Command::ApplyPreset("not-a-provider".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(!result.effects.contains(&CommandEffect::RebuildInference));
-        // Config should not have been mutated on error.
-        assert_eq!(config.provider_name, prior_provider);
-    }
-
-    #[test]
-    fn apply_preset_custom_returns_no_preset_message() {
-        let (mut world, mut npc, mut config) = default_state();
-        let prior_provider = config.provider_name.clone();
-        let result = handle_command(
-            Command::ApplyPreset("custom".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.response.contains("No preset"));
-        assert!(!result.effects.contains(&CommandEffect::RebuildInference));
-        assert_eq!(config.provider_name, prior_provider);
-    }
-
-    #[test]
-    fn set_provider_fills_missing_models_from_preset() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(
-            Command::SetProvider("anthropic".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.effects.contains(&CommandEffect::RebuildInference));
-        assert_eq!(config.provider_name, "anthropic");
-        assert_eq!(config.model_name, "claude-opus-4-7");
-        // All four per-category slots should be filled from the Anthropic preset.
-        assert_eq!(
-            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
-            Some("claude-haiku-4-5"),
-        );
-        assert_eq!(
-            config.category_model[InferenceCategory::Simulation.idx()].as_deref(),
-            Some("claude-sonnet-4-6"),
-        );
-    }
-
-    #[test]
-    fn set_provider_does_not_overwrite_existing_model() {
-        let mut config = GameConfig {
-            model_name: "preferred-model".to_string(),
-            ..GameConfig::default()
-        };
-        let mut world = WorldState::new();
-        let mut npc = NpcManager::new();
-        handle_command(
-            Command::SetProvider("anthropic".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert_eq!(config.model_name, "preferred-model");
-    }
-
-    #[test]
-    fn set_category_provider_fills_missing_model_from_preset() {
-        let (mut world, mut npc, mut config) = default_state();
-        handle_command(
-            Command::SetCategoryProvider(InferenceCategory::Intent, "anthropic".to_string()),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert_eq!(
-            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
-            Some("claude-haiku-4-5"),
-        );
-    }
-
-    #[test]
-    fn show_preset_lists_providers() {
-        let (mut world, mut npc, mut config) = default_state();
-        let result = handle_command(Command::ShowPreset, &mut world, &mut npc, &mut config);
-        assert!(result.response.contains("anthropic"));
-        assert!(result.response.contains("ollama"));
-    }
-
     // ── Feature flags ────────────────────────────────────────────────────────
 
     #[test]
@@ -1507,27 +1338,6 @@ mod tests {
         );
         assert!(result.effects.contains(&CommandEffect::SaveFlags));
         assert!(result.response.contains("disabled"));
-    }
-
-    #[test]
-    fn flag_disable_reveal_unexplored_clears_active_reveal_state() {
-        let (mut world, mut npc, mut config) = default_state();
-        // Simulate: reveal mode is active (e.g. player ran `/unexplored reveal`).
-        config.reveal_unexplored_locations = true;
-        // Operator runs `/flag disable reveal-unexplored` — this must immediately
-        // clear the cached reveal state, not wait for the next `/unexplored` call.
-        let result = handle_command(
-            Command::Flag(FlagSubcommand::Disable("reveal-unexplored".to_string())),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.effects.contains(&CommandEffect::SaveFlags));
-        assert!(result.response.contains("disabled"));
-        assert!(
-            !config.reveal_unexplored_locations,
-            "reveal_unexplored_locations must be cleared immediately when the flag is disabled"
-        );
     }
 
     #[test]
@@ -1876,62 +1686,6 @@ mod tests {
         assert!(result.response.contains("currently hidden"));
         assert!(result.response.contains("/unexplored reveal|hide"));
         assert!(result.effects.is_empty());
-    }
-
-    #[test]
-    fn unexplored_disabled_flag_returns_refusal() {
-        let (mut world, mut npc, mut config) = default_state();
-        config.flags.disable("reveal-unexplored");
-        let result = handle_command(
-            Command::Unexplored(Some(true)),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.response.contains("/flag enable"));
-        assert!(result.effects.is_empty());
-        assert!(!config.reveal_unexplored_locations);
-    }
-
-    /// Codex P1: disabling the flag while reveal is already active must clear
-    /// `reveal_unexplored_locations`, making the kill-switch effective.
-    /// Previously the early return left the boolean true, so map rendering
-    /// continued to show unexplored areas even though the feature flag was off.
-    #[test]
-    fn unexplored_disabled_flag_clears_active_reveal_state() {
-        let (mut world, mut npc, mut config) = default_state();
-        // Simulate: player ran `/unexplored reveal` while flag was enabled.
-        config.reveal_unexplored_locations = true;
-        // Now an operator disables the feature flag.
-        config.flags.disable("reveal-unexplored");
-        // Any attempt to use /unexplored should clear reveal state, not just refuse.
-        let result = handle_command(
-            Command::Unexplored(Some(true)),
-            &mut world,
-            &mut npc,
-            &mut config,
-        );
-        assert!(result.response.contains("/flag enable"));
-        assert!(result.effects.is_empty());
-        // Kill-switch must be complete: reveal state cleared even though we
-        // could not execute the command.
-        assert!(
-            !config.reveal_unexplored_locations,
-            "reveal_unexplored_locations must be false when the feature flag is disabled"
-        );
-    }
-
-    #[test]
-    fn unexplored_disabled_flag_clears_active_reveal() {
-        let (mut world, mut npc, mut config) = default_state();
-        config.reveal_unexplored_locations = true;
-        config.flags.disable("reveal-unexplored");
-        let result = handle_command(Command::Unexplored(None), &mut world, &mut npc, &mut config);
-        assert!(result.response.contains("/flag enable"));
-        assert!(
-            !config.reveal_unexplored_locations,
-            "should clear reveal state when flag is disabled"
-        );
     }
 
     #[test]

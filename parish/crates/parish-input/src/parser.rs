@@ -100,6 +100,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::NewGame)
     } else if lower == "/tick" {
         Some(Command::Tick)
+    } else if lower == "/forage" {
+        Some(Command::Forage)
     } else if lower == "/theme" {
         Some(Command::Theme(None))
     } else if lower.starts_with("/theme ") {
