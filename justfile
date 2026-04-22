@@ -98,6 +98,7 @@ run:
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
+        if [ "$PORT" -gt 5200 ]; then echo "No free port found in range 5173-5200" >&2; exit 1; fi
     done
     export PARISH_DEV_PORT=$PORT
     if [ "$PORT" -eq 5173 ]; then

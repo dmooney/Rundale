@@ -177,7 +177,8 @@ impl AnthropicClient {
         let url = format!("{}/v1/messages", self.base_url);
         let req = self.apply_headers(self.client.post(&url).json(body));
         req.send()
-            .await?
+            .await
+            .map_err(|e| ParishError::Inference(e.to_string()))?
             .error_for_status()
             .map_err(|e| ParishError::Inference(e.to_string()))
     }
