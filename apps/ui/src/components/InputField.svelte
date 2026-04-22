@@ -838,6 +838,7 @@
 			{#each $npcsHere as npc}
 				<button
 					class="npc-chip"
+					aria-label="Speak to {npc.name}"
 					onclick={() => insertNpcMention(npc.name)}
 				>
 					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
@@ -857,6 +858,7 @@
 			{#each adjacentLocations as loc}
 				<button
 					class="travel-chip"
+					aria-label="Travel to {loc.name}{loc.travel_minutes !== undefined ? `, ${loc.travel_minutes} minute walk` : ''}"
 					onclick={() => quickTravel(loc.name)}
 					disabled={$streamingActive}
 				>
