@@ -292,7 +292,7 @@ export class MapController {
 				: 1;
 			const [lon, lat] = positionAlongPath(waypoints, segLengths, totalLength, t);
 			marker.setLngLat([lon, lat]);
-			if (this.travelAnim) {
+			if (t < 1 && this.travelAnim) {
 				this.travelAnim.rafId = requestAnimationFrame(tick);
 			}
 		};
@@ -345,6 +345,7 @@ export class MapController {
 	/** Cleans up the underlying MapLibre instance and any running animation. */
 	destroy(): void {
 		this.stopTravel();
+		this.unwireLayerEvents();
 		this.map.remove();
 	}
 

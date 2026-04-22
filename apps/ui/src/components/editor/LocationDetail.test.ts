@@ -80,6 +80,8 @@ vi.mock('maplibre-gl', () => {
 
 		easeTo() {}
 
+		off() {}
+
 		remove() {
 			mockState.mapRemoveCount += 1;
 		}
