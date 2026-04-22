@@ -159,10 +159,18 @@ impl ShortTermMemory {
 /// Formats a game timestamp relative to `now` as a human-readable label.
 fn relative_time_label(ts: DateTime<Utc>, now: DateTime<Utc>) -> String {
     use chrono::Timelike;
+    if ts > now {
+        tracing::warn!(
+            timestamp = %ts,
+            now = %now,
+            "future timestamp in NPC memory — clock skew or restored save?"
+        );
+        return "just now".to_string();
+    }
     let diff = now.signed_duration_since(ts);
     let mins = diff.num_minutes();
     match mins {
-        m if m <= 0 => "just now".to_string(),
+        0 => "just now".to_string(),
         1..=59 => format!("{} min ago", mins),
         60..=1439 => format!("{} hr ago", diff.num_hours()),
         1440..=2879 => format!("yesterday, {:02}:{:02}", ts.hour(), ts.minute()),
@@ -297,7 +305,7 @@ impl LongTermMemory {
     /// every stored entry's importance, it is rejected and the log is
     /// unchanged.
     pub fn store(&mut self, entry: LongTermEntry) -> bool {
-        if entry.importance < PROMOTION_THRESHOLD {
+        if !entry.importance.is_finite() || entry.importance < PROMOTION_THRESHOLD {
             return false;
         }
 
@@ -1075,5 +1083,55 @@ mod tests {
         let promoted = try_promote(&mut ltm, &entry, &[], "");
         assert!(!promoted);
         assert!(ltm.is_empty());
+    }
+
+    // ── Issue #461: NaN importance must not evict valid entries ─────
+
+    #[test]
+    fn long_term_memory_rejects_nan_importance() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.8)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.7)));
+
+        let stored = ltm.store(make_lt_entry("NaN entry", f32::NAN, &["test"]));
+        assert!(!stored, "NaN importance must be rejected");
+        assert_eq!(ltm.len(), 2, "existing entries must be preserved");
+    }
+
+    #[test]
+    fn long_term_memory_rejects_infinite_importance() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.8)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.7)));
+
+        assert!(!ltm.store(make_lt_entry("inf", f32::INFINITY, &["test"])));
+        assert!(!ltm.store(make_lt_entry("-inf", f32::NEG_INFINITY, &["test"])));
+        assert_eq!(ltm.len(), 2);
+    }
+
+    // ── Issue #462: future timestamps must not silently pass ────────
+
+    #[test]
+    fn relative_time_label_future_timestamp_clamps_to_just_now() {
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        let future = Utc.with_ymd_and_hms(1820, 3, 20, 13, 0, 0).unwrap();
+        let label = relative_time_label(future, now);
+        assert_eq!(label, "just now");
+    }
+
+    #[test]
+    fn context_string_with_now_future_entry() {
+        let mut mem = ShortTermMemory::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        let future = Utc.with_ymd_and_hms(1820, 3, 20, 14, 0, 0).unwrap();
+        mem.add(MemoryEntry {
+            timestamp: future,
+            content: "Future event".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[just now] Future event"), "got: {ctx}");
     }
 }
