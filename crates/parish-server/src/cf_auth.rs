@@ -78,7 +78,7 @@ pub struct CfAccessVerifier {
     pub audience: String,
     pub team_domain: String,
     /// Cached JWKS (refreshed every 10 min).
-    jwks: std::sync::Mutex<Option<Arc<Jwks>>>,
+    jwks: tokio::sync::Mutex<Option<Arc<Jwks>>>,
     /// Unix timestamp (seconds) of the last JWKS refresh.
     last_refresh: AtomicU64,
 }
@@ -99,7 +99,7 @@ impl CfAccessVerifier {
             jwks_url,
             audience,
             team_domain,
-            jwks: std::sync::Mutex::new(None),
+            jwks: tokio::sync::Mutex::new(None),
             last_refresh: AtomicU64::new(0),
         }))
     }
@@ -113,11 +113,11 @@ impl CfAccessVerifier {
         let last = self.last_refresh.load(Ordering::Relaxed);
         let stale = now_secs.saturating_sub(last) > 600;
 
-        if !stale
-            && let Ok(guard) = self.jwks.lock()
-            && let Some(ref cached) = *guard
-        {
-            return Ok(Arc::clone(cached));
+        if !stale {
+            let guard = self.jwks.lock().await;
+            if let Some(ref cached) = *guard {
+                return Ok(Arc::clone(cached));
+            }
         }
 
         self.refresh_jwks().await
@@ -137,7 +137,8 @@ impl CfAccessVerifier {
             .await
             .map_err(|e| format!("JWKS parse failed: {e}"))?;
         let arc = Arc::new(jwks);
-        if let Ok(mut guard) = self.jwks.lock() {
+        {
+            let mut guard = self.jwks.lock().await;
             *guard = Some(Arc::clone(&arc));
         }
         let now_secs = SystemTime::now()
@@ -324,11 +325,9 @@ impl SessionToken {
         let mut mac =
             Hmac::<Sha256>::new_from_slice(&signing_key()).expect("HMAC accepts any key length");
         mac.update(msg.as_bytes());
-        let expected = hex::encode(mac.finalize().into_bytes());
-
-        if sig_hex != expected {
-            return Err("invalid signature");
-        }
+        let sig_bytes = hex::decode(sig_hex).map_err(|_| "invalid signature")?;
+        mac.verify_slice(&sig_bytes)
+            .map_err(|_| "invalid signature")?;
 
         Ok(email.to_string())
     }
