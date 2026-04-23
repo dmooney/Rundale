@@ -416,26 +416,6 @@ impl GameTestHarness {
         self.process_schedule_events(&events);
         self.app.npc_manager.assign_tiers(&self.app.world, &[]);
 
-        // Banshee tick: herald and finalise doomed NPCs.
-        // Default-on; gated by the `banshee` feature flag being explicitly disabled.
-        if !self.app.flags.is_disabled("banshee") {
-            let player_loc = self.app.world.player_location;
-            let report = self.app.npc_manager.tick_banshee(
-                &self.app.world.clock,
-                &self.app.world.graph,
-                &mut self.app.world.text_log,
-                &self.app.world.event_bus,
-                player_loc,
-            );
-            if !report.is_empty() {
-                self.app.debug_event(format!(
-                    "[banshee] {} wail(s), {} death(s)",
-                    report.wails.len(),
-                    report.deaths.len()
-                ));
-            }
-        }
-
         // Propagate gossip between co-located NPCs
         if !self.app.world.gossip_network.is_empty() {
             let groups = self.app.npc_manager.tier2_groups();
@@ -469,7 +449,11 @@ impl GameTestHarness {
                 let mut rng2 = rand::thread_rng();
                 crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng2)
             };
-            let game_events = self.app.npc_manager.apply_tier4_events(&t4_events, now);
+            let banshee_on = !self.app.flags.is_disabled("banshee");
+            let game_events = self
+                .app
+                .npc_manager
+                .apply_tier4_events(&t4_events, now, banshee_on);
             for evt in game_events {
                 self.app.world.event_bus.publish(evt);
             }
@@ -572,29 +556,10 @@ impl GameTestHarness {
                 let count = events.len();
                 self.process_schedule_events(&events);
 
-                // Banshee tick: herald and finalise doomed NPCs.
-                let mut banshee_count = 0;
-                if !self.app.flags.is_disabled("banshee") {
-                    let player_loc = self.app.world.player_location;
-                    let report = self.app.npc_manager.tick_banshee(
-                        &self.app.world.clock,
-                        &self.app.world.graph,
-                        &mut self.app.world.text_log,
-                        &self.app.world.event_bus,
-                        player_loc,
-                    );
-                    banshee_count = report.wails.len() + report.deaths.len();
-                }
-
-                let msg = if count == 0 && banshee_count == 0 {
+                let msg = if count == 0 {
                     "No NPC activity.".to_string()
-                } else if banshee_count == 0 {
-                    format!("{} schedule event(s) processed.", count)
                 } else {
-                    format!(
-                        "{} schedule event(s) processed, {} banshee event(s).",
-                        count, banshee_count
-                    )
+                    format!("{} schedule event(s) processed.", count)
                 };
                 self.app.world.log(msg.clone());
                 return ActionResult::SystemCommand { response: msg };

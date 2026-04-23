@@ -322,7 +322,8 @@ pub async fn run_headless(
                     let mut rng = rand::thread_rng();
                     crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
                 };
-                let game_events = app.npc_manager.apply_tier4_events(&events, now);
+                let banshee_on = !app.flags.is_disabled("banshee");
+                let game_events = app.npc_manager.apply_tier4_events(&events, now, banshee_on);
                 for evt in game_events {
                     app.world.event_bus.publish(evt);
                 }
