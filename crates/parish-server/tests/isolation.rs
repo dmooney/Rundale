@@ -56,12 +56,11 @@ mod admin_guard {
         Extension(auth): Extension<AuthContext>,
         Json(body): Json<Req>,
     ) -> impl IntoResponse {
-        if let InputResult::SystemCommand(cmd) = classify_input(&body.text) {
-            if is_admin_command(&cmd)
-                && let Err(status) = check_admin(&auth.email, &body.text)
-            {
-                return status;
-            }
+        if let InputResult::SystemCommand(cmd) = classify_input(&body.text)
+            && is_admin_command(&cmd)
+            && let Err(status) = check_admin(&auth.email, &body.text)
+        {
+            return status;
         }
         StatusCode::OK
     }
