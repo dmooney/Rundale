@@ -1,0 +1,44 @@
+name: Railway deployment watchdog
+
+# Polls Railway every 10 minutes and opens a GitHub issue when the Parish
+# service has a FAILED/CRASHED deployment. See #562 for design notes and
+# roadmap toward Claude-driven auto-fix (v2).
+
+on:
+  schedule:
+    # Every 10 minutes. Cheap: one Railway API call + one gh search.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+  # Re-run immediately after a push to main so a just-shipped fix closes
+  # stale issues as soon as the next deploy turns green, without waiting
+  # up to 10 minutes for the next cron tick.
+  push:
+    branches: [main]
+
+concurrency:
+  group: railway-watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watchdog:
+    name: Check Railway deployment status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.com/install.sh | sh
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Run watchdog
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./deploy/railway-watchdog.sh
