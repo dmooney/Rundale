@@ -1447,7 +1447,7 @@ mod tests {
 
         // Apply an Illness event — should populate ring buffer
         let events = vec![Tier4Event::Illness { npc_id }];
-        mgr.apply_tier4_events(&events, Utc::now());
+        mgr.apply_tier4_events(&events, Utc::now(), true);
 
         let summary = build_tier_summary(&mgr);
         assert_eq!(summary.tier4_recent_events.len(), 1);

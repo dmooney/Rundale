@@ -1151,7 +1151,7 @@ pub fn run() {
                                         &mut rng,
                                     )
                                 };
-                                let game_events = npc_mgr.apply_tier4_events(&events, now);
+                                let game_events = npc_mgr.apply_tier4_events(&events, now, banshee_enabled);
                                 // Collect per-event descriptions before publishing.
                                 let life_descriptions: Vec<String> = game_events
                                     .iter()
