@@ -1968,29 +1968,58 @@ const ADMIN_COMMANDS: &[&str] = &[
     "/provider.",
 ];
 
+/// Parses a comma-separated list of emails into a `HashSet`, trimming
+/// whitespace and dropping empty entries. Extracted so the caching layer
+/// above can be unit-tested without env-var mutation.
+fn parse_admin_emails(list: &str) -> std::collections::HashSet<String> {
+    list.split(',')
+        .map(|e| e.trim().to_string())
+        .filter(|e| !e.is_empty())
+        .collect()
+}
+
+/// Returns the parsed admin email set, lazily initialized from the
+/// `PARISH_ADMIN_EMAILS` env var (comma-separated). `None` means the env
+/// var was unset at the moment of first access.
+///
+/// The result is cached for the lifetime of the process (#480). This both
+/// removes per-request env-var parsing overhead and prevents surprise
+/// mid-flight authorization changes from a stray `std::env::set_var` — a
+/// property we rely on for the security guarantee of `check_admin`.
+fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
+    use once_cell::sync::OnceCell;
+    use std::collections::HashSet;
+    static CACHE: OnceCell<Option<HashSet<String>>> = OnceCell::new();
+    CACHE
+        .get_or_init(|| {
+            std::env::var("PARISH_ADMIN_EMAILS")
+                .ok()
+                .map(|s| parse_admin_emails(&s))
+        })
+        .as_ref()
+}
+
 /// Returns `Ok(())` if the caller is permitted to run an admin command, or
 /// `Err(StatusCode::FORBIDDEN)` otherwise.
 ///
-/// Admin status is determined by `PARISH_ADMIN_EMAILS` (comma-separated).
-/// If the env var is unset: **allowed** in debug builds (local dev), **denied**
-/// in release builds (fail-closed).
+/// Admin status is determined by `PARISH_ADMIN_EMAILS` (comma-separated),
+/// parsed once at first access and cached thereafter (#480). If the env
+/// var was unset at first access: **allowed** in debug builds (local dev),
+/// **denied** in release builds (fail-closed).
 fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
-    match std::env::var("PARISH_ADMIN_EMAILS") {
-        Ok(list) => {
-            if list.split(',').any(|e| e.trim() == email) {
+    match admin_emails() {
+        Some(set) => {
+            if set.contains(email) {
                 Ok(())
             } else {
                 tracing::warn!(user = %email, command = %cmd, "admin command rejected");
                 Err(StatusCode::FORBIDDEN)
             }
         }
-        Err(_) => {
-            // Env var unset.
+        None => {
             if cfg!(debug_assertions) {
-                // Allow in debug builds so local dev works without env config.
                 Ok(())
             } else {
-                // Fail-closed in release builds.
                 tracing::warn!(user = %email, command = %cmd, "admin command rejected — PARISH_ADMIN_EMAILS unset");
                 Err(StatusCode::FORBIDDEN)
             }
@@ -2064,6 +2093,32 @@ pub(crate) mod tests {
         let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.text, "hello");
         assert_eq!(req.addressed_to, vec!["Padraig", "Maire"]);
+    }
+
+    #[test]
+    fn parse_admin_emails_basic_list() {
+        let set = parse_admin_emails("alice@example.com,bob@example.com");
+        assert!(set.contains("alice@example.com"));
+        assert!(set.contains("bob@example.com"));
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn parse_admin_emails_trims_and_drops_empties() {
+        let set = parse_admin_emails(" alice@example.com , , bob@example.com ,");
+        assert!(set.contains("alice@example.com"));
+        assert!(set.contains("bob@example.com"));
+        assert_eq!(
+            set.len(),
+            2,
+            "empty entries and surrounding spaces must be dropped"
+        );
+    }
+
+    #[test]
+    fn parse_admin_emails_empty_string_returns_empty_set() {
+        let set = parse_admin_emails("");
+        assert!(set.is_empty());
     }
 
     /// Helper to build a minimal AppState from the real game data.
