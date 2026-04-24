@@ -771,7 +771,12 @@ fn import_npcs(conn: &Connection) -> Result<()> {
 }
 
 fn family_tree(conn: &Connection, npc_id: i64) -> Result<()> {
-    let (household_id, target_name, target_age): (i64, String, i64) = conn
+    // household_id is nullable in the schema (line 216). Fetch it as
+    // Option<i64> so a NULL value — possible via import or manual
+    // editing — doesn't surface as a misleading "NPC not found" error
+    // (#435). An NPC without a household still exists; we just have
+    // no tree to print.
+    let (household_id, target_name, target_age): (Option<i64>, String, i64) = conn
         .query_row(
             "SELECT household_id, name, age FROM npcs WHERE id = ?",
             params![npc_id],
@@ -779,6 +784,11 @@ fn family_tree(conn: &Connection, npc_id: i64) -> Result<()> {
         )
         .optional()?
         .context("NPC not found")?;
+
+    let Some(household_id) = household_id else {
+        println!("Family tree for {target_name}: no household assigned");
+        return Ok(());
+    };
 
     println!("Family tree for {target_name} (household #{household_id})");
     let mut stmt = conn
@@ -1030,5 +1040,55 @@ mod tests {
         let blob: ExportBlob = serde_json::from_str(legacy).expect("legacy blob should parse");
         assert_eq!(blob.npcs.len(), 1);
         assert_eq!(blob.npcs[0].sex, "unknown");
+    }
+
+    // ── #435 family_tree gracefully handles NULL household_id ───────────────
+
+    /// An NPC with NULL household_id must not blow up family_tree
+    /// with a misleading "NPC not found" error. The NPC exists — we
+    /// just have no household to walk.
+    #[test]
+    fn test_family_tree_handles_null_household() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
+
+        // Insert an NPC directly with NULL household_id — import or
+        // manual editing can produce this in the wild.
+        let parish_id: i64 = conn
+            .query_row("SELECT id FROM parishes LIMIT 1", [], |r| r.get(0))
+            .ok()
+            .unwrap_or_else(|| {
+                conn.execute(
+                    "INSERT INTO parishes(county_id, name) VALUES ((SELECT id FROM counties LIMIT 1), 'Testshire')",
+                    [],
+                )
+                .unwrap();
+                conn.last_insert_rowid()
+            });
+        conn.execute(
+            "INSERT INTO npcs(name, sex, birth_year, age, parish_id, household_id, occupation, data_tier, mood)\n             VALUES ('Orphan', 'female', 1790, 30, ?, NULL, 'Other', 0, 'neutral')",
+            params![parish_id],
+        )
+        .expect("insert orphan NPC");
+        let orphan_id = conn.last_insert_rowid();
+
+        // The call must succeed (return Ok) rather than surfacing a
+        // confusing "NPC not found" error.
+        let result = family_tree(&conn, orphan_id);
+        assert!(
+            result.is_ok(),
+            "family_tree on NULL-household NPC should succeed, got: {:?}",
+            result.err()
+        );
+
+        // And a non-existent NPC id still reports "NPC not found"
+        // (regression-guard: we didn't break that path).
+        let missing = family_tree(&conn, 9_999_999);
+        assert!(missing.is_err());
+        assert!(
+            missing.unwrap_err().to_string().contains("NPC not found"),
+            "missing NPC should still surface 'NPC not found'"
+        );
     }
 }
