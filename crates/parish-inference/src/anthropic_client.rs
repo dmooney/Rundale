@@ -170,17 +170,31 @@ impl AnthropicClient {
     }
 
     /// Sends a non-streaming request and returns the raw response.
+    ///
+    /// On non-2xx status, reads the response body and attempts to extract
+    /// Anthropic's error message so callers see actionable diagnostics
+    /// instead of a bare HTTP status code.
     async fn send_request(
         &self,
         body: &MessagesRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
         let url = format!("{}/v1/messages", self.base_url);
         let req = self.apply_headers(self.client.post(&url).json(body));
-        req.send()
+        let response = req
+            .send()
             .await
-            .map_err(|e| ParishError::Inference(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| ParishError::Inference(e.to_string()))
+            .map_err(|e| ParishError::Inference(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body_text = response.text().await.unwrap_or_default();
+            let detail = extract_api_error_message(&body_text).unwrap_or_else(|| body_text.clone());
+            return Err(ParishError::Inference(format!(
+                "Anthropic API error (HTTP {status}): {detail}"
+            )));
+        }
+
+        Ok(response)
     }
 
     /// Sends a non-streaming messages request and returns the response text.
@@ -284,21 +298,26 @@ impl AnthropicClient {
 
         let url = format!("{}/v1/messages", self.base_url);
         let req = self.apply_headers(self.streaming_client.post(&url).json(&body));
-        let resp = req
+        let response = req
             .send()
-            .await?
-            .error_for_status()
+            .await
             .map_err(|e| ParishError::Inference(e.to_string()))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body_text = response.text().await.unwrap_or_default();
+            let detail = extract_api_error_message(&body_text).unwrap_or_else(|| body_text.clone());
+            return Err(ParishError::Inference(format!(
+                "Anthropic API error (HTTP {status}): {detail}"
+            )));
+        }
 
         let mut accumulated = String::new();
         let mut line_buf = String::new();
         let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
 
-        let mut response = resp;
+        let mut response = response;
         while let Some(chunk) = response.chunk().await? {
-            // Incremental UTF-8 decoding prevents multi-byte characters
-            // split across HTTP chunk boundaries from becoming U+FFFD
-            // (issue #223 — same fix as in the OpenAI-compat client).
             line_buf.push_str(&decoder.push(&chunk));
 
             while let Some(newline_pos) = line_buf.find('\n') {
@@ -306,15 +325,17 @@ impl AnthropicClient {
                 match process_sse_line(&line, &token_tx, &mut accumulated) {
                     SseResult::Continue => {}
                     SseResult::Done => return Ok(accumulated),
+                    SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
                 }
             }
         }
 
-        // Flush any trailing incomplete bytes and process the final line.
         line_buf.push_str(&decoder.flush());
         let remaining = line_buf.trim();
-        if !remaining.is_empty() {
-            process_sse_line(remaining, &token_tx, &mut accumulated);
+        if !remaining.is_empty()
+            && let SseResult::Error(msg) = process_sse_line(remaining, &token_tx, &mut accumulated)
+        {
+            return Err(ParishError::Inference(msg));
         }
 
         Ok(accumulated)
@@ -327,6 +348,8 @@ enum SseResult {
     Continue,
     /// Stream is complete (saw `message_stop`).
     Done,
+    /// An error event was received mid-stream.
+    Error(String),
 }
 
 /// Processes a single SSE line: dispatches by event `type` field.
@@ -364,10 +387,13 @@ fn process_sse_line(
             SseResult::Continue
         }
         StreamEvent::MessageStop => SseResult::Done,
-        // All other event types (message_start, content_block_start,
-        // content_block_stop, message_delta, ping, error, unknown) are
-        // consumed and ignored. The `error` event from Anthropic surfaces
-        // via the HTTP status code already.
+        StreamEvent::Error { error } => {
+            let msg = format!(
+                "Anthropic stream error ({}): {}",
+                error.error_type, error.message
+            );
+            SseResult::Error(msg)
+        }
         StreamEvent::Other => SseResult::Continue,
     }
 }
@@ -383,9 +409,19 @@ enum StreamEvent {
     },
     /// Terminal event; stream is complete.
     MessageStop,
+    /// Error event sent mid-stream (e.g. output token limit, internal error).
+    Error { error: StreamError },
     /// Any other event we don't act on (kept so deserialisation never fails).
     #[serde(other)]
     Other,
+}
+
+/// Error payload inside an `error` SSE event.
+#[derive(Deserialize, Debug)]
+struct StreamError {
+    #[serde(rename = "type")]
+    error_type: String,
+    message: String,
 }
 
 /// Delta payload inside a `content_block_delta` event.
@@ -595,15 +631,27 @@ mod tests {
 
     // --- SSE parser tests ----------------------------------------------
 
-    fn run_sse(lines: &[&str]) -> (String, Vec<String>, bool) {
+    struct SseOutput {
+        acc: String,
+        tokens: Vec<String>,
+        done: bool,
+        error: Option<String>,
+    }
+
+    fn run_sse(lines: &[&str]) -> SseOutput {
         let (tx, mut rx) = mpsc::unbounded_channel();
         let mut acc = String::new();
         let mut done = false;
+        let mut error = None;
         for line in lines {
             match process_sse_line(line, &tx, &mut acc) {
                 SseResult::Continue => {}
                 SseResult::Done => {
                     done = true;
+                    break;
+                }
+                SseResult::Error(msg) => {
+                    error = Some(msg);
                     break;
                 }
             }
@@ -613,12 +661,19 @@ mod tests {
         while let Ok(t) = rx.try_recv() {
             tokens.push(t);
         }
-        (acc, tokens, done)
+        SseOutput {
+            acc,
+            tokens,
+            done,
+            error,
+        }
     }
 
     #[test]
     fn test_sse_content_block_delta_emits_text() {
-        let (acc, tokens, done) = run_sse(&[
+        let SseOutput {
+            acc, tokens, done, ..
+        } = run_sse(&[
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
         ]);
@@ -629,7 +684,9 @@ mod tests {
 
     #[test]
     fn test_sse_message_stop_terminates() {
-        let (acc, tokens, done) = run_sse(&[
+        let SseOutput {
+            acc, tokens, done, ..
+        } = run_sse(&[
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}"#,
             r#"data: {"type":"message_stop"}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ignored"}}"#,
@@ -641,7 +698,7 @@ mod tests {
 
     #[test]
     fn test_sse_ignores_noise_events() {
-        let (acc, tokens, _done) = run_sse(&[
+        let SseOutput { acc, tokens, .. } = run_sse(&[
             "event: ping",
             r#"data: {"type":"ping"}"#,
             r#"data: {"type":"message_start","message":{}}"#,
@@ -656,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_sse_ignores_non_text_deltas() {
-        let (acc, tokens, _done) = run_sse(&[
+        let SseOutput { acc, tokens, .. } = run_sse(&[
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{"}}"#,
         ]);
         assert_eq!(acc, "");
@@ -665,7 +722,7 @@ mod tests {
 
     #[test]
     fn test_sse_tolerates_blank_and_comment_lines() {
-        let (acc, tokens, _done) = run_sse(&[
+        let SseOutput { acc, tokens, .. } = run_sse(&[
             "",
             "   ",
             ": keepalive",
@@ -677,12 +734,58 @@ mod tests {
 
     #[test]
     fn test_sse_tolerates_invalid_json() {
-        let (acc, tokens, _done) = run_sse(&[
+        let SseOutput { acc, tokens, .. } = run_sse(&[
             "data: {not json",
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"recovered"}}"#,
         ]);
         assert_eq!(acc, "recovered");
         assert_eq!(tokens, vec!["recovered".to_string()]);
+    }
+
+    #[test]
+    fn test_sse_error_event_returns_error() {
+        let SseOutput {
+            acc, error, done, ..
+        } = run_sse(&[
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}"#,
+            r#"data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#,
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ignored"}}"#,
+        ]);
+        assert_eq!(acc, "partial");
+        assert!(!done);
+        let err = error.expect("should have received an error");
+        assert!(err.contains("overloaded_error"), "got: {err}");
+        assert!(err.contains("Overloaded"), "got: {err}");
+    }
+
+    #[test]
+    fn test_sse_error_event_without_prior_content() {
+        let SseOutput { acc, error, .. } = run_sse(&[
+            r#"data: {"type":"error","error":{"type":"invalid_request_error","message":"max_tokens exceeded"}}"#,
+        ]);
+        assert_eq!(acc, "");
+        let err = error.expect("should have received an error");
+        assert!(err.contains("max_tokens exceeded"), "got: {err}");
+    }
+
+    #[test]
+    fn test_extract_api_error_message_valid() {
+        let body = r#"{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: 1000000 > 8192"}}"#;
+        let msg = extract_api_error_message(body);
+        assert_eq!(msg.as_deref(), Some("max_tokens: 1000000 > 8192"));
+    }
+
+    #[test]
+    fn test_extract_api_error_message_missing_fields() {
+        assert!(extract_api_error_message("{}").is_none());
+        assert!(extract_api_error_message(r#"{"error":{}}"#).is_none());
+        assert!(extract_api_error_message("not json").is_none());
+    }
+
+    #[test]
+    fn test_extract_api_error_message_non_string_message() {
+        let body = r#"{"error":{"message":42}}"#;
+        assert!(extract_api_error_message(body).is_none());
     }
 
     #[tokio::test]
@@ -828,4 +931,12 @@ fn extract_text(resp: &MessagesResponse) -> String {
         }
     }
     out
+}
+
+/// Attempts to extract the human-readable error message from an Anthropic
+/// API error response body (`{"type":"error","error":{"type":"…","message":"…"}}`).
+fn extract_api_error_message(body: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    let msg = v.get("error")?.get("message")?.as_str()?;
+    Some(msg.to_string())
 }
