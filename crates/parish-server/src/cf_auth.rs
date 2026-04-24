@@ -179,35 +179,79 @@ impl CfAccessVerifier {
         self.refresh_jwks().await
     }
 
-    /// Fetches a fresh JWKS, updating the cache. Concurrent callers are
-    /// serialised by the `jwks` mutex and the recency re-check inside it,
-    /// so only one outbound HTTP request is in flight at a time (#501).
+    /// Fetches a fresh JWKS (TTL-miss path), updating the cache.
     ///
-    /// Called on the TTL-miss path above and on a `kid` miss inside
-    /// [`Self::validate`] so Cloudflare key rotations don't 401 every
-    /// request until the 10-minute TTL expires. On the kid-miss path, if a
-    /// peer-refresh already brought in the kid we return that cached copy
-    /// without another fetch (the caller will retry the lookup).
+    /// Concurrent callers are serialised by the `jwks` mutex so only one
+    /// outbound HTTP request is in flight at a time (#501). A 10-second
+    /// recency window inside the lock lets followers reuse a peer's
+    /// just-installed cache without a redundant fetch.
     async fn refresh_jwks(&self) -> Result<Arc<Jwks>, String> {
-        // Acquire the lock before fetching so concurrent stale readers
-        // serialise behind a single HTTP call, not thundering-herd Cloudflare.
         let mut guard = self.jwks.lock().await;
+        if let Some(cached) =
+            Self::take_recent_cache(&guard, self.last_refresh.load(Ordering::Relaxed), None)
+        {
+            return Ok(cached);
+        }
+        self.fetch_and_install(&mut guard).await
+    }
 
-        // If another task refreshed while we were waiting on the lock, use
-        // its result. "Fresh enough" here is a short recency window — we
-        // collapse bursts but still honor the caller's TTL-based staleness
-        // decision if the prior refresh was itself old.
+    /// Fetches a fresh JWKS because we observed a `kid` not present in the
+    /// current cache (key-rotation path from [`Self::validate`]).
+    ///
+    /// Unlike [`Self::refresh_jwks`], we can only honor the 10-second peer
+    /// shortcut when the peer's already-installed cache actually contains
+    /// the kid we're looking for — otherwise Cloudflare may have rotated
+    /// again after the peer's fetch and we still need a real network round
+    /// trip to pick up the new key. Addressing codex P1 on #550.
+    async fn refresh_jwks_for_kid(&self, kid: &str) -> Result<Arc<Jwks>, String> {
+        let mut guard = self.jwks.lock().await;
+        if let Some(cached) =
+            Self::take_recent_cache(&guard, self.last_refresh.load(Ordering::Relaxed), Some(kid))
+        {
+            return Ok(cached);
+        }
+        self.fetch_and_install(&mut guard).await
+    }
+
+    /// Shared recency shortcut used by both refresh entry points. Returns
+    /// `Some(cached)` when the current cache was installed recently enough
+    /// that a follower should reuse it instead of fetching again. When
+    /// `required_kid` is `Some`, the shortcut additionally requires that
+    /// the cached JWKS actually contains that kid — otherwise the caller
+    /// genuinely needs a new fetch.
+    fn take_recent_cache(
+        guard: &tokio::sync::MutexGuard<'_, Option<Arc<Jwks>>>,
+        last_refresh: u64,
+        required_kid: Option<&str>,
+    ) -> Option<Arc<Jwks>> {
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        let last = self.last_refresh.load(Ordering::Relaxed);
-        if now_secs.saturating_sub(last) < 10
-            && let Some(ref cached) = *guard
-        {
-            return Ok(Arc::clone(cached));
+        let recent = now_secs.saturating_sub(last_refresh) < 10;
+        let cached = guard.as_ref()?;
+        if !recent {
+            return None;
         }
+        if let Some(kid) = required_kid
+            && cached.find_key(kid).is_none()
+        {
+            return None;
+        }
+        Some(Arc::clone(cached))
+    }
 
+    /// Performs the actual HTTP fetch, key-policy validation (#457), and
+    /// cache install. Called under the `jwks` mutex by both refresh paths.
+    ///
+    /// Records `last_refresh` *after* install (codex P2 on #550) so slow
+    /// fetches don't leave the timestamp pointing to a moment before the
+    /// cache existed — which would defeat the recency shortcut for
+    /// subsequent callers and re-fan-out the thundering herd.
+    async fn fetch_and_install(
+        &self,
+        guard: &mut tokio::sync::MutexGuard<'_, Option<Arc<Jwks>>>,
+    ) -> Result<Arc<Jwks>, String> {
         let resp = reqwest::get(&self.jwks_url)
             .await
             .map_err(|e| format!("JWKS fetch failed: {e}"))?;
@@ -235,8 +279,12 @@ impl CfAccessVerifier {
         }
 
         let arc = Arc::new(jwks);
-        *guard = Some(Arc::clone(&arc));
-        self.last_refresh.store(now_secs, Ordering::Relaxed);
+        **guard = Some(Arc::clone(&arc));
+        let installed_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.last_refresh.store(installed_secs, Ordering::Relaxed);
         Ok(arc)
     }
 
@@ -256,7 +304,7 @@ impl CfAccessVerifier {
         let key = if let Some(k) = jwks.find_key(&kid) {
             k
         } else {
-            key_arc = self.refresh_jwks().await?;
+            key_arc = self.refresh_jwks_for_kid(&kid).await?;
             key_arc
                 .find_key(&kid)
                 .ok_or_else(|| format!("Unknown JWKS kid: {kid}"))?
@@ -650,5 +698,73 @@ mod tests {
         for h in handles {
             assert!(h.await.unwrap().is_ok());
         }
+    }
+
+    // ── codex-#550 P1: kid-miss must bypass peer-recency shortcut unless
+    //    the peer's cache actually contains the rotated kid.
+
+    #[tokio::test]
+    async fn refresh_for_kid_reuses_recent_cache_when_kid_present() {
+        let v = make_test_verifier();
+        let installed = v
+            .install_jwks_for_test(Jwks {
+                keys: vec![rsa_jwk("rotated", 2048, "sig")],
+            })
+            .await;
+        // The cache is <10s old AND contains the required kid — the
+        // shortcut applies and we return the cached Arc without fetching.
+        let got = v.refresh_jwks_for_kid("rotated").await.unwrap();
+        assert!(
+            Arc::ptr_eq(&installed, &got),
+            "peer-refreshed cache containing the kid should be reused"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_for_kid_bypasses_shortcut_when_kid_absent() {
+        let v = make_test_verifier();
+        // Install a fresh cache *without* the kid we're about to ask for.
+        // Under the old code, refresh_jwks would have honored the recency
+        // shortcut and returned this cache, so validate() would then fail
+        // with "Unknown JWKS kid". The kid-miss path must instead force a
+        // real fetch — which here hits the `.invalid` URL and errors,
+        // proving the fetch was attempted.
+        v.install_jwks_for_test(Jwks {
+            keys: vec![rsa_jwk("old", 2048, "sig")],
+        })
+        .await;
+        let err = v
+            .refresh_jwks_for_kid("newly-rotated")
+            .await
+            .expect_err("should attempt fetch when required kid is missing");
+        assert!(
+            err.contains("JWKS fetch failed"),
+            "expected real fetch attempt, got: {err}"
+        );
+    }
+
+    // ── codex-#550 P2: last_refresh must reflect install time, not the
+    //    pre-fetch timestamp, so slow fetches don't defeat the recency
+    //    shortcut for queued callers.
+
+    #[tokio::test]
+    async fn install_updates_last_refresh_timestamp() {
+        let v = make_test_verifier();
+        // Verifier starts with last_refresh = 0 (epoch).
+        assert_eq!(v.last_refresh.load(Ordering::Relaxed), 0);
+        v.install_jwks_for_test(Jwks {
+            keys: vec![rsa_jwk("k1", 2048, "sig")],
+        })
+        .await;
+        // After install, last_refresh must be close to "now".
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let last = v.last_refresh.load(Ordering::Relaxed);
+        assert!(
+            now_secs.saturating_sub(last) < 5,
+            "last_refresh={last} too far behind now={now_secs}"
+        );
     }
 }
