@@ -309,6 +309,16 @@ impl LongTermMemory {
             return false;
         }
 
+        // #419 — purge any already-stored entries whose importance is not a
+        // finite number (could arrive from a corrupted save file, since
+        // deserialization does not validate the field). They poison the
+        // eviction scan: `partial_cmp` returns `None` for NaN and our
+        // `unwrap_or(Equal)` means a NaN entry is never seen as smaller
+        // than a real number, so a valid 0.3 entry would be evicted ahead
+        // of it. Doing the purge here — just before we consult capacity —
+        // lets a fresh store reclaim the slot they occupied.
+        self.entries.retain(|e| e.importance.is_finite());
+
         if self.entries.len() >= self.max_entries {
             // Find the least-important, oldest entry. `position` returns the
             // first index, so ties naturally favour eviction of the oldest.
@@ -1107,6 +1117,83 @@ mod tests {
         assert!(!ltm.store(make_lt_entry("inf", f32::INFINITY, &["test"])));
         assert!(!ltm.store(make_lt_entry("-inf", f32::NEG_INFINITY, &["test"])));
         assert_eq!(ltm.len(), 2);
+    }
+
+    // ── Issue #419: a pre-existing NaN entry (e.g. from a corrupted save
+    // file that bypassed store()'s is_finite gate on load) must not
+    // indefinitely poison eviction and force real entries to be rejected.
+
+    #[test]
+    fn long_term_memory_evicts_preexisting_nan_entry_before_valid_ones() {
+        // Cap=2 with two NaN entries + one valid entry all injected
+        // directly (simulating a corrupted save-file load that bypassed
+        // store()'s incoming-importance gate). The next real store() must
+        // purge both NaN entries and succeed, even at a modest importance
+        // that would otherwise be rejected because the valid 0.6 entry
+        // would look like the eviction candidate.
+        let mut ltm = LongTermMemory::with_capacity(2);
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap(),
+            content: "corrupted-A".into(),
+            importance: f32::NAN,
+            keywords: vec!["legacy".into()],
+        });
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 1, 0, 0).unwrap(),
+            content: "corrupted-B".into(),
+            importance: f32::NAN,
+            keywords: vec!["legacy".into()],
+        });
+        // Note: bypassing store() here, so the valid entry sits alongside
+        // the two NaN entries at len=3 even though capacity is 2 — this
+        // is exactly the kind of inconsistent on-disk state a corrupted
+        // save could produce.
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 2, 0, 0).unwrap(),
+            content: "real entry".into(),
+            importance: 0.6,
+            keywords: vec!["test".into()],
+        });
+        assert_eq!(ltm.len(), 3);
+
+        // Store a fresh entry at importance 0.55. Pre-fix behavior: the
+        // NaN entries were sorted as Equal, `min_by` picked the first of
+        // them, `evict_importance = NaN`, `0.55 < NaN` is false, so no
+        // early return — but then we'd evict a NaN entry (actually OK).
+        // The real bug bites when the min_by picks a VALID entry over a
+        // NaN because iteration order puts NaN later; pre-fix this meant
+        // the real 0.6 got evicted ahead of the NaN entries. Post-fix
+        // the retain() purges both NaN entries first, leaving only the
+        // real 0.6 — then capacity=2 fits the new 0.55 freely.
+        assert!(
+            ltm.store(make_lt_entry("fresh", 0.55, &["test"])),
+            "fresh entry must fit after NaN entries are purged"
+        );
+
+        assert!(
+            ltm.entries.iter().all(|e| e.importance.is_finite()),
+            "NaN-importance entries must be purged on store()"
+        );
+        // The valid 0.6 and the freshly-stored 0.55 both survive.
+        assert_eq!(ltm.len(), 2);
+    }
+
+    #[test]
+    fn long_term_memory_purges_multiple_nan_entries_at_once() {
+        let mut ltm = LongTermMemory::with_capacity(5);
+        for _ in 0..3 {
+            ltm.entries.push(LongTermEntry {
+                timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap(),
+                content: "corrupt".into(),
+                importance: f32::NAN,
+                keywords: vec![],
+            });
+        }
+        // Only NaN entries present; a store purges all three and adds the
+        // new one.
+        assert!(ltm.store(make_lt_entry("first-real", 0.6, &["t"])));
+        assert_eq!(ltm.len(), 1);
+        assert!(ltm.entries.iter().all(|e| e.importance.is_finite()));
     }
 
     // ── Issue #462: future timestamps must not silently pass ────────
