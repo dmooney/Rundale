@@ -7,7 +7,7 @@
 # On SUCCESS: closes any open issues labeled `railway-failure` (the next green
 # deploy self-heals old notifications).
 #
-# Requires: railway CLI, gh CLI, jq, RAILWAY_TOKEN env, GH_TOKEN env.
+# Requires: railway CLI, gh CLI, jq, RAILWAY_API_TOKEN env, GH_TOKEN env.
 # Intended to run from .github/workflows/railway-watchdog.yml on a schedule.
 
 set -euo pipefail
@@ -28,7 +28,7 @@ require jq
 # In CI both tokens are mandatory. Locally we fall back to whatever the
 # `railway` and `gh` CLIs already have cached so an operator can dry-run.
 if [ "${CI:-}" = "true" ]; then
-  : "${RAILWAY_TOKEN:?RAILWAY_TOKEN must be set in CI}"
+  : "${RAILWAY_API_TOKEN:?RAILWAY_API_TOKEN must be set in CI}"
   : "${GH_TOKEN:?GH_TOKEN must be set in CI}"
 fi
 

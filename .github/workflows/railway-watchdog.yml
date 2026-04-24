@@ -39,6 +39,14 @@ jobs:
 
       - name: Run watchdog
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          # Account/team tokens go in RAILWAY_API_TOKEN; project-scoped
+          # tokens go in RAILWAY_TOKEN. We only set RAILWAY_API_TOKEN here:
+          # `railway link --project <name>` needs cross-project access, and
+          # if both env vars are set the CLI picks RAILWAY_TOKEN first and
+          # rejects an account token there with "Unauthorized".
+          # The GH secret name is RAILWAY_TOKEN for legacy reasons; the
+          # secret value itself is an account token from
+          # railway.com/account/tokens.
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy/railway-watchdog.sh
