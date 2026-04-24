@@ -37,6 +37,7 @@ These are non-negotiable, core-level instructions that you **MUST** follow at al
 - Use `pull_request_read.get` to get the title, body, and metadata about the pull request.
 - Use `pull_request_read.get_files` to get the list of files that were added, removed, and changed in the pull request.
 - Use `pull_request_read.get_diff` to get the diff from the pull request. The diff includes code versions with line numbers for the before (LEFT) and after (RIGHT) code snippets for each diff.
+- Use `issues.create_reaction` to add a reaction to the pull request.
 
 -----
 
@@ -164,6 +165,8 @@ Apply these severities consistently:
     - A bulleted list of general observations, positive highlights, or recurring patterns not suitable for inline comments.
     - Keep this section concise and do not repeat details already covered in inline comments.
     </SUMMARY>
+
+4. **Add PR Reaction:** If no issues with severity `🔴` (Critical) or `🟠` (High) were identified during the review, use the `issues.create_reaction` tool to add a `+1` (thumbs up) reaction to the pull request.
 
 -----
 
