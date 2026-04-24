@@ -136,12 +136,22 @@ struct ExportBlob {
 struct ExportNpc {
     id: i64,
     name: String,
+    /// NPC sex ("female" | "male" | "unknown"). Added in #436 so
+    /// export→import round-trips are lossless. Defaults to "unknown"
+    /// when a caller feeds import a legacy blob that predates this
+    /// field.
+    #[serde(default = "default_sex")]
+    sex: String,
     age: i64,
     parish: String,
     occupation: String,
     data_tier: i64,
     mood: Option<String>,
     personality: Option<String>,
+}
+
+fn default_sex() -> String {
+    "unknown".to_string()
 }
 
 fn main() -> Result<()> {
@@ -606,16 +616,19 @@ fn stats(conn: &Connection) -> Result<()> {
 }
 
 fn export_npcs(conn: &Connection, parish: Option<&str>) -> Result<()> {
+    // `sex` added in #436 so import can restore it rather than
+    // hard-coding 'unknown'. Keep the column order stable so the
+    // mapper indices are obvious.
     let sql = if parish.is_some() {
         "
-        SELECT n.id, n.name, n.age, p.name, n.occupation, n.data_tier, n.mood, n.personality
+        SELECT n.id, n.name, n.sex, n.age, p.name, n.occupation, n.data_tier, n.mood, n.personality
         FROM npcs n JOIN parishes p ON p.id = n.parish_id
         WHERE p.name = ?
         ORDER BY n.id
         "
     } else {
         "
-        SELECT n.id, n.name, n.age, p.name, n.occupation, n.data_tier, n.mood, n.personality
+        SELECT n.id, n.name, n.sex, n.age, p.name, n.occupation, n.data_tier, n.mood, n.personality
         FROM npcs n JOIN parishes p ON p.id = n.parish_id
         ORDER BY n.id
         "
@@ -626,12 +639,13 @@ fn export_npcs(conn: &Connection, parish: Option<&str>) -> Result<()> {
         Ok(ExportNpc {
             id: r.get(0)?,
             name: r.get(1)?,
-            age: r.get(2)?,
-            parish: r.get(3)?,
-            occupation: r.get(4)?,
-            data_tier: r.get(5)?,
-            mood: r.get(6)?,
-            personality: r.get(7)?,
+            sex: r.get(2)?,
+            age: r.get(3)?,
+            parish: r.get(4)?,
+            occupation: r.get(5)?,
+            data_tier: r.get(6)?,
+            mood: r.get(7)?,
+            personality: r.get(8)?,
         })
     };
     let npcs = if let Some(p) = parish {
@@ -653,6 +667,8 @@ fn import_npcs(conn: &Connection) -> Result<()> {
     let blob: ExportBlob = serde_json::from_str(&input).context("invalid JSON input")?;
 
     let tx = conn.unchecked_transaction()?;
+    let mut inserted = 0u64;
+    let mut updated = 0u64;
     for npc in blob.npcs {
         tx.execute(
             "INSERT OR IGNORE INTO parishes(county_id, name) VALUES ((SELECT id FROM counties LIMIT 1), ?)",
@@ -664,12 +680,38 @@ fn import_npcs(conn: &Connection) -> Result<()> {
             |r| r.get(0),
         )?;
 
+        // #436: use INSERT … ON CONFLICT DO UPDATE instead of INSERT
+        // OR REPLACE so columns that aren't in the export blob (most
+        // importantly `household_id`) are preserved on existing rows.
+        // INSERT OR REPLACE deletes the old row and inserts a new
+        // one, silently losing household_id, personality when the
+        // blob doesn't include it, etc. The `sex` column now comes
+        // from the blob so export→import is a lossless round-trip.
+        let row_existed_before: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM npcs WHERE id = ?)",
+                params![npc.id],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+
         tx.execute(
-            "INSERT OR REPLACE INTO npcs(id, name, sex, birth_year, age, parish_id, occupation, data_tier, mood, personality)
-             VALUES (?, ?, 'unknown', ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO npcs(id, name, sex, birth_year, age, parish_id, occupation, data_tier, mood, personality)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                 name        = excluded.name,
+                 sex         = excluded.sex,
+                 birth_year  = excluded.birth_year,
+                 age         = excluded.age,
+                 parish_id   = excluded.parish_id,
+                 occupation  = excluded.occupation,
+                 data_tier   = excluded.data_tier,
+                 mood        = excluded.mood,
+                 personality = excluded.personality",
             params![
                 npc.id,
                 npc.name,
+                npc.sex,
                 1820 - npc.age,
                 npc.age,
                 parish_id,
@@ -679,9 +721,17 @@ fn import_npcs(conn: &Connection) -> Result<()> {
                 npc.personality
             ],
         )?;
+
+        if row_existed_before {
+            updated += 1;
+        } else {
+            inserted += 1;
+        }
     }
     tx.commit()?;
-    println!("Imported NPCs from stdin");
+    println!(
+        "Imported NPCs from stdin: inserted {inserted}, updated {updated} (household_id and other non-export columns preserved on updates)"
+    );
     Ok(())
 }
 
@@ -811,5 +861,139 @@ mod tests {
 
         let result = validate_db(&conn, None, true);
         assert!(result.is_err());
+    }
+
+    // ── #436 import preserves non-export columns + sex round-trips ──────────
+
+    /// Seeds one NPC with a known sex and household_id, then simulates
+    /// the import path on a blob that represents re-importing that NPC
+    /// with updated personality. household_id must survive untouched and
+    /// sex must come from the blob (not hard-coded 'unknown').
+    #[test]
+    fn test_import_preserves_household_and_restores_sex() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
+
+        let parish_id: i64 = conn
+            .query_row("SELECT id FROM parishes LIMIT 1", [], |r| r.get(0))
+            .ok()
+            .unwrap_or_else(|| {
+                conn.execute(
+                    "INSERT INTO parishes(county_id, name) VALUES ((SELECT id FROM counties LIMIT 1), 'Testshire')",
+                    [],
+                )
+                .unwrap();
+                conn.last_insert_rowid()
+            });
+
+        // Insert a household so we have a non-NULL household_id to preserve.
+        conn.execute(
+            "INSERT INTO households(parish_id, name) VALUES (?, 'Darcy')",
+            params![parish_id],
+        )
+        .unwrap();
+        let household_id = conn.last_insert_rowid();
+
+        conn.execute(
+            "INSERT INTO npcs(id, name, sex, birth_year, age, parish_id, household_id, occupation, data_tier, mood)\n             VALUES (42, 'Pádraig Darcy', 'male', 1762, 58, ?, ?, 'Publican', 1, 'content')",
+            params![parish_id, household_id],
+        )
+        .unwrap();
+
+        // Build an import blob that updates personality but carries the
+        // NPC's existing id. `sex` is present (no longer hard-coded).
+        // parish is reused so we don't hit unrelated lookup paths.
+        let parish_name: String = conn
+            .query_row(
+                "SELECT name FROM parishes WHERE id = ?",
+                params![parish_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let blob = ExportBlob {
+            npcs: vec![ExportNpc {
+                id: 42,
+                name: "Pádraig Darcy".to_string(),
+                sex: "male".to_string(),
+                age: 58,
+                parish: parish_name,
+                occupation: "Publican".to_string(),
+                data_tier: 1,
+                mood: Some("content".to_string()),
+                personality: Some("Warm-hearted publican.".to_string()),
+            }],
+        };
+
+        // Call the import path directly (same SQL as import_npcs, but
+        // without reading stdin). We replicate the minimal work here
+        // because import_npcs reads stdin and that's awkward to fake
+        // cleanly in a unit test.
+        let tx = conn.unchecked_transaction().unwrap();
+        for npc in blob.npcs {
+            let pid: i64 = tx
+                .query_row(
+                    "SELECT id FROM parishes WHERE name = ?",
+                    params![npc.parish],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            tx.execute(
+                "INSERT INTO npcs(id, name, sex, birth_year, age, parish_id, occupation, data_tier, mood, personality)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n                 ON CONFLICT(id) DO UPDATE SET\n                     name        = excluded.name,\n                     sex         = excluded.sex,\n                     birth_year  = excluded.birth_year,\n                     age         = excluded.age,\n                     parish_id   = excluded.parish_id,\n                     occupation  = excluded.occupation,\n                     data_tier   = excluded.data_tier,\n                     mood        = excluded.mood,\n                     personality = excluded.personality",
+                params![
+                    npc.id,
+                    npc.name,
+                    npc.sex,
+                    1820 - npc.age,
+                    npc.age,
+                    pid,
+                    npc.occupation,
+                    npc.data_tier,
+                    npc.mood,
+                    npc.personality
+                ],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+
+        // household_id must still be set (would be NULL if INSERT OR
+        // REPLACE were used — that was the #436 regression).
+        let (hh, sex, personality): (Option<i64>, String, Option<String>) = conn
+            .query_row(
+                "SELECT household_id, sex, personality FROM npcs WHERE id = 42",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(hh, Some(household_id), "household_id must survive import");
+        assert_eq!(sex, "male", "sex must come from the blob, not 'unknown'");
+        assert_eq!(
+            personality.as_deref(),
+            Some("Warm-hearted publican."),
+            "personality must update on import",
+        );
+    }
+
+    /// A blob serialized *before* #436 (no `sex` field) must still
+    /// deserialize cleanly, defaulting to "unknown" — so we don't
+    /// break users with saved export files from earlier versions.
+    #[test]
+    fn test_export_blob_deserializes_legacy_missing_sex() {
+        let legacy = r#"{
+            "npcs": [{
+                "id": 1,
+                "name": "Legacy Mary",
+                "age": 40,
+                "parish": "Kiltoom",
+                "occupation": "Servant",
+                "data_tier": 0,
+                "mood": null,
+                "personality": null
+            }]
+        }"#;
+        let blob: ExportBlob = serde_json::from_str(legacy).expect("legacy blob should parse");
+        assert_eq!(blob.npcs.len(), 1);
+        assert_eq!(blob.npcs[0].sex, "unknown");
     }
 }
