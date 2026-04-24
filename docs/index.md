@@ -187,7 +187,7 @@ Custom slash commands for common development workflows. Run these from any suppo
 | `/screenshot` | Regenerate GUI screenshots after UI changes |
 | `/fix-issue <number>` | Work through a GitHub issue end-to-end |
 
-Skill definitions live in `.agents/skills/` (with compatibility symlinks from `.claude/skills/` and `.skills/`).
+Skill definitions live in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink.
 
 ## Reference
 
