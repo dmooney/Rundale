@@ -145,6 +145,18 @@
 		}
 	}
 
+	// Track the last selection + coords we animated to, so updates that
+	// don't actually move the camera skip the easeTo animation (#410).
+	// Without this, every keystroke in a text field would dispatch a full
+	// camera pan — persistLocations swaps a new `locations` array into
+	// the store, re-firing the reactive statement below even when the map
+	// center hasn't moved. We key on (selectedId, lat, lon) tuple so that
+	// coordinate-changing actions (drag release, nudge, lat/lon field
+	// edits) *do* recenter — per codex P1 on #559.
+	let lastAnimatedSelectedId: number | null = null;
+	let lastAnimatedLat: number | null = null;
+	let lastAnimatedLon: number | null = null;
+
 	function setMapData(nextLocations: LocationData[], nextSelectedId: number | null, preview?: { id: number; lat: number; lon: number }) {
 		if (!map || !mapLoaded) return;
 		const { features, edgeFeatures } = buildEditorMapData(nextLocations, nextSelectedId, preview);
@@ -159,13 +171,35 @@
 		const center = getEditorMapCenter(features, nextSelectedId, preview);
 		if (!center) return;
 		const [lon, lat] = center;
+		// Animate only when something that affects the camera position
+		// actually changes: the selection, or the selected marker's
+		// coordinates. Unrelated field edits that bumped the locations
+		// array must not cause camera jitter. Preview frames (drag in
+		// progress) always animate so the camera tracks the cursor.
+		const selectionChanged = nextSelectedId !== lastAnimatedSelectedId;
+		const coordsChanged = lat !== lastAnimatedLat || lon !== lastAnimatedLon;
+		if (!preview && !selectionChanged && !coordsChanged) return;
 		map.easeTo({ center: [lon, lat], duration: 250 });
+		if (!preview) {
+			// Preview frames stream continuously during a drag; don't mark
+			// the selection as "animated" from them or we'd suppress the
+			// final settle-on-release animation.
+			lastAnimatedSelectedId = nextSelectedId;
+			lastAnimatedLat = lat;
+			lastAnimatedLon = lon;
+		}
 	}
 
 	function destroyMap() {
 		mapLoaded = false;
 		map?.remove();
 		map = null;
+		// Reset animation memo so a later remount (deselect → reselect
+		// the same item, or component re-mount) still animates the first
+		// setMapData call — codex P2 on #559.
+		lastAnimatedSelectedId = null;
+		lastAnimatedLat = null;
+		lastAnimatedLon = null;
 	}
 
 	function readLocationId(event: { features?: Array<{ properties?: { id?: number | string } }> }): number | null {
