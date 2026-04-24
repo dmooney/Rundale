@@ -295,9 +295,22 @@
 		};
 	});
 
-	$: if (mapContainer && !map) {
+	// Tear the MapLibre instance down the moment the selected location
+	// clears (#409). The `{#if loc}` wrapper below unmounts the map-frame
+	// div, but Svelte's `bind:this` does not always reset `mapContainer`
+	// to `undefined` in time for the mapContainer-based watch below to
+	// fire — so we couple the cleanup to `loc` directly. Without this,
+	// each deselect leaks a WebGL context (MapLibre allocates one per
+	// Map instance) and after a few navigations the browser aborts
+	// further WebGL contexts.
+	$: if (!loc && map) {
+		destroyMap();
+	}
+	$: if (loc && mapContainer && !map) {
 		void ensureMap();
 	}
+	// Defensive secondary cleanup for any case where the div is
+	// unmounted without `loc` flipping (e.g. future refactors).
 	$: if (!mapContainer && map) {
 		destroyMap();
 	}
