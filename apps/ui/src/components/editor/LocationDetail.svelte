@@ -485,16 +485,18 @@
 				></textarea>
 			</section>
 
-			{#if loc.aliases && loc.aliases.length > 0}
-				<section class="section">
-					<h4 class="section-label">Aliases</h4>
+			<section class="section">
+				<h4 class="section-label">Aliases</h4>
+				{#if loc.aliases && loc.aliases.length > 0}
 					<div class="alias-list">
 						{#each loc.aliases as alias}
 							<span class="alias-tag">{alias}</span>
 						{/each}
 					</div>
-				</section>
-			{/if}
+				{:else}
+					<p class="empty-note">None</p>
+				{/if}
+			</section>
 		</div>
 	{:else}
 		<div class="empty-state">
