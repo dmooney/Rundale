@@ -119,13 +119,13 @@ impl ConversationRuntimeState {
 /// world
 ///   → npc_manager
 ///     → inference_queue
-///       → config
-///         → client
-///           → cloud_client
-///             → inference_log
-///               → conversation
-///                 → debug_events
-///                   → game_events
+///       → conversation
+///         → config
+///           → client
+///             → cloud_client
+///               → debug_events
+///                 → game_events
+///                   → inference_log
 ///                     → editor_sessions
 ///                       → active_ws
 ///                         → save_path
@@ -135,13 +135,22 @@ impl ConversationRuntimeState {
 ///                                 → save_lock
 /// ```
 ///
-/// Note: `inference_queue` precedes `config` because
-/// `handle_npc_conversation` and `run_idle_banter` both take them in that
-/// order (see `routes.rs`). Reversing that pair at any call site would
-/// introduce a deadlock path. `inference_log` is itself an
-/// `Arc<Mutex<BoundedInferenceLog>>` (see `parish-inference/src/lib.rs`),
-/// so it counts as a coordination point; it sits after `cloud_client` —
-/// that's where `get_debug_snapshot` reaches it.
+/// Pair-by-pair rationale — every pair above is attested by at least
+/// one current call site:
+///
+/// - `world → npc_manager` — every handler that touches both
+///   (`handle_npc_conversation`, `run_idle_banter`, `get_debug_snapshot`,
+///   the world-tick task).
+/// - `npc_manager → inference_queue → config` — `handle_npc_conversation`
+///   and `run_idle_banter` (`routes.rs`).
+/// - `conversation → config` — `tick_inactivity` (`routes.rs`), so
+///   `conversation` slots between `inference_queue` and `config`.
+/// - `config → client` — `handle_game_input` (`routes.rs`).
+/// - `config → debug_events → game_events → inference_log` —
+///   `get_debug_snapshot` (`routes.rs`). `inference_log` is itself an
+///   `Arc<Mutex<BoundedInferenceLog>>` (see
+///   `parish-inference/src/lib.rs`), so it is a real coordination point,
+///   not a lock-free buffer.
 ///
 /// The remaining non-`Mutex` fields (`event_bus`, `transport`,
 /// `ui_config`, `theme_palette`, `saves_dir`, `data_dir`, `game_mod`,
