@@ -599,12 +599,18 @@ pub async fn editor_save(
             }
             session.snapshot = Some(updated_snapshot);
             session.version = session.version.wrapping_add(1);
-            // Snapshot lineage changed — save_mod returns a fresh
-            // updated_snapshot from persistence. In-flight update_*
-            // requests captured the pre-save generation and must
-            // reject on writeback so their stale field data can't
-            // overwrite the post-save state (codex P1 on #574).
-            session.generation = session.generation.wrapping_add(1);
+            // Generation bumps **only** on a successful disk write
+            // (codex P1 round 3 on #574). save_mod can return
+            // `Blocked` when validation fails — in that case nothing
+            // hit disk and the snapshot lineage is unchanged, so
+            // an in-flight update_* request that captured the
+            // pre-attempt generation should still be allowed to
+            // commit. Bumping generation on a blocked save would
+            // 409 those requests and silently drop user edits while
+            // they are actively trying to fix validation errors.
+            if was_saved {
+                session.generation = session.generation.wrapping_add(1);
+            }
         }
     }
 
