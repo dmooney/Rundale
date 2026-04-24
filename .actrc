@@ -1,0 +1,46 @@
+# act configuration — run GitHub Actions locally against this repo.
+#
+# See docs/agent/act-local.md for full usage. Quick reference:
+#   just act-list             # list jobs across all workflows
+#   just act-audit            # run cargo-audit (fastest smoke test)
+#   just act-fmt              # run the rust-quality-gate job
+#   just act-ci               # run all of ci.yml
+#   just act-job JOB=<name>   # run one job by id
+#
+# Why these defaults:
+#
+# -P ubuntu-latest=... catthehacker:full — our CI installs apt packages,
+#   Node 22, Rust toolchains, and Playwright browser deps. The default
+#   medium image is missing half of that; the "full" image (~60GB) is the
+#   only one that actually mirrors GitHub's ubuntu-latest runner.
+#
+# --container-architecture linux/amd64 — force amd64 emulation on Apple
+#   Silicon. The catthehacker images ship amd64 only, and several actions
+#   (dtolnay/rust-toolchain, actions/setup-node) refuse to run under arm64
+#   emulation without this flag set explicitly.
+#
+# --artifact-server-path — actions/upload-artifact@v4 requires a real
+#   artifact endpoint (unlike v3, it won't no-op under act). Point it at
+#   a local directory; uploaded artifacts (Playwright reports, etc.) land
+#   there and can be inspected after the run. Path is gitignored.
+#
+# --reuse — keep containers between runs so Rust target/ and npm node_modules
+#   survive. Massive speedup; first run is still slow while images pull and
+#   deps install, but subsequent runs are near-instant on unchanged code.
+#   Clean up occasionally with: docker rm -f $(docker ps -aq --filter name=act-)
+#
+# --action-offline-mode — skip re-fetching action source when already cached.
+#   Drop this flag (or use `just act-refresh`) if you need to pick up a new
+#   version of a third-party action.
+#
+# --env-file /dev/null — do NOT auto-load the repo's `.env` into the runner.
+#   act's default is to read `.env`, which drifts from GitHub's clean env and
+#   causes tests that assume unset vars (e.g. PARISH_PROVIDER) to fail under
+#   act while passing on real CI. Workflow `env:` blocks are still honored.
+
+-P ubuntu-latest=catthehacker/ubuntu:full-latest
+--container-architecture linux/amd64
+--artifact-server-path /tmp/act-artifacts
+--reuse
+--action-offline-mode
+--env-file /dev/null

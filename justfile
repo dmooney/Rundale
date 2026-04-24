@@ -266,6 +266,68 @@ audit:
 update:
     cargo update
 
+# ─── Local CI (act) ──────────────────────────────────────────────────────────
+#
+# Run GitHub Actions workflows locally via nektos/act against Docker. Shared
+# flags live in .actrc; see docs/agent/act-local.md for setup + caveats.
+# First run pulls a ~60GB image and primes caches — grab a coffee.
+
+# List every job across every workflow (use these ids with `just act-job`)
+act-list:
+    act -l
+
+# Run the full CI workflow (ci.yml) — all five jobs, matches what PRs see
+act-ci:
+    act -W .github/workflows/ci.yml
+
+# Run just the fmt/clippy/tests job — fastest signal on a Rust change
+act-fmt:
+    act -W .github/workflows/ci.yml -j rust-quality-gate
+
+# Run the full game harness fixture sweep
+act-harness:
+    act -W .github/workflows/ci.yml -j game-harness
+
+# Run UI unit tests (svelte-check + vitest + build)
+act-ui:
+    act -W .github/workflows/ci.yml -j ui-quality
+
+# Run Playwright e2e job — slowest, uploads playwright-report as an artifact
+# to /tmp/act-artifacts after the run.
+act-e2e:
+    act -W .github/workflows/ci.yml -j ui-e2e
+
+# Run security audit workflow — cheapest, good for smoke-testing that act
+# itself is configured correctly.
+act-audit:
+    act -W .github/workflows/audit.yml
+
+# Run an arbitrary job by id: `just act-job JOB=rust-multi-channel`
+act-job JOB:
+    act -j {{JOB}}
+
+# Simulate the pull_request event (some jobs gate on event type)
+act-pr:
+    act pull_request
+
+# Force-refresh third-party actions (drops --action-offline-mode). Use after
+# bumping an action version in a workflow.
+act-refresh:
+    act --action-offline-mode=false
+
+# Tear down cached act containers. Run when things get weird or before a
+# clean-slate verification.
+act-clean:
+    #!/usr/bin/env bash
+    containers=$(docker ps -aq --filter name=act-)
+    if [ -n "$containers" ]; then
+        docker rm -f $containers
+        echo "Removed act containers."
+    else
+        echo "No act containers to remove."
+    fi
+    rm -rf /tmp/act-artifacts
+
 # ─── Ollama ──────────────────────────────────────────────────────────────────
 
 # Start the Ollama server in the background
