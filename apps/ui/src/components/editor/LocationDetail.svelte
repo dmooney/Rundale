@@ -483,6 +483,33 @@
 					<p class="empty-note">None</p>
 				{/if}
 			</section>
+
+			<section class="section">
+				<h4 class="section-label">Mythological Significance</h4>
+				<textarea
+					class="field-textarea"
+					value={loc.mythological_significance ?? ''}
+					placeholder="Fairy fort, holy well, cursed ground…"
+					on:change={(e) =>
+						handleFieldChange(
+							'mythological_significance',
+							e.currentTarget.value.trim() === '' ? null : e.currentTarget.value
+						)}
+				></textarea>
+			</section>
+
+			<section class="section">
+				<h4 class="section-label">Aliases</h4>
+				{#if loc.aliases && loc.aliases.length > 0}
+					<div class="alias-list">
+						{#each loc.aliases as alias}
+							<span class="alias-tag">{alias}</span>
+						{/each}
+					</div>
+				{:else}
+					<p class="empty-note">None</p>
+				{/if}
+			</section>
 		</div>
 	{:else}
 		<div class="empty-state">
@@ -649,6 +676,22 @@
 		border-radius: 3px;
 		background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 		color: var(--color-accent);
+	}
+
+	.alias-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem;
+	}
+
+	.alias-tag {
+		display: inline-block;
+		font-size: 0.7rem;
+		padding: 0.1rem 0.35rem;
+		border-radius: 3px;
+		background: color-mix(in srgb, var(--color-muted) 18%, transparent);
+		color: var(--color-muted);
+		font-style: italic;
 	}
 
 	.empty-state {
