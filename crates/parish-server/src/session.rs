@@ -421,6 +421,22 @@ async fn restore_session(
         init_inference_queue(&app_state, c.clone()).await;
     }
 
+    // Acquire advisory lock on the restored save file so another server
+    // instance (or a headless CLI) cannot concurrently write to it (#425).
+    // If a peer already holds the lock we log a warning and continue:
+    // refusing to start would leave the user with no session at all, and
+    // per-process ownership makes strict mutual exclusion across
+    // containers out of scope for this handler. The lock is stored on
+    // AppState.save_lock so it lives for the session's lifetime.
+    let locked = parish_core::persistence::SaveFileLock::try_acquire(&db_path);
+    if locked.is_none() {
+        tracing::warn!(
+            path = %db_path.display(),
+            session_id = %session_id,
+            "SaveFileLock::try_acquire returned None on session resume — save file appears in use by another instance",
+        );
+    }
+    *app_state.save_lock.lock().await = locked;
     *app_state.save_path.lock().await = Some(db_path);
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some(branch_name);
@@ -477,6 +493,18 @@ async fn init_session_save(app_state: &Arc<AppState>, session_saves: &Path) -> R
     .await
     .map_err(|e| e.to_string())??;
 
+    // Advisory lock on the freshly-initialised save file so peer
+    // instances don't write to it concurrently (#425). For a just-created
+    // save we expect the lock to always succeed, but we stay defensive:
+    // warn if the lock fails rather than silently proceeding.
+    let locked = parish_core::persistence::SaveFileLock::try_acquire(&save_path);
+    if locked.is_none() {
+        tracing::warn!(
+            path = %save_path.display(),
+            "SaveFileLock::try_acquire returned None on init_session_save — new save file unexpectedly locked",
+        );
+    }
+    *app_state.save_lock.lock().await = locked;
     *app_state.save_path.lock().await = Some(save_path);
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some("main".to_string());
