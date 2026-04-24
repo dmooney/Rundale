@@ -100,3 +100,22 @@ export function addReaction(messageId: string, emoji: string, source: string): v
 		});
 	});
 }
+
+/** Removes a matching reaction from a message in the text log.
+ *
+ * Used to roll back an optimistic `addReaction` when the backend rejects
+ * the IPC (#353). Matches on (emoji, source) so a player clicking 😊
+ * while an NPC's 😊 already exists doesn't accidentally strip the NPC's
+ * reaction on rollback.
+ */
+export function removeReaction(messageId: string, emoji: string, source: string): void {
+	textLog.update((log) => {
+		return log.map((entry) => {
+			if (entry.id !== messageId) return entry;
+			const reactions = (entry.reactions ?? []).filter(
+				(r) => !(r.emoji === emoji && r.source === source)
+			);
+			return { ...entry, reactions };
+		});
+	});
+}
