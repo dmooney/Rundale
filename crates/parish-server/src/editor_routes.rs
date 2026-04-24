@@ -155,10 +155,12 @@ pub async fn editor_get_snapshot(
 /// Validation iterates every NPC and location and is CPU-bound (up to 2000
 /// NPCs × 5000 locations per #376 caps). The snapshot is cloned out of the
 /// editor-sessions lock and validated on a blocking thread so the lock does
-/// not serialise concurrent editor requests behind this computation (#500,
-/// #464). The freshly validated snapshot is written back only when the
-/// session version is unchanged — otherwise a concurrent update already
-/// bumped the version and the stale clone would clobber it.
+/// not serialise concurrent editor requests behind this computation (#500).
+/// The freshly validated snapshot is written back only when the session
+/// version is unchanged — otherwise a concurrent update already bumped the
+/// version and the stale clone would clobber it. This is a read-only
+/// operation from the client's perspective so there is no 409 path; the
+/// update handlers keep their Tauri-parity in-place mutation semantics.
 pub async fn editor_validate(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
@@ -302,53 +304,23 @@ pub async fn editor_update_npcs(
         }
     }
 
-    // Clone the current snapshot out of the lock, mutate + validate on a
-    // blocking thread, then write back with a version check (#464, #500).
-    let (mut snapshot, captured_version) = {
-        let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        let snap = session.snapshot.clone().ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        (snap, session.version)
-    };
-
-    let snapshot = tokio::task::spawn_blocking(move || {
-        snapshot.npcs = npcs;
-        parish_core::editor::validate::validate_snapshot(&mut snapshot);
-        snapshot
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let validation = snapshot.validation.clone();
-
-    {
-        let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions.get_mut(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        if session.version != captured_version {
-            return Err((
-                StatusCode::CONFLICT,
-                "editor session was modified during update; retry".to_string(),
-            ));
-        }
-        session.snapshot = Some(snapshot);
-        session.version = session.version.wrapping_add(1);
-    }
-
+    let mut sessions = state.editor_sessions.lock().await;
+    let session = sessions.get_mut(&email).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "no mod is open in the editor".to_string(),
+        )
+    })?;
+    let snap = session.snapshot.as_mut().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "no mod is open in the editor".to_string(),
+        )
+    })?;
+    snap.npcs = npcs;
+    parish_core::editor::validate::validate_snapshot(snap);
+    let validation = snap.validation.clone();
+    session.version = session.version.wrapping_add(1);
     Ok(Json(validation))
 }
 
@@ -408,53 +380,23 @@ pub async fn editor_update_locations(
         }
     }
 
-    // Clone the current snapshot out of the lock, mutate + validate on a
-    // blocking thread, then write back with a version check (#464, #500).
-    let (mut snapshot, captured_version) = {
-        let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        let snap = session.snapshot.clone().ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        (snap, session.version)
-    };
-
-    let snapshot = tokio::task::spawn_blocking(move || {
-        snapshot.locations = locations;
-        parish_core::editor::validate::validate_snapshot(&mut snapshot);
-        snapshot
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let validation = snapshot.validation.clone();
-
-    {
-        let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions.get_mut(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        if session.version != captured_version {
-            return Err((
-                StatusCode::CONFLICT,
-                "editor session was modified during update; retry".to_string(),
-            ));
-        }
-        session.snapshot = Some(snapshot);
-        session.version = session.version.wrapping_add(1);
-    }
-
+    let mut sessions = state.editor_sessions.lock().await;
+    let session = sessions.get_mut(&email).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "no mod is open in the editor".to_string(),
+        )
+    })?;
+    let snap = session.snapshot.as_mut().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "no mod is open in the editor".to_string(),
+        )
+    })?;
+    snap.locations = locations;
+    parish_core::editor::validate::validate_snapshot(snap);
+    let validation = snap.validation.clone();
+    session.version = session.version.wrapping_add(1);
     Ok(Json(validation))
 }
 
@@ -1175,53 +1117,6 @@ mod tests {
         let snap = session.snapshot.as_ref().expect("snapshot missing");
         assert_eq!(snap.npcs.npcs.len(), 1);
         assert_eq!(snap.npcs.npcs[0].name, "Padraig");
-    }
-
-    #[tokio::test]
-    async fn editor_update_npcs_conflicts_when_version_bumped_mid_update() {
-        let state = crate::routes::tests::test_app_state();
-        let email = "conflict@example.com";
-        let captured_version = seed_session(&state, email).await;
-
-        // Simulate a concurrent update completing between our two lock
-        // acquisitions by bumping the session version directly.
-        {
-            let mut sessions = state.editor_sessions.lock().await;
-            let session = sessions.get_mut(email).expect("session missing");
-            session.version = captured_version.wrapping_add(1);
-        }
-
-        let body = EditorUpdateNpcsBody {
-            npcs: serde_json::json!({ "npcs": [] }),
-        };
-        // The handler will capture the now-current version (captured_version+1),
-        // so we need to bump it once more *while* the handler is spawned. We
-        // instead rely on the handler's own read-validate-write race: by
-        // racing a second mutation between its read and write we get a
-        // conflict. Easiest: spawn the handler, then bump version after a
-        // short yield.
-        let state_clone = Arc::clone(&state);
-        let email_clone = email.to_string();
-        let handle = tokio::spawn(async move {
-            editor_update_npcs(Extension(state_clone), make_auth(&email_clone), Json(body)).await
-        });
-        // Let the handler reach its read phase, then bump the version to
-        // simulate a concurrent writer. spawn_blocking guarantees the handler
-        // releases the initial lock before running validation, so a yield is
-        // sufficient.
-        tokio::task::yield_now().await;
-        {
-            let mut sessions = state.editor_sessions.lock().await;
-            if let Some(session) = sessions.get_mut(email) {
-                session.version = session.version.wrapping_add(1);
-            }
-        }
-
-        let result = handle.await.expect("task panicked");
-        match result {
-            Err((StatusCode::CONFLICT, _)) => {}
-            other => panic!("expected 409 Conflict, got {other:?}"),
-        }
     }
 
     #[tokio::test]
