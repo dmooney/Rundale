@@ -180,14 +180,38 @@
 				{/if}
 			</div>
 		{:else}
+			{@const npcReactable = entryType(entry) === 'npc' && !entry.streaming && !!entry.id}
 			<div class="bubble-row {entryType(entry)}">
 				<div class="bubble-wrapper">
 					<span class="label">{displayLabel(entry)}</span>
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="bubble-anchor"
-						onmouseenter={() => { if (entryType(entry) === 'npc' && !entry.streaming && entry.id) hoveredMessageId = entry.id ?? null; }}
+						class:focusable={npcReactable}
+						role={npcReactable ? 'group' : undefined}
+						aria-label={npcReactable ? 'NPC message — press Enter or Tab into the reaction picker' : undefined}
+						tabindex={npcReactable ? 0 : -1}
+						onmouseenter={() => { if (npcReactable) hoveredMessageId = entry.id ?? null; }}
 						onmouseleave={() => { hoveredMessageId = null; }}
+						onfocusin={() => { if (npcReactable) hoveredMessageId = entry.id ?? null; }}
+						onfocusout={(e) => {
+							// Only close when focus actually leaves the bubble + picker
+							// subtree. Without this, tabbing from the bubble into a
+							// reaction button fires focusout on the bubble before
+							// focusin on the button — and we'd close the picker
+							// before the user could activate it.
+							const next = (e as FocusEvent).relatedTarget as Node | null;
+							if (!next || !(e.currentTarget as HTMLElement).contains(next)) {
+								hoveredMessageId = null;
+							}
+						}}
+						onkeydown={(e) => {
+							// Esc closes the picker (mouse users have onmouseleave).
+							if (e.key === 'Escape' && npcReactable) {
+								hoveredMessageId = null;
+								(e.currentTarget as HTMLElement).focus();
+							}
+						}}
 					>
 						<div class="bubble">
 							<span class="content"
@@ -415,6 +439,16 @@
 	.bubble-anchor {
 		position: relative;
 		width: fit-content;
+	}
+
+	/* Keyboard-only users get a visible focus ring on the NPC bubbles
+	 * so they can find their position when tabbing. The default browser
+	 * outline lands on the inner div which has rounded corners, so set
+	 * outline-offset slightly negative to wrap the bubble cleanly. (#352) */
+	.bubble-anchor.focusable:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: 2px;
+		border-radius: 4px;
 	}
 
 	/* Reaction picker: floats over the bottom edge of the bubble */
