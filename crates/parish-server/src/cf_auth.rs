@@ -133,8 +133,16 @@ pub struct CfAccessVerifier {
     pub jwks_url: String,
     pub audience: String,
     pub team_domain: String,
-    /// Cached JWKS (refreshed every 10 min).
+    /// Cached JWKS (refreshed every 10 min). Held briefly for clone + install;
+    /// **never** across an HTTP fetch — that's what `refresh_lock` is for.
     jwks: tokio::sync::Mutex<Option<Arc<Jwks>>>,
+    /// Coordinates concurrent refreshes so only one outbound HTTPS fetch is
+    /// in flight at a time (#501). Held across the full fetch + validate +
+    /// install so that peers wait for the first fetch to publish its result,
+    /// but `jwks` stays free for happy-path readers in `get_jwks`
+    /// (codex-#550 followup: don't block unrelated valid-token requests on
+    /// upstream JWKS latency).
+    refresh_lock: tokio::sync::Mutex<()>,
     /// Unix timestamp (seconds) of the last JWKS refresh.
     last_refresh: AtomicU64,
 }
@@ -156,6 +164,7 @@ impl CfAccessVerifier {
             audience,
             team_domain,
             jwks: tokio::sync::Mutex::new(None),
+            refresh_lock: tokio::sync::Mutex::new(()),
             last_refresh: AtomicU64::new(0),
         }))
     }
@@ -180,37 +189,86 @@ impl CfAccessVerifier {
     }
 
     /// Fetches a fresh JWKS (TTL-miss path), updating the cache.
-    ///
-    /// Concurrent callers are serialised by the `jwks` mutex so only one
-    /// outbound HTTP request is in flight at a time (#501). A 10-second
-    /// recency window inside the lock lets followers reuse a peer's
-    /// just-installed cache without a redundant fetch.
     async fn refresh_jwks(&self) -> Result<Arc<Jwks>, String> {
-        let mut guard = self.jwks.lock().await;
-        if let Some(cached) =
-            Self::take_recent_cache(&guard, self.last_refresh.load(Ordering::Relaxed), None)
-        {
-            return Ok(cached);
-        }
-        self.fetch_and_install(&mut guard).await
+        self.coordinated_refresh(None).await
     }
 
     /// Fetches a fresh JWKS because we observed a `kid` not present in the
-    /// current cache (key-rotation path from [`Self::validate`]).
-    ///
-    /// Unlike [`Self::refresh_jwks`], we can only honor the 10-second peer
-    /// shortcut when the peer's already-installed cache actually contains
-    /// the kid we're looking for — otherwise Cloudflare may have rotated
-    /// again after the peer's fetch and we still need a real network round
-    /// trip to pick up the new key. Addressing codex P1 on #550.
+    /// current cache (key-rotation path from [`Self::validate`]). Unlike
+    /// [`Self::refresh_jwks`], the peer-recency shortcut only applies if
+    /// the peer's cache actually contains the kid we need (addresses codex
+    /// P1 on #550).
     async fn refresh_jwks_for_kid(&self, kid: &str) -> Result<Arc<Jwks>, String> {
-        let mut guard = self.jwks.lock().await;
-        if let Some(cached) =
-            Self::take_recent_cache(&guard, self.last_refresh.load(Ordering::Relaxed), Some(kid))
+        self.coordinated_refresh(Some(kid)).await
+    }
+
+    /// Core refresh path. Acquires `refresh_lock` (not `jwks`) across the
+    /// HTTP fetch, so concurrent happy-path readers of `jwks` are never
+    /// blocked on upstream Cloudflare latency (codex followup on #550).
+    ///
+    /// Sequence under the refresh coordinator:
+    /// 1. Re-check peer recency inside the coordinator — if a sibling
+    ///    refresh just populated a cache we can use, return it without
+    ///    fetching again (#501 thundering-herd collapse).
+    /// 2. Perform the HTTP fetch + JSON parse + key-policy filter (#457).
+    ///    The `jwks` mutex is not held during any of this.
+    /// 3. Briefly take `jwks` to install the fresh `Arc<Jwks>`, then
+    ///    record `last_refresh` after install (codex P2 on #550) so slow
+    ///    fetches don't leave the timestamp pointing to a moment before
+    ///    the cache existed.
+    async fn coordinated_refresh(&self, required_kid: Option<&str>) -> Result<Arc<Jwks>, String> {
+        let _refresh_guard = self.refresh_lock.lock().await;
+
+        // Step 1 — peer-recency shortcut. Briefly consult the cache.
         {
-            return Ok(cached);
+            let cache = self.jwks.lock().await;
+            if let Some(cached) = Self::take_recent_cache(
+                &cache,
+                self.last_refresh.load(Ordering::Relaxed),
+                required_kid,
+            ) {
+                return Ok(cached);
+            }
         }
-        self.fetch_and_install(&mut guard).await
+
+        // Step 2 — fetch + validate. No cache lock held across `await`.
+        let resp = reqwest::get(&self.jwks_url)
+            .await
+            .map_err(|e| format!("JWKS fetch failed: {e}"))?;
+        let mut jwks: Jwks = resp
+            .json()
+            .await
+            .map_err(|e| format!("JWKS parse failed: {e}"))?;
+
+        // #457 — drop keys that fail security-policy checks. A malformed
+        // or partially-weak JWKS still yields a usable verifier as long
+        // as at least one key survives.
+        let before = jwks.keys.len();
+        jwks.keys.retain(|k| match validate_jwk(k) {
+            Ok(()) => true,
+            Err(e) => {
+                tracing::warn!(kid = %k.kid, error = %e, "JWKS: dropping invalid key");
+                false
+            }
+        });
+        if jwks.keys.is_empty() && before > 0 {
+            return Err(format!(
+                "JWKS validation: all {before} keys rejected by policy"
+            ));
+        }
+
+        // Step 3 — install + record timestamp post-install.
+        let arc = Arc::new(jwks);
+        {
+            let mut guard = self.jwks.lock().await;
+            *guard = Some(Arc::clone(&arc));
+        }
+        let installed_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.last_refresh.store(installed_secs, Ordering::Relaxed);
+        Ok(arc)
     }
 
     /// Shared recency shortcut used by both refresh entry points. Returns
@@ -239,53 +297,6 @@ impl CfAccessVerifier {
             return None;
         }
         Some(Arc::clone(cached))
-    }
-
-    /// Performs the actual HTTP fetch, key-policy validation (#457), and
-    /// cache install. Called under the `jwks` mutex by both refresh paths.
-    ///
-    /// Records `last_refresh` *after* install (codex P2 on #550) so slow
-    /// fetches don't leave the timestamp pointing to a moment before the
-    /// cache existed — which would defeat the recency shortcut for
-    /// subsequent callers and re-fan-out the thundering herd.
-    async fn fetch_and_install(
-        &self,
-        guard: &mut tokio::sync::MutexGuard<'_, Option<Arc<Jwks>>>,
-    ) -> Result<Arc<Jwks>, String> {
-        let resp = reqwest::get(&self.jwks_url)
-            .await
-            .map_err(|e| format!("JWKS fetch failed: {e}"))?;
-        let mut jwks: Jwks = resp
-            .json()
-            .await
-            .map_err(|e| format!("JWKS parse failed: {e}"))?;
-
-        // #457 — drop keys that fail security-policy checks (weak RSA,
-        // unsupported kty/curve, explicit non-signing `use`). A malformed
-        // or partially-weak JWKS still yields a usable verifier as long as
-        // at least one key survives.
-        let before = jwks.keys.len();
-        jwks.keys.retain(|k| match validate_jwk(k) {
-            Ok(()) => true,
-            Err(e) => {
-                tracing::warn!(kid = %k.kid, error = %e, "JWKS: dropping invalid key");
-                false
-            }
-        });
-        if jwks.keys.is_empty() && before > 0 {
-            return Err(format!(
-                "JWKS validation: all {before} keys rejected by policy"
-            ));
-        }
-
-        let arc = Arc::new(jwks);
-        **guard = Some(Arc::clone(&arc));
-        let installed_secs = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        self.last_refresh.store(installed_secs, Ordering::Relaxed);
-        Ok(arc)
     }
 
     /// Validates a raw JWT string and returns the extracted [`AuthContext`].
@@ -660,6 +671,7 @@ mod tests {
             audience: "aud".to_string(),
             team_domain: "team.example".to_string(),
             jwks: tokio::sync::Mutex::new(None),
+            refresh_lock: tokio::sync::Mutex::new(()),
             last_refresh: AtomicU64::new(0),
         })
     }
@@ -766,5 +778,31 @@ mod tests {
             now_secs.saturating_sub(last) < 5,
             "last_refresh={last} too far behind now={now_secs}"
         );
+    }
+
+    // ── codex-#550 followup: reads must not block on in-flight refresh ─────
+
+    #[tokio::test]
+    async fn get_jwks_does_not_block_on_refresh_lock() {
+        // Proves that a happy-path reader (fresh cache, no TTL miss) does
+        // not contend with an in-flight refresh. We acquire the
+        // refresh_lock directly to simulate a refresh stuck on a slow
+        // upstream, then observe that get_jwks still resolves without the
+        // lock being released.
+        let v = make_test_verifier();
+        v.install_jwks_for_test(Jwks {
+            keys: vec![rsa_jwk("k1", 2048, "sig")],
+        })
+        .await;
+
+        let refresh_held = v.refresh_lock.lock().await;
+        // get_jwks should complete immediately — bounded by a short
+        // timeout proves we aren't blocked on the held lock.
+        let fetched = tokio::time::timeout(std::time::Duration::from_millis(100), v.get_jwks())
+            .await
+            .expect("get_jwks must not wait on refresh_lock")
+            .expect("get_jwks must succeed with a fresh cache");
+        assert_eq!(fetched.keys.len(), 1);
+        drop(refresh_held);
     }
 }
