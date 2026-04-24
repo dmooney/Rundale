@@ -197,6 +197,41 @@ fn open_db(path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Initialises the standalone `parish-npc` SQLite schema.
+///
+/// # Schema divergence from parish-persistence (#434)
+///
+/// This schema is **not** compatible with the main game's persistence
+/// format in `parish-persistence` (which stores branch-based game
+/// snapshots keyed by session id, not relational parish/household/NPC
+/// rows). Databases created by `parish-npc` cannot be loaded by the
+/// running game, and save files created by the game cannot be opened
+/// by `parish-npc` commands.
+///
+/// That divergence is deliberate: `parish-npc` is a world-*building*
+/// tool that authors use at design time to generate large populations
+/// with relational constraints (households, relationships, validation
+/// sweeps). The runtime engine only needs read-only NPC data and
+/// materialises it into the in-memory `NpcManager` from
+/// `mods/<name>/npcs.json`. The two codepaths have different
+/// workloads and different shape — forcing them into one schema would
+/// burden the runtime with author-time fields (`data_tier`, parish
+/// joins) it doesn't use, or would starve the CLI of the relational
+/// structure it depends on.
+///
+/// The practical round-trip is:
+///
+/// 1. `parish-npc generate-parish …` populates this schema.
+/// 2. `parish-npc export [--parish NAME]` emits the JSON blob the
+///    game consumes, which can be hand-massaged into `npcs.json`.
+/// 3. The game loads `npcs.json` into its own runtime structures —
+///    no direct SQLite interop.
+///
+/// If you need to hold both formats in sync, treat the parish-npc DB
+/// as the source of truth at design time and re-export after every
+/// authoring session. A proper conversion utility between this schema
+/// and a gameplay save is out of scope; track additions there under
+/// #434 follow-ups.
 fn ensure_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
