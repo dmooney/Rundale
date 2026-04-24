@@ -81,13 +81,19 @@ if [ -n "$existing" ]; then
   exit 0
 fi
 
-# Pull build-log tail. Surface only the lines an operator would read first:
-# explicit error markers plus the final 30 lines for context.
+# Pick the log stream that actually contains the failure. FAILED is a build
+# failure; CRASHED means the container started and exited at runtime, so the
+# diagnostic signal is in deploy logs, not build logs.
+case "$status" in
+  CRASHED) log_flag="--deployment"; log_kind="deploy" ;;
+  *)       log_flag="--build";      log_kind="build"  ;;
+esac
+
 log_tmp=$(mktemp)
 trap 'rm -f "$log_tmp"' EXIT
-if ! railway logs --build --service "$SERVICE" --environment "$ENVIRONMENT" \
+if ! railway logs "$log_flag" --service "$SERVICE" --environment "$ENVIRONMENT" \
     "$deployment_id" -n "$LOG_LINES" >"$log_tmp" 2>&1; then
-  echo "(warning: failed to fetch build logs)" >&2
+  echo "(warning: failed to fetch $log_kind logs)" >&2
 fi
 
 error_excerpt=$(grep -iE 'error|failed|cannot|panic|exit code' "$log_tmp" | tail -n 30 || true)
@@ -102,13 +108,13 @@ Automated report from \`.github/workflows/railway-watchdog.yml\` — see #562.
 - **Status:** \`$status\`
 - **Detected:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-### Error lines from build log
+### Error lines from $log_kind log
 
 \`\`\`
 ${error_excerpt:-(no explicit error markers found — see tail below)}
 \`\`\`
 
-### Last $LOG_LINES lines of build log (tail)
+### Last $LOG_LINES lines of $log_kind log (tail)
 
 \`\`\`
 ${tail_excerpt:-(log fetch failed)}
