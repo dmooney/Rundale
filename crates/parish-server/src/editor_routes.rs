@@ -308,22 +308,39 @@ pub async fn editor_update_npcs(
     // the editor_sessions lock isn't held across the O(NPCs × locations)
     // work (#464). We clone the current snapshot out under a brief
     // lock, mutate the clone's npcs field + run validate on the clone
-    // inside spawn_blocking, then re-acquire the lock and atomically
-    // overlay only the npcs + validation fields onto the current
-    // session snapshot. Overlaying (rather than wholesale replacing)
-    // preserves any concurrent edits to *other* fields (e.g. locations)
-    // so we don't regress Tauri's last-write-wins-per-field semantics.
-    let snapshot_clone = {
+    // inside spawn_blocking, then re-acquire the lock and either
+    // install wholesale (fast path, no concurrent edit) or overlay the
+    // mutated field + re-validate under-lock (slow path, concurrent
+    // edit happened during our spawn_blocking window).
+    //
+    // codex-#574 P1: capture the clone's mod_path and session version
+    // so the write-back rejects any request whose session was torn
+    // down (editor_close) or re-opened on a different mod
+    // (editor_open_mod) while we were validating. Without this guard
+    // a stale request could mutate a freshly-opened session.
+    //
+    // codex-#574 P2: when the session version changed concurrently,
+    // the report from our clone doesn't describe the post-merge
+    // state. Re-run validate on the merged snapshot under the lock so
+    // the returned report matches what's actually stored. This
+    // holds the lock across validate on the contended path only; the
+    // fast path (no concurrent edit) stays fully offloaded.
+    let (snapshot_clone, captured_version, captured_mod_path) = {
         let sessions = state.editor_sessions.lock().await;
-        sessions
-            .get(&email)
-            .and_then(|s| s.snapshot.clone())
-            .ok_or_else(|| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    "no mod is open in the editor".to_string(),
-                )
-            })?
+        let s = sessions.get(&email).ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        let snap = s.snapshot.clone().ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        let mod_path = snap.mod_path.clone();
+        (snap, s.version, mod_path)
     };
     let validated = tokio::task::spawn_blocking(move || {
         let mut s = snapshot_clone;
@@ -334,9 +351,7 @@ pub async fn editor_update_npcs(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let validation = validated.validation.clone();
-
-    {
+    let validation = {
         let mut sessions = state.editor_sessions.lock().await;
         let session = sessions.get_mut(&email).ok_or_else(|| {
             (
@@ -350,10 +365,32 @@ pub async fn editor_update_npcs(
                 "no mod is open in the editor".to_string(),
             )
         })?;
-        snap.npcs = validated.npcs;
-        snap.validation = validated.validation;
+        // codex-#574 P1: session must still be the same mod we
+        // validated against. If editor_close / editor_open_mod ran in
+        // between, the stored snapshot belongs to a different mod and
+        // we must not mutate it.
+        if snap.mod_path != captured_mod_path {
+            return Err((
+                StatusCode::CONFLICT,
+                "editor session was re-opened on a different mod during update; retry".to_string(),
+            ));
+        }
+        if session.version == captured_version {
+            // Fast path: no concurrent edit. Install the validated
+            // clone wholesale so the session.validation matches the
+            // report we computed off-lock.
+            *snap = validated;
+        } else {
+            // Contended path: concurrent edit bumped other fields
+            // (e.g. locations) while we validated. Overlay our field
+            // and re-run validate so the stored report describes the
+            // actual merged state (codex-#574 P2).
+            snap.npcs = validated.npcs;
+            parish_core::editor::validate::validate_snapshot(snap);
+        }
         session.version = session.version.wrapping_add(1);
-    }
+        snap.validation.clone()
+    };
 
     Ok(Json(validation))
 }
@@ -414,21 +451,28 @@ pub async fn editor_update_locations(
         }
     }
 
-    // Same clone-validate-overlay pattern as editor_update_npcs (#464):
-    // offload the CPU-bound validate to spawn_blocking so the session
-    // lock isn't held across it, then overlay only the locations +
-    // validation fields so concurrent edits to other fields survive.
-    let snapshot_clone = {
+    // Same clone-validate-install pattern as editor_update_npcs (#464
+    // + codex-#574 P1/P2): offload CPU-bound validate to
+    // spawn_blocking, guard the write-back against session identity
+    // changes (editor_close or editor_open_mod on a different mod),
+    // and re-validate under lock on the contended path so the stored
+    // report matches the post-merge state.
+    let (snapshot_clone, captured_version, captured_mod_path) = {
         let sessions = state.editor_sessions.lock().await;
-        sessions
-            .get(&email)
-            .and_then(|s| s.snapshot.clone())
-            .ok_or_else(|| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    "no mod is open in the editor".to_string(),
-                )
-            })?
+        let s = sessions.get(&email).ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        let snap = s.snapshot.clone().ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        let mod_path = snap.mod_path.clone();
+        (snap, s.version, mod_path)
     };
     let validated = tokio::task::spawn_blocking(move || {
         let mut s = snapshot_clone;
@@ -439,9 +483,7 @@ pub async fn editor_update_locations(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let validation = validated.validation.clone();
-
-    {
+    let validation = {
         let mut sessions = state.editor_sessions.lock().await;
         let session = sessions.get_mut(&email).ok_or_else(|| {
             (
@@ -455,10 +497,21 @@ pub async fn editor_update_locations(
                 "no mod is open in the editor".to_string(),
             )
         })?;
-        snap.locations = validated.locations;
-        snap.validation = validated.validation;
+        if snap.mod_path != captured_mod_path {
+            return Err((
+                StatusCode::CONFLICT,
+                "editor session was re-opened on a different mod during update; retry".to_string(),
+            ));
+        }
+        if session.version == captured_version {
+            *snap = validated;
+        } else {
+            snap.locations = validated.locations;
+            parish_core::editor::validate::validate_snapshot(snap);
+        }
         session.version = session.version.wrapping_add(1);
-    }
+        snap.validation.clone()
+    };
 
     Ok(Json(validation))
 }
