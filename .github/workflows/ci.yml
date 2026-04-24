@@ -22,7 +22,8 @@ permissions:
 jobs:
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    container: catthehacker/ubuntu:full-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,7 +60,8 @@ jobs:
 
   rust-multi-channel:
     name: Rust channel matrix
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    container: catthehacker/ubuntu:full-latest
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +93,8 @@ jobs:
 
   game-harness:
     name: Full game harness fixture sweep
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    container: catthehacker/ubuntu:full-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -124,7 +127,8 @@ jobs:
 
   ui-quality:
     name: UI quality (build, check, unit)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    container: catthehacker/ubuntu:full-latest
     defaults:
       run:
         working-directory: apps/ui
@@ -153,7 +157,8 @@ jobs:
 
   ui-e2e:
     name: UI Playwright e2e
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    container: catthehacker/ubuntu:full-latest
     defaults:
       run:
         working-directory: apps/ui
