@@ -109,6 +109,12 @@ pub async fn get_debug_snapshot(
 ) -> impl IntoResponse {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
+    // Peek inference_queue presence *before* taking config so we honor the
+    // canonical `npc_manager → inference_queue → config` order enforced by
+    // handle_npc_conversation and run_idle_banter (#483). Taking
+    // inference_queue after config here would be the opposite order and
+    // create a latent deadlock with those handlers.
+    let has_inference_queue = state.inference_queue.lock().await.is_some();
     let config = state.config.lock().await;
     let events = state.debug_events.lock().await;
     let game_events = state.game_events.lock().await;
@@ -123,7 +129,7 @@ pub async fn get_debug_snapshot(
         base_url: config.base_url.clone(),
         cloud_provider: config.cloud_provider_name.clone(),
         cloud_model: config.cloud_model_name.clone(),
-        has_queue: state.inference_queue.lock().await.is_some(),
+        has_queue: has_inference_queue,
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled: config.improv_enabled,
         call_log: raw_call_log.clone(),
