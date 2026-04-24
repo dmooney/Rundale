@@ -221,11 +221,16 @@ clippy:
 clippy-fix:
     cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Pre-commit gate: format, lint, tests, placeholder scan
-check: fmt-check clippy test witness-scan
+# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md, CLAUDE.md)
+# must exist on disk. Catches doc drift before it reaches an agent.
+check-doc-paths:
+    ./scripts/check-doc-paths.sh
+
+# Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
+check: fmt-check clippy test witness-scan check-doc-paths
 
 # Pre-push gate: check + game harness walkthrough
-verify: fmt-check clippy test game-test witness-scan
+verify: fmt-check clippy test game-test witness-scan check-doc-paths
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:
