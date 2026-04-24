@@ -1939,7 +1939,7 @@ pub async fn get_health() -> StatusCode {
 /// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.
 ///
 /// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
-fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
+pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
     if name.is_empty() || name.len() > 64 {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -1975,8 +1975,24 @@ const ADMIN_COMMANDS: &[&str] = &[
 /// If the env var is unset: **allowed** in debug builds (local dev), **denied**
 /// in release builds (fail-closed).
 fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
-    match std::env::var("PARISH_ADMIN_EMAILS") {
-        Ok(list) => {
+    check_admin_against(
+        email,
+        cmd,
+        std::env::var("PARISH_ADMIN_EMAILS").ok().as_deref(),
+    )
+}
+
+/// Core admin check against an explicit admin list.
+///
+/// `admin_emails` is the comma-separated list (from `PARISH_ADMIN_EMAILS`).
+/// Pass `None` to simulate the env var being unset.
+pub fn check_admin_against(
+    email: &str,
+    cmd: &str,
+    admin_emails: Option<&str>,
+) -> Result<(), StatusCode> {
+    match admin_emails {
+        Some(list) => {
             if list.split(',').any(|e| e.trim() == email) {
                 Ok(())
             } else {
@@ -1984,13 +2000,10 @@ fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
                 Err(StatusCode::FORBIDDEN)
             }
         }
-        Err(_) => {
-            // Env var unset.
+        None => {
             if cfg!(debug_assertions) {
-                // Allow in debug builds so local dev works without env config.
                 Ok(())
             } else {
-                // Fail-closed in release builds.
                 tracing::warn!(user = %email, command = %cmd, "admin command rejected — PARISH_ADMIN_EMAILS unset");
                 Err(StatusCode::FORBIDDEN)
             }
@@ -2003,7 +2016,7 @@ fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
 /// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
 /// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
 /// `starts_with` since the dot is part of the prefix, not a space separator.
-fn is_admin_command(text: &str) -> bool {
+pub fn is_admin_command(text: &str) -> bool {
     let lower = text.trim().to_ascii_lowercase();
     ADMIN_COMMANDS.iter().any(|prefix| {
         if prefix.ends_with('.') {
