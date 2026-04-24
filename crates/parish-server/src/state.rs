@@ -108,36 +108,45 @@ impl ConversationRuntimeState {
 ///
 /// `AppState` holds many independent `Mutex` fields. Any path that acquires
 /// more than one at a time **must** follow the canonical order below. A
-/// future refactor that holds, say, `config` while acquiring `world` would
-/// deadlock with any existing path that holds `world` while acquiring
-/// `config`. The ordering is derived from the paths observed in the
-/// codebase today (`handle_system_command`, `rebuild_inference`,
-/// `get_debug_snapshot`, background ticks).
+/// future refactor that takes these in the opposite order would deadlock
+/// with any existing path that takes them in the documented order. The
+/// ordering is derived from the paths actually observed in the codebase
+/// today (`handle_system_command`, `handle_npc_conversation`,
+/// `run_idle_banter`, `rebuild_inference`, `get_debug_snapshot`, and the
+/// background tick tasks in `session.rs`).
 ///
 /// ```text
 /// world
 ///   → npc_manager
-///     → config
-///       → client
-///         → cloud_client
-///           → inference_queue
-///             → conversation
-///               → debug_events
-///                 → game_events
-///                   → editor_sessions
-///                     → active_ws
-///                       → save_path
-///                         → current_branch_id
-///                           → current_branch_name
-///                             → worker_handle
-///                               → save_lock
+///     → inference_queue
+///       → config
+///         → client
+///           → cloud_client
+///             → inference_log
+///               → conversation
+///                 → debug_events
+///                   → game_events
+///                     → editor_sessions
+///                       → active_ws
+///                         → save_path
+///                           → current_branch_id
+///                             → current_branch_name
+///                               → worker_handle
+///                                 → save_lock
 /// ```
 ///
-/// `inference_log` is a lock-free ring buffer and safe to access at any
-/// level of the stack; the other non-Mutex fields (`event_bus`,
-/// `transport`, `ui_config`, `theme_palette`, `saves_dir`, `data_dir`,
-/// `game_mod`, `pronunciations`, `flags_path`) are set once at startup
-/// and are not coordination points.
+/// Note: `inference_queue` precedes `config` because
+/// `handle_npc_conversation` and `run_idle_banter` both take them in that
+/// order (see `routes.rs`). Reversing that pair at any call site would
+/// introduce a deadlock path. `inference_log` is itself an
+/// `Arc<Mutex<BoundedInferenceLog>>` (see `parish-inference/src/lib.rs`),
+/// so it counts as a coordination point; it sits after `cloud_client` —
+/// that's where `get_debug_snapshot` reaches it.
+///
+/// The remaining non-`Mutex` fields (`event_bus`, `transport`,
+/// `ui_config`, `theme_palette`, `saves_dir`, `data_dir`, `game_mod`,
+/// `pronunciations`, `flags_path`) are set once at startup and are not
+/// coordination points.
 ///
 /// **Release locks promptly.** The preferred idiom is to scope each guard
 /// to the smallest possible block and drop it before acquiring the next,
