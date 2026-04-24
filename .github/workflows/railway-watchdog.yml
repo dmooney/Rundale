@@ -35,9 +35,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Railway CLI and jq
+      - name: Install railway, gh, and jq
         run: |
-          command -v railway >/dev/null || brew install railwayapp/railway/railway
+          command -v railway >/dev/null || brew install railway
+          command -v gh >/dev/null      || brew install gh
           command -v jq >/dev/null      || brew install jq
 
       - name: Run watchdog
