@@ -39,6 +39,11 @@ jobs:
 
       - name: Run watchdog
         env:
+          # Railway CLI reads RAILWAY_API_TOKEN for account/team tokens (which
+          # `railway link --project <name>` needs) and RAILWAY_TOKEN for
+          # project-scoped tokens. Pass the same secret to both so either
+          # token type works without changing this workflow.
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy/railway-watchdog.sh
