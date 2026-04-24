@@ -24,7 +24,7 @@
 	import { savePickerVisible } from '../stores/save';
 	import { palette } from '../stores/theme';
 	import { tiles } from '../stores/tiles';
-	import { startTravel } from '../stores/travel';
+	import { startTravel, cancelTravel } from '../stores/travel';
 	import {
 		getWorldSnapshot,
 		getMap,
@@ -176,6 +176,9 @@
 	onDestroy(() => {
 		mountCleanup?.();
 		mobileMediaCleanup?.();
+		// Cancel any pending travel auto-clear so it doesn't fire
+		// against a destroyed tree (#349).
+		cancelTravel();
 		// In browser mode, also tear down the shared WebSocket and any
 		// pending reconnect timer so navigation away doesn't leave an
 		// orphan socket or a zombie reconnect queued.

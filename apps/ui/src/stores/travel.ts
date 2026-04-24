@@ -28,9 +28,30 @@ export const travelState = writable<TravelState | null>(null);
 /** Whether a travel animation is currently playing. */
 export const isTraveling = derived(travelState, ($t) => $t !== null);
 
+/** Outstanding auto-clear timer for the active travel animation.
+ *
+ * #349: each call to startTravel must cancel the prior reset timer.
+ * Without this, two travels that overlap (server emitting nested
+ * location-entry events before the first animation finishes) leave
+ * the earlier setTimeout running. When that earlier timer fires it
+ * clears travelState mid-animation of the *newer* travel, freezing
+ * the path-following dot in MapController.
+ *
+ * Exposed at module scope so the cleanup runs even when startTravel
+ * is invoked from outside any component lifecycle.
+ */
+let travelResetTimer: ReturnType<typeof setTimeout> | null = null;
+
 /** Starts a travel animation from a TravelStartPayload. */
 export function startTravel(payload: TravelStartPayload): void {
 	if (payload.waypoints.length < 2) return;
+
+	// Cancel any pending auto-clear from a prior travel so it can't
+	// fire after we've installed the new state (#349).
+	if (travelResetTimer !== null) {
+		clearTimeout(travelResetTimer);
+		travelResetTimer = null;
+	}
 
 	const raw = payload.duration_minutes * MS_PER_GAME_MINUTE;
 	const animationMs = Math.max(MIN_ANIMATION_MS, Math.min(MAX_ANIMATION_MS, raw));
@@ -44,9 +65,25 @@ export function startTravel(payload: TravelStartPayload): void {
 	});
 
 	// Auto-clear when animation completes
-	setTimeout(() => {
+	travelResetTimer = setTimeout(() => {
 		travelState.set(null);
+		travelResetTimer = null;
 	}, animationMs);
+}
+
+/** Cancels any pending auto-clear timer and clears travel state.
+ *
+ * Called by the host component on unmount (#349) so a stale timer
+ * doesn't keep the travel store referencing payload data after the
+ * UI is gone, and doesn't fire travelState.set(null) into a destroyed
+ * tree.
+ */
+export function cancelTravel(): void {
+	if (travelResetTimer !== null) {
+		clearTimeout(travelResetTimer);
+		travelResetTimer = null;
+	}
+	travelState.set(null);
 }
 
 /**
