@@ -20,3 +20,6 @@ saves
 # See .secrets.example and docs/agent/act-local.md.
 .secrets
 act-artifacts/
+
+.gemini/
+gha-creds-*.json
