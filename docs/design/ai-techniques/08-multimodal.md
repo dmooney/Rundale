@@ -19,10 +19,19 @@ Modern local TTS can do convincingly varied voices at <1× realtime on CPU:
 - **Piper** (Rhasspy): tiny, CPU-only, many voices, MIT.
 - **Coqui XTTS v2**: voice-cloning from 6s reference clips. More expressive
   but heavier.
-- **Kokoro** (2024): small, high-quality, Apache-licensed.
+- **Kokoro-82M** (2024): small, high-quality, Apache-licensed — good
+  default for a Rust shipping target.
 
 Per-NPC configuration in `mods/rundale/npcs.json` adds `voice: "piper/en_IE/irish_male_02"`.
 No cloud dependency.
+
+**Period pronunciation hook.** `mods/rundale/pronunciations.json` already
+exists and is currently unused by the runtime. It is the natural input for
+a pronunciation-override layer: before synthesis, replace known tokens
+(placenames, surnames, Irish loanwords) with their authored phonetic
+spelling so the engine doesn't anglicise *Cill Taobhach* into *kill tay-ow-
+ack*. Treat the file as authoritative; fall back to the TTS engine's
+grapheme-to-phoneme model only for unknown strings.
 
 ### 2. Streaming TTS tied to Tier 1 streaming
 

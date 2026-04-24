@@ -14,10 +14,13 @@ even though the meaning does. NPCs feel amnesiac.
 
 ### 1. Dense retrieval with small embedding models
 
-- **Models:** `nomic-embed-text-v1.5` (768d, Ollama-hostable), `bge-small-en`
-  (384d), `gte-small`. All run locally in ~50ms per batch on CPU.
-- **Storage:** SQLite `vec0` extension or `sqlite-vss`. We already use SQLite
-  (ADR-003), so no new dependency tier.
+- **Models:** `nomic-embed-text-v1.5` (768d, Ollama-hostable),
+  `mxbai-embed-large` (Ollama-native, 1024d, strong on retrieval),
+  `bge-small-en` (384d), `gte-small`. All run locally in ~50ms per batch
+  on CPU.
+- **Storage (picks):** SQLite `vec0` / `sqlite-vss` for a single dependency
+  tier (we already use SQLite, ADR-003). For higher-recall ANN, `hnsw_rs`
+  (pure Rust) or embedded Qdrant; both run in-process, no extra service.
 - **Schema:** one vector row per memory entry, joined to the existing
   `LongTermEntry` by id.
 
@@ -49,7 +52,25 @@ short-term as RAM:
   conversation.
 - Naturally layers on top of the function-calling work in `04-agent-planning`.
 
-### 5. Episodic vs semantic split
+### 5. Historical-corpus RAG (style + period grounding)
+
+Reuse the same embedding infra to index *external* period sources, not just
+NPC memory:
+
+- Public-domain 1820-era Irish material: newspapers (Galway Advertiser,
+  Freeman's Journal), letters, traveller accounts (Arthur Young, Edward
+  Wakefield), parliamentary reports.
+- Stored under `mods/rundale/corpus/` with per-document license metadata.
+- A small indexing CLI chunks, embeds, and writes to a separate `corpus_vec`
+  table (no mingling with NPC memory).
+- Tier 1 prompt builder retrieves 1–2 snippets by topic of conversation and
+  injects them as a quoted "period voice" stanza, replacing the currently
+  frozen cultural-guidelines paragraph.
+
+Payoff: dialogue inherits *actual* period cadence and vocabulary instead of
+the model's pastiche. Compounds with doc 06's style-vector work.
+
+### 6. Episodic vs semantic split
 
 Split `LongTermMemory` into:
 

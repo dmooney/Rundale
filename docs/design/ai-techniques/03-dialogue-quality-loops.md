@@ -56,7 +56,25 @@ logprobs:
   entities, rewrite to hedge ("I couldn't say, sir").
 - Requires logprobs from the provider — Ollama exposes, most cloud routes do.
 
-### 6. Critic in the pipeline, not the client
+### 6. Inner-monologue / think-then-speak
+
+Foreshadowed already by the `internal_thought` field Tier 1 emits today
+(ADR-008). Split the turn into two calls:
+
+1. **Think** — a cheap utility-model pass on the NPC's private scratchpad:
+   goals, secrets to withhold, register choice, what they *won't* say.
+2. **Speak** — the main Tier 1 generation, conditioned on the think-trace
+   but instructed not to quote it verbatim.
+
+Meaningful payoff: NPCs can plan to lie, to deflect, or to hold something
+back, and the deception is consistent because the think-trace is stored in
+short-term memory. Combines cleanly with doc 10 (the think pass can query
+the knowledge graph to decide what is safe to say).
+
+Cost: one extra small-model call per turn. Budget it into the utility lane
+from doc 05 (~150–300 ms on a 1–3B model).
+
+### 7. Critic in the pipeline, not the client
 
 Add a `CriticJob` variant to `parish-inference::job`. It runs on the Background
 lane with a shared KV cache off the original Tier 1 context (see

@@ -29,13 +29,14 @@ Response: "She was at the cross a moment ago."
 Stop conditions: max 3 tool calls, 400ms budget. Fallback to best-effort
 answer on budget overrun.
 
-### 2. Typed tool surface (read-only in v1)
+### 2. Typed tool surface — read-only v1, mutating v2
 
-Whitelist a handful of safe tools backed by `parish-core`:
+**v1 (read-only).** Whitelist safe read tools backed by `parish-core`:
 
 - `locate(npc) -> Location`
 - `relationship(a, b) -> f32`
 - `remember(npc, query) -> Vec<Memory>` (routes to semantic memory, doc 01)
+- `believes(npc, subject) -> Vec<Triple>` (routes to knowledge graph, doc 10)
 - `time() -> Date`
 - `weather() -> Conditions`
 - `recent_news(location) -> Vec<Event>`
@@ -43,6 +44,29 @@ Whitelist a handful of safe tools backed by `parish-core`:
 Implement as pure `fn` on a `WorldView` snapshot so nothing can mutate during a
 tool call. Schema declared via `schemars` (doc 02) and exposed to the LLM via
 function-calling (Ollama/OpenAI-compat).
+
+**v2 (mutating, gated).** Once v1 is stable, graduate a tight set of
+effect-producing tools so an NPC who says *"I'll fetch the priest"* actually
+dispatches Máire:
+
+- `dispatch(npc, destination, errand)` — schedules an NPC movement.
+- `start_rumour(origin, content, confidence)` — writes to the gossip spread
+  (doc 07).
+- `offer_item(from, to, item)` — queues a proposed transfer the recipient
+  can accept/decline next tick.
+- `set_appointment(a, b, when, where)` — inserts a mutual schedule entry.
+
+Every v2 tool:
+
+1. Emits a proposal, not a direct mutation; Tier 4 rules validate before
+   commit (NPC consent, occupancy, travel time).
+2. Is logged with the utterance that produced it, so contradictions can be
+   audited.
+3. Is behind a capability flag per archetype — a child NPC cannot
+   `start_rumour` at village scale.
+
+Biggest gameplay payoff in the brainstorm, and the natural successor to
+doc 02's grammar work: schema becomes contract.
 
 ### 3. Hierarchical planning
 

@@ -84,6 +84,45 @@ Let the scheduler send the "easy" subset of Tier 3 ticks (NPCs with minimal
 events) to an even smaller 1B model, reserving 9B for NPCs with rich
 activity. Classify via a heuristic or a tiny model.
 
+### 8. Utility lane — small-LM for non-dialogue tasks
+
+A large share of our current LLM calls are *not prose*: intent
+classification, mood extraction, gossip distortion (doc 07), anachronism
+flagging (doc 03), memory-importance scoring, knowledge-graph triple
+extraction (doc 10), inner-monologue (doc 03). All run well on 0.5–3B local
+models (Gemma 3 270M, Phi-4-mini, Qwen 2.5 1.5B, Llama 3.2 1B).
+
+Add a `Utility` category alongside the existing `Dialogue / Simulation /
+Intent / Reaction` routing slots (ADR-017). Benefits:
+
+- Keeps the 9B busy on prose only; Utility jobs never queue behind a Tier 1.
+- Cuts cloud spend significantly — Utility runs local-first by default.
+- Unblocks several downstream doc entries (3.3 judge, 6.2 inner-monologue,
+  10 extraction, 07 rumour mutation) that all want a cheap per-turn pass.
+
+Foundational work — ship before anything that adds a second LLM call on the
+Tier 1 path.
+
+### 9. Long-context world-state packing
+
+Some providers now ship 200K–1M context (Claude 3.7, Gemini 2.5, Llama 4
+Scout local). For the cloud Tier 1 lane (ADR-013), build an optional
+`build_longcontext_prompt` that packs a substantial slice of village state:
+
+- Full NPC roster with current mood / state.
+- Recent Tier 2 event feed for the quarter.
+- All directly referenced location descriptions.
+- The player's last N turns unabridged.
+
+Coherence climbs (NPCs stop forgetting yesterday) and prompt-builder code
+simplifies because we stop hand-curating context. Anthropic prompt caching
+(already present in our client) makes the cost of a stable long prefix
+near-free on subsequent turns.
+
+Best paired with doc 01 semantic memory and doc 10 knowledge graph: use
+retrieval to *prioritise* what goes in the long context, not to *replace*
+it.
+
 ## Minimal first cut
 
 1. Audit `parish-npc::prompt_*` builders: move all static blocks to the top,

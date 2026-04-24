@@ -51,6 +51,30 @@ Apply as a LoRA on top of the base Tier 1 model. Ship per-player or
 per-cohort. Gated behind `--enable-feedback-learning` (opt-in, privacy
 disclosure).
 
+### 3a. Distillation from cloud into local via emoji-sentiment filter
+
+`crates/parish-npc/src/reactions.rs` already logs player emoji reactions
+per turn. That log is a free preference signal:
+
+1. **Harvest:** for every Tier 1 turn routed to cloud (Claude Opus /
+   Sonnet), persist `(system prompt, context, response, emoji reactions,
+   follow-up length)` to `training/traces/`.
+2. **Filter:** keep turns whose reactions skew positive
+   (emoji sentiment score > τ) *and* whose follow-up engagement is
+   non-trivial. Discard turns with negative or no reaction.
+3. **Fine-tune:** LoRA adapter over a local base (Qwen 2.5 7B, Mistral
+   Nemo, Gemma 2 9B) on the filtered set. Merge or hot-swap at inference.
+4. **Evaluate:** judge harness (doc 09) gates promotion — the local model
+   must match or beat cloud on the golden corpus before it routes.
+
+End state: Tier 1 runs local-first for the common case at near-cloud
+quality, cloud is reserved for genuinely hard turns or players who opt in.
+Shares tooling with `docs/design/gemma4-rundale-training-plan.md`.
+
+Effort: ~3 engineer-weeks + GPU time. Only worth starting after doc 02
+grammar and doc 04 tool-call schemas have stabilised — otherwise the
+distilled model learns an unstable output contract.
+
 ### 4. Self-play rollouts for evaluation
 
 Use two instances of the Tier 1 model playing player/NPC roles against each
