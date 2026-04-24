@@ -2220,7 +2220,8 @@ pub(crate) mod tests {
         let state = test_app_state();
 
         let (start_loc, start_time) = {
-            let world = state.world.lock().await;
+            let mut world = state.world.lock().await;
+            world.clock.pause();
             (world.player_location, world.clock.now())
         };
 

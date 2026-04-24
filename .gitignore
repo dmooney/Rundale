@@ -12,3 +12,10 @@ logs/
 apps/ui/dist/
 claude/*
 .worktrees
+
+# act (local GitHub Actions runner) — secrets file and artifact outputs.
+# Artifact output lives at /tmp/act-artifacts (set in .actrc) — outside
+# the repo, but guard against stray relative-path writes just in case.
+# See .secrets.example and docs/agent/act-local.md.
+.secrets
+act-artifacts/

@@ -10,5 +10,6 @@ Quick reference for AI agents (Claude Code, Codex, etc.) and human contributors 
 | Tokio / SQLite / Ollama gotchas | [gotchas.md](gotchas.md) |
 | Git workflow & engineering standards | [git-workflow.md](git-workflow.md) |
 | Claude Code skills (`/check`, `/prove`, ...) | [skills.md](skills.md) |
+| Running CI locally with `act` | [act-local.md](act-local.md) |
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.
