@@ -232,6 +232,116 @@ impl SessionRegistry {
         self.sessions
             .retain(|_, entry| entry.last_active.load(Ordering::Relaxed) >= cutoff);
     }
+
+    /// Purges sessions abandoned for longer than `max_age` from disk
+    /// (sessions.db row + saves/<session_id>/ directory).
+    ///
+    /// Distinct from [`cleanup_stale`]: that one only clears the
+    /// in-memory map. Disk state is what needs removing here (#482) —
+    /// otherwise long-running deployments accumulate dead sessions
+    /// forever. `max_age` is expected to be much longer than the
+    /// in-memory TTL (e.g. 30 days vs 2 hours) so users can still
+    /// restore a session from the cookie on their next visit for
+    /// reasonable idle windows.
+    ///
+    /// Returns the number of sessions purged, so the caller can log
+    /// the scope of the sweep.
+    pub fn purge_expired_disk_sessions(&self, saves_root: &Path, max_age: Duration) -> usize {
+        let cutoff_secs = Self::now_unix().saturating_sub(max_age.as_secs());
+        let cutoff = match chrono::DateTime::<chrono::Utc>::from_timestamp(cutoff_secs as i64, 0) {
+            Some(dt) => dt.to_rfc3339(),
+            None => {
+                tracing::warn!(
+                    cutoff_secs = cutoff_secs,
+                    "purge_expired_disk_sessions: cutoff timestamp out of range, skipping sweep"
+                );
+                return 0;
+            }
+        };
+
+        // Find expired session ids + drop their sessions.db rows in a
+        // single transaction so the filesystem cleanup below can't get
+        // out of sync with the DB if the process dies mid-sweep.
+        let expired_ids: Vec<String> = {
+            let db = match self.db.lock() {
+                Ok(g) => g,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let mut collected = Vec::new();
+            let select_result = (|| -> rusqlite::Result<()> {
+                let mut stmt = db.prepare("SELECT id FROM sessions WHERE last_active < ?1")?;
+                let mut rows = stmt.query([&cutoff])?;
+                while let Some(row) = rows.next()? {
+                    collected.push(row.get::<_, String>(0)?);
+                }
+                Ok(())
+            })();
+            if let Err(e) = select_result {
+                tracing::warn!(error = %e, "purge_expired_disk_sessions: DB read failed");
+                return 0;
+            }
+            // Drop rows for the ids we collected. Run as a single
+            // transaction so a process crash doesn't leave the DB
+            // partially pruned relative to the filesystem.
+            if !collected.is_empty() {
+                let tx_result = (|| -> rusqlite::Result<()> {
+                    let placeholders = vec!["?"; collected.len()].join(",");
+                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
+                    let params: Vec<&dyn rusqlite::ToSql> = collected
+                        .iter()
+                        .map(|s| s as &dyn rusqlite::ToSql)
+                        .collect();
+                    db.execute(&sql, params.as_slice())?;
+                    // Also drop oauth links for those sessions — otherwise
+                    // the next login for the same provider_user_id would
+                    // resurrect a dead session_id. (#482 sibling concern.)
+                    let oauth_sql =
+                        format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
+                    db.execute(&oauth_sql, params.as_slice())?;
+                    Ok(())
+                })();
+                if let Err(e) = tx_result {
+                    tracing::warn!(error = %e, "purge_expired_disk_sessions: DB delete failed");
+                    return 0;
+                }
+            }
+            collected
+        };
+
+        if expired_ids.is_empty() {
+            return 0;
+        }
+
+        // Best-effort filesystem cleanup. A failure here is logged but
+        // doesn't undo the DB delete — a residual saves/<id>/ directory
+        // with no DB row is harmless (eventually reaped by OS-level
+        // cleanup or a later sweep once we have directory-age scanning).
+        for id in &expired_ids {
+            let session_dir = saves_root.join(id);
+            if !session_dir.exists() {
+                continue;
+            }
+            match std::fs::remove_dir_all(&session_dir) {
+                Ok(()) => {
+                    tracing::info!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        "purge_expired_disk_sessions: removed saves directory"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        error = %e,
+                        "purge_expired_disk_sessions: failed to remove saves directory"
+                    );
+                }
+            }
+        }
+
+        expired_ids.len()
+    }
 }
 
 // ── Public session resolution ─────────────────────────────────────────────────
@@ -930,5 +1040,89 @@ mod tests {
         let new_cursor = propagate_gossip_budgeted(&groups, 1_000_000, 2, |_| calls += 1);
         assert_eq!(calls, 2);
         assert_eq!(new_cursor, 2);
+    }
+
+    // ── #482 disk-session purge ─────────────────────────────────────────────
+
+    /// Overwrites sessions.id's last_active to a fixed ISO timestamp so
+    /// tests can pin "how idle" a row is without sleeping through the
+    /// real retention window.
+    fn backdate_session(reg: &SessionRegistry, session_id: &str, last_active_iso: &str) {
+        let db = reg.db.lock().unwrap();
+        db.execute(
+            "UPDATE sessions SET last_active = ?1 WHERE id = ?2",
+            rusqlite::params![last_active_iso, session_id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn purge_expired_removes_old_row_and_save_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("expired");
+        // Fresh row + fake saves/<id>/ directory.
+        let save_dir = tmp.path().join("expired");
+        std::fs::create_dir_all(&save_dir).unwrap();
+        std::fs::write(save_dir.join("parish_001.db"), b"fake").unwrap();
+        // Backdate to 90 days ago so any reasonable retention sweep
+        // picks it up.
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "expired", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!reg.exists_in_db("expired"));
+        assert!(
+            !save_dir.exists(),
+            "saves directory must be deleted after purge"
+        );
+    }
+
+    #[test]
+    fn purge_expired_preserves_recent_sessions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("recent");
+        let save_dir = tmp.path().join("recent");
+        std::fs::create_dir_all(&save_dir).unwrap();
+
+        // last_active set to `now` by persist_new — well inside the
+        // 30-day retention window.
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 0);
+        assert!(reg.exists_in_db("recent"));
+        assert!(save_dir.exists());
+    }
+
+    #[test]
+    fn purge_expired_drops_linked_oauth_rows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("expired_linked");
+        reg.link_oauth("google", "sub_legacy", "expired_linked", "Old User");
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "expired_linked", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        // The OAuth link is gone too — otherwise a fresh login for
+        // `sub_legacy` would resurrect a dead session_id with no DB row.
+        assert_eq!(reg.find_by_oauth("google", "sub_legacy"), None);
+    }
+
+    #[test]
+    fn purge_expired_handles_missing_save_dir_gracefully() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("ghost");
+        // No saves/<id>/ directory was ever created. Purge must still
+        // delete the DB row and return 1 — filesystem absence is fine.
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "ghost", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!reg.exists_in_db("ghost"));
     }
 }
