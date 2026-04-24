@@ -151,26 +151,63 @@ pub async fn editor_get_snapshot(
 }
 
 /// `GET /api/editor-validate`
+///
+/// Validation iterates every NPC and location and is CPU-bound (up to 2000
+/// NPCs × 5000 locations per #376 caps). The snapshot is cloned out of the
+/// editor-sessions lock and validated on a blocking thread so the lock does
+/// not serialise concurrent editor requests behind this computation (#500).
+/// The freshly validated snapshot is written back only when the session
+/// version is unchanged — otherwise a concurrent update already bumped the
+/// version and the stale clone would clobber it. This is a read-only
+/// operation from the client's perspective so there is no 409 path; the
+/// update handlers keep their Tauri-parity in-place mutation semantics.
 pub async fn editor_validate(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
     let email = require_email(auth)?;
-    let mut sessions = state.editor_sessions.lock().await;
-    let session = sessions.get_mut(&email).ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            "no mod is open in the editor".to_string(),
-        )
-    })?;
-    let snap = session.snapshot.as_mut().ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            "no mod is open in the editor".to_string(),
-        )
-    })?;
-    parish_core::editor::validate::validate_snapshot(snap);
-    Ok(Json(snap.validation.clone()))
+
+    let (mut snapshot, captured_version) = {
+        let sessions = state.editor_sessions.lock().await;
+        let session = sessions.get(&email).ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        let snap = session.snapshot.clone().ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                "no mod is open in the editor".to_string(),
+            )
+        })?;
+        (snap, session.version)
+    };
+
+    let snapshot = tokio::task::spawn_blocking(move || {
+        parish_core::editor::validate::validate_snapshot(&mut snapshot);
+        snapshot
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let report = snapshot.validation.clone();
+
+    // Only write the validated snapshot back if no concurrent update bumped
+    // the version while we were validating — otherwise we'd clobber newer
+    // data with a stale clone. The caller still receives the report we
+    // computed; they can re-validate if they want it applied to the current
+    // session state.
+    {
+        let mut sessions = state.editor_sessions.lock().await;
+        if let Some(session) = sessions.get_mut(&email)
+            && session.version == captured_version
+        {
+            session.snapshot = Some(snapshot);
+        }
+    }
+
+    Ok(Json(report))
 }
 
 /// `POST /api/editor-update-npcs` with JSON body `{ "npcs": ... }`
@@ -956,5 +993,167 @@ mod tests {
         assert!(result.is_ok(), "alice should have a session");
         let Json(snap) = result.unwrap();
         assert_eq!(snap.manifest.id, "alice_mod");
+    }
+
+    /// Builds a minimal valid snapshot suitable for seeding an editor session
+    /// in the concurrency tests below. The single location at id 1 is the
+    /// home for any NPCs added in the tests.
+    fn seed_snapshot() -> EditorModSnapshot {
+        let loc: parish_core::world::graph::LocationData =
+            serde_json::from_value(serde_json::json!({
+                "id": 1,
+                "name": "Home",
+                "description_template": "A small cottage.",
+                "indoor": true,
+                "public": true,
+                "connections": []
+            }))
+            .expect("seed location must deserialize");
+        EditorModSnapshot {
+            mod_path: PathBuf::from("/tmp/test_mod"),
+            manifest: parish_core::editor::types::EditorManifest {
+                id: "test_mod".to_string(),
+                name: "Test Mod".to_string(),
+                title: None,
+                version: "0.1.0".to_string(),
+                description: String::new(),
+                start_date: String::new(),
+                start_location: 1,
+                period_year: 1820,
+            },
+            npcs: parish_core::npc::NpcFile { npcs: vec![] },
+            locations: vec![loc],
+            festivals: vec![],
+            encounters: parish_core::game_mod::EncounterTable {
+                by_time: Default::default(),
+            },
+            anachronisms: parish_core::game_mod::AnachronismData {
+                context_alert_prefix: String::new(),
+                context_alert_suffix: String::new(),
+                terms: vec![],
+            },
+            validation: ValidationReport::default(),
+        }
+    }
+
+    /// Seeds a session for the given email and returns the version it was
+    /// created with so callers can assert version bumps.
+    async fn seed_session(state: &Arc<AppState>, email: &str) -> u64 {
+        let mut sessions = state.editor_sessions.lock().await;
+        let session = sessions
+            .entry(email.to_string())
+            .or_insert_with(EditorSession::default);
+        session.snapshot = Some(seed_snapshot());
+        session.version
+    }
+
+    #[tokio::test]
+    async fn editor_validate_returns_report_without_bumping_version() {
+        let state = crate::routes::tests::test_app_state();
+        let email = "valid@example.com";
+        let start_version = seed_session(&state, email).await;
+
+        let result = editor_validate(Extension(Arc::clone(&state)), make_auth(email)).await;
+        assert!(
+            result.is_ok(),
+            "validate should succeed for a seeded session"
+        );
+        let Json(report) = result.unwrap();
+        let total_issues = report.errors.len() + report.warnings.len();
+
+        // editor_validate is read-only from the caller's perspective: it must
+        // not bump the session version (concurrent reads still see the same
+        // snapshot generation).
+        let sessions = state.editor_sessions.lock().await;
+        let session = sessions.get(email).expect("session missing");
+        assert_eq!(session.version, start_version);
+        // The validated snapshot should have been written back with the same
+        // report the caller received.
+        let snap = session.snapshot.as_ref().expect("snapshot missing");
+        assert_eq!(
+            snap.validation.errors.len() + snap.validation.warnings.len(),
+            total_issues,
+            "validated snapshot should reflect the returned report"
+        );
+    }
+
+    #[tokio::test]
+    async fn editor_validate_no_session_returns_400() {
+        let state = crate::routes::tests::test_app_state();
+        let result = editor_validate(Extension(state), make_auth("nobody@example.com")).await;
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn editor_update_npcs_applies_update_and_bumps_version() {
+        let state = crate::routes::tests::test_app_state();
+        let email = "update@example.com";
+        let start_version = seed_session(&state, email).await;
+
+        let body = EditorUpdateNpcsBody {
+            npcs: serde_json::json!({
+                "npcs": [{
+                    "id": 42,
+                    "name": "Padraig",
+                    "age": 30,
+                    "occupation": "Farmer",
+                    "personality": "stoic",
+                    "home": 1,
+                    "workplace": null,
+                    "mood": "neutral",
+                    "relationships": [],
+                    "schedule": []
+                }]
+            }),
+        };
+        let result =
+            editor_update_npcs(Extension(Arc::clone(&state)), make_auth(email), Json(body)).await;
+        assert!(result.is_ok(), "update should succeed: {:?}", result.err());
+
+        let sessions = state.editor_sessions.lock().await;
+        let session = sessions.get(email).expect("session missing");
+        assert_eq!(session.version, start_version.wrapping_add(1));
+        let snap = session.snapshot.as_ref().expect("snapshot missing");
+        assert_eq!(snap.npcs.npcs.len(), 1);
+        assert_eq!(snap.npcs.npcs[0].name, "Padraig");
+    }
+
+    #[tokio::test]
+    async fn editor_update_locations_applies_update_and_bumps_version() {
+        let state = crate::routes::tests::test_app_state();
+        let email = "locs@example.com";
+        let start_version = seed_session(&state, email).await;
+
+        let body = EditorUpdateLocationsBody {
+            locations: serde_json::json!([
+                {
+                    "id": 1,
+                    "name": "Home",
+                    "description_template": "A small cottage.",
+                    "indoor": true,
+                    "public": true,
+                    "connections": []
+                },
+                {
+                    "id": 2,
+                    "name": "Market",
+                    "description_template": "Wares on trestles.",
+                    "indoor": false,
+                    "public": true,
+                    "connections": []
+                }
+            ]),
+        };
+        let result =
+            editor_update_locations(Extension(Arc::clone(&state)), make_auth(email), Json(body))
+                .await;
+        assert!(result.is_ok(), "update should succeed: {:?}", result.err());
+
+        let sessions = state.editor_sessions.lock().await;
+        let session = sessions.get(email).expect("session missing");
+        assert_eq!(session.version, start_version.wrapping_add(1));
+        let snap = session.snapshot.as_ref().expect("snapshot missing");
+        assert_eq!(snap.locations.len(), 2);
     }
 }
