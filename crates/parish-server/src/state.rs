@@ -103,6 +103,55 @@ impl ConversationRuntimeState {
 ///
 /// Mirrors the Tauri `AppState` but uses an [`EventBus`] for push events
 /// instead of a Tauri `AppHandle`.
+///
+/// # Lock ordering invariant (#483)
+///
+/// `AppState` holds many independent `Mutex` fields. Any path that acquires
+/// more than one at a time **must** follow the canonical order below. A
+/// future refactor that holds, say, `config` while acquiring `world` would
+/// deadlock with any existing path that holds `world` while acquiring
+/// `config`. The ordering is derived from the paths observed in the
+/// codebase today (`handle_system_command`, `rebuild_inference`,
+/// `get_debug_snapshot`, background ticks).
+///
+/// ```text
+/// world
+///   → npc_manager
+///     → config
+///       → client
+///         → cloud_client
+///           → inference_queue
+///             → conversation
+///               → debug_events
+///                 → game_events
+///                   → editor_sessions
+///                     → active_ws
+///                       → save_path
+///                         → current_branch_id
+///                           → current_branch_name
+///                             → worker_handle
+///                               → save_lock
+/// ```
+///
+/// `inference_log` is a lock-free ring buffer and safe to access at any
+/// level of the stack; the other non-Mutex fields (`event_bus`,
+/// `transport`, `ui_config`, `theme_palette`, `saves_dir`, `data_dir`,
+/// `game_mod`, `pronunciations`, `flags_path`) are set once at startup
+/// and are not coordination points.
+///
+/// **Release locks promptly.** The preferred idiom is to scope each guard
+/// to the smallest possible block and drop it before acquiring the next,
+/// both to minimise lock-held time and to make deadlocks (if any) easier
+/// to spot in a diff. When a nested acquire is truly required — for
+/// example copying an NPC summary into a world-side buffer — acquire the
+/// locks in the order above and drop them in reverse.
+///
+/// **Don't hold these locks across `.await` on network I/O.** See #464
+/// and editor_save for the pattern: clone what you need out of the lock,
+/// release, do the blocking/async work, then re-acquire briefly to
+/// install the result. Holding `config` or `client` across an HTTP
+/// refresh, or `world` across a save-to-disk, will serialise every
+/// concurrent session behind that one path.
 pub struct AppState {
     /// The game world (clock, player position, graph, weather).
     pub world: Mutex<WorldState>,
