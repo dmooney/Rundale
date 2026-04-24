@@ -404,6 +404,7 @@ mod tests {
         // Regression: #344 — a corrupted journal row with a negative
         // `minutes` must not move the clock backward.
         let mut world = parish_world::WorldState::new();
+        world.clock.pause();
         let mut npcs = parish_npc::manager::NpcManager::new();
         let time_before = world.clock.now();
         let events = vec![WorldEvent::ClockAdvanced { minutes: -60 }];
@@ -416,6 +417,7 @@ mod tests {
         // Regression: #344 — a value beyond the one-week sanity bound is
         // treated as corrupted and skipped, leaving the clock alone.
         let mut world = parish_world::WorldState::new();
+        world.clock.pause();
         let mut npcs = parish_npc::manager::NpcManager::new();
         let time_before = world.clock.now();
         let events = vec![WorldEvent::ClockAdvanced {
@@ -429,6 +431,7 @@ mod tests {
     fn test_replay_rejects_zero_clock_advance() {
         // Zero is treated the same as negative — not a valid mutation.
         let mut world = parish_world::WorldState::new();
+        world.clock.pause();
         let mut npcs = parish_npc::manager::NpcManager::new();
         let time_before = world.clock.now();
         let events = vec![WorldEvent::ClockAdvanced { minutes: 0 }];
@@ -479,6 +482,7 @@ mod tests {
         // Legacy rows (minutes = None) behave as before — no clock change
         // from PlayerMoved alone.
         let mut world = parish_world::WorldState::new();
+        world.clock.pause();
         let mut npcs = parish_npc::manager::NpcManager::new();
         let time_before = world.clock.now();
         let events = vec![WorldEvent::PlayerMoved {
@@ -509,6 +513,7 @@ mod tests {
     fn test_replay_player_moved_rejects_out_of_range_minutes() {
         // Guard #344's bounds when minutes arrive via PlayerMoved too.
         let mut world = parish_world::WorldState::new();
+        world.clock.pause();
         let mut npcs = parish_npc::manager::NpcManager::new();
         let time_before = world.clock.now();
         let events = vec![
