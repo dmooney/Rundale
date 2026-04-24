@@ -26,16 +26,19 @@ permissions:
 jobs:
   watchdog:
     name: Check Railway deployment status
-    runs-on: ubuntu-latest
+    # Runs on the self-hosted [macOS, ARM64] runner `parish-mac-arm64`,
+    # matching ci.yml and audit.yml. GitHub-hosted runners are disabled
+    # on this account; see #554.
+    runs-on: [self-hosted, macOS, ARM64]
     timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Railway CLI
+      - name: Install Railway CLI and jq
         run: |
-          curl -fsSL https://railway.com/install.sh | sh
-          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+          command -v railway >/dev/null || brew install railwayapp/railway/railway
+          command -v jq >/dev/null      || brew install jq
 
       - name: Run watchdog
         env:
