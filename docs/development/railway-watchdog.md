@@ -46,13 +46,13 @@ export GH_TOKEN=$(gh auth token)
 
 Override the service or project by setting `RAILWAY_SERVICE`, `RAILWAY_ENVIRONMENT`, or `RAILWAY_PROJECT`.
 
-## Roadmap — toward v2 (Claude-driven auto-fix)
+## Roadmap — toward v2 (agent-driven auto-fix)
 
 The watchdog is step one of [#562](https://github.com/dmooney/Parish/issues/562). Once notification is reliable, the intended next moves:
 
-- **Diagnose:** extend the script to attach a short Claude-authored summary of the log excerpt (not a fix — just a diagnosis).
-- **Fix draft:** on well-understood failure patterns (workspace-manifest errors, missing files referenced by `COPY`, lockfile/toolchain mismatches), spawn a Claude agent to open a fix PR against `main`.
-- **Gate:** never auto-merge without the existing codex `+1` gate the team already uses for `codex-automation` PRs.
+- **Diagnose:** extend the script to attach a short agent-authored summary of the log excerpt (not a fix — just a diagnosis).
+- **Fix draft:** on well-understood failure patterns (workspace-manifest errors, missing files referenced by `COPY`, lockfile/toolchain mismatches), spawn an agent to open a fix PR against `main`.
+- **Gate:** never auto-merge without the existing automation approval gate the team already uses for agent-authored PRs.
 - **Loop-breaker:** cap auto-retries per 24h; escalate with `requires-human` once the cap is hit.
 
 Each increment is independently useful — ship them one at a time rather than as a big-bang rewrite.

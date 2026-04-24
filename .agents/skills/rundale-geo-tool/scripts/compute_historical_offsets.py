@@ -9,15 +9,15 @@ directory.
 
 Example (the Crossroads cluster from commit e1f3aa0):
 
-    python3 .skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
+    python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
         --anchor-id 1 --cluster 2,3,4,6,9,13 --baseline-commit 91c996c
 
 Output is valid JSON on stdout plus a human-readable summary on stderr, so
 you can pipe it into `add_relative_to.py`:
 
-    python3 .skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
+    python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
         --anchor-id 1 --cluster 2,3,4,6,9,13 --baseline-commit 91c996c \\
-        | python3 .skills/rundale-geo-tool/scripts/add_relative_to.py \\
+        | python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \\
             --anchor-id 1
 
 Assumes cwd is the repo root and the baseline commit is reachable from HEAD.

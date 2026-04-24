@@ -12,16 +12,16 @@ byte-identical-friendly with the editor's deterministic writer.
 
 Example:
 
-    python3 .skills/rundale-geo-tool/scripts/add_relative_to.py \\
+    python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \\
         --anchor-id 1 \\
         --offsets '{"2": {"dnorth_m": 445, "deast_m": 462}, \\
                     "3": {"dnorth_m": 389, "deast_m": -264}}'
 
 Or pipe from compute_historical_offsets.py:
 
-    python3 .skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
+    python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \\
         --anchor-id 1 --cluster 2,3 --baseline-commit 91c996c \\
-        | python3 .skills/rundale-geo-tool/scripts/add_relative_to.py \\
+        | python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \\
             --anchor-id 1
 
 After running, execute `just realign-coords` so the resolver materialises

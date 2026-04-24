@@ -1,6 +1,6 @@
 ---
 name: chrome-test
-description: Run a live Chrome browser testing session against the Rundale web server using Claude-in-Chrome MCP tools. Builds frontend, starts server, navigates Chrome, and runs through the test plan.
+description: Run a live browser testing session against the Rundale web server using browser MCP tools. Builds frontend, starts server, navigates the browser, and runs through the test plan.
 ---
 
 Run an interactive Chrome browser test session for Rundale. Follow the test plan
@@ -11,7 +11,7 @@ in `docs/plans/chrome-test-plan.md`.
 1. **Build frontend**: `cd apps/ui && npm run build`
 2. **Check if server is running**: `curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/`
 3. **Start server if needed**: `cargo run -- --web 3001` (run in background, wait for 200 on health check)
-4. **Connect Chrome**: Call `mcp__claude-in-chrome__tabs_context_mcp` with `createIfEmpty: true`. If "No Chrome extension connected" error, tell the user to enable the extension and retry.
+4. **Connect browser tooling**: Use the available browser MCP tools to create or inspect a tab. If no browser extension is connected, tell the user to enable the extension and retry.
 5. **Create/navigate tab**: Create a new tab or use an existing one. Navigate to `http://127.0.0.1:3001`.
 
 ## Test Execution

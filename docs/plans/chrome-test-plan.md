@@ -1,6 +1,6 @@
 # Automated Chrome Test Plan
 
-> Uses Claude-in-Chrome MCP tools for browser automation testing.
+> Uses browser MCP tools for browser automation testing.
 > Complement to the existing Playwright E2E tests (headless, mocked IPC).
 > These tests run against a **live axum server** with real game state.
 
@@ -8,7 +8,7 @@
 
 - Axum web server running: `cargo run -- --web 3001`
 - `.env` configured with a valid LLM provider (or Ollama running locally)
-- Chrome open with Claude-in-Chrome extension connected
+- Chrome open with a browser automation extension connected
 
 ## Test Suites
 
@@ -92,9 +92,9 @@
 
 ## Automation Notes
 
-When automating with Claude-in-Chrome MCP tools:
+When automating with browser MCP tools:
 
-- Use `tabs_context_mcp` at session start to get tab IDs
+- Inspect or create a tab at session start to get tab IDs
 - Use `navigate` to load the page
 - Use `read_page` with `filter: "interactive"` to find input/button refs
 - Use `form_input` to set text in the input field
