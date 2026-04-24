@@ -205,12 +205,35 @@ fn escape_overpass(s: &str) -> String {
     out
 }
 
+/// Escapes regex metacharacters so the string matches literally.
+fn escape_regex(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 2);
+    for ch in s.chars() {
+        if matches!(
+            ch,
+            '.' | '*' | '+' | '?' | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '^' | '$' | '\\'
+        ) {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Escapes a string for use inside an Overpass QL regex-match (`~`) operator.
+///
+/// First escapes regex metacharacters for literal matching, then escapes
+/// QL string delimiters so the value cannot break out of the surrounding string.
+fn escape_overpass_regex(s: &str) -> String {
+    escape_overpass(&escape_regex(s))
+}
+
 /// Builds an Overpass QL query for POIs within a named administrative area.
 ///
 /// Searches for features relevant to an 1820s Irish setting: churches, pubs,
 /// farms, historic sites, natural features, etc.
 fn build_poi_query_by_area(area_name: &str, level: AdminLevel) -> String {
-    let area_name = escape_overpass(area_name);
+    let area_name = escape_overpass_regex(area_name);
     let admin_level = level.osm_admin_level();
     format!(
         r#"[out:json][timeout:120];
@@ -272,7 +295,7 @@ out center;"#
 
 /// Builds an Overpass QL query for the road network within a named area.
 fn build_road_query_by_area(area_name: &str, level: AdminLevel) -> String {
-    let area_name = escape_overpass(area_name);
+    let area_name = escape_overpass_regex(area_name);
     let admin_level = level.osm_admin_level();
     format!(
         r#"[out:json][timeout:120];
@@ -453,7 +476,75 @@ mod tests {
         let query = build_poi_query_by_area(malicious, AdminLevel::Parish);
         // The raw injection string must not appear verbatim in the query.
         assert!(!query.contains(r#"Killeen"; out body;"#));
-        // But the escaped form should be present.
-        assert!(query.contains(r#"Killeen\"; out body;"#));
+    }
+
+    // ── escape_regex tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn escape_regex_plain_text_unchanged() {
+        assert_eq!(escape_regex("Kiltoom"), "Kiltoom");
+    }
+
+    #[test]
+    fn escape_regex_dot_escaped() {
+        assert_eq!(escape_regex("St. Brigid"), r"St\. Brigid");
+    }
+
+    #[test]
+    fn escape_regex_parentheses_escaped() {
+        assert_eq!(escape_regex("Killeen (East)"), r"Killeen \(East\)");
+    }
+
+    #[test]
+    fn escape_regex_all_metacharacters() {
+        assert_eq!(
+            escape_regex(".*+?()[]{}|^$\\"),
+            r"\.\*\+\?\(\)\[\]\{\}\|\^\$\\"
+        );
+    }
+
+    // ── escape_overpass_regex tests ──────────────────────────────────────────
+
+    #[test]
+    fn escape_overpass_regex_plain_text_unchanged() {
+        assert_eq!(escape_overpass_regex("Kiltoom"), "Kiltoom");
+    }
+
+    #[test]
+    fn escape_overpass_regex_irish_placename_with_parens() {
+        let escaped = escape_overpass_regex("Ballymore (Westmeath)");
+        // Regex parens are escaped, and the backslashes are QL-doubled.
+        assert!(escaped.contains(r"\\("));
+        assert!(escaped.contains(r"\\)"));
+        assert!(!escaped.contains("(Westmeath)"));
+    }
+
+    #[test]
+    fn escape_overpass_regex_dot_star_does_not_match_everything() {
+        let escaped = escape_overpass_regex(".*");
+        // `.*` must not appear literally — both chars are escaped.
+        assert!(!escaped.contains(".*"));
+        assert_eq!(escaped, r"\\.\\*");
+    }
+
+    #[test]
+    fn escape_overpass_regex_quote_still_escaped() {
+        let escaped = escape_overpass_regex(r#"Foo"bar"#);
+        assert!(escaped.contains(r#"\""#));
+    }
+
+    #[test]
+    fn escape_overpass_regex_backslash_quadruple_escaped() {
+        // Input `\` → regex `\\` → QL `\\\\`
+        assert_eq!(escape_overpass_regex(r"\"), r"\\\\");
+    }
+
+    #[test]
+    fn query_with_parens_in_area_name_escapes_regex() {
+        let query = build_poi_query_by_area("Killeen (East)", AdminLevel::Parish);
+        // Raw parentheses must not appear unescaped in the regex context.
+        assert!(!query.contains(r#""Killeen (East)""#));
+        // The escaped form should contain QL-doubled backslash-paren.
+        assert!(query.contains(r"\\("));
     }
 }
