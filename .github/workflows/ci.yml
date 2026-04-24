@@ -6,6 +6,11 @@ name: Parish CI
 # `-P self-hosted=…` in .actrc) reproduces the workflow faithfully.
 # Real Linux-regression coverage is a known gap; see docs/agent/act-local.md
 # if we ever register a Linux self-hosted runner to close it.
+#
+# Every job also gates on `github.event_name != 'pull_request' ||
+# <same-repo head>` as defense in depth: the repo is private (no public
+# forks), but a compromised collaborator's fork-PR would otherwise run
+# on the long-lived self-hosted runner per GitHub's hardening guidance.
 
 on:
   pull_request:
@@ -30,6 +35,7 @@ jobs:
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
     runs-on: [self-hosted, macOS, ARM64]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,6 +74,7 @@ jobs:
   rust-multi-channel:
     name: Rust channel matrix
     runs-on: [self-hosted, macOS, ARM64]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +108,7 @@ jobs:
   game-harness:
     name: Full game harness fixture sweep
     runs-on: [self-hosted, macOS, ARM64]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -135,6 +143,7 @@ jobs:
   ui-quality:
     name: UI quality (build, check, unit)
     runs-on: [self-hosted, macOS, ARM64]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     defaults:
       run:
         working-directory: apps/ui
@@ -164,6 +173,7 @@ jobs:
   ui-e2e:
     name: UI Playwright e2e
     runs-on: [self-hosted, macOS, ARM64]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     defaults:
       run:
         working-directory: apps/ui
