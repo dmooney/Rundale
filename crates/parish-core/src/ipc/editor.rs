@@ -36,6 +36,17 @@ pub struct EditorSession {
     /// the stale cloned copy is not written back and silently clobber newer
     /// edits — see codex P2 review on #439.
     pub version: u64,
+    /// Monotonic counter bumped only on **snapshot-replacement** events
+    /// (`editor_open_mod`, `editor_reload`, `editor_save`, `editor_close`)
+    /// — i.e. whenever the lineage of `snapshot` changes. Peer-update
+    /// paths (`editor_update_npcs`, `editor_update_locations`) leave
+    /// this alone. The server-side `editor_routes` update handlers
+    /// capture this under a brief lock before spawning the CPU-bound
+    /// validate, then reject the write-back with 409 Conflict if it
+    /// changed — so an in-flight update can't overwrite a snapshot
+    /// that was replaced from disk during its spawn_blocking window
+    /// (codex P1 on #574).
+    pub generation: u64,
 }
 
 // ── IPC request/response types ──────────────────────────────────────────────
