@@ -1,6 +1,6 @@
 # Agent Skills
 
-Custom slash commands defined in `.agents/skills/` (with compatibility symlinks from `.claude/skills/` and `.skills/`):
+Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink:
 
 | Skill | Description |
 |---|---|
