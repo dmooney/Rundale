@@ -10,6 +10,7 @@ use axum::http::header::{
 };
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::routing::get;
+use parish_server::CSP_POLICY;
 use tower::ServiceExt;
 use tower_http::set_header::SetResponseHeaderLayer;
 
@@ -19,17 +20,7 @@ fn security_header_router() -> Router {
         .route("/ping", get(|| async { StatusCode::OK }))
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self'; \
-                 style-src 'self' 'unsafe-inline'; \
-                 img-src 'self' data: blob: https:; \
-                 connect-src 'self' ws: wss: https:; \
-                 font-src 'self'; \
-                 frame-ancestors 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'",
-            ),
+            HeaderValue::from_static(CSP_POLICY),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
@@ -70,6 +61,13 @@ async fn response_has_content_security_policy_header() {
     assert!(
         csp_str.contains("frame-ancestors 'none'"),
         "CSP must include frame-ancestors 'none'; got: {csp_str}"
+    );
+    assert!(
+        !csp_str.contains("'unsafe-inline'")
+            || !csp_str
+                .split(';')
+                .any(|d| d.trim().starts_with("script-src") && d.contains("'unsafe-inline'")),
+        "CSP script-src must NOT include 'unsafe-inline'; got: {csp_str}"
     );
 }
 

@@ -42,6 +42,18 @@ use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
+/// Content-Security-Policy value shared between production and tests.
+pub const CSP_POLICY: &str = "default-src 'self'; \
+                              script-src 'self'; \
+                              worker-src 'self' blob:; \
+                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                              img-src 'self' data: blob: https:; \
+                              connect-src 'self' ws: wss: https:; \
+                              font-src 'self' https://fonts.gstatic.com; \
+                              frame-ancestors 'none'; \
+                              base-uri 'self'; \
+                              form-action 'self'";
+
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 
@@ -390,18 +402,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         // ── Security hardening headers (outermost layer — covers all routes) ──
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline'; \
-                 worker-src 'self' blob:; \
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                 img-src 'self' data: blob: https:; \
-                 connect-src 'self' ws: wss: https:; \
-                 font-src 'self' https://fonts.gstatic.com; \
-                 frame-ancestors 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'",
-            ),
+            HeaderValue::from_static(CSP_POLICY),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
