@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, messageHints, worldState, nameHints } from '../stores/game';
+	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
 	import { REACTION_PALETTE } from '$lib/reactions';
 	import { reactToMessage } from '$lib/ipc';
@@ -138,9 +138,18 @@
 		if (!entry.id) return;
 		// Optimistic UI update
 		addReaction(entry.id, emoji, 'player');
-		// Send to backend
+		// Send to backend; roll back the optimistic reaction on failure
+		// (#353) so the UI never shows a "saved" state that the server
+		// never received. Swallowing the error caused persistent data
+		// loss on reload/branch-switch because the reaction never
+		// reached a snapshot.
+		const messageId = entry.id;
 		const snippet = entry.content.slice(0, 80);
-		reactToMessage(entry.source, snippet, emoji).catch(() => {});
+		reactToMessage(entry.source, snippet, emoji).catch((err) => {
+			console.warn('reactToMessage failed:', err);
+			removeReaction(messageId, emoji, 'player');
+			pushErrorLog(`Could not record reaction ${emoji}: ${formatIpcError(err)}`);
+		});
 		// Close picker
 		hoveredMessageId = null;
 	}
