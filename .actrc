@@ -9,15 +9,16 @@
 #
 # Why these defaults:
 #
-# -P ubuntu-latest=... catthehacker:full — our CI installs apt packages,
-#   Node 22, Rust toolchains, and Playwright browser deps. The default
-#   medium image is missing half of that; the "full" image (~60GB) is the
-#   only one that actually mirrors GitHub's ubuntu-latest runner.
+# -P self-hosted=... catthehacker:full — workflows run on a self-hosted
+#   runner (runs-on: self-hosted) with `container: catthehacker/ubuntu:
+#   full-latest`. The real runner reads `container:` directly; act reads
+#   the `-P` mapping. Point both at the same image so they match.
+#   `ubuntu-latest` is kept as a fallback for any legacy workflow that
+#   still references it.
 #
-# --container-architecture linux/amd64 — force amd64 emulation on Apple
-#   Silicon. The catthehacker images ship amd64 only, and several actions
-#   (dtolnay/rust-toolchain, actions/setup-node) refuse to run under arm64
-#   emulation without this flag set explicitly.
+# --container-architecture linux/arm64 — run the catthehacker image as
+#   arm64, matching the self-hosted runner's native arch. Keeps act a
+#   faithful reproduction of real CI on Apple Silicon (no Rosetta tax).
 #
 # --artifact-server-path — actions/upload-artifact@v4 requires a real
 #   artifact endpoint (unlike v3, it won't no-op under act). Point it at
@@ -38,8 +39,9 @@
 #   causes tests that assume unset vars (e.g. PARISH_PROVIDER) to fail under
 #   act while passing on real CI. Workflow `env:` blocks are still honored.
 
+-P self-hosted=catthehacker/ubuntu:full-latest
 -P ubuntu-latest=catthehacker/ubuntu:full-latest
---container-architecture linux/amd64
+--container-architecture linux/arm64
 --artifact-server-path /tmp/act-artifacts
 --reuse
 --action-offline-mode

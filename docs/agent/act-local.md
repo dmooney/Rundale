@@ -66,9 +66,9 @@ All of these are defined in `justfile`:
 - **`-P ubuntu-latest=catthehacker/ubuntu:full-latest`** — full image
   (~60GB). Needed because our workflows `apt-get install` Tauri/WebKit
   dev headers, and the medium image doesn't ship apt.
-- **`--container-architecture linux/amd64`** — forces amd64 emulation on
-  Apple Silicon. Some actions (notably `dtolnay/rust-toolchain` and
-  `actions/setup-node`) won't run under Rosetta without it set explicitly.
+- **`--container-architecture linux/arm64`** — runs the catthehacker
+  image as arm64, matching the self-hosted runner's native arch. No
+  Rosetta tax; act is a faithful reproduction of real CI on this host.
 - **`--artifact-server-path /tmp/act-artifacts`** — `upload-artifact@v4`
   requires a real endpoint (unlike v3, it won't no-op). The ui-e2e job
   uploads its `playwright-report/` here after runs.
@@ -88,9 +88,9 @@ to `~/.cache` inside the container, and `--reuse` keeps that around,
 but the very first `cargo build` in the `ui-e2e` job will take several
 minutes. Budget 30–60 minutes for the first full `just act-ci`.
 
-**Apple Silicon emulation tax.** amd64 under Rosetta runs roughly 2–3×
-slower than the same job on GitHub's x86 runners. Expect `just act-ci`
-to take meaningfully longer end-to-end than a pushed PR.
+**Runs at native arm64 speed.** With CI moved to a self-hosted arm64
+runner, act pulls the arm64 catthehacker variant and runs without
+emulation. Performance should track what real CI sees on this host.
 
 **Disk usage grows.** Every `--reuse` container keeps its own `target/`
 and `node_modules/`. After a couple weeks of daily use you may see
