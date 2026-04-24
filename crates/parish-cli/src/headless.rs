@@ -828,8 +828,14 @@ async fn handle_headless_load(app: &mut App, name: &str) {
                     app.npc_manager = mgr;
                 }
             }
-            // Release old lock and acquire lock on the new save file.
-            app.save_lock = crate::persistence::SaveFileLock::try_acquire(&new_path);
+            // Keep existing lock if already protecting this path; otherwise acquire new.
+            let already_locked = app
+                .save_lock
+                .as_ref()
+                .is_some_and(|l| l.covers_path(&new_path));
+            if !already_locked {
+                app.save_lock = crate::persistence::SaveFileLock::try_acquire(&new_path);
+            }
 
             match crate::persistence::Database::open(&new_path) {
                 Ok(new_db) => {

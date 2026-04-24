@@ -23,6 +23,12 @@ impl SaveFileLock {
     /// Returns `Some(lock)` on success, or `None` if the file is already
     /// locked by another live process. Stale locks (dead PID) are cleaned
     /// up and re-acquired automatically.
+    ///
+    /// If the current process already holds the lock (same PID), returns
+    /// `Some` to allow callers to replace the old guard without losing
+    /// protection. Prefer [`covers_path`](Self::covers_path) to avoid
+    /// the brief window where the old guard's `Drop` removes the file
+    /// before the new guard takes effect.
     pub fn try_acquire(save_path: &Path) -> Option<Self> {
         let lock_path = Self::lock_path_for(save_path);
         let my_pid = std::process::id();
@@ -32,8 +38,7 @@ impl SaveFileLock {
                 Ok(contents) => {
                     if let Ok(pid) = contents.trim().parse::<u32>() {
                         if pid == my_pid {
-                            // We already hold this lock (re-entrant from same process).
-                            return None;
+                            return Some(Self { lock_path });
                         }
                         if is_process_alive(pid) {
                             return None;
@@ -74,6 +79,11 @@ impl SaveFileLock {
         }
 
         Some(Self { lock_path })
+    }
+
+    /// Returns `true` if this lock protects the given save file path.
+    pub fn covers_path(&self, save_path: &Path) -> bool {
+        self.lock_path == Self::lock_path_for(save_path)
     }
 
     /// Returns the lock file path for a given save file path.
@@ -130,10 +140,36 @@ fn is_process_alive(pid: u32) -> bool {
     std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use std::ffi::c_void;
+
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+        fn GetExitCodeProcess(handle: *mut c_void, code: *mut u32) -> i32;
+    }
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut exit_code: u32 = 0;
+        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        ok != 0 && exit_code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn is_process_alive(_pid: u32) -> bool {
-    // Conservative fallback for non-Unix: assume process is alive.
-    // This prevents accidental lock theft on unsupported platforms.
+    // Conservative fallback for unknown platforms: assume process is alive.
+    // This prevents accidental lock theft but means stale locks require
+    // manual removal on unsupported platforms.
     true
 }
 
@@ -173,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn test_double_acquire_same_process() {
+    fn test_reentrant_acquire_same_process_succeeds() {
         let dir = tempfile::tempdir().unwrap();
         let save = dir.path().join("test.db");
         fs::write(&save, b"").unwrap();
@@ -181,9 +217,28 @@ mod tests {
         let lock1 = SaveFileLock::try_acquire(&save);
         assert!(lock1.is_some());
 
-        // Second acquire from same process should fail (re-entrant guard).
+        // Re-entrant acquire from same process now succeeds so callers
+        // can swap the guard without losing lock protection.
         let lock2 = SaveFileLock::try_acquire(&save);
-        assert!(lock2.is_none(), "same process should not double-acquire");
+        assert!(lock2.is_some(), "same process re-acquire should succeed");
+
+        // Drop lock1, keep lock2 — simulates the caller replacement pattern.
+        drop(lock1);
+        // lock2 still holds the logical lock.
+        assert!(lock2.is_some());
+    }
+
+    #[test]
+    fn test_covers_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let save_a = dir.path().join("a.db");
+        let save_b = dir.path().join("b.db");
+        fs::write(&save_a, b"").unwrap();
+        fs::write(&save_b, b"").unwrap();
+
+        let lock = SaveFileLock::try_acquire(&save_a).unwrap();
+        assert!(lock.covers_path(&save_a));
+        assert!(!lock.covers_path(&save_b));
     }
 
     #[test]
