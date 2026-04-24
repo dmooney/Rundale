@@ -155,9 +155,23 @@
 
 	let mountCleanup: (() => void) | null = null;
 	let mobileMediaCleanup: (() => void) | null = null;
+	// Disposed-before-mount-resolves flag for #348. setupMount is async
+	// and onMount kicks it off in a detached IIFE, so a fast unmount
+	// (HMR, navigate-away during initial fetch) can fire onDestroy
+	// before mountCleanup is even assigned. Without this flag the
+	// cleanup is silently dropped and every listener / timer
+	// setupMount registers leaks indefinitely. We flip cancelled in
+	// onDestroy and run cleanup() at the moment setupMount resolves
+	// if the flag is set.
+	let cancelled = false;
 	onMount(() => {
 		(async () => {
-			mountCleanup = await setupMount();
+			const cleanup = await setupMount();
+			if (cancelled) {
+				cleanup();
+			} else {
+				mountCleanup = cleanup;
+			}
 		})();
 		// Track the narrow-viewport media query live so a user who
 		// resizes from mobile to desktop while focailOpen is true
@@ -174,6 +188,7 @@
 		}
 	});
 	onDestroy(() => {
+		cancelled = true;
 		mountCleanup?.();
 		mobileMediaCleanup?.();
 		// In browser mode, also tear down the shared WebSocket and any
