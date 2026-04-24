@@ -417,8 +417,22 @@ impl LongTermMemory {
             return String::new();
         }
 
-        let lines: Vec<String> = recalled.iter().map(|entry| entry.content.clone()).collect();
-        format!("You recall: {}", lines.join(". "))
+        // Single allocation, zero clones: borrow content strings directly instead of
+        // cloning into a Vec<String> + join + format.
+        let prefix = "You recall: ";
+        let sep = ". ";
+        let cap = prefix.len()
+            + recalled.iter().map(|e| e.content.len()).sum::<usize>()
+            + recalled.len().saturating_sub(1) * sep.len();
+        let mut result = String::with_capacity(cap);
+        result.push_str(prefix);
+        for (i, entry) in recalled.iter().enumerate() {
+            if i > 0 {
+                result.push_str(sep);
+            }
+            result.push_str(&entry.content);
+        }
+        result
     }
 }
 
