@@ -2922,6 +2922,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-npc-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rand 0.8.5",
+ "rusqlite",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "parish-persistence"
 version = "0.1.0"
 dependencies = [
@@ -2946,6 +2958,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dashmap 6.1.0",
  "dotenvy",

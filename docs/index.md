@@ -1,6 +1,6 @@
 # Rundale Documentation — Parish Engine
 
-> Back to [README](../README.md) | [CLAUDE.md](../CLAUDE.md) (agent quick reference)
+> Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) (agent quick reference)
 
 This is the documentation hub for **Rundale**, an Irish Living World Text Adventure set in 1820, built on the **Parish** engine. Start here to find any document.
 
@@ -175,9 +175,9 @@ Background research on 1820s Ireland informing world-building, NPC design, and g
 | [Recent History (Pre-1820)](research/recent-history-pre1820.md) | 1798 Rebellion, Act of Union, Napoleonic Wars, population explosion |
 | [Forthcoming Decades](research/forthcoming-decades.md) | Catholic Emancipation, Great Famine, mass emigration — for foreshadowing |
 
-## Claude Code Skills
+## Agent Skills
 
-Custom slash commands for common development workflows. Run these from any Claude Code session.
+Custom slash commands for common development workflows. Run these from any supported agent session.
 
 | Skill | Description |
 |-------|-------------|
@@ -187,12 +187,12 @@ Custom slash commands for common development workflows. Run these from any Claud
 | `/screenshot` | Regenerate GUI screenshots after UI changes |
 | `/fix-issue <number>` | Work through a GitHub issue end-to-end |
 
-Skill definitions live in `.skills/` (with compatibility symlinks from `.claude/skills/` and `.codex/skills/`).
+Skill definitions live in `.agents/skills/`, with `.claude/skills/` as a compatibility symlink.
 
 ## Reference
 
 | Document | Description |
 |----------|-------------|
-| [CLAUDE.md](../CLAUDE.md) | Build commands, code style, gotchas, dependencies |
+| [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) | Build commands, code style, gotchas, dependencies |
 | [DESIGN.md](archive/DESIGN.md) | Original monolithic design document (archival — superseded by `docs/design/`) |
 | [README.md](../README.md) | Project overview, quick start |

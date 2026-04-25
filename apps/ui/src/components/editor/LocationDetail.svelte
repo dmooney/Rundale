@@ -145,6 +145,18 @@
 		}
 	}
 
+	// Track the last selection + coords we animated to, so updates that
+	// don't actually move the camera skip the easeTo animation (#410).
+	// Without this, every keystroke in a text field would dispatch a full
+	// camera pan — persistLocations swaps a new `locations` array into
+	// the store, re-firing the reactive statement below even when the map
+	// center hasn't moved. We key on (selectedId, lat, lon) tuple so that
+	// coordinate-changing actions (drag release, nudge, lat/lon field
+	// edits) *do* recenter — per codex P1 on #559.
+	let lastAnimatedSelectedId: number | null = null;
+	let lastAnimatedLat: number | null = null;
+	let lastAnimatedLon: number | null = null;
+
 	function setMapData(nextLocations: LocationData[], nextSelectedId: number | null, preview?: { id: number; lat: number; lon: number }) {
 		if (!map || !mapLoaded) return;
 		const { features, edgeFeatures } = buildEditorMapData(nextLocations, nextSelectedId, preview);
@@ -159,13 +171,35 @@
 		const center = getEditorMapCenter(features, nextSelectedId, preview);
 		if (!center) return;
 		const [lon, lat] = center;
+		// Animate only when something that affects the camera position
+		// actually changes: the selection, or the selected marker's
+		// coordinates. Unrelated field edits that bumped the locations
+		// array must not cause camera jitter. Preview frames (drag in
+		// progress) always animate so the camera tracks the cursor.
+		const selectionChanged = nextSelectedId !== lastAnimatedSelectedId;
+		const coordsChanged = lat !== lastAnimatedLat || lon !== lastAnimatedLon;
+		if (!preview && !selectionChanged && !coordsChanged) return;
 		map.easeTo({ center: [lon, lat], duration: 250 });
+		if (!preview) {
+			// Preview frames stream continuously during a drag; don't mark
+			// the selection as "animated" from them or we'd suppress the
+			// final settle-on-release animation.
+			lastAnimatedSelectedId = nextSelectedId;
+			lastAnimatedLat = lat;
+			lastAnimatedLon = lon;
+		}
 	}
 
 	function destroyMap() {
 		mapLoaded = false;
 		map?.remove();
 		map = null;
+		// Reset animation memo so a later remount (deselect → reselect
+		// the same item, or component re-mount) still animates the first
+		// setMapData call — codex P2 on #559.
+		lastAnimatedSelectedId = null;
+		lastAnimatedLat = null;
+		lastAnimatedLon = null;
 	}
 
 	function readLocationId(event: { features?: Array<{ properties?: { id?: number | string } }> }): number | null {
@@ -295,9 +329,22 @@
 		};
 	});
 
-	$: if (mapContainer && !map) {
+	// Tear the MapLibre instance down the moment the selected location
+	// clears (#409). The `{#if loc}` wrapper below unmounts the map-frame
+	// div, but Svelte's `bind:this` does not always reset `mapContainer`
+	// to `undefined` in time for the mapContainer-based watch below to
+	// fire — so we couple the cleanup to `loc` directly. Without this,
+	// each deselect leaks a WebGL context (MapLibre allocates one per
+	// Map instance) and after a few navigations the browser aborts
+	// further WebGL contexts.
+	$: if (!loc && map) {
+		destroyMap();
+	}
+	$: if (loc && mapContainer && !map) {
 		void ensureMap();
 	}
+	// Defensive secondary cleanup for any case where the div is
+	// unmounted without `loc` flipping (e.g. future refactors).
 	$: if (!mapContainer && map) {
 		destroyMap();
 	}
@@ -470,6 +517,33 @@
 					<p class="empty-note">None</p>
 				{/if}
 			</section>
+
+			<section class="section">
+				<h4 class="section-label">Mythological Significance</h4>
+				<textarea
+					class="field-textarea"
+					value={loc.mythological_significance ?? ''}
+					placeholder="Fairy fort, holy well, cursed ground…"
+					on:change={(e) =>
+						handleFieldChange(
+							'mythological_significance',
+							e.currentTarget.value.trim() === '' ? null : e.currentTarget.value
+						)}
+				></textarea>
+			</section>
+
+			<section class="section">
+				<h4 class="section-label">Aliases</h4>
+				{#if loc.aliases && loc.aliases.length > 0}
+					<div class="alias-list">
+						{#each loc.aliases as alias}
+							<span class="alias-tag">{alias}</span>
+						{/each}
+					</div>
+				{:else}
+					<p class="empty-note">None</p>
+				{/if}
+			</section>
 		</div>
 	{:else}
 		<div class="empty-state">
@@ -636,6 +710,22 @@
 		border-radius: 3px;
 		background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 		color: var(--color-accent);
+	}
+
+	.alias-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem;
+	}
+
+	.alias-tag {
+		display: inline-block;
+		font-size: 0.7rem;
+		padding: 0.1rem 0.35rem;
+		border-radius: 3px;
+		background: color-mix(in srgb, var(--color-muted) 18%, transparent);
+		color: var(--color-muted);
+		font-style: italic;
 	}
 
 	.empty-state {
