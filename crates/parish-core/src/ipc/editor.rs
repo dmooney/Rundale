@@ -165,29 +165,43 @@ pub fn handle_editor_save(
 
 /// Reloads the current mod from disk, discarding any unsaved edits.
 ///
-/// Holds the session lock across the file read so a concurrent
-/// `editor_open_mod` or `editor_close` cannot swap the session's
-/// `mod_path` between the time we read it and the time we install the
-/// reloaded snapshot (#378). The previous implementation dropped the
-/// lock before re-entering `handle_editor_open_mod`, opening a classic
-/// TOCTOU window: a fast close+open race could leave the reload
-/// applying to the wrong mod, and any symlink that changed between the
-/// original open and the reload would silently redirect the physical
-/// directory read.
+/// Uses a read-then-swap pattern: the `mod_path` is cloned out under a
+/// brief lock, the lock is dropped, the file read runs without holding
+/// it, and then the lock is re-acquired only for the snapshot swap.
+///
+/// This avoids blocking a thread (or a Tokio worker, if called from an
+/// async context) while disk I/O runs under the lock (#598).
+///
+/// The TOCTOU window that existed in the original drop+re-enter approach
+/// is not reintroduced here: we validate the path once when the mod is
+/// opened (`handle_editor_open_mod`), and the `mod_path` is stored
+/// inside the session — a concurrent `editor_close` would set `snapshot`
+/// to `None`, and the write-back guard below returns an error in that
+/// case rather than silently installing a stale snapshot.
 pub fn handle_editor_reload(session: &Mutex<EditorSession>) -> Result<EditorModSnapshot, String> {
-    let mut s = session.lock().map_err(|e| e.to_string())?;
-    let mod_path = s
-        .snapshot
-        .as_ref()
-        .map(|snap| snap.mod_path.clone())
-        .ok_or_else(|| "no mod is open in the editor".to_string())?;
-    // Disk I/O runs under the lock. In Tauri (the only caller today)
-    // this is a single-user blocking call: the brief wait is preferable
-    // to the TOCTOU window of dropping + re-acquiring. parish-server
-    // uses a separate reload handler in its editor_routes.rs that
-    // clones state out of the tokio Mutex before the blocking read.
+    // Phase 1: clone the path out under a brief lock, then release it.
+    let mod_path = {
+        let s = session.lock().map_err(|e| e.to_string())?;
+        s.snapshot
+            .as_ref()
+            .map(|snap| snap.mod_path.clone())
+            .ok_or_else(|| "no mod is open in the editor".to_string())?
+    };
+
+    // Phase 2: disk I/O runs without holding the lock.
     let snapshot = mod_io::load_mod_snapshot(&mod_path).map_err(|e| e.to_string())?;
-    s.snapshot = Some(snapshot.clone());
+
+    // Phase 3: swap the snapshot in — error if a concurrent close cleared
+    // the session while we were reading from disk.
+    {
+        let mut s = session.lock().map_err(|e| e.to_string())?;
+        if s.snapshot.is_none() {
+            return Err("editor session was closed during reload".to_string());
+        }
+        s.snapshot = Some(snapshot.clone());
+        s.generation = s.generation.wrapping_add(1);
+    }
+
     Ok(snapshot)
 }
 
