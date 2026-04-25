@@ -1,6 +1,6 @@
 # Agent Docs
 
-Quick reference for AI agents (Claude Code, Codex, etc.) and human contributors working in this repo.
+Quick reference for AI coding agents and human contributors working in this repo.
 
 | Topic | File |
 |---|---|
@@ -9,6 +9,7 @@ Quick reference for AI agents (Claude Code, Codex, etc.) and human contributors 
 | Code style & dependencies | [code-style.md](code-style.md) |
 | Tokio / SQLite / Ollama gotchas | [gotchas.md](gotchas.md) |
 | Git workflow & engineering standards | [git-workflow.md](git-workflow.md) |
-| Claude Code skills (`/check`, `/prove`, ...) | [skills.md](skills.md) |
+| Agent skills (`/check`, `/prove`, ...) | [skills.md](skills.md) |
+| Running CI locally with `act` | [act-local.md](act-local.md) |
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.

@@ -7,7 +7,7 @@ API for driving the game without a TUI or LLM. It enables:
 
 - **Automated regression testing** via `cargo test`
 - **Script-mode execution** via `cargo run -- --script <file>`
-- **Claude Code interaction** — the AI coding assistant can run commands and
+- **Agent interaction** — an AI coding assistant can run commands and
   verify game behavior through structured JSON output
 
 ## Architecture
@@ -121,9 +121,9 @@ Tick,          // /tick
 
 `/where` is parsed as `Command::Status` (no new variant).
 
-## Claude Code Play-Testing Skill
+## Agent Play-Testing Skill
 
-The `/play` skill (`.skills/play/SKILL.md`) enables Claude Code to
+The `/play` skill (`.agents/skills/play/SKILL.md`) enables an AI coding assistant to
 autonomously play-test the game via `--script` mode:
 
 1. Build the project with `cargo build`
