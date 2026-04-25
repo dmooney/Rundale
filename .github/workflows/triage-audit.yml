@@ -1,0 +1,129 @@
+name: 'Triage audit'
+
+on:
+  schedule:
+    - cron: '0 9 * * MON'
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/triage-audit.yml'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: github.event_name != 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/triage-labels.json
+          sparse-checkout-cone-mode: false
+      - name: 'Find untriaged open issues'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const vocab = JSON.parse(fs.readFileSync('.github/triage-labels.json', 'utf8'));
+            const PRIORITY = vocab.priorities;
+            const THEMES = vocab.themes;
+
+            const allIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const issues = allIssues.filter(i => !i.pull_request);
+
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const prRefs = new Set();
+            for (const pr of prs) {
+              const text = `${pr.title}\n${pr.body || ''}`;
+              for (const m of text.matchAll(/#(\d+)/g)) prRefs.add(parseInt(m[1], 10));
+            }
+
+            const lackingPr = issues.filter(i => !prRefs.has(i.number));
+
+            const lackingPriority = [];
+            const lackingTheme = [];
+            for (const i of lackingPr) {
+              const names = i.labels.map(l => typeof l === 'string' ? l : l.name);
+              if (!names.some(n => PRIORITY.includes(n))) lackingPriority.push(i);
+              if (!names.some(n => THEMES.includes(n))) lackingTheme.push(i);
+            }
+
+            const fmt = (list) => list
+              .sort((a, b) => a.number - b.number)
+              .map(i => `- #${i.number} — ${i.title}`)
+              .join('\n') || '_none_';
+
+            const repo = `${context.repo.owner}/${context.repo.repo}`;
+            const filter = (q) => `https://github.com/${repo}/issues?q=${encodeURIComponent(q)}`;
+
+            const summary = core.summary
+              .addHeading('Triage audit', 2)
+              .addRaw(`**${issues.length}** open issues, **${lackingPr.length}** with no open PR.\n\n`)
+              .addHeading(`${lackingPriority.length} lack a P0/P1/P2/P3 label`, 3)
+              .addRaw(`[Filter](${filter(`is:open is:issue -label:P0 -label:P1 -label:P2 -label:P3`)})\n\n`)
+              .addRaw(fmt(lackingPriority))
+              .addHeading(`${lackingTheme.length} lack any theme label`, 3)
+              .addRaw(fmt(lackingTheme))
+              .addRaw('\n\nRun `/triage-backlog` in Claude Code to label them. Vocabulary: `docs/agent/triage-vocabulary.md`.\n');
+
+            await summary.write();
+
+            if (lackingPriority.length > 0 || lackingTheme.length > 0) {
+              core.warning(`${lackingPriority.length} open issues lack a priority, ${lackingTheme.length} lack a theme — run /triage-backlog`);
+            }
+
+  check-new-issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/triage-labels.json
+          sparse-checkout-cone-mode: false
+      - name: 'Check labels on triggering issue'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const vocab = JSON.parse(fs.readFileSync('.github/triage-labels.json', 'utf8'));
+            const PRIORITY = vocab.priorities;
+            const THEMES = vocab.themes;
+
+            const issue = context.payload.issue;
+            const names = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+            const priority = names.find(n => PRIORITY.includes(n));
+            const themes = names.filter(n => THEMES.includes(n));
+
+            await core.summary
+              .addHeading(`Issue #${issue.number} triage check`, 2)
+              .addRaw(`**${issue.title}**\n\n`)
+              .addRaw(`- Priority: ${priority || '**MISSING**'}\n`)
+              .addRaw(`- Theme: ${themes.length ? themes.join(', ') : '**MISSING**'}\n`)
+              .addRaw(`\nIf either is missing, run \`/triage-backlog\` in Claude Code. Vocabulary: \`docs/agent/triage-vocabulary.md\`.\n`)
+              .write();
+
+            if (!priority || themes.length === 0) {
+              core.warning(`Issue #${issue.number} needs triage`);
+            }
