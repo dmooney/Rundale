@@ -1116,21 +1116,24 @@ mod tests {
 
     #[test]
     fn purge_expired_removes_old_row_and_save_dir() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_id = "e1111111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired");
+        reg.persist_new(expired_id);
         // Fresh row + fake saves/<id>/ directory.
-        let save_dir = tmp.path().join("expired");
+        let save_dir = tmp.path().join(expired_id);
         std::fs::create_dir_all(&save_dir).unwrap();
         std::fs::write(save_dir.join("parish_001.db"), b"fake").unwrap();
         // Backdate to 90 days ago so any reasonable retention sweep
         // picks it up.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired", &old);
+        backdate_session(&reg, expired_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("expired"));
+        assert!(!reg.exists_in_db(expired_id));
         assert!(
             !save_dir.exists(),
             "saves directory must be deleted after purge"
@@ -1139,28 +1142,34 @@ mod tests {
 
     #[test]
     fn purge_expired_preserves_recent_sessions() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let recent_id = "ece11111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("recent");
-        let save_dir = tmp.path().join("recent");
+        reg.persist_new(recent_id);
+        let save_dir = tmp.path().join(recent_id);
         std::fs::create_dir_all(&save_dir).unwrap();
 
         // last_active set to `now` by persist_new — well inside the
         // 30-day retention window.
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 0);
-        assert!(reg.exists_in_db("recent"));
+        assert!(reg.exists_in_db(recent_id));
         assert!(save_dir.exists());
     }
 
     #[test]
     fn purge_expired_drops_linked_oauth_rows() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_linked_id = "e1111111-1111-4111-a111-111111111112";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired_linked");
-        reg.link_oauth("google", "sub_legacy", "expired_linked", "Old User");
+        reg.persist_new(expired_linked_id);
+        reg.link_oauth("google", "sub_legacy", expired_linked_id, "Old User");
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired_linked", &old);
+        backdate_session(&reg, expired_linked_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
@@ -1171,17 +1180,20 @@ mod tests {
 
     #[test]
     fn purge_expired_handles_missing_save_dir_gracefully() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let ghost_id = "abb51111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("ghost");
+        reg.persist_new(ghost_id);
         // No saves/<id>/ directory was ever created. Purge must still
         // delete the DB row and return 1 — filesystem absence is fine.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "ghost", &old);
+        backdate_session(&reg, ghost_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("ghost"));
+        assert!(!reg.exists_in_db(ghost_id));
     }
 
     // ── #595 path traversal guard ────────────────────────────────────────────
