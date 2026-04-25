@@ -98,6 +98,23 @@ describe("segmentText", () => {
     ]);
   });
 
+  it("higher-priority match wins even when a lower-priority match starts earlier", () => {
+    // "An Cailín" is registered as a name (lower priority) starting at col 4;
+    // "Cailín" is registered as an irish word (higher priority) starting at col 7.
+    // Both matches overlap.  Per the docstring, priority resolves overlaps:
+    // the irish "Cailín" should win even though the name "An Cailín" starts first.
+    const result = segmentText(
+      "Say An Cailín please",
+      ["Cailín"],
+      ["An Cailín"],
+      "",
+    );
+    expect(result.some((s) => s.kind === "irish" && s.text === "Cailín")).toBe(
+      true,
+    );
+    expect(result.every((s) => s.kind !== "name")).toBe(true);
+  });
+
   it("longest match wins when words overlap", () => {
     const result = segmentText(
       "The An Cailín spoke",

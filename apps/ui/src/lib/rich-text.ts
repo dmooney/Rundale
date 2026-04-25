@@ -65,26 +65,41 @@ export function segmentText(
 
   if (ranges.length === 0) return [{ text: content, kind: "plain" }];
 
-  // Sort by start position; for ties prefer higher-priority kind.
+  // Priority table: higher number = higher priority.
   const kindPriority: Record<SegmentKind, number> = {
     irish: 3,
     location: 2,
     name: 1,
     plain: 0,
   };
+
+  // Resolve overlaps by priority first (highest wins), then by start position
+  // for equal-priority matches (earlier wins).  This matches the docstring
+  // contract: "Overlapping matches are resolved by priority; for equal-priority
+  // matches the earlier one wins."
+  //
+  // Algorithm:
+  //   1. Sort by priority descending, then by start position ascending.
+  //   2. Greedily accept ranges that don't overlap any already-accepted range.
+  //      Because we visit highest-priority ranges first, a high-priority range
+  //      that starts later will be accepted before a lower-priority range that
+  //      started earlier — exactly the behaviour the docstring promises.
+  //   3. Re-sort accepted ranges by start position for segment construction.
   ranges.sort(
-    (a, b) => a.start - b.start || kindPriority[b.kind] - kindPriority[a.kind],
+    (a, b) =>
+      kindPriority[b.kind] - kindPriority[a.kind] || a.start - b.start,
   );
 
-  // Resolve overlaps: keep only non-overlapping ranges (greedy left-to-right,
-  // with priority breaking ties already sorted above).
   const resolved: MatchRange[] = [];
-  let cursor = 0;
   for (const r of ranges) {
-    if (r.start < cursor) continue; // overlaps previous — skip
+    // Reject if this range overlaps any already-accepted range.
+    const overlaps = resolved.some((a) => r.start < a.end && r.end > a.start);
+    if (overlaps) continue;
     resolved.push(r);
-    cursor = r.end;
   }
+
+  // Re-sort by start position for left-to-right segment construction.
+  resolved.sort((a, b) => a.start - b.start);
 
   // Build segment array
   const segments: RichSegment[] = [];
