@@ -346,7 +346,8 @@
 		border-radius: 3px;
 	}
 
-	.expand-btn:hover {
+	.expand-btn:hover,
+	.expand-btn:focus-visible {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 		background: var(--color-input-bg);

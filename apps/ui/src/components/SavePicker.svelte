@@ -624,7 +624,8 @@
 	.footer-spacer {
 		flex: 1;
 	}
-	.footer-btn:hover {
+	.footer-btn:hover,
+	.footer-btn:focus-visible {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
@@ -819,7 +820,8 @@
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 	}
-	.phantom-btn:hover:not(:disabled) {
+	.phantom-btn:hover:not(:disabled),
+	.phantom-btn:focus-visible:not(:disabled) {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
@@ -906,7 +908,8 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
-	.action-btn:hover:not(:disabled) {
+	.action-btn:hover:not(:disabled),
+	.action-btn:focus-visible:not(:disabled) {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}

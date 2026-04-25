@@ -186,7 +186,8 @@
 		transition: color 0.2s, border-color 0.2s;
 	}
 
-	.save-toggle:hover {
+	.save-toggle:hover,
+	.save-toggle:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
@@ -213,7 +214,9 @@
 	}
 
 	.debug-toggle:hover,
-	.designer-link:hover {
+	.debug-toggle:focus-visible,
+	.designer-link:hover,
+	.designer-link:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}

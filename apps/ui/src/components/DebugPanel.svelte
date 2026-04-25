@@ -593,7 +593,9 @@
 	}
 
 	.debug-dock-toggle:hover,
-	.debug-close:hover {
+	.debug-dock-toggle:focus-visible,
+	.debug-close:hover,
+	.debug-close:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
@@ -638,7 +640,8 @@
 		letter-spacing: 0.05em;
 	}
 
-	.tab-btn:hover {
+	.tab-btn:hover,
+	.tab-btn:focus-visible {
 		color: var(--color-fg);
 	}
 
@@ -760,7 +763,8 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.back-btn:hover {
+	.back-btn:hover,
+	.back-btn:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
