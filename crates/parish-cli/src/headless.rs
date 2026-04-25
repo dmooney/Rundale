@@ -166,7 +166,23 @@ pub async fn run_headless(
     app.save_file_path = Some(db_path.clone());
 
     // Acquire advisory lock so other instances know this save is in use.
+    // If try_acquire returns None the file is already locked by another
+    // instance; make that visible instead of silently continuing to write
+    // into the same database (#426). The server and Tauri backends fail
+    // closed on the same condition; the CLI is interactive so we warn
+    // and proceed, giving the user a chance to cancel with ^C.
     app.save_lock = crate::persistence::SaveFileLock::try_acquire(&db_path);
+    if app.save_lock.is_none() {
+        eprintln!(
+            "Warning: save file {} is locked by another Parish instance; \
+             opening anyway — concurrent writes may corrupt it.",
+            db_path.display()
+        );
+        tracing::warn!(
+            path = %db_path.display(),
+            "SaveFileLock::try_acquire returned None on startup — save file in use by another instance",
+        );
+    }
 
     match crate::persistence::Database::open(&db_path) {
         Ok(db) => {
@@ -322,7 +338,8 @@ pub async fn run_headless(
                     let mut rng = rand::thread_rng();
                     crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
                 };
-                let game_events = app.npc_manager.apply_tier4_events(&events, now);
+                let banshee_on = !app.flags.is_disabled("banshee");
+                let game_events = app.npc_manager.apply_tier4_events(&events, now, banshee_on);
                 for evt in game_events {
                     app.world.event_bus.publish(evt);
                 }
@@ -829,6 +846,17 @@ async fn handle_headless_load(app: &mut App, name: &str) {
             }
             // Release old lock and acquire lock on the new save file.
             app.save_lock = crate::persistence::SaveFileLock::try_acquire(&new_path);
+            if app.save_lock.is_none() {
+                eprintln!(
+                    "Warning: save file {} is locked by another Parish instance; \
+                     opening anyway — concurrent writes may corrupt it.",
+                    new_path.display()
+                );
+                tracing::warn!(
+                    path = %new_path.display(),
+                    "SaveFileLock::try_acquire returned None during save-switch — save file in use by another instance",
+                );
+            }
 
             match crate::persistence::Database::open(&new_path) {
                 Ok(new_db) => {

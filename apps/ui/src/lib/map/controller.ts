@@ -328,6 +328,24 @@ export class MapController {
 		return { width: canvas.clientWidth, height: canvas.clientHeight };
 	}
 
+	/** Subscribes `fn` to MapLibre `move` and `resize` events.
+	 *
+	 * Returns an unsubscribe function. Used by MapPanel to recompute
+	 * off-screen edge stubs only when the camera actually moves,
+	 * instead of polling on a `requestAnimationFrame` loop at ~60fps
+	 * for the entire mount lifetime (#350). The previous polling
+	 * approach burned CPU/GPU continuously and triggered downstream
+	 * Svelte reactivity churn even when the user wasn't interacting.
+	 */
+	addMoveListener(fn: () => void): () => void {
+		this.map.on('move', fn);
+		this.map.on('resize', fn);
+		return () => {
+			this.map.off('move', fn);
+			this.map.off('resize', fn);
+		};
+	}
+
 	/** Registers a handler called when a location is clicked. */
 	onLocationClick(handler: (info: LocationClickInfo) => void): void {
 		this.clickHandler = handler;
@@ -502,7 +520,7 @@ function registerLocationIcons(map: MapLibreMap): void {
 // Real browsers always provide one; MapLibre then falls back to a square
 // placeholder for `icon-image: icon-…` which keeps the rest of the style
 // valid rather than hard-failing the test render.
-function drawIconImage(pathData: string): ImageData | null {
+export function drawIconImage(pathData: string): ImageData | null {
 	const size = 64;
 	const canvas = document.createElement('canvas');
 	canvas.width = size;

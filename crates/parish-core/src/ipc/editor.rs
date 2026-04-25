@@ -36,6 +36,17 @@ pub struct EditorSession {
     /// the stale cloned copy is not written back and silently clobber newer
     /// edits — see codex P2 review on #439.
     pub version: u64,
+    /// Monotonic counter bumped only on **snapshot-replacement** events
+    /// (`editor_open_mod`, `editor_reload`, `editor_save`, `editor_close`)
+    /// — i.e. whenever the lineage of `snapshot` changes. Peer-update
+    /// paths (`editor_update_npcs`, `editor_update_locations`) leave
+    /// this alone. The server-side `editor_routes` update handlers
+    /// capture this under a brief lock before spawning the CPU-bound
+    /// validate, then reject the write-back with 409 Conflict if it
+    /// changed — so an in-flight update can't overwrite a snapshot
+    /// that was replaced from disk during its spawn_blocking window
+    /// (codex P1 on #574).
+    pub generation: u64,
 }
 
 // ── IPC request/response types ──────────────────────────────────────────────
@@ -153,15 +164,31 @@ pub fn handle_editor_save(
 }
 
 /// Reloads the current mod from disk, discarding any unsaved edits.
+///
+/// Holds the session lock across the file read so a concurrent
+/// `editor_open_mod` or `editor_close` cannot swap the session's
+/// `mod_path` between the time we read it and the time we install the
+/// reloaded snapshot (#378). The previous implementation dropped the
+/// lock before re-entering `handle_editor_open_mod`, opening a classic
+/// TOCTOU window: a fast close+open race could leave the reload
+/// applying to the wrong mod, and any symlink that changed between the
+/// original open and the reload would silently redirect the physical
+/// directory read.
 pub fn handle_editor_reload(session: &Mutex<EditorSession>) -> Result<EditorModSnapshot, String> {
-    let s = session.lock().map_err(|e| e.to_string())?;
+    let mut s = session.lock().map_err(|e| e.to_string())?;
     let mod_path = s
         .snapshot
         .as_ref()
         .map(|snap| snap.mod_path.clone())
         .ok_or_else(|| "no mod is open in the editor".to_string())?;
-    drop(s); // release lock before I/O
-    handle_editor_open_mod(session, &mod_path).map(|r| r.snapshot)
+    // Disk I/O runs under the lock. In Tauri (the only caller today)
+    // this is a single-user blocking call: the brief wait is preferable
+    // to the TOCTOU window of dropping + re-acquiring. parish-server
+    // uses a separate reload handler in its editor_routes.rs that
+    // clones state out of the tokio Mutex before the blocking read.
+    let snapshot = mod_io::load_mod_snapshot(&mod_path).map_err(|e| e.to_string())?;
+    s.snapshot = Some(snapshot.clone());
+    Ok(snapshot)
 }
 
 /// Closes the editor session, freeing memory.
@@ -271,5 +298,42 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(err.contains("invalid path"), "unexpected error: {err}");
+    }
+
+    // ── #378 handle_editor_reload must preserve mod_path across the lock ─
+
+    /// The real rundale mod is the simplest living fixture we can point a
+    /// reload at. If it isn't present (sparse workspace checkout) the test
+    /// no-ops instead of failing, matching `rundale_validates_clean`.
+    #[test]
+    fn editor_reload_preserves_mod_path() {
+        let root = std::path::PathBuf::from("../../mods/rundale");
+        if !root.exists() {
+            return;
+        }
+        let session = Mutex::new(EditorSession::default());
+        // Seed the session as if `handle_editor_open_mod` had been called.
+        let opened = handle_editor_open_mod(&session, &root).unwrap();
+        let original_path = opened.snapshot.mod_path.clone();
+        // Reload should come back with the same mod_path.
+        let reloaded = handle_editor_reload(&session).unwrap();
+        assert_eq!(
+            reloaded.mod_path, original_path,
+            "reload must not redirect the session to a different mod_path"
+        );
+        // And the session state itself should still hold that same mod_path.
+        let stored = session.lock().unwrap();
+        let snap = stored.snapshot.as_ref().expect("session snapshot cleared");
+        assert_eq!(snap.mod_path, original_path);
+    }
+
+    #[test]
+    fn editor_reload_errors_when_no_mod_open() {
+        let session = Mutex::new(EditorSession::default());
+        let err = handle_editor_reload(&session).unwrap_err();
+        assert!(
+            err.contains("no mod is open"),
+            "expected 'no mod is open' error, got: {err}"
+        );
     }
 }
