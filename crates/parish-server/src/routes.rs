@@ -1960,7 +1960,7 @@ pub async fn get_health() -> StatusCode {
 /// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.
 ///
 /// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
-fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
+pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
     if name.is_empty() || name.len() > 64 {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -2048,12 +2048,47 @@ fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
     }
 }
 
+/// Testable variant of [`check_admin`] that accepts an explicit admin email
+/// rather than reading from the `PARISH_ADMIN_EMAILS` environment variable.
+///
+/// `admin_email` mirrors the single-value form used in tests: `Some(email)`
+/// means that address is the sole admin; `None` means no admin is configured
+/// (follows the same fail-closed rule as the env-var path in release builds).
+///
+/// Used by isolation tests (codex P1) so they compile against the public
+/// surface without requiring `routes::check_admin` to be `pub` or relying on
+/// the `OnceCell`-cached env var.
+pub fn check_admin_against(
+    email: &str,
+    cmd: &str,
+    admin_email: Option<&str>,
+) -> Result<(), StatusCode> {
+    match admin_email {
+        Some(admin) => {
+            if email == admin {
+                Ok(())
+            } else {
+                tracing::warn!(user = %email, command = %cmd, "admin command rejected");
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+        None => {
+            if cfg!(debug_assertions) {
+                Ok(())
+            } else {
+                tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+    }
+}
+
 /// Returns `true` if `text` starts with an admin-only slash command.
 ///
 /// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
 /// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
 /// `starts_with` since the dot is part of the prefix, not a space separator.
-fn is_admin_command(text: &str) -> bool {
+pub fn is_admin_command(text: &str) -> bool {
     let lower = text.trim().to_ascii_lowercase();
     ADMIN_COMMANDS.iter().any(|prefix| {
         if prefix.ends_with('.') {
