@@ -299,12 +299,22 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         });
     }
 
-    // ── #381: Global per-IP rate limiter (120 req/min) ────────────────────────
+    // ── #381 / #596: Global per-IP rate limiter (120 req/min) ────────────────
+    // #596 — When `PARISH_TRUST_PROXY=1` is set, the middleware reads the real
+    // client IP from `X-Forwarded-For` or `Cf-Connecting-Ip` so each client is
+    // rate-limited individually even behind a reverse proxy (Cloudflare /
+    // Railway).  The flag defaults to `false` (socket addr) to avoid spoofing
+    // by unauthenticated callers who could inject those headers directly.
     use governor::{Quota, RateLimiter};
     use std::num::NonZeroU32;
-    let ip_limiter = Arc::new(RateLimiter::keyed(Quota::per_minute(
-        NonZeroU32::new(120).unwrap(),
-    )));
+    let trust_proxy = std::env::var("PARISH_TRUST_PROXY")
+        .unwrap_or_default()
+        .trim()
+        == "1";
+    let ip_limiter = Arc::new(IpRateLimiterState {
+        limiter: RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(120).unwrap())),
+        trust_proxy,
+    });
 
     // ── Build router ──────────────────────────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
@@ -616,7 +626,21 @@ async fn get_metrics() -> String {
     )
 }
 
-/// #381 — Per-IP global rate limiter middleware (120 req/min).
+/// Shared state for [`ip_rate_limit_middleware`].
+struct IpRateLimiterState {
+    limiter: governor::RateLimiter<
+        std::net::IpAddr,
+        governor::state::keyed::DefaultKeyedStateStore<std::net::IpAddr>,
+        governor::clock::DefaultClock,
+    >,
+    /// When `true`, the middleware reads the real client IP from
+    /// `X-Forwarded-For` / `Cf-Connecting-Ip` headers instead of the TCP
+    /// socket address.  Only enable when the server sits behind a trusted
+    /// reverse proxy (set `PARISH_TRUST_PROXY=1`).
+    trust_proxy: bool,
+}
+
+/// #381 / #596 — Per-IP global rate limiter middleware (120 req/min).
 ///
 /// Placed *outside* the auth guard so pre-auth floods are throttled before
 /// the JWT validation overhead is incurred.
@@ -624,30 +648,82 @@ async fn get_metrics() -> String {
 /// Debug + loopback traffic is exempt: Playwright and local devtools make
 /// bursts of legitimate requests (status bar polls, WS reconnects, tile
 /// fetches, e2e test setup) that otherwise trip 429 and break UX.
+///
+/// #596 — When `PARISH_TRUST_PROXY=1` is set (via [`IpRateLimiterState`]),
+/// the real client IP is read from `Cf-Connecting-Ip` (Cloudflare) or the
+/// leftmost entry in `X-Forwarded-For` (generic reverse proxies).  Without
+/// proxy trust the socket address is used, which is safe but buckets all
+/// traffic from the proxy under one IP when deployed behind Cloudflare /
+/// Railway.
 async fn ip_rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    axum::extract::State(limiter): axum::extract::State<
-        Arc<
-            governor::RateLimiter<
-                std::net::IpAddr,
-                governor::state::keyed::DefaultKeyedStateStore<std::net::IpAddr>,
-                governor::clock::DefaultClock,
-            >,
-        >,
-    >,
+    axum::extract::State(state): axum::extract::State<Arc<IpRateLimiterState>>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     if cfg!(debug_assertions) && addr.ip().is_loopback() {
         return Ok(next.run(req).await);
     }
-    match limiter.check_key(&addr.ip()) {
+
+    // #596 — Resolve the real client IP.  When trust_proxy is true we prefer
+    // `Cf-Connecting-Ip` (Cloudflare sets this reliably) and fall back to the
+    // leftmost non-empty token in `X-Forwarded-For`.  If neither header is
+    // present or parseable we fall back to the socket address.  When
+    // trust_proxy is false we always use the socket address to prevent
+    // spoofing by clients that inject headers themselves.
+    let client_ip: std::net::IpAddr = if state.trust_proxy {
+        extract_real_ip(req.headers()).unwrap_or_else(|| addr.ip())
+    } else {
+        addr.ip()
+    };
+
+    match state.limiter.check_key(&client_ip) {
         Ok(_) => Ok(next.run(req).await),
         Err(_) => {
-            tracing::warn!(source_ip = %addr, "ip_rate_limit_middleware: 429 — too many requests");
+            tracing::warn!(
+                socket_ip = %addr,
+                client_ip = %client_ip,
+                "ip_rate_limit_middleware: 429 — too many requests"
+            );
             Err(StatusCode::TOO_MANY_REQUESTS)
         }
     }
+}
+
+/// Extract the real client IP from proxy-forwarded headers.
+///
+/// Priority:
+/// 1. `Cf-Connecting-Ip` — set by Cloudflare to the original client IP.
+/// 2. Leftmost token in `X-Forwarded-For` — set by most reverse proxies.
+///
+/// Returns `None` if no header is present or the value cannot be parsed as an
+/// IP address.  Only called when `PARISH_TRUST_PROXY=1` is set.
+fn extract_real_ip(headers: &axum::http::HeaderMap) -> Option<std::net::IpAddr> {
+    use axum::http::header::HeaderName;
+
+    // Cloudflare sets `Cf-Connecting-Ip` to exactly the original client IP.
+    static CF_CONNECTING_IP: std::sync::LazyLock<HeaderName> =
+        std::sync::LazyLock::new(|| HeaderName::from_static("cf-connecting-ip"));
+    if let Some(v) = headers.get(&*CF_CONNECTING_IP)
+        && let Ok(s) = v.to_str()
+        && let Ok(ip) = s.trim().parse()
+    {
+        return Some(ip);
+    }
+
+    // Generic reverse proxy: leftmost entry is the original client.
+    let xff = headers
+        .get(axum::http::header::FORWARDED)
+        .or_else(|| headers.get(HeaderName::from_static("x-forwarded-for")));
+    if let Some(v) = xff
+        && let Ok(s) = v.to_str()
+        && let Some(first) = s.split(',').next()
+        && let Ok(ip) = first.trim().parse()
+    {
+        return Some(ip);
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -732,5 +808,64 @@ mod tests {
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
             std::env::remove_var("PARISH_BASE_URL");
         }
+    }
+
+    // ── #596 extract_real_ip tests ───────────────────────────────────────────
+
+    fn make_headers(pairs: &[(&str, &str)]) -> axum::http::HeaderMap {
+        let mut map = axum::http::HeaderMap::new();
+        for (k, v) in pairs {
+            map.insert(
+                axum::http::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                axum::http::HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        map
+    }
+
+    #[test]
+    fn extract_real_ip_returns_none_with_no_proxy_headers() {
+        let headers = make_headers(&[]);
+        assert_eq!(extract_real_ip(&headers), None);
+    }
+
+    #[test]
+    fn extract_real_ip_prefers_cf_connecting_ip() {
+        let headers = make_headers(&[
+            ("cf-connecting-ip", "1.2.3.4"),
+            ("x-forwarded-for", "9.9.9.9, 10.0.0.1"),
+        ]);
+        let ip = extract_real_ip(&headers).expect("should parse Cf-Connecting-Ip");
+        assert_eq!(ip, "1.2.3.4".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_falls_back_to_x_forwarded_for_leftmost() {
+        // Only X-Forwarded-For present; leftmost entry is the client.
+        let headers = make_headers(&[("x-forwarded-for", "203.0.113.42, 10.0.0.1, 172.16.0.1")]);
+        let ip = extract_real_ip(&headers).expect("should parse X-Forwarded-For");
+        assert_eq!(ip, "203.0.113.42".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_handles_ipv6() {
+        let headers = make_headers(&[("cf-connecting-ip", "2001:db8::1")]);
+        let ip = extract_real_ip(&headers).expect("should parse IPv6");
+        assert_eq!(ip, "2001:db8::1".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_returns_none_for_malformed_header() {
+        // A malformed value (not a valid IP) must not panic — it silently
+        // falls through to the next header / None.
+        let headers = make_headers(&[("cf-connecting-ip", "not-an-ip")]);
+        assert_eq!(extract_real_ip(&headers), None);
+    }
+
+    #[test]
+    fn extract_real_ip_trims_whitespace_around_address() {
+        let headers = make_headers(&[("x-forwarded-for", "  198.51.100.7 , 10.0.0.2")]);
+        let ip = extract_real_ip(&headers).expect("should parse trimmed address");
+        assert_eq!(ip, "198.51.100.7".parse::<std::net::IpAddr>().unwrap());
     }
 }
