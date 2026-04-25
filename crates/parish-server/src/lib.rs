@@ -43,8 +43,25 @@ use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
 /// Content-Security-Policy value shared between production and tests.
+///
+/// # script-src 'unsafe-inline' (TODO: replace with hash)
+///
+/// SvelteKit's production build injects a small inline bootstrap `<script>` in
+/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
+/// `script-src` causes the browser to reject that script, so the page never
+/// hydrates (codex P1, PR #543).
+///
+/// The proper fix is to compute the SHA-256 of that bootstrap block and add
+/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
+/// but must be regenerated whenever SvelteKit changes the bootstrap text.
+/// Until that build-time integration exists, `'unsafe-inline'` is restored here
+/// so the app keeps working.
+///
+/// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
+/// `apps/ui/dist/index.html` at build time.
+/// See: <https://github.com/dmooney/Parish/issues/543>
 pub const CSP_POLICY: &str = "default-src 'self'; \
-                              script-src 'self'; \
+                              script-src 'self' 'unsafe-inline'; \
                               worker-src 'self' blob:; \
                               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
                               img-src 'self' data: blob: https:; \
