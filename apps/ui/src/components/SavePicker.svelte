@@ -438,12 +438,12 @@
 						</div>
 					{/each}
 
-					<div class="ledger-row new-ledger" on:click={handleForkLedger} role="button" tabindex="0" on:keydown={(e) => { if (e.key === 'Enter') handleForkLedger(); }}>
+					<div class="ledger-row new-ledger" on:click={handleForkLedger} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleForkLedger(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">Fork New Ledger</span>
 					</div>
 
-					<div class="ledger-row new-ledger" on:click={handleNewGame} role="button" tabindex="0" on:keydown={(e) => { if (e.key === 'Enter') handleNewGame(); }}>
+					<div class="ledger-row new-ledger" on:click={handleNewGame} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleNewGame(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">New Game</span>
 					</div>
