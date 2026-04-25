@@ -6,7 +6,8 @@
 /// required headers without needing a live TCP port.
 use axum::Router;
 use axum::http::header::{
-    CONTENT_SECURITY_POLICY, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
+    X_FRAME_OPTIONS,
 };
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::routing::get;
@@ -21,6 +22,10 @@ fn security_header_router() -> Router {
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(CSP_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
@@ -74,6 +79,21 @@ async fn response_has_content_security_policy_header() {
             .any(|d| d.trim().starts_with("script-src") && d.contains("'self'")),
         "CSP script-src must include 'self'; got: {csp_str}"
     );
+}
+
+#[tokio::test]
+async fn response_has_strict_transport_security_header() {
+    let app = security_header_router();
+    let req = Request::builder()
+        .uri("/ping")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    let hsts = resp
+        .headers()
+        .get(STRICT_TRANSPORT_SECURITY)
+        .expect("Strict-Transport-Security header must be present");
+    assert_eq!(hsts, "max-age=31536000; includeSubDomains");
 }
 
 #[tokio::test]

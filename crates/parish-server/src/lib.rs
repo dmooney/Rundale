@@ -25,7 +25,8 @@ use std::time::Duration;
 use axum::Router;
 use axum::extract::ConnectInfo;
 use axum::http::header::{
-    CONTENT_SECURITY_POLICY, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
+    X_FRAME_OPTIONS,
 };
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware as axum_mw;
@@ -435,6 +436,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
             HeaderValue::from_static(CSP_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
