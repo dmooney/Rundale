@@ -242,7 +242,12 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Headless REPL mode (default)
+    // Headless REPL mode (default).
+    // Detect non-interactive (piped / redirected) stdin so `run_headless` can
+    // fail closed on a save-file lock conflict instead of silently proceeding
+    // (#608).  `IsTerminal` is stable since Rust 1.70 — no extra dep needed.
+    use std::io::IsTerminal as _;
+    let script_mode = !std::io::stdin().is_terminal();
     let headless_data_dir = find_data_dir();
     let result = headless::run_headless(
         clients.clone(),
@@ -252,6 +257,7 @@ async fn main() -> Result<()> {
         cli.improv,
         game_mod,
         Some(headless_data_dir),
+        script_mode,
     )
     .await;
     ollama_process.stop();
