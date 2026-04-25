@@ -1,5 +1,5 @@
 /// Integration tests for cross-user / shared-state isolation
-/// (issues #332, #333, #334, #335).
+/// (issues #332, #333, #334, #335, #605).
 ///
 /// These tests drive minimal axum routers that exercise the security
 /// boundaries without requiring a fully initialised game world where possible.
@@ -34,6 +34,57 @@ fn submit_input_admin_command_admin_is_ok() {
     assert_eq!(
         check_admin_against("operator@example.com", text, Some("operator@example.com")),
         Ok(()),
+    );
+}
+
+// ── #605 — Admin-email check is order-independent ────────────────────────────
+//
+// The production `admin_emails()` caches parsed emails in a `OnceCell`
+// forever, making tests that call it in parallel order-dependent.
+// `check_admin_against` accepts the admin email as an explicit parameter,
+// so each test is fully self-contained and carries no shared state.
+
+/// A completely different admin email set can be used in the same test run
+/// without interfering with other tests — each call is stateless.
+#[test]
+fn check_admin_against_different_admin_sets_are_independent() {
+    // Simulate a test that runs *first* and configures one admin.
+    let result_a = check_admin_against("alice@example.com", "/key sk-a", Some("alice@example.com"));
+    assert_eq!(
+        result_a,
+        Ok(()),
+        "alice should be allowed when she is the admin"
+    );
+
+    // Simulate a test that runs *second* with a completely different admin —
+    // this must not be affected by the previous call's email set.
+    let result_b = check_admin_against("bob@example.com", "/key sk-b", Some("bob@example.com"));
+    assert_eq!(
+        result_b,
+        Ok(()),
+        "bob should be allowed when he is the admin"
+    );
+
+    // Cross-check: alice is not an admin in bob's config.
+    let result_c = check_admin_against("alice@example.com", "/key sk-c", Some("bob@example.com"));
+    assert_eq!(
+        result_c,
+        Err(StatusCode::FORBIDDEN),
+        "alice must be rejected when bob is the sole admin"
+    );
+}
+
+/// When no admin is configured (`None`), the fail-closed rule applies in
+/// release builds.  In debug builds (tests run with debug assertions) it
+/// must succeed.  This result is deterministic regardless of test order.
+#[test]
+fn check_admin_against_none_config_is_deterministic() {
+    let result = check_admin_against("any@example.com", "/key sk-x", None);
+    // In test/debug builds, cfg!(debug_assertions) is true → Ok(()).
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
     );
 }
 

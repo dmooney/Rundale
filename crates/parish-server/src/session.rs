@@ -280,25 +280,34 @@ impl SessionRegistry {
                 tracing::warn!(error = %e, "purge_expired_disk_sessions: DB read failed");
                 return 0;
             }
-            // Drop rows for the ids we collected. Run as a single
-            // transaction so a process crash doesn't leave the DB
-            // partially pruned relative to the filesystem.
+            // Drop rows for the ids we collected inside an explicit
+            // transaction.  Both DELETEs must commit atomically: if the
+            // process crashes between them, oauth_accounts rows would be
+            // left pointing at a non-existent session_id, letting the
+            // next login for that OAuth identity silently resurrect a
+            // ghost session (#593, #482).
+            //
+            // Invariant: DB rows are deleted *before* filesystem cleanup
+            // (see below).  A residual saves/<id>/ directory with no DB
+            // row is harmless; an oauth_accounts row pointing at a missing
+            // sessions row is not.
             if !collected.is_empty() {
                 let tx_result = (|| -> rusqlite::Result<()> {
+                    let tx = db.unchecked_transaction()?;
                     let placeholders = vec!["?"; collected.len()].join(",");
                     let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
                     let params: Vec<&dyn rusqlite::ToSql> = collected
                         .iter()
                         .map(|s| s as &dyn rusqlite::ToSql)
                         .collect();
-                    db.execute(&sql, params.as_slice())?;
+                    tx.execute(&sql, params.as_slice())?;
                     // Also drop oauth links for those sessions — otherwise
                     // the next login for the same provider_user_id would
                     // resurrect a dead session_id. (#482 sibling concern.)
                     let oauth_sql =
                         format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
-                    db.execute(&oauth_sql, params.as_slice())?;
-                    Ok(())
+                    tx.execute(&oauth_sql, params.as_slice())?;
+                    tx.commit()
                 })();
                 if let Err(e) = tx_result {
                     tracing::warn!(error = %e, "purge_expired_disk_sessions: DB delete failed");
