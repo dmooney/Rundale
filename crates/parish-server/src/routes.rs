@@ -2230,6 +2230,7 @@ pub(crate) mod tests {
             data_dir.clone(),
             None,
             data_dir.join("parish-flags.json"),
+            parish_core::config::InferenceConfig::default(),
         )
     }
 

@@ -172,6 +172,7 @@ async fn second_ws_upgrade_same_email_is_409() {
         data_dir.clone(),
         None,
         data_dir.join("parish-flags.json"),
+        parish_core::config::InferenceConfig::default(),
     ));
 
     // Simulate first connection inserting the email.
