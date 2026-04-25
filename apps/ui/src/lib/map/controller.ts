@@ -520,7 +520,7 @@ function registerLocationIcons(map: MapLibreMap): void {
 // Real browsers always provide one; MapLibre then falls back to a square
 // placeholder for `icon-image: icon-…` which keeps the rest of the style
 // valid rather than hard-failing the test render.
-function drawIconImage(pathData: string): ImageData | null {
+export function drawIconImage(pathData: string): ImageData | null {
 	const size = 64;
 	const canvas = document.createElement('canvas');
 	canvas.width = size;
