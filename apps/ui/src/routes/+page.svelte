@@ -744,6 +744,7 @@
 		}
 
 		.mobile-btn:hover,
+		.mobile-btn:focus-visible,
 		.mobile-btn.active {
 			color: var(--color-accent);
 			border-color: var(--color-accent);
