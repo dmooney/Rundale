@@ -377,7 +377,8 @@ impl OpenAiClient {
         req = self.apply_auth_headers(req);
 
         req.send()
-            .await?
+            .await
+            .map_err(|e| ParishError::Inference(e.to_string()))?
             .error_for_status()
             .map_err(|e| ParishError::Inference(e.to_string()))
     }

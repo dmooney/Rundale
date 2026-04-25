@@ -1,0 +1,13 @@
+# Prove: /unexplored slash command toggles reveal mode for map visibility.
+# Goal: verify command responses for status, reveal, and hide.
+#
+# Preserved from PR #397 after it mistakenly landed in play_prove.txt
+# (#412). play_prove.txt is the ephemeral scratch slot the /prove skill
+# rewrites on every run; this file is the durable test for the
+# /unexplored feature.
+
+/unexplored
+/unexplored reveal
+/unexplored
+/unexplored hide
+/unexplored

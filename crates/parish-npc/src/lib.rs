@@ -6,6 +6,7 @@
 
 pub mod anachronism;
 pub mod autonomous;
+pub mod banshee;
 pub mod data;
 pub mod manager;
 pub mod memory;
@@ -105,6 +106,18 @@ pub struct Npc {
     pub last_activity: Option<String>,
     /// Whether the NPC is currently ill. Set by Tier 4 rules engine.
     pub is_ill: bool,
+    /// Game-time at which this NPC is fated to die, if set.
+    ///
+    /// Populated by the Tier 4 rules engine when it rolls a `Death` event —
+    /// rather than removing the NPC immediately, the doom is scheduled a few
+    /// game-hours ahead so that [`crate::banshee`] can herald it with a
+    /// keening cry on the night beforehand. Cleared on removal.
+    pub doom: Option<chrono::DateTime<chrono::Utc>>,
+    /// `true` once the banshee's cry has been emitted for the current [`Self::doom`].
+    ///
+    /// Prevents the same wail from being produced on every tick while the
+    /// doom window is open. Reset to `false` whenever [`Self::doom`] changes.
+    pub banshee_heralded: bool,
 }
 
 impl Npc {
@@ -139,6 +152,8 @@ impl Npc {
             reaction_log: ReactionLog::default(),
             last_activity: None,
             is_ill: false,
+            doom: None,
+            banshee_heralded: false,
         }
     }
 

@@ -4,7 +4,7 @@ description: Recall and apply the four Karpathy behavioral guidelines — Think 
 disable-model-invocation: false
 ---
 
-Recall and apply the four Karpathy coding guidelines from CLAUDE.md. Use this when you want to recheck your approach before diving into a task, or when a previous attempt produced overly complex or drift-heavy output.
+Recall and apply the four Karpathy coding guidelines from the repository agent instructions. Use this when you want to recheck your approach before diving into a task, or when a previous attempt produced overly complex or drift-heavy output.
 
 ## The Four Principles
 

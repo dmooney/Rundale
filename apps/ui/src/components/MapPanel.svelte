@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { mapData, fullMapOpen, pushErrorLog, formatIpcError } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
@@ -161,40 +161,40 @@
 			}
 		);
 
-		// Re-project stubs whenever the map camera moves or resizes.
-		// We access the underlying map via a move listener added through
-		// the controller's public projectToScreen + a `move` subscription
-		// that we wire directly here — the controller exposes the map as
-		// needed via its side-effects (click/hover), so we attach the
-		// listener through a cast-free hook: we add a `move` callback via
-		// `addMoveListener` below.
-		//
-		// Simplest implementation: poll on a rAF loop while mounted. This
-		// avoids having to surface the raw map reference. Runs cheaply
-		// because it only updates state when values actually change.
-		let rafId: number;
-		const loop = () => {
-			recomputeStubs();
-			rafId = requestAnimationFrame(loop);
-		};
-		rafId = requestAnimationFrame(loop);
+		// Recompute stubs once on mount and then only when the camera
+		// actually moves or the container resizes (#350). The previous
+		// requestAnimationFrame loop ran every frame for the lifetime
+		// of the component — recomputing identical stub geometry over
+		// and over and burning CPU/GPU even when the user wasn't
+		// interacting. The controller now exposes `addMoveListener`
+		// so we can subscribe surgically.
+		recomputeStubs();
+		const unsubscribeMove = controller.addMoveListener(recomputeStubs);
 
 		mounted = true;
 
 		return () => {
-			cancelAnimationFrame(rafId);
+			unsubscribeMove();
 			controller?.destroy();
 			controller = null;
 		};
 	});
 
 	// Push map data changes into the controller and reframe the camera.
+	//
+	// `$mapData` updates every game tick (NPC movement, clock, etc.), so we
+	// skip the instantaneous `fitBounds` call while travel is animating —
+	// otherwise the minimap re-centers on the player's origin between ticks,
+	// pinning the travel dot near the viewport center even though it's
+	// sliding correctly in world coordinates.
 	$effect(() => {
 		if (!mounted || !controller) return;
 		const m = $mapData;
 		if (!m) return;
 		const visible = visibleIdSet(m.locations);
 		controller.updateMap(m, visible);
+
+		if ($travelState) return;
 
 		const player = m.locations.find((l) => l.id === m.player_location);
 		if (!player) return;
@@ -208,15 +208,45 @@
 	});
 
 	// Drive travel animation from the shared travel store.
+	//
+	// `destinationBounds` reads `$mapData`, but we wrap it in `untrack` so
+	// the effect only runs on `$travelState` transitions — without this,
+	// every mapData tick during travel restarts the animation.
 	$effect(() => {
 		if (!mounted || !controller) return;
 		const ts = $travelState;
 		if (ts) {
-			controller.startTravel(ts.waypoints, ts.animationMs);
+			const bounds = untrack(() => destinationBounds(ts.destination));
+			controller.startTravel(ts.waypoints, ts.animationMs, bounds);
 		} else {
 			controller.stopTravel();
 		}
 	});
+
+	/**
+	 * Builds the bounding box we want the minimap to settle into once the
+	 * player arrives at `destId`. We use the same player-centered algorithm
+	 * the `$mapData` effect uses — just evaluated against the destination's
+	 * neighbors (looked up from the current graph) rather than the current
+	 * player's. Passing this to `startTravel` lets the camera smoothly
+	 * interpolate both center AND zoom over the animation window, so the
+	 * post-travel view is already in place when the dot arrives.
+	 */
+	function destinationBounds(
+		destId: string
+	): Array<{ lat: number; lon: number }> | undefined {
+		const m = $mapData;
+		if (!m) return undefined;
+		const dest = m.locations.find((l) => l.id === destId);
+		if (!dest) return undefined;
+		const neighborIds = new Set<string>();
+		for (const [a, b] of m.edges) {
+			if (a === destId) neighborIds.add(b);
+			else if (b === destId) neighborIds.add(a);
+		}
+		const neighbors = m.locations.filter((l) => neighborIds.has(l.id));
+		return computePlayerCenteredBounds(dest, neighbors);
+	}
 
 	// Keep minimap base tiles in sync with `/tiles` selection.
 	$effect(() => {
@@ -344,6 +374,33 @@
 		stroke-width: 1.2;
 		opacity: 0.5;
 		stroke-dasharray: 3 2;
+	}
+
+	/* Travel animation dot — also defined in FullMapOverlay.svelte; mirrored
+	   here because Svelte scopes :global styles to the mounting component,
+	   so the minimap needs its own copy when the full map isn't open.
+	   The pulse animates opacity + box-shadow only; animating `transform`
+	   would clobber the `translate(…)` MapLibre sets each frame to position
+	   the marker, collapsing it to the canvas top-left. */
+	:global(.travel-dot-marker) {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: var(--color-accent);
+		border: 2px solid var(--color-fg);
+		animation: travel-pulse 0.6s ease-in-out infinite alternate;
+		pointer-events: none;
+	}
+
+	@keyframes travel-pulse {
+		from {
+			opacity: 0.85;
+			box-shadow: 0 0 4px var(--color-accent);
+		}
+		to {
+			opacity: 1;
+			box-shadow: 0 0 12px var(--color-accent);
+		}
 	}
 
 	.tooltip-unexplored {

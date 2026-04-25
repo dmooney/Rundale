@@ -103,6 +103,73 @@ impl ConversationRuntimeState {
 ///
 /// Mirrors the Tauri `AppState` but uses an [`EventBus`] for push events
 /// instead of a Tauri `AppHandle`.
+///
+/// # Lock ordering invariant (#483)
+///
+/// `AppState` holds many independent `Mutex` fields. Any path that acquires
+/// more than one at a time **must** follow the canonical order below. A
+/// future refactor that takes these in the opposite order would deadlock
+/// with any existing path that takes them in the documented order. The
+/// ordering is derived from the paths actually observed in the codebase
+/// today (`handle_system_command`, `handle_npc_conversation`,
+/// `run_idle_banter`, `rebuild_inference`, `get_debug_snapshot`, and the
+/// background tick tasks in `session.rs`).
+///
+/// ```text
+/// world
+///   → npc_manager
+///     → inference_queue
+///       → conversation
+///         → config
+///           → client
+///             → cloud_client
+///               → debug_events
+///                 → game_events
+///                   → inference_log
+///                     → editor_sessions
+///                       → active_ws
+///                         → save_path
+///                           → current_branch_id
+///                             → current_branch_name
+///                               → worker_handle
+///                                 → save_lock
+/// ```
+///
+/// Pair-by-pair rationale — every pair above is attested by at least
+/// one current call site:
+///
+/// - `world → npc_manager` — every handler that touches both
+///   (`handle_npc_conversation`, `run_idle_banter`, `get_debug_snapshot`,
+///   the world-tick task).
+/// - `npc_manager → inference_queue → config` — `handle_npc_conversation`
+///   and `run_idle_banter` (`routes.rs`).
+/// - `conversation → config` — `tick_inactivity` (`routes.rs`), so
+///   `conversation` slots between `inference_queue` and `config`.
+/// - `config → client` — `handle_game_input` (`routes.rs`).
+/// - `config → debug_events → game_events → inference_log` —
+///   `get_debug_snapshot` (`routes.rs`). `inference_log` is itself an
+///   `Arc<Mutex<BoundedInferenceLog>>` (see
+///   `parish-inference/src/lib.rs`), so it is a real coordination point,
+///   not a lock-free buffer.
+///
+/// The remaining non-`Mutex` fields (`event_bus`, `transport`,
+/// `ui_config`, `theme_palette`, `saves_dir`, `data_dir`, `game_mod`,
+/// `pronunciations`, `flags_path`) are set once at startup and are not
+/// coordination points.
+///
+/// **Release locks promptly.** The preferred idiom is to scope each guard
+/// to the smallest possible block and drop it before acquiring the next,
+/// both to minimise lock-held time and to make deadlocks (if any) easier
+/// to spot in a diff. When a nested acquire is truly required — for
+/// example copying an NPC summary into a world-side buffer — acquire the
+/// locks in the order above and drop them in reverse.
+///
+/// **Don't hold these locks across `.await` on network I/O.** See #464
+/// and editor_save for the pattern: clone what you need out of the lock,
+/// release, do the blocking/async work, then re-acquire briefly to
+/// install the result. Holding `config` or `client` across an HTTP
+/// refresh, or `world` across a save-to-disk, will serialise every
+/// concurrent session behind that one path.
 pub struct AppState {
     /// The game world (clock, player position, graph, weather).
     pub world: Mutex<WorldState>,

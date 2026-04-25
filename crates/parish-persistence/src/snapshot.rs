@@ -116,6 +116,25 @@ pub struct NpcSnapshot {
     /// Whether the NPC is currently ill. Set by Tier 4 rules engine.
     #[serde(default)]
     pub is_ill: bool,
+    /// Game-time at which this NPC is fated to die, if set.
+    ///
+    /// See [`parish_npc::Npc::doom`] for semantics.
+    #[serde(default)]
+    pub doom: Option<DateTime<Utc>>,
+    /// Whether the banshee wail has already been emitted for the current doom.
+    #[serde(default)]
+    pub banshee_heralded: bool,
+    /// Compressed summary written by `NpcManager::assign_tiers` when the
+    /// NPC demotes from a higher cognitive tier.
+    ///
+    /// Serialized so that an autosave + reload doesn't silently erase
+    /// Phase 5 cognitive-LOD compression history (#338). The previous
+    /// schema had no field for it and [`Self::into_npc`] hard-coded
+    /// `None`, so every save/load cycle dropped the demotion summary
+    /// on the floor. `#[serde(default)]` keeps older save files
+    /// (pre-#338) loadable.
+    #[serde(default)]
+    pub deflated_summary: Option<parish_npc::transitions::NpcSummary>,
 }
 
 impl NpcSnapshot {
@@ -141,6 +160,9 @@ impl NpcSnapshot {
             state: npc.state.clone(),
             last_activity: npc.last_activity.clone(),
             is_ill: npc.is_ill,
+            doom: npc.doom,
+            banshee_heralded: npc.banshee_heralded,
+            deflated_summary: npc.deflated_summary.clone(),
         }
     }
 
@@ -166,7 +188,12 @@ impl NpcSnapshot {
             state: self.state,
             last_activity: self.last_activity,
             is_ill: self.is_ill,
-            deflated_summary: None,
+            doom: self.doom,
+            banshee_heralded: self.banshee_heralded,
+            // #338: previously hard-coded to None, erasing the
+            // demotion summary on every save/load cycle. Round-tripped
+            // through NpcSnapshot.deflated_summary now.
+            deflated_summary: self.deflated_summary,
             reaction_log: parish_npc::reactions::ReactionLog::default(),
         }
     }
@@ -400,6 +427,8 @@ mod tests {
             reaction_log: parish_npc::reactions::ReactionLog::default(),
             last_activity: None,
             is_ill: false,
+            doom: None,
+            banshee_heralded: false,
         }
     }
 
@@ -412,6 +441,55 @@ mod tests {
         assert_eq!(restored.name, "NPC 1");
         assert_eq!(restored.location, LocationId(2));
         assert_eq!(restored.mood, "calm");
+    }
+
+    /// #338: deflated_summary used to be hard-coded to None on
+    /// into_npc, so every autosave + reload erased the cognitive-LOD
+    /// compression history that NpcManager::assign_tiers wrote on
+    /// demotion. Round-trip it through the snapshot now.
+    #[test]
+    fn test_npc_snapshot_preserves_deflated_summary() {
+        use parish_npc::transitions::NpcSummary;
+
+        let mut npc = make_test_npc(7, 4);
+        let summary = NpcSummary {
+            npc_id: NpcId(7),
+            location: LocationId(4),
+            mood: "wistful".to_string(),
+            recent_activity: vec!["minded the bar".to_string()],
+            key_relationship_changes: vec![],
+        };
+        npc.deflated_summary = Some(summary.clone());
+
+        let snap = NpcSnapshot::from_npc(&npc);
+        // Serialize through JSON to also exercise the (de)serialize
+        // glue, since this is what hits disk in autosaves.
+        let json = serde_json::to_string(&snap).unwrap();
+        let parsed: NpcSnapshot = serde_json::from_str(&json).unwrap();
+        let restored = parsed.into_npc();
+
+        assert_eq!(
+            restored.deflated_summary,
+            Some(summary),
+            "deflated_summary must survive a save→load cycle"
+        );
+    }
+
+    /// Backwards compatibility: a snapshot serialized by the
+    /// pre-#338 schema (no `deflated_summary` field) must still
+    /// deserialize cleanly, defaulting to None.
+    #[test]
+    fn test_npc_snapshot_legacy_blob_without_deflated_summary() {
+        let legacy_json = r#"{
+            "id": 1, "name": "Legacy", "age": 30, "occupation": "Farmer",
+            "personality": "stoic", "location": 1, "mood": "neutral",
+            "home": null, "workplace": null, "schedule": null,
+            "relationships": {}, "memory": {"entries": []},
+            "knowledge": [], "state": "Present"
+        }"#;
+        let parsed: NpcSnapshot =
+            serde_json::from_str(legacy_json).expect("legacy NpcSnapshot must parse");
+        assert!(parsed.deflated_summary.is_none());
     }
 
     #[test]

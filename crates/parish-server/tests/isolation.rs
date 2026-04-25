@@ -3,164 +3,38 @@
 ///
 /// These tests drive minimal axum routers that exercise the security
 /// boundaries without requiring a fully initialised game world where possible.
-use axum::Router;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use axum::routing::post;
-use tower::ServiceExt as _;
+use axum::http::StatusCode;
 
-use parish_server::cf_auth::AuthContext;
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Build a router that always injects `AuthContext { email }` into extensions.
-fn authed_router_with_email(email: &str, router: Router) -> Router {
-    use axum::middleware::{self as axum_mw, Next};
-    use axum::response::Response;
-
-    let email = email.to_string();
-    router.layer(axum_mw::from_fn(
-        move |mut req: Request<Body>, next: Next| {
-            let email = email.clone();
-            async move {
-                req.extensions_mut().insert(AuthContext {
-                    email: email.clone(),
-                });
-                let resp: Response = next.run(req).await;
-                Ok::<Response, StatusCode>(resp)
-            }
-        },
-    ))
-}
+use parish_server::routes::{check_admin_against, is_admin_command, validate_branch_name};
 
 // ── #332 — Admin-command gate ─────────────────────────────────────────────────
 
-/// Shim that mirrors the admin-command guard from `submit_input`.
-///
-/// We cannot call the real handler without a full `AppState`, so we test the
-/// `is_admin_command` + `check_admin` logic via a thin inline shim.
-mod admin_guard {
-    use axum::Json;
-    use axum::extract::Extension;
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-
-    use parish_server::cf_auth::AuthContext;
-
-    #[derive(serde::Deserialize)]
-    pub struct Req {
-        pub text: String,
-    }
-
-    pub fn is_admin_command(text: &str) -> bool {
-        let lower = text.trim().to_ascii_lowercase();
-        const PREFIXES: &[&str] = &[
-            "/key",
-            "/provider",
-            "/model",
-            "/cloud",
-            "/key.",
-            "/model.",
-            "/provider.",
-        ];
-        PREFIXES.iter().any(|p| {
-            if p.ends_with('.') {
-                lower.starts_with(*p)
-            } else {
-                lower == *p || lower.starts_with(&format!("{} ", p))
-            }
-        })
-    }
-
-    pub fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
-        match std::env::var("PARISH_ADMIN_EMAILS") {
-            Ok(list) => {
-                if list.split(',').any(|e| e.trim() == email) {
-                    Ok(())
-                } else {
-                    tracing::warn!(user = %email, command = %cmd, "admin command rejected");
-                    Err(StatusCode::FORBIDDEN)
-                }
-            }
-            Err(_) => {
-                if cfg!(debug_assertions) {
-                    Ok(())
-                } else {
-                    tracing::warn!(user = %email, command = %cmd, "admin command rejected");
-                    Err(StatusCode::FORBIDDEN)
-                }
-            }
-        }
-    }
-
-    pub async fn handler(
-        Extension(auth): Extension<AuthContext>,
-        Json(body): Json<Req>,
-    ) -> impl IntoResponse {
-        if is_admin_command(&body.text)
-            && let Err(status) = check_admin(&auth.email, &body.text)
-        {
-            return status;
-        }
-        StatusCode::OK
-    }
+/// Non-admin user issuing `/cloud key sk-evil` must be blocked.
+#[test]
+fn submit_input_admin_command_non_admin_is_403() {
+    let text = "/cloud key sk-evil";
+    assert!(is_admin_command(text));
+    assert_eq!(
+        check_admin_against("attacker@example.com", text, Some("operator@example.com")),
+        Err(StatusCode::FORBIDDEN),
+    );
 }
 
-fn admin_router(email: &str) -> Router {
-    authed_router_with_email(
-        email,
-        Router::new().route("/api/submit-input", post(admin_guard::handler)),
-    )
+/// Non-admin user issuing a gameplay command must not be blocked.
+#[test]
+fn submit_input_gameplay_command_any_user_is_200() {
+    assert!(!is_admin_command("say hello"));
 }
 
-/// Non-admin user issuing `/cloud key sk-evil` must get 403.
-///
-/// `set_var` is unsafe in Rust 2024 edition because of potential data races
-/// in multi-threaded tests; this test is the only writer and runs atomically.
-#[tokio::test]
-async fn submit_input_admin_command_non_admin_is_403() {
-    // SAFETY: test process is single-threaded at this point; no concurrent
-    // threads read PARISH_ADMIN_EMAILS during this assignment.
-    unsafe {
-        std::env::set_var("PARISH_ADMIN_EMAILS", "operator@example.com");
-    }
-
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/submit-input")
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"text":"/cloud key sk-evil"}"#))
-        .unwrap();
-
-    let resp = admin_router("attacker@example.com")
-        .oneshot(req)
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-}
-
-/// Non-admin user issuing a gameplay command must get 200.
-#[tokio::test]
-async fn submit_input_gameplay_command_any_user_is_200() {
-    // SAFETY: same rationale as submit_input_admin_command_non_admin_is_403.
-    unsafe {
-        std::env::set_var("PARISH_ADMIN_EMAILS", "operator@example.com");
-    }
-
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/submit-input")
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"text":"say hello"}"#))
-        .unwrap();
-
-    let resp = admin_router("anyone@example.com")
-        .oneshot(req)
-        .await
-        .unwrap();
-
-    assert_eq!(resp.status(), StatusCode::OK);
+/// Admin user issuing an admin command must be allowed.
+#[test]
+fn submit_input_admin_command_admin_is_ok() {
+    let text = "/cloud key sk-good";
+    assert!(is_admin_command(text));
+    assert_eq!(
+        check_admin_against("operator@example.com", text, Some("operator@example.com")),
+        Ok(()),
+    );
 }
 
 // ── #333 — Debug snapshot redaction ──────────────────────────────────────────
@@ -331,95 +205,17 @@ async fn second_ws_upgrade_same_email_is_409() {
 // ── #335 — Branch name validation ────────────────────────────────────────────
 
 /// A branch name of 65 characters must be rejected with 400.
-#[tokio::test]
-async fn create_branch_65_char_name_is_400() {
-    use axum::Json;
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-
-    #[derive(serde::Deserialize)]
-    struct Req {
-        name: String,
-    }
-
-    fn validate(name: &str) -> Result<(), StatusCode> {
-        if name.is_empty() || name.len() > 64 {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-        if !name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
-        {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-        Ok(())
-    }
-
-    async fn handler(Json(body): Json<Req>) -> impl IntoResponse {
-        match validate(&body.name) {
-            Ok(()) => StatusCode::OK,
-            Err(s) => s,
-        }
-    }
-
-    let router = Router::new().route("/api/create-branch", post(handler));
-
+#[test]
+fn create_branch_65_char_name_is_400() {
     let long_name = "a".repeat(65);
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/create-branch")
-        .header("content-type", "application/json")
-        .body(Body::from(format!(
-            r#"{{"name":"{}","parentBranchId":1}}"#,
-            long_name
-        )))
-        .unwrap();
-
-    let resp = router.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        validate_branch_name(&long_name),
+        Err(StatusCode::BAD_REQUEST)
+    );
 }
 
 /// A branch name with only valid characters must pass validation.
-#[tokio::test]
-async fn create_branch_valid_name_passes_validation() {
-    use axum::Json;
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-
-    #[derive(serde::Deserialize)]
-    struct Req {
-        name: String,
-    }
-
-    fn validate(name: &str) -> Result<(), StatusCode> {
-        if name.is_empty() || name.len() > 64 {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-        if !name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
-        {
-            return Err(StatusCode::BAD_REQUEST);
-        }
-        Ok(())
-    }
-
-    async fn handler(Json(body): Json<Req>) -> impl IntoResponse {
-        match validate(&body.name) {
-            Ok(()) => StatusCode::OK,
-            Err(s) => s,
-        }
-    }
-
-    let router = Router::new().route("/api/create-branch", post(handler));
-
-    let req = Request::builder()
-        .method("POST")
-        .uri("/api/create-branch")
-        .header("content-type", "application/json")
-        .body(Body::from(r#"{"name":"valid name","parentBranchId":1}"#))
-        .unwrap();
-
-    let resp = router.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+#[test]
+fn create_branch_valid_name_passes_validation() {
+    assert_eq!(validate_branch_name("valid name"), Ok(()));
 }

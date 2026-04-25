@@ -31,10 +31,12 @@ import {
 	locationsToGeoJSON,
 	edgesToGeoJSON,
 	computeOffMapCounts,
+	edgeKey,
 	type LocationFeatureProps,
 	type EdgeFeatureProps
 } from './geojson';
 import type { FeatureCollection, Point, LineString } from 'geojson';
+import { ICON_PATHS, type LocationIcon } from '$lib/map-icons';
 
 /** Options passed to the controller at construction time. */
 export interface MapControllerOptions {
@@ -84,6 +86,8 @@ export class MapController {
 	private lastVisibleIds: Set<string> | null = null;
 	/** Active travel animation, cleared when travel ends. */
 	private travelAnim: TravelAnimation | null = null;
+	/** Canonical edge keys for the active travel path (for line highlighting). */
+	private activeTravelEdgeKeys = new Set<string>();
 	/** Registered click handler, if any. */
 	private clickHandler: ((info: LocationClickInfo) => void) | null = null;
 	/** Registered hover handler, if any. */
@@ -91,6 +95,19 @@ export class MapController {
 	private hoverLeaveHandler: (() => void) | null = null;
 	/** Current tile source, mirrored so `setTileSource` can rebuild the style. */
 	private tileSource: TileSource | undefined;
+	/** Whether layer-delegated event handlers are currently attached. MapLibre
+	 *  stores per-layer delegated listeners on the map instance itself, so
+	 *  they survive `setStyle()` — if we call `wireLayerEvents` twice without
+	 *  tearing the previous set down first, every click fires N handlers and
+	 *  the same `submitInput` runs N times. */
+	private layerEventsWired = false;
+	private layerClickHandler:
+		| ((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void)
+		| null = null;
+	private layerMouseEnterHandler:
+		| ((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void)
+		| null = null;
+	private layerMouseLeaveHandler: (() => void) | null = null;
 
 	constructor(options: MapControllerOptions) {
 		this.variant = options.variant;
@@ -110,6 +127,7 @@ export class MapController {
 		});
 
 		this.map.on('load', () => {
+			registerLocationIcons(this.map);
 			this.ready = true;
 			this.wireLayerEvents();
 			if (this.pendingMapData) {
@@ -136,6 +154,7 @@ export class MapController {
 		this.ready = false;
 		this.map.setStyle(buildStyle(this.variant, theme, source));
 		this.map.once('styledata', () => {
+			registerLocationIcons(this.map);
 			this.ready = true;
 			this.wireLayerEvents();
 			const data = this.pendingMapData ?? this.lastMapData;
@@ -171,7 +190,10 @@ export class MapController {
 			filterIds: visibleIds,
 			offMapCounts
 		});
-		const edgeFC = edgesToGeoJSON(mapData, { filterIds: visibleIds });
+		const edgeFC = edgesToGeoJSON(mapData, {
+			filterIds: visibleIds,
+			traversingEdgeKeys: this.activeTravelEdgeKeys
+		});
 
 		setSourceData(this.map, 'locations', locationFC);
 		setSourceData(this.map, 'edges', edgeFC);
@@ -208,14 +230,28 @@ export class MapController {
 
 	/**
 	 * Starts (or updates) a travel-dot animation along the given waypoints.
-	 * Creates an HTMLMarker with a pulsing dot element; on each frame the
-	 * marker's lat/lon is interpolated between consecutive waypoints.
+	 *
+	 * The dot is interpolated along the waypoint polyline in world coordinates
+	 * (distance-proportional over `durationMs`), so it tracks the true path
+	 * regardless of where the user has panned the camera. The camera animates
+	 * independently: when `targetBounds` is supplied (minimap case) we
+	 * `fitBounds` so center AND zoom interpolate smoothly to the destination
+	 * neighborhood; otherwise (full map) we leave the camera alone so user
+	 * pans aren't overridden mid-travel.
 	 *
 	 * Call `stopTravel()` when the animation should end.
 	 */
-	startTravel(waypoints: TravelWaypoint[], durationMs: number): void {
+	startTravel(
+		waypoints: TravelWaypoint[],
+		durationMs: number,
+		targetBounds?: Array<{ lat: number; lon: number }>
+	): void {
 		this.stopTravel();
 		if (waypoints.length < 2) return;
+		this.activeTravelEdgeKeys = buildTravelEdgeKeys(waypoints);
+		if (this.lastMapData) {
+			this.updateMap(this.lastMapData, this.lastVisibleIds ?? undefined);
+		}
 
 		const el = document.createElement('div');
 		el.className = 'travel-dot-marker';
@@ -224,19 +260,37 @@ export class MapController {
 			.setLngLat([waypoints[0].lon, waypoints[0].lat])
 			.addTo(this.map);
 
-		const startTs = performance.now();
-		const segCount = waypoints.length - 1;
+		if (targetBounds && targetBounds.length > 0) {
+			const bounds = new LngLatBounds();
+			for (const c of targetBounds) bounds.extend([c.lon, c.lat]);
+			this.map.fitBounds(bounds, {
+				padding: 16,
+				maxZoom: 16,
+				duration: durationMs,
+				easing: (t) => t,
+				linear: true
+			});
+		}
 
+		// Flat-earth distance is fine at parish scale — all travel fits inside
+		// a few kilometres, so lat/lon Euclidean approximates arc length well
+		// enough for a pulsing dot.
+		const segLengths: number[] = [];
+		let totalLength = 0;
+		for (let i = 1; i < waypoints.length; i += 1) {
+			const a = waypoints[i - 1];
+			const b = waypoints[i];
+			const d = Math.hypot(b.lon - a.lon, b.lat - a.lat);
+			segLengths.push(d);
+			totalLength += d;
+		}
+
+		const startTime = performance.now();
 		const tick = () => {
-			const now = performance.now();
-			const t = Math.min(1, Math.max(0, (now - startTs) / durationMs));
-			const segFloat = t * segCount;
-			const segIdx = Math.min(Math.floor(segFloat), segCount - 1);
-			const segT = segFloat - segIdx;
-			const from = waypoints[segIdx];
-			const to = waypoints[segIdx + 1];
-			const lat = from.lat + (to.lat - from.lat) * segT;
-			const lon = from.lon + (to.lon - from.lon) * segT;
+			const t = durationMs > 0
+				? Math.min(1, (performance.now() - startTime) / durationMs)
+				: 1;
+			const [lon, lat] = positionAlongPath(waypoints, segLengths, totalLength, t);
 			marker.setLngLat([lon, lat]);
 			if (t < 1 && this.travelAnim) {
 				this.travelAnim.rafId = requestAnimationFrame(tick);
@@ -248,6 +302,11 @@ export class MapController {
 
 	/** Stops and removes any active travel animation. */
 	stopTravel(): void {
+		const hadActivePath = this.activeTravelEdgeKeys.size > 0;
+		this.activeTravelEdgeKeys.clear();
+		if (hadActivePath && this.lastMapData) {
+			this.updateMap(this.lastMapData, this.lastVisibleIds ?? undefined);
+		}
 		if (!this.travelAnim) return;
 		cancelAnimationFrame(this.travelAnim.rafId);
 		this.travelAnim.marker.remove();
@@ -269,6 +328,24 @@ export class MapController {
 		return { width: canvas.clientWidth, height: canvas.clientHeight };
 	}
 
+	/** Subscribes `fn` to MapLibre `move` and `resize` events.
+	 *
+	 * Returns an unsubscribe function. Used by MapPanel to recompute
+	 * off-screen edge stubs only when the camera actually moves,
+	 * instead of polling on a `requestAnimationFrame` loop at ~60fps
+	 * for the entire mount lifetime (#350). The previous polling
+	 * approach burned CPU/GPU continuously and triggered downstream
+	 * Svelte reactivity churn even when the user wasn't interacting.
+	 */
+	addMoveListener(fn: () => void): () => void {
+		this.map.on('move', fn);
+		this.map.on('resize', fn);
+		return () => {
+			this.map.off('move', fn);
+			this.map.off('resize', fn);
+		};
+	}
+
 	/** Registers a handler called when a location is clicked. */
 	onLocationClick(handler: (info: LocationClickInfo) => void): void {
 		this.clickHandler = handler;
@@ -286,16 +363,22 @@ export class MapController {
 	/** Cleans up the underlying MapLibre instance and any running animation. */
 	destroy(): void {
 		this.stopTravel();
+		this.unwireLayerEvents();
 		this.map.remove();
 	}
 
 	/**
-	 * Wires click & hover listeners onto the `location-circles` layer once
-	 * the map has finished loading. A single layer handles both the visual
-	 * and the hit-testing — clicks on the invisible-at-zoom labels still
-	 * fall through to this because the circle sits beneath.
+	 * Wires click & hover listeners onto the location layers.
+	 *
+	 * Called on first `load` and again after every `setStyle` (which wipes
+	 * layers but NOT MapLibre's `_delegatedListeners` map). We stash the
+	 * bound handler refs and tear them down before re-adding — otherwise
+	 * each `setTileSource` call stacks another handler and every click
+	 * fires `submitInput` N times.
 	 */
 	private wireLayerEvents(): void {
+		this.unwireLayerEvents();
+
 		const canvas = this.map.getCanvas();
 
 		const handleClick = (e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => {
@@ -330,10 +413,33 @@ export class MapController {
 			this.hoverLeaveHandler?.();
 		};
 
+		this.layerClickHandler = handleClick;
+		this.layerMouseEnterHandler = handleMouseEnter;
+		this.layerMouseLeaveHandler = handleMouseLeave;
+
 		this.map.on('click', 'location-circles', handleClick);
 		this.map.on('click', 'location-labels', handleClick);
 		this.map.on('mouseenter', 'location-circles', handleMouseEnter);
 		this.map.on('mouseleave', 'location-circles', handleMouseLeave);
+		this.layerEventsWired = true;
+	}
+
+	private unwireLayerEvents(): void {
+		if (!this.layerEventsWired) return;
+		if (this.layerClickHandler) {
+			this.map.off('click', 'location-circles', this.layerClickHandler);
+			this.map.off('click', 'location-labels', this.layerClickHandler);
+		}
+		if (this.layerMouseEnterHandler) {
+			this.map.off('mouseenter', 'location-circles', this.layerMouseEnterHandler);
+		}
+		if (this.layerMouseLeaveHandler) {
+			this.map.off('mouseleave', 'location-circles', this.layerMouseLeaveHandler);
+		}
+		this.layerClickHandler = null;
+		this.layerMouseEnterHandler = null;
+		this.layerMouseLeaveHandler = null;
+		this.layerEventsWired = false;
 	}
 }
 
@@ -352,4 +458,79 @@ function setSourceData(
 	if (source && source.type === 'geojson') {
 		(source as maplibregl.GeoJSONSource).setData(data);
 	}
+}
+
+/**
+ * Returns `[lon, lat]` at fractional progress `t ∈ [0, 1]` along the polyline
+ * formed by `waypoints`, weighted by segment length so progress matches
+ * distance travelled rather than waypoint count.
+ */
+export function positionAlongPath(
+	waypoints: TravelWaypoint[],
+	segLengths: number[],
+	totalLength: number,
+	t: number
+): [number, number] {
+	if (waypoints.length === 0) return [0, 0];
+	if (t <= 0 || totalLength === 0) {
+		const first = waypoints[0];
+		return [first.lon, first.lat];
+	}
+	if (t >= 1) {
+		const last = waypoints[waypoints.length - 1];
+		return [last.lon, last.lat];
+	}
+	const target = t * totalLength;
+	let consumed = 0;
+	for (let i = 0; i < segLengths.length; i += 1) {
+		const segLen = segLengths[i];
+		if (consumed + segLen >= target) {
+			const frac = segLen === 0 ? 0 : (target - consumed) / segLen;
+			const a = waypoints[i];
+			const b = waypoints[i + 1];
+			return [a.lon + (b.lon - a.lon) * frac, a.lat + (b.lat - a.lat) * frac];
+		}
+		consumed += segLen;
+	}
+	const last = waypoints[waypoints.length - 1];
+	return [last.lon, last.lat];
+}
+
+function buildTravelEdgeKeys(waypoints: TravelWaypoint[]): Set<string> {
+	const keys = new Set<string>();
+	for (let i = 0; i < waypoints.length - 1; i += 1) {
+		const a = waypoints[i];
+		const b = waypoints[i + 1];
+		keys.add(edgeKey(a.id, b.id));
+	}
+	return keys;
+}
+
+function registerLocationIcons(map: MapLibreMap): void {
+	for (const [icon, path] of Object.entries(ICON_PATHS) as Array<[LocationIcon, string]>) {
+		const imageId = `icon-${icon}`;
+		if (map.hasImage(imageId)) continue;
+		const image = drawIconImage(path);
+		if (!image) continue;
+		map.addImage(imageId, image, { sdf: true });
+	}
+}
+
+// Returns null when the host lacks a usable 2D canvas (jsdom in unit tests).
+// Real browsers always provide one; MapLibre then falls back to a square
+// placeholder for `icon-image: icon-…` which keeps the rest of the style
+// valid rather than hard-failing the test render.
+export function drawIconImage(pathData: string): ImageData | null {
+	const size = 64;
+	const canvas = document.createElement('canvas');
+	canvas.width = size;
+	canvas.height = size;
+	const ctx = canvas.getContext('2d');
+	if (!ctx || typeof Path2D === 'undefined') return null;
+	ctx.clearRect(0, 0, size, size);
+	ctx.fillStyle = '#ffffff';
+	ctx.scale(size / 256, size / 256);
+	const path = new Path2D(pathData);
+	ctx.fill(path);
+	return ctx.getImageData(0, 0, size, size);
 }

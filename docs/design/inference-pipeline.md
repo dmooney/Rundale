@@ -147,13 +147,13 @@ model = "gemini-2.5-flash-lite"
 api_key = "$GOOGLE_API_KEY"
 ```
 
-**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the 9B stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction:
+**Fully-local** — zero cloud dependency; run two Ollama instances on different ports so the larger model stays loaded for Dialogue/Simulation while the 3B handles Intent/Reaction. The engine's built-in auto-selector picks a gemma4 tier based on VRAM / unified memory (see `select_model_for_vram` in `crates/parish-inference/src/setup.rs`); override here if you want something different:
 
 ```toml
 [provider]
 name = "ollama"
 base_url = "http://localhost:11434"
-model = "qwen3.5:9b"   # or "gemma4:9b"
+model = "gemma4:e4b"   # or gemma4:26b (MoE) / gemma4:31b (dense) if you have the memory
 
 [provider.intent]
 name = "ollama"

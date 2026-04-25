@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { mapData } from '../stores/game';
+	import { mapData, pushErrorLog, formatIpcError } from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
@@ -36,7 +36,13 @@
 
 		controller.onLocationClick(async (info) => {
 			if (!info.adjacent) return;
-			await submitInput(`go to ${info.name}`);
+			try {
+				await submitInput(`go to ${info.name}`);
+			} catch (err) {
+				pushErrorLog(
+					`Could not travel to ${info.name}: ${formatIpcError(err)}`
+				);
+			}
 		});
 
 		controller.onLocationHover(
@@ -71,11 +77,31 @@
 		};
 	});
 
-	// Push map data changes into the controller.
+	// Tracks whether we've fit the camera to the parish bounds at least
+	// once. The initial fitBounds call inside onMount runs synchronously
+	// against whatever $mapData was at that moment — if the overlay is
+	// opened before mapData has populated (fast 'M' keypress before the
+	// initial fetch resolves, or after `/new` while world state is
+	// rebuilding), the map stays on MapController's hard-coded default
+	// center until the user pans manually. (#351)
+	let hasFitOnce = false;
+
+	// Push map data changes into the controller. The first time mapData
+	// becomes non-empty after mount, also fit bounds so a delayed first
+	// load doesn't leave the user staring at the default Kiltoom view.
 	$effect(() => {
 		if (!mounted || !controller) return;
 		const m = $mapData;
-		if (m) controller.updateMap(m);
+		if (m) {
+			controller.updateMap(m);
+			if (!hasFitOnce && m.locations.length > 0) {
+				controller.fitBounds(
+					m.locations.map((l) => ({ lat: l.lat, lon: l.lon })),
+					60
+				);
+				hasFitOnce = true;
+			}
+		}
 	});
 
 	// Drive travel animation from the shared travel store.
@@ -176,26 +202,28 @@
 		width: 100%;
 	}
 
-	/* ── Travel animation dot (HTML marker) ── */
+	/* ── Travel animation dot (HTML marker) ──
+	   Animating `transform` would clobber the `translate(…)` MapLibre sets
+	   each frame to position the marker, collapsing it to the canvas
+	   top-left. Pulse via opacity + box-shadow only. */
 	:global(.travel-dot-marker) {
 		width: 14px;
 		height: 14px;
 		border-radius: 50%;
 		background: var(--color-accent);
 		border: 2px solid var(--color-fg);
-		box-shadow: 0 0 8px var(--color-accent);
 		animation: travel-pulse 0.6s ease-in-out infinite alternate;
 		pointer-events: none;
 	}
 
 	@keyframes travel-pulse {
 		from {
-			opacity: 0.8;
-			transform: scale(0.9);
+			opacity: 0.85;
+			box-shadow: 0 0 4px var(--color-accent);
 		}
 		to {
 			opacity: 1;
-			transform: scale(1.1);
+			box-shadow: 0 0 12px var(--color-accent);
 		}
 	}
 

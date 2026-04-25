@@ -64,17 +64,20 @@ curl http://localhost:11434/api/tags
 
 ### 6. Pull a Model
 
-Rundale auto-detects your hardware and selects a model when you first run the game, but you can pre-pull one:
+Rundale auto-detects your hardware (unified memory on Apple Silicon via `sysctl hw.memsize`) and picks the best **gemma4** tier when you first run the game. You can pre-pull a model to skip that first-run download:
 
 ```sh
-# Apple Silicon with 16 GB+ unified memory — full quality
-ollama pull qwen3:14b
+# 36 GB+ unified memory — dense 31B, best quality
+ollama pull gemma4:31b
 
-# Apple Silicon with 8 GB — good quality
-ollama pull qwen3:8b
+# 24 GB+ — Mixture-of-Experts (4B active), fast
+ollama pull gemma4:26b
 
-# Older Mac or limited memory — lighter model
-ollama pull qwen3:4b
+# 16 GB (default for most Macs) — edge 4.5B effective
+ollama pull gemma4:e4b
+
+# 8 GB / older Mac — edge 2.3B effective
+ollama pull gemma4:e2b
 ```
 
 See [ADR-005](adr/005-ollama-local-inference.md) for model selection details.
@@ -142,4 +145,4 @@ sudo xcode-select --reset
 
 - On Apple Silicon, ensure Ollama is using Metal (it should by default). Check with `ollama ps` to see GPU utilization.
 - Close other memory-intensive applications — the model needs free unified memory.
-- Try a smaller model (`qwen3:4b` or `qwen3:1.7b`) if performance is poor.
+- Try a smaller model (`gemma4:e2b`) if performance is poor.

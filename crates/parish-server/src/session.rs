@@ -57,6 +57,10 @@ pub struct GlobalState {
     pub transport: TransportConfig,
     /// Template game config cloned into each new session.
     pub template_config: GameConfig,
+    /// Child `ollama serve` process handle (no-op for non-Ollama providers).
+    /// Held for the server's lifetime so dropping `GlobalState` stops the
+    /// server. Wrapped in a `Mutex` so the struct stays `Sync`.
+    pub ollama_process: tokio::sync::Mutex<parish_core::inference::client::OllamaProcess>,
 }
 
 /// A single visitor's isolated game session.
@@ -227,6 +231,116 @@ impl SessionRegistry {
         let cutoff = Self::now_unix().saturating_sub(max_age.as_secs());
         self.sessions
             .retain(|_, entry| entry.last_active.load(Ordering::Relaxed) >= cutoff);
+    }
+
+    /// Purges sessions abandoned for longer than `max_age` from disk
+    /// (sessions.db row + saves/<session_id>/ directory).
+    ///
+    /// Distinct from [`cleanup_stale`]: that one only clears the
+    /// in-memory map. Disk state is what needs removing here (#482) —
+    /// otherwise long-running deployments accumulate dead sessions
+    /// forever. `max_age` is expected to be much longer than the
+    /// in-memory TTL (e.g. 30 days vs 2 hours) so users can still
+    /// restore a session from the cookie on their next visit for
+    /// reasonable idle windows.
+    ///
+    /// Returns the number of sessions purged, so the caller can log
+    /// the scope of the sweep.
+    pub fn purge_expired_disk_sessions(&self, saves_root: &Path, max_age: Duration) -> usize {
+        let cutoff_secs = Self::now_unix().saturating_sub(max_age.as_secs());
+        let cutoff = match chrono::DateTime::<chrono::Utc>::from_timestamp(cutoff_secs as i64, 0) {
+            Some(dt) => dt.to_rfc3339(),
+            None => {
+                tracing::warn!(
+                    cutoff_secs = cutoff_secs,
+                    "purge_expired_disk_sessions: cutoff timestamp out of range, skipping sweep"
+                );
+                return 0;
+            }
+        };
+
+        // Find expired session ids + drop their sessions.db rows in a
+        // single transaction so the filesystem cleanup below can't get
+        // out of sync with the DB if the process dies mid-sweep.
+        let expired_ids: Vec<String> = {
+            let db = match self.db.lock() {
+                Ok(g) => g,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            let mut collected = Vec::new();
+            let select_result = (|| -> rusqlite::Result<()> {
+                let mut stmt = db.prepare("SELECT id FROM sessions WHERE last_active < ?1")?;
+                let mut rows = stmt.query([&cutoff])?;
+                while let Some(row) = rows.next()? {
+                    collected.push(row.get::<_, String>(0)?);
+                }
+                Ok(())
+            })();
+            if let Err(e) = select_result {
+                tracing::warn!(error = %e, "purge_expired_disk_sessions: DB read failed");
+                return 0;
+            }
+            // Drop rows for the ids we collected. Run as a single
+            // transaction so a process crash doesn't leave the DB
+            // partially pruned relative to the filesystem.
+            if !collected.is_empty() {
+                let tx_result = (|| -> rusqlite::Result<()> {
+                    let placeholders = vec!["?"; collected.len()].join(",");
+                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
+                    let params: Vec<&dyn rusqlite::ToSql> = collected
+                        .iter()
+                        .map(|s| s as &dyn rusqlite::ToSql)
+                        .collect();
+                    db.execute(&sql, params.as_slice())?;
+                    // Also drop oauth links for those sessions — otherwise
+                    // the next login for the same provider_user_id would
+                    // resurrect a dead session_id. (#482 sibling concern.)
+                    let oauth_sql =
+                        format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
+                    db.execute(&oauth_sql, params.as_slice())?;
+                    Ok(())
+                })();
+                if let Err(e) = tx_result {
+                    tracing::warn!(error = %e, "purge_expired_disk_sessions: DB delete failed");
+                    return 0;
+                }
+            }
+            collected
+        };
+
+        if expired_ids.is_empty() {
+            return 0;
+        }
+
+        // Best-effort filesystem cleanup. A failure here is logged but
+        // doesn't undo the DB delete — a residual saves/<id>/ directory
+        // with no DB row is harmless (eventually reaped by OS-level
+        // cleanup or a later sweep once we have directory-age scanning).
+        for id in &expired_ids {
+            let session_dir = saves_root.join(id);
+            if !session_dir.exists() {
+                continue;
+            }
+            match std::fs::remove_dir_all(&session_dir) {
+                Ok(()) => {
+                    tracing::info!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        "purge_expired_disk_sessions: removed saves directory"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        error = %e,
+                        "purge_expired_disk_sessions: failed to remove saves directory"
+                    );
+                }
+            }
+        }
+
+        expired_ids.len()
     }
 }
 
@@ -417,6 +531,22 @@ async fn restore_session(
         init_inference_queue(&app_state, c.clone()).await;
     }
 
+    // Acquire advisory lock on the restored save file so another server
+    // instance (or a headless CLI) cannot concurrently write to it (#425).
+    // If a peer already holds the lock we log a warning and continue:
+    // refusing to start would leave the user with no session at all, and
+    // per-process ownership makes strict mutual exclusion across
+    // containers out of scope for this handler. The lock is stored on
+    // AppState.save_lock so it lives for the session's lifetime.
+    let locked = parish_core::persistence::SaveFileLock::try_acquire(&db_path);
+    if locked.is_none() {
+        tracing::warn!(
+            path = %db_path.display(),
+            session_id = %session_id,
+            "SaveFileLock::try_acquire returned None on session resume — save file appears in use by another instance",
+        );
+    }
+    *app_state.save_lock.lock().await = locked;
     *app_state.save_path.lock().await = Some(db_path);
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some(branch_name);
@@ -473,11 +603,87 @@ async fn init_session_save(app_state: &Arc<AppState>, session_saves: &Path) -> R
     .await
     .map_err(|e| e.to_string())??;
 
+    // Advisory lock on the freshly-initialised save file so peer
+    // instances don't write to it concurrently (#425). For a just-created
+    // save we expect the lock to always succeed, but we stay defensive:
+    // warn if the lock fails rather than silently proceeding.
+    let locked = parish_core::persistence::SaveFileLock::try_acquire(&save_path);
+    if locked.is_none() {
+        tracing::warn!(
+            path = %save_path.display(),
+            "SaveFileLock::try_acquire returned None on init_session_save — new save file unexpectedly locked",
+        );
+    }
+    *app_state.save_lock.lock().await = locked;
     *app_state.save_path.lock().await = Some(save_path);
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
+}
+
+/// Maximum number of gossip propagations performed on a single world tick.
+///
+/// With many locations and large tier-2 groups a naive "propagate at every
+/// group" pass can run hundreds of `propagate_gossip_at_location` calls per
+/// tick, stalling the 5-second world tick visibly for all connected
+/// clients (#466). Budgeting keeps each tick cheap; remaining groups get
+/// picked up by the next tick via a round-robin cursor.
+const GOSSIP_BUDGET_PER_TICK: usize = 20;
+
+/// Runs at most `budget` gossip propagations across `groups`, starting from
+/// the group at position `cursor` in location-id order and wrapping around.
+/// Returns the new cursor to persist for the next tick, so the round-robin
+/// makes forward progress through the group list over successive ticks
+/// rather than re-hitting the same prefix every time.
+///
+/// Groups with fewer than 2 NPCs are skipped silently and do *not* consume
+/// budget — they are no-ops for gossip and counting them would let a
+/// cluster of sparse groups waste an entire tick's budget.
+///
+/// The propagation work itself is handed off via a `propagate` callback so
+/// the helper stays free of the specific `GossipNetwork` / `Rng` types it
+/// would otherwise need to name, keeping the module's import graph small
+/// and the helper unit-testable with a counting stub.
+fn propagate_gossip_budgeted<F>(
+    groups: &std::collections::HashMap<
+        parish_core::world::LocationId,
+        Vec<parish_core::npc::NpcId>,
+    >,
+    cursor: usize,
+    budget: usize,
+    mut propagate: F,
+) -> usize
+where
+    F: FnMut(&[parish_core::npc::NpcId]),
+{
+    // Sort groups by LocationId so the cursor addresses a stable order
+    // across ticks; `HashMap::iter` order would shift on every resize.
+    let mut sorted_keys: Vec<parish_core::world::LocationId> = groups.keys().copied().collect();
+    sorted_keys.sort();
+    let n = sorted_keys.len();
+    if n == 0 {
+        return 0;
+    }
+    let start = cursor % n;
+    let mut consumed = 0;
+    for i in 0..n {
+        if consumed >= budget {
+            return (start + i) % n;
+        }
+        let idx = (start + i) % n;
+        let loc = sorted_keys[idx];
+        if let Some(npc_ids) = groups.get(&loc)
+            && npc_ids.len() >= 2
+        {
+            propagate(npc_ids);
+            consumed += 1;
+        }
+    }
+    // Wrapped all the way around without hitting the budget — advance the
+    // cursor by the number of groups we actually processed so we still
+    // rotate on each tick.
+    (start + consumed) % n
 }
 
 /// Spawns the three per-session background tasks and returns their handles.
@@ -488,6 +694,8 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
     {
         let s = Arc::clone(&state);
         handles.push(tokio::spawn(async move {
+            // Round-robin cursor for budgeted gossip propagation (#466).
+            let mut gossip_cursor: usize = 0;
             loop {
                 tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -505,6 +713,14 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                 }
 
                 {
+                    // Snapshot the banshee flag outside the world/npc locks to avoid
+                    // nesting config → world, which inverts the project-wide
+                    // lock order.
+                    let banshee_enabled = {
+                        let cfg = s.config.lock().await;
+                        !cfg.flags.is_disabled("banshee")
+                    };
+
                     let mut world = s.world.lock().await;
                     let mut npc_mgr = s.npc_manager.lock().await;
 
@@ -524,18 +740,32 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                     npc_mgr.tick_schedules(&world.clock, &world.graph, world.weather);
                     npc_mgr.assign_tiers(&world, &[]);
 
+                    // Banshee tick — herald and finalise doomed NPCs.
+                    if banshee_enabled {
+                        let world = &mut *world;
+                        let _ = npc_mgr.tick_banshee(
+                            &world.clock,
+                            &world.graph,
+                            &mut world.text_log,
+                            &world.event_bus,
+                            world.player_location,
+                        );
+                    }
+
                     if !world.gossip_network.is_empty() {
                         let groups = npc_mgr.tier2_groups();
                         let mut rng = rand::thread_rng();
-                        for npc_ids in groups.values() {
-                            if npc_ids.len() >= 2 {
+                        let network = &mut world.gossip_network;
+                        gossip_cursor = propagate_gossip_budgeted(
+                            &groups,
+                            gossip_cursor,
+                            GOSSIP_BUDGET_PER_TICK,
+                            |npc_ids| {
                                 parish_core::npc::ticks::propagate_gossip_at_location(
-                                    npc_ids,
-                                    &mut world.gossip_network,
-                                    &mut rng,
+                                    npc_ids, network, &mut rng,
                                 );
-                            }
-                        }
+                            },
+                        );
                     }
                 }
             }
@@ -707,5 +937,192 @@ mod tests {
             reg.google_account_for_session("sess_new"),
             Some(("sub_new".to_string(), "Jane Doe".to_string())),
         );
+    }
+
+    // ── #466 gossip budget round-robin ──────────────────────────────────────
+
+    fn make_group(n: u32) -> (parish_core::world::LocationId, Vec<parish_core::npc::NpcId>) {
+        let loc = parish_core::world::LocationId(n);
+        // 2 NPCs so the group is gossip-eligible.
+        let npcs = vec![
+            parish_core::npc::NpcId(n * 10),
+            parish_core::npc::NpcId(n * 10 + 1),
+        ];
+        (loc, npcs)
+    }
+
+    #[test]
+    fn gossip_budget_empty_returns_zero_cursor() {
+        let groups = std::collections::HashMap::new();
+        let mut calls = 0;
+        let new_cursor = propagate_gossip_budgeted(&groups, 42, 20, |_| calls += 1);
+        assert_eq!(new_cursor, 0);
+        assert_eq!(calls, 0);
+    }
+
+    #[test]
+    fn gossip_budget_caps_at_budget_and_returns_next_cursor() {
+        // 50 eligible groups, budget 20 — expect 20 propagations and cursor=20.
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=50 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        let new_cursor = propagate_gossip_budgeted(&groups, 0, 20, |_| calls += 1);
+        assert_eq!(calls, 20);
+        assert_eq!(new_cursor, 20, "cursor should advance by the budget");
+    }
+
+    #[test]
+    fn gossip_budget_round_robins_across_ticks() {
+        // 30 groups, budget 20. Tick 1 does 0..20, tick 2 should pick up at 20
+        // and wrap through 29, 0..9 — ending at cursor 10 (20+20 mod 30).
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=30 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+
+        let mut seen: Vec<parish_core::world::LocationId> = Vec::new();
+        let new_cursor = propagate_gossip_budgeted(&groups, 0, 20, |npc_ids| {
+            // reverse-map back to LocationId via NpcId(n*10).
+            let n = npc_ids[0].0 / 10;
+            seen.push(parish_core::world::LocationId(n));
+        });
+        assert_eq!(new_cursor, 20);
+        assert_eq!(seen.len(), 20);
+
+        // Next tick starting from cursor=20 should continue with id 21
+        // (since ids are sorted and we started at id 1 for index 0).
+        let mut next_seen: Vec<parish_core::world::LocationId> = Vec::new();
+        let next_cursor = propagate_gossip_budgeted(&groups, new_cursor, 20, |npc_ids| {
+            next_seen.push(parish_core::world::LocationId(npc_ids[0].0 / 10));
+        });
+        assert_eq!(next_cursor, 10, "wrap: (20+20) mod 30 = 10");
+        assert_eq!(next_seen.len(), 20);
+        // First item processed on tick 2 is id 21 (sorted position 20).
+        assert_eq!(next_seen[0], parish_core::world::LocationId(21));
+        // Last item is id 10 (sorted position 9 after wrap).
+        assert_eq!(next_seen[19], parish_core::world::LocationId(10));
+    }
+
+    #[test]
+    fn gossip_budget_skips_sparse_groups_without_consuming_budget() {
+        // Mix of eligible (len>=2) and sparse (len<2) groups. Budget=3.
+        // Sparse groups must not count against the budget — we should see
+        // exactly 3 propagations regardless of how many sparse peers sit
+        // between them.
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=10u32 {
+            let (loc, mut npcs) = make_group(i);
+            // Every 2nd group is sparse (1 member only).
+            if i.is_multiple_of(2) {
+                npcs.truncate(1);
+            }
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        let _ = propagate_gossip_budgeted(&groups, 0, 3, |_| calls += 1);
+        assert_eq!(calls, 3, "sparse groups must not consume budget");
+    }
+
+    #[test]
+    fn gossip_budget_cursor_wraps_modulo_group_count() {
+        // Absurdly large cursor should wrap cleanly.
+        let mut groups = std::collections::HashMap::new();
+        for i in 1..=5 {
+            let (loc, npcs) = make_group(i);
+            groups.insert(loc, npcs);
+        }
+        let mut calls = 0;
+        // cursor = 1_000_000, budget = 2, expect new cursor = (1_000_000 % 5) + 2 = 0 + 2 = 2.
+        let new_cursor = propagate_gossip_budgeted(&groups, 1_000_000, 2, |_| calls += 1);
+        assert_eq!(calls, 2);
+        assert_eq!(new_cursor, 2);
+    }
+
+    // ── #482 disk-session purge ─────────────────────────────────────────────
+
+    /// Overwrites sessions.id's last_active to a fixed ISO timestamp so
+    /// tests can pin "how idle" a row is without sleeping through the
+    /// real retention window.
+    fn backdate_session(reg: &SessionRegistry, session_id: &str, last_active_iso: &str) {
+        let db = reg.db.lock().unwrap();
+        db.execute(
+            "UPDATE sessions SET last_active = ?1 WHERE id = ?2",
+            rusqlite::params![last_active_iso, session_id],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn purge_expired_removes_old_row_and_save_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("expired");
+        // Fresh row + fake saves/<id>/ directory.
+        let save_dir = tmp.path().join("expired");
+        std::fs::create_dir_all(&save_dir).unwrap();
+        std::fs::write(save_dir.join("parish_001.db"), b"fake").unwrap();
+        // Backdate to 90 days ago so any reasonable retention sweep
+        // picks it up.
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "expired", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!reg.exists_in_db("expired"));
+        assert!(
+            !save_dir.exists(),
+            "saves directory must be deleted after purge"
+        );
+    }
+
+    #[test]
+    fn purge_expired_preserves_recent_sessions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("recent");
+        let save_dir = tmp.path().join("recent");
+        std::fs::create_dir_all(&save_dir).unwrap();
+
+        // last_active set to `now` by persist_new — well inside the
+        // 30-day retention window.
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 0);
+        assert!(reg.exists_in_db("recent"));
+        assert!(save_dir.exists());
+    }
+
+    #[test]
+    fn purge_expired_drops_linked_oauth_rows() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("expired_linked");
+        reg.link_oauth("google", "sub_legacy", "expired_linked", "Old User");
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "expired_linked", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        // The OAuth link is gone too — otherwise a fresh login for
+        // `sub_legacy` would resurrect a dead session_id with no DB row.
+        assert_eq!(reg.find_by_oauth("google", "sub_legacy"), None);
+    }
+
+    #[test]
+    fn purge_expired_handles_missing_save_dir_gracefully() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        reg.persist_new("ghost");
+        // No saves/<id>/ directory was ever created. Purge must still
+        // delete the DB row and return 1 — filesystem absence is fine.
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, "ghost", &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!reg.exists_in_db("ghost"));
     }
 }

@@ -42,6 +42,35 @@ use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
+/// Content-Security-Policy value shared between production and tests.
+///
+/// # script-src 'unsafe-inline' (TODO: replace with hash)
+///
+/// SvelteKit's production build injects a small inline bootstrap `<script>` in
+/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
+/// `script-src` causes the browser to reject that script, so the page never
+/// hydrates (codex P1, PR #543).
+///
+/// The proper fix is to compute the SHA-256 of that bootstrap block and add
+/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
+/// but must be regenerated whenever SvelteKit changes the bootstrap text.
+/// Until that build-time integration exists, `'unsafe-inline'` is restored here
+/// so the app keeps working.
+///
+/// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
+/// `apps/ui/dist/index.html` at build time.
+/// See: <https://github.com/dmooney/Parish/issues/543>
+pub const CSP_POLICY: &str = "default-src 'self'; \
+                              script-src 'self' 'unsafe-inline'; \
+                              worker-src 'self' blob:; \
+                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                              img-src 'self' data: blob: https:; \
+                              connect-src 'self' ws: wss: https:; \
+                              font-src 'self' https://fonts.gstatic.com; \
+                              frame-ancestors 'none'; \
+                              base-uri 'self'; \
+                              form-action 'self'";
+
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 
@@ -122,7 +151,8 @@ async fn cf_access_guard(
             .headers()
             .get("CF-Access-Authenticated-User-Email")
             .and_then(|v| v.to_str().ok())
-            .map(str::to_string);
+            .map(str::to_string)
+            .filter(|e| !e.is_empty() && e.contains('@'));
         if let Some(email) = debug_email {
             req.extensions_mut().insert(cf_auth::AuthContext { email });
             return Ok(next.run(req).await);
@@ -145,12 +175,29 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     };
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (_, mut config) = build_client_and_config();
+    let (provider_cfg, mut config) = build_client_and_config();
     let cloud_env = build_cloud_client_from_env();
     config.cloud_provider_name = cloud_env.provider_name;
     config.cloud_model_name = cloud_env.model_name;
     config.cloud_api_key = cloud_env.api_key;
     config.cloud_base_url = cloud_env.base_url;
+
+    // Run the shared provider bootstrap (Ollama install / auto-start / GPU
+    // detect / model pull / warmup) — CLAUDE.md rule #2 (mode parity).
+    // Per-session clients are built from the template config, which at this
+    // point has the auto-selected model tag resolved. The returned client
+    // is discarded — sessions build their own. The `OllamaProcess` is kept
+    // in `GlobalState` so the child server dies with this process.
+    let progress = parish_core::inference::setup::StdoutProgress;
+    let (_setup_client, resolved_model, ollama_process) =
+        parish_core::inference::setup::setup_provider_client(
+            &provider_cfg,
+            &parish_core::config::InferenceConfig::default(),
+            &progress,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
+    config.model_name = resolved_model;
 
     // ── Game mod ──────────────────────────────────────────────────────────────
     let game_mod = find_default_mod().and_then(|dir| GameMod::load(&dir).ok());
@@ -251,16 +298,32 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         theme_palette,
         transport: TransportConfig::default(),
         template_config: config,
+        ollama_process: tokio::sync::Mutex::new(ollama_process),
     });
 
     // ── Session cleanup background task ───────────────────────────────────────
     {
         let g = Arc::clone(&global);
         tokio::spawn(async move {
+            // Memory TTL: 1 day idle → evict from DashMap (cookie still
+            // valid; next visit restores from sessions.db).
+            const MEMORY_TTL: Duration = Duration::from_secs(86_400);
+            // Disk TTL: 30 days idle → purge sessions.db row +
+            // saves/<id>/ directory so long-running deployments don't
+            // accumulate dead sessions forever (#482).
+            const DISK_TTL: Duration = Duration::from_secs(30 * 86_400);
             loop {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
-                g.sessions.cleanup_stale(Duration::from_secs(86400));
-                tracing::debug!("Session cleanup ran");
+                g.sessions.cleanup_stale(MEMORY_TTL);
+                let saves_root = g.saves_dir.clone();
+                let purged = g
+                    .sessions
+                    .purge_expired_disk_sessions(&saves_root, DISK_TTL);
+                if purged > 0 {
+                    tracing::info!(purged, "Session cleanup reaped expired disk sessions");
+                } else {
+                    tracing::debug!("Session cleanup ran (no disk expirations)");
+                }
             }
         });
     }
@@ -371,17 +434,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         // ── Security hardening headers (outermost layer — covers all routes) ──
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline'; \
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                 img-src 'self' data: blob: https:; \
-                 connect-src 'self' ws: wss: https:; \
-                 font-src 'self' https://fonts.gstatic.com; \
-                 frame-ancestors 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'",
-            ),
+            HeaderValue::from_static(CSP_POLICY),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
@@ -422,16 +475,47 @@ fn build_oauth_config() -> Option<OAuthConfig> {
     let client_secret = std::env::var("GOOGLE_CLIENT_SECRET")
         .ok()
         .filter(|s| !s.is_empty())?;
-    let base_url =
-        std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+    let base_url = std::env::var("PARISH_PUBLIC_URL")
+        .or_else(|_| std::env::var("PARISH_BASE_URL"))
+        .unwrap_or_else(|_| "http://localhost:3001".to_string());
     Some(OAuthConfig {
         client_id,
         client_secret,
         base_url,
     })
 }
-/// Builds the local LLM client and config from environment variables.
-fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, GameConfig) {
+/// Returns a copy of `url` safe to emit in logs: strips `user:pass@` userinfo
+/// and any `?query` string, since `PARISH_BASE_URL` may embed basic-auth
+/// credentials or signed proxy tokens.
+fn sanitize_base_url(url: &str) -> String {
+    let (prefix, rest) = match url.find("://") {
+        Some(i) => {
+            let (a, b) = url.split_at(i + 3);
+            (a.to_string(), b)
+        }
+        None => (String::new(), url),
+    };
+    let path_start = rest.find('/').unwrap_or(rest.len());
+    let authority_and_path = match rest[..path_start].find('@') {
+        Some(at) => format!("{}{}", &rest[at + 1..path_start], &rest[path_start..]),
+        None => rest.to_string(),
+    };
+    let trimmed = match authority_and_path.find('?') {
+        Some(q) => authority_and_path[..q].to_string(),
+        None => authority_and_path,
+    };
+    format!("{}{}", prefix, trimmed)
+}
+
+/// Builds the provider-setup input and the template `GameConfig` from
+/// environment variables.
+///
+/// Returns a [`ProviderConfig`] suitable for the shared
+/// [`parish_core::inference::setup::setup_provider_client`] bootstrap and
+/// the session `GameConfig` template. The caller runs the bootstrap and
+/// then overwrites `config.model_name` with the auto-resolved tag (for
+/// Ollama, the tier selector's pick).
+fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig) {
     let provider_name =
         std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
     let model = std::env::var("PARISH_MODEL").unwrap_or_default();
@@ -449,26 +533,36 @@ fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, Game
         .ok()
         .filter(|s| !s.is_empty());
 
-    let client = if model.is_empty() && provider_name != "ollama" {
-        None
-    } else {
-        Some(parish_core::inference::build_client(
-            &provider_enum,
-            &base_url,
-            api_key.as_deref(),
-            &parish_core::config::InferenceConfig::default(),
-        ))
+    let provider_cfg = parish_core::config::ProviderConfig {
+        provider: provider_enum,
+        base_url: base_url.clone(),
+        api_key: api_key.clone(),
+        model: if model.is_empty() {
+            None
+        } else {
+            Some(model.clone())
+        },
     };
-    let provider = provider_name;
 
+    // `model_name` starts as the env override (if any) or `gemma4:e4b` as a
+    // placeholder; the bootstrap replaces it with the auto-selected tier tag
+    // before sessions are built.
     let model_name = if model.is_empty() {
-        "qwen3:14b".to_string()
+        "gemma4:e4b".to_string()
     } else {
         model
     };
 
+    tracing::info!(
+        provider = %provider_name,
+        model = %model_name,
+        base_url = %sanitize_base_url(&base_url),
+        has_api_key = api_key.is_some(),
+        "Resolved inference configuration"
+    );
+
     let config = GameConfig {
-        provider_name: provider,
+        provider_name,
         base_url,
         api_key,
         model_name,
@@ -492,7 +586,7 @@ fn build_client_and_config() -> (Option<parish_core::inference::AnyClient>, Game
         reveal_unexplored_locations: false,
     };
 
-    (client, config)
+    (provider_cfg, config)
 }
 
 /// Cloud LLM environment configuration loaded from `PARISH_CLOUD_*` vars.
@@ -577,8 +671,10 @@ async fn ip_rate_limit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial(parish_env)]
     fn build_client_and_config_defaults() {
         // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
         let (_client, config) = build_client_and_config();
@@ -586,13 +682,81 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_base_url_strips_userinfo_and_query() {
+        assert_eq!(
+            sanitize_base_url("https://user:pass@api.example.com/v1"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("https://api.example.com/v1?token=secret"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("https://user:pass@api.example.com/v1?token=secret"),
+            "https://api.example.com/v1"
+        );
+        assert_eq!(
+            sanitize_base_url("http://localhost:11434"),
+            "http://localhost:11434"
+        );
+        // '@' in path (after the authority) must not be treated as userinfo.
+        assert_eq!(
+            sanitize_base_url("https://api.example.com/foo@bar"),
+            "https://api.example.com/foo@bar"
+        );
+    }
+
+    #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_missing_returns_none() {
         // Ensure env vars are not set in the test environment.
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::remove_var("GOOGLE_CLIENT_ID");
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
         }
         assert!(build_oauth_config().is_none());
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn build_oauth_config_prefers_public_url() {
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
+        unsafe {
+            std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
+            std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
+            std::env::set_var("PARISH_PUBLIC_URL", "https://myapp.example.com");
+            std::env::set_var("PARISH_BASE_URL", "https://api.openrouter.ai");
+        }
+        let cfg = build_oauth_config().expect("should build with credentials set");
+        assert_eq!(cfg.base_url, "https://myapp.example.com");
+        unsafe {
+            std::env::remove_var("GOOGLE_CLIENT_ID");
+            std::env::remove_var("GOOGLE_CLIENT_SECRET");
+            std::env::remove_var("PARISH_PUBLIC_URL");
+            std::env::remove_var("PARISH_BASE_URL");
+        }
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn build_oauth_config_falls_back_to_base_url() {
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
+        unsafe {
+            std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
+            std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
+            std::env::remove_var("PARISH_PUBLIC_URL");
+            std::env::set_var("PARISH_BASE_URL", "https://myapp.example.com");
+        }
+        let cfg = build_oauth_config().expect("should build with credentials set");
+        assert_eq!(cfg.base_url, "https://myapp.example.com");
+        unsafe {
+            std::env::remove_var("GOOGLE_CLIENT_ID");
+            std::env::remove_var("GOOGLE_CLIENT_SECRET");
+            std::env::remove_var("PARISH_BASE_URL");
+        }
     }
 }

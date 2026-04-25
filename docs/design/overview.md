@@ -224,7 +224,7 @@ Per-category overrides in TOML:
 ```toml
 [provider]
 name = "ollama"
-model = "qwen3:14b"
+model = "gemma4:e4b"
 
 [provider.dialogue]
 name = "openrouter"
@@ -233,10 +233,10 @@ api_key = "sk-or-..."
 model = "anthropic/claude-sonnet-4-20250514"
 
 [provider.simulation]
-model = "qwen3:8b"
+model = "gemma4:e4b"
 
 [provider.intent]
-model = "qwen3:1.5b"
+model = "gemma4:e2b"
 ```
 
 Per-category CLI flags: `--dialogue-provider`, `--dialogue-model`, `--simulation-model`, `--intent-model`, etc.
@@ -271,12 +271,12 @@ When using the Ollama provider (the default), the Parish engine runs a self-cont
 1. **Detect Ollama** — checks if the `ollama` binary is on PATH
 2. **Auto-install** — if missing, runs the official install script
 3. **Start server** — spawns `ollama serve` if not already running; kills on exit
-4. **Detect GPU/VRAM** — queries `nvidia-smi` or `rocm-smi` for VRAM info
-5. **Select model** — picks the best model for available VRAM:
-   - ≥12GB → `qwen3:14b` (Tier 1)
-   - ≥6GB → `qwen3:8b` (Tier 2)
-   - ≥3GB → `qwen3:3b` (Tier 3)
-   - <3GB/CPU → `qwen3:1.5b` (Tier 4)
+4. **Detect GPU/VRAM** — queries `nvidia-smi`, `rocm-smi`, or `sysctl hw.memsize` (Apple Silicon unified memory) for VRAM info
+5. **Select model** — picks the best gemma4 tier for available VRAM / unified memory:
+   - ≥25 GB → `gemma4:31b` (Tier 1, dense)
+   - ≥17 GB → `gemma4:26b` (Tier 2, MoE — 4B active)
+   - ≥11 GB → `gemma4:e4b` (Tier 3, edge 4.5B)
+   - <11 GB or CPU-only → `gemma4:e2b` (Tier 4, edge 2.3B)
 6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local
 
 The `PARISH_MODEL` env var or `--model` CLI flag overrides auto-selection.

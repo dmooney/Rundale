@@ -4,9 +4,10 @@
 //! auto-install, GPU/VRAM detection, model selection based on
 //! available hardware, and automatic model pulling.
 
+use crate::AnyClient;
 use crate::client::OllamaProcess;
 use crate::openai_client::OpenAiClient;
-use parish_config::InferenceConfig;
+use parish_config::{InferenceConfig, Provider, ProviderConfig};
 use parish_types::ParishError;
 use serde::Deserialize;
 use std::process::Command;
@@ -19,6 +20,8 @@ pub enum GpuVendor {
     Nvidia,
     /// AMD GPU (ROCm on Linux, DirectX/Vulkan on Windows).
     Amd,
+    /// Apple Silicon (M-series) with unified memory; Metal acceleration via Ollama.
+    AppleSilicon,
     /// No discrete GPU detected; CPU-only inference.
     CpuOnly,
 }
@@ -28,6 +31,7 @@ impl std::fmt::Display for GpuVendor {
         match self {
             GpuVendor::Nvidia => write!(f, "NVIDIA (CUDA)"),
             GpuVendor::Amd => write!(f, "AMD"),
+            GpuVendor::AppleSilicon => write!(f, "Apple Silicon (Metal)"),
             GpuVendor::CpuOnly => write!(f, "CPU-only"),
         }
     }
@@ -48,6 +52,11 @@ impl std::fmt::Display for GpuInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.vendor {
             GpuVendor::CpuOnly => write!(f, "CPU-only (no discrete GPU detected)"),
+            GpuVendor::AppleSilicon => write!(
+                f,
+                "{} — {}MB unified memory, ~{}MB available",
+                self.vendor, self.vram_total_mb, self.vram_free_mb
+            ),
             _ => write!(
                 f,
                 "{} — {}MB VRAM total, ~{}MB free",
@@ -60,7 +69,7 @@ impl std::fmt::Display for GpuInfo {
 /// Configuration for a selected model based on available hardware.
 #[derive(Debug, Clone)]
 pub struct ModelConfig {
-    /// The Ollama model tag (e.g. "qwen3:14b").
+    /// The Ollama model tag (e.g. "gemma4:e4b").
     pub model_name: String,
     /// Human-readable tier label (e.g. "Tier 1 — Full quality").
     pub tier_label: String,
@@ -173,9 +182,18 @@ pub async fn install_ollama(progress: &dyn SetupProgress) -> Result<(), ParishEr
 
 /// Detects the GPU vendor and VRAM on the system.
 ///
-/// Tries platform-specific detection first (Windows via PowerShell,
-/// Linux via `nvidia-smi` / `rocm-smi`), then falls back to CPU-only.
+/// Tries platform-specific detection first (macOS via `sysctl`, Windows via
+/// PowerShell, Linux via `nvidia-smi` / `rocm-smi`), then falls back to CPU-only.
 pub async fn detect_gpu_info() -> GpuInfo {
+    // On macOS, every supported machine is Apple Silicon with unified memory.
+    // Metal acceleration is automatic via Ollama; no discrete GPU check needed.
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(info) = detect_apple_silicon().await {
+            return info;
+        }
+    }
+
     // On Windows, use PowerShell/WMI for GPU detection
     #[cfg(target_os = "windows")]
     {
@@ -190,7 +208,7 @@ pub async fn detect_gpu_info() -> GpuInfo {
     }
 
     // Try AMD/ROCm (Linux)
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     if let Some(info) = detect_amd().await {
         return info;
     }
@@ -201,6 +219,40 @@ pub async fn detect_gpu_info() -> GpuInfo {
         vram_total_mb: 0,
         vram_free_mb: 0,
     }
+}
+
+/// Detects Apple Silicon unified memory via `sysctl hw.memsize`.
+///
+/// Unified memory is shared with the OS, so we report ~70% as "available"
+/// to leave headroom for the system, the game, and other apps. This feeds
+/// `select_model_for_vram`, which picks the largest gemma4 tier that fits.
+#[cfg(target_os = "macos")]
+async fn detect_apple_silicon() -> Option<GpuInfo> {
+    let output =
+        tokio::task::spawn_blocking(|| Command::new("sysctl").args(["-n", "hw.memsize"]).output())
+            .await
+            .ok()?
+            .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let bytes: u64 = stdout.trim().parse().ok()?;
+    if bytes == 0 {
+        return None;
+    }
+
+    let total_mb = bytes / (1024 * 1024);
+    // Reserve ~30% for OS + app; the rest is what a model can realistically use.
+    let available_mb = total_mb * 70 / 100;
+
+    Some(GpuInfo {
+        vendor: GpuVendor::AppleSilicon,
+        vram_total_mb: total_mb,
+        vram_free_mb: available_mb,
+    })
 }
 
 /// Detects NVIDIA GPU VRAM via `nvidia-smi`.
@@ -404,7 +456,7 @@ async fn detect_windows_vram_from_registry() -> Option<u64> {
 }
 
 /// Detects AMD GPU VRAM via `rocm-smi` (Linux only).
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 async fn detect_amd() -> Option<GpuInfo> {
     let output = tokio::task::spawn_blocking(|| {
         Command::new("rocm-smi")
@@ -441,7 +493,7 @@ async fn detect_amd() -> Option<GpuInfo> {
 /// Scans each line for "total" / "used" keywords (case-insensitive) and
 /// extracts the byte count. VRAM bytes are converted to MiB. Returns
 /// `None` if the total VRAM line is missing or unparseable.
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub(crate) fn parse_rocm_smi_output(stdout: &str) -> Option<GpuInfo> {
     let (mut total_mb, mut used_mb) = (0u64, 0u64);
 
@@ -477,21 +529,24 @@ pub(crate) fn parse_rocm_smi_output(stdout: &str) -> Option<GpuInfo> {
 /// Extracts a byte count from a rocm-smi output line.
 ///
 /// Looks for a large numeric value on the line (the byte count).
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn extract_bytes_from_line(line: &str) -> Option<u64> {
     line.split_whitespace()
         .filter_map(|token| token.parse::<u64>().ok())
         .find(|&n| n > 1_000_000) // VRAM values are in bytes, so > 1MB
 }
 
-/// Selects the best model for the available VRAM.
+/// Selects the best model for the available VRAM / unified memory.
 ///
 /// Uses conservative thresholds to leave headroom for the OS and
 /// other GPU workloads:
-/// - 12GB+ VRAM → qwen3:14b (Tier 1, best quality)
-/// - 6GB+ VRAM → qwen3:8b (Tier 2, good quality)
-/// - 3GB+ VRAM → qwen3:4b (reduced quality)
-/// - <3GB or CPU → qwen3:1.7b (minimal, CPU-viable)
+/// - 25GB+ → gemma4:31b (Tier 1, dense, best quality)
+/// - 17GB+ → gemma4:26b (Tier 2, MoE — 4B active, fast)
+/// - 11GB+ → gemma4:e4b (Tier 3, edge, 4.5B effective)
+/// - <11GB → gemma4:e2b (Tier 4, edge, 2.3B effective)
+///
+/// On Apple Silicon `vram_free_mb` is pre-scaled to ~70% of unified memory,
+/// so the same thresholds apply uniformly.
 ///
 /// If VRAM is 0 (unknown but GPU detected), assumes 8GB as a
 /// conservative default for modern discrete GPUs.
@@ -514,31 +569,35 @@ pub fn select_model(gpu_info: &GpuInfo) -> ModelConfig {
     select_model_for_vram(effective_vram)
 }
 
-/// Selects a model given a specific VRAM budget in MB.
+/// Selects a gemma4 model given a specific VRAM budget in MB.
+///
+/// Ollama disk sizes (which closely track runtime memory for gemma4 quants):
+///   e2b=7.2GB, e4b=9.6GB, 26b=18GB (MoE, 4B active), 31b=20GB (dense).
+/// Thresholds sit a few GB above each model's size to leave context headroom.
 fn select_model_for_vram(vram_mb: u64) -> ModelConfig {
-    if vram_mb >= 12_000 {
+    if vram_mb >= 25_000 {
         ModelConfig {
-            model_name: "qwen3:14b".to_string(),
-            tier_label: "Tier 1 — Full quality".to_string(),
-            vram_required_mb: 10_000,
+            model_name: "gemma4:31b".to_string(),
+            tier_label: "Tier 1 — Full quality (dense 31B)".to_string(),
+            vram_required_mb: 22_000,
         }
-    } else if vram_mb >= 6_000 {
+    } else if vram_mb >= 17_000 {
         ModelConfig {
-            model_name: "qwen3:8b".to_string(),
-            tier_label: "Tier 2 — Good quality".to_string(),
-            vram_required_mb: 5_500,
+            model_name: "gemma4:26b".to_string(),
+            tier_label: "Tier 2 — MoE (26B / 4B active)".to_string(),
+            vram_required_mb: 19_000,
         }
-    } else if vram_mb >= 3_000 {
+    } else if vram_mb >= 11_000 {
         ModelConfig {
-            model_name: "qwen3:4b".to_string(),
-            tier_label: "Tier 3 — Reduced quality".to_string(),
-            vram_required_mb: 2_800,
+            model_name: "gemma4:e4b".to_string(),
+            tier_label: "Tier 3 — Edge (4.5B effective)".to_string(),
+            vram_required_mb: 10_500,
         }
     } else {
         ModelConfig {
-            model_name: "qwen3:1.7b".to_string(),
-            tier_label: "Tier 4 — Minimal (CPU-viable)".to_string(),
-            vram_required_mb: 1_200,
+            model_name: "gemma4:e2b".to_string(),
+            tier_label: "Tier 4 — Edge minimal (2.3B effective)".to_string(),
+            vram_required_mb: 8_000,
         }
     }
 }
@@ -806,12 +865,13 @@ pub async fn setup_ollama_with_config(
     let gpu_info = detect_gpu_info().await;
     progress.on_status(&format!("Hardware: {}", gpu_info));
 
-    // Require a discrete GPU — refuse to run on CPU-only
+    // Require GPU acceleration — refuse to run on CPU-only.
+    // Apple Silicon counts: Metal acceleration is automatic via Ollama.
     if gpu_info.vendor == GpuVendor::CpuOnly {
         return Err(ParishError::Setup(
-            "No discrete GPU detected. Parish requires a dedicated GPU (NVIDIA or AMD) \
-             for local inference. Please ensure your GPU drivers are installed and \
-             the GPU is recognized by your system."
+            "No GPU acceleration available. Parish requires a dedicated GPU (NVIDIA or AMD) \
+             or Apple Silicon for local inference. Please ensure your GPU drivers are installed \
+             and the GPU is recognized by your system."
                 .to_string(),
         ));
     }
@@ -939,6 +999,62 @@ async fn warmup_model_with_config(
     }
 }
 
+/// Builds an inference client for the resolved [`ProviderConfig`], running
+/// the full Ollama setup sequence (install, auto-start, GPU detection,
+/// model pull, warmup) when the provider is [`Provider::Ollama`].
+///
+/// This is the single entry point shared by all runtime modes (CLI, Tauri,
+/// web server) so they stay in lock-step — CLAUDE.md rule #2 (mode parity).
+/// Callers are responsible for keeping the returned [`OllamaProcess`] alive
+/// for the lifetime of the app so the child `ollama serve` is stopped on
+/// exit.
+///
+/// # Errors
+///
+/// - [`Provider::Ollama`]: bubbles up whatever `setup_ollama_with_config`
+///   returns (no GPU, install failure, pull failure, …).
+/// - Other providers: returns [`ParishError::Config`] if no model is set,
+///   since non-Ollama backends have no auto-detect fallback.
+pub async fn setup_provider_client(
+    config: &ProviderConfig,
+    inference_config: &InferenceConfig,
+    progress: &dyn SetupProgress,
+) -> Result<(AnyClient, String, OllamaProcess), ParishError> {
+    match config.provider {
+        Provider::Simulator => Ok((
+            AnyClient::simulator(),
+            "simulator".to_string(),
+            OllamaProcess::none(),
+        )),
+        Provider::Ollama => {
+            let setup = setup_ollama_with_config(
+                &config.base_url,
+                config.model.as_deref(),
+                progress,
+                inference_config,
+            )
+            .await?;
+            let client = AnyClient::open_ai(setup.client);
+            Ok((client, setup.model_name, setup.process))
+        }
+        _ => {
+            let model = config.model.clone().ok_or_else(|| {
+                ParishError::Config(format!(
+                    "{:?} provider requires a model name. Set --model or PARISH_MODEL.",
+                    config.provider
+                ))
+            })?;
+            let client = crate::build_client(
+                &config.provider,
+                &config.base_url,
+                config.api_key.as_deref(),
+                inference_config,
+            );
+            Ok((client, model, OllamaProcess::none()))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -947,7 +1063,21 @@ mod tests {
     fn test_gpu_vendor_display() {
         assert_eq!(GpuVendor::Nvidia.to_string(), "NVIDIA (CUDA)");
         assert_eq!(GpuVendor::Amd.to_string(), "AMD");
+        assert_eq!(GpuVendor::AppleSilicon.to_string(), "Apple Silicon (Metal)");
         assert_eq!(GpuVendor::CpuOnly.to_string(), "CPU-only");
+    }
+
+    #[test]
+    fn test_gpu_info_display_apple_silicon() {
+        let info = GpuInfo {
+            vendor: GpuVendor::AppleSilicon,
+            vram_total_mb: 32768,
+            vram_free_mb: 22937,
+        };
+        let display = info.to_string();
+        assert!(display.contains("Apple Silicon"));
+        assert!(display.contains("32768"));
+        assert!(display.contains("unified memory"));
     }
 
     #[test]
@@ -976,66 +1106,54 @@ mod tests {
     #[test]
     fn test_model_config_display() {
         let config = ModelConfig {
-            model_name: "qwen3:14b".to_string(),
-            tier_label: "Tier 1 — Full quality".to_string(),
-            vram_required_mb: 10_000,
+            model_name: "gemma4:e4b".to_string(),
+            tier_label: "Tier 3 — Edge (4.5B effective)".to_string(),
+            vram_required_mb: 10_500,
         };
         let display = config.to_string();
-        assert!(display.contains("qwen3:14b"));
-        assert!(display.contains("Tier 1"));
-        assert!(display.contains("10000"));
+        assert!(display.contains("gemma4:e4b"));
+        assert!(display.contains("Tier 3"));
+        assert!(display.contains("10500"));
     }
 
     #[test]
-    fn test_select_model_large_vram() {
-        let config = select_model_for_vram(16_000);
-        assert_eq!(config.model_name, "qwen3:14b");
+    fn test_select_model_huge_vram_picks_31b() {
+        let config = select_model_for_vram(40_000);
+        assert_eq!(config.model_name, "gemma4:31b");
         assert!(config.tier_label.contains("Tier 1"));
     }
 
     #[test]
-    fn test_select_model_12gb() {
-        let config = select_model_for_vram(12_000);
-        assert_eq!(config.model_name, "qwen3:14b");
-    }
-
-    #[test]
-    fn test_select_model_8gb() {
-        let config = select_model_for_vram(8_000);
-        assert_eq!(config.model_name, "qwen3:8b");
+    fn test_select_model_24gb_picks_26b_moe() {
+        let config = select_model_for_vram(24_000);
+        assert_eq!(config.model_name, "gemma4:26b");
         assert!(config.tier_label.contains("Tier 2"));
     }
 
     #[test]
-    fn test_select_model_6gb() {
-        let config = select_model_for_vram(6_000);
-        assert_eq!(config.model_name, "qwen3:8b");
-    }
-
-    #[test]
-    fn test_select_model_4gb() {
-        let config = select_model_for_vram(4_000);
-        assert_eq!(config.model_name, "qwen3:4b");
+    fn test_select_model_16gb_picks_e4b() {
+        let config = select_model_for_vram(16_000);
+        assert_eq!(config.model_name, "gemma4:e4b");
         assert!(config.tier_label.contains("Tier 3"));
     }
 
     #[test]
-    fn test_select_model_3gb() {
-        let config = select_model_for_vram(3_000);
-        assert_eq!(config.model_name, "qwen3:4b");
+    fn test_select_model_12gb_picks_e4b() {
+        let config = select_model_for_vram(12_000);
+        assert_eq!(config.model_name, "gemma4:e4b");
     }
 
     #[test]
-    fn test_select_model_2gb() {
-        let config = select_model_for_vram(2_000);
-        assert_eq!(config.model_name, "qwen3:1.7b");
+    fn test_select_model_8gb_picks_e2b() {
+        let config = select_model_for_vram(8_000);
+        assert_eq!(config.model_name, "gemma4:e2b");
         assert!(config.tier_label.contains("Tier 4"));
     }
 
     #[test]
-    fn test_select_model_zero_vram() {
+    fn test_select_model_zero_vram_picks_e2b() {
         let config = select_model_for_vram(0);
-        assert_eq!(config.model_name, "qwen3:1.7b");
+        assert_eq!(config.model_name, "gemma4:e2b");
     }
 
     #[test]
@@ -1046,18 +1164,43 @@ mod tests {
             vram_free_mb: 0,
         };
         let config = select_model(&gpu);
-        assert_eq!(config.model_name, "qwen3:1.7b");
+        assert_eq!(config.model_name, "gemma4:e2b");
     }
 
     #[test]
-    fn test_select_model_amd_16gb() {
+    fn test_select_model_amd_24gb() {
         let gpu = GpuInfo {
             vendor: GpuVendor::Amd,
-            vram_total_mb: 16384,
-            vram_free_mb: 14000,
+            vram_total_mb: 24_576,
+            vram_free_mb: 22_000,
         };
         let config = select_model(&gpu);
-        assert_eq!(config.model_name, "qwen3:14b");
+        assert_eq!(config.model_name, "gemma4:26b");
+    }
+
+    #[test]
+    fn test_select_model_apple_silicon_32gb() {
+        // Apple Silicon with 32 GB unified memory; detector pre-scales
+        // vram_free_mb to ~70% (≈22 GB), which falls in the Tier 2 range.
+        let gpu = GpuInfo {
+            vendor: GpuVendor::AppleSilicon,
+            vram_total_mb: 32_768,
+            vram_free_mb: 22_937,
+        };
+        let config = select_model(&gpu);
+        assert_eq!(config.model_name, "gemma4:26b");
+    }
+
+    #[test]
+    fn test_select_model_apple_silicon_16gb() {
+        // 16 GB Mac → ~11 GB scaled → Tier 3 edge model.
+        let gpu = GpuInfo {
+            vendor: GpuVendor::AppleSilicon,
+            vram_total_mb: 16_384,
+            vram_free_mb: 11_468,
+        };
+        let config = select_model(&gpu);
+        assert_eq!(config.model_name, "gemma4:e4b");
     }
 
     #[test]
@@ -1069,35 +1212,68 @@ mod tests {
             vram_free_mb: 0,
         };
         let config = select_model(&gpu);
-        // Should assume 8GB → select 8b model
-        assert_eq!(config.model_name, "qwen3:8b");
+        // Unknown VRAM assumes 8 GB → below 11 GB threshold → e2b
+        assert_eq!(config.model_name, "gemma4:e2b");
     }
 
     #[test]
     fn test_select_model_uses_free_vram_when_available() {
         let gpu = GpuInfo {
             vendor: GpuVendor::Nvidia,
-            vram_total_mb: 16384,
-            vram_free_mb: 5000, // Only 5GB free
+            vram_total_mb: 24_000,
+            vram_free_mb: 12_000, // Half in use
         };
         let config = select_model(&gpu);
-        // 5000 < 6000, should pick 3b
-        assert_eq!(config.model_name, "qwen3:4b");
+        // Free VRAM (12 GB) wins over total; 12 GB ≥ 11 GB → e4b
+        assert_eq!(config.model_name, "gemma4:e4b");
     }
 
     #[test]
     fn test_select_model_uses_total_when_free_unknown() {
         let gpu = GpuInfo {
             vendor: GpuVendor::Nvidia,
-            vram_total_mb: 8192,
+            vram_total_mb: 16_384,
             vram_free_mb: 0, // Free unknown
         };
         let config = select_model(&gpu);
-        // 80% of 8192 = 6553 → should select 8b
-        assert_eq!(config.model_name, "qwen3:8b");
+        // 80% of 16384 ≈ 13_107 → Tier 3 (e4b)
+        assert_eq!(config.model_name, "gemma4:e4b");
     }
 
-    #[cfg(not(target_os = "windows"))]
+    /// Live smoke test — runs `sysctl` on the host Mac and verifies the
+    /// detector reports a plausible unified-memory figure and that the
+    /// end-to-end pipeline picks a valid gemma4 tier.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn test_detect_apple_silicon_live() {
+        let info = detect_apple_silicon()
+            .await
+            .expect("sysctl hw.memsize should succeed on macOS");
+        assert_eq!(info.vendor, GpuVendor::AppleSilicon);
+        // Any Mac running this codebase has more than 4 GB of RAM.
+        assert!(
+            info.vram_total_mb >= 4_096,
+            "reported total memory implausibly low: {} MB",
+            info.vram_total_mb
+        );
+        // ~70% scaling: free must be less than total but more than half.
+        assert!(info.vram_free_mb < info.vram_total_mb);
+        assert!(info.vram_free_mb > info.vram_total_mb / 2);
+
+        let picked = select_model(&info);
+        let valid_tags = ["gemma4:31b", "gemma4:26b", "gemma4:e4b", "gemma4:e2b"];
+        assert!(
+            valid_tags.contains(&picked.model_name.as_str()),
+            "picked unknown model: {}",
+            picked.model_name
+        );
+        eprintln!(
+            "[live] {}MB total, {}MB available → {}",
+            info.vram_total_mb, info.vram_free_mb, picked
+        );
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_extract_bytes_from_line() {
         assert_eq!(
@@ -1215,28 +1391,30 @@ mod tests {
         assert_eq!(GpuVendor::Nvidia, GpuVendor::Nvidia);
         assert_ne!(GpuVendor::Nvidia, GpuVendor::Amd);
         assert_ne!(GpuVendor::Amd, GpuVendor::CpuOnly);
+        assert_ne!(GpuVendor::AppleSilicon, GpuVendor::CpuOnly);
+        assert_ne!(GpuVendor::AppleSilicon, GpuVendor::Amd);
     }
 
     #[test]
     fn test_select_model_boundary_values() {
-        // Exactly at boundaries
-        let at_12000 = select_model_for_vram(12_000);
-        assert_eq!(at_12000.model_name, "qwen3:14b");
+        // Exactly at tier boundaries: 25_000 / 17_000 / 11_000.
+        let at_25000 = select_model_for_vram(25_000);
+        assert_eq!(at_25000.model_name, "gemma4:31b");
 
-        let at_11999 = select_model_for_vram(11_999);
-        assert_eq!(at_11999.model_name, "qwen3:8b");
+        let at_24999 = select_model_for_vram(24_999);
+        assert_eq!(at_24999.model_name, "gemma4:26b");
 
-        let at_6000 = select_model_for_vram(6_000);
-        assert_eq!(at_6000.model_name, "qwen3:8b");
+        let at_17000 = select_model_for_vram(17_000);
+        assert_eq!(at_17000.model_name, "gemma4:26b");
 
-        let at_5999 = select_model_for_vram(5_999);
-        assert_eq!(at_5999.model_name, "qwen3:4b");
+        let at_16999 = select_model_for_vram(16_999);
+        assert_eq!(at_16999.model_name, "gemma4:e4b");
 
-        let at_3000 = select_model_for_vram(3_000);
-        assert_eq!(at_3000.model_name, "qwen3:4b");
+        let at_11000 = select_model_for_vram(11_000);
+        assert_eq!(at_11000.model_name, "gemma4:e4b");
 
-        let at_2999 = select_model_for_vram(2_999);
-        assert_eq!(at_2999.model_name, "qwen3:1.7b");
+        let at_10999 = select_model_for_vram(10_999);
+        assert_eq!(at_10999.model_name, "gemma4:e2b");
     }
 
     #[cfg(target_os = "windows")]
@@ -1377,7 +1555,7 @@ mod tests {
 
     // ---- rocm-smi parser tests ----
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_parse_rocm_smi_output_total_and_used() {
         // Simplified rocm-smi --showmeminfo vram style output
@@ -1393,7 +1571,7 @@ GPU[0]  : VRAM Total Used Memory (B): 3221225472
         assert_eq!(info.vram_free_mb, 13296);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_parse_rocm_smi_output_total_only() {
         // If used line is missing, free == total
@@ -1403,7 +1581,7 @@ GPU[0]  : VRAM Total Used Memory (B): 3221225472
         assert_eq!(info.vram_free_mb, 16368);
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_parse_rocm_smi_output_missing_total_returns_none() {
         // Without a total line, we cannot determine VRAM at all
@@ -1411,13 +1589,13 @@ GPU[0]  : VRAM Total Used Memory (B): 3221225472
         assert!(parse_rocm_smi_output(stdout).is_none());
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_parse_rocm_smi_output_empty() {
         assert!(parse_rocm_smi_output("").is_none());
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     #[test]
     fn test_parse_rocm_smi_output_used_greater_than_total_saturates() {
         // Defensive: if rocm-smi reported inconsistent numbers, we saturate to 0

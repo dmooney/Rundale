@@ -159,10 +159,18 @@ impl ShortTermMemory {
 /// Formats a game timestamp relative to `now` as a human-readable label.
 fn relative_time_label(ts: DateTime<Utc>, now: DateTime<Utc>) -> String {
     use chrono::Timelike;
+    if ts > now {
+        tracing::warn!(
+            timestamp = %ts,
+            now = %now,
+            "future timestamp in NPC memory — clock skew or restored save?"
+        );
+        return "just now".to_string();
+    }
     let diff = now.signed_duration_since(ts);
     let mins = diff.num_minutes();
     match mins {
-        m if m <= 0 => "just now".to_string(),
+        0 => "just now".to_string(),
         1..=59 => format!("{} min ago", mins),
         60..=1439 => format!("{} hr ago", diff.num_hours()),
         1440..=2879 => format!("yesterday, {:02}:{:02}", ts.hour(), ts.minute()),
@@ -297,9 +305,19 @@ impl LongTermMemory {
     /// every stored entry's importance, it is rejected and the log is
     /// unchanged.
     pub fn store(&mut self, entry: LongTermEntry) -> bool {
-        if entry.importance < PROMOTION_THRESHOLD {
+        if !entry.importance.is_finite() || entry.importance < PROMOTION_THRESHOLD {
             return false;
         }
+
+        // #419 — purge any already-stored entries whose importance is not a
+        // finite number (could arrive from a corrupted save file, since
+        // deserialization does not validate the field). They poison the
+        // eviction scan: `partial_cmp` returns `None` for NaN and our
+        // `unwrap_or(Equal)` means a NaN entry is never seen as smaller
+        // than a real number, so a valid 0.3 entry would be evicted ahead
+        // of it. Doing the purge here — just before we consult capacity —
+        // lets a fresh store reclaim the slot they occupied.
+        self.entries.retain(|e| e.importance.is_finite());
 
         if self.entries.len() >= self.max_entries {
             // Find the least-important, oldest entry. `position` returns the
@@ -399,8 +417,22 @@ impl LongTermMemory {
             return String::new();
         }
 
-        let lines: Vec<String> = recalled.iter().map(|entry| entry.content.clone()).collect();
-        format!("You recall: {}", lines.join(". "))
+        // Single allocation, zero clones: borrow content strings directly instead of
+        // cloning into a Vec<String> + join + format.
+        let prefix = "You recall: ";
+        let sep = ". ";
+        let cap = prefix.len()
+            + recalled.iter().map(|e| e.content.len()).sum::<usize>()
+            + recalled.len().saturating_sub(1) * sep.len();
+        let mut result = String::with_capacity(cap);
+        result.push_str(prefix);
+        for (i, entry) in recalled.iter().enumerate() {
+            if i > 0 {
+                result.push_str(sep);
+            }
+            result.push_str(&entry.content);
+        }
+        result
     }
 }
 
@@ -1075,5 +1107,132 @@ mod tests {
         let promoted = try_promote(&mut ltm, &entry, &[], "");
         assert!(!promoted);
         assert!(ltm.is_empty());
+    }
+
+    // ── Issue #461: NaN importance must not evict valid entries ─────
+
+    #[test]
+    fn long_term_memory_rejects_nan_importance() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.8)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.7)));
+
+        let stored = ltm.store(make_lt_entry("NaN entry", f32::NAN, &["test"]));
+        assert!(!stored, "NaN importance must be rejected");
+        assert_eq!(ltm.len(), 2, "existing entries must be preserved");
+    }
+
+    #[test]
+    fn long_term_memory_rejects_infinite_importance() {
+        let mut ltm = LongTermMemory::with_capacity(2);
+        assert!(ltm.store(make_lt_entry_at(0, 0.8)));
+        assert!(ltm.store(make_lt_entry_at(1, 0.7)));
+
+        assert!(!ltm.store(make_lt_entry("inf", f32::INFINITY, &["test"])));
+        assert!(!ltm.store(make_lt_entry("-inf", f32::NEG_INFINITY, &["test"])));
+        assert_eq!(ltm.len(), 2);
+    }
+
+    // ── Issue #419: a pre-existing NaN entry (e.g. from a corrupted save
+    // file that bypassed store()'s is_finite gate on load) must not
+    // indefinitely poison eviction and force real entries to be rejected.
+
+    #[test]
+    fn long_term_memory_evicts_preexisting_nan_entry_before_valid_ones() {
+        // Cap=2 with two NaN entries + one valid entry all injected
+        // directly (simulating a corrupted save-file load that bypassed
+        // store()'s incoming-importance gate). The next real store() must
+        // purge both NaN entries and succeed, even at a modest importance
+        // that would otherwise be rejected because the valid 0.6 entry
+        // would look like the eviction candidate.
+        let mut ltm = LongTermMemory::with_capacity(2);
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap(),
+            content: "corrupted-A".into(),
+            importance: f32::NAN,
+            keywords: vec!["legacy".into()],
+        });
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 1, 0, 0).unwrap(),
+            content: "corrupted-B".into(),
+            importance: f32::NAN,
+            keywords: vec!["legacy".into()],
+        });
+        // Note: bypassing store() here, so the valid entry sits alongside
+        // the two NaN entries at len=3 even though capacity is 2 — this
+        // is exactly the kind of inconsistent on-disk state a corrupted
+        // save could produce.
+        ltm.entries.push(LongTermEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 2, 0, 0).unwrap(),
+            content: "real entry".into(),
+            importance: 0.6,
+            keywords: vec!["test".into()],
+        });
+        assert_eq!(ltm.len(), 3);
+
+        // Store a fresh entry at importance 0.55. Pre-fix behavior: the
+        // NaN entries were sorted as Equal, `min_by` picked the first of
+        // them, `evict_importance = NaN`, `0.55 < NaN` is false, so no
+        // early return — but then we'd evict a NaN entry (actually OK).
+        // The real bug bites when the min_by picks a VALID entry over a
+        // NaN because iteration order puts NaN later; pre-fix this meant
+        // the real 0.6 got evicted ahead of the NaN entries. Post-fix
+        // the retain() purges both NaN entries first, leaving only the
+        // real 0.6 — then capacity=2 fits the new 0.55 freely.
+        assert!(
+            ltm.store(make_lt_entry("fresh", 0.55, &["test"])),
+            "fresh entry must fit after NaN entries are purged"
+        );
+
+        assert!(
+            ltm.entries.iter().all(|e| e.importance.is_finite()),
+            "NaN-importance entries must be purged on store()"
+        );
+        // The valid 0.6 and the freshly-stored 0.55 both survive.
+        assert_eq!(ltm.len(), 2);
+    }
+
+    #[test]
+    fn long_term_memory_purges_multiple_nan_entries_at_once() {
+        let mut ltm = LongTermMemory::with_capacity(5);
+        for _ in 0..3 {
+            ltm.entries.push(LongTermEntry {
+                timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 0, 0, 0).unwrap(),
+                content: "corrupt".into(),
+                importance: f32::NAN,
+                keywords: vec![],
+            });
+        }
+        // Only NaN entries present; a store purges all three and adds the
+        // new one.
+        assert!(ltm.store(make_lt_entry("first-real", 0.6, &["t"])));
+        assert_eq!(ltm.len(), 1);
+        assert!(ltm.entries.iter().all(|e| e.importance.is_finite()));
+    }
+
+    // ── Issue #462: future timestamps must not silently pass ────────
+
+    #[test]
+    fn relative_time_label_future_timestamp_clamps_to_just_now() {
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        let future = Utc.with_ymd_and_hms(1820, 3, 20, 13, 0, 0).unwrap();
+        let label = relative_time_label(future, now);
+        assert_eq!(label, "just now");
+    }
+
+    #[test]
+    fn context_string_with_now_future_entry() {
+        let mut mem = ShortTermMemory::new();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap();
+        let future = Utc.with_ymd_and_hms(1820, 3, 20, 14, 0, 0).unwrap();
+        mem.add(MemoryEntry {
+            timestamp: future,
+            content: "Future event".to_string(),
+            participants: vec![],
+            location: LocationId(1),
+            kind: None,
+        });
+        let ctx = mem.context_string_with_now(5, now);
+        assert!(ctx.contains("[just now] Future event"), "got: {ctx}");
     }
 }
