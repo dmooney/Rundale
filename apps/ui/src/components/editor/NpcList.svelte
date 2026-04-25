@@ -25,6 +25,7 @@
 			class="search-input"
 			type="text"
 			placeholder="Search..."
+			aria-label="Search NPCs"
 			bind:value={search}
 		/>
 	</div>
