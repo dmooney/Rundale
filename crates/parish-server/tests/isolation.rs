@@ -10,10 +10,18 @@ use parish_server::routes::{check_admin_against, is_admin_command, validate_bran
 // ── #332 — Admin-command gate ─────────────────────────────────────────────────
 
 /// Non-admin user issuing `/cloud key sk-evil` must be blocked.
+///
+/// `is_admin_command` operates on the parsed `Command` variant (#509, #516) to
+/// avoid false-matching in-game dialogue; `check_admin_against` is the testable
+/// version of the env-var-backed `check_admin`.
 #[test]
 fn submit_input_admin_command_non_admin_is_403() {
+    use parish_core::input::{InputResult, classify_input};
     let text = "/cloud key sk-evil";
-    assert!(is_admin_command(text));
+    let InputResult::SystemCommand(cmd) = classify_input(text) else {
+        panic!("expected SystemCommand for {text:?}");
+    };
+    assert!(is_admin_command(&cmd));
     assert_eq!(
         check_admin_against("attacker@example.com", text, Some("operator@example.com")),
         Err(StatusCode::FORBIDDEN),
@@ -23,14 +31,23 @@ fn submit_input_admin_command_non_admin_is_403() {
 /// Non-admin user issuing a gameplay command must not be blocked.
 #[test]
 fn submit_input_gameplay_command_any_user_is_200() {
-    assert!(!is_admin_command("say hello"));
+    use parish_core::input::{InputResult, classify_input};
+    // "say hello" is not a system command at all — is_admin_command must return false.
+    match classify_input("say hello") {
+        InputResult::SystemCommand(cmd) => assert!(!is_admin_command(&cmd)),
+        _ => { /* not a system command: definitely not admin */ }
+    }
 }
 
 /// Admin user issuing an admin command must be allowed.
 #[test]
 fn submit_input_admin_command_admin_is_ok() {
+    use parish_core::input::{InputResult, classify_input};
     let text = "/cloud key sk-good";
-    assert!(is_admin_command(text));
+    let InputResult::SystemCommand(cmd) = classify_input(text) else {
+        panic!("expected SystemCommand for {text:?}");
+    };
+    assert!(is_admin_command(&cmd));
     assert_eq!(
         check_admin_against("operator@example.com", text, Some("operator@example.com")),
         Ok(()),

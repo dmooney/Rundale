@@ -17,7 +17,7 @@ use parish_core::inference::{
     AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
     await_inference_response, spawn_inference_worker,
 };
-use parish_core::input::{InputResult, classify_input, parse_intent};
+use parish_core::input::{Command, InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
     ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
     NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
@@ -206,17 +206,16 @@ pub async fn submit_input(
         return StatusCode::BAD_REQUEST;
     }
 
-    // #332 — admin command gate: provider/key/model mutations are operator-only.
-    if is_admin_command(&text)
-        && let Err(status) = check_admin(&auth.email, &text)
-    {
-        return status;
-    }
-
     touch_player_activity(&state).await;
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
+            // #332 — admin command gate: provider/key/model commands are operator-only.
+            if is_admin_command(&cmd)
+                && let Err(status) = check_admin(&auth.email, &text)
+            {
+                return status;
+            }
             handle_system_command(cmd, &state).await;
         }
         InputResult::GameInput(raw) => {
@@ -1975,20 +1974,6 @@ pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
 
 // ── #332 — Admin-only command guard ─────────────────────────────────────────
 
-/// Slash-command prefixes whose effects mutate LLM provider config.
-///
-/// Any first token (or two-token pair for `/cloud <sub>`) matching this list
-/// is considered an admin command and is gated by `PARISH_ADMIN_EMAILS`.
-const ADMIN_COMMANDS: &[&str] = &[
-    "/key",
-    "/provider",
-    "/model",
-    "/cloud",
-    "/key.",
-    "/model.",
-    "/provider.",
-];
-
 /// Parses a comma-separated list of emails into a `HashSet`, trimming
 /// whitespace and dropping empty entries. Extracted so the caching layer
 /// above can be unit-tested without env-var mutation.
@@ -2083,23 +2068,33 @@ pub fn check_admin_against(
     }
 }
 
-/// Returns `true` if `text` starts with an admin-only slash command.
+/// Returns `true` if the parsed command is an admin-only operation.
 ///
-/// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
-/// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
-/// `starts_with` since the dot is part of the prefix, not a space separator.
-pub fn is_admin_command(text: &str) -> bool {
-    let lower = text.trim().to_ascii_lowercase();
-    ADMIN_COMMANDS.iter().any(|prefix| {
-        if prefix.ends_with('.') {
-            // Dotted prefix: `/key.`, `/model.`, `/provider.` — matched by starts_with
-            // so `/key.dialogue sk-abc` is caught.
-            lower.starts_with(*prefix)
-        } else {
-            // Plain prefix: exact match (bare command) or `<prefix> <args>`.
-            lower == *prefix || lower.starts_with(&format!("{} ", prefix))
-        }
-    })
+/// Admin commands are provider/key/model operations (both display and mutation)
+/// that are gated by `PARISH_ADMIN_EMAILS`. Operates on the parsed `Command`
+/// variant rather than raw text to avoid false-matching in-game dialogue.
+pub fn is_admin_command(cmd: &Command) -> bool {
+    matches!(
+        cmd,
+        Command::SetKey(_)
+            | Command::ShowKey
+            | Command::SetProvider(_)
+            | Command::ShowProvider
+            | Command::SetModel(_)
+            | Command::ShowModel
+            | Command::SetCloudProvider(_)
+            | Command::SetCloudModel(_)
+            | Command::SetCloudKey(_)
+            | Command::ShowCloud
+            | Command::ShowCloudModel
+            | Command::ShowCloudKey
+            | Command::SetCategoryProvider(_, _)
+            | Command::SetCategoryModel(_, _)
+            | Command::SetCategoryKey(_, _)
+            | Command::ShowCategoryProvider(_)
+            | Command::ShowCategoryModel(_)
+            | Command::ShowCategoryKey(_)
+    )
 }
 
 // ── #377 — WS session-token issuance ────────────────────────────────────────
@@ -2794,41 +2789,55 @@ pub(crate) mod tests {
 
     #[test]
     fn is_admin_command_detects_key() {
-        assert!(is_admin_command("/key sk-abc"));
-        assert!(is_admin_command("/key"));
+        assert!(is_admin_command(&Command::SetKey("sk-abc".into())));
+        assert!(is_admin_command(&Command::ShowKey));
     }
 
     #[test]
     fn is_admin_command_detects_provider() {
-        assert!(is_admin_command("/provider ollama"));
-        assert!(is_admin_command("/provider"));
+        assert!(is_admin_command(&Command::SetProvider("ollama".into())));
+        assert!(is_admin_command(&Command::ShowProvider));
     }
 
     #[test]
     fn is_admin_command_detects_model() {
-        assert!(is_admin_command("/model llama3"));
-        assert!(is_admin_command("/model"));
+        assert!(is_admin_command(&Command::SetModel("llama3".into())));
+        assert!(is_admin_command(&Command::ShowModel));
     }
 
     #[test]
     fn is_admin_command_detects_cloud() {
-        assert!(is_admin_command("/cloud key sk-evil"));
-        assert!(is_admin_command("/cloud provider openrouter"));
+        assert!(is_admin_command(&Command::SetCloudKey("sk-evil".into())));
+        assert!(is_admin_command(&Command::SetCloudProvider(
+            "openrouter".into()
+        )));
+        assert!(is_admin_command(&Command::ShowCloud));
     }
 
     #[test]
-    fn is_admin_command_detects_dotted_category() {
-        assert!(is_admin_command("/key.dialogue sk-abc"));
-        assert!(is_admin_command("/model.dialogue gpt-4"));
-        assert!(is_admin_command("/provider.dialogue openai"));
+    fn is_admin_command_detects_category() {
+        use parish_core::config::InferenceCategory;
+        assert!(is_admin_command(&Command::SetCategoryKey(
+            InferenceCategory::Dialogue,
+            "sk-abc".into()
+        )));
+        assert!(is_admin_command(&Command::SetCategoryModel(
+            InferenceCategory::Dialogue,
+            "gpt-4".into()
+        )));
+        assert!(is_admin_command(&Command::SetCategoryProvider(
+            InferenceCategory::Dialogue,
+            "openai".into()
+        )));
     }
 
     #[test]
     fn is_admin_command_does_not_flag_gameplay() {
-        assert!(!is_admin_command("say hello"));
-        assert!(!is_admin_command("/save"));
-        assert!(!is_admin_command("/fork my-branch"));
-        assert!(!is_admin_command("/status"));
+        assert!(!is_admin_command(&Command::Save));
+        assert!(!is_admin_command(&Command::Fork("my-branch".into())));
+        assert!(!is_admin_command(&Command::Status));
+        assert!(!is_admin_command(&Command::Help));
+        assert!(!is_admin_command(&Command::Pause));
     }
 
     // ── #498 — snippet injection filter tests ────────────────────────────────
