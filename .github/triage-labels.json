@@ -1,0 +1,16 @@
+{
+  "priorities": ["P0", "P1", "P2", "P3"],
+  "themes": [
+    "bug",
+    "enhancement",
+    "performance",
+    "security",
+    "refactor",
+    "frontend",
+    "a11y",
+    "mode-parity",
+    "npc-reactions",
+    "witness-scan",
+    "infra"
+  ]
+}

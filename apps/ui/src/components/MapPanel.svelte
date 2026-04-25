@@ -161,28 +161,20 @@
 			}
 		);
 
-		// Re-project stubs whenever the map camera moves or resizes.
-		// We access the underlying map via a move listener added through
-		// the controller's public projectToScreen + a `move` subscription
-		// that we wire directly here — the controller exposes the map as
-		// needed via its side-effects (click/hover), so we attach the
-		// listener through a cast-free hook: we add a `move` callback via
-		// `addMoveListener` below.
-		//
-		// Simplest implementation: poll on a rAF loop while mounted. This
-		// avoids having to surface the raw map reference. Runs cheaply
-		// because it only updates state when values actually change.
-		let rafId: number;
-		const loop = () => {
-			recomputeStubs();
-			rafId = requestAnimationFrame(loop);
-		};
-		rafId = requestAnimationFrame(loop);
+		// Recompute stubs once on mount and then only when the camera
+		// actually moves or the container resizes (#350). The previous
+		// requestAnimationFrame loop ran every frame for the lifetime
+		// of the component — recomputing identical stub geometry over
+		// and over and burning CPU/GPU even when the user wasn't
+		// interacting. The controller now exposes `addMoveListener`
+		// so we can subscribe surgically.
+		recomputeStubs();
+		const unsubscribeMove = controller.addMoveListener(recomputeStubs);
 
 		mounted = true;
 
 		return () => {
-			cancelAnimationFrame(rafId);
+			unsubscribeMove();
 			controller?.destroy();
 			controller = null;
 		};

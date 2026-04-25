@@ -77,11 +77,31 @@
 		};
 	});
 
-	// Push map data changes into the controller.
+	// Tracks whether we've fit the camera to the parish bounds at least
+	// once. The initial fitBounds call inside onMount runs synchronously
+	// against whatever $mapData was at that moment — if the overlay is
+	// opened before mapData has populated (fast 'M' keypress before the
+	// initial fetch resolves, or after `/new` while world state is
+	// rebuilding), the map stays on MapController's hard-coded default
+	// center until the user pans manually. (#351)
+	let hasFitOnce = false;
+
+	// Push map data changes into the controller. The first time mapData
+	// becomes non-empty after mount, also fit bounds so a delayed first
+	// load doesn't leave the user staring at the default Kiltoom view.
 	$effect(() => {
 		if (!mounted || !controller) return;
 		const m = $mapData;
-		if (m) controller.updateMap(m);
+		if (m) {
+			controller.updateMap(m);
+			if (!hasFitOnce && m.locations.length > 0) {
+				controller.fitBounds(
+					m.locations.map((l) => ({ lat: l.lat, lon: l.lon })),
+					60
+				);
+				hasFitOnce = true;
+			}
+		}
 	});
 
 	// Drive travel animation from the shared travel store.

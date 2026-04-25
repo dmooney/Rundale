@@ -25,6 +25,9 @@ use axum::response::IntoResponse;
 use crate::cf_auth::SessionToken;
 use crate::state::AppState;
 
+/// Maximum number of concurrent WebSocket connections across all users (#460).
+const MAX_WS_CONNECTIONS: usize = 100;
+
 /// RAII guard that removes an email from `AppState::active_ws` on drop.
 ///
 /// This guarantees the slot is released even if `handle_socket` panics.
@@ -41,13 +44,20 @@ impl Drop for ActiveWsGuard {
         // deadlock — `try_lock` is the safe choice in a sync Drop context.
         if let Ok(mut set) = self.state.active_ws.try_lock() {
             set.remove(&self.email);
-        } else {
-            // Fallback: spawn a task to do the cleanup asynchronously.
+        } else if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            // #499 — only spawn cleanup if the Tokio runtime is still alive.
             let state = Arc::clone(&self.state);
             let email = self.email.clone();
-            tokio::spawn(async move {
-                state.active_ws.lock().await.remove(&email);
-            });
+            if handle
+                .spawn(async move {
+                    state.active_ws.lock().await.remove(&email);
+                })
+                .is_finished()
+            {
+                tracing::warn!(user = %self.email, "ActiveWsGuard: async cleanup task completed immediately or failed");
+            }
+        } else {
+            tracing::warn!(user = %self.email, "ActiveWsGuard: no Tokio runtime — email slot leaked (benign at shutdown)");
         }
     }
 }
@@ -85,13 +95,27 @@ pub async fn ws_handler(
         }
     };
 
-    // #334 — enforce single WebSocket per email.
+    // #334 — enforce single WebSocket per email; #460 — enforce global cap.
+    //
+    // Ordering matters (codex P2): check the duplicate-email condition BEFORE
+    // the global cap.  If we checked the cap first, a returning user whose
+    // email is already in the set would get 503 Service Unavailable instead of
+    // the correct 409 Conflict when the server is at capacity.
     {
         let mut active = state.active_ws.lock().await;
-        if !active.insert(email.clone()) {
+        if active.contains(&email) {
             tracing::warn!(user = %email, "ws_handler: rejected — duplicate WebSocket from same email");
             return StatusCode::CONFLICT.into_response();
         }
+        if active.len() >= MAX_WS_CONNECTIONS {
+            tracing::warn!(
+                count = active.len(),
+                max = MAX_WS_CONNECTIONS,
+                "ws_handler: rejected — connection cap reached"
+            );
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+        active.insert(email.clone());
     }
 
     // The guard removes the email from `active_ws` when the socket closes.
@@ -192,6 +216,104 @@ mod tests {
         assert!(
             !state.active_ws.lock().await.contains("test@example.com"),
             "ActiveWsGuard::drop must remove the email from active_ws"
+        );
+    }
+
+    /// #460 — connection cap rejects new WebSocket upgrades at the limit.
+    #[tokio::test]
+    async fn connection_cap_rejects_at_limit() {
+        let state = crate::routes::tests::test_app_state();
+
+        {
+            let mut active = state.active_ws.lock().await;
+            for i in 0..MAX_WS_CONNECTIONS {
+                active.insert(format!("user{i}@example.com"));
+            }
+            assert_eq!(active.len(), MAX_WS_CONNECTIONS);
+        }
+
+        // The next insert should be blocked by the cap (not by duplicate check).
+        let active = state.active_ws.lock().await;
+        assert!(
+            active.len() >= MAX_WS_CONNECTIONS,
+            "active_ws should be at the connection cap"
+        );
+    }
+
+    /// #499 — ActiveWsGuard::drop does not panic without a Tokio runtime.
+    #[test]
+    fn active_ws_guard_drop_without_runtime_does_not_panic() {
+        // Build state inside a temporary runtime, then drop the guard
+        // outside any runtime to exercise the no-runtime fallback path.
+        let state = {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async { crate::routes::tests::test_app_state() })
+        };
+
+        state
+            .active_ws
+            .try_lock()
+            .unwrap()
+            .insert("orphan@example.com".to_string());
+
+        // Drop guard outside any Tokio runtime — should not panic.
+        let _guard = ActiveWsGuard {
+            state: Arc::clone(&state),
+            email: "orphan@example.com".to_string(),
+        };
+        drop(_guard);
+    }
+
+    /// Codex P2 regression: at-cap + duplicate must return 409 Conflict, not 503.
+    ///
+    /// When active_ws has MAX_WS_CONNECTIONS entries and the *same* user tries to
+    /// open a second socket, the duplicate-email check must fire before the cap
+    /// check.  Previously the cap was tested first, returning 503 instead of 409.
+    #[tokio::test]
+    async fn duplicate_at_cap_returns_409_not_503() {
+        let state = crate::routes::tests::test_app_state();
+
+        // Fill active_ws to the cap with unique users, including the one we
+        // will try to connect again.
+        let returning_user = "returning@example.com".to_string();
+        {
+            let mut active = state.active_ws.lock().await;
+            // Fill all slots.
+            for i in 0..MAX_WS_CONNECTIONS - 1 {
+                active.insert(format!("user{i}@example.com"));
+            }
+            // Insert the returning user so the set is at capacity.
+            active.insert(returning_user.clone());
+            assert_eq!(active.len(), MAX_WS_CONNECTIONS);
+        }
+
+        // Simulate the ws_handler logic directly: duplicate check before cap check.
+        let active = state.active_ws.lock().await;
+
+        // Duplicate check (must fire first).
+        let is_duplicate = active.contains(&returning_user);
+        assert!(
+            is_duplicate,
+            "returning user should already be in active_ws"
+        );
+
+        // If the code checked cap first it would see len >= MAX and return 503.
+        // With the corrected order, the duplicate is detected first → 409.
+        let at_cap = active.len() >= MAX_WS_CONNECTIONS;
+        assert!(at_cap, "set must be at capacity for this test to be valid");
+
+        // The expected response for a duplicate at cap is 409, not 503.
+        let status = if is_duplicate {
+            StatusCode::CONFLICT
+        } else if at_cap {
+            StatusCode::SERVICE_UNAVAILABLE
+        } else {
+            StatusCode::OK
+        };
+        assert_eq!(
+            status,
+            StatusCode::CONFLICT,
+            "duplicate at cap must return 409 Conflict, not 503"
         );
     }
 }

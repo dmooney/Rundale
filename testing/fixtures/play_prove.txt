@@ -1,8 +1,16 @@
-# Prove: /unexplored slash command toggles reveal mode for map visibility.
-# Goal: verify command responses for status, reveal, and hide.
-
-/unexplored
-/unexplored reveal
-/unexplored
-/unexplored hide
-/unexplored
+# Ephemeral scratch fixture for the /prove skill.
+#
+# The /prove skill rewrites this file on every run (see
+# .claude/skills/prove/SKILL.md). Checking durable test content in
+# here is a mistake — the next /prove run will overwrite it.
+# (#412: PR #397 checked in a /unexplored proof here; that content
+# was moved to prove_unexplored.txt.)
+#
+# Feature-specific proof scripts that should persist across /prove
+# runs live under their own names (e.g. prove_unexplored.txt,
+# play_weather.txt).
+#
+# Keep this stub harmless so `cargo run -- --script testing/fixtures/play_prove.txt`
+# still resolves to something runnable before the first /prove of
+# a fresh working copy.
+/status

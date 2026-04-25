@@ -191,6 +191,37 @@ impl NpcManager {
         self.npcs.insert(npc.id, npc);
     }
 
+    /// Removes a deceased NPC and scrubs every dangling reference to it
+    /// from the rest of the roster (#339).
+    ///
+    /// A bare `self.npcs.remove(id)` would leave:
+    ///
+    /// - `tier_assignments` still keyed by the dead id (handled by
+    ///   the existing death sites, included here for symmetry).
+    /// - `introduced_npcs` / `npcs_who_know_player_name` still
+    ///   containing the dead id (display-name lookups would still
+    ///   greet the deceased; gossip would still walk them).
+    /// - Every surviving NPC's `relationships` map still pointing
+    ///   at the dead id, leading to dereferences-of-nothing in
+    ///   gossip and tier-2 affinity scans.
+    ///
+    /// Call this from every death-handling path instead of the bare
+    /// `self.npcs.remove(...)`. Returns the removed NPC if it existed,
+    /// matching `HashMap::remove` semantics.
+    pub fn remove_npc(&mut self, id: NpcId) -> Option<Npc> {
+        let removed = self.npcs.remove(&id);
+        self.tier_assignments.remove(&id);
+        self.introduced_npcs.remove(&id);
+        self.npcs_who_know_player_name.remove(&id);
+        // Scrub the dead id from every surviving NPC's relationships.
+        // Cheap: the map is small per NPC, and remove is a no-op when
+        // the key is absent.
+        for npc in self.npcs.values_mut() {
+            npc.relationships.remove(&id);
+        }
+        removed
+    }
+
     /// Returns a reference to an NPC by id.
     pub fn get(&self, id: NpcId) -> Option<&Npc> {
         self.npcs.get(&id)
@@ -811,6 +842,7 @@ impl NpcManager {
         &mut self,
         events: &[crate::tier4::Tier4Event],
         timestamp: DateTime<Utc>,
+        banshee_enabled: bool,
     ) -> Vec<GameEvent> {
         use crate::tier4::Tier4Event;
 
@@ -857,24 +889,36 @@ impl NpcManager {
                     }
                 }
                 Tier4Event::Death { npc_id } => {
-                    // Schedule the doom a game-day ahead so the banshee tick has a
-                    // chance to herald it before the NPC is actually removed.
-                    // If the banshee feature is disabled at tick time, `tick_banshee`
-                    // is simply not called and the NPC will remain alive until a
-                    // future tick removes them — this preserves mode parity without
-                    // requiring the flag check here.
-                    if let Some(npc) = self.npcs.get_mut(npc_id) {
-                        let doom = timestamp
-                            + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
-                        npc.doom = Some(doom);
-                        npc.banshee_heralded = false;
-                        let desc = format!("{} is fated to die.", npc.name);
-                        life_descriptions.push(desc.clone());
-                        game_events.push(GameEvent::LifeEvent {
-                            npc_id: *npc_id,
-                            description: desc,
-                            timestamp,
-                        });
+                    if banshee_enabled {
+                        // Schedule the doom a game-day ahead so the banshee tick
+                        // has a chance to herald it before the NPC is removed.
+                        if let Some(npc) = self.npcs.get_mut(npc_id) {
+                            let doom = timestamp
+                                + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
+                            npc.doom = Some(doom);
+                            npc.banshee_heralded = false;
+                            let desc = format!("{} is fated to die.", npc.name);
+                            life_descriptions.push(desc.clone());
+                            game_events.push(GameEvent::LifeEvent {
+                                npc_id: *npc_id,
+                                description: desc,
+                                timestamp,
+                            });
+                        }
+                    } else {
+                        // Banshee disabled — immediate removal (pre-banshee behavior).
+                        if let Some(npc) = self.npcs.get(npc_id) {
+                            let desc = format!("{} has passed away.", npc.name);
+                            life_descriptions.push(desc.clone());
+                            game_events.push(GameEvent::LifeEvent {
+                                npc_id: *npc_id,
+                                description: desc,
+                                timestamp,
+                            });
+                        }
+                        // Scrub the dead id from introductions, name knowledge,
+                        // and every surviving NPC's relationships map (#339).
+                        self.remove_npc(*npc_id);
                     }
                 }
                 Tier4Event::Birth { parent_ids } => {
@@ -1046,9 +1090,10 @@ impl NpcManager {
             };
 
             if now >= doom {
-                // Doom has arrived — the NPC dies now.
-                self.npcs.remove(&id);
-                self.tier_assignments.remove(&id);
+                // Doom has arrived — the NPC dies now. Use remove_npc
+                // so introductions, name knowledge, and every other
+                // NPC's relationships map all drop the dead id (#339).
+                self.remove_npc(id);
                 let desc = format!("{} has passed away.", name);
                 world_text_log.push(format!(
                     "Word travels before the sun is fully up: {} did not see the morning. \
@@ -2035,7 +2080,7 @@ mod tests {
             let mut rng = rand::thread_rng();
             tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
         };
-        let game_events = mgr.apply_tier4_events(&events, now);
+        let game_events = mgr.apply_tier4_events(&events, now, true);
         for evt in game_events {
             world.event_bus.publish(evt);
         }
@@ -2324,7 +2369,7 @@ mod tests {
 
         let now = Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
         let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
-        let game_events = mgr.apply_tier4_events(&events, now);
+        let game_events = mgr.apply_tier4_events(&events, now, true);
 
         assert!(
             mgr.get(NpcId(42)).is_some(),
@@ -2337,6 +2382,79 @@ mod tests {
             chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS)
         );
         assert!(!game_events.is_empty(), "should still emit a life event");
+    }
+
+    #[test]
+    fn tier4_death_with_banshee_disabled_removes_npc_immediately() {
+        use crate::tier4::Tier4Event;
+        let mut mgr = NpcManager::new();
+        mgr.add_npc(make_test_npc(42, 2));
+
+        let now = Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
+        let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
+        let game_events = mgr.apply_tier4_events(&events, now, false);
+
+        assert!(
+            mgr.get(NpcId(42)).is_none(),
+            "NPC should be removed immediately when banshee is disabled"
+        );
+        assert!(!game_events.is_empty(), "should still emit a life event");
+    }
+
+    // ── #339 dead-NPC reference cleanup ─────────────────────────────────────
+
+    #[test]
+    fn remove_npc_scrubs_all_references() {
+        use crate::types::Relationship;
+
+        let mut mgr = NpcManager::new();
+        // Three NPCs so we can verify scrubbing across the surviving roster.
+        for id in [10, 20, 30] {
+            mgr.add_npc(make_test_npc(id, 0));
+        }
+        // Tier assignments + introductions + name knowledge for the doomed NPC.
+        mgr.tier_assignments.insert(NpcId(20), CogTier::Tier1);
+        mgr.introduced_npcs.insert(NpcId(20));
+        mgr.npcs_who_know_player_name.insert(NpcId(20));
+
+        // Give the survivors relationships pointing at the doomed NPC.
+        mgr.npcs.get_mut(&NpcId(10)).unwrap().relationships.insert(
+            NpcId(20),
+            Relationship::new(crate::types::RelationshipKind::Neighbor, 0.0),
+        );
+        mgr.npcs.get_mut(&NpcId(30)).unwrap().relationships.insert(
+            NpcId(20),
+            Relationship::new(crate::types::RelationshipKind::Neighbor, 0.0),
+        );
+        // Plus an unrelated relationship that must survive.
+        mgr.npcs.get_mut(&NpcId(10)).unwrap().relationships.insert(
+            NpcId(30),
+            Relationship::new(crate::types::RelationshipKind::Neighbor, 0.0),
+        );
+
+        let removed = mgr.remove_npc(NpcId(20));
+        assert!(removed.is_some(), "remove_npc should return the dead NPC");
+
+        // npcs map: gone
+        assert!(mgr.get(NpcId(20)).is_none());
+        // tier_assignments: gone
+        assert!(!mgr.tier_assignments.contains_key(&NpcId(20)));
+        // introductions: gone
+        assert!(!mgr.introduced_npcs.contains(&NpcId(20)));
+        // name knowledge: gone
+        assert!(!mgr.npcs_who_know_player_name.contains(&NpcId(20)));
+        // Survivors lost their dead-NPC relationships but kept the unrelated ones.
+        let n10 = mgr.get(NpcId(10)).unwrap();
+        assert!(!n10.relationships.contains_key(&NpcId(20)));
+        assert!(n10.relationships.contains_key(&NpcId(30)));
+        let n30 = mgr.get(NpcId(30)).unwrap();
+        assert!(!n30.relationships.contains_key(&NpcId(20)));
+    }
+
+    #[test]
+    fn remove_npc_returns_none_for_missing_id() {
+        let mut mgr = NpcManager::new();
+        assert!(mgr.remove_npc(NpcId(9_999_999)).is_none());
     }
 
     #[test]

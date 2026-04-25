@@ -42,6 +42,35 @@ use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
+/// Content-Security-Policy value shared between production and tests.
+///
+/// # script-src 'unsafe-inline' (TODO: replace with hash)
+///
+/// SvelteKit's production build injects a small inline bootstrap `<script>` in
+/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
+/// `script-src` causes the browser to reject that script, so the page never
+/// hydrates (codex P1, PR #543).
+///
+/// The proper fix is to compute the SHA-256 of that bootstrap block and add
+/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
+/// but must be regenerated whenever SvelteKit changes the bootstrap text.
+/// Until that build-time integration exists, `'unsafe-inline'` is restored here
+/// so the app keeps working.
+///
+/// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
+/// `apps/ui/dist/index.html` at build time.
+/// See: <https://github.com/dmooney/Parish/issues/543>
+pub const CSP_POLICY: &str = "default-src 'self'; \
+                              script-src 'self' 'unsafe-inline'; \
+                              worker-src 'self' blob:; \
+                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                              img-src 'self' data: blob: https:; \
+                              connect-src 'self' ws: wss: https:; \
+                              font-src 'self' https://fonts.gstatic.com; \
+                              frame-ancestors 'none'; \
+                              base-uri 'self'; \
+                              form-action 'self'";
+
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 
@@ -276,10 +305,25 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     {
         let g = Arc::clone(&global);
         tokio::spawn(async move {
+            // Memory TTL: 1 day idle → evict from DashMap (cookie still
+            // valid; next visit restores from sessions.db).
+            const MEMORY_TTL: Duration = Duration::from_secs(86_400);
+            // Disk TTL: 30 days idle → purge sessions.db row +
+            // saves/<id>/ directory so long-running deployments don't
+            // accumulate dead sessions forever (#482).
+            const DISK_TTL: Duration = Duration::from_secs(30 * 86_400);
             loop {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
-                g.sessions.cleanup_stale(Duration::from_secs(86400));
-                tracing::debug!("Session cleanup ran");
+                g.sessions.cleanup_stale(MEMORY_TTL);
+                let saves_root = g.saves_dir.clone();
+                let purged = g
+                    .sessions
+                    .purge_expired_disk_sessions(&saves_root, DISK_TTL);
+                if purged > 0 {
+                    tracing::info!(purged, "Session cleanup reaped expired disk sessions");
+                } else {
+                    tracing::debug!("Session cleanup ran (no disk expirations)");
+                }
             }
         });
     }
@@ -390,18 +434,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         // ── Security hardening headers (outermost layer — covers all routes) ──
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline'; \
-                 worker-src 'self' blob:; \
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                 img-src 'self' data: blob: https:; \
-                 connect-src 'self' ws: wss: https:; \
-                 font-src 'self' https://fonts.gstatic.com; \
-                 frame-ancestors 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'",
-            ),
+            HeaderValue::from_static(CSP_POLICY),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
@@ -638,8 +671,10 @@ async fn ip_rate_limit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial(parish_env)]
     fn build_client_and_config_defaults() {
         // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
         let (_client, config) = build_client_and_config();
@@ -672,9 +707,11 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_missing_returns_none() {
         // Ensure env vars are not set in the test environment.
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::remove_var("GOOGLE_CLIENT_ID");
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
@@ -683,8 +720,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_prefers_public_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
@@ -702,8 +741,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_falls_back_to_base_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");

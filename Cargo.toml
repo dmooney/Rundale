@@ -11,6 +11,7 @@ members = [
     "crates/parish-inference",
     "crates/parish-world",
     "crates/parish-npc",
+    "crates/parish-npc-cli",
     "crates/parish-persistence",
     "crates/parish-input",
 ]
