@@ -1,6 +1,6 @@
 # Triage vocabulary
 
-Canonical label set for open-issue triage. The `triage-backlog` skill and the `triage-audit` workflow both read from this list. Update this file when introducing new themes or priority levels — never invent labels at the call site.
+Canonical label set for open-issue triage. The machine-readable list lives in [`.github/triage-labels.json`](../../.github/triage-labels.json) — the `triage-audit` workflow reads that file directly, and the `triage-backlog` skill reads this doc. When introducing a new theme or priority level, update **both** the JSON and the prose below; never invent labels at the call site.
 
 ## Priority labels (exactly one per issue)
 

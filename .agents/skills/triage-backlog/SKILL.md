@@ -18,7 +18,7 @@ Run a triage pass over open issues that lack a `P*` priority or any theme label.
    - **At least one theme** label. Multiple is fine when an issue genuinely spans themes (e.g. `security` + `infra` for a workflow vuln).
    - When uncertain between two priorities, pick the lower-urgency one and let a human escalate.
 
-5. **Apply.** Call `mcp__github__issue_write` with `method: "update"` and the **union** of (existing labels) + (theme labels) + (priority). `issue_write` *replaces* the set, so always include pre-existing labels like `bug`, `security`, `ready-for-test`. Dispatch in parallel batches of 5–10 to stay clear of GitHub's secondary rate limits.
+5. **Apply.** Compute the new label set as **(existing labels with any `P*` priority stripped) + (chosen theme labels) + (chosen priority)** — stripping the old priority is critical so a re-triage doesn't leave both `P1` *and* `P2` on the issue. Pre-existing non-priority labels (`bug`, `security`, `ready-for-test`, `in-progress`, etc.) are preserved. Pass the resulting set to `mcp__github__issue_write` with `method: "update"`. Dispatch in parallel batches of 5–10 to stay clear of GitHub's secondary rate limits.
 
 6. **Verify.** For each priority, make a separate `mcp__github__list_issues` call with `labels: ["P0"]`, then `["P1"]`, then `["P2"]`, then `["P3"]` (four calls — combining priorities in one filter would AND them and return zero). Confirm each count matches what you applied. Random-sample a few issues with `mcp__github__issue_read` (`get_labels`) to confirm theme labels stuck.
 
