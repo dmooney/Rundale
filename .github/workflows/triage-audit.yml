@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   audit:
+    if: github.event_name != 'issues'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -88,4 +89,37 @@ jobs:
 
             if (lackingPriority.length > 0) {
               core.warning(`${lackingPriority.length} open issues need triage`);
+            }
+
+  check-new-issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: 'Check labels on triggering issue'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const PRIORITY = ['P0', 'P1', 'P2', 'P3'];
+            const THEMES = [
+              'bug', 'enhancement', 'performance', 'security', 'refactor',
+              'frontend', 'a11y', 'mode-parity', 'npc-reactions',
+              'witness-scan', 'infra',
+            ];
+
+            const issue = context.payload.issue;
+            const names = issue.labels.map(l => typeof l === 'string' ? l : l.name);
+            const priority = names.find(n => PRIORITY.includes(n));
+            const themes = names.filter(n => THEMES.includes(n));
+
+            await core.summary
+              .addHeading(`Issue #${issue.number} triage check`, 2)
+              .addRaw(`**${issue.title}**\n\n`)
+              .addRaw(`- Priority: ${priority || '**MISSING**'}\n`)
+              .addRaw(`- Theme: ${themes.length ? themes.join(', ') : '**MISSING**'}\n`)
+              .addRaw(`\nIf either is missing, run \`/triage-backlog\` in Claude Code. Vocabulary: \`docs/agent/triage-vocabulary.md\`.\n`)
+              .write();
+
+            if (!priority || themes.length === 0) {
+              core.warning(`Issue #${issue.number} needs triage`);
             }
