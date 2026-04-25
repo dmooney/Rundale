@@ -208,7 +208,7 @@ pub async fn submit_input(
 
     // #332 — admin command gate: provider/key/model mutations are operator-only.
     if is_admin_command(&text)
-        && let Err(status) = check_admin(&auth.email, &text)
+        && let Err(status) = check_admin(&auth.email, &text, admin_emails())
     {
         return status;
     }
@@ -2023,12 +2023,20 @@ fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
 /// Returns `Ok(())` if the caller is permitted to run an admin command, or
 /// `Err(StatusCode::FORBIDDEN)` otherwise.
 ///
-/// Admin status is determined by `PARISH_ADMIN_EMAILS` (comma-separated),
-/// parsed once at first access and cached thereafter (#480). If the env
-/// var was unset at first access: **allowed** in debug builds (local dev),
-/// **denied** in release builds (fail-closed).
-fn check_admin(email: &str, cmd: &str) -> Result<(), StatusCode> {
-    match admin_emails() {
+/// `emails` is the parsed allow-list; pass `admin_emails()` at production
+/// call sites. Accepting the set as a parameter (rather than calling
+/// `admin_emails()` internally) keeps the `OnceCell` cache out of the
+/// function body so unit tests can supply an isolated set without touching
+/// global state (#605).
+///
+/// If `emails` is `None` the env var was unset: **allowed** in debug builds
+/// (local dev), **denied** in release builds (fail-closed, #480).
+fn check_admin(
+    email: &str,
+    cmd: &str,
+    emails: Option<&std::collections::HashSet<String>>,
+) -> Result<(), StatusCode> {
+    match emails {
         Some(set) => {
             if set.contains(email) {
                 Ok(())

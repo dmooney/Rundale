@@ -280,24 +280,25 @@ impl SessionRegistry {
                 tracing::warn!(error = %e, "purge_expired_disk_sessions: DB read failed");
                 return 0;
             }
-            // Drop rows for the ids we collected. Run as a single
-            // transaction so a process crash doesn't leave the DB
-            // partially pruned relative to the filesystem.
             if !collected.is_empty() {
                 let tx_result = (|| -> rusqlite::Result<()> {
                     let placeholders = vec!["?"; collected.len()].join(",");
-                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
                     let params: Vec<&dyn rusqlite::ToSql> = collected
                         .iter()
                         .map(|s| s as &dyn rusqlite::ToSql)
                         .collect();
-                    db.execute(&sql, params.as_slice())?;
-                    // Also drop oauth links for those sessions — otherwise
-                    // the next login for the same provider_user_id would
-                    // resurrect a dead session_id. (#482 sibling concern.)
+                    // Invariant: both deletes commit together so the DB is
+                    // never left with oauth_accounts rows pointing at a
+                    // non-existent session_id (and vice-versa). Filesystem
+                    // cleanup happens after commit; a residual directory with
+                    // no DB row is harmless.
+                    let tx = db.unchecked_transaction()?;
+                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
+                    tx.execute(&sql, params.as_slice())?;
                     let oauth_sql =
                         format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
-                    db.execute(&oauth_sql, params.as_slice())?;
+                    tx.execute(&oauth_sql, params.as_slice())?;
+                    tx.commit()?;
                     Ok(())
                 })();
                 if let Err(e) = tx_result {

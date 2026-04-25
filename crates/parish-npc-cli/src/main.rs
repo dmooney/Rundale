@@ -300,22 +300,24 @@ fn generate_world(conn: &Connection, counties: &[String]) -> Result<()> {
 }
 
 fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>) -> Result<()> {
-    let county_id: i64 = conn
+    let tx = conn.unchecked_transaction()?;
+
+    let county_id: i64 = tx
         .query_row("SELECT id FROM counties ORDER BY id LIMIT 1", [], |r| {
             r.get(0)
         })
         .optional()?
         .unwrap_or_else(|| {
-            conn.execute("INSERT INTO counties(name) VALUES ('roscommon')", [])
+            tx.execute("INSERT INTO counties(name) VALUES ('roscommon')", [])
                 .expect("inserting default county should succeed");
-            conn.last_insert_rowid()
+            tx.last_insert_rowid()
         });
 
-    conn.execute(
+    tx.execute(
         "INSERT OR IGNORE INTO parishes(county_id, name) VALUES (?, ?)",
         params![county_id, parish],
     )?;
-    let parish_id: i64 = conn.query_row(
+    let parish_id: i64 = tx.query_row(
         "SELECT id FROM parishes WHERE name = ?",
         params![parish],
         |r| r.get(0),
@@ -326,11 +328,11 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
     let now_year = 1820_i64;
 
     for i in 0..household_count {
-        conn.execute(
+        tx.execute(
             "INSERT INTO households(parish_id, name) VALUES (?, ?)",
             params![parish_id, format!("{} Household {}", parish, i + 1)],
         )?;
-        let household_id = conn.last_insert_rowid();
+        let household_id = tx.last_insert_rowid();
         let members = rng.gen_range(4..=8);
         for _ in 0..members {
             let female = rng.gen_bool(0.5);
@@ -350,24 +352,25 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
             let age: i64 = rng.gen_range(0..=85);
             let birth_year = now_year - age;
             let occupation = weighted_occupation(&mut rng);
-            conn.execute(
+            tx.execute(
                 "INSERT INTO npcs(name, sex, birth_year, age, parish_id, household_id, occupation, data_tier, mood) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
                 params![name, if female {"female"} else {"male"}, birth_year, age, parish_id, household_id, occupation, "neutral"],
             )?;
         }
     }
 
-    let mut stmt = conn.prepare("SELECT id FROM npcs WHERE parish_id = ?")?;
+    let mut stmt = tx.prepare("SELECT id FROM npcs WHERE parish_id = ?")?;
     let npc_ids: Vec<i64> = stmt
         .query_map(params![parish_id], |r| r.get(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(stmt);
     for id in &npc_ids {
         for _ in 0..2 {
             if let Some(other) = npc_ids.choose(&mut rng)
                 && other != id
             {
                 let strength: f64 = rng.gen_range(-0.2..0.9);
-                conn.execute(
+                tx.execute(
                     "INSERT OR IGNORE INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, ?, ?, ?)",
                     params![id, other, "Acquaintance", strength],
                 )?;
@@ -375,11 +378,12 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
         }
     }
 
-    let count: i64 = conn.query_row(
+    let count: i64 = tx.query_row(
         "SELECT COUNT(*) FROM npcs WHERE parish_id = ?",
         params![parish_id],
         |r| r.get(0),
     )?;
+    tx.commit()?;
     println!("Generated parish '{}' with {} sketched NPCs", parish, count);
     Ok(())
 }
