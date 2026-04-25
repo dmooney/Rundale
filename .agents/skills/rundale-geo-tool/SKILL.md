@@ -1,6 +1,17 @@
 ---
 name: rundale-geo-tool
-description: Use whenever touching Rundale world geography — `realign_rundale_coords`, `mods/rundale/world.json` coordinates, pinning real-world locations to historical maps, subordinating village clusters via `relative_to`, choosing between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern geocoders vs historical OS maps. Covers the `geo-tool` CLI suite, the coordinate resolver (absolute + relative + graph-delta fallback), how to compute historical offsets from earlier commits, and why Nominatim alone is the wrong primary source for a 1820s Irish world. Trigger eagerly — any task involving lat/lon in Rundale, the Parish Designer editor's geographic fields, "pin X to coord Y", "move the Kilteevan cluster", "the fictional establishments didn't follow the village", or similar.
+description: >-
+  Use whenever touching Rundale world geography: `realign_rundale_coords`,
+  `mods/rundale/world.json` coordinates, pinning real-world locations to
+  historical maps, subordinating village clusters via `relative_to`, choosing
+  between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern
+  geocoders vs historical OS maps. Covers the `geo-tool` CLI suite, the
+  coordinate resolver (absolute + relative + graph-delta fallback), how to
+  compute historical offsets from earlier commits, and why Nominatim alone is
+  the wrong primary source for a 1820s Irish world. Trigger eagerly: any task
+  involving lat/lon in Rundale, the Parish Designer editor's geographic fields,
+  "pin X to coord Y", "move the Kilteevan cluster", "the fictional
+  establishments didn't follow the village", or similar.
 ---
 
 How to work with Rundale's geographic coordinate system.
@@ -79,13 +90,13 @@ If you're pinning an anchor (e.g. The Crossroads) and want its village cluster t
 1. Identify the cluster — the fictional locations that should always sit near the anchor (not all of them, just the ones that belong to the cluster).
 2. Compute historical offsets using the helper:
    ```bash
-   python3 .skills/rundale-geo-tool/scripts/compute_historical_offsets.py \
+   python3 .agents/skills/rundale-geo-tool/scripts/compute_historical_offsets.py \
      --anchor-id 1 --cluster 2,3,4,6,9,13 --baseline-commit 91c996c
    ```
    The baseline commit is "the last commit where the cluster was spatially coherent." For Rundale, that's typically `91c996c` (before any realign pipeline ran) or `cc3d85f` (before the OS-6" pinning work).
 3. Apply the offsets with the helper:
    ```bash
-   python3 .skills/rundale-geo-tool/scripts/add_relative_to.py \
+   python3 .agents/skills/rundale-geo-tool/scripts/add_relative_to.py \
      --anchor-id 1 \
      --offsets '{"2":{"dnorth_m":445,"deast_m":462}, ...}'
    ```

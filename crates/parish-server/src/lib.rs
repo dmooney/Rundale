@@ -276,10 +276,25 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     {
         let g = Arc::clone(&global);
         tokio::spawn(async move {
+            // Memory TTL: 1 day idle → evict from DashMap (cookie still
+            // valid; next visit restores from sessions.db).
+            const MEMORY_TTL: Duration = Duration::from_secs(86_400);
+            // Disk TTL: 30 days idle → purge sessions.db row +
+            // saves/<id>/ directory so long-running deployments don't
+            // accumulate dead sessions forever (#482).
+            const DISK_TTL: Duration = Duration::from_secs(30 * 86_400);
             loop {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
-                g.sessions.cleanup_stale(Duration::from_secs(86400));
-                tracing::debug!("Session cleanup ran");
+                g.sessions.cleanup_stale(MEMORY_TTL);
+                let saves_root = g.saves_dir.clone();
+                let purged = g
+                    .sessions
+                    .purge_expired_disk_sessions(&saves_root, DISK_TTL);
+                if purged > 0 {
+                    tracing::info!(purged, "Session cleanup reaped expired disk sessions");
+                } else {
+                    tracing::debug!("Session cleanup ran (no disk expirations)");
+                }
             }
         });
     }
