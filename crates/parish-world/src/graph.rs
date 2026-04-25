@@ -124,6 +124,26 @@ struct WorldGraphFile {
     locations: Vec<LocationData>,
 }
 
+impl LocationData {
+    /// Validates that lat/lon coordinates are within valid WGS-84 bounds.
+    /// Latitude must be in [-90.0, 90.0]; longitude must be in [-180.0, 180.0].
+    fn validate_coordinates(&self) -> Result<(), ParishError> {
+        if !(-90.0..=90.0).contains(&self.lat) {
+            return Err(ParishError::WorldGraph(format!(
+                "invalid latitude: {} (must be between -90 and 90)",
+                self.lat
+            )));
+        }
+        if !(-180.0..=180.0).contains(&self.lon) {
+            return Err(ParishError::WorldGraph(format!(
+                "invalid longitude: {} (must be between -180 and 180)",
+                self.lon
+            )));
+        }
+        Ok(())
+    }
+}
+
 impl WorldGraph {
     /// Creates a new empty world graph.
     pub fn new() -> Self {
@@ -156,6 +176,7 @@ impl WorldGraph {
                     loc.id.0
                 )));
             }
+            loc.validate_coordinates()?;
             locations.insert(loc.id, loc);
         }
 
