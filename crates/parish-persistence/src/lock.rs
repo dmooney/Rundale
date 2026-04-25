@@ -5,17 +5,68 @@
 //! containing the owning process's PID. Stale locks from crashed
 //! processes are detected and cleaned up automatically.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// Advisory lock backed by a `.lock` sidecar file.
 ///
 /// On creation, writes the current PID to `<save_path>.lock`.
-/// On drop, removes the lock file (best-effort).
+/// On drop, removes the lock file (best-effort) **only** when this guard
+/// is the active owner.
+///
+/// # Re-entrant safety
+///
+/// When the same process calls [`try_acquire`](Self::try_acquire) while already
+/// holding a lock on the same path (e.g. `state.save_lock = Some(new_lock)`),
+/// the new guard becomes the sole owner and the previous guard's `Drop` is
+/// silenced via a shared [`AtomicBool`].  This prevents the old guard's `Drop`
+/// from deleting the lock file while the new guard is still alive — the race
+/// identified in codex P1.
 pub struct SaveFileLock {
     lock_path: PathBuf,
+    /// Shared liveness flag.  Guards for the same PID+path share this `Arc`.
+    /// `true` means "I am responsible for removing the file on drop".
+    /// A re-entrant acquire sets the old guard's copy to `false` and takes
+    /// its own fresh `Arc` set to `true`, so exactly one guard removes the
+    /// file.
+    should_delete: Arc<AtomicBool>,
 }
+
+// ---------------------------------------------------------------------------
+// Process-global live-guard registry
+// ---------------------------------------------------------------------------
+//
+// Maps `lock_path → should_delete flag` for every owning `SaveFileLock` in
+// this process.  Used by `reentrant_acquire` to silence a previous guard
+// when the same path is re-acquired by the same PID.
+//
+// `std::sync::Mutex` (not `tokio::sync::Mutex`) so the registry is usable
+// from sync `Drop` without an async runtime.
+
+struct LiveGuardRegistry(Mutex<Option<HashMap<PathBuf, Arc<AtomicBool>>>>);
+
+impl LiveGuardRegistry {
+    const fn new() -> Self {
+        Self(Mutex::new(None))
+    }
+
+    fn with_lock<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut HashMap<PathBuf, Arc<AtomicBool>>) -> R,
+    {
+        // Panic on lock poisoning — this is a logic bug, not a recoverable
+        // error, and we would rather crash fast than silently corrupt state.
+        let mut guard = self.0.lock().expect("LiveGuardRegistry mutex poisoned");
+        let map = guard.get_or_insert_with(HashMap::new);
+        f(map)
+    }
+}
+
+static LIVE_GUARDS: LiveGuardRegistry = LiveGuardRegistry::new();
 
 impl SaveFileLock {
     /// Attempts to acquire an advisory lock for the given save file.
@@ -24,11 +75,12 @@ impl SaveFileLock {
     /// locked by another live process. Stale locks (dead PID) are cleaned
     /// up and re-acquired automatically.
     ///
-    /// If the current process already holds the lock (same PID), returns
-    /// `Some` to allow callers to replace the old guard without losing
-    /// protection. Prefer [`covers_path`](Self::covers_path) to avoid
-    /// the brief window where the old guard's `Drop` removes the file
-    /// before the new guard takes effect.
+    /// If the current process already holds the lock (same PID), the
+    /// existing guard's delete-on-drop responsibility is silenced and a
+    /// fresh owning guard is returned.  This makes the replacement pattern
+    /// `state.save_lock = Some(SaveFileLock::try_acquire(&path)?)` safe:
+    /// the old guard drops without touching the file, and the new guard
+    /// takes over sole ownership.
     pub fn try_acquire(save_path: &Path) -> Option<Self> {
         let lock_path = Self::lock_path_for(save_path);
         let my_pid = std::process::id();
@@ -38,7 +90,10 @@ impl SaveFileLock {
                 Ok(contents) => {
                     if let Ok(pid) = contents.trim().parse::<u32>() {
                         if pid == my_pid {
-                            return Some(Self { lock_path });
+                            // Re-entrant acquire: same process already holds
+                            // the lock.  Silence the previous guard and return
+                            // a fresh owning guard.
+                            return Self::reentrant_acquire(lock_path);
                         }
                         if is_process_alive(pid) {
                             return None;
@@ -78,7 +133,39 @@ impl SaveFileLock {
             _ => return None,
         }
 
-        Some(Self { lock_path })
+        let flag = Arc::new(AtomicBool::new(true));
+        LIVE_GUARDS.with_lock(|map| {
+            map.insert(lock_path.clone(), Arc::clone(&flag));
+        });
+
+        Some(Self {
+            lock_path,
+            should_delete: flag,
+        })
+    }
+
+    /// Called from [`try_acquire`] when the lock file already contains our
+    /// PID.  Silences any previous owning guard for this path and returns a
+    /// fresh owning guard.
+    fn reentrant_acquire(lock_path: PathBuf) -> Option<Self> {
+        // Silence the previous guard (if any) by setting its flag to false.
+        // This prevents the Drop of the old guard from deleting the file.
+        LIVE_GUARDS.with_lock(|map| {
+            if let Some(old_flag) = map.get(&lock_path) {
+                old_flag.store(false, Ordering::Release);
+            }
+        });
+
+        // Create a fresh owning guard with its own flag and register it.
+        let flag = Arc::new(AtomicBool::new(true));
+        LIVE_GUARDS.with_lock(|map| {
+            map.insert(lock_path.clone(), Arc::clone(&flag));
+        });
+
+        Some(Self {
+            lock_path,
+            should_delete: flag,
+        })
     }
 
     /// Returns `true` if this lock protects the given save file path.
@@ -96,6 +183,23 @@ impl SaveFileLock {
 
 impl Drop for SaveFileLock {
     fn drop(&mut self) {
+        if !self.should_delete.load(Ordering::Acquire) {
+            // Another guard has taken over responsibility for this lock file
+            // (re-entrant replacement pattern).  Do not touch the file.
+            return;
+        }
+        // Deregister from the live-guard registry so a future acquire for the
+        // same path does not try to silence us after we have already cleaned up.
+        LIVE_GUARDS.with_lock(|map| {
+            // Only remove our entry if it still points to our flag (i.e. a
+            // subsequent reentrant_acquire hasn't already replaced it).
+            if map
+                .get(&self.lock_path)
+                .is_some_and(|f| Arc::ptr_eq(f, &self.should_delete))
+            {
+                map.remove(&self.lock_path);
+            }
+        });
         // Best-effort removal. If it fails (e.g. permission, already gone),
         // the next instance will detect the stale lock via PID check.
         if let Err(e) = fs::remove_file(&self.lock_path)
@@ -146,17 +250,25 @@ fn is_process_alive(pid: u32) -> bool {
 
     const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
     const STILL_ACTIVE: u32 = 259;
+    // ERROR_ACCESS_DENIED is returned by OpenProcess when the process exists
+    // but is owned by another user/session (e.g. a different logon session or
+    // a protected/elevated process).  Mirror the Unix EPERM branch: treat
+    // access-denied as "process is alive" to prevent accidental lock theft.
+    const ERROR_ACCESS_DENIED: u32 = 5;
 
     extern "system" {
         fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
         fn CloseHandle(handle: *mut c_void) -> i32;
         fn GetExitCodeProcess(handle: *mut c_void, code: *mut u32) -> i32;
+        fn GetLastError() -> u32;
     }
 
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if handle.is_null() {
-            return false;
+            // If OpenProcess failed due to access denial the process exists —
+            // treat as alive (mirrors the Unix EPERM path).
+            return GetLastError() == ERROR_ACCESS_DENIED;
         }
         let mut exit_code: u32 = 0;
         let ok = GetExitCodeProcess(handle, &mut exit_code);
@@ -222,10 +334,63 @@ mod tests {
         let lock2 = SaveFileLock::try_acquire(&save);
         assert!(lock2.is_some(), "same process re-acquire should succeed");
 
-        // Drop lock1, keep lock2 — simulates the caller replacement pattern.
+        let lock_path = SaveFileLock::lock_path_for(&save);
+
+        // Drop lock1 (silenced by reentrant_acquire) — the lock file must
+        // survive because lock2 is the new active owner.
         drop(lock1);
-        // lock2 still holds the logical lock.
-        assert!(lock2.is_some());
+        assert!(
+            lock_path.exists(),
+            "lock file must survive dropping the silenced (old) guard"
+        );
+
+        // Drop lock2 (the current owner) — now the file should be removed.
+        drop(lock2);
+        assert!(
+            !lock_path.exists(),
+            "lock file should be removed when the owning guard drops"
+        );
+    }
+
+    /// Regression test for codex P1: replacing a guard (state.save_lock = Some(new))
+    /// must not delete the lock file while the new guard is still alive.
+    #[test]
+    fn test_reentrant_guard_replacement_keeps_lock_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let save = dir.path().join("test.db");
+        fs::write(&save, b"").unwrap();
+
+        let lock_path = SaveFileLock::lock_path_for(&save);
+
+        let lock1 = SaveFileLock::try_acquire(&save);
+        assert!(lock1.is_some(), "initial acquire must succeed");
+        assert!(
+            lock_path.exists(),
+            "lock file must exist after initial acquire"
+        );
+
+        // Simulate: state.save_lock = Some(SaveFileLock::try_acquire(&save))
+        // The old guard (lock1) is dropped when the new one is assigned.
+        let lock2 = SaveFileLock::try_acquire(&save);
+        assert!(lock2.is_some(), "re-entrant acquire must succeed");
+
+        // Drop the original guard — this is the replacement pattern that was broken.
+        drop(lock1);
+
+        // The lock file must still exist: lock2 is the active guard now.
+        assert!(
+            lock_path.exists(),
+            "lock file must not be deleted when old guard is dropped during re-entrant replacement"
+        );
+
+        // Confirm save is still reported as locked while lock2 holds it.
+        assert!(is_locked(&save), "save should still be reported as locked");
+
+        drop(lock2);
+        assert!(
+            !lock_path.exists(),
+            "lock file removed after final guard drops"
+        );
     }
 
     #[test]
