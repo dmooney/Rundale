@@ -23,6 +23,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tracing;
 
 /// Required Anthropic API version header value.
 ///
@@ -231,6 +232,13 @@ impl AnthropicClient {
     /// "after" our engine instruction. This is defence-in-depth: the
     /// durable fix is to stop routing untrusted content through the
     /// `system` parameter in the first place.
+    ///
+    /// On a JSON parse failure the call is **retried once** with
+    /// `temperature = 0.3` (higher determinism) to recover from the
+    /// occasional malformed response. A [`ParishError::InferenceJsonParseFailed`]
+    /// is raised only when both attempts fail, so callers receive a
+    /// strongly-typed signal that distinguishes a schema error from a
+    /// transport error. (#416)
     pub async fn generate_json<T: DeserializeOwned>(
         &self,
         model: &str,
@@ -240,19 +248,34 @@ impl AnthropicClient {
         temperature: Option<f32>,
     ) -> Result<T, ParishError> {
         let augmented_system = isolate_system_for_json(system);
+        let sys = Some(augmented_system.as_str());
 
         let raw = self
-            .generate(
-                model,
-                prompt,
-                Some(augmented_system.as_str()),
-                max_tokens,
-                temperature,
-            )
+            .generate(model, prompt, sys, max_tokens, temperature)
             .await?;
         let trimmed = strip_json_fence(&raw);
-        let parsed: T = serde_json::from_str(trimmed)?;
-        Ok(parsed)
+        match serde_json::from_str::<T>(trimmed) {
+            Ok(parsed) => return Ok(parsed),
+            Err(first_err) => {
+                // Retry once with a fixed low temperature to coax a
+                // well-formed JSON response out of the model. (#416)
+                tracing::debug!(
+                    model,
+                    first_err = %first_err,
+                    "generate_json: parse failed on first attempt, retrying with temperature=0.3"
+                );
+            }
+        }
+
+        let raw2 = self
+            .generate(model, prompt, sys, max_tokens, Some(0.3))
+            .await?;
+        let trimmed2 = strip_json_fence(&raw2);
+        serde_json::from_str::<T>(trimmed2).map_err(|e| {
+            ParishError::InferenceJsonParseFailed(format!(
+                "JSON parse failed after retry (model={model}): {e}"
+            ))
+        })
     }
 }
 
