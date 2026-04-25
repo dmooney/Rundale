@@ -132,17 +132,20 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
 /// This enables token-by-token streaming of NPC dialogue to the player while
 /// the full JSON response (including metadata) is still being generated.
 pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
-    let dialogue_key_patterns = ["\"dialogue\":\"", "\"dialogue\": \""];
-    let mut value_start = None;
+    let key = "\"dialogue\"";
+    let key_pos = buffer.find(key)?;
+    let after_key = key_pos + key.len();
 
-    for pattern in &dialogue_key_patterns {
-        if let Some(pos) = buffer.find(pattern) {
-            value_start = Some(pos + pattern.len());
-            break;
-        }
-    }
+    // Skip whitespace between key and colon
+    let rest = &buffer[after_key..];
+    let colon_offset = rest.find(':')?;
+    let after_colon = after_key + colon_offset + 1;
 
-    let start = value_start?;
+    // Skip whitespace between colon and opening quote
+    let rest = &buffer[after_colon..];
+    let quote_offset = rest.find('"')?;
+    let start = after_colon + quote_offset + 1;
+
     let value_bytes = &buffer.as_bytes()[start..];
 
     let mut result = String::new();
@@ -152,7 +155,12 @@ pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
             b'"' => {
                 return Some(result);
             }
-            b'\\' if i + 1 < value_bytes.len() => {
+            b'\\' => {
+                if i + 1 >= value_bytes.len() {
+                    // Incomplete escape at end of buffer — stop before it so
+                    // the next chunk can complete the sequence.
+                    return Some(result);
+                }
                 match value_bytes[i + 1] {
                     b'"' => result.push('"'),
                     b'\\' => result.push('\\'),
@@ -433,6 +441,36 @@ mod tests {
     fn extract_dialogue_empty_string() {
         let buf = r#"{"dialogue": ""}"#;
         assert_eq!(extract_dialogue_from_partial_json(buf), Some(String::new()));
+    }
+
+    #[test]
+    fn extract_dialogue_extra_whitespace_around_colon() {
+        let buf = r#"{"dialogue" : "Spaced out!"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Spaced out!".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_newline_after_colon() {
+        let buf = "{ \"dialogue\" :\n  \"Multiline format!\" }";
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Multiline format!".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_trailing_backslash_at_chunk_boundary() {
+        // Buffer ends mid-escape — should stop before the incomplete escape
+        let buf = r#"{"dialogue": "Hello \"#;
+        let result = extract_dialogue_from_partial_json(buf).unwrap();
+        assert_eq!(result, "Hello ");
+        // When more data arrives, the full escape is re-parsed correctly
+        let buf2 = r#"{"dialogue": "Hello \"world\""}"#;
+        let result2 = extract_dialogue_from_partial_json(buf2).unwrap();
+        assert_eq!(result2, "Hello \"world\"");
     }
 
     // ── LanguageHint serde ───────────────────────────────────────────────────

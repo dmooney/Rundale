@@ -255,11 +255,14 @@ pub struct NpcMetadata {
 /// Parses a complete NPC response (JSON format) into dialogue and metadata.
 ///
 /// Expects a JSON object with a `dialogue` field and metadata fields.
+/// Strips Markdown code fences (`` ```json ... ``` ``) that some providers
+/// (notably Anthropic) occasionally wrap around JSON output.
 /// Falls back to treating the entire text as plain dialogue if JSON parsing fails.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     let trimmed = full_text.trim();
+    let stripped = strip_json_fence(trimmed);
 
-    if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(trimmed) {
+    if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(stripped) {
         let dialogue = json_resp.dialogue.clone();
         let metadata = Some(NpcMetadata {
             action: json_resp.action,
@@ -275,6 +278,24 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
         dialogue: trimmed.to_string(),
         metadata: None,
     }
+}
+
+/// Strips Markdown code-fence wrappers that some models emit around JSON.
+fn strip_json_fence(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix("```json") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    if let Some(inner) = t.strip_prefix("```") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    t
 }
 
 /// The improv craft guidelines injected into the system prompt when improv mode is enabled.
@@ -644,8 +665,14 @@ mod tests {
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
         assert!(prompt.contains("content"));
-        assert!(prompt.contains("---"));
-        assert!(prompt.contains("JSON metadata block"));
+        assert!(
+            prompt.contains("JSON object"),
+            "prompt should instruct JSON object response format"
+        );
+        assert!(
+            prompt.contains("\"dialogue\""),
+            "prompt should mention the dialogue field"
+        );
         assert!(
             prompt.contains("1820"),
             "prompt should specify the year 1820"
@@ -880,5 +907,33 @@ mod tests {
         assert_eq!(meta.mood, "");
         assert!(meta.internal_thought.is_none());
         assert!(meta.language_hints.is_empty());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_fenced_json() {
+        let text = "```json\n{\"dialogue\": \"Hello there!\", \"mood\": \"friendly\"}\n```";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Hello there!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.mood, "friendly");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_fenced_json_untagged() {
+        let text = "```\n{\"dialogue\": \"Good day!\", \"action\": \"waves\"}\n```";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Good day!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "waves");
+    }
+
+    #[test]
+    fn test_strip_json_fence_plain() {
+        assert_eq!(strip_json_fence(r#"{"a":1}"#), r#"{"a":1}"#);
+    }
+
+    #[test]
+    fn test_strip_json_fence_markdown() {
+        assert_eq!(strip_json_fence("```json\n{\"a\":1}\n```"), r#"{"a":1}"#);
     }
 }
