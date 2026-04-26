@@ -319,8 +319,8 @@ streaming, and NPC conversation setup across backends.
   `capitalize_first`, `prepare_npc_conversation` (includes anachronism checking),
   `compute_name_hints`, `mask_key`, `render_look_text`. Shared constants:
   `IDLE_MESSAGES`, `INFERENCE_FAILURE_MESSAGES` (Irish-themed canned fallbacks).
-- **`streaming.rs`** — `stream_npc_tokens()` with separator holdback and
-  callback-based token emission; `strip_trailing_json()` for weak models.
+- **`streaming.rs`** — `stream_npc_tokens()` extracts the `dialogue` field
+  incrementally from streaming JSON responses via `extract_dialogue_from_partial_json()`.
 - **`types.rs`** — Serializable IPC types: `WorldSnapshot`, `MapData`, `NpcInfo`,
   `ThemePalette`, `TextLogPayload`, `StreamTokenPayload`, `StreamEndPayload`,
   `NpcReactionPayload`, `LoadingPayload` (with spinner/phrase/color animation),
@@ -333,7 +333,7 @@ All backends share these features through core:
 - LLM-based intent parsing (local keywords first, LLM fallback for ambiguous input)
 - Per-category inference client/model resolution (dialogue, simulation, intent, reaction)
 - System command handling via `CommandEffect` dispatch
-- Token streaming with separator holdback
+- Token streaming with incremental JSON dialogue extraction
 - Loading animation (Celtic cross spinner + Irish phrases) including `/spinner` command
 - Game clock pause/resume during inference (with world-update notification)
 - Weather ticking, NPC schedule ticking, tier assignment

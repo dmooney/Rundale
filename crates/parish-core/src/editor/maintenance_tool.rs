@@ -6,8 +6,6 @@
 //! Used during Phase 1a bring-up to normalize the source files so the
 //! byte-identical round-trip acceptance test holds.
 
-#![cfg(test)]
-
 use super::mod_io::load_mod_snapshot;
 use super::persist::save_mod;
 use super::types::EditorDoc;

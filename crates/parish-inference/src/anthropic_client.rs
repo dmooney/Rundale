@@ -401,6 +401,38 @@ fn strip_json_fence(raw: &str) -> &str {
 // --- Streaming ----------------------------------------------------------
 
 impl AnthropicClient {
+    /// Streams a messages request with JSON mode, forwarding text deltas.
+    ///
+    /// Anthropic has no native `response_format` equivalent, so the system
+    /// prompt is augmented with a JSON-only instruction (same as
+    /// [`generate_json`]). The raw streamed text is returned — callers
+    /// extract dialogue incrementally from the partial JSON buffer.
+    pub async fn generate_stream_json(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        const JSON_SUFFIX: &str =
+            "\n\nRespond ONLY with a single JSON object. No prose, no code fences, no commentary.";
+        let augmented_system = match system {
+            Some(s) => format!("{s}{JSON_SUFFIX}"),
+            None => JSON_SUFFIX.trim_start().to_string(),
+        };
+        self.generate_stream(
+            model,
+            prompt,
+            Some(&augmented_system),
+            token_tx,
+            max_tokens,
+            temperature,
+        )
+        .await
+    }
+
     /// Streams a messages request, forwarding text deltas as they arrive.
     ///
     /// Posts to `/v1/messages` with `stream: true` and parses the native

@@ -191,6 +191,8 @@ pub struct InferenceRequest {
     pub temperature: Option<f32>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
+    /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
+    pub json_mode: bool,
 }
 
 /// The response from an inference request.
@@ -247,6 +249,7 @@ impl InferenceQueue {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
         priority: InferencePriority,
+        json_mode: bool,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
         let (response_tx, response_rx) = oneshot::channel();
@@ -260,6 +263,7 @@ impl InferenceQueue {
             max_tokens,
             temperature,
             priority,
+            json_mode,
         };
         let lane = match priority {
             InferencePriority::Interactive => &self.interactive_tx,
@@ -345,6 +349,7 @@ pub async fn submit_json<T: serde::de::DeserializeOwned>(
             None,
             None,
             priority,
+            false,
         )
         .await
         .map_err(|e| ParishError::Inference(format!("queue send failed: {e}")))?;
@@ -509,6 +514,36 @@ impl AnyClient {
         }
     }
 
+    /// Streams text with JSON mode enabled.
+    ///
+    /// Like [`generate_stream`] but constrains the provider to emit valid JSON.
+    /// Used for Tier 1 NPC responses where dialogue is embedded in a JSON
+    /// structure and extracted incrementally during streaming.
+    pub async fn generate_stream_json(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+            Self::Anthropic(c) => {
+                c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
     /// Generates a structured JSON response and deserializes it into `T`.
     pub async fn generate_json<T: serde::de::DeserializeOwned>(
         &self,
@@ -603,27 +638,42 @@ pub fn spawn_inference_worker(
             let req_id = request.id;
             let start = Instant::now();
 
-            let result = if let Some(token_tx) = request.token_tx {
-                client
-                    .generate_stream(
-                        &request.model,
-                        &request.prompt,
-                        request.system.as_deref(),
-                        token_tx,
-                        request.max_tokens,
-                        request.temperature,
-                    )
-                    .await
-            } else {
-                client
-                    .generate(
-                        &request.model,
-                        &request.prompt,
-                        request.system.as_deref(),
-                        request.max_tokens,
-                        request.temperature,
-                    )
-                    .await
+            let result = match (request.token_tx, request.json_mode) {
+                (Some(token_tx), true) => {
+                    client
+                        .generate_stream_json(
+                            &request.model,
+                            &request.prompt,
+                            request.system.as_deref(),
+                            token_tx,
+                            request.max_tokens,
+                            request.temperature,
+                        )
+                        .await
+                }
+                (Some(token_tx), false) => {
+                    client
+                        .generate_stream(
+                            &request.model,
+                            &request.prompt,
+                            request.system.as_deref(),
+                            token_tx,
+                            request.max_tokens,
+                            request.temperature,
+                        )
+                        .await
+                }
+                (None, _) => {
+                    client
+                        .generate(
+                            &request.model,
+                            &request.prompt,
+                            request.system.as_deref(),
+                            request.max_tokens,
+                            request.temperature,
+                        )
+                        .await
+                }
             };
 
             let elapsed = start.elapsed();
@@ -762,6 +812,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Interactive,
+                false,
             )
             .await
             .unwrap();
@@ -803,6 +854,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Interactive,
+                false,
             )
             .await
             .unwrap();
@@ -828,6 +880,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Interactive,
+                false,
             )
             .await
             .unwrap();
@@ -1022,6 +1075,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Interactive,
+                false,
             )
             .await
             .unwrap();
@@ -1035,6 +1089,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Background,
+                false,
             )
             .await
             .unwrap();
@@ -1048,6 +1103,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Batch,
+                false,
             )
             .await
             .unwrap();
@@ -1085,6 +1141,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Batch,
+                false,
             )
             .await
             .unwrap();
@@ -1098,6 +1155,7 @@ mod tests {
                 None,
                 None,
                 InferencePriority::Interactive,
+                false,
             )
             .await
             .unwrap();
@@ -1164,6 +1222,7 @@ mod tests {
             max_tokens: None,
             temperature: None,
             priority: InferencePriority::Interactive,
+            json_mode: false,
         };
         // send returns Err when the receiver has been dropped by the aborted task.
         let send_result = interactive_tx.send(req).await;

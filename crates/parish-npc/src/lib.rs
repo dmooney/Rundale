@@ -38,8 +38,7 @@ use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 
 // Re-export shared types from parish-types
 pub use parish_types::{
-    IrishWordHint, LanguageHint, NpcId, SEPARATOR_HOLDBACK, find_response_separator,
-    floor_char_boundary,
+    IrishWordHint, LanguageHint, NpcId, extract_dialogue_from_partial_json, floor_char_boundary,
 };
 
 // Re-export the NPC data-file schema so downstream crates (e.g. the Parish
@@ -194,19 +193,46 @@ impl Npc {
     }
 }
 
-/// Parsed result from a streaming NPC response.
+/// Parsed result from an NPC LLM response.
 ///
 /// Contains the player-visible dialogue/action text and the optional
-/// metadata parsed from the JSON block after the `---` separator.
+/// metadata parsed from the JSON response.
 #[derive(Debug, Clone)]
 pub struct NpcStreamResponse {
     /// The dialogue and action text shown to the player.
     pub dialogue: String,
-    /// Parsed metadata from the JSON block, if present.
+    /// Parsed metadata from the JSON response, if present.
     pub metadata: Option<NpcMetadata>,
 }
 
-/// Metadata block from an NPC response (parsed from JSON after separator).
+/// Full JSON response from an NPC interaction (Tier 1).
+///
+/// The LLM returns this as a complete JSON object via `response_format: json_object`.
+/// Contains both the player-visible dialogue and simulation metadata in a single
+/// structured response, eliminating the need for separator-based parsing.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NpcJsonResponse {
+    /// The NPC's spoken words and actions, as shown to the player.
+    #[serde(default)]
+    pub dialogue: String,
+    /// What the NPC physically does (e.g. "speaks warmly", "nods", "sighs").
+    #[serde(default)]
+    pub action: String,
+    /// The NPC's mood after this interaction.
+    #[serde(default)]
+    pub mood: String,
+    /// Internal thought (not shown to player, used for simulation).
+    #[serde(default)]
+    pub internal_thought: Option<String>,
+    /// Pronunciation hints for any secondary-language words used in dialogue.
+    #[serde(default, alias = "irish_words")]
+    pub language_hints: Vec<LanguageHint>,
+    /// People the NPC mentioned by name in their dialogue (self-declared by the LLM).
+    #[serde(default)]
+    pub mentioned_people: Vec<String>,
+}
+
+/// Metadata block from an NPC response.
 #[derive(Debug, Clone, Deserialize)]
 pub struct NpcMetadata {
     /// What the NPC physically does.
@@ -226,61 +252,50 @@ pub struct NpcMetadata {
     pub mentioned_people: Vec<String>,
 }
 
-/// Structured action output from an NPC's LLM response.
+/// Parses a complete NPC response (JSON format) into dialogue and metadata.
 ///
-/// Deserialized from JSON returned by the Ollama inference call.
-/// All optional fields use `#[serde(default)]` for robustness against
-/// partial or malformed LLM output.
-#[derive(Debug, Clone, Deserialize)]
-pub struct NpcAction {
-    /// What the NPC does (e.g. "speaks", "moves", "gestures").
-    #[serde(default)]
-    pub action: String,
-    /// The target of the action (e.g. "the player", "the door").
-    #[serde(default)]
-    pub target: Option<String>,
-    /// Dialogue spoken by the NPC.
-    #[serde(default)]
-    pub dialogue: Option<String>,
-    /// The NPC's current mood after this action.
-    #[serde(default)]
-    pub mood: String,
-    /// Internal thought (not shown to player, used for simulation).
-    #[serde(default)]
-    pub internal_thought: Option<String>,
-}
-
-/// Parses a complete NPC response into dialogue and metadata.
-///
-/// Splits on a `---` separator line (with optional surrounding whitespace).
-/// Everything before is player-visible dialogue/actions. Everything after
-/// is parsed as JSON metadata.
-/// If no separator is found, the entire text is treated as dialogue.
+/// Expects a JSON object with a `dialogue` field and metadata fields.
+/// Strips Markdown code fences (`` ```json ... ``` ``) that some providers
+/// (notably Anthropic) occasionally wrap around JSON output.
+/// Falls back to treating the entire text as plain dialogue if JSON parsing fails.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
-    if let Some((dialogue_end, metadata_start)) = find_response_separator(full_text) {
-        let dialogue = full_text[..dialogue_end].trim().to_string();
-        let meta_text = full_text[metadata_start..].trim();
-        let metadata = serde_json::from_str::<NpcMetadata>(meta_text).ok();
-        return NpcStreamResponse { dialogue, metadata };
-    }
+    let trimmed = full_text.trim();
+    let stripped = strip_json_fence(trimmed);
 
-    // Fallback: try parsing entire response as legacy JSON NpcAction
-    if let Ok(action) = serde_json::from_str::<NpcAction>(full_text) {
-        let dialogue = action.dialogue.clone().unwrap_or_default();
+    if let Ok(json_resp) = serde_json::from_str::<NpcJsonResponse>(stripped) {
+        let dialogue = json_resp.dialogue.clone();
         let metadata = Some(NpcMetadata {
-            action: action.action,
-            mood: action.mood,
-            internal_thought: action.internal_thought,
-            language_hints: Vec::new(),
-            mentioned_people: Vec::new(),
+            action: json_resp.action,
+            mood: json_resp.mood,
+            internal_thought: json_resp.internal_thought,
+            language_hints: json_resp.language_hints,
+            mentioned_people: json_resp.mentioned_people,
         });
         return NpcStreamResponse { dialogue, metadata };
     }
 
     NpcStreamResponse {
-        dialogue: full_text.trim().to_string(),
+        dialogue: trimmed.to_string(),
         metadata: None,
     }
+}
+
+/// Strips Markdown code-fence wrappers that some models emit around JSON.
+fn strip_json_fence(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix("```json") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    if let Some(inner) = t.strip_prefix("```") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    t
 }
 
 /// The improv craft guidelines injected into the system prompt when improv mode is enabled.
@@ -307,9 +322,9 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 /// When `improv` is true, includes the improv craft guidelines section
 /// to improve improvisational quality of NPC responses.
 ///
-/// The prompt instructs the model to output dialogue first (which is
-/// streamed to the player), then a `---` separator, then a JSON metadata
-/// block (which is parsed silently for simulation state).
+/// The prompt instructs the model to return a JSON object containing
+/// both the dialogue (streamed to the player) and metadata fields
+/// (parsed for simulation state).
 pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
     let intel_guidance = npc.intelligence.prompt_guidance();
@@ -336,23 +351,27 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         {intel_guidance}\
         Current mood: {mood}\n\
         \n\
-        Respond in character as {name}. Write only what you say aloud — \
+        Respond in character as {name}. You MUST respond with a JSON object. \
+        Put the \"dialogue\" field FIRST. The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions. \
         Pepper your speech naturally with the occasional Irish word or phrase.\n\
         \n\
         LENGTH: 2-4 sentences. Be conversational, not a monologue.\n\
         \n\
-        FORMAT: Write your dialogue, then on a new line write exactly: ---\n\
-        Then a JSON metadata block:\n\
-        {{\"action\": \"what you physically do\", \"mood\": \"your mood after this\", \
-        \"internal_thought\": \"what you think but don't say\", \
-        \"irish_words\": [{{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}}]}}\n\
+        JSON fields:\n\
+        - \"dialogue\": your spoken words (this is shown to the player)\n\
+        - \"action\": what you physically do (e.g. \"speaks warmly\", \"nods\", \"sighs\")\n\
+        - \"mood\": your mood after this interaction\n\
+        - \"internal_thought\": what you're thinking but not saying (optional)\n\
+        - \"irish_words\": array of any Irish words you used, each with:\n\
+          - \"word\": the Irish word as written\n\
+          - \"pronunciation\": phonetic guide in English (e.g. \"SLAWN-cha\" for \"sláinte\")\n\
+          - \"meaning\": English translation\n\
         \n\
-        Example:\n\
-        Ah, good morning to ye! Dia dhuit — fine day for it, so it is. \
-        Will ye have a drop of something to warm the bones?\n\
-        ---\n\
-        {{\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
+        Example response:\n\
+        {{\"dialogue\": \"Ah, good morning to ye! Dia dhuit — fine day for it, so it is. \
+        Will ye have a drop of something to warm the bones?\", \
+        \"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
         \"internal_thought\": \"New face around here\", \
         \"irish_words\": [{{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
         \"meaning\": \"Hello (lit. God to you)\"}}]}}",
@@ -646,8 +665,14 @@ mod tests {
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
         assert!(prompt.contains("content"));
-        assert!(prompt.contains("---"));
-        assert!(prompt.contains("JSON metadata block"));
+        assert!(
+            prompt.contains("JSON object"),
+            "prompt should instruct JSON object response format"
+        );
+        assert!(
+            prompt.contains("\"dialogue\""),
+            "prompt should mention the dialogue field"
+        );
         assert!(
             prompt.contains("1820"),
             "prompt should specify the year 1820"
@@ -809,41 +834,74 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_action_deserialize_full() {
+    fn test_npc_json_response_deserialize_full() {
         let json = r#"{
-            "action": "speaks",
-            "target": "the player",
             "dialogue": "Ah, good morning to ye!",
+            "action": "speaks",
             "mood": "friendly",
-            "internal_thought": "Haven't seen this one before."
+            "internal_thought": "Haven't seen this one before.",
+            "irish_words": [{"word": "Dia dhuit", "pronunciation": "DEE-ah gwit", "meaning": "Hello"}]
         }"#;
-        let action: NpcAction = serde_json::from_str(json).unwrap();
-        assert_eq!(action.action, "speaks");
-        assert_eq!(action.target, Some("the player".to_string()));
-        assert_eq!(action.dialogue, Some("Ah, good morning to ye!".to_string()));
-        assert_eq!(action.mood, "friendly");
+        let resp: NpcJsonResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.dialogue, "Ah, good morning to ye!");
+        assert_eq!(resp.action, "speaks");
+        assert_eq!(resp.mood, "friendly");
         assert_eq!(
-            action.internal_thought,
+            resp.internal_thought,
             Some("Haven't seen this one before.".to_string())
         );
+        assert_eq!(resp.language_hints.len(), 1);
     }
 
     #[test]
-    fn test_npc_action_deserialize_minimal() {
-        let json = r#"{"action": "nods"}"#;
-        let action: NpcAction = serde_json::from_str(json).unwrap();
-        assert_eq!(action.action, "nods");
-        assert!(action.target.is_none());
-        assert!(action.dialogue.is_none());
-        assert_eq!(action.mood, "");
-        assert!(action.internal_thought.is_none());
+    fn test_npc_json_response_deserialize_minimal() {
+        let json = r#"{"dialogue": "Hello!"}"#;
+        let resp: NpcJsonResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.dialogue, "Hello!");
+        assert_eq!(resp.action, "");
+        assert_eq!(resp.mood, "");
+        assert!(resp.internal_thought.is_none());
+        assert!(resp.language_hints.is_empty());
     }
 
     #[test]
-    fn test_parse_npc_stream_response_empty_metadata() {
-        let text = "Hello there!\n---\n{}";
+    fn test_parse_npc_stream_response_json() {
+        let text = r#"{"dialogue": "(Looks up) Ah, good morning to ye!", "action": "speaks", "mood": "friendly"}"#;
         let parsed = parse_npc_stream_response(text);
-        assert_eq!(parsed.dialogue, "Hello there!");
+        assert_eq!(parsed.dialogue, "(Looks up) Ah, good morning to ye!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.action, "speaks");
+        assert_eq!(meta.mood, "friendly");
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_plain_text_fallback() {
+        let text = "Well hello there, stranger!";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "Well hello there, stranger!");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_empty() {
+        let parsed = parse_npc_stream_response("");
+        assert_eq!(parsed.dialogue, "");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_invalid_json() {
+        let text = "{not valid json at all";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "{not valid json at all");
+        assert!(parsed.metadata.is_none());
+    }
+
+    #[test]
+    fn test_parse_npc_stream_response_empty_json() {
+        let text = "{}";
+        let parsed = parse_npc_stream_response(text);
+        assert_eq!(parsed.dialogue, "");
         let meta = parsed.metadata.unwrap();
         assert_eq!(meta.action, "");
         assert_eq!(meta.mood, "");
@@ -852,38 +910,30 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_npc_stream_response_separator_only_newlines() {
-        let text = "\n---\n";
+    fn test_parse_npc_stream_response_fenced_json() {
+        let text = "```json\n{\"dialogue\": \"Hello there!\", \"mood\": \"friendly\"}\n```";
         let parsed = parse_npc_stream_response(text);
-        assert_eq!(parsed.dialogue, "");
-        assert!(parsed.metadata.is_none());
+        assert_eq!(parsed.dialogue, "Hello there!");
+        let meta = parsed.metadata.unwrap();
+        assert_eq!(meta.mood, "friendly");
     }
 
     #[test]
-    fn test_parse_npc_stream_response_multiline_dialogue() {
-        let text = "Ah, hello there!\nWelcome to Kilteevan.\nCome in, come in.\n---\n{\"action\": \"beckons\", \"mood\": \"welcoming\"}";
+    fn test_parse_npc_stream_response_fenced_json_untagged() {
+        let text = "```\n{\"dialogue\": \"Good day!\", \"action\": \"waves\"}\n```";
         let parsed = parse_npc_stream_response(text);
-        assert!(parsed.dialogue.contains("Welcome to Kilteevan."));
-        assert!(parsed.dialogue.contains("Come in, come in."));
+        assert_eq!(parsed.dialogue, "Good day!");
         let meta = parsed.metadata.unwrap();
-        assert_eq!(meta.action, "beckons");
+        assert_eq!(meta.action, "waves");
     }
 
     #[test]
-    fn test_parse_npc_stream_response_triple_dash_in_dialogue() {
-        let text = "The road is long --- perhaps too long.\n---\n{\"mood\": \"weary\"}";
-        let parsed = parse_npc_stream_response(text);
-        assert_eq!(parsed.dialogue, "The road is long --- perhaps too long.");
-        let meta = parsed.metadata.unwrap();
-        assert_eq!(meta.mood, "weary");
+    fn test_strip_json_fence_plain() {
+        assert_eq!(strip_json_fence(r#"{"a":1}"#), r#"{"a":1}"#);
     }
 
     #[test]
-    fn test_parse_npc_stream_response_whitespace_only_dialogue() {
-        let text = "   \n---\n{\"action\": \"silent\", \"mood\": \"pensive\"}";
-        let parsed = parse_npc_stream_response(text);
-        assert_eq!(parsed.dialogue, "");
-        let meta = parsed.metadata.unwrap();
-        assert_eq!(meta.action, "silent");
+    fn test_strip_json_fence_markdown() {
+        assert_eq!(strip_json_fence("```json\n{\"a\":1}\n```"), r#"{"a":1}"#);
     }
 }

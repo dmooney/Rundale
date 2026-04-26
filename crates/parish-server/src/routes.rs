@@ -795,6 +795,7 @@ async fn run_npc_turn(
             None,
             Some(0.7),
             parish_core::inference::InferencePriority::Interactive,
+            true,
         )
         .await;
 
@@ -2333,7 +2334,7 @@ pub(crate) mod tests {
                 prompt_log.lock().unwrap().push(request.prompt.clone());
 
                 let text = scripted.pop_front().unwrap_or_else(|| {
-                    "Aye.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}".to_string()
+                    r#"{"dialogue":"Aye.","action":"speaks","mood":"content"}"#.to_string()
                 });
 
                 let _ = request.response_tx.send(InferenceResponse {
@@ -2489,8 +2490,8 @@ pub(crate) mod tests {
         let (prompts, worker) = install_scripted_inference_queue(
             &state,
             vec![
-                "I heard the fair will be lively.\n---\n{\"action\":\"speaks\",\"mood\":\"curious\"}",
-                "If it is, Siobhan, I'll bring the cart.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
+                r#"{"dialogue":"I heard the fair will be lively.","action":"speaks","mood":"curious"}"#,
+                r#"{"dialogue":"If it is, Siobhan, I'll bring the cart.","action":"speaks","mood":"content"}"#,
             ],
         )
         .await;
@@ -2594,9 +2595,9 @@ pub(crate) mod tests {
         let (_prompts, worker) = install_scripted_inference_queue(
             &state,
             vec![
-                "I heard the fair will be lively.\n---\n{\"action\":\"speaks\",\"mood\":\"curious\"}",
-                "If it is, Siobhan, I'll bring the cart.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
-                "I'd come too if my hand wasn't burnt at the forge.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
+                r#"{"dialogue":"I heard the fair will be lively.","action":"speaks","mood":"curious"}"#,
+                r#"{"dialogue":"If it is, Siobhan, I'll bring the cart.","action":"speaks","mood":"content"}"#,
+                r#"{"dialogue":"I'd come too if my hand wasn't burnt at the forge.","action":"speaks","mood":"content"}"#,
             ],
         )
         .await;
@@ -2655,8 +2656,8 @@ pub(crate) mod tests {
         let (prompts, worker) = install_scripted_inference_queue(
             &state,
             vec![
-                "Quiet morning for it.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
-                "Too quiet. Even the crows have given up.\n---\n{\"action\":\"speaks\",\"mood\":\"content\"}",
+                r#"{"dialogue":"Quiet morning for it.","action":"speaks","mood":"content"}"#,
+                r#"{"dialogue":"Too quiet. Even the crows have given up.","action":"speaks","mood":"content"}"#,
             ],
         )
         .await;
