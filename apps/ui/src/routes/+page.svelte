@@ -182,6 +182,12 @@
 			isMobile = mq.matches;
 			const onChange = (e: MediaQueryListEvent) => {
 				isMobile = e.matches;
+				// When transitioning from mobile→desktop, close the focail overlay so
+				// the store doesn't stay true while the mobile Sidebar branch is hidden
+				// (the desktop right-col always renders its own Sidebar unconditionally).
+				if (!e.matches) {
+					focailOpen.set(false);
+				}
 			};
 			mq.addEventListener('change', onChange);
 			mobileMediaCleanup = () => mq.removeEventListener('change', onChange);
