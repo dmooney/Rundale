@@ -19,6 +19,15 @@ interface MatchRange {
 	kind: SegmentKind;
 }
 
+// Priority table (module-level constant): higher number = higher priority.
+// Hoisted out of segmentText so it is not reallocated on every call.
+const KIND_PRIORITY: Record<SegmentKind, number> = {
+	irish: 3,
+	location: 2,
+	name: 1,
+	plain: 0,
+};
+
 /**
  * Splits `content` into segments annotated with a semantic kind.
  *
@@ -30,22 +39,30 @@ export function segmentText(
 	content: string,
 	irishWords: string[],
 	nameWords: string[],
-	locationName: string
+	locationName: string,
 ): RichSegment[] {
 	if (!content) return [];
 
 	const ranges: MatchRange[] = [];
 
+	// Single alternation regex per category instead of one regex per word.
+	// Reduces regex compilations from O(words) to O(1) and content scans
+	// from O(words) to O(1) per category.
 	const addMatches = (words: string[], kind: SegmentKind) => {
-		for (const word of words) {
-			if (!word) continue;
-			// Escape regex special characters
-			const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const re = new RegExp(`(?<![\\w\\u00C0-\\u024F])${escaped}(?![\\w\\u00C0-\\u024F])`, 'gi');
-			let m: RegExpExecArray | null;
-			while ((m = re.exec(content)) !== null) {
-				ranges.push({ start: m.index, end: m.index + m[0].length, kind });
-			}
+		const filtered = words.map((w) => w.trim()).filter(Boolean);
+		if (filtered.length === 0) return;
+		// Sort longest-first so alternation matches greedily
+		filtered.sort((a, b) => b.length - a.length);
+		const alt = filtered
+			.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+			.join('|');
+		const re = new RegExp(
+			`(?<![\\w\\u00C0-\\u024F])(?:${alt})(?![\\w\\u00C0-\\u024F])`,
+			'gi',
+		);
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(content)) !== null) {
+			ranges.push({ start: m.index, end: m.index + m[0].length, kind });
 		}
 	};
 
@@ -57,19 +74,33 @@ export function segmentText(
 
 	if (ranges.length === 0) return [{ text: content, kind: 'plain' }];
 
-	// Sort by start position; for ties prefer higher-priority kind.
-	const kindPriority: Record<SegmentKind, number> = { irish: 3, location: 2, name: 1, plain: 0 };
-	ranges.sort((a, b) => a.start - b.start || kindPriority[b.kind] - kindPriority[a.kind]);
+	// Resolve overlaps by priority first (highest wins), then by start position
+	// for equal-priority matches (earlier wins).  This matches the docstring
+	// contract: "Overlapping matches are resolved by priority; for equal-priority
+	// matches the earlier one wins."
+	//
+	// Algorithm:
+	//   1. Sort by priority descending, then by start position ascending.
+	//   2. Greedily accept ranges that don't overlap any already-accepted range.
+	//      Because we visit in priority-DESC order, a higher-priority range is
+	//      always accepted before a lower-priority one, regardless of position.
+	//      Among equal-priority matches the start-ASC sub-sort ensures the
+	//      earlier range is visited (and accepted) first.
+	//   3. Re-sort accepted ranges by start position for segment construction.
+	ranges.sort(
+		(a, b) => KIND_PRIORITY[b.kind] - KIND_PRIORITY[a.kind] || a.start - b.start,
+	);
 
-	// Resolve overlaps: keep only non-overlapping ranges (greedy left-to-right,
-	// with priority breaking ties already sorted above).
 	const resolved: MatchRange[] = [];
-	let cursor = 0;
 	for (const r of ranges) {
-		if (r.start < cursor) continue; // overlaps previous — skip
+		// Reject if this range overlaps any already-accepted range.
+		const overlaps = resolved.some((a) => r.start < a.end && r.end > a.start);
+		if (overlaps) continue;
 		resolved.push(r);
-		cursor = r.end;
 	}
+
+	// Re-sort by start position for left-to-right segment construction.
+	resolved.sort((a, b) => a.start - b.start);
 
 	// Build segment array
 	const segments: RichSegment[] = [];

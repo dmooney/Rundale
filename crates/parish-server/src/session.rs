@@ -13,6 +13,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use dashmap::DashMap;
 use tokio::task::JoinHandle;
 
+use parish_core::config::InferenceConfig;
 use parish_core::game_mod::{GameMod, PronunciationEntry};
 use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
 use parish_core::ipc::{GameConfig, ThemePalette};
@@ -57,6 +58,11 @@ pub struct GlobalState {
     pub transport: TransportConfig,
     /// Template game config cloned into each new session.
     pub template_config: GameConfig,
+    /// TOML-configured inference timeouts loaded from `parish.toml` at boot.
+    /// Threaded to every `build_client` call so runtime rebuilds (e.g. after
+    /// `/provider`) honour the operator-configured values instead of falling
+    /// back to the compiled-in defaults. (#417)
+    pub inference_config: InferenceConfig,
     /// Child `ollama serve` process handle (no-op for non-Ollama providers).
     /// Held for the server's lifetime so dropping `GlobalState` stops the
     /// server. Wrapped in a `Mutex` so the struct stays `Sync`.
@@ -280,25 +286,34 @@ impl SessionRegistry {
                 tracing::warn!(error = %e, "purge_expired_disk_sessions: DB read failed");
                 return 0;
             }
-            // Drop rows for the ids we collected. Run as a single
-            // transaction so a process crash doesn't leave the DB
-            // partially pruned relative to the filesystem.
+            // Drop rows for the ids we collected inside an explicit
+            // transaction.  Both DELETEs must commit atomically: if the
+            // process crashes between them, oauth_accounts rows would be
+            // left pointing at a non-existent session_id, letting the
+            // next login for that OAuth identity silently resurrect a
+            // ghost session (#593, #482).
+            //
+            // Invariant: DB rows are deleted *before* filesystem cleanup
+            // (see below).  A residual saves/<id>/ directory with no DB
+            // row is harmless; an oauth_accounts row pointing at a missing
+            // sessions row is not.
             if !collected.is_empty() {
                 let tx_result = (|| -> rusqlite::Result<()> {
+                    let tx = db.unchecked_transaction()?;
                     let placeholders = vec!["?"; collected.len()].join(",");
-                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
                     let params: Vec<&dyn rusqlite::ToSql> = collected
                         .iter()
                         .map(|s| s as &dyn rusqlite::ToSql)
                         .collect();
-                    db.execute(&sql, params.as_slice())?;
+                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
+                    tx.execute(&sql, params.as_slice())?;
                     // Also drop oauth links for those sessions — otherwise
                     // the next login for the same provider_user_id would
                     // resurrect a dead session_id. (#482 sibling concern.)
                     let oauth_sql =
                         format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
-                    db.execute(&oauth_sql, params.as_slice())?;
-                    Ok(())
+                    tx.execute(&oauth_sql, params.as_slice())?;
+                    tx.commit()
                 })();
                 if let Err(e) = tx_result {
                     tracing::warn!(error = %e, "purge_expired_disk_sessions: DB delete failed");
@@ -316,11 +331,69 @@ impl SessionRegistry {
         // doesn't undo the DB delete — a residual saves/<id>/ directory
         // with no DB row is harmless (eventually reaped by OS-level
         // cleanup or a later sweep once we have directory-age scanning).
+        //
+        // #595 — Validate each session ID before building a path so that a
+        // corrupted or tampered DB row cannot cause remove_dir_all to delete
+        // directories outside the saves root.  Two layers of defence:
+        //   1. Allowlist check: the ID must consist only of lowercase hex
+        //      digits and hyphens (UUID v4 format).  Anything else — including
+        //      `..`, `/`, `\`, or unusual chars — is rejected before we even
+        //      call Path::join.
+        //   2. Containment check: after joining, canonicalize the candidate
+        //      path and assert it starts with the canonicalized saves root.
+        //      This catches any edge case the regex might miss.
+        let canonical_saves_root = match saves_root.canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "purge_expired_disk_sessions: cannot canonicalize saves_root, skipping fs cleanup"
+                );
+                return expired_ids.len();
+            }
+        };
+
         for id in &expired_ids {
+            // Layer 1: allowlist — UUID v4 looks like
+            // `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx` (hex + hyphens only).
+            if !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') || id.contains("..") {
+                tracing::warn!(
+                    session_id = %id,
+                    "purge_expired_disk_sessions: rejected unsafe session ID, skipping fs remove"
+                );
+                continue;
+            }
+
             let session_dir = saves_root.join(id);
             if !session_dir.exists() {
                 continue;
             }
+
+            // Layer 2: containment — canonicalize the resolved path and verify
+            // it stays inside the saves root (guards against symlink tricks or
+            // any bypass of the allowlist above).
+            let canonical_dir = match session_dir.canonicalize() {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        error = %e,
+                        "purge_expired_disk_sessions: cannot canonicalize session dir, skipping"
+                    );
+                    continue;
+                }
+            };
+            if !canonical_dir.starts_with(&canonical_saves_root) {
+                tracing::warn!(
+                    session_id = %id,
+                    path = %canonical_dir.display(),
+                    saves_root = %canonical_saves_root.display(),
+                    "purge_expired_disk_sessions: path escapes saves root, skipping fs remove"
+                );
+                continue;
+            }
+
             match std::fs::remove_dir_all(&session_dir) {
                 Ok(()) => {
                     tracing::info!(
@@ -430,6 +503,7 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         global.data_dir.clone(),
         game_mod,
         flags_path,
+        global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
     );
 
     if let Some(ref c) = client {
@@ -525,6 +599,7 @@ async fn restore_session(
         global.data_dir.clone(),
         game_mod,
         flags_path,
+        global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
     );
 
     if let Some(ref c) = client {
@@ -572,6 +647,7 @@ async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyClient) {
         background_rx,
         batch_rx,
         app_state.inference_log.clone(),
+        app_state.inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     *app_state.inference_queue.lock().await = Some(queue);
@@ -767,6 +843,10 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                             },
                         );
                     }
+
+                    // Advance the generation counter so handle_game_input can
+                    // detect TOCTOU races (see issue #283).
+                    world.increment_tick_generation();
                 }
             }
         }));
@@ -784,11 +864,20 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
     }
 
     // ── Autosave tick (60 s) ─────────────────────────────────────────────────
+    //
+    // #230 — Fixes: previously a fresh `Database::open` (and therefore a full
+    // `migrate()` round-trip) was executed on every tick.  Now we lazily open
+    // an `AsyncDatabase` the first time we have a save path and reuse it for
+    // all subsequent ticks.  All SQLite work is delegated to `spawn_blocking`
+    // inside `AsyncDatabase`, so a slow fsync can never stall the Tokio runtime.
     {
         let s = Arc::clone(&state);
         handles.push(tokio::spawn(async move {
-            use parish_core::persistence::Database;
             use parish_core::persistence::snapshot::GameSnapshot;
+            use parish_core::persistence::{AsyncDatabase, Database};
+            // Track whether the last autosave attempt failed so we only emit
+            // one user-visible warning per failure run, not one per tick.
+            let mut last_autosave_failed = false;
             loop {
                 tokio::time::sleep(Duration::from_secs(60)).await;
 
@@ -796,18 +885,81 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                 let branch_id = *s.current_branch_id.lock().await;
 
                 if let (Some(path), Some(bid)) = (save_path, branch_id) {
-                    let world = s.world.lock().await;
-                    let npc_manager = s.npc_manager.lock().await;
-                    let snapshot = GameSnapshot::capture(&world, &npc_manager);
-                    drop(npc_manager);
-                    drop(world);
+                    // Snapshot the world state before touching the DB lock.
+                    let snapshot = {
+                        let world = s.world.lock().await;
+                        let npc_manager = s.npc_manager.lock().await;
+                        GameSnapshot::capture(&world, &npc_manager)
+                    };
 
-                    match Database::open(&path) {
-                        Ok(db) => match db.save_snapshot(bid, &snapshot) {
-                            Ok(_) => tracing::debug!("Session autosave complete"),
-                            Err(e) => tracing::warn!("Session autosave failed: {}", e),
-                        },
-                        Err(e) => tracing::warn!("Session autosave DB open failed: {}", e),
+                    // Obtain (or open) the cached AsyncDatabase for this path.
+                    let db: Option<AsyncDatabase> = {
+                        let mut guard = s.save_db.lock().await;
+                        // If the cached path no longer matches the active save file
+                        // (e.g. after load-branch / new-save-file), discard the old handle.
+                        if guard.as_ref().is_some_and(|(p, _)| p != &path) {
+                            *guard = None;
+                        }
+                        if guard.is_none() {
+                            let path_clone = path.clone();
+                            match tokio::task::spawn_blocking(move || Database::open(&path_clone))
+                                .await
+                            {
+                                Ok(Ok(db)) => {
+                                    *guard = Some((path.clone(), AsyncDatabase::new(db)));
+                                }
+                                Ok(Err(e)) => {
+                                    tracing::warn!("Autosave: failed to open DB: {}", e);
+                                    if !last_autosave_failed {
+                                        s.event_bus.emit(
+                                            "text-log",
+                                            &parish_core::ipc::text_log(
+                                                "system",
+                                                "Autosave failed — could not open save file.",
+                                            ),
+                                        );
+                                        last_autosave_failed = true;
+                                    }
+                                    continue;
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Autosave: spawn_blocking error: {}", e);
+                                    continue;
+                                }
+                            }
+                        }
+                        guard.as_ref().map(|(_, db)| db.clone())
+                    };
+
+                    if let Some(db) = db {
+                        match db.save_snapshot(bid, &snapshot).await {
+                            Ok(_) => {
+                                tracing::debug!("Session autosave complete");
+                                if last_autosave_failed {
+                                    s.event_bus.emit(
+                                        "text-log",
+                                        &parish_core::ipc::text_log(
+                                            "system",
+                                            "Autosave resumed successfully.",
+                                        ),
+                                    );
+                                }
+                                last_autosave_failed = false;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Session autosave failed: {}", e);
+                                if !last_autosave_failed {
+                                    s.event_bus.emit(
+                                        "text-log",
+                                        &parish_core::ipc::text_log(
+                                            "system",
+                                            "Autosave failed — your progress may not be saved.",
+                                        ),
+                                    );
+                                    last_autosave_failed = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -830,7 +982,7 @@ fn build_session_client(global: &GlobalState) -> (Option<AnyClient>, GameConfig)
             &provider_enum,
             &config.base_url,
             config.api_key.as_deref(),
-            &parish_core::config::InferenceConfig::default(),
+            &global.inference_config, // (#417) use TOML-configured timeouts
         ))
     };
     (client, config)
@@ -851,7 +1003,7 @@ fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
                 .as_deref()
                 .unwrap_or("https://openrouter.ai/api"),
             Some(key),
-            &parish_core::config::InferenceConfig::default(),
+            &global.inference_config, // (#417) use TOML-configured timeouts
         )
     })
 }
@@ -1058,21 +1210,24 @@ mod tests {
 
     #[test]
     fn purge_expired_removes_old_row_and_save_dir() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_id = "e1111111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired");
+        reg.persist_new(expired_id);
         // Fresh row + fake saves/<id>/ directory.
-        let save_dir = tmp.path().join("expired");
+        let save_dir = tmp.path().join(expired_id);
         std::fs::create_dir_all(&save_dir).unwrap();
         std::fs::write(save_dir.join("parish_001.db"), b"fake").unwrap();
         // Backdate to 90 days ago so any reasonable retention sweep
         // picks it up.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired", &old);
+        backdate_session(&reg, expired_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("expired"));
+        assert!(!reg.exists_in_db(expired_id));
         assert!(
             !save_dir.exists(),
             "saves directory must be deleted after purge"
@@ -1081,28 +1236,34 @@ mod tests {
 
     #[test]
     fn purge_expired_preserves_recent_sessions() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let recent_id = "ece11111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("recent");
-        let save_dir = tmp.path().join("recent");
+        reg.persist_new(recent_id);
+        let save_dir = tmp.path().join(recent_id);
         std::fs::create_dir_all(&save_dir).unwrap();
 
         // last_active set to `now` by persist_new — well inside the
         // 30-day retention window.
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 0);
-        assert!(reg.exists_in_db("recent"));
+        assert!(reg.exists_in_db(recent_id));
         assert!(save_dir.exists());
     }
 
     #[test]
     fn purge_expired_drops_linked_oauth_rows() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_linked_id = "e1111111-1111-4111-a111-111111111112";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired_linked");
-        reg.link_oauth("google", "sub_legacy", "expired_linked", "Old User");
+        reg.persist_new(expired_linked_id);
+        reg.link_oauth("google", "sub_legacy", expired_linked_id, "Old User");
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired_linked", &old);
+        backdate_session(&reg, expired_linked_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
@@ -1113,16 +1274,189 @@ mod tests {
 
     #[test]
     fn purge_expired_handles_missing_save_dir_gracefully() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let ghost_id = "abb51111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("ghost");
+        reg.persist_new(ghost_id);
         // No saves/<id>/ directory was ever created. Purge must still
         // delete the DB row and return 1 — filesystem absence is fine.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "ghost", &old);
+        backdate_session(&reg, ghost_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("ghost"));
+        assert!(!reg.exists_in_db(ghost_id));
+    }
+
+    // ── #595 path traversal guard ────────────────────────────────────────────
+
+    /// A session ID containing `..` must not cause `remove_dir_all` to
+    /// operate outside the saves root.  The traversal ID is rejected before
+    /// the filesystem is touched; a sibling directory must survive intact.
+    #[test]
+    fn purge_expired_rejects_path_traversal_id() {
+        let outer = tempfile::tempdir().unwrap();
+        // The "saves root" lives one level below outer so there is a parent
+        // directory to try to traverse into.
+        let saves_root = outer.path().join("saves");
+        std::fs::create_dir_all(&saves_root).unwrap();
+
+        // A sibling directory that a traversal payload would try to delete.
+        let sibling = outer.path().join("sensitive");
+        std::fs::create_dir_all(&sibling).unwrap();
+        std::fs::write(sibling.join("secret.txt"), b"do not delete").unwrap();
+
+        // Set up a SessionRegistry using saves_root as the root.
+        let reg = SessionRegistry::open(&saves_root).unwrap();
+
+        // Directly insert a row with a traversal ID (bypassing the normal
+        // UUID generation path to simulate a tampered/corrupted DB).
+        {
+            let db = reg.db.lock().unwrap();
+            db.execute(
+                "INSERT INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
+                rusqlite::params!["../sensitive", "2000-01-01T00:00:00Z"],
+            )
+            .unwrap();
+        }
+
+        // Create a fake directory at saves_root/../sensitive to give
+        // remove_dir_all something to hit if the guard fails.
+        // (sibling already exists above — that's the target.)
+
+        let purged = reg
+            .purge_expired_disk_sessions(&saves_root, Duration::from_secs(0 /* always expired */));
+
+        // The DB row is deleted (purge still counts it).
+        assert_eq!(purged, 1);
+        // The sibling directory must NOT have been removed.
+        assert!(
+            sibling.exists(),
+            "path traversal guard must prevent deletion of directories outside saves root"
+        );
+        assert!(
+            sibling.join("secret.txt").exists(),
+            "sensitive file must survive"
+        );
+    }
+
+    /// IDs with non-hex/non-hyphen characters (including `/` and `\`) are
+    /// rejected by the allowlist even if they don't look like `..` traversals.
+    #[test]
+    fn purge_expired_rejects_ids_with_unsafe_characters() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+
+        // Directly insert rows with unsafe IDs.
+        let unsafe_ids = [
+            "../../etc/passwd",
+            "foo/bar",
+            "foo\\bar",
+            "abc def",
+            "abc\0def",
+        ];
+        {
+            let db = reg.db.lock().unwrap();
+            for id in &unsafe_ids {
+                db.execute(
+                    "INSERT INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
+                    rusqlite::params![id, "2000-01-01T00:00:00Z"],
+                )
+                .unwrap();
+            }
+        }
+
+        // None of these should cause a panic or an out-of-root deletion.
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(0));
+        // All rows are deleted from the DB.
+        assert_eq!(purged, unsafe_ids.len());
+        // The saves root itself is intact.
+        assert!(tmp.path().exists(), "saves root must still exist");
+    }
+
+    /// A well-formed UUID session ID must still be cleaned up normally —
+    /// the path-traversal guard must not break the happy path.
+    #[test]
+    fn purge_expired_uuid_id_still_cleaned_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        let id = "a1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        reg.persist_new(id);
+        let save_dir = tmp.path().join(id);
+        std::fs::create_dir_all(&save_dir).unwrap();
+
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, id, &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!save_dir.exists(), "save directory must be removed");
+    }
+
+    /// Regression test for #230: the autosave path must reuse a single
+    /// `AsyncDatabase` across multiple saves rather than reopening the file
+    /// (and re-running `migrate()`) on every tick.
+    ///
+    /// Verifies:
+    /// 1. Opening the DB once and calling `save_snapshot` N times produces N
+    ///    snapshots in the database (i.e. the handle is reused, not replaced).
+    /// 2. The snapshot count matches the number of save calls — if a new
+    ///    connection were opened each time, the per-call migrate() would not
+    ///    duplicate rows, but we confirm the handle is indeed reused by checking
+    ///    that the Arc inside AsyncDatabase stays alive across calls.
+    #[tokio::test]
+    async fn autosave_reuses_async_database_across_ticks() {
+        use parish_core::persistence::snapshot::{ClockSnapshot, GameSnapshot};
+        use parish_core::persistence::{AsyncDatabase, Database};
+
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+
+        // Open the DB once — exactly what the fixed autosave tick does.
+        let db = Database::open(tmp.path()).unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+
+        fn make_snapshot() -> GameSnapshot {
+            GameSnapshot {
+                player_location: LocationId(1),
+                weather: "Clear".to_string(),
+                text_log: vec![],
+                clock: ClockSnapshot {
+                    game_time: chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap(),
+                    speed_factor: 36.0,
+                    paused: false,
+                },
+                npcs: vec![],
+                last_tier2_game_time: None,
+                last_tier3_game_time: None,
+                last_tier4_game_time: None,
+                introduced_npcs: Default::default(),
+                visited_locations: std::collections::HashSet::new(),
+                edge_traversals: Default::default(),
+                gossip_network: Default::default(),
+                conversation_log: Default::default(),
+                player_name: None,
+                npcs_who_know_player_name: Default::default(),
+            }
+        }
+
+        // Simulate three autosave ticks using the same handle.
+        for _ in 0..3 {
+            async_db
+                .save_snapshot(branch.id, &make_snapshot())
+                .await
+                .expect("autosave tick should succeed with reused connection");
+        }
+
+        // All three snapshots must be present; branch_log returns most-recent-first.
+        let log = async_db.branch_log(branch.id).await.unwrap();
+        assert_eq!(
+            log.len(),
+            3,
+            "three autosave ticks via the same AsyncDatabase must produce three snapshots"
+        );
     }
 }

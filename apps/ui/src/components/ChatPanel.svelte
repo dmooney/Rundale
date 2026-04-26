@@ -478,7 +478,8 @@
 		transition: transform 0.1s, background 0.1s;
 	}
 
-	.reaction-btn:hover {
+	.reaction-btn:hover,
+	.reaction-btn:focus-visible {
 		transform: scale(1.3);
 		background: var(--color-input-bg);
 	}

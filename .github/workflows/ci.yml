@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       # Pinned to 1.95.0 so a new stable Rust release does not silently
       # break PRs via newly-activated clippy lints. Bump deliberately in
@@ -71,6 +73,15 @@ jobs:
       - name: Unit and integration tests
         run: cargo test --workspace --all-targets
 
+      - name: Prune stale runner artifacts
+        if: always()
+        run: |
+          # Remove temp files left by this run (e.g., fixture output).
+          rm -f /tmp/fixture.out
+          # Prune cargo registry cache entries older than 30 days to keep disk healthy.
+          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
+            -mtime +30 -delete 2>/dev/null || true
+
   rust-multi-channel:
     name: Rust channel matrix
     runs-on: [self-hosted, macOS, ARM64]
@@ -82,6 +93,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Install Rust toolchain (${{ matrix.toolchain }})
         uses: dtolnay/rust-toolchain@master
@@ -105,6 +118,12 @@ jobs:
       - name: Compile workspace
         run: cargo check --workspace --all-targets
 
+      - name: Prune stale runner artifacts
+        if: always()
+        run: |
+          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
+            -mtime +30 -delete 2>/dev/null || true
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: [self-hosted, macOS, ARM64]
@@ -112,6 +131,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95.0
@@ -140,6 +161,13 @@ jobs:
             tail -n 5 /tmp/fixture.out
           done
 
+      - name: Prune stale runner artifacts
+        if: always()
+        run: |
+          rm -f /tmp/fixture.out
+          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
+            -mtime +30 -delete 2>/dev/null || true
+
   ui-quality:
     name: UI quality (build, check, unit)
     runs-on: [self-hosted, macOS, ARM64]
@@ -150,6 +178,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -170,6 +200,14 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
+      - name: Prune stale runner artifacts
+        if: always()
+        run: |
+          # Prune npm cache entries older than 30 days.
+          npm cache verify 2>/dev/null || true
+          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
+            -mtime +30 -delete 2>/dev/null || true
+
   ui-e2e:
     name: UI Playwright e2e
     runs-on: [self-hosted, macOS, ARM64]
@@ -180,6 +218,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          clean: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -226,3 +266,10 @@ jobs:
           name: playwright-report
           path: apps/ui/playwright-report/
           if-no-files-found: ignore
+
+      - name: Prune stale runner artifacts
+        if: always()
+        run: |
+          npm cache verify 2>/dev/null || true
+          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
+            -mtime +30 -delete 2>/dev/null || true

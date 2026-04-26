@@ -27,17 +27,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Download cloudflared at a pinned version and verify against an inline SHA-256.
-# Cloudflare does not publish per-asset .sha256 files, so we pin the digest here
-# and verify locally. Bump CLOUDFLARED_VERSION and CLOUDFLARED_SHA256 together.
-ARG CLOUDFLARED_VERSION=2024.12.2
-ARG CLOUDFLARED_SHA256=5237675a5e806120729acc78c5be02f9db5f406717699587abfa72b49b39fe40
+# Cloudflare does not publish per-asset .sha256 files, so we pin the digests here
+# and verify locally. Bump CLOUDFLARED_VERSION and both SHA256 constants together.
+# TARGETARCH is set automatically by BuildKit (amd64, arm64).
+# Both amd64 and arm64 hashes are pinned inline; the correct one is selected via
+# a shell case statement so multi-arch builds are integrity-checked on every arch.
+ARG TARGETARCH
+ARG CLOUDFLARED_VERSION=2026.3.0
 RUN cd /tmp \
  && curl -fsSL \
-      "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64" \
-      -o cloudflared-linux-amd64 \
- && echo "${CLOUDFLARED_SHA256}  cloudflared-linux-amd64" | sha256sum -c - \
- && install -m 0755 cloudflared-linux-amd64 /usr/local/bin/cloudflared \
- && rm cloudflared-linux-amd64
+      "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-${TARGETARCH}" \
+      -o cloudflared \
+ && case "${TARGETARCH}" in \
+      amd64) SHA256="4a9e50e6d6d798e90fcd01933151a90bf7edd99a0a55c28ad18f2e16263a5c30" ;; \
+      arm64) SHA256="0755ba4cbab59980e6148367fcf53a8f3ec85a97deefd63c2420cf7850769bee" ;; \
+      *) echo "Unsupported TARGETARCH: ${TARGETARCH}" && exit 1 ;; \
+    esac \
+ && echo "${SHA256}  cloudflared" | sha256sum -c - \
+ && install -m 0755 cloudflared /usr/local/bin/cloudflared \
+ && rm cloudflared
 
 WORKDIR /app
 COPY --from=builder /build/target/release/parish ./

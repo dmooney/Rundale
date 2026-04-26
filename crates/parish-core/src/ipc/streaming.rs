@@ -1,54 +1,78 @@
 //! Shared NPC token streaming logic for all frontends.
 //!
-//! Reads tokens from an inference channel, applies separator holdback logic,
-//! batches them, and calls a user-provided emit function. This eliminates the
-//! duplicate streaming implementations in `src-tauri/src/events.rs` and
-//! `crates/parish-server/src/streaming.rs`.
+//! Reads tokens from an inference channel, extracts the `dialogue` field from
+//! JSON responses incrementally (or streams plain text directly for non-JSON),
+//! batches emitted text, and calls a user-provided emit function.
 
 use std::time::{Duration, Instant};
 
-use crate::npc::{SEPARATOR_HOLDBACK, find_response_separator, floor_char_boundary};
+use parish_types::extract_dialogue_from_partial_json;
+
+/// Re-export so crates that depend on `parish-core` but not `parish-inference`
+/// directly can still construct bounded channels with the canonical capacity.
+pub use parish_inference::TOKEN_CHANNEL_CAPACITY;
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;
 
-/// Reads tokens from `token_rx`, applies the NPC separator holdback logic,
-/// batches them every [`BATCH_MS`] ms, and calls `emit_token` with each batch.
+/// Reads tokens from `token_rx`, detects whether the stream is JSON or plain
+/// text, and emits displayable dialogue incrementally.
 ///
-/// Returns the full accumulated response text (including the hidden JSON
-/// metadata section) so the caller can extract Irish word hints.
+/// For JSON streams: extracts the `dialogue` field value incrementally via
+/// [`extract_dialogue_from_partial_json`], hiding metadata fields from display.
 ///
-/// The `emit_token` callback receives the batch text to display. Backends
-/// wire this to their own event mechanism:
-/// - Tauri: `app.emit("stream-token", StreamTokenPayload { token })`
-/// - Web server: `bus.emit("stream-token", &StreamTokenPayload { token })`
-/// - CLI: `print!("{}", token)`
+/// For plain text streams (e.g. NPC arrival reactions): emits the raw text
+/// token-by-token, preserving progressive display.
+///
+/// Returns the full accumulated response so the caller can parse metadata
+/// (mood, action, language hints, etc.) after streaming completes.
 pub async fn stream_npc_tokens(
-    mut token_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    mut token_rx: tokio::sync::mpsc::Receiver<String>,
     mut emit_token: impl FnMut(&str),
 ) -> String {
     let mut accumulated = String::new();
     let mut displayed_len: usize = 0;
-    let mut separator_found = false;
     let mut batch = String::new();
     let mut last_emit = Instant::now();
+    // None = undecided, true = JSON with dialogue field, false = plain text
+    let mut is_json: Option<bool> = None;
 
     while let Some(token) = token_rx.recv().await {
         accumulated.push_str(&token);
 
-        if !separator_found {
-            if let Some((dialogue_end, _meta_start)) = find_response_separator(&accumulated) {
-                if dialogue_end > displayed_len {
-                    batch.push_str(&accumulated[displayed_len..dialogue_end]);
+        match is_json {
+            None => {
+                // Detect mode from the accumulated content so far.
+                let trimmed = accumulated.trim_start();
+                if trimmed.starts_with('{') {
+                    if let Some(dialogue) = extract_dialogue_from_partial_json(&accumulated) {
+                        is_json = Some(true);
+                        if dialogue.len() > displayed_len {
+                            batch.push_str(&dialogue[displayed_len..]);
+                            displayed_len = dialogue.len();
+                        }
+                    }
+                    // If starts with '{' but no dialogue field yet, stay undecided
+                    // (the field might appear in a later chunk).
+                } else if !trimmed.is_empty() {
+                    // Non-JSON: stream raw text incrementally
+                    is_json = Some(false);
+                    batch.push_str(&accumulated[displayed_len..]);
+                    displayed_len = accumulated.len();
                 }
-                displayed_len = dialogue_end;
-                separator_found = true;
-            } else {
-                let raw_end = accumulated.len().saturating_sub(SEPARATOR_HOLDBACK);
-                let safe_end = floor_char_boundary(&accumulated, raw_end);
-                if safe_end > displayed_len {
-                    batch.push_str(&accumulated[displayed_len..safe_end]);
-                    displayed_len = safe_end;
+            }
+            Some(true) => {
+                if let Some(dialogue) = extract_dialogue_from_partial_json(&accumulated)
+                    && dialogue.len() > displayed_len
+                {
+                    batch.push_str(&dialogue[displayed_len..]);
+                    displayed_len = dialogue.len();
+                }
+            }
+            Some(false) => {
+                if accumulated.len() > displayed_len {
+                    batch.push_str(&accumulated[displayed_len..]);
+                    displayed_len = accumulated.len();
                 }
             }
         }
@@ -66,54 +90,13 @@ pub async fn stream_npc_tokens(
         batch.clear();
     }
 
-    // Flush any remaining displayed text if no separator was ever found
-    if !separator_found && displayed_len < accumulated.len() {
-        let remaining = &accumulated[displayed_len..];
-        let clean = strip_trailing_json(remaining);
-        if !clean.is_empty() {
-            emit_token(clean);
-        }
+    // Edge case: if we were still undecided (e.g. only received `{` with no
+    // dialogue field and no further tokens), treat it as plain text.
+    if is_json.is_none() && !accumulated.is_empty() && displayed_len == 0 {
+        emit_token(accumulated.trim());
     }
 
     accumulated
-}
-
-/// Strips trailing JSON metadata from a response that lacks a `---` separator.
-///
-/// Some weaker models emit the metadata JSON block directly after dialogue
-/// without the expected `---` delimiter. This function finds the last
-/// top-level `{...}` block at the end of the text and removes it, returning
-/// only the dialogue portion. If no trailing JSON is found, returns the
-/// original text trimmed.
-pub fn strip_trailing_json(text: &str) -> &str {
-    let trimmed = text.trim_end();
-    if !trimmed.ends_with('}') {
-        return trimmed;
-    }
-    // Walk backwards to find the matching opening brace
-    let mut depth = 0i32;
-    let mut json_start = None;
-    for (i, ch) in trimmed.char_indices().rev() {
-        match ch {
-            '}' => depth += 1,
-            '{' => {
-                depth -= 1;
-                if depth == 0 {
-                    json_start = Some(i);
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-    if let Some(start) = json_start {
-        // Only strip if what we found actually parses as JSON
-        let candidate = &trimmed[start..];
-        if serde_json::from_str::<serde_json::Value>(candidate).is_ok() {
-            return trimmed[..start].trim_end();
-        }
-    }
-    trimmed
 }
 
 #[cfg(test)]
@@ -122,108 +105,84 @@ mod tests {
     use tokio::sync::mpsc;
 
     #[tokio::test]
-    async fn stream_simple_tokens() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Hello ".to_string()).unwrap();
-        tx.send("world!".to_string()).unwrap();
-        drop(tx);
-
-        let mut collected = String::new();
-        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, "Hello world!");
-        assert_eq!(collected, "Hello world!");
-    }
-
-    #[tokio::test]
-    async fn stream_with_separator() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Dialogue text\n---\n{\"hints\":[]}".to_string())
+    async fn stream_json_dialogue_field() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "Hello world!"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
         let mut collected = String::new();
         let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, "Dialogue text\n---\n{\"hints\":[]}");
-        // Only dialogue portion should be emitted
-        assert!(!collected.contains("hints"));
-        assert!(collected.contains("Dialogue text"));
-    }
-
-    #[test]
-    fn strip_trailing_json_with_json() {
-        let text =
-            "(Looks up) Ah, good morning to ye! {\"action\": \"speaks\", \"mood\": \"friendly\"}";
-        assert_eq!(
-            strip_trailing_json(text),
-            "(Looks up) Ah, good morning to ye!"
-        );
-    }
-
-    #[test]
-    fn strip_trailing_json_no_json() {
-        let text = "Well hello there, stranger!";
-        assert_eq!(strip_trailing_json(text), text);
-    }
-
-    #[test]
-    fn strip_trailing_json_braces_in_dialogue() {
-        let text = "The rent is {too high} says I.";
-        assert_eq!(strip_trailing_json(text), text);
-    }
-
-    #[test]
-    fn strip_trailing_json_empty() {
-        assert_eq!(strip_trailing_json(""), "");
-    }
-
-    #[test]
-    fn strip_trailing_json_only_json() {
-        let text = "{\"action\": \"speaks\"}";
-        assert_eq!(strip_trailing_json(text), "");
+        assert_eq!(full, r#"{"dialogue": "Hello world!"}"#);
+        assert_eq!(collected, "Hello world!");
     }
 
     #[tokio::test]
-    async fn stream_utf8_multibyte_safety() {
-        // Emojis are 4 bytes each. If they land near the SEPARATOR_HOLDBACK
-        // boundary, floor_char_boundary must not split them.
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        // Build a string long enough that the holdback window slices into
-        // multi-byte territory: 30 chars of ASCII + emoji cluster.
-        let text = "A".repeat(30) + "🎉🍀🎶";
-        tx.send(text.clone()).unwrap();
+    async fn stream_json_incremental() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "Hel"#.to_string()).await.unwrap();
+        tx.send(r#"lo wor"#.to_string()).await.unwrap();
+        tx.send(r#"ld!", "mood": "happy"}"#.to_string())
+            .await
+            .unwrap();
         drop(tx);
 
         let mut collected = String::new();
         let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, text, "full accumulation must preserve all bytes");
-        // The emitted portion must be valid UTF-8 (no panic) and contain the
-        // ASCII prefix. The emojis may or may not be emitted depending on
-        // holdback, but whatever IS emitted must be valid.
-        assert!(collected.starts_with("AAAAAA"));
+        assert!(full.contains("Hello world!"));
+        assert_eq!(collected, "Hello world!");
     }
 
     #[tokio::test]
-    async fn stream_pure_emoji_tokens() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("🎉".to_string()).unwrap();
-        tx.send("🍀".to_string()).unwrap();
-        tx.send("🎶".to_string()).unwrap();
+    async fn stream_json_with_metadata_not_leaked() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(
+            r#"{"dialogue": "Good morning!", "action": "nods", "mood": "friendly"}"#.to_string(),
+        )
+        .await
+        .unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(collected, "Good morning!");
+        assert!(!collected.contains("nods"));
+        assert!(!collected.contains("friendly"));
+    }
+
+    #[tokio::test]
+    async fn stream_plain_text_incremental() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send("Well, ".to_string()).await.unwrap();
+        tx.send("good day ".to_string()).await.unwrap();
+        tx.send("to ye".to_string()).await.unwrap();
         drop(tx);
 
         let mut collected = String::new();
         let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, "🎉🍀🎶");
-        // Total emitted length (in chars) should be 3 — all emojis survive
-        // even if batching delays some.
-        assert_eq!(collected.chars().count(), 3);
+        assert_eq!(full, "Well, good day to ye");
+        assert_eq!(collected, "Well, good day to ye");
     }
 
-    // ── Additional coverage for stream_npc_tokens edge cases ────────────────
+    #[tokio::test]
+    async fn stream_plain_text_single_chunk() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send("Just plain text response.".to_string())
+            .await
+            .unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(full, "Just plain text response.");
+        assert_eq!(collected, "Just plain text response.");
+    }
 
     #[tokio::test]
-    async fn stream_empty_channel_returns_empty_string() {
-        let (tx, token_rx) = mpsc::unbounded_channel::<String>();
-        drop(tx); // Close immediately without sending.
+    async fn stream_empty_channel() {
+        let (tx, token_rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        drop(tx);
 
         let mut collected = String::new();
         let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
@@ -232,94 +191,67 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stream_separator_split_across_tokens() {
-        // Receiver must stitch the separator together even when it arrives in pieces.
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Dialogue text\n".to_string()).unwrap();
-        tx.send("--".to_string()).unwrap();
-        tx.send("-\n".to_string()).unwrap();
-        tx.send("{\"hints\":[]}".to_string()).unwrap();
-        drop(tx);
-
-        let mut collected = String::new();
-        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, "Dialogue text\n---\n{\"hints\":[]}");
-        // No JSON metadata should have leaked into the collected output.
-        assert!(!collected.contains("hints"));
-        assert!(collected.contains("Dialogue text"));
-    }
-
-    #[tokio::test]
-    async fn stream_handles_multibyte_utf8_at_holdback_boundary() {
-        // The holdback window must never land inside a multi-byte char.
-        // Build a long dialogue so the sliding window actually engages, with
-        // Irish accented characters (é, á) around the boundary.
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        let line = "Is fíor-álainn an lá é inniu — gealltanach agus éadrom, caithfidh mé a rá.";
-        tx.send(line.to_string()).unwrap();
-        drop(tx);
-
-        let mut collected = String::new();
-        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, line);
-        // Output must be valid UTF-8 and contain the full phrase.
-        assert!(collected.contains("fíor-álainn"));
-    }
-
-    #[tokio::test]
-    async fn stream_without_separator_strips_trailing_json() {
-        // Weak models sometimes omit the --- separator and emit metadata inline.
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("A fine morning it is. ".to_string()).unwrap();
-        tx.send("{\"action\":\"speaks\"}".to_string()).unwrap();
+    async fn stream_json_with_escapes() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "He said \"hello\" to me"}"#.to_string())
+            .await
+            .unwrap();
         drop(tx);
 
         let mut collected = String::new();
         let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        // The trailing JSON must be stripped from the emitted text.
-        assert!(collected.contains("fine morning"));
-        assert!(!collected.contains("action"));
+        assert_eq!(collected, r#"He said "hello" to me"#);
     }
 
     #[tokio::test]
-    async fn stream_short_text_under_holdback_window_still_emits() {
-        // Text shorter than SEPARATOR_HOLDBACK should flush through the
-        // "no separator found" tail path.
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Hi.".to_string()).unwrap();
+    async fn stream_json_with_unicode() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "Sláinte agus fáilte!"}"#.to_string())
+            .await
+            .unwrap();
         drop(tx);
 
         let mut collected = String::new();
-        let full = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
-        assert_eq!(full, "Hi.");
-        assert_eq!(collected, "Hi.");
+        let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(collected, "Sláinte agus fáilte!");
     }
 
-    // ── strip_trailing_json edge cases ──────────────────────────────────────
+    #[tokio::test]
+    async fn stream_json_empty_dialogue() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "", "mood": "silent"}"#.to_string())
+            .await
+            .unwrap();
+        drop(tx);
 
-    #[test]
-    fn strip_trailing_json_ignores_unmatched_close_brace() {
-        // A lone '}' with no matching '{' should not crash; text is returned.
-        let text = "punctuation is weird}";
-        assert_eq!(strip_trailing_json(text), text);
+        let mut collected = String::new();
+        let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(collected, "");
     }
 
-    #[test]
-    fn strip_trailing_json_rejects_invalid_json() {
-        // The candidate block looks like JSON but isn't valid — keep the text.
-        let text = "the deal is {not, a: valid}";
-        assert_eq!(strip_trailing_json(text), text);
+    #[tokio::test]
+    async fn stream_json_no_space_after_colon() {
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue":"Compact JSON!"}"#.to_string())
+            .await
+            .unwrap();
+        drop(tx);
+
+        let mut collected = String::new();
+        let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
+        assert_eq!(collected, "Compact JSON!");
     }
 
-    #[test]
-    fn strip_trailing_json_handles_whitespace_before_json() {
-        let text = "Good evening to ye.   {\"a\":1}";
-        assert_eq!(strip_trailing_json(text), "Good evening to ye.");
-    }
-
-    #[test]
-    fn strip_trailing_json_handles_nested_objects() {
-        let text = r#"(smiles) Welcome home. {"action":"speaks","meta":{"mood":"warm"}}"#;
-        assert_eq!(strip_trailing_json(text), "(smiles) Welcome home.");
+    #[tokio::test]
+    async fn stream_channel_is_bounded_not_unbounded() {
+        // Proves #83: the streaming channel is bounded so a slow consumer cannot
+        // cause unbounded memory growth. `max_capacity()` equals the cap constant;
+        // an unbounded channel would return `usize::MAX` here.
+        let (tx, _rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        assert_eq!(
+            tx.max_capacity(),
+            parish_inference::TOKEN_CHANNEL_CAPACITY,
+            "token channel must be bounded to TOKEN_CHANNEL_CAPACITY (fix #83)"
+        );
     }
 }

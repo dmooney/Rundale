@@ -7,7 +7,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use tauri::Emitter;
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
+
+/// Maximum number of NPC LLM inference calls that may run concurrently within
+/// a single `emit_npc_reactions` batch (#406).
+const NPC_REACTION_CONCURRENCY: usize = 4;
 
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
@@ -24,6 +28,7 @@ use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
+use parish_core::world::LocationId;
 use parish_core::world::transport::TransportMode;
 
 use crate::events::{
@@ -261,9 +266,17 @@ pub async fn submit_input(
             let player_msg_id = player_msg.id.clone();
             let _ = app.emit(EVENT_TEXT_LOG, player_msg);
             let raw_for_reactions = raw.clone();
+            // Capture location before handle_game_input (which may move the player).
+            let reaction_location = state.world.lock().await.player_location;
             handle_game_input(raw, addressed_to, state.clone(), app.clone()).await;
-            // Generate rule-based NPC reactions to the player's message
-            emit_npc_reactions(&player_msg_id, &raw_for_reactions, &state, &app).await;
+            // Generate NPC reactions to the player's message in the background.
+            emit_npc_reactions(
+                &player_msg_id,
+                &raw_for_reactions,
+                reaction_location,
+                &state,
+                &app,
+            );
         }
     }
 
@@ -309,7 +322,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
             &provider_enum,
             &base_url,
             api_key.as_deref(),
-            &parish_core::config::InferenceConfig::default(),
+            &state.inference_config, // (#417) use TOML-configured timeouts
         );
         let mut client_guard = state.client.lock().await;
         *client_guard = Some(built.clone());
@@ -335,6 +348,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
         background_rx,
         batch_rx,
         state.inference_log.clone(),
+        state.inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
@@ -400,7 +414,7 @@ async fn handle_system_command(
                     &provider_enum,
                     &base_url,
                     api_key.as_deref(),
-                    &parish_core::config::InferenceConfig::default(),
+                    &state.inference_config, // (#417) use TOML-configured timeouts
                 ));
             }
             CommandEffect::Quit => {
@@ -531,13 +545,35 @@ async fn handle_game_input(
 
     // Parse intent: tries local keywords first, then LLM for ambiguous input.
     let intent = if let Some(client) = &client {
-        let mut world = state.world.lock().await;
-        world.clock.inference_pause();
-        drop(world);
+        // Capture generation before releasing the lock so we can detect TOCTOU
+        // races on re-acquire (issue #283).
+        let gen_before = {
+            let mut world = state.world.lock().await;
+            world.clock.inference_pause();
+            world.tick_generation
+        };
         let result = parse_intent(client, &raw, &model).await;
-        let mut world = state.world.lock().await;
-        world.clock.inference_resume();
-        drop(world);
+        {
+            let mut world = state.world.lock().await;
+            world.clock.inference_resume();
+            let gen_after = world.tick_generation;
+            if gen_after != gen_before {
+                tracing::warn!(
+                    gen_before,
+                    gen_after,
+                    "World advanced during intent parse (TOCTOU #283) — \
+                     {} tick(s) elapsed; proceeding with parsed intent",
+                    gen_after.wrapping_sub(gen_before),
+                );
+                let _ = app.emit(
+                    crate::events::EVENT_TEXT_LOG,
+                    text_log(
+                        "system",
+                        "The world shifted while your words were in the air.",
+                    ),
+                );
+            }
+        }
         result.ok()
     } else {
         // No client configured — use local keyword parsing only.
@@ -840,7 +876,7 @@ async fn run_npc_turn(
     let loading_cancel = tokio_util::sync::CancellationToken::new();
     spawn_loading_animation(app.clone(), loading_cancel.clone());
 
-    let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
+    let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
     let _ = app.emit(
@@ -857,6 +893,7 @@ async fn run_npc_turn(
             None,
             Some(0.7),
             parish_core::inference::InferencePriority::Interactive,
+            true,
         )
         .await;
 
@@ -1896,33 +1933,132 @@ pub async fn react_to_message(
     Ok(())
 }
 
-/// Generates rule-based NPC reactions to a player message and emits events.
-async fn emit_npc_reactions(
+/// Generates NPC reactions to a player message and emits events.
+///
+/// `location` must be the player's location **at the time the message was
+/// sent**, captured before any `handle_game_input` call that might move the
+/// player. This prevents a race where the player moves between spawn and
+/// execution, causing reactions to be attributed to NPCs at the wrong location.
+///
+/// Runs as a detached background task so player input handling remains
+/// responsive. When the `npc-llm-reactions` flag is enabled (default) and an
+/// LLM client is configured, each NPC at the player's location gets an
+/// inference call; on any failure the function falls back to rule-based
+/// keyword matching (#404). Reactions are persisted to the NPC's
+/// `reaction_log` for memory continuity (#403).
+fn emit_npc_reactions(
     player_msg_id: &str,
     player_input: &str,
+    location: LocationId,
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) {
-    let npc_names: Vec<String> = {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        npc_manager
-            .npcs_at(world.player_location)
-            .iter()
-            .map(|n| n.name.clone())
-            .collect()
-    };
+    let state = Arc::clone(state);
+    let app = app.clone();
+    let player_msg_id = player_msg_id.to_string();
+    let player_input = player_input.to_string();
 
-    for name in npc_names {
-        if let Some(emoji) = reactions::generate_rule_reaction(player_input) {
+    // #651 — await the task handle and surface any panic to the log so errors
+    // are never silently swallowed.
+    let handle = tokio::spawn(async move {
+        let (npcs_here, llm_enabled, reaction_client, reaction_model) = {
+            let npc_manager = state.npc_manager.lock().await;
+            let config = state.config.lock().await;
+            let base_client = state.client.lock().await;
+
+            // Use the pre-captured location — do not read world.player_location
+            // here, as the player may have moved since the message was sent.
+            let npcs = npc_manager
+                .npcs_at(location)
+                .iter()
+                .map(|npc| (*npc).clone())
+                .collect::<Vec<_>>();
+
+            let (client, model) =
+                config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
+            let enabled = !config.flags.is_disabled("npc-llm-reactions");
+
+            (npcs, enabled, client, model)
+        };
+
+        if npcs_here.is_empty() {
+            return;
+        }
+
+        // Run per-NPC inference concurrently, bounded to NPC_REACTION_CONCURRENCY
+        // simultaneous calls so a busy location can't exhaust the LLM connection
+        // pool (#406).
+        let sem = Arc::new(Semaphore::new(NPC_REACTION_CONCURRENCY));
+        let mut join_set = tokio::task::JoinSet::new();
+
+        for npc in npcs_here {
+            let sem = Arc::clone(&sem);
+            let client = reaction_client.clone();
+            let model = reaction_model.clone();
+            let input = player_input.clone();
+
+            join_set.spawn(async move {
+                // Acquire a permit before starting the (potentially slow) LLM call.
+                let _permit = sem.acquire().await.ok();
+
+                // Try LLM path first; fall back to rule-based on any failure (#404).
+                let emoji = if llm_enabled {
+                    if let Some(ref c) = client {
+                        reactions::infer_player_message_reaction(
+                            c,
+                            &model,
+                            &npc,
+                            &input,
+                            std::time::Duration::from_secs(2),
+                        )
+                        .await
+                        .or_else(|| reactions::generate_rule_reaction(&input))
+                    } else {
+                        reactions::generate_rule_reaction(&input)
+                    }
+                } else {
+                    reactions::generate_rule_reaction(&input)
+                };
+
+                (npc.name.clone(), emoji)
+            });
+        }
+
+        // Collect results as tasks finish, then persist + emit each reaction.
+        while let Some(result) = join_set.join_next().await {
+            let Ok((npc_name, Some(emoji))) = result else {
+                continue;
+            };
+
+            // Persist to reaction_log so NPC memory is maintained (#403).
+            {
+                let mut npc_manager = state.npc_manager.lock().await;
+                if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
+                    npc_mut.reaction_log.add_player_message_reaction(
+                        &emoji,
+                        &player_input,
+                        chrono::Utc::now(),
+                    );
+                }
+            }
+
             let _ = app.emit(
                 crate::events::EVENT_NPC_REACTION,
                 NpcReactionPayload {
-                    message_id: player_msg_id.to_string(),
+                    message_id: player_msg_id.clone(),
                     emoji,
-                    source: capitalize_first(&name),
+                    source: capitalize_first(&npc_name),
                 },
             );
         }
-    }
+    });
+
+    // Spawn a lightweight watcher that logs any panic from the reaction batch
+    // (#651). This keeps emit_npc_reactions non-blocking while ensuring panics
+    // are visible in the tracing output rather than silently swallowed.
+    tokio::spawn(async move {
+        if let Err(e) = handle.await {
+            tracing::error!(error = %e, "emit_npc_reactions task panicked");
+        }
+    });
 }

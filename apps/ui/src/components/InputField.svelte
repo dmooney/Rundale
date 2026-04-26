@@ -1097,7 +1097,8 @@
 		transition: background 0.15s, border-color 0.15s, transform 0.15s, color 0.15s;
 	}
 
-	.npc-chip:hover {
+	.npc-chip:hover,
+	.npc-chip:focus-visible {
 		border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
 		transform: translateY(-1px);
 	}
@@ -1164,7 +1165,8 @@
 		transition: background 0.15s, color 0.15s, border-color 0.15s;
 	}
 
-	.travel-chip:hover:not(:disabled) {
+	.travel-chip:hover:not(:disabled),
+	.travel-chip:focus-visible:not(:disabled) {
 		background: var(--color-accent);
 		color: var(--color-bg);
 		border-color: var(--color-accent);

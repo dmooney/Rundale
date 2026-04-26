@@ -80,7 +80,11 @@ jobs:
           )"
 
           echo '📝 Setting output for GitHub Actions...'
-          echo "issues_to_triage=${ISSUES}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'issues_to_triage<<GHEOF'
+            echo "${ISSUES}"
+            echo 'GHEOF'
+          } >> "${GITHUB_OUTPUT}"
 
           ISSUE_NUMBERS="$(echo "${ISSUES}" | jq -r '.[].number | tostring' | paste -sd, -)"
           echo "issue_numbers=${ISSUE_NUMBERS}" >> "${GITHUB_OUTPUT}"

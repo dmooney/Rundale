@@ -17,8 +17,8 @@ pub use error::ParishError;
 pub use events::{EventBus, GameEvent};
 pub use gossip::{GossipItem, GossipNetwork};
 pub use ids::{
-    IrishWordHint, LanguageHint, Location, LocationId, NpcId, SEPARATOR_HOLDBACK, Weather,
-    find_response_separator, floor_char_boundary,
+    IrishWordHint, LanguageHint, Location, LocationId, NpcId, Weather,
+    extract_dialogue_from_partial_json, floor_char_boundary,
 };
 pub use time::{DayType, Festival, GameClock, GameSpeed, Season, SpeedConfig, TimeOfDay};
 

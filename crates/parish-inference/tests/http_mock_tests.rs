@@ -6,6 +6,7 @@
 //! plumbing, streaming NDJSON / SSE parsing, error mapping, and auth
 //! header behavior without needing a real LLM backend.
 
+use parish_inference::TOKEN_CHANNEL_CAPACITY;
 use parish_inference::client::OllamaClient;
 use parish_inference::openai_client::OpenAiClient;
 use serde::Deserialize;
@@ -128,7 +129,7 @@ async fn ollama_generate_stream_emits_every_chunk() {
         .await;
 
     let client = OllamaClient::new(&server.uri());
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
         .generate_stream("m", "p", None, tx)
         .await
@@ -161,7 +162,7 @@ async fn ollama_generate_stream_ignores_empty_chunks() {
         .await;
 
     let client = OllamaClient::new(&server.uri());
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client.generate_stream("m", "p", None, tx).await.unwrap();
     assert_eq!(full, "only");
 
@@ -190,7 +191,7 @@ async fn ollama_generate_stream_tolerates_malformed_lines() {
         .await;
 
     let client = OllamaClient::new(&server.uri());
-    let (tx, _rx) = mpsc::unbounded_channel::<String>();
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client.generate_stream("m", "p", None, tx).await.unwrap();
     assert_eq!(full, "ab");
 }
@@ -209,7 +210,7 @@ async fn ollama_generate_stream_handles_missing_trailing_newline() {
         .await;
 
     let client = OllamaClient::new(&server.uri());
-    let (tx, _rx) = mpsc::unbounded_channel::<String>();
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client.generate_stream("m", "p", None, tx).await.unwrap();
     assert_eq!(full, "onetwo");
 }
@@ -394,7 +395,7 @@ async fn openai_generate_stream_parses_sse_chunks() {
         .await;
 
     let client = OpenAiClient::new(&server.uri(), None);
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
         .generate_stream("m", "p", None, tx, None, None)
         .await
@@ -425,7 +426,7 @@ async fn openai_generate_stream_honors_done_sentinel_before_stop() {
         .await;
 
     let client = OpenAiClient::new(&server.uri(), None);
-    let (tx, _rx) = mpsc::unbounded_channel::<String>();
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
         .generate_stream("m", "p", None, tx, None, None)
         .await
@@ -451,7 +452,7 @@ async fn openai_generate_stream_ignores_sse_comments_and_blank_lines() {
         .await;
 
     let client = OpenAiClient::new(&server.uri(), None);
-    let (tx, _rx) = mpsc::unbounded_channel::<String>();
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
     let full = client
         .generate_stream("m", "p", None, tx, None, None)
         .await

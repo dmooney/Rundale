@@ -272,4 +272,71 @@ describe('LocationDetail', () => {
 		await mockState.lastMap!.trigger('mouseleave', {}, 'editor-locations');
 		expect(mockState.lastMap!.getCanvas().style.cursor).toBe('');
 	});
+
+	// #408 — mousedown on non-selected location must not initiate drag
+	it('does not start a drag when mousedown fires on a non-selected location', async () => {
+		editorSelectedLocationId.set(1);
+		render(LocationDetail);
+
+		await waitFor(() => {
+			expect(mockState.lastMap).not.toBeNull();
+		});
+
+		const map = mockState.lastMap!;
+
+		// Mousedown on location 2 (not the currently selected location 1)
+		await map.trigger(
+			'mousedown',
+			{ features: [{ properties: { id: 2 } }], originalEvent: { shiftKey: false } },
+			'editor-locations'
+		);
+		// A move should not trigger any update because drag was never started
+		await map.trigger('mousemove', { lngLat: { lat: 53.52, lng: -8.12 } });
+		await map.trigger('mouseup', {});
+
+		expect(mockState.editorUpdateLocationsMock).not.toHaveBeenCalled();
+	});
+
+	// #408 — if selection changes during an active drag, mouseup must update
+	// the originally dragged location, not the newly selected one.
+	it('commits drag to the originally dragged location even if selection changes mid-drag', async () => {
+		editorSelectedLocationId.set(1);
+		render(LocationDetail);
+
+		await waitFor(() => {
+			expect(mockState.lastMap).not.toBeNull();
+		});
+
+		const map = mockState.lastMap!;
+
+		// Start dragging location 1 (the selected one)
+		await map.trigger(
+			'mousedown',
+			{ features: [{ properties: { id: 1 } }], originalEvent: { shiftKey: false } },
+			'editor-locations'
+		);
+		// Move the mouse — drag is in progress
+		await map.trigger('mousemove', { lngLat: { lat: 53.60, lng: -8.20 } });
+
+		// Simulate selection change mid-drag (click race) — location 2 becomes selected
+		editorSelectedLocationId.set(2);
+		await waitFor(() => {}); // let Svelte flush reactivity
+
+		// Release mouse — should commit to location 1 (the dragged one), not location 2
+		await map.trigger('mouseup', {});
+
+		await waitFor(() => {
+			expect(mockState.editorUpdateLocationsMock).toHaveBeenCalledTimes(1);
+		});
+
+		const calls = mockState.editorUpdateLocationsMock.mock.calls as unknown as Array<[unknown]>;
+		const updatedLocations = calls.at(-1)?.[0] as Array<{ id: number; lat: number; lon: number }>;
+		// Location 1 coordinates should be updated
+		const loc1 = updatedLocations.find((l) => l.id === 1);
+		expect(loc1).toBeDefined();
+		expect(loc1!.lat).toBeCloseTo(53.60, 4);
+		// Location 2 should be unchanged
+		const loc2 = updatedLocations.find((l) => l.id === 2);
+		expect(loc2?.lat).toBeCloseTo(53.51, 4);
+	});
 });

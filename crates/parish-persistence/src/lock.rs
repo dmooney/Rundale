@@ -5,17 +5,70 @@
 //! containing the owning process's PID. Stale locks from crashed
 //! processes are detected and cleaned up automatically.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// Advisory lock backed by a `.lock` sidecar file.
 ///
 /// On creation, writes the current PID to `<save_path>.lock`.
-/// On drop, removes the lock file (best-effort).
+/// On drop, removes the lock file (best-effort) **only** when this guard
+/// is the last live owner (refcount reaches zero).
+///
+/// # Re-entrant safety (codex P1 — round 2)
+///
+/// When the same process calls [`try_acquire`](Self::try_acquire) while already
+/// holding a lock on the same path, a shared [`AtomicUsize`] refcount is
+/// incremented rather than silencing the previous guard.  Every guard holds an
+/// `Arc` to the same counter.  The lock file is deleted only when the **last**
+/// guard's `Drop` decrements the counter to zero.  This correctly handles both:
+///
+/// * **Replacement pattern** — `state.save_lock = Some(new_lock)` drops the old
+///   guard but keeps the new guard alive; refcount stays ≥ 1 so the file is not
+///   removed until the new guard itself drops.
+/// * **Transient pattern** — `let _ = try_acquire(…)` immediately drops the
+///   returned guard, but the original caller's guard still holds a reference so
+///   the refcount is still ≥ 1 and the file is preserved.
 pub struct SaveFileLock {
     lock_path: PathBuf,
+    /// Shared refcount for all live guards on the same `lock_path`.
+    /// File deletion happens only when the last `Drop` decrements to zero.
+    refcount: Arc<AtomicUsize>,
 }
+
+// ---------------------------------------------------------------------------
+// Process-global live-guard registry
+// ---------------------------------------------------------------------------
+//
+// Maps `lock_path → refcount` for every owned `SaveFileLock` in this process.
+// Multiple reentrant guards for the same path share the same `Arc<AtomicUsize>`.
+//
+// `std::sync::Mutex` (not `tokio::sync::Mutex`) so the registry is usable
+// from sync `Drop` without an async runtime.
+
+struct LiveGuardRegistry(Mutex<Option<HashMap<PathBuf, Arc<AtomicUsize>>>>);
+
+impl LiveGuardRegistry {
+    const fn new() -> Self {
+        Self(Mutex::new(None))
+    }
+
+    fn with_lock<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut HashMap<PathBuf, Arc<AtomicUsize>>) -> R,
+    {
+        // Panic on lock poisoning — this is a logic bug, not a recoverable
+        // error, and we would rather crash fast than silently corrupt state.
+        let mut guard = self.0.lock().expect("LiveGuardRegistry mutex poisoned");
+        let map = guard.get_or_insert_with(HashMap::new);
+        f(map)
+    }
+}
+
+static LIVE_GUARDS: LiveGuardRegistry = LiveGuardRegistry::new();
 
 impl SaveFileLock {
     /// Attempts to acquire an advisory lock for the given save file.
@@ -23,6 +76,10 @@ impl SaveFileLock {
     /// Returns `Some(lock)` on success, or `None` if the file is already
     /// locked by another live process. Stale locks (dead PID) are cleaned
     /// up and re-acquired automatically.
+    ///
+    /// If the current process already holds the lock (same PID), a new
+    /// guard sharing the same refcount is returned.  The lock file is
+    /// removed only when **all** live guards for the same path have dropped.
     ///
     /// # Implementation note (#424)
     ///
@@ -58,7 +115,14 @@ impl SaveFileLock {
                     // file behind. If the write or sync fails, remove
                     // the lock we just created so we don't strand it.
                     if write!(f, "{}", my_pid).is_ok() && f.sync_all().is_ok() {
-                        return Some(Self { lock_path });
+                        let refcount = Arc::new(AtomicUsize::new(1));
+                        LIVE_GUARDS.with_lock(|map| {
+                            map.insert(lock_path.clone(), Arc::clone(&refcount));
+                        });
+                        return Some(Self {
+                            lock_path,
+                            refcount,
+                        });
                     }
                     let _ = fs::remove_file(&lock_path);
                     return None;
@@ -75,8 +139,11 @@ impl SaveFileLock {
                         .and_then(|s| s.trim().parse::<u32>().ok());
                     match parsed_pid {
                         Some(pid) if pid == my_pid => {
-                            // Re-entrant from same process.
-                            return None;
+                            // Re-entrant acquire: same process already holds
+                            // the lock.  Bump the shared refcount and return a
+                            // new guard pointing at the same Arc.  This fixes
+                            // codex P1 (both replacement and transient patterns).
+                            return Self::reentrant_acquire(lock_path);
                         }
                         Some(pid) if is_process_alive(pid) => {
                             // Live owner.
@@ -102,7 +169,43 @@ impl SaveFileLock {
                 Err(_) => return None,
             }
         }
+
         None
+    }
+
+    /// Called from [`try_acquire`] when the lock file already contains our
+    /// PID.  Bumps the shared refcount and returns a new guard holding the
+    /// same `Arc<AtomicUsize>`.
+    ///
+    /// # Codex P1 — refcount approach
+    ///
+    /// Unlike the prior "silence prior guard" approach, this never modifies
+    /// any existing guard.  Each guard independently decrements the counter
+    /// on drop; only the guard that decrements it to zero deletes the file.
+    /// Transient reentrant guards (`let _ = try_acquire(…)`) just bump-then-
+    /// decrement — the counter never falls to zero while any other guard
+    /// is alive.
+    fn reentrant_acquire(lock_path: PathBuf) -> Option<Self> {
+        LIVE_GUARDS.with_lock(|map| {
+            if let Some(refcount) = map.get(&lock_path) {
+                // Bump the refcount while we hold the registry lock so
+                // no concurrent Drop can race us to zero.
+                refcount.fetch_add(1, Ordering::AcqRel);
+                Some(Self {
+                    lock_path,
+                    refcount: Arc::clone(refcount),
+                })
+            } else {
+                // No entry in the registry — this shouldn't happen if
+                // the PID in the file is ours, but be conservative.
+                None
+            }
+        })
+    }
+
+    /// Returns `true` if this lock protects the given save file path.
+    pub fn covers_path(&self, save_path: &Path) -> bool {
+        self.lock_path == Self::lock_path_for(save_path)
     }
 
     /// Returns the lock file path for a given save file path.
@@ -115,17 +218,39 @@ impl SaveFileLock {
 
 impl Drop for SaveFileLock {
     fn drop(&mut self) {
-        // Best-effort removal. If it fails (e.g. permission, already gone),
-        // the next instance will detect the stale lock via PID check.
-        if let Err(e) = fs::remove_file(&self.lock_path)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            tracing::warn!(
-                path = %self.lock_path.display(),
-                error = %e,
-                "Failed to remove lock file on drop"
-            );
+        // Decrement our share of the refcount.  If we were the last holder
+        // (previous value was 1, now 0), remove the registry entry and
+        // delete the lock file.  Use AcqRel so the decrement pairs with
+        // the Acquire load used for the zero-check, and so that every
+        // preceding store from all threads is visible before we delete.
+        let prev = self.refcount.fetch_sub(1, Ordering::AcqRel);
+        if prev == 1 {
+            // We are the last guard — clean up.
+            LIVE_GUARDS.with_lock(|map| {
+                // Only remove our entry if it still points to our Arc
+                // (a future first-acquire for a new session may have already
+                // replaced it after we hit zero but before we took the lock —
+                // unlikely but defensive).
+                if map
+                    .get(&self.lock_path)
+                    .is_some_and(|rc| Arc::ptr_eq(rc, &self.refcount))
+                {
+                    map.remove(&self.lock_path);
+                }
+            });
+            // Best-effort removal. If it fails (e.g. permission, already gone),
+            // the next instance will detect the stale lock via PID check.
+            if let Err(e) = fs::remove_file(&self.lock_path)
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(
+                    path = %self.lock_path.display(),
+                    error = %e,
+                    "Failed to remove lock file on drop"
+                );
+            }
         }
+        // If prev > 1: other guards still alive, do nothing.
     }
 }
 
@@ -159,10 +284,45 @@ fn is_process_alive(pid: u32) -> bool {
     std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use std::ffi::c_void;
+
+    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
+    const STILL_ACTIVE: u32 = 259;
+    // ERROR_ACCESS_DENIED is returned by OpenProcess when the process exists
+    // but is owned by another user/session (e.g. a different logon session or
+    // a protected/elevated process).  Mirror the Unix EPERM branch: treat
+    // access-denied as "process is alive" to prevent accidental lock theft.
+    // (codex P1 fix)
+    const ERROR_ACCESS_DENIED: u32 = 5;
+
+    extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut c_void;
+        fn CloseHandle(handle: *mut c_void) -> i32;
+        fn GetExitCodeProcess(handle: *mut c_void, code: *mut u32) -> i32;
+        fn GetLastError() -> u32;
+    }
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            // If OpenProcess failed due to access denial the process exists —
+            // treat as alive (mirrors the Unix EPERM path).
+            return GetLastError() == ERROR_ACCESS_DENIED;
+        }
+        let mut exit_code: u32 = 0;
+        let ok = GetExitCodeProcess(handle, &mut exit_code);
+        CloseHandle(handle);
+        ok != 0 && exit_code == STILL_ACTIVE
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn is_process_alive(_pid: u32) -> bool {
-    // Conservative fallback for non-Unix: assume process is alive.
-    // This prevents accidental lock theft on unsupported platforms.
+    // Conservative fallback for unknown platforms: assume process is alive.
+    // This prevents accidental lock theft but means stale locks require
+    // manual removal on unsupported platforms.
     true
 }
 
@@ -210,9 +370,141 @@ mod tests {
         let lock1 = SaveFileLock::try_acquire(&save);
         assert!(lock1.is_some());
 
-        // Second acquire from same process should fail (re-entrant guard).
+        // Re-entrant acquire from same process returns a new owning guard.
         let lock2 = SaveFileLock::try_acquire(&save);
-        assert!(lock2.is_none(), "same process should not double-acquire");
+        assert!(lock2.is_some(), "same process re-acquire should succeed");
+    }
+
+    /// Regression test for codex P1: replacing a guard (state.save_lock = Some(new))
+    /// must not delete the lock file while the new guard is still alive.
+    #[test]
+    fn test_reentrant_guard_replacement_keeps_lock_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let save = dir.path().join("test.db");
+        fs::write(&save, b"").unwrap();
+
+        let lock_path = SaveFileLock::lock_path_for(&save);
+
+        let lock1 = SaveFileLock::try_acquire(&save);
+        assert!(lock1.is_some(), "initial acquire must succeed");
+        assert!(
+            lock_path.exists(),
+            "lock file must exist after initial acquire"
+        );
+
+        // Simulate: state.save_lock = Some(SaveFileLock::try_acquire(&save))
+        // The old guard (lock1) is dropped when the new one is assigned.
+        let lock2 = SaveFileLock::try_acquire(&save);
+        assert!(lock2.is_some(), "re-entrant acquire must succeed");
+
+        // Drop the original guard — this is the replacement pattern that was broken.
+        drop(lock1);
+
+        // The lock file must still exist: lock2 is the active guard now.
+        assert!(
+            lock_path.exists(),
+            "lock file must not be deleted when old guard is dropped during re-entrant replacement"
+        );
+
+        // Confirm save is still reported as locked while lock2 holds it.
+        assert!(is_locked(&save), "save should still be reported as locked");
+
+        drop(lock2);
+        assert!(
+            !lock_path.exists(),
+            "lock file removed after final guard drops"
+        );
+    }
+
+    /// Regression test for codex P1 (round 2): a transient reentrant guard
+    /// must not remove the lock file when it is immediately discarded.
+    ///
+    /// Exact scenario from the codex comment:
+    ///   `let lock1 = try_acquire(...).unwrap(); let _ = try_acquire(...);`
+    /// After the transient guard drops, the lock file must still exist and
+    /// `lock1` must still be the live owner.
+    #[test]
+    fn test_transient_reentrant_does_not_remove_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let save = dir.path().join("test.db");
+        fs::write(&save, b"").unwrap();
+
+        let lock_path = SaveFileLock::lock_path_for(&save);
+
+        let lock1 = SaveFileLock::try_acquire(&save).expect("initial acquire must succeed");
+        assert!(
+            lock_path.exists(),
+            "lock file must exist after initial acquire"
+        );
+
+        // Transient reentrant acquire — result immediately discarded.
+        let _ = SaveFileLock::try_acquire(&save);
+        // ^^^ The temporary guard is now dropped here.
+
+        // lock1 must still protect the file.
+        assert!(
+            lock_path.exists(),
+            "lock file must still exist after transient reentrant guard drops"
+        );
+        assert!(
+            is_locked(&save),
+            "save must still be reported as locked while lock1 is alive"
+        );
+
+        drop(lock1);
+        assert!(
+            !lock_path.exists(),
+            "lock file removed only when lock1 (the last guard) drops"
+        );
+    }
+
+    /// Regression test for codex P1 (round 2): three nested guards — file
+    /// is removed only when the very last one drops, regardless of drop order.
+    #[test]
+    fn test_last_guard_drop_removes_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let save = dir.path().join("test.db");
+        fs::write(&save, b"").unwrap();
+
+        let lock_path = SaveFileLock::lock_path_for(&save);
+
+        let lock1 = SaveFileLock::try_acquire(&save).expect("first acquire");
+        let lock2 = SaveFileLock::try_acquire(&save).expect("second (reentrant) acquire");
+        let lock3 = SaveFileLock::try_acquire(&save).expect("third (reentrant) acquire");
+
+        assert!(lock_path.exists(), "file must exist with three live guards");
+
+        // Drop in a non-trivial order: middle, first, last.
+        drop(lock2);
+        assert!(
+            lock_path.exists(),
+            "file must persist after dropping lock2 (lock1 and lock3 still alive)"
+        );
+
+        drop(lock1);
+        assert!(
+            lock_path.exists(),
+            "file must persist after dropping lock1 (lock3 still alive)"
+        );
+
+        drop(lock3);
+        assert!(
+            !lock_path.exists(),
+            "file removed only after the last guard (lock3) drops"
+        );
+    }
+
+    #[test]
+    fn test_covers_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let save_a = dir.path().join("a.db");
+        let save_b = dir.path().join("b.db");
+        fs::write(&save_a, b"").unwrap();
+        fs::write(&save_b, b"").unwrap();
+
+        let lock = SaveFileLock::try_acquire(&save_a).unwrap();
+        assert!(lock.covers_path(&save_a));
+        assert!(!lock.covers_path(&save_b));
     }
 
     #[test]

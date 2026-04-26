@@ -182,6 +182,12 @@
 			isMobile = mq.matches;
 			const onChange = (e: MediaQueryListEvent) => {
 				isMobile = e.matches;
+				// When transitioning from mobile→desktop, close the focail overlay so
+				// the store doesn't stay true while the mobile Sidebar branch is hidden
+				// (the desktop right-col always renders its own Sidebar unconditionally).
+				if (!e.matches) {
+					focailOpen.set(false);
+				}
 			};
 			mq.addEventListener('change', onChange);
 			mobileMediaCleanup = () => mq.removeEventListener('change', onChange);
@@ -620,7 +626,7 @@
 			class="mobile-btn"
 			class:active={$focailOpen}
 			aria-pressed={$focailOpen}
-			aria-label="Toggle Irish words panel"
+			aria-label="Language Hints — toggle Irish words panel"
 			onclick={() => {
 				if ($focailOpen) {
 					focailOpen.set(false);
@@ -744,6 +750,7 @@
 		}
 
 		.mobile-btn:hover,
+		.mobile-btn:focus-visible,
 		.mobile-btn.active {
 			color: var(--color-accent);
 			border-color: var(--color-accent);

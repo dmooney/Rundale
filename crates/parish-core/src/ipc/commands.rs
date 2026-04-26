@@ -483,6 +483,12 @@ pub fn handle_command(
         }
         Command::Flag(FlagSubcommand::Disable(name)) => {
             config.flags.disable(&name);
+            // When disabling a flag that has associated cached state, clear
+            // that state immediately so the next render sees the correct value
+            // without requiring the player to run another command first.
+            if name == "reveal-unexplored" {
+                config.reveal_unexplored_locations = false;
+            }
             CommandResult::with_effect(
                 format!("Feature '{}' disabled.", name),
                 CommandEffect::SaveFlags,
@@ -552,7 +558,18 @@ pub fn handle_command(
 }
 
 /// Handles the `/unexplored` command (reveal/hide all unexplored map locations).
+///
+/// Gated by the `reveal-unexplored` feature flag (default-enabled per
+/// CLAUDE.md rule #6). Uses `is_disabled` semantics so the feature ships
+/// on without needing to seed the flags file.
 fn handle_unexplored_command(config: &mut GameConfig, arg: Option<bool>) -> CommandResult {
+    if config.flags.is_disabled("reveal-unexplored") {
+        config.reveal_unexplored_locations = false;
+        return CommandResult::text(
+            "The /unexplored command is disabled. Re-enable with /flag enable reveal-unexplored.",
+        );
+    }
+
     match arg {
         Some(true) => {
             config.reveal_unexplored_locations = true;
@@ -1173,6 +1190,27 @@ mod tests {
     }
 
     #[test]
+    fn flag_disable_reveal_unexplored_clears_active_reveal_state() {
+        let (mut world, mut npc, mut config) = default_state();
+        // Simulate: reveal mode is active (e.g. player ran `/unexplored reveal`).
+        config.reveal_unexplored_locations = true;
+        // Operator runs `/flag disable reveal-unexplored` — this must immediately
+        // clear the cached reveal state, not wait for the next `/unexplored` call.
+        let result = handle_command(
+            Command::Flag(FlagSubcommand::Disable("reveal-unexplored".to_string())),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::SaveFlags));
+        assert!(result.response.contains("disabled"));
+        assert!(
+            !config.reveal_unexplored_locations,
+            "reveal_unexplored_locations must be cleared immediately when the flag is disabled"
+        );
+    }
+
+    #[test]
     fn flags_alias_matches_list() {
         let (mut world, mut npc, mut config) = default_state();
         let flags_result = handle_command(Command::Flags, &mut world, &mut npc, &mut config);
@@ -1518,6 +1556,62 @@ mod tests {
         assert!(result.response.contains("currently hidden"));
         assert!(result.response.contains("/unexplored reveal|hide"));
         assert!(result.effects.is_empty());
+    }
+
+    #[test]
+    fn unexplored_disabled_flag_returns_refusal() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.flags.disable("reveal-unexplored");
+        let result = handle_command(
+            Command::Unexplored(Some(true)),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("/flag enable"));
+        assert!(result.effects.is_empty());
+        assert!(!config.reveal_unexplored_locations);
+    }
+
+    /// Codex P1: disabling the flag while reveal is already active must clear
+    /// `reveal_unexplored_locations`, making the kill-switch effective.
+    /// Previously the early return left the boolean true, so map rendering
+    /// continued to show unexplored areas even though the feature flag was off.
+    #[test]
+    fn unexplored_disabled_flag_clears_active_reveal_state() {
+        let (mut world, mut npc, mut config) = default_state();
+        // Simulate: player ran `/unexplored reveal` while flag was enabled.
+        config.reveal_unexplored_locations = true;
+        // Now an operator disables the feature flag.
+        config.flags.disable("reveal-unexplored");
+        // Any attempt to use /unexplored should clear reveal state, not just refuse.
+        let result = handle_command(
+            Command::Unexplored(Some(true)),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("/flag enable"));
+        assert!(result.effects.is_empty());
+        // Kill-switch must be complete: reveal state cleared even though we
+        // could not execute the command.
+        assert!(
+            !config.reveal_unexplored_locations,
+            "reveal_unexplored_locations must be false when the feature flag is disabled"
+        );
+    }
+
+    #[test]
+    fn unexplored_disabled_flag_clears_active_reveal() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.reveal_unexplored_locations = true;
+        config.flags.disable("reveal-unexplored");
+        let result = handle_command(Command::Unexplored(None), &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("/flag enable"));
+        assert!(
+            !config.reveal_unexplored_locations,
+            "should clear reveal state when flag is disabled"
+        );
     }
 
     #[test]

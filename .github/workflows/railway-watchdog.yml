@@ -33,9 +33,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: |
-          curl -fsSL https://railway.com/install.sh | sh
-          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+        # railway.com/install.sh is now behind a Cloudflare bot challenge
+        # (curl gets a 403). The npm package is the supported alternative
+        # and Node is preinstalled on ubuntu-latest, so this is a one-liner.
+        run: npm install --global @railway/cli
 
       - name: Run watchdog
         env:

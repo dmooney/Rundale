@@ -71,7 +71,7 @@
 				<button class="debug-dock-toggle" aria-label={$debugDockLeft ? 'Dock panel to bottom' : 'Dock panel to left'} onclick={() => debugDockLeft.update((v) => !v)}>
 					{$debugDockLeft ? 'Dock Bottom' : 'Dock Left'}
 				</button>
-				<button class="debug-close" aria-label="Close debug panel" onclick={() => debugVisible.set(false)}>X</button>
+				<button class="debug-close" aria-label="Close debug panel" title="Close debug panel" onclick={() => debugVisible.set(false)}>X</button>
 			</div>
 		</div>
 
@@ -593,7 +593,9 @@
 	}
 
 	.debug-dock-toggle:hover,
-	.debug-close:hover {
+	.debug-dock-toggle:focus-visible,
+	.debug-close:hover,
+	.debug-close:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}
@@ -638,7 +640,8 @@
 		letter-spacing: 0.05em;
 	}
 
-	.tab-btn:hover {
+	.tab-btn:hover,
+	.tab-btn:focus-visible {
 		color: var(--color-fg);
 	}
 
@@ -760,7 +763,8 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.back-btn:hover {
+	.back-btn:hover,
+	.back-btn:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 	}

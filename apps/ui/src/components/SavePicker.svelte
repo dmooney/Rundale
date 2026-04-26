@@ -438,12 +438,12 @@
 						</div>
 					{/each}
 
-					<div class="ledger-row new-ledger" on:click={handleForkLedger} role="button" tabindex="0" on:keydown={(e) => { if (e.key === 'Enter') handleForkLedger(); }}>
+					<div class="ledger-row new-ledger" on:click={handleForkLedger} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleForkLedger(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">Fork New Ledger</span>
 					</div>
 
-					<div class="ledger-row new-ledger" on:click={handleNewGame} role="button" tabindex="0" on:keydown={(e) => { if (e.key === 'Enter') handleNewGame(); }}>
+					<div class="ledger-row new-ledger" on:click={handleNewGame} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleNewGame(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">New Game</span>
 					</div>
@@ -624,7 +624,8 @@
 	.footer-spacer {
 		flex: 1;
 	}
-	.footer-btn:hover {
+	.footer-btn:hover,
+	.footer-btn:focus-visible {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
@@ -819,7 +820,8 @@
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 	}
-	.phantom-btn:hover:not(:disabled) {
+	.phantom-btn:hover:not(:disabled),
+	.phantom-btn:focus-visible:not(:disabled) {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
@@ -906,7 +908,8 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
-	.action-btn:hover:not(:disabled) {
+	.action-btn:hover:not(:disabled),
+	.action-btn:focus-visible:not(:disabled) {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}

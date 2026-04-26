@@ -1,5 +1,6 @@
 //! HTTP client for the Ollama REST API at localhost:11434.
 
+use crate::TOKEN_CHANNEL_CAPACITY;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
@@ -129,7 +130,7 @@ impl OllamaClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
     ) -> Result<String, ParishError> {
         let url = format!("{}/api/generate", self.base_url);
         let body = GenerateRequest {
@@ -170,8 +171,13 @@ impl OllamaClient {
 
                 if let Ok(gen_resp) = serde_json::from_str::<GenerateResponse>(line) {
                     if !gen_resp.response.is_empty() {
-                        // Send token, ignore error if receiver dropped
-                        let _ = token_tx.send(gen_resp.response.clone());
+                        if token_tx.try_send(gen_resp.response.clone()).is_err() {
+                            tracing::warn!(
+                                "token streaming channel full (capacity {}); token dropped — \
+                                 consumer is not keeping up with LLM output (#83)",
+                                TOKEN_CHANNEL_CAPACITY,
+                            );
+                        }
                         accumulated.push_str(&gen_resp.response);
                     }
                     if gen_resp.done {
@@ -188,7 +194,13 @@ impl OllamaClient {
             && let Ok(gen_resp) = serde_json::from_str::<GenerateResponse>(remaining)
             && !gen_resp.response.is_empty()
         {
-            let _ = token_tx.send(gen_resp.response.clone());
+            if token_tx.try_send(gen_resp.response.clone()).is_err() {
+                tracing::warn!(
+                    "token streaming channel full (capacity {}); token dropped — \
+                     consumer is not keeping up with LLM output (#83)",
+                    TOKEN_CHANNEL_CAPACITY,
+                );
+            }
             accumulated.push_str(&gen_resp.response);
         }
 

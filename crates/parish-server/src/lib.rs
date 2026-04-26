@@ -25,7 +25,8 @@ use std::time::Duration;
 use axum::Router;
 use axum::extract::ConnectInfo;
 use axum::http::header::{
-    CONTENT_SECURITY_POLICY, REFERRER_POLICY, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
+    CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
+    X_FRAME_OPTIONS,
 };
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware as axum_mw;
@@ -41,6 +42,35 @@ use parish_core::world::transport::TransportConfig;
 use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
+
+/// Content-Security-Policy value shared between production and tests.
+///
+/// # script-src 'unsafe-inline' (TODO: replace with hash)
+///
+/// SvelteKit's production build injects a small inline bootstrap `<script>` in
+/// `dist/index.html` that hydrates the app.  Removing `'unsafe-inline'` from
+/// `script-src` causes the browser to reject that script, so the page never
+/// hydrates (codex P1, PR #543).
+///
+/// The proper fix is to compute the SHA-256 of that bootstrap block and add
+/// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
+/// but must be regenerated whenever SvelteKit changes the bootstrap text.
+/// Until that build-time integration exists, `'unsafe-inline'` is restored here
+/// so the app keeps working.
+///
+/// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
+/// `apps/ui/dist/index.html` at build time.
+/// See: <https://github.com/dmooney/Parish/issues/543>
+pub const CSP_POLICY: &str = "default-src 'self'; \
+                              script-src 'self' 'unsafe-inline'; \
+                              worker-src 'self' blob:; \
+                              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+                              img-src 'self' data: blob: https:; \
+                              connect-src 'self' ws: wss: https:; \
+                              font-src 'self' https://fonts.gstatic.com; \
+                              frame-ancestors 'none'; \
+                              base-uri 'self'; \
+                              form-action 'self'";
 
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
@@ -269,6 +299,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         theme_palette,
         transport: TransportConfig::default(),
         template_config: config,
+        inference_config: engine_config.inference, // (#417) persist TOML-configured timeouts
         ollama_process: tokio::sync::Mutex::new(ollama_process),
     });
 
@@ -286,10 +317,17 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             loop {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
                 g.sessions.cleanup_stale(MEMORY_TTL);
-                let saves_root = g.saves_dir.clone();
-                let purged = g
-                    .sessions
-                    .purge_expired_disk_sessions(&saves_root, DISK_TTL);
+                // purge_expired_disk_sessions does SQLite queries and
+                // std::fs::remove_dir_all, both of which are blocking.
+                // Offload to a blocking thread so we don't stall a Tokio
+                // worker during the filesystem sweep (#612).
+                let g2 = Arc::clone(&g);
+                let purged = tokio::task::spawn_blocking(move || {
+                    g2.sessions
+                        .purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
+                })
+                .await
+                .unwrap_or(0);
                 if purged > 0 {
                     tracing::info!(purged, "Session cleanup reaped expired disk sessions");
                 } else {
@@ -299,12 +337,22 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         });
     }
 
-    // ── #381: Global per-IP rate limiter (120 req/min) ────────────────────────
+    // ── #381 / #596: Global per-IP rate limiter (120 req/min) ────────────────
+    // #596 — When `PARISH_TRUST_PROXY=1` is set, the middleware reads the real
+    // client IP from `X-Forwarded-For` or `Cf-Connecting-Ip` so each client is
+    // rate-limited individually even behind a reverse proxy (Cloudflare /
+    // Railway).  The flag defaults to `false` (socket addr) to avoid spoofing
+    // by unauthenticated callers who could inject those headers directly.
     use governor::{Quota, RateLimiter};
     use std::num::NonZeroU32;
-    let ip_limiter = Arc::new(RateLimiter::keyed(Quota::per_minute(
-        NonZeroU32::new(120).unwrap(),
-    )));
+    let trust_proxy = std::env::var("PARISH_TRUST_PROXY")
+        .unwrap_or_default()
+        .trim()
+        == "1";
+    let ip_limiter = Arc::new(IpRateLimiterState {
+        limiter: RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(120).unwrap())),
+        trust_proxy,
+    });
 
     // ── Build router ──────────────────────────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
@@ -405,18 +453,11 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         // ── Security hardening headers (outermost layer — covers all routes) ──
         .layer(SetResponseHeaderLayer::overriding(
             CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(
-                "default-src 'self'; \
-                 script-src 'self' 'unsafe-inline'; \
-                 worker-src 'self' blob:; \
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                 img-src 'self' data: blob: https:; \
-                 connect-src 'self' ws: wss: https:; \
-                 font-src 'self' https://fonts.gstatic.com; \
-                 frame-ancestors 'none'; \
-                 base-uri 'self'; \
-                 form-action 'self'",
-            ),
+            HeaderValue::from_static(CSP_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
         ))
         .layer(SetResponseHeaderLayer::overriding(
             X_FRAME_OPTIONS,
@@ -616,7 +657,21 @@ async fn get_metrics() -> String {
     )
 }
 
-/// #381 — Per-IP global rate limiter middleware (120 req/min).
+/// Shared state for [`ip_rate_limit_middleware`].
+struct IpRateLimiterState {
+    limiter: governor::RateLimiter<
+        std::net::IpAddr,
+        governor::state::keyed::DefaultKeyedStateStore<std::net::IpAddr>,
+        governor::clock::DefaultClock,
+    >,
+    /// When `true`, the middleware reads the real client IP from
+    /// `X-Forwarded-For` / `Cf-Connecting-Ip` headers instead of the TCP
+    /// socket address.  Only enable when the server sits behind a trusted
+    /// reverse proxy (set `PARISH_TRUST_PROXY=1`).
+    trust_proxy: bool,
+}
+
+/// #381 / #596 — Per-IP global rate limiter middleware (120 req/min).
 ///
 /// Placed *outside* the auth guard so pre-auth floods are throttled before
 /// the JWT validation overhead is incurred.
@@ -624,37 +679,164 @@ async fn get_metrics() -> String {
 /// Debug + loopback traffic is exempt: Playwright and local devtools make
 /// bursts of legitimate requests (status bar polls, WS reconnects, tile
 /// fetches, e2e test setup) that otherwise trip 429 and break UX.
+///
+/// #596 — When `PARISH_TRUST_PROXY=1` is set (via [`IpRateLimiterState`]),
+/// the real client IP is read from `Cf-Connecting-Ip` (Cloudflare) or the
+/// leftmost entry in `X-Forwarded-For` (generic reverse proxies).  Without
+/// proxy trust the socket address is used, which is safe but buckets all
+/// traffic from the proxy under one IP when deployed behind Cloudflare /
+/// Railway.
 async fn ip_rate_limit_middleware(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    axum::extract::State(limiter): axum::extract::State<
-        Arc<
-            governor::RateLimiter<
-                std::net::IpAddr,
-                governor::state::keyed::DefaultKeyedStateStore<std::net::IpAddr>,
-                governor::clock::DefaultClock,
-            >,
-        >,
-    >,
+    axum::extract::State(state): axum::extract::State<Arc<IpRateLimiterState>>,
     req: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     if cfg!(debug_assertions) && addr.ip().is_loopback() {
         return Ok(next.run(req).await);
     }
-    match limiter.check_key(&addr.ip()) {
+
+    // #596 — Resolve the real client IP.  When trust_proxy is true we prefer
+    // `Cf-Connecting-Ip` (Cloudflare sets this reliably) and fall back to the
+    // leftmost non-empty token in `X-Forwarded-For`.  If neither header is
+    // present or parseable we fall back to the socket address.  When
+    // trust_proxy is false we always use the socket address to prevent
+    // spoofing by clients that inject headers themselves.
+    let client_ip: std::net::IpAddr = if state.trust_proxy {
+        extract_real_ip(req.headers()).unwrap_or_else(|| addr.ip())
+    } else {
+        addr.ip()
+    };
+
+    match state.limiter.check_key(&client_ip) {
         Ok(_) => Ok(next.run(req).await),
         Err(_) => {
-            tracing::warn!(source_ip = %addr, "ip_rate_limit_middleware: 429 — too many requests");
+            tracing::warn!(
+                socket_ip = %addr,
+                client_ip = %client_ip,
+                "ip_rate_limit_middleware: 429 — too many requests"
+            );
             Err(StatusCode::TOO_MANY_REQUESTS)
         }
     }
 }
 
+/// Extract the real client IP from proxy-forwarded headers.
+///
+/// Priority:
+/// 1. `Cf-Connecting-Ip` — set by Cloudflare to the original client IP.
+/// 2. Leftmost token in `X-Forwarded-For` — set by most reverse proxies.
+///
+/// Returns `None` if no header is present or the value cannot be parsed as an
+/// IP address.  Only called when `PARISH_TRUST_PROXY=1` is set.
+fn extract_real_ip(headers: &axum::http::HeaderMap) -> Option<std::net::IpAddr> {
+    use axum::http::header::HeaderName;
+
+    // Cloudflare sets `Cf-Connecting-Ip` to exactly the original client IP.
+    static CF_CONNECTING_IP: std::sync::LazyLock<HeaderName> =
+        std::sync::LazyLock::new(|| HeaderName::from_static("cf-connecting-ip"));
+    if let Some(v) = headers.get(&*CF_CONNECTING_IP)
+        && let Ok(s) = v.to_str()
+        && let Ok(ip) = s.trim().parse()
+    {
+        return Some(ip);
+    }
+
+    // RFC 7239 `Forwarded` header: syntax is `for=<node>;proto=http`, possibly
+    // comma-separated for multiple hops.  Extract the `for=` parameter from the
+    // first (leftmost) directive, then strip optional port and bracket notation
+    // used for IPv6 (e.g. `[::1]:8080` → `::1`).
+    if let Some(v) = headers.get(axum::http::header::FORWARDED)
+        && let Ok(s) = v.to_str()
+        && let Some(ip) = parse_forwarded_for(s)
+    {
+        return Some(ip);
+    }
+
+    // Generic `X-Forwarded-For`: leftmost entry is the original client.
+    if let Some(v) = headers.get(HeaderName::from_static("x-forwarded-for"))
+        && let Ok(s) = v.to_str()
+        && let Some(first) = s.split(',').next()
+        && let Ok(ip) = first.trim().parse()
+    {
+        return Some(ip);
+    }
+
+    None
+}
+
+/// Parse an IP address from the `for=` parameter of an RFC 7239 `Forwarded`
+/// header value.  Returns `None` if the header is missing, malformed, or
+/// contains no valid IP address so the caller can fall through to
+/// `X-Forwarded-For`.
+///
+/// Accepted `for=` node forms:
+/// - bare IPv4:        `for=192.0.2.60`
+/// - quoted IPv4:      `for="192.0.2.60"`
+/// - bracketed IPv6:   `for="[::1]"` or `for=[::1]`
+/// - IPv6 with port:   `for="[::1]:8080"`
+/// - quoted with port: `for="192.0.2.60:1234"` (port stripped)
+fn parse_forwarded_for(header: &str) -> Option<std::net::IpAddr> {
+    // Only look at the first (leftmost/client) directive.
+    let first_directive = header.split(',').next()?;
+
+    // Each directive is a semicolon-separated list of parameters.
+    for param in first_directive.split(';') {
+        let param = param.trim();
+        let lower = param.to_ascii_lowercase();
+        let value = if lower.starts_with("for=") {
+            &param[4..]
+        } else {
+            continue;
+        };
+
+        // Strip surrounding double quotes if present.
+        let value = if value.starts_with('"') && value.ends_with('"') {
+            &value[1..value.len() - 1]
+        } else {
+            value
+        };
+
+        // Bracketed IPv6: `[::1]` or `[::1]:port`
+        if let Some(inner) = value.strip_prefix('[') {
+            let addr_str = if let Some(pos) = inner.find(']') {
+                &inner[..pos]
+            } else {
+                inner
+            };
+            if let Ok(ip) = addr_str.parse::<std::net::IpAddr>() {
+                return Some(ip);
+            }
+            // Bracketed but unparseable — fall through to next param / give up.
+            continue;
+        }
+
+        // Plain value: could be IPv4, IPv4:port, or bare IPv6.
+        // Try direct parse first (handles bare IPv4 and bare IPv6).
+        if let Ok(ip) = value.parse::<std::net::IpAddr>() {
+            return Some(ip);
+        }
+
+        // IPv4 with port: strip the trailing `:port`.
+        if let Some(pos) = value.rfind(':')
+            && let Ok(ip) = value[..pos].parse::<std::net::IpAddr>()
+        {
+            return Some(ip);
+        }
+
+        // Unrecognisable — keep looking at other parameters (unusual) then give up.
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial(parish_env)]
     fn build_client_and_config_defaults() {
         // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
         let (_client, config) = build_client_and_config();
@@ -687,9 +869,11 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_missing_returns_none() {
         // Ensure env vars are not set in the test environment.
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::remove_var("GOOGLE_CLIENT_ID");
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
@@ -698,8 +882,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_prefers_public_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
@@ -717,8 +903,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_falls_back_to_base_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
@@ -732,5 +920,153 @@ mod tests {
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
             std::env::remove_var("PARISH_BASE_URL");
         }
+    }
+
+    // ── #596 extract_real_ip tests ───────────────────────────────────────────
+
+    fn make_headers(pairs: &[(&str, &str)]) -> axum::http::HeaderMap {
+        let mut map = axum::http::HeaderMap::new();
+        for (k, v) in pairs {
+            map.insert(
+                axum::http::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                axum::http::HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        map
+    }
+
+    #[test]
+    fn extract_real_ip_returns_none_with_no_proxy_headers() {
+        let headers = make_headers(&[]);
+        assert_eq!(extract_real_ip(&headers), None);
+    }
+
+    #[test]
+    fn extract_real_ip_prefers_cf_connecting_ip() {
+        let headers = make_headers(&[
+            ("cf-connecting-ip", "1.2.3.4"),
+            ("x-forwarded-for", "9.9.9.9, 10.0.0.1"),
+        ]);
+        let ip = extract_real_ip(&headers).expect("should parse Cf-Connecting-Ip");
+        assert_eq!(ip, "1.2.3.4".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_falls_back_to_x_forwarded_for_leftmost() {
+        // Only X-Forwarded-For present; leftmost entry is the client.
+        let headers = make_headers(&[("x-forwarded-for", "203.0.113.42, 10.0.0.1, 172.16.0.1")]);
+        let ip = extract_real_ip(&headers).expect("should parse X-Forwarded-For");
+        assert_eq!(ip, "203.0.113.42".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_handles_ipv6() {
+        let headers = make_headers(&[("cf-connecting-ip", "2001:db8::1")]);
+        let ip = extract_real_ip(&headers).expect("should parse IPv6");
+        assert_eq!(ip, "2001:db8::1".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_returns_none_for_malformed_header() {
+        // A malformed value (not a valid IP) must not panic — it silently
+        // falls through to the next header / None.
+        let headers = make_headers(&[("cf-connecting-ip", "not-an-ip")]);
+        assert_eq!(extract_real_ip(&headers), None);
+    }
+
+    #[test]
+    fn extract_real_ip_trims_whitespace_around_address() {
+        let headers = make_headers(&[("x-forwarded-for", "  198.51.100.7 , 10.0.0.2")]);
+        let ip = extract_real_ip(&headers).expect("should parse trimmed address");
+        assert_eq!(ip, "198.51.100.7".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    // ── RFC 7239 Forwarded header tests (#629) ──────────────────────────────
+
+    #[test]
+    fn parse_forwarded_for_bare_ipv4() {
+        let ip =
+            parse_forwarded_for("for=192.0.2.60;proto=http").expect("should parse bare IPv4 for=");
+        assert_eq!(ip, "192.0.2.60".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn parse_forwarded_for_quoted_ipv4() {
+        let ip = parse_forwarded_for("for=\"192.0.2.60\";proto=http")
+            .expect("should parse quoted IPv4 for=");
+        assert_eq!(ip, "192.0.2.60".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn parse_forwarded_for_ipv6_in_brackets() {
+        let ip = parse_forwarded_for("for=\"[2001:db8::1]\";proto=http")
+            .expect("should parse bracketed IPv6");
+        assert_eq!(ip, "2001:db8::1".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn parse_forwarded_for_ipv6_brackets_with_port() {
+        // RFC 7239 §6: IPv6 with port looks like [::1]:8080
+        let ip =
+            parse_forwarded_for("for=\"[::1]:8080\"").expect("should strip port and parse IPv6");
+        assert_eq!(ip, "::1".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn parse_forwarded_for_multiple_hops_uses_leftmost() {
+        // Only the first (client) directive should be used.
+        let ip = parse_forwarded_for("for=203.0.113.1, for=10.0.0.1")
+            .expect("should pick leftmost directive");
+        assert_eq!(ip, "203.0.113.1".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn parse_forwarded_for_returns_none_when_no_for_param() {
+        // `by=` only — no `for=` present.
+        assert_eq!(parse_forwarded_for("by=203.0.113.43;proto=https"), None);
+    }
+
+    #[test]
+    fn parse_forwarded_for_returns_none_for_invalid_ip() {
+        assert_eq!(parse_forwarded_for("for=not-an-ip"), None);
+    }
+
+    #[test]
+    fn extract_real_ip_uses_forwarded_header_rfc7239() {
+        let headers = make_headers(&[("forwarded", "for=203.0.113.5;proto=https")]);
+        let ip = extract_real_ip(&headers).expect("should parse RFC 7239 Forwarded");
+        assert_eq!(ip, "203.0.113.5".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_forwarded_ipv6_brackets() {
+        let headers = make_headers(&[("forwarded", "for=\"[2001:db8::cafe]\";proto=https")]);
+        let ip = extract_real_ip(&headers).expect("should parse bracketed IPv6 in Forwarded");
+        assert_eq!(ip, "2001:db8::cafe".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_malformed_forwarded_falls_back_to_xff() {
+        // Forwarded header present but malformed (no `for=`) — must fall through
+        // to X-Forwarded-For rather than returning None.
+        let headers = make_headers(&[
+            ("forwarded", "proto=https;host=example.com"),
+            ("x-forwarded-for", "198.51.100.42, 10.0.0.1"),
+        ]);
+        let ip = extract_real_ip(&headers)
+            .expect("should fall back to X-Forwarded-For when Forwarded has no for=");
+        assert_eq!(ip, "198.51.100.42".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn extract_real_ip_invalid_ip_in_forwarded_falls_back_to_xff() {
+        // `for=` present but its value is not a valid IP — fall back to XFF.
+        let headers = make_headers(&[
+            ("forwarded", "for=not-an-ip"),
+            ("x-forwarded-for", "198.51.100.7"),
+        ]);
+        let ip = extract_real_ip(&headers)
+            .expect("should fall back to X-Forwarded-For when Forwarded for= is invalid");
+        assert_eq!(ip, "198.51.100.7".parse::<std::net::IpAddr>().unwrap());
     }
 }

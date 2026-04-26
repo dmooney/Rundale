@@ -16,5 +16,5 @@ pub use commands::{
 };
 pub use config::GameConfig;
 pub use handlers::*;
-pub use streaming::{stream_npc_tokens, strip_trailing_json};
+pub use streaming::{TOKEN_CHANNEL_CAPACITY, stream_npc_tokens};
 pub use types::*;

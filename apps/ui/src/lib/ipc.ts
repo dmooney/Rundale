@@ -146,7 +146,11 @@ function ensureWebSocket(): void {
 
 	void mintSessionToken().then((token) => {
 		if (ws) return; // another caller raced us
-		const url = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+		if (!token) {
+			console.error('Session token mint failed — not opening WebSocket');
+			return;
+		}
+		const url = `${baseUrl}?token=${encodeURIComponent(token)}`;
 		ws = new WebSocket(url);
 		attachHandlers(ws);
 	});
