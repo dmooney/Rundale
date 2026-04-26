@@ -7,7 +7,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use tauri::Emitter;
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
+
+/// Maximum number of NPC LLM inference calls that may run concurrently within
+/// a single `emit_npc_reactions` batch (#406).
+const NPC_REACTION_CONCURRENCY: usize = 4;
 
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
@@ -1978,48 +1982,71 @@ fn emit_npc_reactions(
             return;
         }
 
-        for npc in &npcs_here {
-            // Try LLM path first; fall back to rule-based on any failure (#404).
-            let emoji = if llm_enabled {
-                if let Some(ref client) = reaction_client {
-                    reactions::infer_player_message_reaction(
-                        client,
-                        &reaction_model,
-                        npc,
-                        &player_input,
-                        std::time::Duration::from_secs(2),
-                    )
-                    .await
-                    .or_else(|| reactions::generate_rule_reaction(&player_input))
+        // Run per-NPC inference concurrently, bounded to NPC_REACTION_CONCURRENCY
+        // simultaneous calls so a busy location can't exhaust the LLM connection
+        // pool (#406).
+        let sem = Arc::new(Semaphore::new(NPC_REACTION_CONCURRENCY));
+        let mut join_set = tokio::task::JoinSet::new();
+
+        for npc in npcs_here {
+            let sem = Arc::clone(&sem);
+            let client = reaction_client.clone();
+            let model = reaction_model.clone();
+            let input = player_input.clone();
+
+            join_set.spawn(async move {
+                // Acquire a permit before starting the (potentially slow) LLM call.
+                let _permit = sem.acquire().await.ok();
+
+                // Try LLM path first; fall back to rule-based on any failure (#404).
+                let emoji = if llm_enabled {
+                    if let Some(ref c) = client {
+                        reactions::infer_player_message_reaction(
+                            c,
+                            &model,
+                            &npc,
+                            &input,
+                            std::time::Duration::from_secs(2),
+                        )
+                        .await
+                        .or_else(|| reactions::generate_rule_reaction(&input))
+                    } else {
+                        reactions::generate_rule_reaction(&input)
+                    }
                 } else {
-                    reactions::generate_rule_reaction(&player_input)
-                }
-            } else {
-                reactions::generate_rule_reaction(&player_input)
+                    reactions::generate_rule_reaction(&input)
+                };
+
+                (npc.name.clone(), emoji)
+            });
+        }
+
+        // Collect results as tasks finish, then persist + emit each reaction.
+        while let Some(result) = join_set.join_next().await {
+            let Ok((npc_name, Some(emoji))) = result else {
+                continue;
             };
 
-            if let Some(emoji) = emoji {
-                // Persist to reaction_log so NPC memory is maintained (#403).
-                {
-                    let mut npc_manager = state.npc_manager.lock().await;
-                    if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc.name) {
-                        npc_mut.reaction_log.add_player_message_reaction(
-                            &emoji,
-                            &player_input,
-                            chrono::Utc::now(),
-                        );
-                    }
+            // Persist to reaction_log so NPC memory is maintained (#403).
+            {
+                let mut npc_manager = state.npc_manager.lock().await;
+                if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
+                    npc_mut.reaction_log.add_player_message_reaction(
+                        &emoji,
+                        &player_input,
+                        chrono::Utc::now(),
+                    );
                 }
-
-                let _ = app.emit(
-                    crate::events::EVENT_NPC_REACTION,
-                    NpcReactionPayload {
-                        message_id: player_msg_id.clone(),
-                        emoji,
-                        source: capitalize_first(&npc.name),
-                    },
-                );
             }
+
+            let _ = app.emit(
+                crate::events::EVENT_NPC_REACTION,
+                NpcReactionPayload {
+                    message_id: player_msg_id.clone(),
+                    emoji,
+                    source: capitalize_first(&npc_name),
+                },
+            );
         }
     });
 }
