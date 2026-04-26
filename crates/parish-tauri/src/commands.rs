@@ -1958,7 +1958,9 @@ fn emit_npc_reactions(
     let player_msg_id = player_msg_id.to_string();
     let player_input = player_input.to_string();
 
-    tokio::spawn(async move {
+    // #651 — await the task handle and surface any panic to the log so errors
+    // are never silently swallowed.
+    let handle = tokio::spawn(async move {
         let (npcs_here, llm_enabled, reaction_client, reaction_model) = {
             let npc_manager = state.npc_manager.lock().await;
             let config = state.config.lock().await;
@@ -2048,6 +2050,15 @@ fn emit_npc_reactions(
                     source: capitalize_first(&npc_name),
                 },
             );
+        }
+    });
+
+    // Spawn a lightweight watcher that logs any panic from the reaction batch
+    // (#651). This keeps emit_npc_reactions non-blocking while ensuring panics
+    // are visible in the tracing output rather than silently swallowed.
+    tokio::spawn(async move {
+        if let Err(e) = handle.await {
+            tracing::error!(error = %e, "emit_npc_reactions task panicked");
         }
     });
 }

@@ -46,16 +46,13 @@ impl Drop for ActiveWsGuard {
             set.remove(&self.email);
         } else if let Ok(handle) = tokio::runtime::Handle::try_current() {
             // #499 — only spawn cleanup if the Tokio runtime is still alive.
+            // #656 — drop the handle immediately (fire-and-forget); is_finished()
+            // on a freshly-spawned task is always false and was dead code.
             let state = Arc::clone(&self.state);
             let email = self.email.clone();
-            if handle
-                .spawn(async move {
-                    state.active_ws.lock().await.remove(&email);
-                })
-                .is_finished()
-            {
-                tracing::warn!(user = %self.email, "ActiveWsGuard: async cleanup task completed immediately or failed");
-            }
+            let _handle = handle.spawn(async move {
+                state.active_ws.lock().await.remove(&email);
+            });
         } else {
             tracing::warn!(user = %self.email, "ActiveWsGuard: no Tokio runtime — email slot leaked (benign at shutdown)");
         }
