@@ -19,6 +19,15 @@ interface MatchRange {
 	kind: SegmentKind;
 }
 
+// Priority table (module-level constant): higher number = higher priority.
+// Hoisted out of segmentText so it is not reallocated on every call.
+const KIND_PRIORITY: Record<SegmentKind, number> = {
+	irish: 3,
+	location: 2,
+	name: 1,
+	plain: 0,
+};
+
 /**
  * Splits `content` into segments annotated with a semantic kind.
  *
@@ -65,14 +74,6 @@ export function segmentText(
 
 	if (ranges.length === 0) return [{ text: content, kind: 'plain' }];
 
-	// Priority table: higher number = higher priority.
-	const kindPriority: Record<SegmentKind, number> = {
-		irish: 3,
-		location: 2,
-		name: 1,
-		plain: 0,
-	};
-
 	// Resolve overlaps by priority first (highest wins), then by start position
 	// for equal-priority matches (earlier wins).  This matches the docstring
 	// contract: "Overlapping matches are resolved by priority; for equal-priority
@@ -81,12 +82,13 @@ export function segmentText(
 	// Algorithm:
 	//   1. Sort by priority descending, then by start position ascending.
 	//   2. Greedily accept ranges that don't overlap any already-accepted range.
-	//      Because we visit highest-priority ranges first, a high-priority range
-	//      that starts later will be accepted before a lower-priority range that
-	//      started earlier — exactly the behaviour the docstring promises.
+	//      Because we visit in priority-DESC order, a higher-priority range is
+	//      always accepted before a lower-priority one, regardless of position.
+	//      Among equal-priority matches the start-ASC sub-sort ensures the
+	//      earlier range is visited (and accepted) first.
 	//   3. Re-sort accepted ranges by start position for segment construction.
 	ranges.sort(
-		(a, b) => kindPriority[b.kind] - kindPriority[a.kind] || a.start - b.start,
+		(a, b) => KIND_PRIORITY[b.kind] - KIND_PRIORITY[a.kind] || a.start - b.start,
 	);
 
 	const resolved: MatchRange[] = [];
