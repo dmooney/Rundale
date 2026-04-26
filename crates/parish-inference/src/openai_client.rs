@@ -4,6 +4,7 @@
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
 
+use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::rate_limit::InferenceRateLimiter;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
@@ -256,7 +257,7 @@ impl OpenAiClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -312,7 +313,7 @@ impl OpenAiClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -466,7 +467,7 @@ enum SseResult {
 /// Processes a single SSE line: extracts content, sends tokens, detects completion.
 fn process_sse_line(
     line: &str,
-    token_tx: &mpsc::UnboundedSender<String>,
+    token_tx: &mpsc::Sender<String>,
     accumulated: &mut String,
 ) -> SseResult {
     let Some(data) = parse_sse_line(line) else {
@@ -481,7 +482,13 @@ fn process_sse_line(
                 .and_then(|c| c.delta.content.as_deref())
                 .filter(|t| !t.is_empty())
             {
-                let _ = token_tx.send(text.to_string());
+                if token_tx.try_send(text.to_string()).is_err() {
+                    tracing::warn!(
+                        "token streaming channel full (capacity {}); token dropped — \
+                         consumer is not keeping up with LLM output (#83)",
+                        TOKEN_CHANNEL_CAPACITY,
+                    );
+                }
                 accumulated.push_str(text);
             }
             if chunk_data
@@ -853,7 +860,7 @@ mod tests {
     #[ignore] // Requires Ollama running on localhost:11434
     async fn test_generate_stream_live() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, mut rx) = mpsc::channel(TOKEN_CHANNEL_CAPACITY);
         let result = client
             .generate_stream("qwen3:14b", "Say hello in one word.", None, tx, None, None)
             .await;

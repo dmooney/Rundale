@@ -15,6 +15,7 @@
 //! mirrors [`crate::openai_client::OpenAiClient`] so callers can dispatch
 //! through [`crate::AnyClient`] without branching.
 
+use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::openai_client::build_client_or_fallback;
 use crate::rate_limit::InferenceRateLimiter;
 use parish_config::InferenceConfig;
@@ -412,7 +413,7 @@ impl AnthropicClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -445,7 +446,7 @@ impl AnthropicClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -517,7 +518,7 @@ enum SseResult {
 /// keepalive or reordering.
 fn process_sse_line(
     line: &str,
-    token_tx: &mpsc::UnboundedSender<String>,
+    token_tx: &mpsc::Sender<String>,
     accumulated: &mut String,
 ) -> SseResult {
     let trimmed = line.trim();
@@ -537,7 +538,13 @@ fn process_sse_line(
             if let StreamDelta::TextDelta { text } = delta
                 && !text.is_empty()
             {
-                let _ = token_tx.send(text.clone());
+                if token_tx.try_send(text.clone()).is_err() {
+                    tracing::warn!(
+                        "token streaming channel full (capacity {}); token dropped — \
+                         consumer is not keeping up with LLM output (#83)",
+                        TOKEN_CHANNEL_CAPACITY,
+                    );
+                }
                 accumulated.push_str(&text);
             }
             SseResult::Continue
@@ -795,7 +802,7 @@ mod tests {
     }
 
     fn run_sse(lines: &[&str]) -> SseOutput {
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, mut rx) = mpsc::channel(TOKEN_CHANNEL_CAPACITY);
         let mut acc = String::new();
         let mut done = false;
         let mut error = None;
@@ -979,7 +986,7 @@ mod tests {
             return;
         };
         let c = AnthropicClient::new("https://api.anthropic.com", Some(&key));
-        let (tx, mut rx) = mpsc::unbounded_channel();
+        let (tx, mut rx) = mpsc::channel(TOKEN_CHANNEL_CAPACITY);
         let result = c
             .generate_stream(
                 "claude-sonnet-4-5",
@@ -1136,7 +1143,7 @@ mod tests {
     fn isolate_system_preserves_non_close_angle_brackets() {
         // Angle brackets that aren't actually close-tag matches (e.g.
         // quoted math like `a < b` or different tags) must pass through
-        // unchanged. Otherwise we'd corrupt legitimate caller text.
+        // unmodified. Otherwise we'd corrupt legitimate caller text.
         let input = "if a < b then use <caller_system_peer> tag";
         let wrapped = isolate_system_for_json(Some(input));
         assert!(wrapped.contains("if a < b then"));

@@ -8,6 +8,10 @@ use std::time::{Duration, Instant};
 
 use parish_types::extract_dialogue_from_partial_json;
 
+/// Re-export so crates that depend on `parish-core` but not `parish-inference`
+/// directly can still construct bounded channels with the canonical capacity.
+pub use parish_inference::TOKEN_CHANNEL_CAPACITY;
+
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;
 
@@ -23,7 +27,7 @@ pub const BATCH_MS: u64 = 16;
 /// Returns the full accumulated response so the caller can parse metadata
 /// (mood, action, language hints, etc.) after streaming completes.
 pub async fn stream_npc_tokens(
-    mut token_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    mut token_rx: tokio::sync::mpsc::Receiver<String>,
     mut emit_token: impl FnMut(&str),
 ) -> String {
     let mut accumulated = String::new();
@@ -102,8 +106,9 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_dialogue_field() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(r#"{"dialogue": "Hello world!"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
@@ -115,10 +120,12 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_incremental() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send(r#"{"dialogue": "Hel"#.to_string()).unwrap();
-        tx.send(r#"lo wor"#.to_string()).unwrap();
-        tx.send(r#"ld!", "mood": "happy"}"#.to_string()).unwrap();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send(r#"{"dialogue": "Hel"#.to_string()).await.unwrap();
+        tx.send(r#"lo wor"#.to_string()).await.unwrap();
+        tx.send(r#"ld!", "mood": "happy"}"#.to_string())
+            .await
+            .unwrap();
         drop(tx);
 
         let mut collected = String::new();
@@ -129,10 +136,11 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_with_metadata_not_leaked() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(
             r#"{"dialogue": "Good morning!", "action": "nods", "mood": "friendly"}"#.to_string(),
         )
+        .await
         .unwrap();
         drop(tx);
 
@@ -145,10 +153,10 @@ mod tests {
 
     #[tokio::test]
     async fn stream_plain_text_incremental() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Well, ".to_string()).unwrap();
-        tx.send("good day ".to_string()).unwrap();
-        tx.send("to ye".to_string()).unwrap();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send("Well, ".to_string()).await.unwrap();
+        tx.send("good day ".to_string()).await.unwrap();
+        tx.send("to ye".to_string()).await.unwrap();
         drop(tx);
 
         let mut collected = String::new();
@@ -159,8 +167,10 @@ mod tests {
 
     #[tokio::test]
     async fn stream_plain_text_single_chunk() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
-        tx.send("Just plain text response.".to_string()).unwrap();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tx.send("Just plain text response.".to_string())
+            .await
+            .unwrap();
         drop(tx);
 
         let mut collected = String::new();
@@ -171,7 +181,7 @@ mod tests {
 
     #[tokio::test]
     async fn stream_empty_channel() {
-        let (tx, token_rx) = mpsc::unbounded_channel::<String>();
+        let (tx, token_rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
         drop(tx);
 
         let mut collected = String::new();
@@ -182,8 +192,9 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_with_escapes() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(r#"{"dialogue": "He said \"hello\" to me"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
@@ -194,8 +205,9 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_with_unicode() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(r#"{"dialogue": "Sláinte agus fáilte!"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
@@ -206,8 +218,9 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_empty_dialogue() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(r#"{"dialogue": "", "mood": "silent"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
@@ -218,13 +231,27 @@ mod tests {
 
     #[tokio::test]
     async fn stream_json_no_space_after_colon() {
-        let (tx, token_rx) = mpsc::unbounded_channel();
+        let (tx, token_rx) = mpsc::channel(parish_inference::TOKEN_CHANNEL_CAPACITY);
         tx.send(r#"{"dialogue":"Compact JSON!"}"#.to_string())
+            .await
             .unwrap();
         drop(tx);
 
         let mut collected = String::new();
         let _ = stream_npc_tokens(token_rx, |batch| collected.push_str(batch)).await;
         assert_eq!(collected, "Compact JSON!");
+    }
+
+    #[tokio::test]
+    async fn stream_channel_is_bounded_not_unbounded() {
+        // Proves #83: the streaming channel is bounded so a slow consumer cannot
+        // cause unbounded memory growth. `max_capacity()` equals the cap constant;
+        // an unbounded channel would return `usize::MAX` here.
+        let (tx, _rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        assert_eq!(
+            tx.max_capacity(),
+            parish_inference::TOKEN_CHANNEL_CAPACITY,
+            "token channel must be bounded to TOKEN_CHANNEL_CAPACITY (fix #83)"
+        );
     }
 }

@@ -1071,7 +1071,8 @@ async fn handle_headless_game_input(
 
                     *request_id += 1;
 
-                    let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
+                    let (token_tx, token_rx) =
+                        mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
 
                     let npc_display_name = setup.display_name;
                     let npc_actual_name = setup.npc_name;

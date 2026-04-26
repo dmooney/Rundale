@@ -828,7 +828,7 @@ async fn run_npc_turn(
     let loading_cancel = tokio_util::sync::CancellationToken::new();
     spawn_loading_animation(Arc::clone(state), loading_cancel.clone());
 
-    let (token_tx, token_rx) = mpsc::unbounded_channel::<String>();
+    let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
     state.event_bus.emit(

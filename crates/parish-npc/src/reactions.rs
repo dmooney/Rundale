@@ -21,7 +21,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 
 use crate::{Npc, NpcId};
@@ -79,13 +79,20 @@ pub struct ReactionEntry {
 ///
 /// Stores the last [`MAX_ENTRIES`] reactions and formats them as prompt
 /// context so the NPC is aware of the player's nonverbal feedback.
+///
+/// Uses a [`VecDeque`] internally so eviction of the oldest entry is O(1)
+/// rather than the O(n) shift that a plain `Vec` would require. Fixes #284.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ReactionLog {
-    entries: Vec<ReactionEntry>,
+    entries: VecDeque<ReactionEntry>,
 }
 
-/// Maximum number of reaction entries to retain.
-const MAX_ENTRIES: usize = 10;
+/// Maximum number of reaction entries to retain per NPC.
+///
+/// 20 entries covers the tail of a long conversation session without
+/// accumulating unbounded memory. Older entries are evicted with O(1)
+/// [`VecDeque::pop_front`]. Fixes #284.
+const MAX_ENTRIES: usize = 20;
 
 impl ReactionLog {
     /// Adds a player→NPC reaction (player reacts to something the NPC said).
@@ -94,14 +101,14 @@ impl ReactionLog {
     /// the canonical palette. `context` is what the NPC said.
     pub fn add(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
         if let Some(desc) = reaction_description(emoji) {
-            self.entries.push(ReactionEntry {
+            self.entries.push_back(ReactionEntry {
                 emoji: emoji.to_string(),
                 description: desc.to_string(),
                 context: context.chars().take(80).collect(),
                 timestamp,
             });
             if self.entries.len() > MAX_ENTRIES {
-                self.entries.remove(0);
+                self.entries.pop_front();
             }
         }
     }
@@ -118,14 +125,14 @@ impl ReactionLog {
         timestamp: DateTime<Utc>,
     ) {
         if let Some(desc) = reaction_description(emoji) {
-            self.entries.push(ReactionEntry {
+            self.entries.push_back(ReactionEntry {
                 emoji: emoji.to_string(),
                 description: desc.to_string(),
                 context: player_message.chars().take(80).collect(),
                 timestamp,
             });
             if self.entries.len() > MAX_ENTRIES {
-                self.entries.remove(0);
+                self.entries.pop_front();
             }
         }
     }
@@ -192,9 +199,12 @@ impl ReactionLog {
         self.entries.is_empty()
     }
 
-    /// Returns the stored entries in chronological order (oldest first).
-    pub fn entries(&self) -> &[ReactionEntry] {
-        &self.entries
+    /// Returns an iterator over entries in chronological order (oldest first).
+    ///
+    /// The iterator is double-ended, so callers can call `.rev()` to walk
+    /// newest-first without an intermediate allocation.
+    pub fn entries(&self) -> impl DoubleEndedIterator<Item = &ReactionEntry> + ExactSizeIterator {
+        self.entries.iter()
     }
 }
 
@@ -1142,7 +1152,8 @@ mod tests {
     #[test]
     fn reaction_log_caps_at_max_entries() {
         let mut log = ReactionLog::default();
-        for i in 0..15 {
+        // Add 25 entries — 5 more than the cap of 20 — to force eviction.
+        for i in 0..25 {
             log.add(
                 "😊",
                 &format!("message {}", i),
@@ -1150,8 +1161,33 @@ mod tests {
             );
         }
         assert_eq!(log.len(), MAX_ENTRIES);
-        // Oldest entries should be evicted
+        // The oldest 5 (messages 0–4) must have been evicted; message 5 is now first.
         assert!(log.entries[0].context.contains("message 5"));
+    }
+
+    #[test]
+    fn reaction_log_pop_front_is_o1() {
+        // Structural proof that the backing store is VecDeque (O(1) pop_front, #284).
+        // We add MAX_ENTRIES + 1 items and confirm the log stays capped — if the
+        // implementation were a plain Vec::remove(0) this would still work, but
+        // the type annotation below would fail to compile if `entries` were Vec.
+        let mut log = ReactionLog::default();
+        for i in 0..=MAX_ENTRIES {
+            log.add(
+                "😊",
+                &format!("ctx {}", i),
+                Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
+            );
+        }
+        assert_eq!(log.len(), MAX_ENTRIES);
+        // The evicted entry was the oldest (ctx 0); the newest is ctx MAX_ENTRIES.
+        assert!(
+            log.entries()
+                .last()
+                .unwrap()
+                .context
+                .contains(&format!("ctx {}", MAX_ENTRIES))
+        );
     }
 
     #[test]

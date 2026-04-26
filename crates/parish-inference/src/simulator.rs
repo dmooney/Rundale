@@ -275,7 +275,7 @@ impl SimulatorClient {
         _model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         _max_tokens: Option<u32>,
         _temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -285,8 +285,11 @@ impl SimulatorClient {
 
         for word in text.split_whitespace() {
             let chunk = format!("{} ", word);
-            // Ignore send errors — receiver may have dropped
-            let _ = token_tx.send(chunk);
+            // Back-pressure: await send so the simulator cannot outpace the consumer.
+            // Ignore send errors — receiver may have dropped (e.g. request cancelled).
+            if token_tx.send(chunk).await.is_err() {
+                break;
+            }
             // ~40ms per token ≈ 25 tok/s, similar to a fast local model.
             tokio::time::sleep(std::time::Duration::from_millis(40)).await;
         }
@@ -303,7 +306,7 @@ impl SimulatorClient {
         _model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         _max_tokens: Option<u32>,
         _temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -317,7 +320,9 @@ impl SimulatorClient {
 
         for word in json.split_whitespace() {
             let chunk = format!("{} ", word);
-            let _ = token_tx.send(chunk);
+            if token_tx.send(chunk).await.is_err() {
+                break;
+            }
             tokio::time::sleep(std::time::Duration::from_millis(40)).await;
         }
 
@@ -369,6 +374,7 @@ impl Default for SimulatorClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TOKEN_CHANNEL_CAPACITY;
 
     #[test]
     fn chain_builds_from_corpus() {
@@ -429,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn generate_stream_sends_tokens() {
         let sim = SimulatorClient::new();
-        let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+        let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
         let result = sim
             .generate_stream("sim", "hello there", None, tx, None, None)
             .await;
@@ -442,6 +448,15 @@ mod tests {
         }
         // Tokens together should reconstruct the response (modulo trailing spaces)
         assert_eq!(received.trim(), full.trim());
+    }
+
+    #[tokio::test]
+    async fn generate_stream_channel_is_bounded() {
+        // The channel capacity must equal TOKEN_CHANNEL_CAPACITY, proving #83 is fixed.
+        let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+        assert_eq!(tx.capacity(), TOKEN_CHANNEL_CAPACITY);
+        // Max capacity stays at the bound even when nothing has been consumed.
+        assert_eq!(tx.max_capacity(), TOKEN_CHANNEL_CAPACITY);
     }
 
     #[test]

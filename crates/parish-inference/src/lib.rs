@@ -28,6 +28,16 @@ use tokio::task::JoinHandle;
 use parish_config::{InferenceConfig, Provider};
 use parish_types::ParishError;
 
+/// Buffer capacity for the bounded token streaming channel.
+///
+/// LLM providers produce tokens far faster than terminals or websocket
+/// clients consume them, so a truly unbounded channel risks OOM on long
+/// responses or slow consumers. 1 024 tokens is enough headroom for any
+/// realistic burst; the sender blocks (back-pressure) if the consumer
+/// falls further behind, which naturally throttles HTTP reads from the
+/// provider. Fixes #83.
+pub const TOKEN_CHANNEL_CAPACITY: usize = 1024;
+
 /// Builds the right [`AnyClient`] variant for a given [`Provider`].
 ///
 /// Every call site that currently does `OpenAiClient::new(url, key)` should
@@ -184,7 +194,8 @@ pub struct InferenceRequest {
     pub response_tx: oneshot::Sender<InferenceResponse>,
     /// Optional channel for streaming tokens. If present, the worker streams
     /// individual tokens through this before sending the final response.
-    pub token_tx: Option<mpsc::UnboundedSender<String>>,
+    /// Bounded to [`TOKEN_CHANNEL_CAPACITY`] to prevent unbounded memory growth (#83).
+    pub token_tx: Option<mpsc::Sender<String>>,
     /// Optional maximum number of tokens to generate.
     pub max_tokens: Option<u32>,
     /// Optional temperature for sampling (0.0 = deterministic, 1.0+ = creative).
@@ -245,7 +256,7 @@ impl InferenceQueue {
         model: String,
         prompt: String,
         system: Option<String>,
-        token_tx: Option<mpsc::UnboundedSender<String>>,
+        token_tx: Option<mpsc::Sender<String>>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
         priority: InferencePriority,
@@ -494,7 +505,7 @@ impl AnyClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -524,7 +535,7 @@ impl AnyClient {
         model: &str,
         prompt: &str,
         system: Option<&str>,
-        token_tx: mpsc::UnboundedSender<String>,
+        token_tx: mpsc::Sender<String>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
@@ -868,7 +879,7 @@ mod tests {
     async fn test_inference_queue_with_token_tx() {
         let (queue, mut irx, _brx, _batrx) = make_queue();
 
-        let (token_tx, _token_rx) = mpsc::unbounded_channel::<String>();
+        let (token_tx, _token_rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
 
         let _response_rx = queue
             .send(

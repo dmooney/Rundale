@@ -164,7 +164,7 @@ pub fn spawn_loading_animation(app: tauri::AppHandle, cancel: tokio_util::sync::
 /// Delegates to [`parish_core::ipc::stream_npc_tokens`] for the core logic.
 pub async fn stream_npc_response(
     app: tauri::AppHandle,
-    token_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
+    token_rx: tokio::sync::mpsc::Receiver<String>,
     turn_id: u64,
     source: String,
 ) -> String {

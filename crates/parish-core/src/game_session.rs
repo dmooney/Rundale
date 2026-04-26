@@ -412,7 +412,7 @@ pub async fn stream_reaction_texts(
         // and the stream-pump knows which entry to fill.
         emit_text_log(turn_id, &reaction.npc_display_name);
 
-        let (tx, rx) = mpsc::unbounded_channel::<String>();
+        let (tx, rx) = mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
 
         // Capture prompt data here (before the spawn) so we can log it afterwards.
         let mut llm_log_info: Option<(usize, String, String)> = None; // (prompt_len, system, context)
@@ -446,13 +446,14 @@ pub async fn stream_reaction_texts(
                 });
             } else {
                 // No client or NPC not found — fall back to canned text.
-                let _ = tx.send(reaction.canned_text.clone());
+                // Single send on a fresh channel; try_send will not fail.
+                let _ = tx.try_send(reaction.canned_text.clone());
                 drop(tx);
             }
         } else {
             // Canned text path: send directly through the channel so
             // stream_npc_tokens can still pace the output word-by-word.
-            let _ = tx.send(reaction.canned_text.clone());
+            let _ = tx.try_send(reaction.canned_text.clone());
             drop(tx);
         }
 
