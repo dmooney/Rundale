@@ -161,7 +161,23 @@ fn find_toplevel_dialogue_key(buffer: &str) -> Option<usize> {
                     if depth == 1 {
                         let key = b"\"dialogue\"";
                         if bytes.get(i..i + key.len()) == Some(key) {
-                            return Some(i);
+                            // Verify that the next non-whitespace byte is `:` — this
+                            // distinguishes a JSON key from a string value that happens
+                            // to contain the text "dialogue".
+                            let after_key = i + key.len();
+                            let mut j = after_key;
+                            while j < n
+                                && (bytes[j] == b' '
+                                    || bytes[j] == b'\t'
+                                    || bytes[j] == b'\r'
+                                    || bytes[j] == b'\n')
+                            {
+                                j += 1;
+                            }
+                            if j < n && bytes[j] == b':' {
+                                return Some(i);
+                            }
+                            // Not a key (it's a value); fall through to enter the string.
                         }
                     }
                     // Enter string regardless.
@@ -621,6 +637,32 @@ mod tests {
             extract_dialogue_from_partial_json(buf),
             None,
             "must return None when 'dialogue' only appears inside a nested object"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_no_false_match_when_value_equals_key_literal() {
+        // Regression for Gemini feedback: a string VALUE that is exactly
+        // "dialogue" (including surrounding quotes) must not be mistaken for
+        // the top-level "dialogue" key.  The scanner must check for a trailing
+        // `:` before accepting a match.
+        let buf = r#"{"foo": "dialogue", "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "value 'dialogue' must not shadow the real top-level key"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_returns_none_when_dialogue_only_in_value() {
+        // If "dialogue" appears solely as a string value and never as a key,
+        // the function must return None rather than misidentifying the value.
+        let buf = r#"{"foo": "dialogue", "bar": "other"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            None,
+            "must return None when 'dialogue' only appears as a string value"
         );
     }
 
