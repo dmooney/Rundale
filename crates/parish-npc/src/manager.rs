@@ -2593,35 +2593,38 @@ mod tests {
     /// produce distance-correct tier assignments for the new player position.
     #[test]
     fn bfs_cache_invalidated_on_player_move() {
-        // Chain: 0 — 1 — 2 — 3 — 4
-        let graph = make_chain_graph(4);
+        // Chain: 0 — 1 — 2 — 3 — 4 — 5 — 6
+        // Default tier boundaries: Tier1 ≤ 0, Tier2 ≤ 2, Tier3 ≤ 5, Tier4 > 5.
+        // Distance 6 exceeds tier3_max_distance (5), so the far-end NPC is Tier4.
+        let graph = make_chain_graph(6);
         let mut mgr = NpcManager::new();
-        for i in 0..=4 {
-            mgr.add_npc(make_test_npc(i + 10, i));
-        }
+        // Only need NPCs at the two endpoints: loc 0 (NpcId 10) and loc 6 (NpcId 16).
+        mgr.add_npc(make_test_npc(10, 0));
+        mgr.add_npc(make_test_npc(16, 6));
         let mut world = WorldState::new();
         world.player_location = LocationId(0);
         world.graph = graph;
 
         mgr.assign_tiers(&world, &[]);
-        // With player at 0, NPC at loc 0 is Tier 1, NPC at loc 4 is Tier 4.
+        // With player at 0: NPC at loc 0 is distance 0 → Tier 1;
+        //                   NPC at loc 6 is distance 6 > tier3_max (5) → Tier 4.
         assert_eq!(mgr.tier_of(NpcId(10)), Some(CogTier::Tier1));
-        assert_eq!(mgr.tier_of(NpcId(14)), Some(CogTier::Tier4));
+        assert_eq!(mgr.tier_of(NpcId(16)), Some(CogTier::Tier4));
 
-        // Move player to the far end
-        world.player_location = LocationId(4);
+        // Move player to the far end — cache must be invalidated automatically.
+        world.player_location = LocationId(6);
         mgr.assign_tiers(&world, &[]);
 
-        // Now NPC at loc 4 should be Tier 1, NPC at loc 0 should be Tier 4.
+        // Now NPC at loc 6 should be Tier 1, NPC at loc 0 should be Tier 4.
         assert_eq!(
-            mgr.tier_of(NpcId(14)),
+            mgr.tier_of(NpcId(16)),
             Some(CogTier::Tier1),
             "NPC at player's new location must be promoted to Tier 1"
         );
         assert_eq!(
             mgr.tier_of(NpcId(10)),
             Some(CogTier::Tier4),
-            "NPC 4 hops from player must be demoted to Tier 4"
+            "NPC 6 hops from player must be demoted to Tier 4"
         );
     }
 }
