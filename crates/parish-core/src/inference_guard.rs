@@ -29,10 +29,15 @@
 //! **Slow path:** another task holds the world lock at the exact moment the
 //! guard drops.  We use `tokio::task::block_in_place` to block the current
 //! thread until the lock is available, then call `inference_resume()`.
-//! `block_in_place` moves the blocking work off the Tokio worker thread pool
-//! and is safe to call from `Drop` because it does not require an `async`
-//! context — it only requires that the current thread belongs to a Tokio
-//! multi-thread runtime (the only runtime we use in production).
+//! `block_in_place` is only safe on a **multi-threaded** Tokio runtime; on a
+//! current-thread runtime it panics (and would double-panic if we are already
+//! unwinding).  We therefore check the runtime flavor before using it.
+//!
+//! If we are already panicking, `block_in_place` is skipped entirely —
+//! calling it during a panic can cause a process abort via double-panic.
+//! We fall back to `blocking_lock` directly.  If the lock is contended at
+//! that moment the thread blocks briefly; in the worst case the resume is
+//! delayed but the process survives.
 //!
 //! If there is no Tokio runtime at all (e.g. called from a pure synchronous
 //! test or an OS thread without a runtime), `blocking_lock` is used as a
@@ -55,6 +60,7 @@
 use std::sync::Arc;
 
 use parish_world::WorldState;
+use tokio::runtime::RuntimeFlavor;
 use tokio::sync::Mutex;
 
 /// RAII guard that holds the inference-pause state of the world clock.
@@ -93,21 +99,33 @@ impl Drop for InferencePauseGuard {
         // immediately dropped, making the resume a fire-and-forget that could
         // silently never run if the runtime was shutting down (issue #650).
         //
-        // Fix: use `block_in_place` to block the current thread until the
-        // lock is available, guaranteeing `inference_resume()` always runs
-        // before the guard is fully dropped.
-        if tokio::runtime::Handle::try_current().is_ok() {
+        // Fix: use `block_in_place` when running on a multi-threaded Tokio
+        // runtime — it blocks the current thread until the lock is available,
+        // guaranteeing `inference_resume()` always runs before the guard is
+        // fully dropped.
+        //
+        // `block_in_place` is only valid on a multi-thread runtime; calling it
+        // on a current-thread runtime panics.  We also skip it when the thread
+        // is already panicking to avoid a double-panic process abort — in that
+        // case `blocking_lock` is used directly and may block briefly.
+        let use_block_in_place = !std::thread::panicking()
+            && tokio::runtime::Handle::try_current()
+                .map(|h| h.runtime_flavor() == RuntimeFlavor::MultiThread)
+                .unwrap_or(false);
+
+        if use_block_in_place {
             let world = Arc::clone(&self.world);
             tokio::task::block_in_place(|| {
-                let mut w = world.blocking_lock();
-                w.clock.inference_resume();
+                world.blocking_lock().clock.inference_resume();
             });
         } else {
-            // No Tokio runtime (e.g. called from a pure synchronous test or
-            // an OS thread without a runtime).  Use blocking_lock as a last
-            // resort — safe here because we are not on a Tokio worker thread.
-            let mut w = self.world.blocking_lock();
-            w.clock.inference_resume();
+            // Fallback for:
+            //  • current-thread (single-threaded) Tokio runtimes,
+            //  • no runtime at all (pure sync test / OS thread),
+            //  • panicking threads (avoid double-panic abort).
+            // Safe here because we are not on a worker thread that would
+            // block the executor, or we are already unwinding.
+            self.world.blocking_lock().clock.inference_resume();
         }
     }
 }
