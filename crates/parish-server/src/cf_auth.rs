@@ -418,9 +418,11 @@ impl SessionToken {
         let payload = &token[..dot_pos];
         let sig_hex = &token[dot_pos + 1..];
 
-        let colon_pos = payload.find(':').ok_or("malformed token")?;
-        let expiry_hex = &payload[..colon_pos];
-        let email = &payload[colon_pos + 1..];
+        if payload.len() < 17 || payload.as_bytes()[16] != b':' {
+            return Err("malformed token");
+        }
+        let expiry_hex = &payload[..16];
+        let email = &payload[17..];
 
         let expiry = u64::from_str_radix(expiry_hex, 16).map_err(|_| "bad expiry")?;
         let now = SystemTime::now()
@@ -481,6 +483,14 @@ mod tests {
         // Corrupt the signature
         let bad = format!("{token}X");
         assert!(SessionToken::validate_full(&bad).is_err());
+    }
+
+    #[test]
+    fn session_token_email_with_colon() {
+        let email = "\"user:name\"@example.com";
+        let token = SessionToken::mint_full(email);
+        let recovered = SessionToken::validate_full(&token).unwrap();
+        assert_eq!(recovered, email);
     }
 
     // ── #457 JWK policy tests ─────────────────────────────────────────────
