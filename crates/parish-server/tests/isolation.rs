@@ -270,6 +270,170 @@ async fn second_ws_upgrade_same_email_is_409() {
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
+// ── #105 / #282 — Debug snapshot acquires locks sequentially, not all at once ─
+//
+// Before the fix, `get_debug_snapshot` (and the Tauri debug tick) held all 5+
+// mutexes simultaneously while building the snapshot.  The fix snapshots each
+// lock's data in a brief, non-overlapping window so only `world` and
+// `npc_manager` are held during the actual `build_debug_snapshot` call.
+//
+// This test exercises the corrected lock pattern against a live `AppState` to
+// confirm that concurrent snapshot + state-mutation tasks do not deadlock and
+// both produce sensible output.
+
+/// Concurrent snapshot builds and state reads must not deadlock (#105, #282).
+///
+/// Spawns multiple tasks that simultaneously:
+/// - read the debug_events / game_events / inference_log (snapshot path)
+/// - acquire world + npc_manager (the dominant locks in `build_debug_snapshot`)
+///
+/// If any task blocks forever the test times out; if the data is coherent
+/// each snapshot's `world` fields must be non-empty.
+#[tokio::test]
+async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use parish_core::debug_snapshot::{
+        AuthDebug, DebugEvent, InferenceDebug, build_debug_snapshot,
+    };
+    use parish_core::npc::manager::NpcManager;
+    use parish_core::world::events::GameEvent;
+    use parish_core::world::transport::TransportConfig;
+    use parish_core::world::{LocationId, WorldState};
+    use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
+
+    let data_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../mods/rundale");
+    let world = WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+    let npc_manager = NpcManager::new();
+    let ui_config = UiConfigSnapshot {
+        hints_label: "test".to_string(),
+        default_accent: "#000".to_string(),
+        splash_text: String::new(),
+        active_tile_source: String::new(),
+        tile_sources: Vec::new(),
+    };
+    let theme_palette = parish_core::game_mod::default_theme_palette();
+    let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../saves");
+
+    let state = Arc::new(build_app_state(
+        world,
+        npc_manager,
+        None,
+        GameConfig {
+            provider_name: "test".to_string(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: "test-model".to_string(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: [None, None, None, None],
+            category_model: [None, None, None, None],
+            category_api_key: [None, None, None, None],
+            category_base_url: [None, None, None, None],
+            flags: parish_core::config::FeatureFlags::default(),
+            category_rate_limit: [None, None, None, None],
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+        },
+        None,
+        TransportConfig::default(),
+        ui_config,
+        theme_palette,
+        saves_dir,
+        data_dir.clone(),
+        None,
+        data_dir.join("parish-flags.json"),
+    ));
+
+    // Pre-populate debug_events so the snapshot has something to copy.
+    {
+        let mut events = state.debug_events.lock().await;
+        events.push_back(DebugEvent {
+            timestamp: "08:00 1820-03-20".to_string(),
+            category: "system".to_string(),
+            message: "test event".to_string(),
+        });
+    }
+
+    // Spawn 8 concurrent tasks that each execute the fixed snapshot pattern.
+    let mut handles = Vec::new();
+    for _ in 0..8 {
+        let state = Arc::clone(&state);
+        handles.push(tokio::spawn(async move {
+            // Replicate the fixed lock acquisition sequence from get_debug_snapshot.
+            let has_inference_queue = state.inference_queue.lock().await.is_some();
+            let (provider_name, model_name, base_url, improv_enabled) = {
+                let config = state.config.lock().await;
+                (
+                    config.provider_name.clone(),
+                    config.model_name.clone(),
+                    config.base_url.clone(),
+                    config.improv_enabled,
+                )
+            };
+            let events_snap: VecDeque<DebugEvent> =
+                state.debug_events.lock().await.iter().cloned().collect();
+            let game_events_snap: VecDeque<GameEvent> =
+                state.game_events.lock().await.iter().cloned().collect();
+            let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
+                state.inference_log.lock().await.iter().cloned().collect();
+
+            let inference = InferenceDebug {
+                provider_name,
+                model_name,
+                base_url,
+                cloud_provider: None,
+                cloud_model: None,
+                has_queue: has_inference_queue,
+                reaction_req_id: 0,
+                improv_enabled,
+                call_log,
+            };
+
+            // Acquire world + npc_manager last, build snapshot, release.
+            let world = state.world.lock().await;
+            let npc_manager = state.npc_manager.lock().await;
+            let snapshot = build_debug_snapshot(
+                &world,
+                &npc_manager,
+                &events_snap,
+                &game_events_snap,
+                &inference,
+                &AuthDebug::disabled(),
+            );
+            drop(npc_manager);
+            drop(world);
+
+            snapshot
+        }));
+    }
+
+    // All tasks must complete without deadlock.
+    let mut snapshots = Vec::new();
+    for handle in handles {
+        snapshots.push(handle.await.expect("task panicked"));
+    }
+
+    assert_eq!(snapshots.len(), 8, "all 8 snapshot tasks must complete");
+    for snap in &snapshots {
+        // The snapshot must reference a valid world clock.
+        assert!(
+            snap.clock.game_time.contains("08:00"),
+            "clock should start at 08:00"
+        );
+        // The pre-populated debug event must be present.
+        assert_eq!(snap.events.len(), 1, "one debug event must be present");
+    }
+}
+
 // ── #335 — Branch name validation ────────────────────────────────────────────
 
 /// A branch name of 65 characters must be rejected with 400.

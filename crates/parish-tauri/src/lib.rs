@@ -1482,18 +1482,59 @@ pub fn run() {
                         crate::commands::tick_inactivity(&state_idle, &handle_idle).await;
                     }
                 });
-                // Debug tick: emit debug snapshot every 2 seconds
+                // Debug tick: emit debug snapshot every 2 seconds.
+                //
+                // Snapshot each piece of state with a brief, non-overlapping
+                // lock window to avoid holding all 5+ locks simultaneously
+                // (#105, #282). Lock order: world → npc_manager →
+                // inference_queue → config → debug_events → game_events →
+                // inference_log (#483).
                 let state_debug = Arc::clone(&state_setup);
                 let handle_debug = handle.clone();
                 tokio::spawn(async move {
                     loop {
                         tokio::time::sleep(Duration::from_secs(2)).await;
-                        let world = state_debug.world.lock().await;
-                        let npc_manager = state_debug.npc_manager.lock().await;
-                        let debug_events = state_debug.debug_events.lock().await;
-                        let game_events = state_debug.game_events.lock().await;
-                        let config = state_debug.config.lock().await;
 
+                        // 1. Peek inference_queue presence first (#483).
+                        let has_inference_queue =
+                            state_debug.inference_queue.lock().await.is_some();
+
+                        // 2. Clone config fields — drop the lock immediately.
+                        let (provider_name, model_name, base_url, cloud_provider, cloud_model, improv_enabled) = {
+                            let config = state_debug.config.lock().await;
+                            (
+                                config.provider_name.clone(),
+                                config.model_name.clone(),
+                                config.base_url.clone(),
+                                config.cloud_provider_name.clone(),
+                                config.cloud_model_name.clone(),
+                                config.improv_enabled,
+                            )
+                        };
+
+                        // 3. Clone debug_events ring buffer — drop immediately.
+                        let debug_events_snapshot: std::collections::VecDeque<
+                            parish_core::debug_snapshot::DebugEvent,
+                        > = state_debug
+                            .debug_events
+                            .lock()
+                            .await
+                            .iter()
+                            .cloned()
+                            .collect();
+
+                        // 4. Clone game_events ring buffer — drop immediately.
+                        let game_events_snapshot: std::collections::VecDeque<
+                            parish_core::world::events::GameEvent,
+                        > = state_debug
+                            .game_events
+                            .lock()
+                            .await
+                            .iter()
+                            .cloned()
+                            .collect();
+
+                        // 5. Clone inference log — drop immediately.
                         let call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
                             state_debug
                                 .inference_log
@@ -1503,26 +1544,34 @@ pub fn run() {
                                 .cloned()
                                 .collect();
 
+                        // Build InferenceDebug from cloned data (no locks held).
                         let inference = InferenceDebug {
-                            provider_name: config.provider_name.clone(),
-                            model_name: config.model_name.clone(),
-                            base_url: config.base_url.clone(),
-                            cloud_provider: config.cloud_provider_name.clone(),
-                            cloud_model: config.cloud_model_name.clone(),
-                            has_queue: state_debug.inference_queue.lock().await.is_some(),
+                            provider_name,
+                            model_name,
+                            base_url,
+                            cloud_provider,
+                            cloud_model,
+                            has_queue: has_inference_queue,
                             reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
-                            improv_enabled: config.improv_enabled,
+                            improv_enabled,
                             call_log,
                         };
 
+                        // 6. Acquire world and npc_manager (canonical order)
+                        // only for the pure-read snapshot build, then release.
+                        let world = state_debug.world.lock().await;
+                        let npc_manager = state_debug.npc_manager.lock().await;
                         let snapshot = parish_core::debug_snapshot::build_debug_snapshot(
                             &world,
                             &npc_manager,
-                            &debug_events,
-                            &game_events,
+                            &debug_events_snapshot,
+                            &game_events_snapshot,
                             &inference,
                             &parish_core::debug_snapshot::AuthDebug::disabled(),
                         );
+                        drop(npc_manager);
+                        drop(world);
+
                         let _ = handle_debug.emit(events::EVENT_DEBUG_UPDATE, snapshot);
                     }
                 });

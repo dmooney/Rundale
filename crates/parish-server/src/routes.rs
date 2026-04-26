@@ -107,31 +107,52 @@ pub async fn get_debug_snapshot(
     Extension(session_id): Extension<SessionId>,
     State(global): State<Arc<GlobalState>>,
 ) -> impl IntoResponse {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    // Peek inference_queue presence *before* taking config so we honor the
-    // canonical `npc_manager → inference_queue → config` order enforced by
-    // handle_npc_conversation and run_idle_banter (#483). Taking
-    // inference_queue after config here would be the opposite order and
-    // create a latent deadlock with those handlers.
+    // Snapshot each piece of state with a brief, non-overlapping lock window.
+    // This avoids holding all 5+ locks simultaneously (#105, #282), which
+    // caused latency spikes on all concurrent game operations and created
+    // a latent deadlock risk if lock ordering ever drifted.
+    //
+    // Lock order respected throughout: world → npc_manager → inference_queue
+    // → config → debug_events → game_events → inference_log (#483).
+
+    // 1. Peek inference_queue presence first to honour canonical order (#483).
     let has_inference_queue = state.inference_queue.lock().await.is_some();
-    let config = state.config.lock().await;
-    let events = state.debug_events.lock().await;
-    let game_events = state.game_events.lock().await;
+
+    // 2. Clone the fields we need from config — drop the lock immediately.
+    let (provider_name, model_name, base_url, cloud_provider, cloud_model, improv_enabled) = {
+        let config = state.config.lock().await;
+        (
+            config.provider_name.clone(),
+            config.model_name.clone(),
+            config.base_url.clone(),
+            config.cloud_provider_name.clone(),
+            config.cloud_model_name.clone(),
+            config.improv_enabled,
+        )
+    };
+
+    // 3. Clone debug_events ring buffer — drop the lock immediately.
+    let events_snapshot: std::collections::VecDeque<parish_core::debug_snapshot::DebugEvent> =
+        state.debug_events.lock().await.iter().cloned().collect();
+
+    // 4. Clone game_events ring buffer — drop the lock immediately.
+    let game_events_snapshot: std::collections::VecDeque<parish_core::world::events::GameEvent> =
+        state.game_events.lock().await.iter().cloned().collect();
+
+    // 5. Clone inference log — drop the lock immediately.
     let raw_call_log: Vec<parish_core::debug_snapshot::InferenceLogEntry> =
         state.inference_log.lock().await.iter().cloned().collect();
 
-    // Build a full inference debug block (used internally; base_url included
-    // for accurate `has_queue` / `reaction_req_id` etc.).
+    // Build a full inference debug block from the cloned data (no locks held).
     let inference = InferenceDebug {
-        provider_name: config.provider_name.clone(),
-        model_name: config.model_name.clone(),
-        base_url: config.base_url.clone(),
-        cloud_provider: config.cloud_provider_name.clone(),
-        cloud_model: config.cloud_model_name.clone(),
+        provider_name,
+        model_name,
+        base_url,
+        cloud_provider,
+        cloud_model,
         has_queue: has_inference_queue,
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
-        improv_enabled: config.improv_enabled,
+        improv_enabled,
         call_log: raw_call_log.clone(),
     };
     let linked = global.sessions.google_account_for_session(&session_id.0);
@@ -143,15 +164,22 @@ pub async fn get_debug_snapshot(
         session_id: Some(session_id.0.clone()),
     };
 
+    // 6. Acquire world and npc_manager (in canonical order) only for the
+    // duration of the pure-read snapshot build, then release immediately.
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+
     // Build the full snapshot then redact the inference section (#333).
     let mut snapshot = debug_snapshot::build_debug_snapshot(
         &world,
         &npc_manager,
-        &events,
-        &game_events,
+        &events_snapshot,
+        &game_events_snapshot,
         &inference,
         &auth,
     );
+    drop(npc_manager);
+    drop(world);
 
     // Replace call_log entries with redacted forms (no prompt/response text,
     // no system_prompt, no base_url).
