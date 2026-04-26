@@ -141,7 +141,10 @@ async fn reload_live_world_from_disk(
         let mut world = state.world.lock().await;
         parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
             .map_err(|e| format!("failed to reload world graph: {e}"))?;
-        let npc_manager = state.npc_manager.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
+        // Graph was replaced wholesale — discard the cached BFS distances so
+        // the next assign_tiers call recomputes from the new topology.
+        npc_manager.invalidate_bfs_cache();
         get_world_snapshot_inner(
             &world,
             state.transport.default_mode(),

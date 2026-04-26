@@ -670,7 +670,10 @@ async fn reload_live_world_from_disk(state: &Arc<AppState>) -> Result<(), String
         let mut world = state.world.lock().await;
         parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
             .map_err(|e| format!("failed to reload world graph: {e}"))?;
-        let npc_manager = state.npc_manager.lock().await;
+        let mut npc_manager = state.npc_manager.lock().await;
+        // Graph was replaced wholesale — discard the cached BFS distances so
+        // the next assign_tiers call recomputes from the new topology.
+        npc_manager.invalidate_bfs_cache();
         let transport = state.transport.default_mode();
         let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
         ws.name_hints =

@@ -116,6 +116,16 @@ pub struct NpcManager {
     npcs_who_know_player_name: HashSet<NpcId>,
     /// Ring buffer of the last 5 Tier 4 life-event descriptions (newest last).
     recent_tier4_events: VecDeque<String>,
+    /// Cached BFS distances from the last player location.
+    ///
+    /// Stored as `(player_location, distances)`. When `assign_tiers` is called
+    /// with the same player location as the cached key the BFS is skipped —
+    /// the world graph never mutates in place during a session, so the
+    /// distances are stable until the player moves.
+    ///
+    /// Call `invalidate_bfs_cache` whenever the graph is replaced wholesale
+    /// (e.g. after an editor live-reload or snapshot restore).
+    bfs_distances_cache: Option<(LocationId, HashMap<LocationId, u32>)>,
 }
 
 impl NpcManager {
@@ -132,6 +142,7 @@ impl NpcManager {
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
             recent_tier4_events: VecDeque::with_capacity(5),
+            bfs_distances_cache: None,
         }
     }
 
@@ -220,6 +231,19 @@ impl NpcManager {
             npc.relationships.remove(&id);
         }
         removed
+    }
+
+    /// Invalidates the cached BFS distances.
+    ///
+    /// Must be called whenever the world graph is replaced wholesale — for
+    /// example after an editor live-reload or a snapshot restore — so the
+    /// next `assign_tiers` call recomputes distances from scratch.
+    ///
+    /// There is no need to call this when the player moves; the cache key
+    /// is the player's location and a location mismatch is detected
+    /// automatically inside `assign_tiers`.
+    pub fn invalidate_bfs_cache(&mut self) {
+        self.bfs_distances_cache = None;
     }
 
     /// Returns a reference to an NPC by id.
@@ -391,8 +415,23 @@ impl NpcManager {
         let graph = &world.graph;
         let game_time = world.clock.now();
         let config = CognitiveTierConfig::default();
-        // BFS from player location to compute distances
-        let distances = bfs_distances(player_location, graph);
+        // BFS from player location — reuse cached result when the player
+        // has not moved since the last call.  The graph is immutable during
+        // a session, so distances are stable as long as the source is the same.
+        let cache_hit = self
+            .bfs_distances_cache
+            .as_ref()
+            .is_some_and(|(loc, _)| *loc == player_location);
+        if !cache_hit {
+            let distances = bfs_distances(player_location, graph);
+            self.bfs_distances_cache = Some((player_location, distances));
+        }
+        // SAFETY: we just ensured the cache is populated above.
+        let distances = &self
+            .bfs_distances_cache
+            .as_ref()
+            .expect("cache populated above")
+            .1;
 
         // First pass: compute new tier assignments and detect changes
         let mut changes: Vec<(NpcId, CogTier, CogTier)> = Vec::new();
@@ -2481,5 +2520,111 @@ mod tests {
         } else {
             panic!("expected a Heard event");
         }
+    }
+
+    // ── BFS distance cache tests ──────────────────────────────────────────────
+
+    /// Calling `assign_tiers` twice from the same player location must produce
+    /// identical tier assignments regardless of whether the second call hits the
+    /// cache.
+    #[test]
+    fn bfs_cache_same_distances_on_cache_hit() {
+        let graph = make_chain_graph(4);
+        let mut mgr = NpcManager::new();
+        for i in 0..=4 {
+            mgr.add_npc(make_test_npc(i + 10, i));
+        }
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+
+        // First call — cold cache
+        mgr.assign_tiers(&world, &[]);
+        let tiers_first: Vec<_> = (0..=4u32)
+            .map(|i| mgr.tier_of(NpcId(i + 10)).unwrap())
+            .collect();
+
+        // Second call — warm cache, same player location
+        mgr.assign_tiers(&world, &[]);
+        let tiers_second: Vec<_> = (0..=4u32)
+            .map(|i| mgr.tier_of(NpcId(i + 10)).unwrap())
+            .collect();
+
+        assert_eq!(
+            tiers_first, tiers_second,
+            "cached BFS must produce the same tier assignments as the cold computation"
+        );
+    }
+
+    /// After `invalidate_bfs_cache` the next `assign_tiers` call must
+    /// recompute distances from scratch, but the result must still match
+    /// the original (topology unchanged).
+    #[test]
+    fn bfs_cache_invalidation_preserves_correctness() {
+        let graph = make_chain_graph(4);
+        let mut mgr = NpcManager::new();
+        for i in 0..=4 {
+            mgr.add_npc(make_test_npc(i + 10, i));
+        }
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+
+        // Warm the cache
+        mgr.assign_tiers(&world, &[]);
+        let tiers_before: Vec<_> = (0..=4u32)
+            .map(|i| mgr.tier_of(NpcId(i + 10)).unwrap())
+            .collect();
+
+        // Invalidate then recompute with the same graph
+        mgr.invalidate_bfs_cache();
+        mgr.assign_tiers(&world, &[]);
+        let tiers_after: Vec<_> = (0..=4u32)
+            .map(|i| mgr.tier_of(NpcId(i + 10)).unwrap())
+            .collect();
+
+        assert_eq!(
+            tiers_before, tiers_after,
+            "post-invalidation recomputation must agree with the pre-invalidation result"
+        );
+    }
+
+    /// Moving the player to a different location must cause a cache miss and
+    /// produce distance-correct tier assignments for the new player position.
+    #[test]
+    fn bfs_cache_invalidated_on_player_move() {
+        // Chain: 0 — 1 — 2 — 3 — 4 — 5 — 6
+        // Default tier boundaries: Tier1 ≤ 0, Tier2 ≤ 2, Tier3 ≤ 5, Tier4 > 5.
+        // Distance 6 exceeds tier3_max_distance (5), so the far-end NPC is Tier4.
+        let graph = make_chain_graph(6);
+        let mut mgr = NpcManager::new();
+        // Only need NPCs at the two endpoints: loc 0 (NpcId 10) and loc 6 (NpcId 16).
+        mgr.add_npc(make_test_npc(10, 0));
+        mgr.add_npc(make_test_npc(16, 6));
+        let mut world = WorldState::new();
+        world.player_location = LocationId(0);
+        world.graph = graph;
+
+        mgr.assign_tiers(&world, &[]);
+        // With player at 0: NPC at loc 0 is distance 0 → Tier 1;
+        //                   NPC at loc 6 is distance 6 > tier3_max (5) → Tier 4.
+        assert_eq!(mgr.tier_of(NpcId(10)), Some(CogTier::Tier1));
+        assert_eq!(mgr.tier_of(NpcId(16)), Some(CogTier::Tier4));
+
+        // Move player to the far end — cache must be invalidated automatically.
+        world.player_location = LocationId(6);
+        mgr.assign_tiers(&world, &[]);
+
+        // Now NPC at loc 6 should be Tier 1, NPC at loc 0 should be Tier 4.
+        assert_eq!(
+            mgr.tier_of(NpcId(16)),
+            Some(CogTier::Tier1),
+            "NPC at player's new location must be promoted to Tier 1"
+        );
+        assert_eq!(
+            mgr.tier_of(NpcId(10)),
+            Some(CogTier::Tier4),
+            "NPC 6 hops from player must be demoted to Tier 4"
+        );
     }
 }
