@@ -123,6 +123,85 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
     p
 }
 
+/// Finds the byte offset of the `"dialogue"` key in a partial JSON buffer,
+/// matched only when it appears as a top-level object key (depth 1).
+///
+/// Scans the buffer character by character, tracking brace/bracket/string depth
+/// so that `"dialogue"` embedded inside a nested string or object value is
+/// ignored. Returns the byte offset of the first byte of `"dialogue"` (the
+/// opening double-quote), or `None` if not found.
+fn find_toplevel_dialogue_key(buffer: &str) -> Option<usize> {
+    let bytes = buffer.as_bytes();
+    let n = bytes.len();
+    let mut i = 0;
+    // depth: 0 = before the root object, 1 = inside root object keys/values.
+    let mut depth: i32 = 0;
+    // Whether we are currently inside a JSON string.
+    let mut in_string = false;
+
+    while i < n {
+        if in_string {
+            match bytes[i] {
+                b'\\' => {
+                    // Skip escaped character — two bytes consumed.
+                    i += 2;
+                }
+                b'"' => {
+                    in_string = false;
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        } else {
+            match bytes[i] {
+                b'"' => {
+                    // At depth 1 (inside root object), check if this is "dialogue":
+                    if depth == 1 {
+                        let key = b"\"dialogue\"";
+                        if bytes.get(i..i + key.len()) == Some(key) {
+                            // Verify that the next non-whitespace byte is `:` — this
+                            // distinguishes a JSON key from a string value that happens
+                            // to contain the text "dialogue".
+                            let after_key = i + key.len();
+                            let mut j = after_key;
+                            while j < n
+                                && (bytes[j] == b' '
+                                    || bytes[j] == b'\t'
+                                    || bytes[j] == b'\r'
+                                    || bytes[j] == b'\n')
+                            {
+                                j += 1;
+                            }
+                            if j < n && bytes[j] == b':' {
+                                return Some(i);
+                            }
+                            // Not a key (it's a value); fall through to enter the string.
+                        }
+                    }
+                    // Enter string regardless.
+                    in_string = true;
+                    i += 1;
+                }
+                b'{' | b'[' => {
+                    depth += 1;
+                    i += 1;
+                }
+                b'}' | b']' => {
+                    depth -= 1;
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Extracts the dialogue field value from a partial JSON string during streaming.
 ///
 /// Scans the accumulated JSON buffer for the `"dialogue"` field and extracts
@@ -131,9 +210,18 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
 ///
 /// This enables token-by-token streaming of NPC dialogue to the player while
 /// the full JSON response (including metadata) is still being generated.
+///
+/// # Security (fix #649)
+/// Uses depth-aware scanning via [`find_toplevel_dialogue_key`] so that
+/// `"dialogue"` embedded inside another field's string value cannot hijack
+/// extraction.
+///
+/// # Unicode (fix #655)
+/// JSON `\uXXXX` surrogate pairs (0xD800–0xDBFF followed by 0xDC00–0xDFFF)
+/// are combined into the correct non-BMP code point rather than silently dropped.
 pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
-    let key = "\"dialogue\"";
-    let key_pos = buffer.find(key)?;
+    let key = b"\"dialogue\"";
+    let key_pos = find_toplevel_dialogue_key(buffer)?;
     let after_key = key_pos + key.len();
 
     // Skip whitespace between key and colon
@@ -169,18 +257,60 @@ pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
                     b't' => result.push('\t'),
                     b'/' => result.push('/'),
                     b'u' => {
-                        if i + 5 < value_bytes.len() {
-                            if let Ok(hex) = std::str::from_utf8(&value_bytes[i + 2..i + 6])
-                                && let Ok(code) = u32::from_str_radix(hex, 16)
-                                && let Some(c) = char::from_u32(code)
-                            {
-                                result.push(c);
-                            }
-                            i += 6;
-                            continue;
-                        } else {
+                        // Need at least \uXXXX (6 bytes total from i).
+                        if i + 5 >= value_bytes.len() {
+                            // Incomplete \u escape at end of buffer — stop here.
                             return Some(result);
                         }
+                        let hex1 = match std::str::from_utf8(&value_bytes[i + 2..i + 6])
+                            .ok()
+                            .and_then(|s| u32::from_str_radix(s, 16).ok())
+                        {
+                            Some(v) => v,
+                            None => {
+                                i += 6;
+                                continue;
+                            }
+                        };
+                        // Check for surrogate pair: high surrogate 0xD800–0xDBFF.
+                        if (0xD800..=0xDBFF).contains(&hex1) {
+                            // Expect a low surrogate immediately following: \uXXXX.
+                            // Total offset from i: 6 (first \uXXXX) + 2 (\\u) + 4 (hex) = 12.
+                            if i + 11 < value_bytes.len()
+                                && value_bytes[i + 6] == b'\\'
+                                && value_bytes[i + 7] == b'u'
+                            {
+                                let hex2 = std::str::from_utf8(&value_bytes[i + 8..i + 12])
+                                    .ok()
+                                    .and_then(|s| u32::from_str_radix(s, 16).ok());
+                                if let Some(low) = hex2
+                                    && (0xDC00..=0xDFFF).contains(&low)
+                                {
+                                    // Combine surrogate pair into a scalar value.
+                                    let code_point =
+                                        0x10000 + ((hex1 - 0xD800) << 10) + (low - 0xDC00);
+                                    if let Some(c) = char::from_u32(code_point) {
+                                        result.push(c);
+                                    }
+                                    i += 12;
+                                    continue;
+                                }
+                            } else if i + 11 >= value_bytes.len() {
+                                // Low surrogate not yet in buffer — stop here and wait
+                                // for the next chunk.
+                                return Some(result);
+                            }
+                            // Malformed: high surrogate without a valid low surrogate.
+                            // Skip the high surrogate silently.
+                            i += 6;
+                            continue;
+                        }
+                        // Normal BMP code point.
+                        if let Some(c) = char::from_u32(hex1) {
+                            result.push(c);
+                        }
+                        i += 6;
+                        continue;
                     }
                     _ => {
                         result.push('\\');
@@ -471,6 +601,113 @@ mod tests {
         let buf2 = r#"{"dialogue": "Hello \"world\""}"#;
         let result2 = extract_dialogue_from_partial_json(buf2).unwrap();
         assert_eq!(result2, "Hello \"world\"");
+    }
+
+    // ── Issue #649: key injection via nested "dialogue" substring ───────────
+
+    #[test]
+    fn extract_dialogue_ignores_dialogue_in_value_of_other_key() {
+        // The string "dialogue" appears inside another field's value — should
+        // not be mistaken for the top-level "dialogue" key.
+        let buf = r#"{"action": "says \"dialogue\": \"injected\"", "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "must use the top-level 'dialogue' key, not an occurrence inside a value"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_ignores_dialogue_in_nested_object() {
+        // "dialogue" as a key inside a nested object must not match.
+        let buf = r#"{"meta": {"dialogue": "fake"}, "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "must match only the top-level 'dialogue' key"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_no_false_match_when_only_nested() {
+        // If there is no top-level "dialogue" key, return None — even if the
+        // word appears inside a nested value.
+        let buf = r#"{"meta": {"dialogue": "nested only"}}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            None,
+            "must return None when 'dialogue' only appears inside a nested object"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_no_false_match_when_value_equals_key_literal() {
+        // Regression for Gemini feedback: a string VALUE that is exactly
+        // "dialogue" (including surrounding quotes) must not be mistaken for
+        // the top-level "dialogue" key.  The scanner must check for a trailing
+        // `:` before accepting a match.
+        let buf = r#"{"foo": "dialogue", "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "value 'dialogue' must not shadow the real top-level key"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_returns_none_when_dialogue_only_in_value() {
+        // If "dialogue" appears solely as a string value and never as a key,
+        // the function must return None rather than misidentifying the value.
+        let buf = r#"{"foo": "dialogue", "bar": "other"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            None,
+            "must return None when 'dialogue' only appears as a string value"
+        );
+    }
+
+    // ── Issue #655: surrogate pair handling for non-BMP characters ──────────
+
+    #[test]
+    fn extract_dialogue_surrogate_pair_emoji() {
+        // U+1F600 GRINNING FACE is encoded in JSON as 😀.
+        let buf = r#"{"dialogue": "Hello 😀!"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("Hello 😀!".to_string()),
+            "surrogate pair must be decoded to the correct non-BMP code point"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_surrogate_pair_ancient_script() {
+        // U+10000 LINEAR B SYLLABLE B008 A = 𐀀.
+        let buf = r#"{"dialogue": "𐀀"}"#;
+        let result = extract_dialogue_from_partial_json(buf).unwrap();
+        let mut chars = result.chars();
+        let ch = chars.next().expect("should have one character");
+        assert_eq!(ch as u32, 0x10000, "must decode to U+10000");
+        assert!(chars.next().is_none());
+    }
+
+    #[test]
+    fn extract_dialogue_bmp_unicode_escape_still_works() {
+        // Regression: ordinary \uXXXX BMP escapes must still work after the
+        // surrogate-pair changes.
+        let buf = r#"{"dialogue": "élève"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("élève".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_incomplete_surrogate_pair_at_chunk_boundary() {
+        // Buffer ends after the high surrogate — must stop cleanly and not panic.
+        let buf = r#"{"dialogue": "Hi \uD83D"#;
+        let result = extract_dialogue_from_partial_json(buf);
+        // Must return Some("Hi ") — stops before the incomplete surrogate.
+        assert_eq!(result, Some("Hi ".to_string()));
     }
 
     // ── LanguageHint serde ───────────────────────────────────────────────────

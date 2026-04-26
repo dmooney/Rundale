@@ -303,7 +303,7 @@ impl LongTermMemory {
     /// to make room. Ties are broken by preferring to evict the oldest
     /// entry. If the incoming entry's importance is strictly lower than
     /// every stored entry's importance, it is rejected and the log is
-    /// unchanged.
+    /// left as-is.
     pub fn store(&mut self, entry: LongTermEntry) -> bool {
         if !entry.importance.is_finite() || entry.importance < PROMOTION_THRESHOLD {
             return false;
@@ -526,7 +526,9 @@ pub fn extract_keywords(
         }
     }
 
-    keywords.into_iter().collect()
+    let mut result: Vec<String> = keywords.into_iter().collect();
+    result.sort();
+    result
 }
 
 /// Attempts to promote an evicted short-term memory entry to long-term storage.
@@ -1207,6 +1209,28 @@ mod tests {
         let future = Utc.with_ymd_and_hms(1820, 3, 20, 13, 0, 0).unwrap();
         let label = relative_time_label(future, now);
         assert_eq!(label, "just now");
+    }
+
+    // ── Issue #654: extract_keywords ordering must be deterministic ────
+
+    #[test]
+    fn extract_keywords_order_is_deterministic() {
+        // Same input must produce identical ordering across multiple calls.
+        let entry = MemoryEntry {
+            timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
+            content: "Argued fiercely about the landlord cattle market".to_string(),
+            participants: vec![NpcId(1)],
+            location: LocationId(1),
+            kind: None,
+        };
+        let names = ["Brigid".to_string(), "Padraig".to_string()];
+        let first = extract_keywords(&entry, &names, "Ballyconneely");
+        let second = extract_keywords(&entry, &names, "Ballyconneely");
+        assert_eq!(first, second, "keyword order must be deterministic");
+        // Results must be sorted lexicographically.
+        let mut sorted = first.clone();
+        sorted.sort();
+        assert_eq!(first, sorted, "keywords must be returned in sorted order");
     }
 
     #[test]
