@@ -60,10 +60,21 @@ System packages on Linux: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindica
 
 ## Quality gates
 
-- `/check` — fmt + clippy + tests
+- `/check` — fmt + clippy + tests + doc-consistency
 - `/verify` — full pre-push checklist (gates + harness walkthrough)
 - `/prove <feature>` — required after implementing any gameplay feature
+- `/rubric` — snapshot baselines + structural rubrics (sister to `/prove`)
+- `/feature-scaffold <name>` — depth-first decomposition before coding
 - `/game-test [script]` — harness run
+
+## Eval baselines
+
+```sh
+just baselines       # regenerate gameplay-output snapshots after intentional change
+just harness-audit   # cross-reference fixtures, baselines, and roadmap for gaps
+```
+
+See [../design/testing.md](../design/testing.md) §Eval baselines for the schema.
 
 ## Coverage
 

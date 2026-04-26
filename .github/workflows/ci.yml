@@ -124,6 +124,16 @@ jobs:
           find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
             -mtime +30 -delete 2>/dev/null || true
 
+  docs-consistency:
+    name: Docs consistency (paths cited in agent docs exist on disk)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check cited paths exist
+        run: ./scripts/check-doc-paths.sh
+
   game-harness:
     name: Full game harness fixture sweep
     runs-on: [self-hosted, macOS, ARM64]

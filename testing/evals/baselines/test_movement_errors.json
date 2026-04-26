@@ -1,0 +1,122 @@
+[
+  {
+    "command": "/status",
+    "result": {
+      "result": "system_command",
+      "response": "Location: Kilteevan Village | Morning | Spring"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 13,
+      "narration": "You walk along the road north past low fields to the crossroads. (13 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to kilteevan",
+    "result": {
+      "result": "moved",
+      "to": "Kilteevan Village",
+      "minutes": 13,
+      "narration": "You walk along the Kilteevan road heading south past low fields. (13 minutes on foot)"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to kilteevan",
+    "result": {
+      "result": "already_here"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to narnia",
+    "result": {
+      "result": "not_found",
+      "target": "narnia"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to mordor",
+    "result": {
+      "result": "not_found",
+      "target": "mordor"
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "walk to pub",
+    "result": {
+      "result": "moved",
+      "to": "Darcy's Pub",
+      "minutes": 14,
+      "narration": "You set off along the road north past low fields to the crossroads toward Darcy's Pub. (14 minutes on foot)"
+    },
+    "location": "Darcy's Pub",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "stroll to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 1,
+      "narration": "You walk along the lane back to the crossroads. (1 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "head to church",
+    "result": {
+      "result": "moved",
+      "to": "St. Brigid's Church",
+      "minutes": 11,
+      "narration": "You walk along a winding boreen lined with hawthorn. (11 minutes on foot)"
+    },
+    "location": "St. Brigid's Church",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "saunter to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 11,
+      "narration": "You walk along the boreen back to the crossroads. (11 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "/quit",
+    "result": {
+      "result": "quit"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  }
+]

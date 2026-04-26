@@ -1,0 +1,410 @@
+[
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The clear sky hangs over the quiet street. It is morning."
+    },
+    "location": "Kilteevan Village",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 13,
+      "narration": "You walk along the road north past low fields to the crossroads. (13 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A quiet crossroads where four narrow roads meet. A weathered stone wall lines the eastern side, half-hidden by brambles. The clear sky stretches over the flat midlands. It is morning."
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to pub",
+    "result": {
+      "result": "moved",
+      "to": "Darcy's Pub",
+      "minutes": 1,
+      "narration": "You walk along a short lane past a row of cottages. (1 minutes on foot)"
+    },
+    "location": "Darcy's Pub",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is morning and the weather outside is clear."
+    },
+    "location": "Darcy's Pub",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 1,
+      "narration": "You walk along the lane back to the crossroads. (1 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to church",
+    "result": {
+      "result": "moved",
+      "to": "St. Brigid's Church",
+      "minutes": 11,
+      "narration": "You walk along a winding boreen lined with hawthorn. (11 minutes on foot)"
+    },
+    "location": "St. Brigid's Church",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A small stone church with a slate roof, its stained-glass windows catching the morning light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is clear."
+    },
+    "location": "St. Brigid's Church",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to bog road",
+    "result": {
+      "result": "moved",
+      "to": "The Bog Road",
+      "minutes": 44,
+      "narration": "You set off along an old lane between settlements toward The Bog Road. (44 minutes on foot)"
+    },
+    "location": "The Bog Road",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A rough track cutting through blanket bog. Turf banks stand in neat rows, drying in the wind. The clear sky presses down. Pools of dark water gleam between the heather. It is morning."
+    },
+    "location": "The Bog Road",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to fairy fort",
+    "result": {
+      "result": "moved",
+      "to": "The Fairy Fort",
+      "minutes": 9,
+      "narration": "You walk along a barely visible path through gorse to the fort. (9 minutes on foot)"
+    },
+    "location": "The Fairy Fort",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "An ancient ring fort — a raised circular mound ringed by hawthorn and elder. The air feels different here, heavy and watchful. It is morning. The sky is clear."
+    },
+    "location": "The Fairy Fort",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to lough ree",
+    "result": {
+      "result": "moved",
+      "to": "Lough Ree Shore",
+      "minutes": 17,
+      "narration": "You set off along a barely visible path through gorse and bracken toward Lough Ree Shore. (17 minutes on foot)"
+    },
+    "location": "Lough Ree Shore",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "The stony shore of Lough Ree stretches out before you. The great lake shimmers under the clear sky. Small islands dot the water in the distance. It is morning."
+    },
+    "location": "Lough Ree Shore",
+    "time": "Morning",
+    "season": "Spring"
+  },
+  {
+    "command": "go to hodson bay",
+    "result": {
+      "result": "moved",
+      "to": "Hodson Bay",
+      "minutes": 360,
+      "narration": "You set off along an old lane between settlements toward Hodson Bay. (360 minutes on foot)"
+    },
+    "location": "Hodson Bay",
+    "time": "Afternoon",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A sheltered bay on Lough Ree. Boats bob at their moorings. The old boathouse leans into the wind. It is afternoon and the sky is clear."
+    },
+    "location": "Hodson Bay",
+    "time": "Afternoon",
+    "season": "Spring"
+  },
+  {
+    "command": "go to murphy's farm",
+    "result": {
+      "result": "moved",
+      "to": "Murphy's Farm",
+      "minutes": 338,
+      "narration": "You set off along a stony path along the waterline to a thatched cottage toward Murphy's Farm. (338 minutes on foot)"
+    },
+    "location": "Murphy's Farm",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is evening. The sky is clear."
+    },
+    "location": "Murphy's Farm",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "go to o'brien's farm",
+    "result": {
+      "result": "moved",
+      "to": "O'Brien's Farm",
+      "minutes": 23,
+      "narration": "You set off along an old lane between settlements toward O'Brien's Farm. (23 minutes on foot)"
+    },
+    "location": "O'Brien's Farm",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A tidy farm with stone outbuildings and a well-kept garden. Hens scratch in the yard. A donkey stands patiently by the barn. It is evening. Weather: clear."
+    },
+    "location": "O'Brien's Farm",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "go to lime kiln",
+    "result": {
+      "result": "moved",
+      "to": "The Lime Kiln",
+      "minutes": 45,
+      "narration": "You set off along an old lane between settlements toward The Lime Kiln. (45 minutes on foot)"
+    },
+    "location": "The Lime Kiln",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A squat stone lime kiln standing at the edge of the bog. On burning days the smoke rises thick and white. A flat patch of ground beside it serves as a gathering place. It is evening. The weather is clear."
+    },
+    "location": "The Lime Kiln",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "go to lime kiln",
+    "result": {
+      "result": "already_here"
+    },
+    "location": "The Lime Kiln",
+    "time": "Night",
+    "season": "Spring"
+  },
+  {
+    "command": "go to o'brien's farm",
+    "result": {
+      "result": "moved",
+      "to": "O'Brien's Farm",
+      "minutes": 45,
+      "narration": "You set off along an old lane between settlements toward O'Brien's Farm. (45 minutes on foot)"
+    },
+    "location": "O'Brien's Farm",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to murphy's farm",
+    "result": {
+      "result": "moved",
+      "to": "Murphy's Farm",
+      "minutes": 23,
+      "narration": "You set off along an old lane between settlements toward Murphy's Farm. (23 minutes on foot)"
+    },
+    "location": "Murphy's Farm",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 34,
+      "narration": "You set off along an old lane between settlements toward The Crossroads. (34 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to letter office",
+    "result": {
+      "result": "moved",
+      "to": "The Letter Office",
+      "minutes": 4,
+      "narration": "You walk along the road past a hand-lettered sign. (4 minutes on foot)"
+    },
+    "location": "The Letter Office",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is late night. The weather is clear."
+    },
+    "location": "The Letter Office",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 4,
+      "narration": "You walk along back across to the crossroads. (4 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to connolly's shop",
+    "result": {
+      "result": "moved",
+      "to": "Connolly's Shop",
+      "minutes": 1,
+      "narration": "You walk along a few steps across the road. (1 minutes on foot)"
+    },
+    "location": "Connolly's Shop",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A small general shop crammed with everything from spades and tallow candles to bolts of cloth and bags of meal. The bell above the door jangles. It is late night. Outside, the weather is clear."
+    },
+    "location": "Connolly's Shop",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to crossroads",
+    "result": {
+      "result": "moved",
+      "to": "The Crossroads",
+      "minutes": 1,
+      "narration": "You walk along a few steps back across the road to the crossroads. (1 minutes on foot)"
+    },
+    "location": "The Crossroads",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to hedge school",
+    "result": {
+      "result": "moved",
+      "to": "The Hedge School",
+      "minutes": 2,
+      "narration": "You walk along a muddy path along the schoolmaster's wall. (2 minutes on foot)"
+    },
+    "location": "The Hedge School",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is late night. The sky is clear."
+    },
+    "location": "The Hedge School",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "go to hurling green",
+    "result": {
+      "result": "moved",
+      "to": "The Hurling Green",
+      "minutes": 4,
+      "narration": "You walk along a beaten path down to the hurling green. (4 minutes on foot)"
+    },
+    "location": "The Hurling Green",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "look",
+    "result": {
+      "result": "looked",
+      "description": "An open field where men play hurling on fair days. Goalposts of ash wood stand at each end. Stone ditches mark the boundary, and a few spectators' stools sit along the edge. The clear sky hangs over the flat green. It is late night."
+    },
+    "location": "The Hurling Green",
+    "time": "Midnight",
+    "season": "Spring"
+  },
+  {
+    "command": "/quit",
+    "result": {
+      "result": "quit"
+    },
+    "location": "The Hurling Green",
+    "time": "Midnight",
+    "season": "Spring"
+  }
+]

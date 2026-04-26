@@ -11,6 +11,7 @@ Quick reference for AI coding agents and human contributors working in this repo
 | Git workflow & engineering standards | [git-workflow.md](git-workflow.md) |
 | Witness-style completion gates | [witness.md](witness.md) |
 | Agent skills (`/check`, `/prove`, ...) | [skills.md](skills.md) |
+| **Harness map** — what fires when, every sensor and gate | [harness.md](harness.md) |
 | Running CI locally with `act` | [act-local.md](act-local.md) |
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.

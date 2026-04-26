@@ -221,11 +221,29 @@ clippy:
 clippy-fix:
     cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Pre-commit gate: format, lint, tests, placeholder scan
-check: fmt-check clippy test witness-scan
+# Harness sensor: every path cited in docs/agent/*.md (+ AGENTS.md, CLAUDE.md)
+# must exist on disk. Catches doc drift before it reaches an agent.
+check-doc-paths:
+    ./scripts/check-doc-paths.sh
+
+# Regenerate gameplay-eval baselines after an intentional gameplay change.
+# Set UPDATE_BASELINES=1 so the eval-baseline tests overwrite their stored
+# JSON instead of asserting on it. See crates/parish-cli/tests/eval_baselines.rs
+# and docs/design/testing.md §Eval baselines.
+baselines:
+    UPDATE_BASELINES=1 cargo test -p parish --test eval_baselines
+
+# Read-only audit: cross-references fixtures, eval baselines, and the roadmap
+# to surface gameplay subsystems that ship without a play_*.txt fixture.
+# Descriptive — exits 0 even when gaps exist. See `.agents/skills/feature-scaffold/`.
+harness-audit:
+    ./scripts/harness-audit.sh
+
+# Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
+check: fmt-check clippy test witness-scan check-doc-paths
 
 # Pre-push gate: check + game harness walkthrough
-verify: fmt-check clippy test game-test witness-scan
+verify: fmt-check clippy test game-test witness-scan check-doc-paths
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:
