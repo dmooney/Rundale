@@ -38,7 +38,7 @@ A modal overlay or dedicated panel showing the complete parish, triggered by:
 Options for the full map view:
 
 - **a) OSM tile background**: Fetch and cache OSM raster tiles for the Kiltoom/Kilteevan area. Overlay game locations on top of real cartography. Gives instant geographic grounding — players see the actual lough, roads, boreens.
-- **b) Stylized hand-drawn map**: A pre-rendered artistic map image (think Tolkien or old Ordnance Survey style) with locations pinned on top. Could generate with the geo_tool data as a base.
+- **b) Stylized hand-drawn map**: A pre-rendered artistic map image (think Tolkien or old Ordnance Survey style) with locations pinned on top. Could generate with the parish-geo-tool data as a base.
 - **c) Zoomable node graph**: The current geo-projected graph but with mouse-wheel zoom and click-drag pan. At high zoom the labels spread out naturally.
 - **d) egui `ScrollArea` with virtual canvas**: Render the graph onto a large virtual canvas (e.g., 2000x2000 logical pixels) inside a scrollable/zoomable area. The sidebar shows a viewport onto this canvas.
 
@@ -100,7 +100,7 @@ Not just GUI — bring a map to the terminal too:
 
 If we go the OSM tile route for the full map:
 
-- **Offline tile cache**: Bundle a small tileset (zoom 14–17 for the parish area, ~5MB) so it works without network. The `geo_tool` binary could generate this.
+- **Offline tile cache**: Bundle a small tileset (zoom 14–17 for the parish area, ~5MB) so it works without network. The `parish-geo-tool` binary could generate this.
 - **Custom tile style**: Use a muted, sepia, or hand-drawn tile style (e.g., Stamen Watercolor or a custom Mapbox style) to match the game's aesthetic rather than standard OSM tiles.
 - **Clickable real features**: Show real geographic features from OSM (the lough, roads, townland boundaries) as non-interactive background, with game locations as interactive foreground.
 - **Coordinate query**: Clicking anywhere on the real map could generate a description ("You see a field of grazing sheep and a stone wall running east-west…") using the LLM with geographic context.
@@ -179,6 +179,6 @@ The feature is gated behind the **`period-map-tiles`** flag
 
 - [GUI Design](gui-design.md) — Current map panel implementation
 - [World Geography](world-geography.md) — Location data model with lat/lon
-- [Geo Tool](geo-tool.md) — OSM data extraction tool
+- [parish-geo-tool](geo-tool.md) — OSM data extraction tool
 - [Time System](time-system.md) — Day/night cycle for map atmosphere
 - [NPC System](npc-system.md) — Daily schedules for NPC trail visualization

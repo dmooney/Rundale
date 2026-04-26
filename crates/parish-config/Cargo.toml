@@ -2,6 +2,7 @@
 name = "parish-config"
 version = "0.1.0"
 edition = "2024"
+description = "Engine and LLM-provider configuration loader for the Parish engine"
 
 [dependencies]
 parish-types = { path = "../parish-types" }

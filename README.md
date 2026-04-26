@@ -84,16 +84,25 @@ README.md (you are here — project overview, quick start)
 
 ```
 crates/
-  parish-core/      Parish engine — pure game logic library
-  parish-cli/       Parish engine — headless / web / CLI binary (`parish`)
-  parish-server/    Parish engine — Axum web backend
-  parish-tauri/     Parish engine — Tauri 2 desktop backend
-  geo-tool/         OSM extraction CLI
-apps/ui/            Svelte 5 + TypeScript frontend
-testing/fixtures/   scripted gameplay fixtures
-mods/rundale/       Rundale game content (world, NPCs, prompts, lore)
-deploy/             Dockerfile + railway.toml
-docs/               design, ADRs, plans, research, agent guides
+  parish-types/        foundational shared types (zero internal deps)
+  parish-config/       engine + LLM-provider config loader
+  parish-palette/      backend-agnostic time/season/weather color interpolation
+  parish-persistence/  SQLite save/load with WAL journal and branching saves
+  parish-input/        player input parsing and command interpretation
+  parish-inference/    LLM inference queue and provider clients
+  parish-world/        world graph, movement, weather, environment state
+  parish-npc/          NPC simulation, memory, schedules, reactions
+  parish-core/         orchestration: game session, IPC, mod loading, prompts
+  parish-cli/          CLI / headless / web binary (`parish`)
+  parish-server/       Axum web backend (serves Svelte UI)
+  parish-tauri/        Tauri 2 desktop backend bridge
+  parish-geo-tool/     OSM extraction CLI for world authoring
+  parish-npc-tool/     NPC world builder and inspection utility
+apps/ui/               Svelte 5 + TypeScript frontend
+testing/fixtures/      scripted gameplay fixtures
+mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
+deploy/                Dockerfile + railway.toml
+docs/                  design, ADRs, plans, research, agent guides
 ```
 
 ## For AI Agents

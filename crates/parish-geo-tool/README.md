@@ -1,10 +1,10 @@
-# geo-tool utilities
+# parish-geo-tool
 
 This crate contains command-line tools for geographic workflows in Parish.
 
 ## Binaries
 
-### `geo-tool`
+### `parish-geo-tool`
 Primary extractor/transformer for OpenStreetMap-to-Parish world generation.
 
 ### `realign_rundale_coords`
@@ -28,13 +28,13 @@ It is designed for Rundale's `mods/rundale/world.json` where:
 ### Build
 
 ```bash
-cargo build -p geo-tool --bin realign_rundale_coords
+cargo build -p parish-geo-tool --bin realign_rundale_coords
 ```
 
 ### In-place geocode + realignment
 
 ```bash
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --in-place
 ```
@@ -42,7 +42,7 @@ cargo run -p geo-tool --bin realign_rundale_coords -- \
 ### Offline/baseline workflow (no network)
 
 ```bash
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --baseline-world /tmp/world_before.json \
   --no-geocode \
@@ -52,7 +52,7 @@ cargo run -p geo-tool --bin realign_rundale_coords -- \
 ### Custom context string
 
 ```bash
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --context "County Roscommon, Ireland" \
   --output mods/rundale/world.realigned.json
@@ -90,7 +90,7 @@ Set `"geo_kind": "manual"` on a location to tell the realign tool to never geoco
 You can pin a location from the command line instead of editing JSON:
 
 ```bash
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json --in-place \
   --set-coord "Kilteevan Village=53.6320798910683,-8.102070946274374" \
   --set-source "Kilteevan Village=OS 6-inch First Edition, Roscommon sheet, ca. 1837"

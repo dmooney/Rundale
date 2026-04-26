@@ -362,7 +362,7 @@ All modes share the same core game logic from `crates/parish-core/`.
 
 ### Geo Tool
 - Standalone OSM (OpenStreetMap) geographic data extraction tool
-- Lives as its own crate at `crates/geo-tool/`
+- Lives as its own crate at `crates/parish-geo-tool/`
 - Used to pin world locations to real-world coordinates and build the world graph
 
 ---

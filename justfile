@@ -275,29 +275,29 @@ witness-scan:
 
 # ─── Geo Tool ────────────────────────────────────────────────────────────────
 
-# Run the geo-tool to extract OSM data for an area
-geo-tool AREA:
-    cargo run -p geo-tool -- --area "{{AREA}}"
+# Run parish-geo-tool to extract OSM data for an area
+parish-geo-tool AREA:
+    cargo run -p parish-geo-tool -- --area "{{AREA}}"
 
-# Run the geo-tool with dry-run (preview queries only)
-geo-tool-dry-run AREA:
-    cargo run -p geo-tool -- --area "{{AREA}}" --dry-run
+# Run parish-geo-tool with dry-run (preview queries only)
+parish-geo-tool-dry-run AREA:
+    cargo run -p parish-geo-tool -- --area "{{AREA}}" --dry-run
 
-# Run the geo-tool and merge into the active mod's world.json
-geo-tool-merge AREA:
-    cargo run -p geo-tool -- --area "{{AREA}}" --merge mods/rundale/world.json
+# Run parish-geo-tool and merge into the active mod's world.json
+parish-geo-tool-merge AREA:
+    cargo run -p parish-geo-tool -- --area "{{AREA}}" --merge mods/rundale/world.json
 
 # Build the real-coordinate alignment utility binary
 realign-coords-build:
-    cargo build -p geo-tool --bin realign_rundale_coords
+    cargo build -p parish-geo-tool --bin realign_rundale_coords
 
 # Run the real-coordinate alignment utility against Rundale (in place)
 realign-coords:
-    cargo run -p geo-tool --bin realign_rundale_coords -- --world mods/rundale/world.json --in-place
+    cargo run -p parish-geo-tool --bin realign_rundale_coords -- --world mods/rundale/world.json --in-place
 
 # Run the real-coordinate alignment utility with custom args
 realign-coords-run *ARGS:
-    cargo run -p geo-tool --bin realign_rundale_coords -- {{ARGS}}
+    cargo run -p parish-geo-tool --bin realign_rundale_coords -- {{ARGS}}
 
 # ─── Dependencies ────────────────────────────────────────────────────────────
 

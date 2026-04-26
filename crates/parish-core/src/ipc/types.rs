@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::npc::LanguageHint;
 
 use crate::npc::IrishWordHint;
-use crate::world::palette::{RawColor, RawPalette};
+use parish_palette::{RawColor, RawPalette};
 
 // ── World snapshot ──────────────────────────────────────────────────────────
 

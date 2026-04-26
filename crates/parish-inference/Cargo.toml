@@ -2,6 +2,7 @@
 name = "parish-inference"
 version = "0.1.0"
 edition = "2024"
+description = "LLM inference queue and provider clients (OpenAI/Anthropic/simulator) for Parish"
 
 [dependencies]
 parish-types = { path = "../parish-types" }

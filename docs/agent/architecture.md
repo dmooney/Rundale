@@ -53,7 +53,7 @@ Rundale (on Parish engine)/
 │   │       ├── commands.rs         # Tauri IPC commands
 │   │       └── events.rs           # Streaming bridge
 │   │
-│   └── geo-tool/            # OSM extraction CLI (binary name: `geo-tool`)
+│   └── parish-geo-tool/     # OSM extraction CLI (binary name: `parish-geo-tool`)
 │
 ├── apps/
 │   └── ui/                  # Svelte 5 + TypeScript frontend (SvelteKit static adapter)

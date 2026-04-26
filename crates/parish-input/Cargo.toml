@@ -2,6 +2,7 @@
 name = "parish-input"
 version = "0.1.0"
 edition = "2024"
+description = "Player input parsing and command interpretation for the Parish engine"
 
 [dependencies]
 parish-types = { path = "../parish-types" }

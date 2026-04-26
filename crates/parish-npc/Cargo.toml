@@ -2,6 +2,7 @@
 name = "parish-npc"
 version = "0.1.0"
 edition = "2024"
+description = "NPC simulation, memory, schedules, and reaction systems for the Parish engine"
 
 [dependencies]
 parish-types = { path = "../parish-types" }

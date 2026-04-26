@@ -1343,23 +1343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "geo-tool"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "parish-core",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1588,7 +1571,7 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "quanta",
- "rand 0.8.6",
+ "rand 0.8.5",
  "smallvec",
  "spinning_top",
 ]
@@ -2798,9 +2781,9 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "openssl"
-version = "0.10.78"
+version = "0.10.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f38c4372413cdaaf3cc79dd92d29d7d9f5ab09b51b10dded508fb90bb70b9222"
+checksum = "951c002c75e16ea2c65b8c7e4d3d51d5530d8dfa7d060b4776828c88cfb18ecf"
 dependencies = [
  "bitflags 2.11.0",
  "cfg-if",
@@ -2830,9 +2813,9 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.114"
+version = "0.9.112"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13ce1245cd07fcc4cfdb438f7507b0c7e4f3849a69fd84d52374c66d83741bb6"
+checksum = "57d55af3b3e226502be1526dfdba67ab0e9c96fc293004e79576b2b9edb0dbdb"
 dependencies = [
  "cc",
  "libc",
@@ -2925,6 +2908,7 @@ dependencies = [
  "parish-inference",
  "parish-input",
  "parish-npc",
+ "parish-palette",
  "parish-persistence",
  "parish-types",
  "parish-world",
@@ -2944,6 +2928,23 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "wiremock",
+]
+
+[[package]]
+name = "parish-geo-tool"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "parish-core",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3000,7 +3001,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "parish-npc-cli"
+name = "parish-npc-tool"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3009,6 +3010,14 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "parish-palette"
+version = "0.1.0"
+dependencies = [
+ "parish-config",
+ "parish-types",
 ]
 
 [[package]]
@@ -3046,6 +3055,7 @@ dependencies = [
  "jsonwebtoken",
  "once_cell",
  "parish-core",
+ "parish-palette",
  "rand 0.9.2",
  "reqwest 0.12.28",
  "rusqlite",
@@ -3072,6 +3082,7 @@ dependencies = [
  "gdk",
  "glib 0.22.5",
  "parish-core",
+ "parish-palette",
  "png",
  "rand 0.9.2",
  "serde",
@@ -3244,7 +3255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d5285893bb5eb82e6aaf5d59ee909a06a16737a8970984dd7746ba9283498d6"
 dependencies = [
  "phf_shared 0.10.0",
- "rand 0.8.6",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -3254,7 +3265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared 0.11.3",
- "rand 0.8.6",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -3616,9 +3627,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha 0.3.1",
@@ -3957,9 +3968,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "8279bb85272c9f10811ae6a6c547ff594d6a7f3c6c6b02ee9726d1d0dcfcdd06"
 dependencies = [
  "ring",
  "rustls-pki-types",

@@ -5,7 +5,7 @@ description: >-
   `mods/rundale/world.json` coordinates, pinning real-world locations to
   historical maps, subordinating village clusters via `relative_to`, choosing
   between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern
-  geocoders vs historical OS maps. Covers the `geo-tool` CLI suite, the
+  geocoders vs historical OS maps. Covers the `parish-geo-tool` CLI suite, the
   coordinate resolver (absolute + relative + graph-delta fallback), how to
   compute historical offsets from earlier commits, and why Nominatim alone is
   the wrong primary source for a 1820s Irish world. Trigger eagerly: any task
@@ -20,9 +20,9 @@ The game is set in 1820s rural Ireland. `mods/rundale/world.json` stores lat/lon
 
 ## The two binaries
 
-**`geo-tool`** (`crates/geo-tool/src/main.rs`) — the OSM extraction pipeline. Runs Overpass queries against OpenStreetMap, extracts game-relevant features (pubs, churches, roads, holy wells, etc.) within a bounding box, and emits a candidate `world.json`. This is the world-generation side; you'll rarely rerun it unless bootstrapping a new mod or expanding the world footprint.
+**`parish-geo-tool`** (`crates/parish-geo-tool/src/main.rs`) — the OSM extraction pipeline. Runs Overpass queries against OpenStreetMap, extracts game-relevant features (pubs, churches, roads, holy wells, etc.) within a bounding box, and emits a candidate `world.json`. This is the world-generation side; you'll rarely rerun it unless bootstrapping a new mod or expanding the world footprint.
 
-**`realign_rundale_coords`** (`crates/geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`.
+**`realign_rundale_coords`** (`crates/parish-geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`.
 
 ## The coordinate model
 
@@ -75,7 +75,7 @@ Is this a real-world place that still exists today and modern geocoders find cor
 ### Pin a real-world location to a historical coord
 
 ```bash
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json --in-place \
   --set-coord "Kilteevan Village=53.6320798910683,-8.102070946274374" \
   --set-source "Kilteevan Village=OS 6-inch First Edition, Roscommon sheet, ca. 1837"
@@ -116,7 +116,7 @@ When you've edited `world.json` coords by hand and want the graph-delta to apply
 ```bash
 cp mods/rundale/world.json /tmp/world_baseline.json
 # ... hand-edit the anchor coords ...
-cargo run -p geo-tool --bin realign_rundale_coords -- \
+cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --baseline-world /tmp/world_baseline.json \
   --no-geocode --in-place
@@ -140,7 +140,7 @@ print({k: loc[k] for k in ['name','lat','lon','geo_kind','relative_to','geo_sour
 | Source | URL | Used? | For what |
 |---|---|---|---|
 | **Nominatim** | `nominatim.openstreetmap.org/search` | Yes, runtime | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale. |
-| **Overpass** | `overpass-api.de/api/interpreter` | Yes, runtime | Bulk OSM feature extraction in the main `geo-tool` binary. Run rarely. |
+| **Overpass** | `overpass-api.de/api/interpreter` | Yes, runtime | Bulk OSM feature extraction in the main `parish-geo-tool` binary. Run rarely. |
 | **OSM raster tiles** | `tile.openstreetmap.org` | Yes, UI | Map background layer in the frontend. |
 | **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer) | Yes, **manually** | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins. |
 | **OS 25-inch** (ca. 1887–1913) | `map.geohive.ie` | Occasionally | Higher-resolution historical map for later-era details. |
