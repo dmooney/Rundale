@@ -540,13 +540,35 @@ async fn handle_game_input(
 
     // Parse intent: tries local keywords first, then LLM for ambiguous input.
     let intent = if let Some(client) = &client {
-        let mut world = state.world.lock().await;
-        world.clock.inference_pause();
-        drop(world);
+        // Capture generation before releasing the lock so we can detect TOCTOU
+        // races on re-acquire (issue #283).
+        let gen_before = {
+            let mut world = state.world.lock().await;
+            world.clock.inference_pause();
+            world.tick_generation
+        };
         let result = parse_intent(client, &raw, &model).await;
-        let mut world = state.world.lock().await;
-        world.clock.inference_resume();
-        drop(world);
+        {
+            let mut world = state.world.lock().await;
+            world.clock.inference_resume();
+            let gen_after = world.tick_generation;
+            if gen_after != gen_before {
+                tracing::warn!(
+                    gen_before,
+                    gen_after,
+                    "World advanced during intent parse (TOCTOU #283) — \
+                     {} tick(s) elapsed; proceeding with parsed intent",
+                    gen_after.wrapping_sub(gen_before),
+                );
+                let _ = app.emit(
+                    crate::events::EVENT_TEXT_LOG,
+                    text_log(
+                        "system",
+                        "The world shifted while your words were in the air.",
+                    ),
+                );
+            }
+        }
         result.ok()
     } else {
         // No client configured — use local keyword parsing only.

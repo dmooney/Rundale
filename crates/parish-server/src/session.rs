@@ -834,6 +834,10 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
                             },
                         );
                     }
+
+                    // Advance the generation counter so handle_game_input can
+                    // detect TOCTOU races (see issue #283).
+                    world.increment_tick_generation();
                 }
             }
         }));
