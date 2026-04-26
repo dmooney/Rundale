@@ -316,10 +316,17 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             loop {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
                 g.sessions.cleanup_stale(MEMORY_TTL);
-                let saves_root = g.saves_dir.clone();
-                let purged = g
-                    .sessions
-                    .purge_expired_disk_sessions(&saves_root, DISK_TTL);
+                // purge_expired_disk_sessions does SQLite queries and
+                // std::fs::remove_dir_all, both of which are blocking.
+                // Offload to a blocking thread so we don't stall a Tokio
+                // worker during the filesystem sweep (#612).
+                let g2 = Arc::clone(&g);
+                let purged = tokio::task::spawn_blocking(move || {
+                    g2.sessions
+                        .purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
+                })
+                .await
+                .unwrap_or(0);
                 if purged > 0 {
                     tracing::info!(purged, "Session cleanup reaped expired disk sessions");
                 } else {

@@ -295,11 +295,11 @@ impl SessionRegistry {
                 let tx_result = (|| -> rusqlite::Result<()> {
                     let tx = db.unchecked_transaction()?;
                     let placeholders = vec!["?"; collected.len()].join(",");
-                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
                     let params: Vec<&dyn rusqlite::ToSql> = collected
                         .iter()
                         .map(|s| s as &dyn rusqlite::ToSql)
                         .collect();
+                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
                     tx.execute(&sql, params.as_slice())?;
                     // Also drop oauth links for those sessions — otherwise
                     // the next login for the same provider_user_id would

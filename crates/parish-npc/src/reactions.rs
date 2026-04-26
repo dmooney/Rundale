@@ -1251,6 +1251,49 @@ mod tests {
     }
 
     #[test]
+    fn llm_reaction_decision_allows_null() {
+        let parsed: LlmReactionDecision = serde_json::from_str(r#"{"emoji":null}"#).unwrap();
+        assert!(parsed.emoji.is_none());
+    }
+
+    #[test]
+    fn llm_reaction_decision_accepts_missing_field() {
+        let parsed: LlmReactionDecision = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(parsed.emoji.is_none());
+    }
+
+    #[test]
+    fn llm_reaction_decision_non_null_emoji() {
+        let parsed: LlmReactionDecision = serde_json::from_str(r#"{"emoji":"test"}"#).unwrap();
+        assert_eq!(parsed.emoji.as_deref(), Some("test"));
+    }
+
+    #[test]
+    fn build_player_message_reaction_prompt_contains_palette_and_npc_name() {
+        let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
+        let (system, user) = build_player_message_reaction_prompt(&npc, "The landlord is coming.");
+
+        assert!(
+            system.contains("Available palette"),
+            "system missing palette"
+        );
+        assert!(
+            system.contains("null: no visible reaction"),
+            "system missing null option"
+        );
+        assert!(
+            system.contains("Legacy keyword cues"),
+            "system missing keyword cues"
+        );
+        assert!(user.contains("Padraig Darcy"), "user missing NPC name");
+        assert!(
+            user.contains("Player message"),
+            "user missing player message label"
+        );
+        assert!(user.contains("landlord"), "user missing player text");
+    }
+
+    #[test]
     fn palette_has_expected_size() {
         assert_eq!(REACTION_PALETTE.len(), 12);
     }
@@ -1715,18 +1758,6 @@ mod tests {
             .next()
             .unwrap_or("");
         assert!(after_personality.chars().count() <= 300);
-    }
-
-    #[test]
-    fn llm_reaction_decision_allows_null() {
-        let parsed: LlmReactionDecision = serde_json::from_str(r#"{"emoji":null}"#).unwrap();
-        assert!(parsed.emoji.is_none());
-    }
-
-    #[test]
-    fn llm_reaction_decision_parses_valid_emoji() {
-        let parsed: LlmReactionDecision = serde_json::from_str(r#"{"emoji":"😊"}"#).unwrap();
-        assert_eq!(parsed.emoji.as_deref(), Some("😊"));
     }
 
     /// End-to-end: simulator returns a valid palette emoji → reaction emitted.

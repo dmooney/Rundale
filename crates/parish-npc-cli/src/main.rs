@@ -494,13 +494,19 @@ fn show_npc(conn: &Connection, npc_id: i64) -> Result<()> {
     }
 }
 
+fn escape_like(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 fn search_npcs(conn: &Connection, query: &str, limit: u32) -> Result<()> {
-    let like = format!("%{}%", query);
+    let like = format!("%{}%", escape_like(query));
     let mut stmt = conn.prepare(
         "
         SELECT n.id, n.name, p.name, n.occupation
         FROM npcs n JOIN parishes p ON p.id = n.parish_id
-        WHERE n.name LIKE ?
+        WHERE n.name LIKE ? ESCAPE '\\'
         ORDER BY n.name
         LIMIT ?
     ",
@@ -1113,6 +1119,72 @@ mod tests {
             missing.unwrap_err().to_string().contains("NPC not found"),
             "missing NPC should still surface 'NPC not found'"
         );
+    }
+
+    // ── #607 search_npcs escapes LIKE wildcard metacharacters ──────────────
+
+    fn setup_search_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+
+        let county_id: i64 = conn
+            .query_row(
+                "INSERT INTO counties(name) VALUES ('Roscommon') RETURNING id",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or_else(|_| {
+                conn.execute("INSERT INTO counties(name) VALUES ('Roscommon')", [])
+                    .unwrap();
+                conn.last_insert_rowid()
+            });
+
+        conn.execute(
+            "INSERT INTO parishes(county_id, name) VALUES (?, 'Kiltoom')",
+            params![county_id],
+        )
+        .unwrap();
+        let parish_id = conn.last_insert_rowid();
+
+        for (name, occ) in &[
+            ("100%_off", "Merchant"),
+            ("Alice the Smith", "Blacksmith"),
+            ("O_Brien", "Farmer"),
+        ] {
+            conn.execute(
+                "INSERT INTO npcs(name, sex, birth_year, age, parish_id, occupation, data_tier, mood) \
+                 VALUES (?, 'unknown', 1800, 20, ?, ?, 0, 'neutral')",
+                params![name, parish_id, occ],
+            )
+            .unwrap();
+        }
+
+        conn
+    }
+
+    fn search_names(conn: &Connection, query: &str) -> Vec<String> {
+        let like = format!("%{}%", escape_like(query));
+        let mut stmt = conn
+            .prepare("SELECT n.name FROM npcs n WHERE n.name LIKE ? ESCAPE '\\' ORDER BY n.name")
+            .unwrap();
+        stmt.query_map(params![like], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn test_search_wildcard_chars_match_literal_only() {
+        let conn = setup_search_db();
+        let results = search_names(&conn, "100%_off");
+        assert_eq!(results, vec!["100%_off".to_string()]);
+    }
+
+    #[test]
+    fn test_search_normal_query_still_matches() {
+        let conn = setup_search_db();
+        let results = search_names(&conn, "alice");
+        assert_eq!(results, vec!["Alice the Smith".to_string()]);
     }
 
     // ── #592 SQL injection guard ─────────────────────────────────────────────
