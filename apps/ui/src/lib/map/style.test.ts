@@ -109,6 +109,22 @@ describe('buildStyle', () => {
 		expect(icons?.type).toBe('symbol');
 	});
 
+	// ── Regression #1: location icons (issue #309) ──────────────────────────────
+	// The location-circles symbol layer must use the 'icon-image' expression that
+	// resolves to 'icon-<name>' — matching the keys registerLocationIcons() uses
+	// when it calls map.addImage('icon-<name>', …) in the controller.
+	it('location-circles icon-image expression matches the icon-<name> convention', () => {
+		const style = buildStyle('full', THEME, osm());
+		const icons = style.layers.find((l) => l.id === 'location-circles');
+		expect(icons).toBeDefined();
+		expect(icons?.type).toBe('symbol');
+		const layout = (icons as { layout: Record<string, unknown> }).layout;
+		expect(layout['icon-image']).toEqual(['concat', 'icon-', ['get', 'icon']]);
+	});
+
+	// ── Regression #2: travel edge highlighting (issue #309) ────────────────────
+	// The edges-solid layer must honour the traversing property for both line-color
+	// (accent vs border) and line-width (wider when traversing).
 	it('adds traversing-edge highlight styling to solid edges', () => {
 		const style = buildStyle('full', THEME, osm());
 		const solid = style.layers.find((l) => l.id === 'edges-solid');
@@ -118,6 +134,40 @@ describe('buildStyle', () => {
 			['get', 'traversing'],
 			THEME.accent,
 			THEME.border
+		]);
+		// Traversing edges should also be more opaque than normal ones.
+		const opacity = (solid as { paint: { 'line-opacity': unknown } }).paint['line-opacity'];
+		expect(opacity).toEqual(['case', ['get', 'traversing'], 1, 0.85]);
+	});
+
+	// ── Regression #3: glow filter for lit/player locations (issue #309) ────────
+	// The location-glow circle layer approximates the old SVG feColorMatrix glow
+	// via circle-blur. Lit locations must get a non-zero blur; plain ones get 0.
+	it('location-glow uses circle-blur to approximate lit/player glow', () => {
+		const style = buildStyle('full', THEME, osm());
+		const glow = style.layers.find((l) => l.id === 'location-glow');
+		expect(glow).toBeDefined();
+		const paint = (glow as { paint: Record<string, unknown> }).paint;
+		// circle-blur must be a case expression that gives non-zero blur to isPlayer
+		// and lit locations while hiding plain ones.
+		const blur = paint['circle-blur'];
+		expect(Array.isArray(blur)).toBe(true);
+		const blurExpr = blur as unknown[];
+		expect(blurExpr[0]).toBe('case');
+		// isPlayer case (index 1-2) and lit case (index 3-4) must have positive blur.
+		expect(typeof blurExpr[2]).toBe('number');
+		expect(blurExpr[2] as number).toBeGreaterThan(0);
+		expect(typeof blurExpr[4]).toBe('number');
+		expect(blurExpr[4] as number).toBeGreaterThan(0);
+		// Default (last value) must be 0 — plain unlit locations have no glow.
+		expect(blurExpr[blurExpr.length - 1]).toBe(0);
+		// Plain locations must have 0 circle-opacity (hidden glow circle).
+		const opacity = paint['circle-opacity'];
+		expect(opacity).toEqual([
+			'case',
+			['any', ['get', 'isPlayer'], ['get', 'lit']],
+			1,
+			0
 		]);
 	});
 });
