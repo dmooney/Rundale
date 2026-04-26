@@ -78,6 +78,10 @@ pub fn handle_editor_list_mods(mods_root: &Path) -> Result<Vec<ModSummary>, Stri
 }
 
 /// Opens a mod from disk and stores it in the session.
+///
+/// Bumps both `version` and `generation`: this is a snapshot-replacement
+/// event (new lineage). Any in-flight `update_*` requests that captured the
+/// pre-open counters must reject their write-backs.
 pub fn handle_editor_open_mod(
     session: &Mutex<EditorSession>,
     mod_path: &Path,
@@ -88,6 +92,8 @@ pub fn handle_editor_open_mod(
     };
     let mut s = session.lock().map_err(|e| e.to_string())?;
     s.snapshot = Some(snapshot);
+    s.version = s.version.wrapping_add(1);
+    s.generation = s.generation.wrapping_add(1);
     Ok(response)
 }
 
@@ -113,6 +119,11 @@ pub fn handle_editor_validate(session: &Mutex<EditorSession>) -> Result<Validati
 }
 
 /// Replaces the NPC data in the session with the provided value.
+///
+/// Bumps `version` (a mutating operation) but **not** `generation` — peer
+/// updates do not change the snapshot lineage. Concurrent `update_locations`
+/// requests that captured the same generation are still allowed to commit;
+/// only open/reload/save/close invalidate them.
 pub fn handle_editor_update_npcs(
     session: &Mutex<EditorSession>,
     npcs: parish_npc::NpcFile,
@@ -124,10 +135,17 @@ pub fn handle_editor_update_npcs(
         .ok_or_else(|| "no mod is open in the editor".to_string())?;
     snap.npcs = npcs;
     validate::validate_snapshot(snap);
-    Ok(snap.validation.clone())
+    let report = snap.validation.clone();
+    s.version = s.version.wrapping_add(1);
+    Ok(report)
 }
 
 /// Replaces the locations in the session with the provided value.
+///
+/// Bumps `version` (a mutating operation) but **not** `generation` — peer
+/// updates do not change the snapshot lineage. Concurrent `update_npcs`
+/// requests that captured the same generation are still allowed to commit;
+/// only open/reload/save/close invalidate them.
 pub fn handle_editor_update_locations(
     session: &Mutex<EditorSession>,
     locations: Vec<parish_world::graph::LocationData>,
@@ -139,27 +157,41 @@ pub fn handle_editor_update_locations(
         .ok_or_else(|| "no mod is open in the editor".to_string())?;
     snap.locations = locations;
     validate::validate_snapshot(snap);
-    Ok(snap.validation.clone())
+    let report = snap.validation.clone();
+    s.version = s.version.wrapping_add(1);
+    Ok(report)
 }
 
 /// Saves the specified docs from the in-memory snapshot to disk.
 ///
 /// Returns `EditorSaveResponse { saved: true, .. }` on success, or
 /// `{ saved: false, .. }` if validation blocked the save.
+///
+/// Always bumps `version`. Bumps `generation` **only** on a successful disk
+/// write (`was_saved == true`) — a validation-blocked save leaves the
+/// snapshot lineage unchanged, so in-flight `update_*` requests that
+/// captured the pre-save generation must still be allowed to commit.
 pub fn handle_editor_save(
     session: &Mutex<EditorSession>,
     docs: Vec<EditorDoc>,
 ) -> Result<EditorSaveResponse, String> {
     let mut s = session.lock().map_err(|e| e.to_string())?;
-    let snap = s
-        .snapshot
-        .as_mut()
-        .ok_or_else(|| "no mod is open in the editor".to_string())?;
-
-    let result = persist::save_mod(snap, &docs).map_err(|e| e.to_string())?;
+    // `snap` borrow must end before we mutate `s.version`/`s.generation`.
+    let (was_saved, report) = {
+        let snap = s
+            .snapshot
+            .as_mut()
+            .ok_or_else(|| "no mod is open in the editor".to_string())?;
+        let result = persist::save_mod(snap, &docs).map_err(|e| e.to_string())?;
+        (result.was_saved(), result.report().clone())
+    };
+    s.version = s.version.wrapping_add(1);
+    if was_saved {
+        s.generation = s.generation.wrapping_add(1);
+    }
     Ok(EditorSaveResponse {
-        saved: result.was_saved(),
-        validation: result.report().clone(),
+        saved: was_saved,
+        validation: report,
     })
 }
 
@@ -188,13 +220,23 @@ pub fn handle_editor_reload(session: &Mutex<EditorSession>) -> Result<EditorModS
     // clones state out of the tokio Mutex before the blocking read.
     let snapshot = mod_io::load_mod_snapshot(&mod_path).map_err(|e| e.to_string())?;
     s.snapshot = Some(snapshot.clone());
+    // Reload replaces the snapshot from disk — bump both version (mutating
+    // operation) and generation (lineage change) so any in-flight update_*
+    // requests that captured the pre-reload counters reject their write-backs.
+    s.version = s.version.wrapping_add(1);
+    s.generation = s.generation.wrapping_add(1);
     Ok(snapshot)
 }
 
 /// Closes the editor session, freeing memory.
+///
+/// Bumps both `version` and `generation`: closing clears the snapshot, so
+/// any in-flight `update_*` requests must reject their write-backs.
 pub fn handle_editor_close(session: &Mutex<EditorSession>) -> Result<(), String> {
     let mut s = session.lock().map_err(|e| e.to_string())?;
     s.snapshot = None;
+    s.version = s.version.wrapping_add(1);
+    s.generation = s.generation.wrapping_add(1);
     Ok(())
 }
 
@@ -335,5 +377,120 @@ mod tests {
             err.contains("no mod is open"),
             "expected 'no mod is open' error, got: {err}"
         );
+    }
+
+    // ── #597 version/generation bump tests ──────────────────────────────────
+
+    /// Returns a minimal `EditorModSnapshot` useful for seeding an
+    /// `EditorSession` without going to disk.
+    fn minimal_snapshot() -> crate::editor::types::EditorModSnapshot {
+        use crate::editor::types::{EditorManifest, EditorModSnapshot, ValidationReport};
+        use crate::game_mod::{AnachronismData, EncounterTable};
+        EditorModSnapshot {
+            mod_path: std::path::PathBuf::from("/tmp/test_mod"),
+            manifest: EditorManifest {
+                id: "test".to_string(),
+                name: "Test Mod".to_string(),
+                title: None,
+                version: "0.1.0".to_string(),
+                description: String::new(),
+                start_date: "1820-01-01".to_string(),
+                start_location: 0,
+                period_year: 1820,
+            },
+            npcs: parish_npc::NpcFile { npcs: vec![] },
+            locations: vec![],
+            festivals: vec![],
+            encounters: EncounterTable {
+                by_time: Default::default(),
+            },
+            anachronisms: AnachronismData {
+                context_alert_prefix: String::new(),
+                context_alert_suffix: String::new(),
+                terms: vec![],
+            },
+            validation: ValidationReport::default(),
+        }
+    }
+
+    /// Seeds a `Mutex<EditorSession>` with a snapshot and given starting
+    /// counters for convenience in bump-assertion tests.
+    fn seeded_session(version: u64, generation: u64) -> Mutex<EditorSession> {
+        Mutex::new(EditorSession {
+            snapshot: Some(minimal_snapshot()),
+            version,
+            generation,
+        })
+    }
+
+    #[test]
+    fn editor_open_mod_bumps_version_and_generation() {
+        let root = std::path::PathBuf::from("../../mods/rundale");
+        if !root.exists() {
+            return;
+        }
+        let session = Mutex::new(EditorSession {
+            snapshot: None,
+            version: 5,
+            generation: 3,
+        });
+        handle_editor_open_mod(&session, &root).expect("open_mod failed");
+        let s = session.lock().unwrap();
+        assert_eq!(s.version, 6, "open_mod must bump version");
+        assert_eq!(s.generation, 4, "open_mod must bump generation");
+    }
+
+    #[test]
+    fn editor_update_npcs_bumps_version_only() {
+        let session = seeded_session(10, 7);
+        handle_editor_update_npcs(&session, parish_npc::NpcFile { npcs: vec![] })
+            .expect("update_npcs failed");
+        let s = session.lock().unwrap();
+        assert_eq!(s.version, 11, "update_npcs must bump version");
+        assert_eq!(s.generation, 7, "update_npcs must NOT bump generation");
+    }
+
+    #[test]
+    fn editor_update_locations_bumps_version_only() {
+        let session = seeded_session(4, 2);
+        handle_editor_update_locations(&session, vec![]).expect("update_locations failed");
+        let s = session.lock().unwrap();
+        assert_eq!(s.version, 5, "update_locations must bump version");
+        assert_eq!(s.generation, 2, "update_locations must NOT bump generation");
+    }
+
+    #[test]
+    fn editor_close_bumps_version_and_generation() {
+        let session = seeded_session(8, 5);
+        handle_editor_close(&session).expect("close failed");
+        let s = session.lock().unwrap();
+        assert_eq!(s.version, 9, "close must bump version");
+        assert_eq!(s.generation, 6, "close must bump generation");
+        assert!(s.snapshot.is_none(), "close must clear snapshot");
+    }
+
+    #[test]
+    fn editor_reload_bumps_version_and_generation() {
+        let root = std::path::PathBuf::from("../../mods/rundale");
+        if !root.exists() {
+            return;
+        }
+        let session = Mutex::new(EditorSession {
+            snapshot: None,
+            version: 2,
+            generation: 1,
+        });
+        // Open first so reload has a mod_path to work with.
+        handle_editor_open_mod(&session, &root).expect("open_mod failed");
+        // Reset to known state for clear assertions.
+        {
+            let mut s = session.lock().unwrap();
+            s.version = 2;
+            s.generation = 1;
+        }
+        handle_editor_reload(&session).expect("reload failed");
+        let s = session.lock().unwrap();
+        assert_eq!(s.version, 3, "reload must bump version");
+        assert_eq!(s.generation, 2, "reload must bump generation");
     }
 }
