@@ -2,12 +2,14 @@
 name = "parish-core"
 version = "0.1.0"
 edition = "2024"
+description = "Orchestration layer for the Parish engine: game session, IPC, mod loading, prompts"
 
 [dependencies]
 parish-types = { path = "../parish-types" }
 parish-config = { path = "../parish-config" }
 parish-inference = { path = "../parish-inference" }
 parish-world = { path = "../parish-world" }
+parish-palette = { path = "../parish-palette" }
 parish-npc = { path = "../parish-npc" }
 parish-persistence = { path = "../parish-persistence" }
 parish-input = { path = "../parish-input" }

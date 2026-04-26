@@ -1,14 +1,14 @@
 # LLM-Assisted Mod Authoring
 
 **Target crate:** new `crates/parish-authoring/` (binary), invoked by the
-Designer Editor (`apps/ui/`) and the `geo-tool` CLI.
+Designer Editor (`apps/ui/`) and the `parish-geo-tool` CLI.
 
 ## Problem
 
 A new scenario (Ulster 1798, Galway 1847, a fictional Donegal townland)
 today requires hand-editing `world.json`, `npcs.json`, schedules,
 relationships, and anachronism allowlists. It is weeks of work per parish
-and blocks community authoring. The existing `geo-tool` handles geography;
+and blocks community authoring. The existing `parish-geo-tool` handles geography;
 characters and relationships are still bespoke.
 
 ## SOTA technique
@@ -27,7 +27,7 @@ step. The goal is 10× authoring throughput, not autonomous content.
 
 ## Concrete pipeline
 
-1. **Geography** — `geo-tool` + OSM (ADR-011) produces locations.
+1. **Geography** — `parish-geo-tool` + OSM (ADR-011) produces locations.
 2. **Population prompt** — a tool-use model is given the location graph, the
    year, and the anchor NPCs. It emits candidate residents with:
    - Period-appropriate forename + surname (sampled from a curated surname
@@ -57,7 +57,7 @@ step. The goal is 10× authoring throughput, not autonomous content.
 
 ## Reuse of existing infra
 
-- `geo-tool`'s `real | manual | fictional` split + `relative_to` subordination
+- `parish-geo-tool`'s `real | manual | fictional` split + `relative_to` subordination
   maps cleanly to "anchor, then fill". The geo side is already pinned by the
   user; the authoring tool fills the population around it.
 - `pronunciations.json` + the generated names pipeline share input: names

@@ -24,7 +24,7 @@ const OCCUPATIONS: &[(&str, u8)] = &[
 ];
 
 #[derive(Parser, Debug)]
-#[command(name = "parish-npc")]
+#[command(name = "parish-npc-tool")]
 #[command(about = "NPC world builder and inspection utility")]
 struct Cli {
     /// SQLite database path.
@@ -197,18 +197,18 @@ fn open_db(path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
-/// Initialises the standalone `parish-npc` SQLite schema.
+/// Initialises the standalone `parish-npc-tool` SQLite schema.
 ///
 /// # Schema divergence from parish-persistence (#434)
 ///
 /// This schema is **not** compatible with the main game's persistence
 /// format in `parish-persistence` (which stores branch-based game
 /// snapshots keyed by session id, not relational parish/household/NPC
-/// rows). Databases created by `parish-npc` cannot be loaded by the
+/// rows). Databases created by `parish-npc-tool` cannot be loaded by the
 /// running game, and save files created by the game cannot be opened
-/// by `parish-npc` commands.
+/// by `parish-npc-tool` commands.
 ///
-/// That divergence is deliberate: `parish-npc` is a world-*building*
+/// That divergence is deliberate: `parish-npc-tool` is a world-*building*
 /// tool that authors use at design time to generate large populations
 /// with relational constraints (households, relationships, validation
 /// sweeps). The runtime engine only needs read-only NPC data and
@@ -221,13 +221,13 @@ fn open_db(path: &Path) -> Result<Connection> {
 ///
 /// The practical round-trip is:
 ///
-/// 1. `parish-npc generate-parish …` populates this schema.
-/// 2. `parish-npc export [--parish NAME]` emits the JSON blob the
+/// 1. `parish-npc-tool generate-parish …` populates this schema.
+/// 2. `parish-npc-tool export [--parish NAME]` emits the JSON blob the
 ///    game consumes, which can be hand-massaged into `npcs.json`.
 /// 3. The game loads `npcs.json` into its own runtime structures —
 ///    no direct SQLite interop.
 ///
-/// If you need to hold both formats in sync, treat the parish-npc DB
+/// If you need to hold both formats in sync, treat the parish-npc-tool DB
 /// as the source of truth at design time and re-export after every
 /// authoring session. A proper conversion utility between this schema
 /// and a gameplay save is out of scope; track additions there under

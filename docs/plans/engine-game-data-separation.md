@@ -40,7 +40,7 @@
 | Test NPC ("Padraig O'Brien") | `crates/parish-core/src/npc/mod.rs` | 142-168 |
 | `IrishWordHint` struct name | `crates/parish-core/src/npc/mod.rs` | 22-35 |
 | "Focail (Irish Words)" UI label | `ui/src/components/Sidebar.svelte` |
-| geo_tool (entire binary is Ireland-specific) | `src/bin/geo_tool/` |
+| parish-geo-tool (entire binary is Ireland-specific) | `crates/parish-geo-tool/src/` |
 
 ## Recommended Approach
 
@@ -217,7 +217,7 @@ Passed to the frontend via a new IPC command `get_ui_config()`.
 - Encounter flavor text → `mods/rundale/encounters.json`
 - Loading phrases/colors/spinners → `mods/rundale/loading.toml`
 - UI labels → `mods/rundale/ui.toml`
-- `geo_tool` stays as a separate binary (it's a development tool for generating mod content, not part of the engine or mod runtime)
+- `parish-geo-tool` stays as a separate binary (it's a development tool for generating mod content, not part of the engine or mod runtime)
 
 ### Migration Path
 

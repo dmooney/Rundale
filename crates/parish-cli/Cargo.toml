@@ -6,9 +6,6 @@ description = "An Irish Living World Text Adventure — CLI / headless / web ent
 license = "LicenseRef-Proprietary"
 default-run = "parish"
 
-[lib]
-path = "src/lib.rs"
-
 [[bin]]
 name = "parish"
 path = "src/main.rs"

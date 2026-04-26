@@ -1,4 +1,4 @@
-//! geo-tool — Download geographic data from OpenStreetMap and convert to Parish game data.
+//! parish-geo-tool — Download geographic data from OpenStreetMap and convert to Parish game data.
 //!
 //! A development tool that queries the Overpass API for real Irish geographic
 //! features and converts them into the `parish.json` world graph format used
@@ -8,16 +8,16 @@
 //!
 //! ```sh
 //! # Generate parish data for a specific area by name
-//! cargo run --bin geo-tool -- --area "Kiltoom" --level parish
+//! cargo run -p parish-geo-tool -- --area "Kiltoom" --level parish
 //!
 //! # Generate for a bounding box
-//! cargo run --bin geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
+//! cargo run -p parish-geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
 //!
 //! # Merge with existing hand-authored data
-//! cargo run --bin geo-tool -- --area "Kiltoom" --merge data/parish.json
+//! cargo run -p parish-geo-tool -- --area "Kiltoom" --merge data/parish.json
 //!
 //! # Generate for a full county
-//! cargo run --bin geo-tool -- --area "Roscommon" --level county
+//! cargo run -p parish-geo-tool -- --area "Roscommon" --level county
 //! ```
 
 mod cache;
@@ -41,7 +41,7 @@ use clap::{Parser, ValueEnum};
 /// Downloads real geographic features from OpenStreetMap and converts them
 /// into the parish.json world graph format.
 #[derive(Parser, Debug)]
-#[command(name = "geo-tool", version, about)]
+#[command(name = "parish-geo-tool", version, about)]
 struct Cli {
     /// Named area to query (e.g., "Kiltoom", "Roscommon", "Athlone").
     #[arg(long)]
@@ -149,5 +149,5 @@ async fn main() -> Result<()> {
         max_locations: cli.max_locations,
     })
     .await
-    .context("geo-tool pipeline failed")
+    .context("parish-geo-tool pipeline failed")
 }

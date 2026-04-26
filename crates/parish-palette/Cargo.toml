@@ -1,0 +1,9 @@
+[package]
+name = "parish-palette"
+version = "0.1.0"
+edition = "2024"
+description = "Backend-agnostic time-of-day, season, and weather color interpolation for Parish"
+
+[dependencies]
+parish-types = { path = "../parish-types" }
+parish-config = { path = "../parish-config" }

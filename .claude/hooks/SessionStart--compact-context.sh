@@ -34,7 +34,7 @@ GIT CONVENTIONS:
 
 CRITICAL FILES (do not edit directly):
 - Cargo.lock (managed by cargo)
-- mods/rundale/world.json, mods/rundale/npcs.json (world data, use geo-tool)
+- mods/rundale/world.json, mods/rundale/npcs.json (world data, use parish-geo-tool)
 
 KEY PATHS:
 - docs/index.md -- documentation hub

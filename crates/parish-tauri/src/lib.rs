@@ -959,7 +959,7 @@ pub fn run() {
                 let state_tick = Arc::clone(&state_setup);
                 let handle_tick = handle.clone();
                 tokio::spawn(async move {
-                    let mut last_palette: Option<parish_core::world::palette::RawPalette> = None;
+                    let mut last_palette: Option<parish_palette::RawPalette> = None;
                     loop {
                         tokio::time::sleep(Duration::from_secs(5)).await;
 
@@ -979,7 +979,7 @@ pub fn run() {
                             // Emit current time-of-day palette (weather + season tinted)
                             {
                                 use chrono::Timelike;
-                                use parish_core::world::palette::compute_palette;
+                                use parish_palette::compute_palette;
                                 let now = world.clock.now();
                                 let raw = compute_palette(
                                     now.hour(),

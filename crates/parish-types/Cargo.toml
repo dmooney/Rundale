@@ -2,6 +2,7 @@
 name = "parish-types"
 version = "0.1.0"
 edition = "2024"
+description = "Foundational shared types for the Parish engine (zero internal deps)"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

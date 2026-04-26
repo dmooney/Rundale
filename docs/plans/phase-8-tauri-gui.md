@@ -101,7 +101,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 
 1. **Convert `Cargo.toml` to a workspace manifest**
    - Replace `[package]` with `[workspace]` containing `members = ["crates/parish-core", "src-tauri", "."]`
-   - Keep the root `[[bin]]` entries for `parish` (CLI) and `geo-tool`
+   - Keep the root `[[bin]]` entries for `parish` (CLI) and `parish-geo-tool`
    - Move all current `[dependencies]` (minus `eframe` and `image`) to `crates/parish-core/Cargo.toml`
    - Root `Cargo.toml` depends on `parish-core = { path = "crates/parish-core" }`
 

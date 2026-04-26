@@ -20,7 +20,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
   - `parish-cli` (CLI/headless binary `parish`)
   - `parish-server` (Axum web backend)
   - `parish-tauri` (Tauri desktop backend)
-  - `geo-tool` (OSM extraction CLI)
+  - `parish-geo-tool` (OSM extraction CLI)
 - Frontend: `apps/ui/` (Svelte 5 + TypeScript)
 - Game content: `mods/rundale/`
 - Test fixtures: `testing/fixtures/`

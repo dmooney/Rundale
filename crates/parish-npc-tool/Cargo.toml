@@ -1,11 +1,11 @@
 [package]
-name = "parish-npc-cli"
+name = "parish-npc-tool"
 version = "0.1.0"
 edition = "2024"
 description = "NPC world builder and inspection utility for Parish/Rundale (#433)"
 
 [[bin]]
-name = "parish-npc"
+name = "parish-npc-tool"
 path = "src/main.rs"
 
 [dependencies]

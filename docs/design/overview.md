@@ -146,8 +146,8 @@ src/
 │   ├── status_bar.rs    # Time, location, weather status
 │   ├── input_field.rs   # Text input widget
 │   └── screenshot.rs    # Automated screenshot capture
-└── bin/
-    └── geo_tool/        # OSM geographic data extraction tool
+└── ../parish-geo-tool/  # OSM geographic data extraction tool (separate workspace crate)
+    └── src/
         ├── main.rs      # CLI entry point
         ├── pipeline.rs  # End-to-end extraction pipeline
         ├── overpass.rs   # Overpass API queries
@@ -175,7 +175,7 @@ src/
 - [Debug System](debug-system.md) — Debug commands, metrics collection (feature-gated)
 - [Debug UI](debug-ui.md) — Tabbed debug panel for Tauri GUI (full game state inspector)
 - [Mythology Hooks](mythology-hooks.md) — Future mythology layer data model hooks
-- [Geo-Tool](geo-tool.md) — OSM geographic data conversion pipeline
+- [parish-geo-tool](geo-tool.md) — OSM geographic data conversion pipeline
 - [Testing Harness](testing.md) — GameTestHarness, script mode, automated regression testing
 
 ## Related

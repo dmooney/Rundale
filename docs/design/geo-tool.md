@@ -6,7 +6,7 @@ A development tool that downloads real geographic data from OpenStreetMap and co
 
 ## Purpose
 
-The game world is built on real Irish geography (see [World Geography](world-geography.md)). The geo-tool automates the process of:
+The game world is built on real Irish geography (see [World Geography](world-geography.md)). The parish-geo-tool automates the process of:
 
 1. Downloading geographic features from the Overpass API
 2. Classifying them into game-relevant location types
@@ -18,10 +18,10 @@ This enables scaling from the current 15 hand-authored locations to thousands or
 
 ## Architecture
 
-The geo-tool is a separate binary (`crates/geo-tool/src/`) that shares types with the main game crate.
+The parish-geo-tool is a separate binary (`crates/parish-geo-tool/src/`) that shares types with the main game crate.
 
 ```
-src/bin/geo_tool/
+crates/parish-geo-tool/src/
 ├── main.rs          # CLI entry point (clap)
 ├── pipeline.rs      # Orchestrates the full conversion workflow
 ├── overpass.rs      # Overpass API client with caching & retries
@@ -39,24 +39,24 @@ src/bin/geo_tool/
 
 ```sh
 # Generate parish data for a named area at a given admin level
-cargo run --bin geo-tool -- --area "Kiltoom" --level parish
+cargo run -p parish-geo-tool -- --area "Kiltoom" --level parish
 
 # Generate for a full county
-cargo run --bin geo-tool -- --area "Roscommon" --level county
+cargo run -p parish-geo-tool -- --area "Roscommon" --level county
 
 # Use a bounding box
-cargo run --bin geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
+cargo run -p parish-geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
 
 # Merge with existing hand-authored data
-cargo run --bin geo-tool -- --area "Kiltoom" --merge mods/rundale/world.json
+cargo run -p parish-geo-tool -- --area "Kiltoom" --merge mods/rundale/world.json
 
 # Dry run — show Overpass queries without executing
-cargo run --bin geo-tool -- --area "Kiltoom" --dry-run
+cargo run -p parish-geo-tool -- --area "Kiltoom" --dry-run
 
 # Control detail level
-cargo run --bin geo-tool -- --area "Kiltoom" --detail full    # Every feature
-cargo run --bin geo-tool -- --area "Kiltoom" --detail notable # POIs only
-cargo run --bin geo-tool -- --area "Kiltoom" --detail sparse  # Major landmarks
+cargo run -p parish-geo-tool -- --area "Kiltoom" --detail full    # Every feature
+cargo run -p parish-geo-tool -- --area "Kiltoom" --detail notable # POIs only
+cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landmarks
 ```
 
 ### Administrative Levels

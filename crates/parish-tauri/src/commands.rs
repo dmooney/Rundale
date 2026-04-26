@@ -172,7 +172,7 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
     use chrono::Timelike;
-    use parish_core::world::palette::compute_palette;
+    use parish_palette::compute_palette;
     let world = state.world.lock().await;
     let now = world.clock.now();
     let raw = compute_palette(

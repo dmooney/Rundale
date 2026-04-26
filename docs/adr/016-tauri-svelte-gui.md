@@ -17,7 +17,7 @@ matures:
   theme calls for decorative typography, textured panel backgrounds, animated transitions, and
   authentic Celtic visual motifs — none of which egui handles naturally.
 - **Map limitations**: The current `map_panel.rs` places locations in a fixed circular arrangement
-  that ignores the real OSM-derived geography already extracted by `geo-tool`. A proper interactive
+  that ignores the real OSM-derived geography already extracted by `parish-geo-tool`. A proper interactive
   map (SVG, canvas, or WebGL) is not achievable in egui without substantial bespoke code.
 - **Text rendering**: The adventure log needs markdown-like formatting (bold NPC names, italicised
   narration, coloured speaker attribution). egui treats text as flat paragraphs; rich inline styling
@@ -57,7 +57,7 @@ Replace the egui/eframe GUI with **Tauri 2 + Svelte**:
 
 - Full HTML/CSS design freedom: Celtic typography, textured backgrounds, CSS animations, SVG
   illustrations, and responsive layout are all first-class.
-- Real interactive map: The OSM coordinates from `geo-tool` can drive a proper SVG or canvas map
+- Real interactive map: The OSM coordinates from `parish-geo-tool` can drive a proper SVG or canvas map
   with zoom, pan, and click-to-travel.
 - Rich text: Markdown-formatted adventure log, speaker-coloured dialogue, inline Irish word
   tooltips — all trivial in HTML.

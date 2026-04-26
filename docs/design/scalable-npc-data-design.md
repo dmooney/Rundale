@@ -108,12 +108,12 @@ Only ~2,000 NPCs in memory at once:
 
 ## 6. Build-Time Generation Pipeline
 
-All Sketched NPCs are pre-generated at build time, not at runtime. The generation pipeline is a build tool (like `geo_tool`), not part of the game binary. It produces a `parish-world.db` that ships with the game.
+All Sketched NPCs are pre-generated at build time, not at runtime. The generation pipeline is a build tool (like `parish-geo-tool`), not part of the game binary. It produces a `parish-world.db` that ships with the game.
 
 ### Pipeline Overview
 
 ```
-geo_tool extracts parishes/townlands/locations from OSM (geographic blocks)
+parish-geo-tool extracts parishes/townlands/locations from OSM (geographic blocks)
     │
     ▼
 demographic seeder runs per-parish: households → NPCs → implicit relationships
@@ -154,26 +154,26 @@ generate_household(townland, rng):
 - Deterministic and reproducible (seeded RNG)
 - The game binary stays simple — it only does promotion (Sketched → Elaborated), never skeleton generation
 
-## 7. Tooling: `parish-npc` CLI
+## 7. Tooling: `parish-npc-tool` CLI
 
-New binary in `src/bin/parish_npc/`:
+New binary in `crates/parish-npc-tool/`:
 
 ```sh
-parish-npc generate-world --counties roscommon,galway  # build the world DB
-parish-npc generate-parish Kiltoom --pop 2000          # seed one parish
-parish-npc list --parish Kiltoom --occupation Farmer
-parish-npc show 12345
-parish-npc search "Darcy"
-parish-npc edit 12345 --mood cheerful
-parish-npc promote 12345                               # Sketched -> Elaborated
-parish-npc elaborate --parish Kiltoom --batch 50        # batch LLM elaboration
-parish-npc validate --parish Kiltoom
-parish-npc validate --all                               # full world consistency check
-parish-npc stats                                        # population counts, tier distributions
-parish-npc export --parish Kiltoom > kiltoom.json
-parish-npc import < kiltoom.json
-parish-npc family-tree 12345
-parish-npc relationships 12345
+parish-npc-tool generate-world --counties roscommon,galway  # build the world DB
+parish-npc-tool generate-parish Kiltoom --pop 2000          # seed one parish
+parish-npc-tool list --parish Kiltoom --occupation Farmer
+parish-npc-tool show 12345
+parish-npc-tool search "Darcy"
+parish-npc-tool edit 12345 --mood cheerful
+parish-npc-tool promote 12345                               # Sketched -> Elaborated
+parish-npc-tool elaborate --parish Kiltoom --batch 50        # batch LLM elaboration
+parish-npc-tool validate --parish Kiltoom
+parish-npc-tool validate --all                               # full world consistency check
+parish-npc-tool stats                                        # population counts, tier distributions
+parish-npc-tool export --parish Kiltoom > kiltoom.json
+parish-npc-tool import < kiltoom.json
+parish-npc-tool family-tree 12345
+parish-npc-tool relationships 12345
 ```
 
 **Consistency validator checks:** referential integrity, household structure, age consistency, occupation distribution, naming conventions, schedule template resolution, all Elaborated+ have personality.
@@ -188,13 +188,13 @@ Hierarchical world graph: townland → parish → barony → county → province
 - **Between adjacent parishes:** boundary edges with travel times
 - **Long-distance:** abstracted multi-day journeys with encounter opportunities
 
-Locations are also pre-generated via `geo_tool` OSM pipeline, stored in the same `parish-world.db`. The geographic and demographic data are generated together, block by block.
+Locations are also pre-generated via `parish-geo-tool` OSM pipeline, stored in the same `parish-world.db`. The geographic and demographic data are generated together, block by block.
 
 **Scale:** Starting parish fully detailed (30–50 locations, ~2,000 NPCs pre-elaborated). All other parishes have locations + Sketched NPCs ready. The player can go anywhere — the world is already there.
 
 ## 9. Data Lifecycle
 
-**Creation (build time):** `geo_tool` geographic blocks → demographic seeder → Sketched NPCs → `parish-world.db`. Optionally: batch LLM elaboration for the starting parish to pre-promote key NPCs.
+**Creation (build time):** `parish-geo-tool` geographic blocks → demographic seeder → Sketched NPCs → `parish-world.db`. Optionally: batch LLM elaboration for the starting parish to pre-promote key NPCs.
 
 **Promotion (runtime):** Sketched → Elaborated via LLM on first encounter. Elaborated → Authored via human review.
 

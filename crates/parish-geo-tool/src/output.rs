@@ -18,7 +18,7 @@ use super::merge::TrackedLocation;
 ///
 /// Written alongside the standard parish.json for tooling use.
 /// The game engine reads the standard format; this adds metadata
-/// for the geo-tool pipeline.
+/// for the parish-geo-tool pipeline.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LocationMetadata {
     /// Location ID.
@@ -86,7 +86,7 @@ pub fn write_output(output_path: &Path, locations: &[TrackedLocation]) -> Result
     // Write metadata sidecar
     let meta_path = output_path.with_extension("meta.json");
     let metadata = ParishMetadata {
-        generator: format!("geo-tool {}", env!("CARGO_PKG_VERSION")),
+        generator: format!("parish-geo-tool {}", env!("CARGO_PKG_VERSION")),
         generated_at: chrono::Utc::now().to_rfc3339(),
         locations: locations
             .iter()
@@ -141,7 +141,7 @@ pub fn print_summary(locations: &[TrackedLocation]) {
         .count();
     let total_connections: usize = locations.iter().map(|l| l.data.connections.len()).sum();
 
-    println!("\n=== geo-tool output summary ===");
+    println!("\n=== parish-geo-tool output summary ===");
     println!("Total locations: {}", locations.len());
     println!("  Curated (hand-authored): {curated_count}");
     println!("  Template (auto-generated): {template_count}");

@@ -10,7 +10,7 @@ The game world is built on real Irish geography with 14 hand-authored locations 
 
 ## Decision
 
-Build a separate binary (`geo-tool`) that:
+Build a separate binary (`parish-geo-tool`) that:
 
 1. **Downloads** geographic data from the Overpass API (OpenStreetMap)
 2. **Extracts** game-relevant features (pubs, churches, farms, ring forts, crossroads, etc.)
@@ -21,7 +21,7 @@ Build a separate binary (`geo-tool`) that:
 
 Key design decisions:
 
-- **Separate binary, shared types**: The geo-tool is a `[[bin]]` in the same crate, reusing `LocationData`, `Connection`, and `WorldGraph` types directly. No data model drift.
+- **Separate binary, shared types**: The parish-geo-tool is a separate workspace crate, reusing `LocationData`, `Connection`, and `WorldGraph` types directly. No data model drift.
 - **Overpass API over PBF files**: Targeted queries are more practical than downloading all of Ireland. Caching eliminates redundant downloads.
 - **Three-tier descriptions**: `curated` (human-authored, never overwritten), `template` (rule-generated), `llm_pending` (for future LLM enrichment). Metadata sidecar tracks provenance.
 - **Administrative-level targeting**: Queries at townland, parish, barony, county, or province level using OSM's `admin_level` hierarchy.
