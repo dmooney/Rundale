@@ -88,7 +88,7 @@ semantic cues ("tense, rain") to a short playlist of pre-recorded loops.
 
 Let authors drop a sketched map into the Designer Editor; a VLM (Qwen2-VL,
 LLaVA-Next) extracts nodes and edges into `world.json` skeleton. Huge time
-saver for `geo-tool` workflows — see `docs/design/geo-tool.md`.
+saver for `parish-geo-tool` workflows — see `docs/design/geo-tool.md`.
 
 ### 8. Expression & gesture metadata
 

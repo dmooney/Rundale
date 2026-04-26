@@ -88,7 +88,7 @@ crates/
   parish-cli/       Parish engine — headless / web / CLI binary (`parish`)
   parish-server/    Parish engine — Axum web backend
   parish-tauri/     Parish engine — Tauri 2 desktop backend
-  geo-tool/         OSM extraction CLI
+  parish-geo-tool/  OSM extraction CLI
 apps/ui/            Svelte 5 + TypeScript frontend
 testing/fixtures/   scripted gameplay fixtures
 mods/rundale/       Rundale game content (world, NPCs, prompts, lore)

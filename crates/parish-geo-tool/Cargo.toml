@@ -1,12 +1,12 @@
 [package]
-name = "geo-tool"
+name = "parish-geo-tool"
 version = "0.1.0"
 edition = "2024"
 description = "Download OSM data and convert to Parish world graph format"
 license = "LicenseRef-Proprietary"
 
 [[bin]]
-name = "geo-tool"
+name = "parish-geo-tool"
 path = "src/main.rs"
 
 [dependencies]

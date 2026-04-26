@@ -45,7 +45,7 @@ High-level architecture and detailed subsystem designs. Start with [Architecture
 | [Debug System](design/debug-system.md) | Debug commands, metrics (feature-gated) | — |
 | [Debug UI](design/debug-ui.md) | Tabbed debug panel for Tauri GUI (state inspector) | — |
 | [Testing Harness](design/testing.md) | GameTestHarness, script mode, query APIs | — |
-| [Geo-Tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
+| [parish-geo-tool](design/geo-tool.md) | OSM geographic data conversion tool | [ADR-011](adr/011-geo-tool-osm-pipeline.md) |
 | [Mythology Hooks](design/mythology-hooks.md) | Future hooks for Irish mythology layer | — |
 | [Game Ideas Brainstorm](design/game-ideas-brainstorm.md) | 20 gameplay ideas across social, economic, mythology, and political themes | — |
 | [Ambient Sound](design/ambient-sound.md) | Location-aware audio playback via rodio | [ADR-015](adr/015-ambient-sound-system.md) |
@@ -66,7 +66,7 @@ Key decisions with rationale and alternatives considered. See [ADR Index](adr/RE
 | [008](adr/008-structured-json-llm-output.md) | Structured JSON output from LLM | Accepted |
 | [009](adr/009-real-geography-fictional-people.md) | Real Irish geography, fictional people | Accepted |
 | [010](adr/010-prompt-injection-defenses.md) | 5-layer prompt injection defense strategy | Accepted |
-| [011](adr/011-geo-tool-osm-pipeline.md) | Geo-tool OSM pipeline for automated world generation | Accepted |
+| [011](adr/011-geo-tool-osm-pipeline.md) | parish-geo-tool OSM pipeline for automated world generation | Accepted |
 | [012](adr/012-documentation-hierarchy.md) | Hierarchical documentation organization | Accepted |
 | [013](adr/013-cloud-llm-dialogue.md) | Cloud LLM for player dialogue | Accepted |
 | [014](adr/014-web-mobile-architecture.md) | Web & mobile thin-client architecture | Accepted |

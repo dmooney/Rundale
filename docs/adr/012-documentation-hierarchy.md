@@ -15,7 +15,7 @@ Accepted
 Rundale documentation grew organically across multiple development sessions. By the end of Phase 3, several problems had emerged:
 
 1. **Status drift**: Phase completion status was tracked in multiple places (README.md, docs/index.md, roadmap.md, individual phase plans) and had fallen out of sync. Phase 3 was complete but still shown as "Planned" in some documents.
-2. **Module tree drift**: The source module tree in CLAUDE.md and the architecture overview hadn't been updated as new modules were added in Phases 2-3 (npc submodules, debug.rs, geo_tool, gui submodules).
+2. **Module tree drift**: The source module tree in CLAUDE.md and the architecture overview hadn't been updated as new modules were added in Phases 2-3 (npc submodules, debug.rs, parish-geo-tool, gui submodules).
 3. **Flat navigation**: While docs/index.md existed as a hub, it wasn't clear which document to read first for a given concern. Agents and developers had to read multiple documents to find the right entry point.
 4. **Missing cross-references**: The research/ directory wasn't linked from the index. Known issues referenced plans that were already complete.
 5. **Archival content mixed with active**: The original DESIGN.md and completed "maybe bad ideas" sat alongside active documentation without clear separation.
