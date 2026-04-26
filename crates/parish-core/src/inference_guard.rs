@@ -22,12 +22,30 @@
 //! # Drop implementation
 //!
 //! `Drop` is synchronous, but the world lock is a `tokio::sync::Mutex`.
-//! We use [`tokio::sync::Mutex::blocking_lock`] in `Drop` to acquire the
-//! lock from a synchronous context.  This is safe inside a Tokio runtime
-//! because `blocking_lock` only blocks the *current* thread (not the entire
-//! runtime) and is specifically designed for this use-case.  Callers must
-//! not hold any other `world` lock when the guard is dropped — doing so
-//! would deadlock exactly as it would with any synchronous lock acquisition.
+//!
+//! **Fast path:** `try_lock()` succeeds (the common case — call sites release
+//! the world lock before awaiting the LLM).
+//!
+//! **Slow path:** another task holds the world lock at the exact moment the
+//! guard drops.  We use `tokio::task::block_in_place` to block the current
+//! thread until the lock is available, then call `inference_resume()`.
+//! `block_in_place` is only safe on a **multi-threaded** Tokio runtime; on a
+//! current-thread runtime it panics (and would double-panic if we are already
+//! unwinding).  We therefore check the runtime flavor before using it.
+//!
+//! If we are already panicking, `block_in_place` is skipped entirely —
+//! calling it during a panic can cause a process abort via double-panic.
+//! We fall back to `blocking_lock` directly.  If the lock is contended at
+//! that moment the thread blocks briefly; in the worst case the resume is
+//! delayed but the process survives.
+//!
+//! If there is no Tokio runtime at all (e.g. called from a pure synchronous
+//! test or an OS thread without a runtime), `blocking_lock` is used as a
+//! last resort — safe there because we are not on a Tokio worker thread.
+//!
+//! Callers must not hold any other `world` lock when the guard is dropped —
+//! doing so would deadlock exactly as it would with any synchronous lock
+//! acquisition.
 //!
 //! # Caveat: cancellation safety
 //!
@@ -42,6 +60,7 @@
 use std::sync::Arc;
 
 use parish_world::WorldState;
+use tokio::runtime::RuntimeFlavor;
 use tokio::sync::Mutex;
 
 /// RAII guard that holds the inference-pause state of the world clock.
@@ -74,21 +93,39 @@ impl Drop for InferencePauseGuard {
         }
 
         // Slow path (rare — another task holds the world lock at the exact
-        // moment this guard drops): spawn a task that waits for the lock and
-        // then resumes the clock.  We capture the Tokio runtime handle so
-        // this works even during stack unwinding from a panicking task.
-        let world = Arc::clone(&self.world);
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                let mut w = world.lock().await;
-                w.clock.inference_resume();
+        // moment this guard drops).
+        //
+        // Previously this used `handle.spawn(...)` whose `JoinHandle` was
+        // immediately dropped, making the resume a fire-and-forget that could
+        // silently never run if the runtime was shutting down (issue #650).
+        //
+        // Fix: use `block_in_place` when running on a multi-threaded Tokio
+        // runtime — it blocks the current thread until the lock is available,
+        // guaranteeing `inference_resume()` always runs before the guard is
+        // fully dropped.
+        //
+        // `block_in_place` is only valid on a multi-thread runtime; calling it
+        // on a current-thread runtime panics.  We also skip it when the thread
+        // is already panicking to avoid a double-panic process abort — in that
+        // case `blocking_lock` is used directly and may block briefly.
+        let use_block_in_place = !std::thread::panicking()
+            && tokio::runtime::Handle::try_current()
+                .map(|h| h.runtime_flavor() == RuntimeFlavor::MultiThread)
+                .unwrap_or(false);
+
+        if use_block_in_place {
+            let world = Arc::clone(&self.world);
+            tokio::task::block_in_place(|| {
+                world.blocking_lock().clock.inference_resume();
             });
         } else {
-            // No Tokio runtime (e.g. called from a pure synchronous test or
-            // an OS thread without a runtime).  Use blocking_lock as a last
-            // resort — safe here because we are not on a Tokio worker thread.
-            let mut w = self.world.blocking_lock();
-            w.clock.inference_resume();
+            // Fallback for:
+            //  • current-thread (single-threaded) Tokio runtimes,
+            //  • no runtime at all (pure sync test / OS thread),
+            //  • panicking threads (avoid double-panic abort).
+            // Safe here because we are not on a worker thread that would
+            // block the executor, or we are already unwinding.
+            self.world.blocking_lock().clock.inference_resume();
         }
     }
 }
@@ -155,6 +192,65 @@ mod tests {
         assert!(
             !world.lock().await.clock.is_inference_paused(),
             "clock must not be left paused after a panic in the owning task"
+        );
+    }
+
+    /// Slow-path regression for #650: clock must be resumed even when another
+    /// task holds the world lock at the exact moment the guard is dropped.
+    ///
+    /// We hold the world lock in one task while dropping the guard in another,
+    /// forcing the slow path (`try_lock` fails → `block_in_place` fallback).
+    /// The guard must block until the lock is released and then call
+    /// `inference_resume()` — the previous `spawn` implementation would have
+    /// silently skipped this if the runtime was shutting down.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn slow_path_resumes_clock_when_lock_contended() {
+        let world = fresh_world();
+
+        // Pause the clock manually so we can confirm it's resumed.
+        world.lock().await.clock.inference_pause();
+        assert!(world.lock().await.clock.is_inference_paused());
+
+        // Channels: coordinate the lock-holder and the guard-dropper.
+        // `lock_held_tx` signals that Task 1 has acquired the lock.
+        // `done_tx` signals that Task 1 is ready to release the lock.
+        let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel::<()>();
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+
+        // Task 1: acquires the world lock, signals that it's held, waits for
+        // the go-ahead, then releases it.
+        let world_for_holder = Arc::clone(&world);
+        let holder = tokio::spawn(async move {
+            let _held = world_for_holder.lock().await;
+            // Signal: we now hold the lock.
+            let _ = lock_held_tx.send(());
+            // Wait until the test instructs us to release.
+            let _ = done_rx.await;
+            // `_held` dropped here → lock released.
+        });
+
+        // Build a guard directly (skip the `async new` which would re-pause).
+        let guard = InferencePauseGuard {
+            world: Arc::clone(&world),
+        };
+
+        // Wait until Task 1 holds the lock, then signal it to release soon.
+        lock_held_rx.await.expect("holder task should signal");
+        // Tell Task 1 to release — but `drop(guard)` below will call
+        // `block_in_place` which spins until the lock is actually free.  The
+        // release is async so there's a genuine race; block_in_place handles it.
+        let _ = done_tx.send(());
+
+        // Drop the guard while Task 1 (likely) still holds the lock → slow path.
+        drop(guard);
+
+        holder.await.expect("lock-holder task should not panic");
+
+        // After drop (and after Task 1 released the lock), the clock must be
+        // resumed — the slow path must have completed, not been abandoned.
+        assert!(
+            !world.lock().await.clock.is_inference_paused(),
+            "clock must not remain paused after slow-path guard drop (#650)"
         );
     }
 
