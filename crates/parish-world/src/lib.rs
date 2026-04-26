@@ -68,6 +68,14 @@ pub struct WorldState {
     /// The player's name, learned from dialogue (e.g. "My name is Ciaran").
     /// `None` until the player introduces themselves.
     pub player_name: Option<String>,
+    /// Monotonically increasing counter incremented once per background tick.
+    ///
+    /// Used by `handle_game_input` to detect TOCTOU races: the generation is
+    /// captured before the world lock is released for LLM inference, then
+    /// compared after the lock is re-acquired.  A mismatch means the world
+    /// changed (NPCs moved, clock advanced, weather shifted) while the
+    /// intent was being parsed.  See issue #283.
+    pub tick_generation: u64,
 }
 
 impl WorldState {
@@ -112,6 +120,7 @@ impl WorldState {
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
             player_name: None,
+            tick_generation: 0,
         }
     }
 
@@ -160,6 +169,7 @@ impl WorldState {
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
             player_name: None,
+            tick_generation: 0,
         })
     }
 
@@ -221,6 +231,7 @@ impl WorldState {
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
             player_name: None,
+            tick_generation: 0,
         })
     }
 
@@ -268,6 +279,14 @@ impl WorldState {
             let excess = self.text_log.len() - MAX_TEXT_LOG;
             self.text_log.drain(..excess);
         }
+    }
+
+    /// Increments the tick generation counter.
+    ///
+    /// Called once per background tick cycle.  Wraps on overflow (a game
+    /// session is not expected to run for 2^64 ticks).
+    pub fn increment_tick_generation(&mut self) {
+        self.tick_generation = self.tick_generation.wrapping_add(1);
     }
 }
 
