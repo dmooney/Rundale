@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { textLog, pushErrorLog, formatIpcError, loadingColor } from './game';
+import { textLog, pushErrorLog, formatIpcError, loadingColor, focailOpen } from './game';
 
 describe('pushErrorLog', () => {
 	beforeEach(() => {
@@ -62,5 +62,34 @@ describe('formatIpcError', () => {
 		expect(formatIpcError({ weird: true })).toBe('unknown error');
 		expect(formatIpcError(undefined)).toBe('unknown error');
 		expect(formatIpcError(null)).toBe('unknown error');
+	});
+});
+
+// Regression test for #600: focailOpen must be reset to false when the
+// viewport transitions from mobile to desktop so the Language Hints button
+// doesn't stay in a permanently-pressed-but-invisible state.
+describe('focailOpen store (regression #600)', () => {
+	beforeEach(() => {
+		focailOpen.set(false);
+	});
+
+	it('starts as false', () => {
+		expect(get(focailOpen)).toBe(false);
+	});
+
+	it('can be toggled on (simulating mobile button press)', () => {
+		focailOpen.set(true);
+		expect(get(focailOpen)).toBe(true);
+	});
+
+	it('is reset to false on mobile→desktop transition (the #600 fix)', () => {
+		// Simulate mobile: user opens the Focail panel
+		focailOpen.set(true);
+		expect(get(focailOpen)).toBe(true);
+
+		// Simulate desktop: the media query onChange handler fires with matches=false
+		// and calls focailOpen.set(false) to avoid a permanently-broken button state.
+		focailOpen.set(false);
+		expect(get(focailOpen)).toBe(false);
 	});
 });
