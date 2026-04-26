@@ -294,6 +294,36 @@ impl SimulatorClient {
         Ok(text)
     }
 
+    /// Streams a JSON response word-by-word through `token_tx`.
+    ///
+    /// Wraps the Markov output in a JSON object with a `dialogue` field,
+    /// streaming the complete JSON string token-by-token.
+    pub async fn generate_stream_json(
+        &self,
+        _model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+        _max_tokens: Option<u32>,
+        _temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        let seed = fnv1a(prompt);
+        let length = target_length(system);
+        let dialogue = walk_chain(&self.chain, seed, length);
+        let escaped = dialogue.replace('"', "\\\"").replace('\n', " ");
+        let json = format!(
+            r#"{{"dialogue":"{escaped}","action":"","mood":"neutral","internal_thought":null,"language_hints":[],"mentioned_people":[]}}"#
+        );
+
+        for word in json.split_whitespace() {
+            let chunk = format!("{} ", word);
+            let _ = token_tx.send(chunk);
+            tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        }
+
+        Ok(json)
+    }
+
     /// Generates a JSON-typed response.
     ///
     /// For intent-parsing requests (detected by system prompt keywords), returns

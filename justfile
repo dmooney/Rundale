@@ -221,11 +221,57 @@ clippy:
 clippy-fix:
     cargo clippy --fix --allow-dirty --all-targets -- -D warnings
 
-# Pre-commit gate: format, lint, tests
-check: fmt-check clippy test
+# Pre-commit gate: format, lint, tests, placeholder scan
+check: fmt-check clippy test witness-scan
 
 # Pre-push gate: check + game harness walkthrough
-verify: fmt-check clippy test game-test
+verify: fmt-check clippy test game-test witness-scan
+
+# Witness-style deterministic scan for AI partial-completion markers in changed files
+witness-scan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmpfile=$(mktemp)
+    _base=$(git merge-base origin/main HEAD 2>/dev/null || git merge-base main HEAD 2>/dev/null || echo "HEAD")
+    git diff --name-only -z --diff-filter=d "$_base" \
+      | tr '\0' '\n' \
+      | grep -E '^(crates|apps|docs|testing|mods)/' \
+      | grep -v '^docs/agent/witness\.md$' \
+      > "$tmpfile" || true
+
+    count=$(wc -l < "$tmpfile" | tr -d ' ')
+    if [ "$count" -eq 0 ]; then
+      rm -f "$tmpfile"
+      echo "No changed tracked files under crates/apps/docs/testing/mods; skipping scan."
+      exit 0
+    fi
+
+    echo "Scanning ${count} changed file(s) for placeholder markers..."
+    found=0
+    while IFS= read -r f; do
+      rg -n \
+        -e '//\s*unchanged' \
+        -e '//\s*existing' \
+        -e '//\s*\.\.\.\s*rest of the function' \
+        -e '//\s*\.\.\.' \
+        -e '/\*\s*\.\.\.\s*\*/' \
+        -e 'pass\s*#\s*TODO' \
+        -e 'return nil\s*//\s*placeholder' \
+        -e 'todo!\(' \
+        -e 'unimplemented!\(' \
+        -e 'unreachable!\(' \
+        -e 'panic!\("[Nn]ot implemented' \
+        -e 'panic!\("[Tt]odo' \
+        -- "$f" && found=1 || true
+    done < "$tmpfile"
+    rm -f "$tmpfile"
+
+    if [ "$found" -eq 1 ]; then
+      echo "Witness scan FAILED: placeholder-like markers found in changed files."
+      exit 1
+    fi
+
+    echo "Witness scan passed."
 
 # ─── Geo Tool ────────────────────────────────────────────────────────────────
 

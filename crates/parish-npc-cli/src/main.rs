@@ -300,6 +300,8 @@ fn generate_world(conn: &Connection, counties: &[String]) -> Result<()> {
 }
 
 fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>) -> Result<()> {
+    // Ensure a county row exists before opening the generation transaction
+    // so that the INSERT OR IGNORE below sees a valid county_id.
     let county_id: i64 = conn
         .query_row("SELECT id FROM counties ORDER BY id LIMIT 1", [], |r| {
             r.get(0)
@@ -311,11 +313,17 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
             conn.last_insert_rowid()
         });
 
-    conn.execute(
+    // Wrap all NPC/relationship inserts in a single transaction (#606).
+    // If any insert fails (disk full, constraint violation, process crash)
+    // the entire generation is rolled back, leaving no orphaned rows.
+    // Matches the pattern used by `import_npcs`.
+    let tx = conn.unchecked_transaction()?;
+
+    tx.execute(
         "INSERT OR IGNORE INTO parishes(county_id, name) VALUES (?, ?)",
         params![county_id, parish],
     )?;
-    let parish_id: i64 = conn.query_row(
+    let parish_id: i64 = tx.query_row(
         "SELECT id FROM parishes WHERE name = ?",
         params![parish],
         |r| r.get(0),
@@ -326,11 +334,11 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
     let now_year = 1820_i64;
 
     for i in 0..household_count {
-        conn.execute(
+        tx.execute(
             "INSERT INTO households(parish_id, name) VALUES (?, ?)",
             params![parish_id, format!("{} Household {}", parish, i + 1)],
         )?;
-        let household_id = conn.last_insert_rowid();
+        let household_id = tx.last_insert_rowid();
         let members = rng.gen_range(4..=8);
         for _ in 0..members {
             let female = rng.gen_bool(0.5);
@@ -350,24 +358,25 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
             let age: i64 = rng.gen_range(0..=85);
             let birth_year = now_year - age;
             let occupation = weighted_occupation(&mut rng);
-            conn.execute(
+            tx.execute(
                 "INSERT INTO npcs(name, sex, birth_year, age, parish_id, household_id, occupation, data_tier, mood) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)",
                 params![name, if female {"female"} else {"male"}, birth_year, age, parish_id, household_id, occupation, "neutral"],
             )?;
         }
     }
 
-    let mut stmt = conn.prepare("SELECT id FROM npcs WHERE parish_id = ?")?;
+    let mut stmt = tx.prepare("SELECT id FROM npcs WHERE parish_id = ?")?;
     let npc_ids: Vec<i64> = stmt
         .query_map(params![parish_id], |r| r.get(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(stmt);
     for id in &npc_ids {
         for _ in 0..2 {
             if let Some(other) = npc_ids.choose(&mut rng)
                 && other != id
             {
                 let strength: f64 = rng.gen_range(-0.2..0.9);
-                conn.execute(
+                tx.execute(
                     "INSERT OR IGNORE INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, ?, ?, ?)",
                     params![id, other, "Acquaintance", strength],
                 )?;
@@ -375,11 +384,12 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
         }
     }
 
-    let count: i64 = conn.query_row(
+    let count: i64 = tx.query_row(
         "SELECT COUNT(*) FROM npcs WHERE parish_id = ?",
         params![parish_id],
         |r| r.get(0),
     )?;
+    tx.commit()?;
     println!("Generated parish '{}' with {} sketched NPCs", parish, count);
     Ok(())
 }
@@ -577,32 +587,45 @@ fn validate_db(conn: &Connection, parish: Option<String>, all: bool) -> Result<(
         bail!("choose either --parish or --all");
     }
 
-    let parish_filter = parish.as_deref().map(|name| {
-        format!(
-            "n.parish_id = (SELECT id FROM parishes WHERE name = '{}')",
-            name.replace('"', "")
-        )
-    });
-    let with_filter = |predicate: &str| {
-        if let Some(ref filter) = parish_filter {
-            format!("SELECT COUNT(*) FROM npcs n WHERE {filter} AND ({predicate})")
+    // #592 — Use a parameterized sub-query for the parish filter so the
+    // caller-supplied name is never interpolated into SQL text.  The parish
+    // name is passed as a bound value to `rusqlite`; the predicate columns
+    // (`household_id`, `age`, …) are fixed literals that never originate from
+    // user input, so they remain safe to format into the SQL string.
+    let has_parish = parish.is_some();
+    let parish_name: &str = parish.as_deref().unwrap_or("");
+
+    /// Build a counting query for a fixed predicate.  When `has_parish` is
+    /// true the query adds a second `?` placeholder for the parish name and
+    /// the caller must supply it as the last element of the params tuple.
+    fn with_filter(predicate: &str, has_parish: bool) -> String {
+        if has_parish {
+            format!(
+                "SELECT COUNT(*) FROM npcs n \
+                 WHERE n.parish_id = (SELECT id FROM parishes WHERE name = ?) \
+                 AND ({predicate})"
+            )
         } else {
             format!("SELECT COUNT(*) FROM npcs n WHERE {predicate}")
         }
-    };
+    }
 
-    let missing_households: i64 = conn.query_row(
-        &with_filter("household_id IS NULL OR household_id NOT IN (SELECT id FROM households)"),
-        [],
-        |r| r.get(0),
-    )?;
-    let invalid_age: i64 =
-        conn.query_row(&with_filter("age < 0 OR age > 110"), [], |r| r.get(0))?;
-    let elaborated_without_personality: i64 = conn.query_row(
-        &with_filter("data_tier >= 1 AND (personality IS NULL OR personality = '')"),
-        [],
-        |r| r.get(0),
-    )?;
+    macro_rules! count {
+        ($predicate:expr) => {{
+            let sql = with_filter($predicate, has_parish);
+            if has_parish {
+                conn.query_row(&sql, params![parish_name], |r| r.get::<_, i64>(0))?
+            } else {
+                conn.query_row(&sql, [], |r| r.get::<_, i64>(0))?
+            }
+        }};
+    }
+
+    let missing_households: i64 =
+        count!("household_id IS NULL OR household_id NOT IN (SELECT id FROM households)");
+    let invalid_age: i64 = count!("age < 0 OR age > 110");
+    let elaborated_without_personality: i64 =
+        count!("data_tier >= 1 AND (personality IS NULL OR personality = '')");
     let broken_relationships: i64 = conn.query_row(
         "
         SELECT COUNT(*) FROM npc_relationships r
@@ -1089,6 +1112,63 @@ mod tests {
         assert!(
             missing.unwrap_err().to_string().contains("NPC not found"),
             "missing NPC should still surface 'NPC not found'"
+        );
+    }
+
+    // ── #592 SQL injection guard ─────────────────────────────────────────────
+
+    /// A parish name containing SQL meta-characters must not cause query
+    /// errors or allow arbitrary SQL execution.  The parameterized query
+    /// should treat the entire string as a literal value; because no parish
+    /// with that name exists, all counts come back as zero and validation
+    /// passes (empty DB for the injected "parish").
+    #[test]
+    fn validate_db_parish_filter_rejects_sqli_payload() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+
+        // SQL injection payloads: these would break string-interpolated queries.
+        let payloads = [
+            "Kiltoom'); DROP TABLE npcs; --",
+            "' OR '1'='1",
+            "x' UNION SELECT 0,0,0,0,0 --",
+            "Kil'toom",
+        ];
+
+        for payload in payloads {
+            // Must not return a rusqlite error — the value is bound, not
+            // interpolated, so the query is syntactically valid regardless.
+            let result = validate_db(&conn, Some(payload.to_string()), false);
+            assert!(
+                result.is_ok(),
+                "validate_db should not error on payload {payload:?}, got: {:?}",
+                result.err()
+            );
+        }
+
+        // Sanity check: the npcs table still exists (no DROP TABLE succeeded).
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM npcs", [], |r| r.get(0))
+            .expect("npcs table must still exist after injection attempts");
+        assert_eq!(count, 0, "no NPCs were inserted so count must be 0");
+    }
+
+    /// A legitimate parish name must still filter correctly — the fix must not
+    /// break the happy path.
+    #[test]
+    fn validate_db_parish_filter_works_for_valid_name() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world generation should work");
+        generate_parish(&conn, "Kiltoom", 5, Some(4)).expect("parish generation should work");
+
+        // All generated NPCs should have a household and valid age, so
+        // validate_db with the real parish name should pass.
+        let result = validate_db(&conn, Some("Kiltoom".to_string()), false);
+        assert!(
+            result.is_ok(),
+            "validate_db with a real parish name must pass, got: {:?}",
+            result.err()
         );
     }
 }

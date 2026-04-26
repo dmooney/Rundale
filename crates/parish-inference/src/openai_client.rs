@@ -302,6 +302,59 @@ impl OpenAiClient {
         Ok(accumulated)
     }
 
+    /// Sends a streaming chat completion request with JSON mode enabled.
+    ///
+    /// Identical to [`generate_stream`] but sets `response_format: json_object`
+    /// so the LLM is constrained to return valid JSON. Used for Tier 1 NPC
+    /// responses where dialogue is embedded in a JSON structure.
+    pub async fn generate_stream_json(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::UnboundedSender<String>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        self.acquire_slot().await;
+        let body = self.build_request(model, prompt, system, true, true, max_tokens, temperature);
+
+        let url = format!("{}/v1/chat/completions", self.base_url);
+        let mut req = self.streaming_client.post(&url).json(&body);
+        req = self.apply_auth_headers(req);
+
+        let resp = req
+            .send()
+            .await?
+            .error_for_status()
+            .map_err(|e| ParishError::Inference(e.to_string()))?;
+
+        let mut accumulated = String::new();
+        let mut line_buf = String::new();
+        let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
+
+        let mut response = resp;
+        while let Some(chunk) = response.chunk().await? {
+            line_buf.push_str(&decoder.push(&chunk));
+
+            while let Some(newline_pos) = line_buf.find('\n') {
+                let line: String = line_buf.drain(..=newline_pos).collect();
+                match process_sse_line(&line, &token_tx, &mut accumulated) {
+                    SseResult::Continue => {}
+                    SseResult::Done => return Ok(accumulated),
+                }
+            }
+        }
+
+        line_buf.push_str(&decoder.flush());
+        let remaining = line_buf.trim();
+        if !remaining.is_empty() {
+            process_sse_line(remaining, &token_tx, &mut accumulated);
+        }
+
+        Ok(accumulated)
+    }
+
     /// Sends a non-streaming request and deserializes the response as structured JSON.
     ///
     /// Requests JSON output via `response_format: {"type": "json_object"}` and

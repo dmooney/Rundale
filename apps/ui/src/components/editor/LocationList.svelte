@@ -16,6 +16,7 @@
 			class="search-input"
 			type="text"
 			placeholder="Search..."
+			aria-label="Search locations"
 			bind:value={search}
 		/>
 	</div>

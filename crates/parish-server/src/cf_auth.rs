@@ -368,8 +368,8 @@ pub fn global_verifier() -> Option<Arc<CfAccessVerifier>> {
 /// Format (URL-safe): `<expiry_unix_ts_hex>.<hmac_hex>`
 pub struct SessionToken;
 
-fn signing_key() -> Vec<u8> {
-    // Initialised once.
+fn signing_key() -> &'static [u8] {
+    // Initialised once; returns a static reference to avoid per-call cloning.
     //
     // Release builds **require** `PARISH_WS_SIGNING_KEY` to be set. A random
     // ephemeral key would make tokens minted by one replica unverifiable by
@@ -400,51 +400,11 @@ fn signing_key() -> Vec<u8> {
             key
         }
     })
-    .clone()
+    .as_slice()
 }
 
 impl SessionToken {
     const TTL_SECS: u64 = 300; // 5 minutes
-
-    /// Mints a new token for `email`.
-    pub fn mint(email: &str) -> String {
-        use hmac::{Hmac, Mac};
-        use sha2::Sha256;
-
-        let expiry = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            + Self::TTL_SECS;
-
-        let msg = format!("{email}:{expiry}");
-        let mut mac =
-            Hmac::<Sha256>::new_from_slice(&signing_key()).expect("HMAC accepts any key length");
-        mac.update(msg.as_bytes());
-        let sig = hex::encode(mac.finalize().into_bytes());
-        format!("{expiry:016x}.{sig}")
-    }
-
-    /// Validates a token.  Returns the email on success.
-    ///
-    /// This format (`<expiry_hex>.<sig>`) carries no email; use [`Self::validate_full`]
-    /// for the format that embeds the email in the payload.
-    pub fn validate(token: &str) -> Result<String, &'static str> {
-        let (expiry_hex, sig) = token.split_once('.').ok_or("malformed token")?;
-        let expiry = u64::from_str_radix(expiry_hex, 16).map_err(|_| "bad expiry")?;
-
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        if now > expiry {
-            return Err("token expired");
-        }
-
-        // This format embeds no email in the token — use validate_full instead.
-        let _ = sig;
-        Err("use validate_full")
-    }
 
     /// Validates a token of the form `<expiry_hex>:<email>.<sig>`.
     ///
@@ -458,9 +418,11 @@ impl SessionToken {
         let payload = &token[..dot_pos];
         let sig_hex = &token[dot_pos + 1..];
 
-        let colon_pos = payload.find(':').ok_or("malformed token")?;
-        let expiry_hex = &payload[..colon_pos];
-        let email = &payload[colon_pos + 1..];
+        if payload.len() < 17 || payload.as_bytes()[16] != b':' {
+            return Err("malformed token");
+        }
+        let expiry_hex = &payload[..16];
+        let email = &payload[17..];
 
         let expiry = u64::from_str_radix(expiry_hex, 16).map_err(|_| "bad expiry")?;
         let now = SystemTime::now()
@@ -473,7 +435,7 @@ impl SessionToken {
 
         let msg = format!("{email}:{expiry}");
         let mut mac =
-            Hmac::<Sha256>::new_from_slice(&signing_key()).expect("HMAC accepts any key length");
+            Hmac::<Sha256>::new_from_slice(signing_key()).expect("HMAC accepts any key length");
         mac.update(msg.as_bytes());
         let sig_bytes = hex::decode(sig_hex).map_err(|_| "invalid signature")?;
         mac.verify_slice(&sig_bytes)
@@ -495,7 +457,7 @@ impl SessionToken {
 
         let msg = format!("{email}:{expiry}");
         let mut mac =
-            Hmac::<Sha256>::new_from_slice(&signing_key()).expect("HMAC accepts any key length");
+            Hmac::<Sha256>::new_from_slice(signing_key()).expect("HMAC accepts any key length");
         mac.update(msg.as_bytes());
         let sig = hex::encode(mac.finalize().into_bytes());
         // payload = "<expiry_hex>:<email>", appended with ".<sig>"
@@ -521,6 +483,14 @@ mod tests {
         // Corrupt the signature
         let bad = format!("{token}X");
         assert!(SessionToken::validate_full(&bad).is_err());
+    }
+
+    #[test]
+    fn session_token_email_with_colon() {
+        let email = "\"user:name\"@example.com";
+        let token = SessionToken::mint_full(email);
+        let recovered = SessionToken::validate_full(&token).unwrap();
+        assert_eq!(recovered, email);
     }
 
     // ── #457 JWK policy tests ─────────────────────────────────────────────

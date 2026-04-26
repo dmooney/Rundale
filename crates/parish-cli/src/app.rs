@@ -185,6 +185,8 @@ pub struct App {
     pub flags_path: Option<PathBuf>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Option<crate::persistence::SaveFileLock>,
+    /// True when stdin is not a terminal — lock failures are hard errors.
+    pub script_mode: bool,
 }
 
 impl App {
@@ -243,6 +245,7 @@ impl App {
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
             save_lock: None,
+            script_mode: false,
         }
     }
 
