@@ -2116,7 +2116,7 @@ mod tests {
                 .collect();
             let season = world.clock.season();
             let game_date = now.date_naive();
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
         };
         let game_events = mgr.apply_tier4_events(&events, now, true);

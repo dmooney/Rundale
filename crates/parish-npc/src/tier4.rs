@@ -202,21 +202,21 @@ pub fn tick_tier4(
         let id = npc.id;
 
         // Recovery (must check before illness to avoid same-tick illness+recovery)
-        if npc.is_ill && rng.gen_bool(probabilities::RECOVERY_RATE.min(1.0)) {
+        if npc.is_ill && rng.random_bool(probabilities::RECOVERY_RATE.min(1.0)) {
             events.push(Tier4Event::Recovery { npc_id: id });
             continue; // Skip illness check if recovering
         }
 
         // Death (age-scaled)
         let death_rate = death_rate_for_age(npc.age);
-        if rng.gen_bool(death_rate.min(1.0)) {
+        if rng.random_bool(death_rate.min(1.0)) {
             events.push(Tier4Event::Death { npc_id: id });
             dead_ids.insert(id);
             continue;
         }
 
         // Illness (only if not already ill)
-        if !npc.is_ill && rng.gen_bool(probabilities::ILLNESS_RATE.min(1.0)) {
+        if !npc.is_ill && rng.random_bool(probabilities::ILLNESS_RATE.min(1.0)) {
             events.push(Tier4Event::Illness { npc_id: id });
         }
 
@@ -229,7 +229,7 @@ pub fn tick_tier4(
         }
 
         // Trade (merchants only)
-        if is_merchant(&npc.occupation) && rng.gen_bool(probabilities::TRADE_RATE.min(1.0)) {
+        if is_merchant(&npc.occupation) && rng.random_bool(probabilities::TRADE_RATE.min(1.0)) {
             // Find another NPC at the same location to trade with
             if let Some(partner) = find_trade_partner(npcs, npc) {
                 events.push(Tier4Event::TradeCompleted {
@@ -246,7 +246,7 @@ pub fn tick_tier4(
         if dead_ids.contains(parent_a) || dead_ids.contains(parent_b) {
             continue;
         }
-        if rng.gen_bool(probabilities::BIRTH_RATE.min(1.0)) {
+        if rng.random_bool(probabilities::BIRTH_RATE.min(1.0)) {
             events.push(Tier4Event::Birth {
                 parent_ids: (*parent_a, *parent_b),
             });

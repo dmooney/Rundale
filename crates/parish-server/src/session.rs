@@ -802,7 +802,7 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
 
                     let season = world.clock.season();
                     let now = world.clock.now();
-                    let mut rng = rand::thread_rng();
+                    let mut rng = rand::rng();
                     if let Some(new_weather) = world.weather_engine.tick(now, season, &mut rng) {
                         world.weather = new_weather;
                         world.event_bus.publish(
@@ -830,7 +830,7 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
 
                     if !world.gossip_network.is_empty() {
                         let groups = npc_mgr.tier2_groups();
-                        let mut rng = rand::thread_rng();
+                        let mut rng = rand::rng();
                         let network = &mut world.gossip_network;
                         gossip_cursor = propagate_gossip_budgeted(
                             &groups,

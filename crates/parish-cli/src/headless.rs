@@ -317,7 +317,7 @@ pub async fn run_headless(
         {
             let season = app.world.clock.season();
             let now = app.world.clock.now();
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             if let Some(new_weather) = app.world.weather_engine.tick(now, season, &mut rng) {
                 let old = app.world.weather;
                 app.world.weather = new_weather;
@@ -377,7 +377,7 @@ pub async fn run_headless(
                         .collect();
                     let season = app.world.clock.season();
                     let game_date = now.date_naive();
-                    let mut rng = rand::thread_rng();
+                    let mut rng = rand::rng();
                     crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
                 };
                 let banshee_on = !app.flags.is_disabled("banshee");

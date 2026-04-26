@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use rand::seq::SliceRandom;
+use rand::prelude::IndexedRandom;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -339,9 +339,9 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
             params![parish_id, format!("{} Household {}", parish, i + 1)],
         )?;
         let household_id = tx.last_insert_rowid();
-        let members = rng.gen_range(4..=8);
+        let members = rng.random_range(4..=8);
         for _ in 0..members {
-            let female = rng.gen_bool(0.5);
+            let female = rng.random_bool(0.5);
             let first = if female {
                 FEMALE_NAMES
                     .choose(&mut rng)
@@ -355,7 +355,7 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
                 .choose(&mut rng)
                 .expect("surname list is non-empty");
             let name = format!("{} {}", first, surname);
-            let age: i64 = rng.gen_range(0..=85);
+            let age: i64 = rng.random_range(0..=85);
             let birth_year = now_year - age;
             let occupation = weighted_occupation(&mut rng);
             tx.execute(
@@ -375,7 +375,7 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
             if let Some(other) = npc_ids.choose(&mut rng)
                 && other != id
             {
-                let strength: f64 = rng.gen_range(-0.2..0.9);
+                let strength: f64 = rng.random_range(-0.2..0.9);
                 tx.execute(
                     "INSERT OR IGNORE INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, ?, ?, ?)",
                     params![id, other, "Acquaintance", strength],
@@ -395,7 +395,7 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
 }
 
 fn weighted_occupation(rng: &mut StdRng) -> &'static str {
-    let roll: u8 = rng.gen_range(0..100);
+    let roll: u8 = rng.random_range(0..100);
     let mut acc = 0_u8;
     for (occ, weight) in OCCUPATIONS {
         acc = acc.saturating_add(*weight);
