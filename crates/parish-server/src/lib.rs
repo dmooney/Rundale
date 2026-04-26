@@ -653,6 +653,7 @@ async fn ip_rate_limit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn build_client_and_config_defaults() {
@@ -687,9 +688,11 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_missing_returns_none() {
         // Ensure env vars are not set in the test environment.
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::remove_var("GOOGLE_CLIENT_ID");
             std::env::remove_var("GOOGLE_CLIENT_SECRET");
@@ -698,8 +701,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_prefers_public_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
@@ -717,8 +722,10 @@ mod tests {
     }
 
     #[test]
+    #[serial(parish_env)]
     fn build_oauth_config_falls_back_to_base_url() {
-        // SAFETY: single-threaded test; no other thread reads these vars.
+        // SAFETY: serialised via `#[serial(parish_env)]` — no concurrent
+        // threads touch these vars while this test runs.
         unsafe {
             std::env::set_var("GOOGLE_CLIENT_ID", "test-id");
             std::env::set_var("GOOGLE_CLIENT_SECRET", "test-secret");
