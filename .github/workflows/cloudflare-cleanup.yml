@@ -43,9 +43,10 @@ jobs:
     # Only run when the required secrets are present.  PRs from external
     # contributors on public forks won't have access to secrets, and the
     # Railway preview env would never have been created anyway.
-    # Note: GitHub does not allow direct secret comparison in `if:`; we use
-    # an env var set from the secret — empty string evaluates falsy.
-    if: ${{ env.CF_API_TOKEN != '' }}
+    # Note: job-level `env` is not yet populated when the job-level `if` is
+    # evaluated, so `env.CF_API_TOKEN` is always empty there.  The `secrets`
+    # context IS available at job-level `if`, so we check the secret directly.
+    if: ${{ secrets.CF_API_TOKEN != '' }}
     env:
       CF_API: https://api.cloudflare.com/client/v4
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
