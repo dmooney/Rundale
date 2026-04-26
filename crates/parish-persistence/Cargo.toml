@@ -2,6 +2,7 @@
 name = "parish-persistence"
 version = "0.1.0"
 edition = "2024"
+description = "SQLite save/load with WAL journal and branching saves for the Parish engine"
 
 [dependencies]
 parish-types = { path = "../parish-types" }

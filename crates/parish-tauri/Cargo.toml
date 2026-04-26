@@ -2,6 +2,7 @@
 name = "parish-tauri"
 version = "0.1.0"
 edition = "2024"
+description = "Tauri 2 desktop backend bridge for the Parish engine"
 
 [lib]
 name = "parish_tauri_lib"
