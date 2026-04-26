@@ -2098,21 +2098,11 @@ mod tests {
     /// UI). The logic is: `save_lock.is_none() && script_mode` → bail.
     #[test]
     fn script_mode_lock_failure_is_hard_error() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let save_path = dir.path().join("test.db");
-        std::fs::write(&save_path, b"").unwrap();
-
-        // Acquire the lock from this process first.
-        let _held = crate::persistence::SaveFileLock::try_acquire(&save_path)
-            .expect("initial lock acquisition should succeed");
-
-        // A second try_acquire from the same process should return None
-        // (re-entrant guard in SaveFileLock).
-        let failed_lock = crate::persistence::SaveFileLock::try_acquire(&save_path);
-        assert!(
-            failed_lock.is_none(),
-            "lock should be un-acquirable while held"
-        );
+        // Simulate a lock failure (e.g. another process holds the lock).
+        // With PR #542's reentrant SaveFileLock, same-process re-acquire returns
+        // Some(...) rather than None, so we simulate None directly — matching the
+        // same pattern used by the interactive-mode variant below.
+        let failed_lock: Option<crate::persistence::SaveFileLock> = None;
 
         // Replicate the headless.rs decision: in script_mode the None must be
         // treated as a hard error rather than a warn-and-continue.
@@ -2152,20 +2142,11 @@ mod tests {
     /// interactive save picker (which reads from stdin).
     #[tokio::test]
     async fn load_save_switch_script_mode_lock_failure_is_hard_error() {
-        let dir = tempfile::TempDir::new().unwrap();
-        let save_path = dir.path().join("other.db");
-        std::fs::write(&save_path, b"").unwrap();
-
-        // Hold the lock, simulating another process owning the target save file.
-        let _held = crate::persistence::SaveFileLock::try_acquire(&save_path)
-            .expect("initial lock acquisition should succeed");
-
-        // Confirm a second acquire returns None (re-entrant guard).
-        let failed_lock = crate::persistence::SaveFileLock::try_acquire(&save_path);
-        assert!(
-            failed_lock.is_none(),
-            "lock should be un-acquirable while held"
-        );
+        // Simulate a lock failure (e.g. another process holds the target save).
+        // With PR #542's reentrant SaveFileLock, same-process re-acquire returns
+        // Some(...) rather than None, so we simulate None directly — matching the
+        // interactive-mode variant.
+        let failed_lock: Option<crate::persistence::SaveFileLock> = None;
 
         // The new guard in handle_headless_load: script_mode=true + None lock
         // must be treated as a hard error.
