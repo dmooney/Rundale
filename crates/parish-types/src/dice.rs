@@ -28,7 +28,7 @@ impl DiceRoll {
     /// Rolls using the thread-local RNG.
     pub fn roll() -> Self {
         Self {
-            value: rand::thread_rng().r#gen::<f64>(),
+            value: rand::rng().random::<f64>(),
         }
     }
 
@@ -63,8 +63,12 @@ impl DiceRoll {
 
 /// Rolls `n` dice using the thread-local RNG.
 pub fn roll_n(n: usize) -> Vec<DiceRoll> {
-    let mut rng = rand::thread_rng();
-    (0..n).map(|_| DiceRoll { value: rng.r#gen() }).collect()
+    let mut rng = rand::rng();
+    (0..n)
+        .map(|_| DiceRoll {
+            value: rng.random(),
+        })
+        .collect()
 }
 
 /// Creates `n` dice with predetermined values (for deterministic tests).

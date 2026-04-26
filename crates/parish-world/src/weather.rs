@@ -192,7 +192,7 @@ impl WeatherEngine {
         let bias = seasonal_bias(season);
 
         // Base probability of any transition occurring this hour: 40%
-        let transition_roll: f64 = rng.r#gen();
+        let transition_roll: f64 = rng.random();
         if transition_roll > 0.40 {
             return None;
         }
@@ -200,7 +200,7 @@ impl WeatherEngine {
         // Handle fog as a special case
         if self.current == Weather::Fog {
             // Fog clears to PartlyCloudy or Overcast
-            return if rng.r#gen::<f64>() < 0.5 {
+            return if rng.random::<f64>() < 0.5 {
                 Some(Weather::PartlyCloudy)
             } else {
                 Some(Weather::Overcast)
@@ -209,14 +209,14 @@ impl WeatherEngine {
 
         // Check for fog transition (only from PartlyCloudy or Overcast)
         if matches!(self.current, Weather::PartlyCloudy | Weather::Overcast)
-            && rng.r#gen::<f64>() < bias.fog_chance
+            && rng.random::<f64>() < bias.fog_chance
         {
             return Some(Weather::Fog);
         }
 
         // Main axis transition: move up or down by one step
         let ord = weather_ordinal(self.current)?;
-        let direction_roll: f64 = rng.r#gen();
+        let direction_roll: f64 = rng.random();
 
         if direction_roll < bias.clear_pull {
             // Move toward clear (lower ordinal)

@@ -24,7 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 toml = "0.8"
 dotenvy = "0.15"
 strsim = "0.11"
-rand = "0.8"
+rand = "0.9"
 regex = "1"
 
 [dev-dependencies]

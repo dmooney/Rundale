@@ -87,11 +87,11 @@ impl GossipNetwork {
         for item in &mut self.items {
             if item.known_by.contains(&speaker)
                 && !item.known_by.contains(&listener)
-                && rng.r#gen::<f64>() < TRANSMISSION_CHANCE
+                && rng.random::<f64>() < TRANSMISSION_CHANCE
             {
                 item.known_by.insert(listener);
 
-                if rng.r#gen::<f64>() < DISTORTION_CHANCE {
+                if rng.random::<f64>() < DISTORTION_CHANCE {
                     item.content = distort(&item.content, rng);
                     item.distortion_level = item.distortion_level.saturating_add(1);
                 }
@@ -194,7 +194,7 @@ const EMOTION_SHIFTS: &[(&str, &str)] = &[
 /// 3. Shift emotional tone (30% weight)
 /// 4. Swap a name — not implemented without NPC name list (10% weight, skipped)
 fn distort(content: &str, rng: &mut impl Rng) -> String {
-    let roll: f64 = rng.r#gen();
+    let roll: f64 = rng.random();
 
     if roll < 0.33 {
         // Try to drop an adjective

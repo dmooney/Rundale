@@ -393,7 +393,7 @@ impl GameTestHarness {
         // don't skip weather checks. The engine deduplicates by game-hour internally.
         let season = self.app.world.clock.season();
         let now = self.app.world.clock.now();
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let hours_elapsed = (minutes / 60).max(1) as u32;
         for h in 0..hours_elapsed {
             let check_time =
@@ -466,7 +466,7 @@ impl GameTestHarness {
                     .collect();
                 let season = self.app.world.clock.season();
                 let game_date = now.date_naive();
-                let mut rng2 = rand::thread_rng();
+                let mut rng2 = rand::rng();
                 crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng2)
             };
             let banshee_on = !self.app.flags.is_disabled("banshee");
@@ -561,7 +561,7 @@ impl GameTestHarness {
                 // Tick weather engine (shared handler doesn't do this)
                 let season = self.app.world.clock.season();
                 let now = self.app.world.clock.now();
-                let mut rng = rand::thread_rng();
+                let mut rng = rand::rng();
                 if let Some(new_weather) = self.app.world.weather_engine.tick(now, season, &mut rng)
                 {
                     self.app.world.weather = new_weather;

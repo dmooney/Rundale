@@ -1002,7 +1002,7 @@ pub fn run() {
                             let now = world.clock.now();
                             // Scope thread_rng tightly so it is dropped before any await.
                             let new_weather_opt = {
-                                let mut rng = rand::thread_rng();
+                                let mut rng = rand::rng();
                                 world.weather_engine.tick(now, season, &mut rng)
                             };
                             {
@@ -1108,7 +1108,7 @@ pub fn run() {
                             // Scope thread_rng tightly so it is dropped before any await.
                             let total_gossip = if !world.gossip_network.is_empty() {
                                 let groups = npc_mgr.tier2_groups();
-                                let mut rng = rand::thread_rng();
+                                let mut rng = rand::rng();
                                 let mut total = 0usize;
                                 for npc_ids in groups.values() {
                                     if npc_ids.len() >= 2 {
@@ -1154,7 +1154,7 @@ pub fn run() {
                                         .filter(|n| tier4_ids.contains(&n.id))
                                         .collect();
                                     let game_date = now.date_naive();
-                                    let mut rng = rand::thread_rng();
+                                    let mut rng = rand::rng();
                                     parish_core::npc::tier4::tick_tier4(
                                         &mut tier4_refs,
                                         season,
