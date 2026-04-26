@@ -26,6 +26,9 @@ This directory contains Architecture Decision Records (ADRs) for the Rundale gam
 | [016](016-tauri-svelte-gui.md) | Replace egui with Tauri 2 + Svelte GUI | Accepted | 2026-03-24 |
 | [017](017-per-category-inference-providers.md) | Per-Category Inference Providers | Accepted | 2026-03-23 |
 | [018](018-npc-intelligence-dimensions.md) | NPC Multidimensional Intelligence | Accepted | 2026-03-25 |
+| [019](019-json-structured-output-for-npc-dialogue.md) | JSON Structured Output for NPC Dialogue | Accepted | 2026-04-22 |
+| [020](020-npc-tool-use.md) | NPC Function-Calling / Tool-Use Output | Proposed | 2026-04-26 |
+| [021](021-npc-memory-retrieval.md) | Embedding-Based NPC Memory Retrieval | Proposed | 2026-04-26 |
 
 ## ADR Template
 
