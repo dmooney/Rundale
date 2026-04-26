@@ -123,6 +123,69 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
     p
 }
 
+/// Finds the byte offset of the `"dialogue"` key in a partial JSON buffer,
+/// matched only when it appears as a top-level object key (depth 1).
+///
+/// Scans the buffer character by character, tracking brace/bracket/string depth
+/// so that `"dialogue"` embedded inside a nested string or object value is
+/// ignored. Returns the byte offset of the first byte of `"dialogue"` (the
+/// opening double-quote), or `None` if not found.
+fn find_toplevel_dialogue_key(buffer: &str) -> Option<usize> {
+    let bytes = buffer.as_bytes();
+    let n = bytes.len();
+    let mut i = 0;
+    // depth: 0 = before the root object, 1 = inside root object keys/values.
+    let mut depth: i32 = 0;
+    // Whether we are currently inside a JSON string.
+    let mut in_string = false;
+
+    while i < n {
+        if in_string {
+            match bytes[i] {
+                b'\\' => {
+                    // Skip escaped character — two bytes consumed.
+                    i += 2;
+                }
+                b'"' => {
+                    in_string = false;
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        } else {
+            match bytes[i] {
+                b'"' => {
+                    // At depth 1 (inside root object), check if this is "dialogue":
+                    if depth == 1 {
+                        let key = b"\"dialogue\"";
+                        if bytes.get(i..i + key.len()) == Some(key) {
+                            return Some(i);
+                        }
+                    }
+                    // Enter string regardless.
+                    in_string = true;
+                    i += 1;
+                }
+                b'{' | b'[' => {
+                    depth += 1;
+                    i += 1;
+                }
+                b'}' | b']' => {
+                    depth -= 1;
+                    i += 1;
+                }
+                _ => {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Extracts the dialogue field value from a partial JSON string during streaming.
 ///
 /// Scans the accumulated JSON buffer for the `"dialogue"` field and extracts
@@ -131,9 +194,14 @@ pub fn floor_char_boundary(s: &str, pos: usize) -> usize {
 ///
 /// This enables token-by-token streaming of NPC dialogue to the player while
 /// the full JSON response (including metadata) is still being generated.
+///
+/// # Security (fix #649)
+/// Uses depth-aware scanning via [`find_toplevel_dialogue_key`] so that
+/// `"dialogue"` embedded inside another field's string value cannot hijack
+/// extraction.
 pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
-    let key = "\"dialogue\"";
-    let key_pos = buffer.find(key)?;
+    let key = b"\"dialogue\"";
+    let key_pos = find_toplevel_dialogue_key(buffer)?;
     let after_key = key_pos + key.len();
 
     // Skip whitespace between key and colon
@@ -471,6 +539,43 @@ mod tests {
         let buf2 = r#"{"dialogue": "Hello \"world\""}"#;
         let result2 = extract_dialogue_from_partial_json(buf2).unwrap();
         assert_eq!(result2, "Hello \"world\"");
+    }
+
+    // ── Issue #649: key injection via nested "dialogue" substring ───────────
+
+    #[test]
+    fn extract_dialogue_ignores_dialogue_in_value_of_other_key() {
+        // The string "dialogue" appears inside another field's value — should
+        // not be mistaken for the top-level "dialogue" key.
+        let buf = r#"{"action": "says \"dialogue\": \"injected\"", "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "must use the top-level 'dialogue' key, not an occurrence inside a value"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_ignores_dialogue_in_nested_object() {
+        // "dialogue" as a key inside a nested object must not match.
+        let buf = r#"{"meta": {"dialogue": "fake"}, "dialogue": "real"}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            Some("real".to_string()),
+            "must match only the top-level 'dialogue' key"
+        );
+    }
+
+    #[test]
+    fn extract_dialogue_no_false_match_when_only_nested() {
+        // If there is no top-level "dialogue" key, return None — even if the
+        // word appears inside a nested value.
+        let buf = r#"{"meta": {"dialogue": "nested only"}}"#;
+        assert_eq!(
+            extract_dialogue_from_partial_json(buf),
+            None,
+            "must return None when 'dialogue' only appears inside a nested object"
+        );
     }
 
     // ── LanguageHint serde ───────────────────────────────────────────────────
