@@ -65,6 +65,20 @@
 		}
 	}
 
+	// Like updateSelectedLocation but targets a specific location ID.
+	// Used by the drag-commit path so that if the reactive `loc`/`selectedId`
+	// changes between mousedown and mouseup (click-to-select race #408), the
+	// dragged location — not the newly-selected one — receives the update.
+	async function updateLocationById(id: number, mutator: (location: LocationData) => LocationData) {
+		if (!$editorSnapshot) return;
+		const nextLocations = $editorSnapshot.locations.map((l) => (l.id === id ? mutator(l) : l));
+		try {
+			await persistLocations(nextLocations);
+		} catch (e) {
+			console.error('Failed to update location:', e);
+		}
+	}
+
 	async function handleFieldChange(field: string, value: unknown) {
 		await updateSelectedLocation((current) => ({ ...current, [field]: value }));
 	}
@@ -302,15 +316,22 @@
 			nextMap.dragPan.disable();
 		});
 		nextMap.on('mousemove', (event) => {
-			if (!dragging || !loc || dragTargetId !== loc.id) return;
+			// Use dragTargetId (set at mousedown) as the authoritative drag ID.
+			// Do NOT use loc.id here: the reactive `loc` may have changed to a
+			// different location if the user also triggered a click-selection
+			// while the drag was in progress (race #408).
+			if (!dragging || dragTargetId === null) return;
 			dragLat = event.lngLat.lat;
 			dragLon = event.lngLat.lng;
 			dragMoved = true;
-			setMapData(locations, selectedId, { id: loc.id, lat: dragLat, lon: dragLon });
+			setMapData(locations, selectedId, { id: dragTargetId, lat: dragLat, lon: dragLon });
 		});
 		nextMap.on('mouseup', async () => {
-			if (dragging && dragMoved && loc && dragTargetId === loc.id) {
-				await updateSelectedLocation((current) =>
+			// Capture dragTargetId before clearing it so the async update
+			// targets the correct location even if `loc` has since changed.
+			const targetId = dragTargetId;
+			if (dragging && dragMoved && targetId !== null) {
+				await updateLocationById(targetId, (current) =>
 					applyDraggedCoordinates(current, locations, dragLat, dragLon)
 				);
 			}
