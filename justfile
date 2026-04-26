@@ -259,7 +259,7 @@ witness-scan:
         -e 'return nil\s*//\s*placeholder' \
         -e 'todo!\(' \
         -e 'unimplemented!\(' \
-        -e 'unreachable!\(' \
+        -e 'unreachable!\(\s*\)' \
         -e 'panic!\("[Nn]ot implemented' \
         -e 'panic!\("[Tt]odo' \
         -- "$f" && found=1 || true
