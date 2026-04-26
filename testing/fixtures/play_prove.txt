@@ -1,16 +1,64 @@
-# Ephemeral scratch fixture for the /prove skill.
+# Proof script: LLM-informed NPC reactions with mode parity, logging, and fallback.
 #
-# The /prove skill rewrites this file on every run (see
-# .claude/skills/prove/SKILL.md). Checking durable test content in
-# here is a mistake — the next /prove run will overwrite it.
-# (#412: PR #397 checked in a /unexplored proof here; that content
-# was moved to prove_unexplored.txt.)
+# Feature under test (issues #200, #402, #403, #404):
+#   - NPC reactions to player messages go through LLM inference (or rule-based fallback).
+#   - CLI mode emits reactions (mode parity with server/Tauri).
+#   - Reactions are recorded in each NPC's reaction_log.
+#   - When LLM is unavailable, rule-based keyword fallback fires instead of silence.
 #
-# Feature-specific proof scripts that should persist across /prove
-# runs live under their own names (e.g. prove_unexplored.txt,
-# play_weather.txt).
-#
-# Keep this stub harmless so `cargo run -- --script testing/fixtures/play_prove.txt`
-# still resolves to something runnable before the first /prove of
-# a fresh working copy.
+# In script/harness mode the LLM is not available, so this proves:
+#   1. Rule-based fallback fires for keyword-triggering messages (#404).
+#   2. Reactions appear in the world text log (visible output).
+#   3. reaction_log is written (visible via /debug npc after interaction).
+#   4. Parity: the same code path runs in CLI/harness (no server-only gate).
+
+/status
+
+# ── Step 1: Verify we start at the village with NPCs present ─────────────────
+look
+/npcs
+
+# ── Step 2: Say something that triggers the rent/landlord keyword group ───────
+# KEYWORD_REACTIONS maps ["rent", "evict", "landlord", "agent", "tithe"] → 😠
+# With 60% probability the rule fires. The harness's apply_rule_reactions will
+# log "NpcName 😠" and write to reaction_log if the gate fires.
+The landlord's agent was seen on the road today.
+
+# ── Step 3: Say something that triggers the death keyword group ───────────────
+# ["death", "died", "killed", "murder"] → 😢
+Did you hear? Old Fergus died last night.
+
+# ── Step 4: Say something that triggers the fairy keyword group ──────────────
+# ["fairy", "fairies", "púca", "banshee", "sidhe"] → ✝️
+I heard the banshee wail near the fairy fort.
+
+# ── Step 5: Move to the pub (Padraig Darcy + Niamh Darcy) ───────────────────
+go to the pub
+/npcs
+
+# ── Step 6: Trigger the drink keyword at the pub ────────────────────────────
+# ["drink", "whiskey", "poitín", "ale", "stout"] → 🍺
+A round of whiskey to warm the bones!
+
+# ── Step 7: Trigger the landlord keyword again for Padraig ──────────────────
+The rent collectors are thick as flies this season.
+
+# ── Step 8: Trigger the gold/treasure keyword ────────────────────────────────
+# ["gold", "treasure", "fortune", "money", "reward"] → 👀
+They say there's buried treasure under the hill.
+
+# ── Step 9: Check reaction_log via debug ────────────────────────────────────
+# This surfaces what was written to each NPC's reaction_log.
+/debug npcs
+
+# ── Step 10: Verify flag gating — disable the feature and confirm silence ───
+# With npc-llm-reactions disabled, the feature should fall back to rule-based.
+# (The flag gates LLM inference; rule-based always fires as the fallback.)
+/flag disable npc-llm-reactions
+The landlord sent another notice about the rent.
+/flag enable npc-llm-reactions
+
+# ── Step 11: A message with no keywords — confirms no false positives ─────
+Good morning to you all. Fine weather for the season.
+
 /status

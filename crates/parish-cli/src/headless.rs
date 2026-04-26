@@ -287,6 +287,9 @@ pub async fn run_headless(
                     &mut request_id,
                 )
                 .await?;
+                // Emit LLM-informed (or rule-based fallback) NPC reactions
+                // to the player's message — mode parity with server and Tauri.
+                emit_headless_npc_reactions(&mut app, &text).await;
             }
         }
 
@@ -1264,6 +1267,64 @@ fn print_location_arrival(app: &App) {
     );
     println!("{}", exits);
     println!();
+}
+
+/// Emits LLM-informed (or rule-based fallback) NPC reactions to the player's
+/// message in headless CLI mode — mode parity with the web server and Tauri
+/// paths (#402).
+///
+/// When the `npc-llm-reactions` flag is enabled (default) and a reaction
+/// client is available, each NPC at the player's location gets an inference
+/// call. On any failure, falls back to keyword-based rule reactions (#404).
+/// Reactions are persisted to each NPC's `reaction_log` (#403) and printed
+/// to stdout so the player sees them.
+async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
+    use parish_core::npc::reactions::{generate_rule_reaction, infer_player_message_reaction};
+
+    let npcs_here: Vec<_> = app
+        .npc_manager
+        .npcs_at(app.world.player_location)
+        .into_iter()
+        .cloned()
+        .collect();
+
+    if npcs_here.is_empty() {
+        return;
+    }
+
+    let llm_enabled = !app.flags.is_disabled("npc-llm-reactions");
+
+    for npc in &npcs_here {
+        let emoji = if llm_enabled {
+            if let Some(ref client) = app.reaction_client {
+                infer_player_message_reaction(
+                    client,
+                    &app.reaction_model,
+                    npc,
+                    player_input,
+                    std::time::Duration::from_secs(2),
+                )
+                .await
+                .or_else(|| generate_rule_reaction(player_input))
+            } else {
+                generate_rule_reaction(player_input)
+            }
+        } else {
+            generate_rule_reaction(player_input)
+        };
+
+        if let Some(ref emoji) = emoji {
+            // Persist to reaction_log so NPC memory is maintained (#403).
+            if let Some(npc_mut) = app.npc_manager.get_mut(npc.id) {
+                npc_mut.reaction_log.add_player_message_reaction(
+                    emoji,
+                    player_input,
+                    chrono::Utc::now(),
+                );
+            }
+            println!("{} {}", capitalize_first(&npc.name), emoji);
+        }
+    }
 }
 
 /// Generates and prints NPC arrival reactions (greetings, nods, introductions).
