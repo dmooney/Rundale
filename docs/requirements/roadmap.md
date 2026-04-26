@@ -200,6 +200,15 @@
 - [x] Frontend component tests (Vitest + @testing-library/svelte, 22 tests)
 - [ ] Screenshot replacement via `WebviewWindow::capture_image()`
 
+## Phase 9 — Gameplay-AI Quality
+
+> Tracks the deferred items from the harness-engineering plan. These are
+> design-stage; each links to a plan or ADR before any code lands.
+
+- [ ] LLM-as-judge eval suite over Tier 1 / Tier 2 / Intent prompts → [Plan](../plans/llm-quality-evals.md)
+- [ ] Function-calling / tool-use output for NPC dialogue → [ADR-020](../adr/020-npc-tool-use.md)
+- [ ] Embedding-based long-term NPC memory retrieval → [ADR-021](../adr/021-npc-memory-retrieval.md)
+
 ## Open Questions
 
 > [Detailed analysis](../plans/open-questions.md) — **All resolved.**
