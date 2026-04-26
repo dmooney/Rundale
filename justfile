@@ -226,6 +226,13 @@ clippy-fix:
 check-doc-paths:
     ./scripts/check-doc-paths.sh
 
+# Regenerate gameplay-eval baselines after an intentional gameplay change.
+# Set UPDATE_BASELINES=1 so the eval-baseline tests overwrite their stored
+# JSON instead of asserting on it. See crates/parish-cli/tests/eval_baselines.rs
+# and docs/design/testing.md §Eval baselines.
+baselines:
+    UPDATE_BASELINES=1 cargo test -p parish --test eval_baselines
+
 # Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
 check: fmt-check clippy test witness-scan check-doc-paths
 

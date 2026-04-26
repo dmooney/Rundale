@@ -12,5 +12,6 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 | `/chrome-test` | Live browser testing session via browser MCP tools |
 | `/play [scenario]` | Play-test the game via script harness |
 | `/prove <feature>` | Prove a gameplay feature works at runtime (required after implementing features) |
+| `/rubric` | Run snapshot-baseline + structural-rubric eval sensors over gameplay fixtures (sister to `/prove`) |
 | `/triage-backlog` | Apply theme + priority labels to open issues lacking them. Vocabulary in [`triage-vocabulary.md`](triage-vocabulary.md). Paired with the `triage-audit` weekly workflow. |
 | `/crate-audit` | Audit workspace crate layout (naming, manifests, big-file splits, extraction candidates, README freshness). Produces a phased pure-relocation refactor PR. |
