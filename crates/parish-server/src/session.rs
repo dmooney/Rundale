@@ -325,11 +325,69 @@ impl SessionRegistry {
         // doesn't undo the DB delete — a residual saves/<id>/ directory
         // with no DB row is harmless (eventually reaped by OS-level
         // cleanup or a later sweep once we have directory-age scanning).
+        //
+        // #595 — Validate each session ID before building a path so that a
+        // corrupted or tampered DB row cannot cause remove_dir_all to delete
+        // directories outside the saves root.  Two layers of defence:
+        //   1. Allowlist check: the ID must consist only of lowercase hex
+        //      digits and hyphens (UUID v4 format).  Anything else — including
+        //      `..`, `/`, `\`, or unusual chars — is rejected before we even
+        //      call Path::join.
+        //   2. Containment check: after joining, canonicalize the candidate
+        //      path and assert it starts with the canonicalized saves root.
+        //      This catches any edge case the regex might miss.
+        let canonical_saves_root = match saves_root.canonicalize() {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "purge_expired_disk_sessions: cannot canonicalize saves_root, skipping fs cleanup"
+                );
+                return expired_ids.len();
+            }
+        };
+
         for id in &expired_ids {
+            // Layer 1: allowlist — UUID v4 looks like
+            // `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx` (hex + hyphens only).
+            if !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') || id.contains("..") {
+                tracing::warn!(
+                    session_id = %id,
+                    "purge_expired_disk_sessions: rejected unsafe session ID, skipping fs remove"
+                );
+                continue;
+            }
+
             let session_dir = saves_root.join(id);
             if !session_dir.exists() {
                 continue;
             }
+
+            // Layer 2: containment — canonicalize the resolved path and verify
+            // it stays inside the saves root (guards against symlink tricks or
+            // any bypass of the allowlist above).
+            let canonical_dir = match session_dir.canonicalize() {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %id,
+                        path = %session_dir.display(),
+                        error = %e,
+                        "purge_expired_disk_sessions: cannot canonicalize session dir, skipping"
+                    );
+                    continue;
+                }
+            };
+            if !canonical_dir.starts_with(&canonical_saves_root) {
+                tracing::warn!(
+                    session_id = %id,
+                    path = %canonical_dir.display(),
+                    saves_root = %canonical_saves_root.display(),
+                    "purge_expired_disk_sessions: path escapes saves root, skipping fs remove"
+                );
+                continue;
+            }
+
             match std::fs::remove_dir_all(&session_dir) {
                 Ok(()) => {
                     tracing::info!(
@@ -1067,21 +1125,24 @@ mod tests {
 
     #[test]
     fn purge_expired_removes_old_row_and_save_dir() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_id = "e1111111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired");
+        reg.persist_new(expired_id);
         // Fresh row + fake saves/<id>/ directory.
-        let save_dir = tmp.path().join("expired");
+        let save_dir = tmp.path().join(expired_id);
         std::fs::create_dir_all(&save_dir).unwrap();
         std::fs::write(save_dir.join("parish_001.db"), b"fake").unwrap();
         // Backdate to 90 days ago so any reasonable retention sweep
         // picks it up.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired", &old);
+        backdate_session(&reg, expired_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("expired"));
+        assert!(!reg.exists_in_db(expired_id));
         assert!(
             !save_dir.exists(),
             "saves directory must be deleted after purge"
@@ -1090,28 +1151,34 @@ mod tests {
 
     #[test]
     fn purge_expired_preserves_recent_sessions() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let recent_id = "ece11111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("recent");
-        let save_dir = tmp.path().join("recent");
+        reg.persist_new(recent_id);
+        let save_dir = tmp.path().join(recent_id);
         std::fs::create_dir_all(&save_dir).unwrap();
 
         // last_active set to `now` by persist_new — well inside the
         // 30-day retention window.
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 0);
-        assert!(reg.exists_in_db("recent"));
+        assert!(reg.exists_in_db(recent_id));
         assert!(save_dir.exists());
     }
 
     #[test]
     fn purge_expired_drops_linked_oauth_rows() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let expired_linked_id = "e1111111-1111-4111-a111-111111111112";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("expired_linked");
-        reg.link_oauth("google", "sub_legacy", "expired_linked", "Old User");
+        reg.persist_new(expired_linked_id);
+        reg.link_oauth("google", "sub_legacy", expired_linked_id, "Old User");
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "expired_linked", &old);
+        backdate_session(&reg, expired_linked_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
@@ -1122,16 +1189,124 @@ mod tests {
 
     #[test]
     fn purge_expired_handles_missing_save_dir_gracefully() {
+        // Use a valid UUID v4 format ID — the #595 path-traversal guard
+        // requires session IDs to be hex+hyphen only (matching UUID v4).
+        let ghost_id = "abb51111-1111-4111-a111-111111111111";
         let tmp = tempfile::tempdir().unwrap();
         let reg = SessionRegistry::open(tmp.path()).unwrap();
-        reg.persist_new("ghost");
+        reg.persist_new(ghost_id);
         // No saves/<id>/ directory was ever created. Purge must still
         // delete the DB row and return 1 — filesystem absence is fine.
         let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
-        backdate_session(&reg, "ghost", &old);
+        backdate_session(&reg, ghost_id, &old);
 
         let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
         assert_eq!(purged, 1);
-        assert!(!reg.exists_in_db("ghost"));
+        assert!(!reg.exists_in_db(ghost_id));
+    }
+
+    // ── #595 path traversal guard ────────────────────────────────────────────
+
+    /// A session ID containing `..` must not cause `remove_dir_all` to
+    /// operate outside the saves root.  The traversal ID is rejected before
+    /// the filesystem is touched; a sibling directory must survive intact.
+    #[test]
+    fn purge_expired_rejects_path_traversal_id() {
+        let outer = tempfile::tempdir().unwrap();
+        // The "saves root" lives one level below outer so there is a parent
+        // directory to try to traverse into.
+        let saves_root = outer.path().join("saves");
+        std::fs::create_dir_all(&saves_root).unwrap();
+
+        // A sibling directory that a traversal payload would try to delete.
+        let sibling = outer.path().join("sensitive");
+        std::fs::create_dir_all(&sibling).unwrap();
+        std::fs::write(sibling.join("secret.txt"), b"do not delete").unwrap();
+
+        // Set up a SessionRegistry using saves_root as the root.
+        let reg = SessionRegistry::open(&saves_root).unwrap();
+
+        // Directly insert a row with a traversal ID (bypassing the normal
+        // UUID generation path to simulate a tampered/corrupted DB).
+        {
+            let db = reg.db.lock().unwrap();
+            db.execute(
+                "INSERT INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
+                rusqlite::params!["../sensitive", "2000-01-01T00:00:00Z"],
+            )
+            .unwrap();
+        }
+
+        // Create a fake directory at saves_root/../sensitive to give
+        // remove_dir_all something to hit if the guard fails.
+        // (sibling already exists above — that's the target.)
+
+        let purged = reg
+            .purge_expired_disk_sessions(&saves_root, Duration::from_secs(0 /* always expired */));
+
+        // The DB row is deleted (purge still counts it).
+        assert_eq!(purged, 1);
+        // The sibling directory must NOT have been removed.
+        assert!(
+            sibling.exists(),
+            "path traversal guard must prevent deletion of directories outside saves root"
+        );
+        assert!(
+            sibling.join("secret.txt").exists(),
+            "sensitive file must survive"
+        );
+    }
+
+    /// IDs with non-hex/non-hyphen characters (including `/` and `\`) are
+    /// rejected by the allowlist even if they don't look like `..` traversals.
+    #[test]
+    fn purge_expired_rejects_ids_with_unsafe_characters() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+
+        // Directly insert rows with unsafe IDs.
+        let unsafe_ids = [
+            "../../etc/passwd",
+            "foo/bar",
+            "foo\\bar",
+            "abc def",
+            "abc\0def",
+        ];
+        {
+            let db = reg.db.lock().unwrap();
+            for id in &unsafe_ids {
+                db.execute(
+                    "INSERT INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
+                    rusqlite::params![id, "2000-01-01T00:00:00Z"],
+                )
+                .unwrap();
+            }
+        }
+
+        // None of these should cause a panic or an out-of-root deletion.
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(0));
+        // All rows are deleted from the DB.
+        assert_eq!(purged, unsafe_ids.len());
+        // The saves root itself is intact.
+        assert!(tmp.path().exists(), "saves root must still exist");
+    }
+
+    /// A well-formed UUID session ID must still be cleaned up normally —
+    /// the path-traversal guard must not break the happy path.
+    #[test]
+    fn purge_expired_uuid_id_still_cleaned_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        let id = "a1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        reg.persist_new(id);
+        let save_dir = tmp.path().join(id);
+        std::fs::create_dir_all(&save_dir).unwrap();
+
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        backdate_session(&reg, id, &old);
+
+        let purged = reg.purge_expired_disk_sessions(tmp.path(), Duration::from_secs(30 * 86_400));
+        assert_eq!(purged, 1);
+        assert!(!save_dir.exists(), "save directory must be removed");
     }
 }
