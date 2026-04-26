@@ -322,7 +322,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
             &provider_enum,
             &base_url,
             api_key.as_deref(),
-            &parish_core::config::InferenceConfig::default(),
+            &state.inference_config, // (#417) use TOML-configured timeouts
         );
         let mut client_guard = state.client.lock().await;
         *client_guard = Some(built.clone());
@@ -348,6 +348,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
         background_rx,
         batch_rx,
         state.inference_log.clone(),
+        state.inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
     let mut iq = state.inference_queue.lock().await;
@@ -413,7 +414,7 @@ async fn handle_system_command(
                     &provider_enum,
                     &base_url,
                     api_key.as_deref(),
-                    &parish_core::config::InferenceConfig::default(),
+                    &state.inference_config, // (#417) use TOML-configured timeouts
                 ));
             }
             CommandEffect::Quit => {

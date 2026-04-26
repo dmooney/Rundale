@@ -10,6 +10,7 @@ use tokio::sync::{Mutex, broadcast};
 // await points without blocking Tokio workers.
 use tokio::task::JoinHandle;
 
+use parish_core::config::InferenceConfig;
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::{AnyClient, InferenceLog, InferenceQueue};
@@ -236,6 +237,10 @@ pub struct AppState {
     pub active_ws: tokio::sync::Mutex<HashSet<String>>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
+    /// TOML-configured inference timeouts loaded from `parish.toml` at session
+    /// creation.  Stored here so runtime rebuilds (e.g. after `/provider`) use
+    /// the operator-configured values instead of the compiled-in defaults. (#417)
+    pub inference_config: InferenceConfig,
     /// Cached async database handle for the currently active save file.
     ///
     /// Opened lazily by the autosave tick and reused across ticks to avoid
@@ -323,6 +328,7 @@ pub fn build_app_state(
     data_dir: PathBuf,
     game_mod: Option<parish_core::game_mod::GameMod>,
     flags_path: PathBuf,
+    inference_config: InferenceConfig,
 ) -> Arc<AppState> {
     // Extract pronunciations from game mod before moving it.
     let pronunciations = game_mod
@@ -360,6 +366,7 @@ pub fn build_app_state(
         editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         active_ws: tokio::sync::Mutex::new(HashSet::new()),
         save_lock: Mutex::new(None),
+        inference_config,
         save_db: tokio::sync::Mutex::new(None),
     })
 }

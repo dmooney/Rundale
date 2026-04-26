@@ -299,6 +299,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         theme_palette,
         transport: TransportConfig::default(),
         template_config: config,
+        inference_config: engine_config.inference, // (#417) persist TOML-configured timeouts
         ollama_process: tokio::sync::Mutex::new(ollama_process),
     });
 

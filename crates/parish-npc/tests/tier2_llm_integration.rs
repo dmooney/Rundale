@@ -55,7 +55,14 @@ fn spawn_mock_worker(server_uri: &str) -> InferenceQueue {
     let (batx, batrx) = mpsc::channel::<InferenceRequest>(64);
     let queue = InferenceQueue::new(itx, btx, batx);
 
-    spawn_inference_worker(any_client, irx, brx, batrx, log);
+    spawn_inference_worker(
+        any_client,
+        irx,
+        brx,
+        batrx,
+        log,
+        parish_inference::InferenceConfig::default(),
+    );
 
     queue
 }

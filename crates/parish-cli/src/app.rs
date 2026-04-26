@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::config::InferenceCategory;
+use crate::config::{InferenceCategory, InferenceConfig};
 use crate::inference::AnyClient;
 use crate::inference::InferenceQueue;
 use crate::loading::LoadingAnimation;
@@ -185,6 +185,10 @@ pub struct App {
     pub flags_path: Option<PathBuf>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Option<crate::persistence::SaveFileLock>,
+    /// TOML-configured inference timeouts (from `parish.toml`).
+    /// Used by rebuild paths so `/provider` switches honour the configured
+    /// timeouts instead of falling back to compiled-in defaults. (#417)
+    pub inference_config: InferenceConfig,
     /// True when stdin is not a terminal — lock failures are hard errors.
     pub script_mode: bool,
 }
@@ -245,6 +249,7 @@ impl App {
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
             save_lock: None,
+            inference_config: InferenceConfig::default(),
             script_mode: false,
         }
     }

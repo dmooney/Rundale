@@ -10,6 +10,7 @@ pub mod debug_snapshot;
 pub mod editor;
 pub mod game_mod;
 pub mod game_session;
+pub mod inference_guard;
 pub mod ipc;
 pub mod loading;
 pub mod prompts;

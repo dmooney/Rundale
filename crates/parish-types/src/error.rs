@@ -27,4 +27,11 @@ pub enum ParishError {
 
     #[error("configuration error: {0}")]
     Config(String),
+
+    /// Inference returned a response that could not be parsed as the expected
+    /// JSON schema, even after a retry. Distinct from [`ParishError::Inference`]
+    /// (transport / HTTP error) so callers can distinguish a schema mismatch
+    /// from a provider connectivity failure. (#416)
+    #[error("inference JSON parse failed: {0}")]
+    InferenceJsonParseFailed(String),
 }

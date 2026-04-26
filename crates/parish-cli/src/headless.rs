@@ -5,7 +5,9 @@
 //! Runs by default or with `--headless` on the command line.
 
 use crate::app::App;
-use crate::config::{CategoryConfig, CloudConfig, InferenceCategory, ProviderConfig};
+use crate::config::{
+    CategoryConfig, CloudConfig, InferenceCategory, InferenceConfig, ProviderConfig,
+};
 use crate::inference::{self, AnyClient, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
 use crate::loading::LoadingAnimation;
@@ -40,13 +42,14 @@ const NPC_REACTION_CONCURRENCY: usize = 4;
 /// read the warning and concurrent writes could silently corrupt the database
 /// (#608).
 ///
-/// The eight parameters are all required for the initialization pipeline;
+/// The nine parameters are all required for the initialization pipeline;
 /// they are distinct concerns (inference clients, provider metadata, category
-/// config, feature flags, mod content, data location, and interactivity mode)
-/// that cannot be collapsed into a struct without creating a spurious coupling
-/// layer.  The count will decrease when the save-picker and provider
-/// initialization are extracted into a shared setup struct (#future).
-#[allow(clippy::too_many_arguments)]
+/// config, feature flags, mod content, data location, interactivity mode,
+/// and TOML-configured inference timeouts) that cannot be collapsed into a
+/// struct without creating a spurious coupling layer.  The count will decrease
+/// when the save-picker and provider initialization are extracted into a shared
+/// setup struct (#future).
+#[allow(clippy::too_many_arguments)] // all params are semantically distinct startup settings (#417)
 pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,
@@ -55,6 +58,7 @@ pub async fn run_headless(
     improv: bool,
     game_mod: Option<parish_core::game_mod::GameMod>,
     data_dir: Option<std::path::PathBuf>,
+    inference_config: InferenceConfig, // (#417) TOML-configured timeouts
     script_mode: bool,
 ) -> Result<()> {
     println!("=== Parish — Headless Mode ===");
@@ -88,6 +92,7 @@ pub async fn run_headless(
         background_rx,
         batch_rx,
         inference_log.clone(),
+        inference_config.clone(),
     );
     let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
 
@@ -108,6 +113,7 @@ pub async fn run_headless(
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = improv;
+    app.inference_config = inference_config; // (#417) store TOML-configured timeouts
     app.script_mode = script_mode;
 
     // Load feature flags from disk
@@ -271,6 +277,7 @@ pub async fn run_headless(
                             background_rx,
                             batch_rx,
                             inference_log.clone(),
+                            app.inference_config.clone(),
                         );
                         app.inference_queue =
                             Some(InferenceQueue::new(interactive_tx, background_tx, batch_tx));
@@ -630,7 +637,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                         &provider,
                         &app.base_url,
                         app.api_key.as_deref(),
-                        &parish_core::config::InferenceConfig::default(),
+                        &app.inference_config, // (#417) use TOML-configured timeouts
                     ));
                 }
                 rebuild = true;
@@ -649,7 +656,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
                     &provider,
                     base_url,
                     app.cloud_api_key.as_deref(),
-                    &parish_core::config::InferenceConfig::default(),
+                    &app.inference_config, // (#417) use TOML-configured timeouts
                 ));
                 rebuild = true;
             }

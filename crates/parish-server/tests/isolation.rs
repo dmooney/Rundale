@@ -240,6 +240,7 @@ async fn second_ws_upgrade_same_email_is_409() {
         data_dir.clone(),
         None,
         data_dir.join("parish-flags.json"),
+        parish_core::config::InferenceConfig::default(),
     ));
 
     // Simulate first connection inserting the email.
@@ -351,6 +352,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         data_dir.clone(),
         None,
         data_dir.join("parish-flags.json"),
+        parish_core::config::InferenceConfig::default(),
     ));
 
     // Pre-populate debug_events so the snapshot has something to copy.

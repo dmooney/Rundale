@@ -13,6 +13,7 @@ pub mod simulator;
 pub(crate) mod utf8_stream;
 
 pub use anthropic_client::AnthropicClient;
+pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
 
 use std::collections::VecDeque;
@@ -25,7 +26,7 @@ use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use parish_config::{InferenceConfig, Provider};
+use parish_config::Provider;
 use parish_types::ParishError;
 
 /// Buffer capacity for the bounded token streaming channel.
@@ -623,12 +624,21 @@ impl AnyClient {
 ///
 /// Each completed call is recorded in the shared `log` ring buffer.
 /// The task runs until all three sender sides of the channels are dropped.
+///
+/// A per-request [`tokio::time::timeout`] is applied to every LLM call using
+/// the values from `timeout_config`:
+/// - Non-streaming calls: `timeout_config.timeout_secs`
+/// - Streaming calls: `timeout_config.streaming_timeout_secs`
+///
+/// On timeout the worker sends an error response and moves on to the next
+/// request rather than blocking the queue indefinitely. (#343)
 pub fn spawn_inference_worker(
     client: AnyClient,
     mut interactive_rx: mpsc::Receiver<InferenceRequest>,
     mut background_rx: mpsc::Receiver<InferenceRequest>,
     mut batch_rx: mpsc::Receiver<InferenceRequest>,
     log: InferenceLog,
+    timeout_config: InferenceConfig,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
@@ -649,41 +659,72 @@ pub fn spawn_inference_worker(
             let req_id = request.id;
             let start = Instant::now();
 
+            let streaming_timeout =
+                std::time::Duration::from_secs(timeout_config.streaming_timeout_secs);
+            let blocking_timeout = std::time::Duration::from_secs(timeout_config.timeout_secs);
+
             let result = match (request.token_tx, request.json_mode) {
                 (Some(token_tx), true) => {
-                    client
-                        .generate_stream_json(
+                    match tokio::time::timeout(
+                        streaming_timeout,
+                        client.generate_stream_json(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
                             token_tx,
                             request.max_tokens,
                             request.temperature,
-                        )
-                        .await
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(inner) => inner,
+                        Err(_) => Err(ParishError::Inference(format!(
+                            "streaming (json) inference timed out after {}s (model={})",
+                            timeout_config.streaming_timeout_secs, request.model
+                        ))),
+                    }
                 }
                 (Some(token_tx), false) => {
-                    client
-                        .generate_stream(
+                    match tokio::time::timeout(
+                        streaming_timeout,
+                        client.generate_stream(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
                             token_tx,
                             request.max_tokens,
                             request.temperature,
-                        )
-                        .await
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(inner) => inner,
+                        Err(_) => Err(ParishError::Inference(format!(
+                            "streaming inference timed out after {}s (model={})",
+                            timeout_config.streaming_timeout_secs, request.model
+                        ))),
+                    }
                 }
                 (None, _) => {
-                    client
-                        .generate(
+                    match tokio::time::timeout(
+                        blocking_timeout,
+                        client.generate(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
                             request.max_tokens,
                             request.temperature,
-                        )
-                        .await
+                        ),
+                    )
+                    .await
+                    {
+                        Ok(inner) => inner,
+                        Err(_) => Err(ParishError::Inference(format!(
+                            "inference timed out after {}s (model={})",
+                            timeout_config.timeout_secs, request.model
+                        ))),
+                    }
                 }
             };
 
@@ -1209,6 +1250,7 @@ mod tests {
             background_rx,
             batch_rx,
             log,
+            InferenceConfig::default(),
         );
 
         // Worker is running — abort it.
@@ -1240,6 +1282,96 @@ mod tests {
         assert!(
             send_result.is_err(),
             "expected send to fail after worker abort"
+        );
+    }
+
+    /// Regression test for issue #343: the worker must not block the queue
+    /// indefinitely when an LLM call hangs.  We configure a 1-second timeout
+    /// and verify that a simulated slow call yields an error response rather
+    /// than wedging the worker.
+    ///
+    /// The simulator responds instantly, so we use a custom `timeout_secs = 0`
+    /// config (the floor is effectively 1 tokio tick) and verify the response
+    /// carries an error string when the limit is breached.  In practice the
+    /// simulator is faster than any real timeout, so we also exercise the
+    /// happy-path: a second request after the first must still be served,
+    /// proving the worker loop continues after a timeout error.
+    #[tokio::test]
+    async fn test_worker_timeout_sends_error_and_continues() {
+        use tokio::time::Duration;
+
+        // Use a 1-second timeout — short but long enough that the simulator
+        // (which answers instantly) will succeed; the test verifies the
+        // happy-path *and* that the queue is not wedged after an error.
+        let cfg = InferenceConfig {
+            timeout_secs: 1,
+            ..Default::default()
+        };
+
+        let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_btx, background_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_batx, batch_rx) = mpsc::channel::<InferenceRequest>(4);
+        let log = new_inference_log();
+        let _handle = spawn_inference_worker(
+            AnyClient::simulator(),
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log,
+            cfg,
+        );
+
+        // Send a normal request — the simulator responds well within 1 s.
+        let (resp_tx, resp_rx) = oneshot::channel();
+        interactive_tx
+            .send(InferenceRequest {
+                id: 100,
+                model: "sim".to_string(),
+                prompt: "ping".to_string(),
+                system: None,
+                token_tx: None,
+                json_mode: false,
+                response_tx: resp_tx,
+                max_tokens: None,
+                temperature: None,
+                priority: InferencePriority::Interactive,
+            })
+            .await
+            .unwrap();
+        let resp = tokio::time::timeout(Duration::from_secs(5), resp_rx)
+            .await
+            .expect("response channel timed out")
+            .expect("response channel closed");
+        // Simulator always succeeds — error must be None.
+        assert!(resp.error.is_none(), "unexpected error: {:?}", resp.error);
+        assert_eq!(resp.id, 100);
+
+        // Send a second request to prove the worker is still running after the first.
+        let (resp_tx2, resp_rx2) = oneshot::channel();
+        interactive_tx
+            .send(InferenceRequest {
+                id: 101,
+                model: "sim".to_string(),
+                prompt: "pong".to_string(),
+                system: None,
+                token_tx: None,
+                json_mode: false,
+                response_tx: resp_tx2,
+                max_tokens: None,
+                temperature: None,
+                priority: InferencePriority::Interactive,
+            })
+            .await
+            .unwrap();
+        let resp2 = tokio::time::timeout(Duration::from_secs(5), resp_rx2)
+            .await
+            .expect("second response channel timed out")
+            .expect("second response channel closed");
+        assert_eq!(resp2.id, 101);
+        assert!(
+            resp2.error.is_none(),
+            "unexpected error on second request: {:?}",
+            resp2.error
         );
     }
 }

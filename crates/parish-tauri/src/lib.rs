@@ -271,6 +271,10 @@ pub struct AppState {
     /// Stored here so it lives for the app's lifetime — dropping it kills the
     /// server. See [`parish_core::inference::client::OllamaProcess`].
     pub ollama_process: Mutex<parish_core::inference::client::OllamaProcess>,
+    /// TOML-configured inference timeouts loaded from `parish.toml` at boot.
+    /// Used by rebuild paths so `/provider` switches honour the configured
+    /// values instead of falling back to compiled-in defaults. (#417)
+    pub inference_config: parish_core::config::InferenceConfig,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -509,6 +513,10 @@ pub fn run() {
     // Initial tier assignment
     npc_manager.assign_tiers(&world, &[]);
 
+    // Load engine config (parish.toml) early so TOML-configured timeouts are
+    // available for provider bootstrap and cloud-client construction. (#417)
+    let engine_config = parish_core::config::load_engine_config(None);
+
     // Read provider config from env vars (optional).
     // On Ollama this runs the full install / auto-start / GPU-detect / pull
     // / warmup sequence — so the desktop app matches the CLI on first launch.
@@ -518,13 +526,16 @@ pub fn run() {
         .build()
         .expect("failed to build tokio runtime for provider bootstrap");
     let (client, model_name, ollama_process) = setup_runtime
-        .block_on(bootstrap_provider(&provider_config))
+        .block_on(bootstrap_provider(
+            &provider_config,
+            &engine_config.inference,
+        ))
         .unwrap_or_else(|e| {
             tracing::error!("Failed to initialise inference provider: {}", e);
             eprintln!("[Parish] Failed to initialise inference provider: {}", e);
             std::process::exit(1);
         });
-    let cloud_env = build_cloud_client_from_env();
+    let cloud_env = build_cloud_client_from_env(&engine_config.inference);
 
     // Build splash text from mod title + build info
     let game_title = game_mod
@@ -549,10 +560,8 @@ pub fn run() {
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
 
-    // Load engine config (parish.toml) for the map tile-source registry.
-    // Missing file / parse errors fall back to baked defaults
-    // (OSM + Ireland Historic 6").
-    let engine_config = parish_core::config::load_engine_config(None);
+    // engine_config already loaded above (before provider bootstrap) and
+    // includes both map tile-source registry and inference timeouts. (#417)
     let tile_sources_snapshot =
         parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
     let active_tile_source = engine_config.map.default_tile_source.clone();
@@ -618,6 +627,7 @@ pub fn run() {
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
         ollama_process: Mutex::new(ollama_process),
+        inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         config: Mutex::new(GameConfig {
             provider_name,
             base_url,
@@ -762,6 +772,7 @@ pub fn run() {
                             background_rx,
                             batch_rx,
                             state_setup.inference_log.clone(),
+                            state_setup.inference_config.clone(),
                         );
                         let queue =
                             InferenceQueue::new(interactive_tx, background_tx, batch_tx);
@@ -1655,6 +1666,7 @@ fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>
 /// rule #2 (mode parity).
 async fn bootstrap_provider(
     config: &ProviderConfig,
+    inference_config: &parish_core::config::InferenceConfig,
 ) -> anyhow::Result<(
     Option<AnyClient>,
     String,
@@ -1673,7 +1685,7 @@ async fn bootstrap_provider(
     let progress = parish_core::inference::setup::StdoutProgress;
     let (client, model, process) = parish_core::inference::setup::setup_provider_client(
         config,
-        &parish_core::config::InferenceConfig::default(),
+        inference_config, // (#417) use TOML-configured timeouts
         &progress,
     )
     .await?;
@@ -1694,7 +1706,9 @@ struct CloudEnvConfig {
     base_url: Option<String>,
 }
 
-fn build_cloud_client_from_env() -> CloudEnvConfig {
+fn build_cloud_client_from_env(
+    inference_config: &parish_core::config::InferenceConfig,
+) -> CloudEnvConfig {
     let provider = std::env::var("PARISH_CLOUD_PROVIDER").ok();
     let base_url = std::env::var("PARISH_CLOUD_BASE_URL").unwrap_or_else(|_| {
         provider
@@ -1719,7 +1733,7 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
             &provider_enum,
             &base_url,
             Some(key),
-            &parish_core::config::InferenceConfig::default(),
+            inference_config, // (#417) use TOML-configured timeouts
         )
     });
 
