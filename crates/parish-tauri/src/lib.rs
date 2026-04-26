@@ -1466,6 +1466,10 @@ pub fn run() {
                                 }
                             }
                         }
+
+                        // Advance the generation counter so handle_game_input can
+                        // detect TOCTOU races (see issue #283).
+                        world.increment_tick_generation();
                     }
                 });
 
