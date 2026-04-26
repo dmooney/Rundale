@@ -6,17 +6,17 @@
  * and location names without requiring any backend markup.
  */
 
-export type SegmentKind = 'plain' | 'irish' | 'name' | 'location';
+export type SegmentKind = "plain" | "irish" | "name" | "location";
 
 export interface RichSegment {
-	text: string;
-	kind: SegmentKind;
+  text: string;
+  kind: SegmentKind;
 }
 
 interface MatchRange {
-	start: number;
-	end: number;
-	kind: SegmentKind;
+  start: number;
+  end: number;
+  kind: SegmentKind;
 }
 
 /**
@@ -27,63 +27,93 @@ interface MatchRange {
  * the earlier one wins. Matching is case-insensitive and word-boundary aware.
  */
 export function segmentText(
-	content: string,
-	irishWords: string[],
-	nameWords: string[],
-	locationName: string
+  content: string,
+  irishWords: string[],
+  nameWords: string[],
+  locationName: string,
 ): RichSegment[] {
-	if (!content) return [];
+  if (!content) return [];
 
-	const ranges: MatchRange[] = [];
+  const ranges: MatchRange[] = [];
 
-	const addMatches = (words: string[], kind: SegmentKind) => {
-		for (const word of words) {
-			if (!word) continue;
-			// Escape regex special characters
-			const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-			const re = new RegExp(`(?<![\\w\\u00C0-\\u024F])${escaped}(?![\\w\\u00C0-\\u024F])`, 'gi');
-			let m: RegExpExecArray | null;
-			while ((m = re.exec(content)) !== null) {
-				ranges.push({ start: m.index, end: m.index + m[0].length, kind });
-			}
-		}
-	};
+  // Single alternation regex per category instead of one regex per word.
+  // Reduces regex compilations from O(words) to O(1) and content scans
+  // from O(words) to O(1) per category.
+  const addMatches = (words: string[], kind: SegmentKind) => {
+    const filtered = words.map((w) => w.trim()).filter(Boolean);
+    if (filtered.length === 0) return;
+    // Sort longest-first so alternation matches greedily
+    filtered.sort((a, b) => b.length - a.length);
+    const alt = filtered
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("|");
+    const re = new RegExp(
+      `(?<![\\w\\u00C0-\\u024F])(?:${alt})(?![\\w\\u00C0-\\u024F])`,
+      "gi",
+    );
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      ranges.push({ start: m.index, end: m.index + m[0].length, kind });
+    }
+  };
 
-	// Add in reverse priority order (lower priority first) so higher-priority
-	// matches can overwrite during conflict resolution below.
-	addMatches(nameWords, 'name');
-	if (locationName) addMatches([locationName], 'location');
-	addMatches(irishWords, 'irish');
+  // Add in reverse priority order (lower priority first) so higher-priority
+  // matches can overwrite during conflict resolution below.
+  addMatches(nameWords, "name");
+  if (locationName) addMatches([locationName], "location");
+  addMatches(irishWords, "irish");
 
-	if (ranges.length === 0) return [{ text: content, kind: 'plain' }];
+  if (ranges.length === 0) return [{ text: content, kind: "plain" }];
 
-	// Sort by start position; for ties prefer higher-priority kind.
-	const kindPriority: Record<SegmentKind, number> = { irish: 3, location: 2, name: 1, plain: 0 };
-	ranges.sort((a, b) => a.start - b.start || kindPriority[b.kind] - kindPriority[a.kind]);
+  // Priority table: higher number = higher priority.
+  const kindPriority: Record<SegmentKind, number> = {
+    irish: 3,
+    location: 2,
+    name: 1,
+    plain: 0,
+  };
 
-	// Resolve overlaps: keep only non-overlapping ranges (greedy left-to-right,
-	// with priority breaking ties already sorted above).
-	const resolved: MatchRange[] = [];
-	let cursor = 0;
-	for (const r of ranges) {
-		if (r.start < cursor) continue; // overlaps previous — skip
-		resolved.push(r);
-		cursor = r.end;
-	}
+  // Resolve overlaps by priority first (highest wins), then by start position
+  // for equal-priority matches (earlier wins).  This matches the docstring
+  // contract: "Overlapping matches are resolved by priority; for equal-priority
+  // matches the earlier one wins."
+  //
+  // Algorithm:
+  //   1. Sort by priority descending, then by start position ascending.
+  //   2. Greedily accept ranges that don't overlap any already-accepted range.
+  //      Because we visit highest-priority ranges first, a high-priority range
+  //      that starts later will be accepted before a lower-priority range that
+  //      started earlier — exactly the behaviour the docstring promises.
+  //   3. Re-sort accepted ranges by start position for segment construction.
+  ranges.sort(
+    (a, b) =>
+      kindPriority[b.kind] - kindPriority[a.kind] || a.start - b.start,
+  );
 
-	// Build segment array
-	const segments: RichSegment[] = [];
-	let pos = 0;
-	for (const r of resolved) {
-		if (r.start > pos) {
-			segments.push({ text: content.slice(pos, r.start), kind: 'plain' });
-		}
-		segments.push({ text: content.slice(r.start, r.end), kind: r.kind });
-		pos = r.end;
-	}
-	if (pos < content.length) {
-		segments.push({ text: content.slice(pos), kind: 'plain' });
-	}
+  const resolved: MatchRange[] = [];
+  for (const r of ranges) {
+    // Reject if this range overlaps any already-accepted range.
+    const overlaps = resolved.some((a) => r.start < a.end && r.end > a.start);
+    if (overlaps) continue;
+    resolved.push(r);
+  }
 
-	return segments;
+  // Re-sort by start position for left-to-right segment construction.
+  resolved.sort((a, b) => a.start - b.start);
+
+  // Build segment array
+  const segments: RichSegment[] = [];
+  let pos = 0;
+  for (const r of resolved) {
+    if (r.start > pos) {
+      segments.push({ text: content.slice(pos, r.start), kind: "plain" });
+    }
+    segments.push({ text: content.slice(r.start, r.end), kind: r.kind });
+    pos = r.end;
+  }
+  if (pos < content.length) {
+    segments.push({ text: content.slice(pos), kind: "plain" });
+  }
+
+  return segments;
 }
