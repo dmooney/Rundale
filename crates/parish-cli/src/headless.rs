@@ -19,10 +19,14 @@ use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::sync::Arc;
-use tokio::sync::{Notify, mpsc};
+use tokio::sync::{Notify, Semaphore, mpsc};
 
 /// Interval between autosaves in seconds.
 const AUTOSAVE_INTERVAL_SECS: u64 = 45;
+
+/// Maximum number of NPC LLM inference calls that may run concurrently within
+/// a single `emit_headless_npc_reactions` batch (#406).
+const NPC_REACTION_CONCURRENCY: usize = 4;
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///
@@ -1282,6 +1286,7 @@ fn print_location_arrival(app: &App) {
 /// to stdout so the player sees them.
 async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
     use parish_core::npc::reactions::{generate_rule_reaction, infer_player_message_reaction};
+    use tokio::task::JoinSet;
 
     let npcs_here: Vec<_> = app
         .npc_manager
@@ -1296,36 +1301,59 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 
     let llm_enabled = !app.flags.is_disabled("npc-llm-reactions");
 
-    for npc in &npcs_here {
-        let emoji = if llm_enabled {
-            if let Some(ref client) = app.reaction_client {
-                infer_player_message_reaction(
-                    client,
-                    &app.reaction_model,
-                    npc,
-                    player_input,
-                    std::time::Duration::from_secs(2),
-                )
-                .await
-                .or_else(|| generate_rule_reaction(player_input))
+    // Run per-NPC inference concurrently, bounded to NPC_REACTION_CONCURRENCY
+    // simultaneous calls so a busy location can't exhaust the LLM connection
+    // pool (#406).
+    let sem = Arc::new(Semaphore::new(NPC_REACTION_CONCURRENCY));
+    let mut join_set: JoinSet<(String, Option<String>)> = JoinSet::new();
+
+    for npc in npcs_here {
+        let sem = Arc::clone(&sem);
+        let client = app.reaction_client.clone();
+        let model = app.reaction_model.clone();
+        let input = player_input.to_string();
+
+        join_set.spawn(async move {
+            // Acquire a permit before starting the (potentially slow) LLM call.
+            let _permit = sem.acquire().await.ok();
+
+            let emoji = if llm_enabled {
+                if let Some(ref c) = client {
+                    infer_player_message_reaction(
+                        c,
+                        &model,
+                        &npc,
+                        &input,
+                        std::time::Duration::from_secs(2),
+                    )
+                    .await
+                    .or_else(|| generate_rule_reaction(&input))
+                } else {
+                    generate_rule_reaction(&input)
+                }
             } else {
-                generate_rule_reaction(player_input)
-            }
-        } else {
-            generate_rule_reaction(player_input)
+                generate_rule_reaction(&input)
+            };
+
+            (npc.name.clone(), emoji)
+        });
+    }
+
+    // Collect results as tasks finish, then persist + print each reaction.
+    while let Some(result) = join_set.join_next().await {
+        let Ok((npc_name, Some(emoji))) = result else {
+            continue;
         };
 
-        if let Some(ref emoji) = emoji {
-            // Persist to reaction_log so NPC memory is maintained (#403).
-            if let Some(npc_mut) = app.npc_manager.get_mut(npc.id) {
-                npc_mut.reaction_log.add_player_message_reaction(
-                    emoji,
-                    player_input,
-                    chrono::Utc::now(),
-                );
-            }
-            println!("{} {}", capitalize_first(&npc.name), emoji);
+        // Persist to reaction_log so NPC memory is maintained (#403).
+        if let Some(npc_mut) = app.npc_manager.find_by_name_mut(&npc_name) {
+            npc_mut.reaction_log.add_player_message_reaction(
+                &emoji,
+                player_input,
+                chrono::Utc::now(),
+            );
         }
+        println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }
 
