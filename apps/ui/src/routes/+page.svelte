@@ -620,7 +620,7 @@
 			class="mobile-btn"
 			class:active={$focailOpen}
 			aria-pressed={$focailOpen}
-			aria-label="Toggle Irish words panel"
+			aria-label="Language Hints — toggle Irish words panel"
 			onclick={() => {
 				if ($focailOpen) {
 					focailOpen.set(false);
