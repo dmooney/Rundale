@@ -2,6 +2,8 @@
 name = "parish-npc"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
+publish = false
 description = "NPC simulation, memory, schedules, and reaction systems for the Parish engine"
 
 [dependencies]

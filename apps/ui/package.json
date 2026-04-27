@@ -3,6 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"license": "GPL-3.0-only",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -11,7 +12,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:e2e": "playwright test",
-		"test:e2e:update": "playwright test --update-snapshots"
+		"test:e2e:update": "playwright test --update-snapshots",
+		"notices": "npx --yes license-checker-rseidelsohn --production --excludePrivatePackages --clarificationsFile ./license-clarifications.json --markdown --out ../../THIRD_PARTY_NOTICES.ui.md"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.56.0",

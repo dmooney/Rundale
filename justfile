@@ -331,6 +331,29 @@ audit:
 update:
     cargo update
 
+# Regenerate third-party notice files (Rust + UI) from the current lockfiles.
+# Requires `cargo-about` (installed on demand) and uses `npx` to run
+# `license-checker-rseidelsohn` without a global install.
+#
+# Outputs:
+#   THIRD_PARTY_NOTICES.rust.md — all transitive Rust crates
+#   THIRD_PARTY_NOTICES.ui.md   — all production npm packages
+#
+# The hand-curated THIRD_PARTY_NOTICES.md at the root summarises these
+# and must be updated manually when direct dependencies change.
+notices:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v cargo-about &>/dev/null; then
+        echo "Installing cargo-about..."
+        cargo install cargo-about --locked --features cli
+    fi
+    echo "Generating Rust notices..."
+    cargo about generate about.hbs --output-file THIRD_PARTY_NOTICES.rust.md
+    echo "Generating UI notices..."
+    cd apps/ui && npm run notices
+    echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md and THIRD_PARTY_NOTICES.ui.md."
+
 # ─── Local CI (act) ──────────────────────────────────────────────────────────
 #
 # Run GitHub Actions workflows locally via nektos/act against Docker. Shared

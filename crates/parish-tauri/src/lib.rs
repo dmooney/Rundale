@@ -543,7 +543,7 @@ pub fn run() {
         .and_then(|gm| gm.manifest.meta.title.clone())
         .unwrap_or_else(|| "Parish".to_string());
     let splash_text = format!(
-        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\n{} - {}",
+        "{}\nCopyright \u{00A9} 2026 David Mooney. Licensed under GPL-3.0 \u{2014} see LICENSE.\n{} - {}",
         game_title,
         env!("PARISH_GIT_BRANCH"),
         env!("PARISH_BUILD_TIME"),

@@ -2,6 +2,8 @@
 name = "parish-persistence"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
+publish = false
 description = "SQLite save/load with WAL journal and branching saves for the Parish engine"
 
 [dependencies]
