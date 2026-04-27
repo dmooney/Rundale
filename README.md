@@ -139,7 +139,7 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 
 ## AI disclosure
 
-Rundale on the Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions — and that the only way to find out is to build it.
+Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions — and that the only way to find out is to build it.
 
 To that end, the project is developed entirely by AI coding agents — mostly **Claude Code**, with **Codex** and **Gemini** on specific tasks. Quality control is a combination of agents reviewing each other's work and extensive automated checks — the architecture-fitness tests, gameplay harness, eval rubrics, and snapshot baselines described above are designed to keep AI-written code honest. Human play-testing is the final gate.
 
