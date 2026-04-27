@@ -272,7 +272,8 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
     let id_to_index: HashMap<NpcId, usize> =
         npcs.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
 
-    let mut additions: Vec<(NpcId, NpcId, RelationshipKind, f64)> = Vec::new();
+    let total_edges: usize = npcs.iter().map(|n| n.relationships.len()).sum();
+    let mut additions: Vec<(NpcId, NpcId, RelationshipKind, f64)> = Vec::with_capacity(total_edges);
     for npc in &npcs {
         for (target_id, rel) in &npc.relationships {
             additions.push((npc.id, *target_id, rel.kind, rel.strength));
