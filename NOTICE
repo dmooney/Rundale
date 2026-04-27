@@ -1,0 +1,51 @@
+Rundale on the Parish engine
+Copyright (C) 2026 Dave Mooney
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation, version 3 (see `LICENSE`).
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+"Rundale" and "Parish" are unregistered trademarks of Dave Mooney; the
+GPL covers source reuse, but the project names and logos are not part
+of that grant.
+
+This product redistributes or uses third-party software and data that
+remain under their original licences. The full list of upstream
+components with their copyright notices and licence texts is in
+`THIRD_PARTY_NOTICES.md` at the root of the repository.
+
+The following notices are reproduced here because they must be visible
+wherever this product is distributed or served:
+
+---
+
+Map data and geocoding — © OpenStreetMap contributors, licensed under
+the Open Database Licence 1.0. See:
+  https://www.openstreetmap.org/copyright
+  https://opendatacommons.org/licenses/odbl/1-0/
+
+Historic 6" Ordnance Survey Ireland tiles (1st edition, surveyed
+1829–1842) courtesy of the National Library of Scotland, licensed
+under Creative Commons Attribution-ShareAlike 3.0. See:
+  https://maps.nls.uk/copyright.html
+  https://creativecommons.org/licenses/by-sa/3.0/
+
+Noto Sans Symbols 2 font — Copyright 2022 The Noto Project Authors
+(https://github.com/notofonts/symbols2), licensed under the SIL Open
+Font License 1.1. Full text: `assets/fonts/NotoSansSymbols2-LICENSE.txt`.
+
+MapLibre GL JS — Copyright (c) 2020 MapLibre contributors, Copyright
+(c) 2014–2020 Mapbox, Inc., licensed under the Mozilla Public License
+2.0. See `THIRD_PARTY_NOTICES.md`.
+
+Phosphor Icons (phosphor-svelte) — Copyright (c) 2020 Phosphor Icons,
+licensed under the MIT License.
+
+Tauri, Svelte, SvelteKit, Vite, and the Rust crates listed in
+`THIRD_PARTY_NOTICES.md` are used under their respective licences
+(primarily MIT, Apache-2.0, BSD-3-Clause, ISC, and MPL-2.0).

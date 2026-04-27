@@ -108,3 +108,33 @@ docs/                  design, ADRs, plans, research, agent guides
 ## For AI Agents
 
 See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) — both index into [docs/agent/](docs/agent/README.md) for build commands, architecture, code style, engineering standards, and gotchas.
+
+## Licence
+
+Rundale on the Parish engine is © 2026 Dave Mooney and is licensed under the
+[GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`). Source code is
+free to use, modify, and redistribute under the terms of that licence.
+
+"Rundale" and "Parish" are unregistered trademarks of Dave Mooney. The
+GPL covers source reuse but not the project names or logos: forks must
+rename. (A formal trademark policy lives at `TRADEMARK.md` once published.)
+
+## Credits
+
+Parish is built on a stack of excellent open-source projects, including
+[Rust](https://www.rust-lang.org/), [Tokio](https://tokio.rs/),
+[Axum](https://github.com/tokio-rs/axum), [Tauri](https://tauri.app/),
+[Svelte](https://svelte.dev/) / [SvelteKit](https://kit.svelte.dev/),
+[MapLibre GL JS](https://maplibre.org/), [SQLite](https://www.sqlite.org/),
+and [Phosphor Icons](https://phosphoricons.com/). Full attribution with
+licence texts is in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md); run
+`just notices` to regenerate the exhaustive transitive list.
+
+Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+contributors, licensed under the
+[Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
+Historic 6″ Ordnance Survey Ireland tiles (1829–1842) courtesy of the
+[National Library of Scotland](https://maps.nls.uk/), licensed under
+[CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). UI glyphs
+use [Noto Sans Symbols 2](https://github.com/notofonts/symbols2) under the
+[SIL Open Font License 1.1](assets/fonts/NotoSansSymbols2-LICENSE.txt).

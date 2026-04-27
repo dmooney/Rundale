@@ -24,6 +24,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/icon.png"]
+    "icon": ["icons/icon.png"],
+    "copyright": "Copyright (C) 2026 Dave Mooney. Licensed under GPL-3.0.",
+    "licenseFile": "../../LICENSE",
+    "resources": [
+      "../../LICENSE",
+      "../../NOTICE",
+      "../../THIRD_PARTY_NOTICES.md"
+    ]
   }
 }

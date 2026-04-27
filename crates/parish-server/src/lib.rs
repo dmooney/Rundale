@@ -209,7 +209,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
 
     // #373 — omit commit SHA from splash text to avoid leaking RAILWAY_GIT_COMMIT_SHA.
     let splash_text = format!(
-        "{}\nCopyright \u{00A9} 2026 David Mooney. All rights reserved.\nweb-server - {}",
+        "{}\nCopyright \u{00A9} 2026 David Mooney. Licensed under GPL-3.0 \u{2014} see LICENSE.\nweb-server - {}",
         game_title,
         chrono::Local::now().format("%Y-%m-%d"),
     );

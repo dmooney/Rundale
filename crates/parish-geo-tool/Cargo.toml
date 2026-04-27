@@ -3,7 +3,8 @@ name = "parish-geo-tool"
 version = "0.1.0"
 edition = "2024"
 description = "Download OSM data and convert to Parish world graph format"
-license = "LicenseRef-Proprietary"
+license = "GPL-3.0-only"
+publish = false
 
 [[bin]]
 name = "parish-geo-tool"

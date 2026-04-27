@@ -2,6 +2,8 @@
 name = "parish-palette"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
+publish = false
 description = "Backend-agnostic time-of-day, season, and weather color interpolation for Parish"
 
 [dependencies]

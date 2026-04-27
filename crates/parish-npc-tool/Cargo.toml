@@ -2,6 +2,8 @@
 name = "parish-npc-tool"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
+publish = false
 description = "NPC world builder and inspection utility for Parish/Rundale (#433)"
 
 [[bin]]

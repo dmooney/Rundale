@@ -2,6 +2,8 @@
 name = "parish-core"
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-only"
+publish = false
 description = "Orchestration layer for the Parish engine: game session, IPC, mod loading, prompts"
 
 [dependencies]

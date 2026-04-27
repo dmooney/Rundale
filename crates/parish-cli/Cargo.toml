@@ -3,7 +3,8 @@ name = "parish"
 version = "0.1.0"
 edition = "2024"
 description = "An Irish Living World Text Adventure — CLI / headless / web entry point"
-license = "LicenseRef-Proprietary"
+license = "GPL-3.0-only"
+publish = false
 default-run = "parish"
 
 [[bin]]
