@@ -1,26 +1,141 @@
 # Rundale
 
-An Irish Living World Text Adventure built in Rust, set in 1820. Powered by the **Parish** engine.
+An Irish Living World Text Adventure, set in 1820 rural Ireland. Powered by the custom **Parish** engine.
 
-The player arrives as a newcomer to **Kilteevan Village** in the parish of Kiltoom, near Roscommon, County Roscommon. NPCs are driven by local LLM inference (via any OpenAI-compatible provider — Ollama, LM Studio, OpenRouter, or custom). A cognitive level-of-detail (LOD) system simulates hundreds of NPCs at varying fidelity based on proximity to the player.
+The player arrives as a newcomer to Kilteevan Village in the civil parish of Kilteevan (barony of Ballintobber), about two miles south-east of Roscommon town in County Roscommon. Locally the area falls under the Catholic parish of Roscommon and Kilteevan. NPCs are driven by LLM inference. A cognitive level-of-detail (LOD) system simulates hundreds of NPCs at varying fidelity based on proximity to the player. The geography is based on real early 19th century Ireland. The characters and establishments are fictional.
 
-> Any resemblance to real persons, living or dead, or actual businesses is purely coincidental. All characters and commercial establishments in this game are fictional.
+## Features
 
-![Rundale GUI — Morning](docs/screenshots/gui-morning.png)
+### World simulation
 
-*Tauri GUI showing the chat panel, interactive map, NPC sidebar, and time-of-day color theming (morning palette).*
+- **Location graph** with fuzzy (Jaro-Winkler) name resolution, prose-described edges, and per-edge traversal counts that drive a "worn paths" map visualization.
+- **Hybrid geography**: locations can be real-world (geocoded from OSM), author-pinned, or fully fictional, with relative anchors that let fictional clusters subordinate to a real place.
+- **Game clock** with seven time-of-day phases (Midnight → Evening) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
+- **Four seasons** with seasonal NPC schedules, weather biases, and Tier 4 life-event rates.
+- **Weather state machine** — seven states (Clear → PartlyCloudy → Overcast → LightRain → HeavyRain → Storm, plus Fog), adjacent-state-only transitions, 2-hour minimum dwell, season-biased probabilities. NPCs seek shelter in heavy rain.
+- **Travel & encounters** — per-edge travel time from lat/lon and transport mode (walk vs. horse/cart), with time-of-day-weighted en-route encounters.
+- **Festivals** — Imbolc, Bealtaine, Lughnasa, Samhain trigger relationship boosts and narrative hooks.
+- **Mythology hooks** — locations carry a `mythological_significance` field that's surfaced into NPC prompts and reserved for future folklore systems.
 
-## Current Status
+### NPCs — cognitive level-of-detail
 
-**Phases 1–4 complete** (Core Loop, World Graph, NPCs & Simulation, Persistence). **Phase 5 — Full LOD & Scale** is in progress: sub-phases 5A–5E are done (event bus, weather state machine, long-term memory & gossip, Tier 3 batch inference, Tier 4 rules engine & seasonal effects), and 5F (world graph expansion to Roscommon/Athlone/Dublin) is the next open item. **Phase 8 — Tauri GUI** is landed (one screenshot-capture polish item outstanding).
+A four-tier simulation that scales hundreds of NPCs at varying fidelity based on proximity to the player:
 
-See the [Roadmap](docs/requirements/roadmap.md) for per-item status tracking.
+- **Tier 1 (interactive)** — full LLM dialogue, conversation history, gossip recall, memory-augmented prompts; routed through the highest-priority inference lane.
+- **Tier 2 (nearby)** — lighter LLM ticks every ~5 game-minutes within ~100 m, producing mood/relationship deltas and overheard conversations.
+- **Tier 3 (distant)** — daily batch inference, 10 NPCs per LLM call, on the lowest-priority lane.
+- **Tier 4 (far)** — CPU-only probabilistic rules: birth/death/illness/marriage/trade per season, no LLM cost.
+- **Memory** — 20-entry short-term ring buffer per NPC with auto-promotion to keyword-indexed long-term memory; persists across tier deflation.
+- **Gossip network** — 60 % transmission probability with 20 % distortion on each hop; bystanders overhear and propagate.
+- **Six-axis intelligence profile** (verbal, analytical, emotional, practical, wisdom, creative) shapes prompt guidance and speech patterns.
+- **Season-aware schedules** with hourly activity/location entries and per-season overrides.
+- **Autonomous NPC chains** — after a player turn, NPCs may chain up to three follow-on exchanges driven by relationship strength and mood.
+- **Anachronism filter** — ~60-term registry (each entry tagged with origin year and category) flags out-of-period vocabulary in player input so NPCs can react with authentic confusion instead of going along with it.
+
+### LLM inference
+
+- **14 inference providers** out of the box: Ollama, LM Studio, vLLM, OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download.
+- **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
+- **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
+- **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
+- **Structured JSON output** — NPC turns return `{mood, action, internal_thought, irish_words}`; partial JSON is recovered on truncation.
+- **Reachability + timeout knobs** — request, streaming, model-load, and download timeouts all configurable per-environment.
+- **Bounded inference log** — recent calls (model, latency, sizes, errors) surface in the debug panel without unbounded memory growth.
+- **Five-layer prompt-injection defence** (ADR-010) — role separation, delimited input with "sandwiched" instructions, input sanitisation at the system boundary, strict output parsing/validation, and output filtering before display.
+
+### Player experience
+
+- **Free-text dialogue** parsed by an LLM intent extractor (Move / Talk / Look / Examine / Interact), with a regex fallback.
+- **`@mention` targeting** to address a specific NPC in a crowded room.
+- **Slash-command surface** spanning save management, time control, provider config, debug, theming, and map switching — the same set works in the GUI, web, and CLI.
+- **Streaming responses** rendered word-by-word with smooth per-chunk timing.
+- **Emote rendering** — `*nods thoughtfully*` italicized inline.
+- **Message reactions** — emoji palette persisted with the save.
+- **Mention + slash autocomplete**, tab completion for known nouns, and a 50-entry input history.
+- **Quick-travel chips** for adjacent locations rendered below the input.
+- **Pronunciation sidebar** — Irish vocabulary and NPC names accumulate with IPA hints as you encounter them.
+
+### Persistence & branching
+
+- **Crash-safe SQLite** in write-ahead-log mode — three-table schema (`branches`, `snapshots`, `journal_events`); readers never block writers, so autosave can fire mid-conversation without hitching.
+- **Git-style branching** — `/fork <name>` creates a non-destructive branch from the current state; `/load` switches; `/branches` lists.
+- **Autosave** every 45 s (configurable) plus manual `/save` and graceful-shutdown autosave on `/quit`.
+- **Append-only journal** of game events alongside snapshots, enabling deterministic replay from any snapshot + subsequent events.
+- **Cross-process save lock** prevents two instances from corrupting the same save.
+- **Save picker on startup** in both GUI (DAG visualization of branches) and headless modes.
+
+### Desktop GUI (Tauri 2 + Svelte 5)
+
+- **Three-panel layout** — interactive map, scrollable chat with streaming responses, NPC/language sidebar — collapsing to a single tabbed column under 768 px.
+- **MapLibre GL minimap + full-screen overlay** with historic 1840s OS Ireland tiles or modern OSM, custom SVG icons per location type, traversal-weighted edges, and click-to-travel.
+- **Status bar** — location, time-of-day label, weather, season, festival indicator, pause indicator, digital clock animated client-side.
+- **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
+- **Debug panel** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) dockable to the side or bottom.
+- **Save picker** (F5) with a DAG visualization of branches and inline fork form.
+- **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
+- **Accessibility** — ARIA-labelled controls, visible focus rings, semantic HTML, WCAG-AA contrast across all theme variants.
+
+### Web server
+
+- **Axum backend** in `crates/parish-server` serves the same Svelte UI over HTTP + WebSocket, one isolated session per `parish_sid` cookie.
+- **Auth** — Cloudflare Access JWT validation in production, optional Google OAuth, loopback bypass for local dev, fail-closed when misconfigured.
+- **WebSocket events** for world updates, streaming tokens, theme changes, and map source switches.
+- **Per-session save isolation** — game state lives under `saves/<session_id>/` and survives restarts.
+- **Prometheus-style `/metrics`** for auth failures, session counts, and inference call stats.
+- **Deploy artifacts** — multi-stage `Dockerfile` and Railway watchdog script in `deploy/`.
+
+### Headless / CLI
+
+- **Plain stdin/stdout REPL** for scripting, fixtures, and headless servers.
+- **Interactive save picker** on startup with the same branch model as the GUI.
+- **ANSI-coloured output** matching the GUI palette (NPC names, system messages, errors).
+- **`--script <file>`** mode for deterministic JSON-in/JSON-out execution — the backbone of the test harness.
+- **The full slash-command surface** works identically to the GUI.
+
+### Modding & content
+
+- **`mod.toml` manifest** declares world, NPCs, prompts, anachronisms, festivals, encounters, transport, pronunciations, UI overrides, and loading-screen text.
+- **`world.json`** — locations with id, description templates, lat/lon, indoor/public flags, edge connections, mythological significance, and a `geo_kind` (real / manual / fictional).
+- **`npcs.json`** — full NPC schema with personality, six-axis intelligence, home/workplace, mood, and per-season hourly schedules.
+- **Editable prompt templates** — separate Tier 1 system, Tier 1 context, and Tier 2 system files plus a configurable historical-period preamble.
+- **Anachronism registry** — JSON file of dated terms; modders can extend it for other periods.
+- **Festivals, encounters, transport speeds, and Irish-word pronunciations** are all data-driven.
+- **Backend-agnostic loading** — the same mod loads identically in Tauri, the web server, and the test harness.
+
+### Developer & modder tooling
+
+- **`parish-geo-tool`** — Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box, with cached responses, dry-run preview, hand-curated merge mode, and a `realign-coords` utility for snapping to historical map coordinates.
+- **`parish-npc-tool`** — SQLite-backed NPC builder: bulk-generate parish or county populations with seedable randomness and 1820s demographic weights, query/filter by parish/occupation/tier, edit moods, promote tiers, batch-elaborate backstories with an LLM, validate referential integrity, and export/import JSON.
+- **Script harness** — `.txt` fixtures in `testing/fixtures/` drive the engine through scripted scenes; structured `ScriptResult` JSON output enables deterministic regression checking. Run a single fixture (`just game-test-one <name>`), all of them (`just game-test-all`), or list available scripts (`just game-test-list`).
+- **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
+- **Architecture fitness tests** — `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
+- **`justfile`** with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`.
+- **Witness-marker scan** — `just witness-scan` rejects AI completion stubs (`todo!()`, `// ...`) in changed files.
+- **Doc-path validator** — `just check-doc-paths` ensures every backtick-cited file path in `docs/` actually exists.
+- **Frontend test stack** — Vitest unit tests, Playwright E2E with mocked Tauri IPC, screenshot baselines (`just screenshots`).
+
+### Documentation
+
+- **`docs/index.md`** is the master hub — phase status, design overview, ADR index, plans, research, and agent guides.
+- **24 ADRs** record the rationale behind graph-based worlds, cognitive LOD, SQLite write-ahead-log persistence, git-like branching, JSON-structured LLM output, real geography, per-category inference, and the geo-tool OSM pipeline.
+- **Historical research archive** — religion, family, education, crafts, food, transportation, and Hiberno-English dialect notes informing NPC dialogue.
+- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), symlinked from `CLAUDE.md` and `AGENTS.md`.
+
+## AI disclosure
+
+Rundale on the Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions — and that the only way to find out is to build it.
+
+To that end, the project is developed entirely by AI coding agents — mostly **Claude Code**, with **Codex** and **Gemini** on specific tasks. Quality control is a combination of agents reviewing each other's work and extensive automated checks — the architecture-fitness tests, gameplay harness, eval rubrics, and snapshot baselines described above are designed to keep AI-written code honest. Human play-testing is the final gate.
+
+Static game content in `mods/rundale/` — NPC personalities, schedules, relationships; location descriptions, lore, pronunciations — is also AI-generated, but human-reviewed before it lands.
+
+Character dialogue, mood, and behaviour are generated **in real time** by whichever LLM provider you've configured. Every NPC line, gossip rumour, and Tier 2/3 simulation tick comes from a live model call at play time; nothing is pre-baked. Each playthrough is genuinely different, and the dialogue's quality depends on the model you point the engine at.
 
 ## Quick Start
 
 The workspace ships with a [`justfile`](justfile); run `just --list` for the full set of recipes.
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an OpenAI-compatible LLM endpoint (e.g. [Ollama](https://ollama.ai/) on `localhost:11434`, LM Studio, OpenRouter, or a custom provider configured in `parish.toml`).
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an OpenAI-compatible LLM endpoint (e.g. [Ollama](https://ollama.ai/) on `localhost:11434`, LM Studio, OpenRouter, or a custom provider configured in `parish.toml`). There's no packaged release yet.
 
 ```sh
 # One-time: install system deps, Rust, Node, and frontend packages
@@ -34,51 +149,6 @@ The default experience is a Tauri 2 desktop app with a Svelte 5 frontend.
 ```sh
 just run          # launches cargo tauri dev
 ```
-
-### Headless Mode (Terminal REPL)
-
-Plain stdin/stdout REPL — useful for scripting, fixtures, and servers without a display:
-
-```sh
-just run-headless
-```
-
-On startup, a save picker shows existing save files (in `saves/`) with their timeline branches, or lets you start a new game. In-game, use `/load` to switch saves, `/save` to snapshot, `/fork <name>` to branch timelines.
-
-### Web Server
-
-An Axum backend in `crates/parish-server` serves the Svelte UI over WebSockets (see [OAuth setup](docs/oauth-setup.md) and the `deploy/` artifacts for Dockerfile + Railway config).
-
-**Platform guides:** [macOS](docs/macos-setup.md) | [Linux](docs/linux-setup.md) | [Windows](docs/windows-setup.md)
-
-## Documentation
-
-The documentation is organized hierarchically — start at a summary level and drill down as needed.
-
-```
-README.md (you are here — project overview, quick start)
-├── CLAUDE.md / AGENTS.md      — Slim agent indexes → docs/agent/
-└── docs/index.md              — Full documentation hub (start here for everything)
-    ├── docs/agent/            — Agent-facing build/test/style/gotchas docs
-    ├── docs/requirements/
-    │   └── roadmap.md         — Per-item status tracking across all phases
-    ├── docs/design/
-    │   └── overview.md        — Architecture overview → subsystem docs
-    ├── docs/adr/
-    │   └── README.md          — Architecture decision records with rationale
-    ├── docs/plans/            — Detailed implementation plan per phase
-    ├── docs/research/         — Historical research informing design
-    ├── docs/archive/          — Historical / superseded docs (DESIGN.md)
-    ├── docs/journal.md        — Cross-session development notes
-    └── docs/known-issues.md   — Active bugs and UX issues
-```
-
-| Start here | What you'll find |
-|------------|-----------------|
-| [docs/index.md](docs/index.md) | **Master hub** — phase status, links to everything |
-| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item checkboxes for all phases |
-| [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
-| [docs/adr/README.md](docs/adr/README.md) | Architecture decision records (ADRs) |
 
 ## Repository Layout
 
@@ -105,9 +175,16 @@ deploy/                Dockerfile + railway.toml
 docs/                  design, ADRs, plans, research, agent guides
 ```
 
-## For AI Agents
+## Documentation
 
-See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) — both index into [docs/agent/](docs/agent/README.md) for build commands, architecture, code style, engineering standards, and gotchas.
+| Start here | What you'll find |
+|------------|------------------|
+| [docs/index.md](docs/index.md) | Master hub — phase status, links to everything |
+| [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
+| [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases |
+| [docs/adr/README.md](docs/adr/README.md) | Architecture decision records and rationale |
+| [docs/known-issues.md](docs/known-issues.md) | Active bugs and UX issues |
+| [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | Agent guides — index into [docs/agent/](docs/agent/README.md) for build, style, and gotchas |
 
 ## Licence
 
