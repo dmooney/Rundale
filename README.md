@@ -30,6 +30,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Six-axis intelligence profile** (verbal, analytical, emotional, practical, wisdom, creative) shapes prompt guidance and speech patterns.
 - **Season-aware schedules** with hourly activity/location entries and per-season overrides.
 - **Autonomous NPC chains** — after a player turn, NPCs may chain up to three follow-on exchanges driven by relationship strength and mood.
+- **Off-screen social simulation** — NPCs interact with one another independent of the player's presence. Tier 2 and Tier 3 inference ticks resolve relationship events, mood shifts, and story beats between non-player characters; outcomes are persisted to world state, progress each NPC's personal story, and surface later as gossip. The world moves forward whether the player is there to witness it or not.
 - **Anachronism filter** — ~60-term registry (each entry tagged with origin year and category) flags out-of-period vocabulary in player input so NPCs can react with authentic confusion instead of going along with it.
 
 ### LLM inference
@@ -68,11 +69,13 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 - **Three-panel layout** — interactive map, scrollable chat with streaming responses, NPC/language sidebar — collapsing to a single tabbed column under 768 px.
 - **MapLibre GL minimap + full-screen overlay** with historic 1840s OS Ireland tiles or modern OSM, custom SVG icons per location type, traversal-weighted edges, and click-to-travel.
+- **Animated travel** — when the player moves between locations the map smoothly pans and zooms to the destination, interpolating both center and zoom level across the journey's duration so the post-travel view is already framed when the player arrives.
 - **Status bar** — location, time-of-day label, weather, season, festival indicator, pause indicator, digital clock animated client-side.
 - **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
 - **Debug panel** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) dockable to the side or bottom.
 - **Save picker** (F5) with a DAG visualization of branches and inline fork form.
 - **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
+- **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.
 - **Accessibility** — ARIA-labelled controls, visible focus rings, semantic HTML, WCAG-AA contrast across all theme variants.
 
 ### Web server
@@ -101,6 +104,19 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Anachronism registry** — JSON file of dated terms; modders can extend it for other periods.
 - **Festivals, encounters, transport speeds, and Irish-word pronunciations** are all data-driven.
 - **Backend-agnostic loading** — the same mod loads identically in Tauri, the web server, and the test harness.
+
+### Parish Designer (GUI editor)
+
+A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible from both the Tauri desktop app and the web server (`PARISH_ENABLE_EDITOR=1`). Follows the mode-parity rule — every editor command is implemented once in `parish-core` and wired to both backends.
+
+- **Mod browser** — lists all mods under `mods/`, switch between them without restarting.
+- **NPC editor** — edit identity, six-axis intelligence (tunable via sliders), home/workplace (location picker, no id-memorizing), knowledge items, gossip seeds, and relationships with automatic bidirectional bookkeeping.
+- **Schedule timeline** — read-only 24-hour SVG band per season/day-type showing when each NPC is where.
+- **Location editor** — description templates with live placeholder preview (`{time}`, `{weather}`, `{npcs_present}`), lat/lon, indoor/public flags, and connection editing with enforced bidirectional edges.
+- **Cross-reference validator** — runs `WorldGraph::validate()` plus orphan NPC homes/workplaces, broken relationship targets, and schedule location refs; click any issue to jump to the field.
+- **Save inspector** — browse `.db` save files, branches, and snapshots; view deserialized world state (clock, weather, NPCs, gossip network, conversation log); export a snapshot as a fixture JSON.
+- **Deterministic JSON writer** — stable key ordering and 2-space indentation on every save so `git diff` stays clean even after a no-op round-trip.
+- **Running-game isolation** — the editor operates on a fresh in-memory copy of mod files and never touches the live game session; a warning banner appears when the loaded mod matches the one being edited.
 
 ### Developer & modder tooling
 
