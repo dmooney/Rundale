@@ -39,7 +39,7 @@
 
 - [x] Full `Location` struct with connections and properties
 - [x] `WorldGraph` struct (adjacency list with BFS pathfinding)
-- [x] Hand-authored test parish JSON (15 Kiltoom locations, starting at Kilteevan Village)
+- [x] Hand-authored test parish JSON (15 locations, starting at Kilteevan Village)
 - [ ] OSM data extraction tool (stretch goal)
 - [x] Movement command handling ("go to X", fuzzy matching, traversal time)
 - [x] Time advancement during traversal
@@ -213,7 +213,7 @@
 
 > [Detailed analysis](../plans/open-questions.md) — **All resolved.**
 
-- [x] Exact parish location near Roscommon → **Kiltoom** (Barony of Athlone South)
+- [x] Exact parish location near Roscommon → **Kilteevan** (civil parish, Barony of Ballintobber; ~2 miles SE of Roscommon town). Catholic-parish layer is **Roscommon and Kilteevan** (NLI parish 0564).
 - [x] Player character model → **Newcomer / "blow-in"**
 - [x] Goal/quest structure → **Purely emergent** (prototype); hybrid later
 - [x] Story and lore → **Mundane surface** with mythology hooks in Phase 6
