@@ -77,7 +77,7 @@ Enrich the map with contextual info:
 The map should feel different at different times, like the rest of the game:
 
 - **Ambient lighting**: At night, the map darkens. Only locations with "lights" (pub, church, houses) glow. The countryside between locations is dark.
-- **Weather overlay**: Rain could add a subtle texture or blue tint. Fog could reduce visibility radius on the minimap.
+- **Weather overlay**: Rain could add a subtle texture. Fog could reduce visibility radius on the minimap.
 - **Shadow direction**: Cast subtle shadows from nodes based on sun position (morning = shadows west, evening = shadows east). Pure flavor.
 
 ### 7. Animated Travel

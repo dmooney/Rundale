@@ -28,7 +28,6 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 ### Weather System
 - **Seven weather states:** Clear, PartlyCloudy, Overcast, LightRain, HeavyRain, Fog, Storm (`crates/parish-types/src/ids.rs`)
 - Weather transition engine runs in the simulation tick path
-- Weather affects UI palette tinting (desaturation, brightness, color temperature)
 - Weather state available to NPC dialogue context
 
 ### Festivals
@@ -279,8 +278,6 @@ Provider config is resolved by `resolve_config` in `crates/parish-config/src/pro
 
 ### Theme System
 - Time-of-day color theming with smooth RGB gradient interpolation
-- Season-aware palette tinting
-- Weather-variant tinting
 - CSS custom properties driven by Rust theme-tick events
 - Mod-configurable accent color
 

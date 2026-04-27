@@ -93,7 +93,7 @@ Two collapsible sections:
 
 ## Color System
 
-The GUI uses time-of-day palettes with season and weather tinting, computed by the shared `src/world/palette.rs` engine. The 7 defined palettes cover the major times of day:
+The GUI uses time-of-day palettes computed by the shared `crates/parish-palette` engine. The 7 defined palettes cover the major times of day:
 
 | Time | Background | Text | Accent |
 |------|-----------|------|--------|
@@ -105,7 +105,7 @@ The GUI uses time-of-day palettes with season and weather tinting, computed by t
 | Night | `(20,25,40)` near-black | `(180,180,190)` silver | `(100,110,140)` blue-grey |
 | Midnight | `(10,12,20)` darkest | `(150,150,165)` muted | `(70,75,100)` dark blue |
 
-Palettes are selected by `compute_palette()` (from `src/world/palette.rs`) and season/weather tinting is applied on top. See [Weather System](weather-system.md) for tint parameters.
+Palettes are selected by `compute_palette()` (from `crates/parish-palette`), which interpolates between the 7 keyframes and enforces a minimum foreground/background contrast floor.
 
 ## Input Processing
 

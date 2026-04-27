@@ -2,7 +2,7 @@
 
 > Parent: [Phase 5](phase-5-full-lod-scale.md) | [Roadmap](../requirements/roadmap.md) | [Docs Index](../index.md)
 >
-> **Status: Complete**
+> **Status: Complete** — *palette-tinting tasks below have since been reverted; weather no longer affects the UI palette.*
 >
 > **Depends on:** Phase 5A (event bus for `WeatherChanged` events)
 > **Depended on by:** 5D (weather context in Tier 3 prompts), 5E (weather drives Tier 4 rules)

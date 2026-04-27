@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-After the engine/game-data separation (ADR/PR #119), game content lives in the mod system (`mods/rundale/`). However, ~60 engine-level numeric constants (inference timeouts, game speed factors, encounter probabilities, NPC memory/cognition tuning, palette tinting) remained hardcoded, requiring recompilation to tune.
+After the engine/game-data separation (ADR/PR #119), game content lives in the mod system (`mods/rundale/`). However, ~50 engine-level numeric constants (inference timeouts, game speed factors, encounter probabilities, NPC memory/cognition tuning, palette contrast thresholds) remained hardcoded, requiring recompilation to tune.
 
 ## Decision
 
@@ -18,7 +18,7 @@ Extract engine tuning parameters into an `[engine]` section of `parish.toml` via
 - **Game speed**: 5 speed presets (Slow through Ludicrous)
 - **Encounters**: 7 per-time-of-day probability thresholds
 - **NPC**: Memory capacity, separator holdback, context count, 4 truncation lengths, cognitive tier distances, tier 2 tick interval, 5 relationship label thresholds
-- **Palette**: 2 contrast thresholds, 4 season tints, 5 weather tints
+- **Palette**: 2 contrast thresholds
 - **World**: Fuzzy name-matching threshold (Jaro-Winkler similarity)
 - **Persistence**: Journal compaction threshold (reserved, not yet wired)
 

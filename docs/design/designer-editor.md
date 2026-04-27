@@ -4,7 +4,7 @@
 
 Parish (Rundale) is a text adventure set in 1820s rural Ireland with a rich body
 of authored game content: locations, NPCs, schedules, relationships, festivals,
-encounters, anachronisms, pronunciations, palette tints, loading screens, engine
+encounters, anachronisms, pronunciations, loading screens, engine
 tuning, and a branching SQLite save format. Today **none of it has a GUI editor**.
 Designers must hand-edit JSON/TOML files, rely on deserialization errors to flag
 mistakes, and restart the game to see changes. There is no save inspector, no

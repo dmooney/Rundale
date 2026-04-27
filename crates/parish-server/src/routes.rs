@@ -79,18 +79,13 @@ pub async fn get_npcs_here(Extension(state): Extension<Arc<AppState>>) -> Json<V
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// `GET /api/theme` — returns the current time-of-day palette (weather + season tinted).
+/// `GET /api/theme` — returns the current time-of-day palette.
 pub async fn get_theme(Extension(state): Extension<Arc<AppState>>) -> Json<ThemePalette> {
     use chrono::Timelike;
     use parish_palette::compute_palette;
     let world = state.world.lock().await;
     let now = world.clock.now();
-    let raw = compute_palette(
-        now.hour(),
-        now.minute(),
-        world.clock.season(),
-        world.weather,
-    );
+    let raw = compute_palette(now.hour(), now.minute());
     Json(ThemePalette::from(raw))
 }
 

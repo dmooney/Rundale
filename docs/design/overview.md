@@ -260,7 +260,7 @@ Beyond provider settings, `parish.toml` supports an `[engine]` section for runti
 | `[engine.npc]` | Memory capacity, holdback, truncation limits |
 | `[engine.npc.cognitive_tiers]` | Tier distance thresholds, Tier 2 tick interval |
 | `[engine.npc.relationship_labels]` | Relationship strength label thresholds |
-| `[engine.palette]` | Contrast thresholds, season/weather tints |
+| `[engine.palette]` | Contrast thresholds |
 
 Config structs live in `crates/parish-core/src/config/engine.rs`.
 

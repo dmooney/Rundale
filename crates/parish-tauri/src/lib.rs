@@ -976,17 +976,12 @@ pub fn run() {
                                 &state_tick.pronunciations,
                             );
                             let _ = handle_tick.emit(events::EVENT_WORLD_UPDATE, snapshot);
-                            // Emit current time-of-day palette (weather + season tinted)
+                            // Emit current time-of-day palette
                             {
                                 use chrono::Timelike;
                                 use parish_palette::compute_palette;
                                 let now = world.clock.now();
-                                let raw = compute_palette(
-                                    now.hour(),
-                                    now.minute(),
-                                    world.clock.season(),
-                                    world.weather,
-                                );
+                                let raw = compute_palette(now.hour(), now.minute());
                                 if last_palette != Some(raw) {
                                     let _ = handle_tick.emit(
                                         events::EVENT_THEME_UPDATE,

@@ -96,7 +96,6 @@
 - [x] `WeatherEngine` with seasonal transition probabilities
 - [x] Weather affects NPC schedules (seek shelter in rain)
 - [x] Weather context in Tier 2 prompts
-- [x] Palette tinting for new weather variants
 - [x] Publish `WeatherChanged` events via event bus
 
 ### Phase 5C — NPC Long-Term Memory & Gossip
