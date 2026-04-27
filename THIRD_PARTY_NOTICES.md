@@ -256,11 +256,11 @@ Full text: `assets/fonts/NotoSansSymbols2-LICENSE.txt` and
   is legally required but it is acknowledged here for transparency.
 - Compiled Tauri bundles (`.app`, `.deb`, `.msi`, `.dmg`) include `LICENSE`,
   `NOTICE`, and this file via `tauri.conf.json` → `bundle.resources`.
-- For the web/hosted build, the source repository is the canonical
-  distribution: GPL-3.0 requires that the corresponding source remain
-  available, which it is at <https://github.com/dmooney/Parish>. Wiring
-  the Axum server to serve `/LICENSE`, `/NOTICE`, and this file from the
-  static bundle is tracked as a follow-up.
+- The hosted web build (Axum server) serves `/LICENSE`, `/NOTICE`, and
+  this file (`/THIRD_PARTY_NOTICES.md`) as public routes alongside the
+  static bundle, so the licence travels with the deployed binary as
+  GPL-3.0 requires. The corresponding source remains available at
+  <https://github.com/dmooney/Parish>.
 - This file must be kept in sync with direct dependencies. Any PR that adds
   a new runtime dependency must update the relevant table above and/or
   regenerate the `.rust.md` / `.ui.md` companions.

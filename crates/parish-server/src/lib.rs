@@ -25,13 +25,13 @@ use std::time::Duration;
 use axum::Router;
 use axum::extract::ConnectInfo;
 use axum::http::header::{
-    CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
-    X_FRAME_OPTIONS,
+    CONTENT_SECURITY_POLICY, CONTENT_TYPE, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY,
+    X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use axum::http::{HeaderValue, Request, StatusCode};
 use axum::middleware as axum_mw;
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
@@ -71,6 +71,33 @@ pub const CSP_POLICY: &str = "default-src 'self'; \
                               frame-ancestors 'none'; \
                               base-uri 'self'; \
                               form-action 'self'";
+
+// ── GPL-3.0 redistribution: licence files served alongside the hosted web
+//    build.  Tauri bundles ship these via `tauri.conf.json` →
+//    `bundle.resources`; the Axum server embeds them at compile time via
+//    `include_str!` and serves them from the corresponding routes wired up
+//    in `run_server` (mounted *after* `cf_access_guard` so they remain
+//    publicly reachable).
+pub async fn serve_license() -> impl IntoResponse {
+    (
+        [(CONTENT_TYPE, "text/plain; charset=utf-8")],
+        include_str!("../../../LICENSE"),
+    )
+}
+
+pub async fn serve_notice() -> impl IntoResponse {
+    (
+        [(CONTENT_TYPE, "text/plain; charset=utf-8")],
+        include_str!("../../../NOTICE"),
+    )
+}
+
+pub async fn serve_third_party_notices() -> impl IntoResponse {
+    (
+        [(CONTENT_TYPE, "text/markdown; charset=utf-8")],
+        include_str!("../../../THIRD_PARTY_NOTICES.md"),
+    )
+}
 
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
@@ -445,6 +472,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             Arc::clone(&global),
             middleware::session_middleware,
         ))
+        // ── GPL-3.0 redistribution: legal/licence files mounted *after*
+        //    `cf_access_guard` and `session_middleware` so they remain
+        //    publicly reachable (the licence must travel with the hosted
+        //    binary).  Rate-limit + security-header layers below still apply.
+        .route("/LICENSE", get(serve_license))
+        .route("/NOTICE", get(serve_notice))
+        .route("/THIRD_PARTY_NOTICES.md", get(serve_third_party_notices))
         // ── #381: Global per-IP rate limiter (outside auth guard, throttles floods) ──
         .layer(axum_mw::from_fn_with_state(
             ip_limiter,
