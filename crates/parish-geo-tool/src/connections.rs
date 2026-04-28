@@ -319,7 +319,7 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
 
         debug!(
             "bridging components: {} <-> {} ({}m)",
-            features[best_pair.0].name, features[best_pair.1].name, best_dist as u32
+            features[best_pair.0].name, features[best_pair.1].name, best_dist as u64
         );
 
         connections.push(GeneratedConnection {

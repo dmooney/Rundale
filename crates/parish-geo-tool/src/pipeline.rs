@@ -196,8 +196,11 @@ fn build_locations(
         std::collections::HashMap::new();
 
     for conn in connections {
-        let from_id = LocationId(conn.from_idx as u32 + id_offset);
-        let to_id = LocationId(conn.to_idx as u32 + id_offset);
+        let from_id = LocationId(
+            u32::try_from(conn.from_idx).expect("feature index fits in u32") + id_offset,
+        );
+        let to_id =
+            LocationId(u32::try_from(conn.to_idx).expect("feature index fits in u32") + id_offset);
 
         // Forward connection
         conn_map.entry(conn.from_idx).or_default().push(Connection {
@@ -218,7 +221,7 @@ fn build_locations(
         .iter()
         .enumerate()
         .map(|(idx, feature)| {
-            let id = LocationId(idx as u32 + id_offset);
+            let id = LocationId(u32::try_from(idx).expect("feature index fits in u32") + id_offset);
             let (description_template, description_source) = generate_description(feature);
             let mythological_significance = generate_mythological_significance(feature);
             let connections = conn_map.remove(&idx).unwrap_or_default();
