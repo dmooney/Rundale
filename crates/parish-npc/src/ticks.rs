@@ -601,12 +601,20 @@ pub fn apply_tier2_event_with_config(
     }
     for &participant_id in &event.participants {
         if let Some(npc) = npcs.get_mut(&participant_id) {
+            // Record the first *other* participant as the conversation partner.
+            // For two-NPC conversations this is unambiguous; for larger groups
+            // we store the first other participant as a representative.
+            let partner = event
+                .participants
+                .iter()
+                .copied()
+                .find(|&p| p != participant_id);
             let mem_entry = MemoryEntry {
                 timestamp: game_time,
                 content: memory_content.clone(),
                 participants: event.participants.clone(),
                 location: event.location,
-                kind: Some(crate::memory::MemoryKind::SpokeWithNpc(participant_id)),
+                kind: partner.map(crate::memory::MemoryKind::SpokeWithNpc),
             };
             if let Some(evicted) = npc.memory.add(mem_entry) {
                 let npc_name = npc.name.clone();
@@ -1097,7 +1105,7 @@ mod tests {
 
         apply_tier1_response(&mut npc, &response, "waves", game_time);
 
-        assert_eq!(npc.mood, "calm"); // unchanged
+        assert_eq!(npc.mood, "calm"); // mood should not change
         assert_eq!(npc.memory.len(), 1); // memory still recorded
     }
 
@@ -1615,7 +1623,7 @@ mod tests {
         };
         let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let events = apply_tier1_response(&mut npc, &response, "hello", game_time);
-        assert_eq!(npc.mood, "calm"); // unchanged
+        assert_eq!(npc.mood, "calm"); // mood should not change
         assert!(!events.iter().any(|e| e.contains("mood:")));
     }
 
@@ -2002,5 +2010,37 @@ mod tests {
         assert!(mem[0].participants.contains(&NpcId(0)));
         assert!(mem[0].participants.contains(&NpcId(1)));
         assert!(mem[0].participants.contains(&NpcId(2)));
+    }
+
+    #[test]
+    fn test_spoke_with_npc_memory_records_partner_not_self() {
+        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        npcs.insert(NpcId(1), make_test_npc(1, "Padraig", 2));
+        npcs.insert(NpcId(5), make_test_npc(5, "Tommy", 2));
+
+        let event = Tier2Event {
+            location: LocationId(2),
+            summary: "Padraig and Tommy exchanged news".to_string(),
+            participants: vec![NpcId(1), NpcId(5)],
+            mood_changes: vec![],
+            relationship_changes: vec![],
+        };
+
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 14, 0, 0).unwrap();
+        apply_tier2_event(&event, &mut npcs, game_time);
+
+        let padraig_mem = npcs.get(&NpcId(1)).unwrap().memory.recent(1);
+        let tommy_mem = npcs.get(&NpcId(5)).unwrap().memory.recent(1);
+
+        assert_eq!(
+            padraig_mem[0].kind,
+            Some(crate::memory::MemoryKind::SpokeWithNpc(NpcId(5))),
+            "Padraig's memory should reference Tommy (5), not himself (1)"
+        );
+        assert_eq!(
+            tommy_mem[0].kind,
+            Some(crate::memory::MemoryKind::SpokeWithNpc(NpcId(1))),
+            "Tommy's memory should reference Padraig (1), not himself (5)"
+        );
     }
 }
