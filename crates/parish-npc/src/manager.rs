@@ -18,6 +18,9 @@ use parish_types::LocationId;
 use parish_types::ParishError;
 use parish_world::WorldState;
 use parish_world::events::GameEvent;
+
+/// Maximum entries kept in the recent Tier 4 event ring buffer.
+const RECENT_TIER4_CAPACITY: usize = 5;
 use parish_world::graph::WorldGraph;
 use parish_world::time::GameClock;
 
@@ -141,7 +144,7 @@ impl NpcManager {
             last_tier4_game_time: None,
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
-            recent_tier4_events: VecDeque::with_capacity(5),
+            recent_tier4_events: VecDeque::with_capacity(RECENT_TIER4_CAPACITY),
             bfs_distances_cache: None,
         }
     }
@@ -666,7 +669,7 @@ impl NpcManager {
                                 .unwrap_or_else(|| "?".to_string());
                             events.push(ScheduleEvent {
                                 npc_id: id,
-                                npc_name: npc_name.clone(),
+                                npc_name,
                                 kind: ScheduleEventKind::Departed {
                                     from,
                                     to: desired,
@@ -675,7 +678,7 @@ impl NpcManager {
                                 },
                             });
                             tracing::debug!(
-                                npc = %npc_name,
+                                npc = %npc.name,
                                 from = from.0,
                                 to = desired.0,
                                 minutes = travel_minutes,
@@ -695,21 +698,20 @@ impl NpcManager {
                 NpcState::InTransit { to, arrives_at, .. } => {
                     if now >= *arrives_at {
                         let destination = *to;
-                        let npc_name = npc.name.clone();
                         let dest_name = graph
                             .get(destination)
                             .map(|d| d.name.clone())
                             .unwrap_or_else(|| "?".to_string());
                         events.push(ScheduleEvent {
                             npc_id: id,
-                            npc_name: npc_name.clone(),
+                            npc_name: npc.name.clone(),
                             kind: ScheduleEventKind::Arrived {
                                 location: destination,
                                 location_name: dest_name,
                             },
                         });
                         tracing::debug!(
-                            npc = %npc_name,
+                            npc = %npc.name,
                             location = destination.0,
                             "NPC arrived"
                         );
@@ -1068,7 +1070,7 @@ impl NpcManager {
 
         // Push descriptions into the ring buffer (capacity 5).
         for desc in life_descriptions {
-            if self.recent_tier4_events.len() >= 5 {
+            if self.recent_tier4_events.len() >= RECENT_TIER4_CAPACITY {
                 self.recent_tier4_events.pop_front();
             }
             self.recent_tier4_events.push_back(desc);
@@ -1145,7 +1147,7 @@ impl NpcManager {
                     description: desc,
                     timestamp: now,
                 });
-                if self.recent_tier4_events.len() >= 5 {
+                if self.recent_tier4_events.len() >= RECENT_TIER4_CAPACITY {
                     self.recent_tier4_events.pop_front();
                 }
                 self.recent_tier4_events

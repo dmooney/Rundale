@@ -64,9 +64,8 @@
 			return node.span;
 		}
 
-		let totalSpan = 0;
 		for (const root of tree) {
-			totalSpan += computeSpan(root);
+			computeSpan(root);
 		}
 
 		// Compute depth (for y positioning)
