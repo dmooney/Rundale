@@ -243,6 +243,13 @@ Provider config is resolved by `resolve_config` in `crates/parish-config/src/pro
 - Logs prompt, response, model, timing, streaming flag, and error status
 - Viewable in the Debug Panel's Inference tab
 
+### Rate Limiting
+- Outbound request throttling per provider client, gating every LLM call before it leaves the process (`crates/parish-inference/src/rate_limit.rs`)
+- Token-bucket / GCRA quota via the `governor` crate — sustained `per_minute` rate plus a `burst` capacity
+- Per-category overrides under `[engine.inference.rate_limits.*]` in `parish.toml` (`dialogue`, `simulation`, `intent`, `reaction`), resolved by `RateLimitConfig::for_category`; plus a `default` limit for the base client (`crates/parish-config/src/engine.rs`)
+- Off by default — omitting the config (or setting `per_minute = 0`) leaves clients unthrottled, preserving existing behavior
+- Both blocking (`acquire`) and non-blocking (`try_acquire`) entry points so callers can either queue or shed load
+
 ---
 
 ## GUI (Tauri 2 + Svelte 5)
