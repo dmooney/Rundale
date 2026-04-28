@@ -25,7 +25,10 @@ ROOT_ALT='(crates|apps|docs|mods|testing|deploy|assets|scripts|\.agents|\.claude
 
 # Source docs: docs/agent/*.md plus the repo-root agent files (CLAUDE.md is a
 # symlink to AGENTS.md so we deduplicate by checking it isn't a symlink).
-mapfile -t sources < <(
+sources=()
+while IFS= read -r line; do
+    sources+=("$line")
+done < <(
     find docs/agent -type f -name '*.md' 2>/dev/null
     [[ -f AGENTS.md ]] && echo AGENTS.md
     [[ -f CLAUDE.md && ! -L CLAUDE.md ]] && echo CLAUDE.md

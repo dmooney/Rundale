@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 COPY crates/ crates/
+# Copy metadata files required for compile-time embedding (see parish-server/src/lib.rs)
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 # Build only the parish binary (excludes the Tauri desktop binary)
 RUN cargo build --release -p parish --bin parish
 
