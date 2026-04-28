@@ -24,6 +24,7 @@ use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
 use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
+use crate::world::encounter::check_encounter;
 use crate::world::movement::{MovementResult, resolve_movement};
 use crate::world::time::TimeOfDay;
 use crate::world::transport::TransportMode;
@@ -147,6 +148,11 @@ pub fn apply_movement(
                     });
             }
 
+            // Check for a travel encounter now that the clock has advanced.
+            let encounter_msg =
+                check_encounter(world.clock.time_of_day(), dice::DiceRoll::roll().value())
+                    .map(|ev| ev.description);
+
             // Reassign NPC cognitive tiers
             let tier_transitions = npc_manager.assign_tiers(world, &[]);
 
@@ -175,6 +181,16 @@ pub fn apply_movement(
                 subtype: None,
                 text: narration,
             });
+
+            // En-route encounter (fires ~20% of traversals, see encounter.rs)
+            if let Some(text) = encounter_msg {
+                world.log(text.clone());
+                messages.push(GameMessage {
+                    source: "system",
+                    subtype: Some("encounter"),
+                    text,
+                });
+            }
 
             // Arrival description + exits
             world.log(look_text.clone());
