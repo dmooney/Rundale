@@ -604,6 +604,34 @@ pub fn run() {
     // Load feature flags from disk
     let flags = FeatureFlags::load_from_file(&data_dir.join("parish-flags.json"));
 
+    let mut game_config = GameConfig {
+        provider_name,
+        base_url,
+        api_key,
+        model_name,
+        cloud_provider_name: cloud_env.provider_name,
+        cloud_model_name: cloud_env.model_name,
+        cloud_api_key: cloud_env.api_key,
+        cloud_base_url: cloud_env.base_url,
+        improv_enabled: false,
+        max_follow_up_turns: 2,
+        idle_banter_after_secs: 25,
+        auto_pause_after_secs: 60,
+        category_provider: [None, None, None, None],
+        category_model: [None, None, None, None],
+        category_api_key: [None, None, None, None],
+        category_base_url: [None, None, None, None],
+        flags,
+        category_rate_limit: [None, None, None, None],
+        active_tile_source,
+        tile_sources: engine_config.map.id_label_pairs(),
+        reveal_unexplored_locations: false,
+    };
+    // Fill any unset model fields from the chosen provider's presets so a
+    // user who set only `PARISH_PROVIDER=anthropic` (or `--provider`) gets
+    // sensible Dialogue/Simulation/Intent/Reaction defaults.
+    game_config.fill_missing_models_from_presets();
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -632,29 +660,7 @@ pub fn run() {
         save_lock: Mutex::new(None),
         ollama_process: Mutex::new(ollama_process),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
-        config: Mutex::new(GameConfig {
-            provider_name,
-            base_url,
-            api_key,
-            model_name,
-            cloud_provider_name: cloud_env.provider_name,
-            cloud_model_name: cloud_env.model_name,
-            cloud_api_key: cloud_env.api_key,
-            cloud_base_url: cloud_env.base_url,
-            improv_enabled: false,
-            max_follow_up_turns: 2,
-            idle_banter_after_secs: 25,
-            auto_pause_after_secs: 60,
-            category_provider: [None, None, None, None],
-            category_model: [None, None, None, None],
-            category_api_key: [None, None, None, None],
-            category_base_url: [None, None, None, None],
-            flags,
-            category_rate_limit: [None, None, None, None],
-            active_tile_source,
-            tile_sources: engine_config.map.id_label_pairs(),
-            reveal_unexplored_locations: false,
-        }),
+        config: Mutex::new(game_config),
     });
 
     tauri::Builder::default()
@@ -1514,7 +1520,15 @@ pub fn run() {
                             state_debug.inference_queue.lock().await.is_some();
 
                         // 2. Clone config fields — drop the lock immediately.
-                        let (provider_name, model_name, base_url, cloud_provider, cloud_model, improv_enabled) = {
+                        let (
+                            provider_name,
+                            model_name,
+                            base_url,
+                            cloud_provider,
+                            cloud_model,
+                            improv_enabled,
+                            categories,
+                        ) = {
                             let config = state_debug.config.lock().await;
                             (
                                 config.provider_name.clone(),
@@ -1523,6 +1537,7 @@ pub fn run() {
                                 config.cloud_provider_name.clone(),
                                 config.cloud_model_name.clone(),
                                 config.improv_enabled,
+                                parish_core::debug_snapshot::build_inference_categories(&config),
                             )
                         };
 
@@ -1569,6 +1584,7 @@ pub fn run() {
                             reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
                             improv_enabled,
                             call_log,
+                            categories,
                         };
 
                         // 6. Acquire world and npc_manager (canonical order)

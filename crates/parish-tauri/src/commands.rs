@@ -206,6 +206,7 @@ pub async fn get_debug_snapshot(
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled: config.improv_enabled,
         call_log,
+        categories: parish_core::debug_snapshot::build_inference_categories(&config),
     };
 
     Ok(debug_snapshot::build_debug_snapshot(

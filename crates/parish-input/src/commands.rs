@@ -94,6 +94,10 @@ pub enum Command {
     ShowCategoryKey(InferenceCategory),
     /// Set API key for a specific inference category.
     SetCategoryKey(InferenceCategory, String),
+    /// Apply a recommended provider preset across all inference categories.
+    ApplyPreset(String),
+    /// Show usage / list of providers with available presets.
+    ShowPreset,
     /// Show about / credits information.
     About,
     /// Show or change the map tile source. No arg = list sources; arg = switch to it.

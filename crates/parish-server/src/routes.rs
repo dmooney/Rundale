@@ -118,7 +118,15 @@ pub async fn get_debug_snapshot(
     let has_inference_queue = state.inference_queue.lock().await.is_some();
 
     // 2. Clone the fields we need from config — drop the lock immediately.
-    let (provider_name, model_name, base_url, cloud_provider, cloud_model, improv_enabled) = {
+    let (
+        provider_name,
+        model_name,
+        base_url,
+        cloud_provider,
+        cloud_model,
+        improv_enabled,
+        categories,
+    ) = {
         let config = state.config.lock().await;
         (
             config.provider_name.clone(),
@@ -127,6 +135,7 @@ pub async fn get_debug_snapshot(
             config.cloud_provider_name.clone(),
             config.cloud_model_name.clone(),
             config.improv_enabled,
+            parish_core::debug_snapshot::build_inference_categories(&config),
         )
     };
 
@@ -153,6 +162,7 @@ pub async fn get_debug_snapshot(
         reaction_req_id: parish_core::game_session::reaction_req_id_peek(),
         improv_enabled,
         call_log: raw_call_log.clone(),
+        categories,
     };
     let linked = global.sessions.google_account_for_session(&session_id.0);
     let auth = AuthDebug {

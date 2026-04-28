@@ -705,6 +705,37 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_preset_show_bare() {
+        assert_eq!(parse_system_command("/preset"), Some(Command::ShowPreset));
+        assert_eq!(
+            parse_system_command("/preset   "),
+            Some(Command::ShowPreset)
+        );
+    }
+
+    #[test]
+    fn test_parse_preset_apply() {
+        assert_eq!(
+            parse_system_command("/preset anthropic"),
+            Some(Command::ApplyPreset("anthropic".to_string()))
+        );
+        assert_eq!(
+            parse_system_command("/preset  ollama "),
+            Some(Command::ApplyPreset("ollama".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_preset_case_insensitive() {
+        // The /preset prefix is matched case-insensitively, but the argument
+        // is preserved verbatim — Provider::from_str_loose handles casing.
+        assert_eq!(
+            parse_system_command("/PRESET Anthropic"),
+            Some(Command::ApplyPreset("Anthropic".to_string()))
+        );
+    }
+
+    #[test]
     fn test_parse_provider_case_insensitive() {
         assert_eq!(
             parse_system_command("/PROVIDER"),

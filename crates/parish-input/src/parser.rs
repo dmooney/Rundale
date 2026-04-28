@@ -128,6 +128,19 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         }
     } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
         Some(cmd)
+    } else if lower == "/preset" {
+        Some(Command::ShowPreset)
+    } else if lower.starts_with("/preset ") {
+        let name = trimmed
+            .get("/preset ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if name.is_empty() {
+            Some(Command::ShowPreset)
+        } else {
+            Some(Command::ApplyPreset(name))
+        }
     } else if lower == "/provider" {
         Some(Command::ShowProvider)
     } else if lower.starts_with("/provider ") {

@@ -11,7 +11,7 @@
 
 use chrono::Timelike;
 
-use crate::config::Provider;
+use crate::config::{InferenceCategory, Provider};
 use crate::input::{Command, FlagSubcommand};
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
@@ -332,6 +332,10 @@ pub fn handle_command(
             Ok(provider) => {
                 config.base_url = provider.default_base_url().to_string();
                 config.provider_name = format!("{:?}", provider).to_lowercase();
+                // Auto-fill any unset model fields with the provider's preset
+                // (base + per-role) so users who only set the provider get
+                // sensible defaults.
+                config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("Provider changed to {}.", config.provider_name),
                     CommandEffect::RebuildInference,
@@ -416,6 +420,9 @@ pub fn handle_command(
                 let provider_name = format!("{:?}", provider).to_lowercase();
                 config.category_provider[idx] = Some(provider_name.clone());
                 config.category_base_url[idx] = Some(provider.default_base_url().to_string());
+                // Auto-fill the model for this category if unset, using the
+                // new provider's preset for this role.
+                config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("{} provider changed to {}.", cat.name(), provider_name),
                     CommandEffect::RebuildInference,
@@ -457,6 +464,63 @@ pub fn handle_command(
                 CommandEffect::RebuildInference,
             )
         }
+
+        // ── Provider presets ────────────────────────────────────────────
+        Command::ShowPreset => CommandResult::text(
+            "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
+             groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm",
+        ),
+        Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
+            Ok(provider) => {
+                if !provider.has_preset() {
+                    CommandResult::text(format!(
+                        "No preset available for '{}'. Configure models manually with /model.<category>.",
+                        name
+                    ))
+                } else {
+                    let presets = provider.preset_models();
+                    let provider_name = format!("{:?}", provider).to_lowercase();
+                    let default_url = provider.default_base_url().to_string();
+
+                    // Base provider/url/model: use Dialogue's pick as the base model
+                    // so any code path that still falls through to `model_name` gets
+                    // a sensible value.
+                    config.provider_name = provider_name.clone();
+                    config.base_url = default_url.clone();
+                    if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
+                        config.model_name = m.to_string();
+                    }
+
+                    // Per-category: always overwrite (applying a preset is an
+                    // explicit user action). API keys are intentionally left
+                    // alone — see hint below.
+                    for cat in InferenceCategory::ALL {
+                        let idx = cat.idx();
+                        config.category_provider[idx] = Some(provider_name.clone());
+                        config.category_base_url[idx] = Some(default_url.clone());
+                        config.category_model[idx] = presets[idx].map(str::to_string);
+                    }
+
+                    let hint = if provider.requires_api_key() && config.api_key.is_none() {
+                        format!(
+                            " Set your API key with `/key <value>` — {} requires one.",
+                            provider_name
+                        )
+                    } else {
+                        String::new()
+                    };
+
+                    CommandResult::with_effect(
+                        format!(
+                            "Applied {} preset (Dialogue/Simulation/Intent/Reaction).{}",
+                            provider_name, hint
+                        ),
+                        CommandEffect::RebuildInference,
+                    )
+                }
+            }
+            Err(e) => CommandResult::text(format!("{}", e)),
+        },
 
         // ── Feature flags ───────────────────────────────────────────────
         Command::Flags | Command::Flag(FlagSubcommand::List) => {
@@ -1142,6 +1206,202 @@ mod tests {
         assert!(result.effects.contains(&CommandEffect::RebuildInference));
         let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
         assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat-key"));
+    }
+
+    // ── Provider presets ────────────────────────────────────────────────────
+
+    #[test]
+    fn apply_preset_anthropic_populates_all_four_slots() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::ApplyPreset("anthropic".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+        assert_eq!(config.provider_name, "anthropic");
+        assert_eq!(config.base_url, "https://api.anthropic.com");
+        assert_eq!(config.model_name, "claude-opus-4-7");
+
+        let idx_d = InferenceCategory::Dialogue.idx();
+        let idx_s = InferenceCategory::Simulation.idx();
+        let idx_i = InferenceCategory::Intent.idx();
+        let idx_r = InferenceCategory::Reaction.idx();
+        assert_eq!(
+            config.category_model[idx_d].as_deref(),
+            Some("claude-opus-4-7")
+        );
+        assert_eq!(
+            config.category_model[idx_s].as_deref(),
+            Some("claude-sonnet-4-6")
+        );
+        assert_eq!(
+            config.category_model[idx_i].as_deref(),
+            Some("claude-haiku-4-5")
+        );
+        assert_eq!(
+            config.category_model[idx_r].as_deref(),
+            Some("claude-sonnet-4-6")
+        );
+        for cat in InferenceCategory::ALL {
+            let i = cat.idx();
+            assert_eq!(config.category_provider[i].as_deref(), Some("anthropic"));
+            assert_eq!(
+                config.category_base_url[i].as_deref(),
+                Some("https://api.anthropic.com")
+            );
+        }
+    }
+
+    #[test]
+    fn apply_preset_overwrites_existing_category_models() {
+        let (mut world, mut npc, mut config) = default_state();
+        let idx = InferenceCategory::Dialogue.idx();
+        config.category_model[idx] = Some("old-dialogue-model".to_string());
+
+        handle_command(
+            Command::ApplyPreset("ollama".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.category_model[idx].as_deref(), Some("qwen3:32b"));
+    }
+
+    #[test]
+    fn apply_preset_does_not_touch_api_keys() {
+        let (mut world, mut npc, mut config) = default_state();
+        let idx = InferenceCategory::Dialogue.idx();
+        config.api_key = Some("sk-existing".to_string());
+        config.category_api_key[idx] = Some("sk-cat".to_string());
+
+        handle_command(
+            Command::ApplyPreset("anthropic".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.api_key.as_deref(), Some("sk-existing"));
+        assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat"));
+    }
+
+    #[test]
+    fn apply_preset_hints_when_api_key_missing() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::ApplyPreset("openai".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("API key"));
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+    }
+
+    #[test]
+    fn apply_preset_no_hint_for_keyless_provider() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::ApplyPreset("ollama".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(!result.response.contains("API key"));
+    }
+
+    #[test]
+    fn apply_preset_unknown_provider_returns_error() {
+        let (mut world, mut npc, mut config) = default_state();
+        let prior_provider = config.provider_name.clone();
+        let result = handle_command(
+            Command::ApplyPreset("not-a-provider".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(!result.effects.contains(&CommandEffect::RebuildInference));
+        // Config should not have been mutated on error.
+        assert_eq!(config.provider_name, prior_provider);
+    }
+
+    #[test]
+    fn apply_preset_custom_returns_no_preset_message() {
+        let (mut world, mut npc, mut config) = default_state();
+        let prior_provider = config.provider_name.clone();
+        let result = handle_command(
+            Command::ApplyPreset("custom".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.response.contains("No preset"));
+        assert!(!result.effects.contains(&CommandEffect::RebuildInference));
+        assert_eq!(config.provider_name, prior_provider);
+    }
+
+    #[test]
+    fn set_provider_fills_missing_models_from_preset() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(
+            Command::SetProvider("anthropic".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+        assert_eq!(config.provider_name, "anthropic");
+        assert_eq!(config.model_name, "claude-opus-4-7");
+        // All four per-category slots should be filled from the Anthropic preset.
+        assert_eq!(
+            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            Some("claude-haiku-4-5"),
+        );
+        assert_eq!(
+            config.category_model[InferenceCategory::Simulation.idx()].as_deref(),
+            Some("claude-sonnet-4-6"),
+        );
+    }
+
+    #[test]
+    fn set_provider_does_not_overwrite_existing_model() {
+        let mut config = GameConfig {
+            model_name: "preferred-model".to_string(),
+            ..GameConfig::default()
+        };
+        let mut world = WorldState::new();
+        let mut npc = NpcManager::new();
+        handle_command(
+            Command::SetProvider("anthropic".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.model_name, "preferred-model");
+    }
+
+    #[test]
+    fn set_category_provider_fills_missing_model_from_preset() {
+        let (mut world, mut npc, mut config) = default_state();
+        handle_command(
+            Command::SetCategoryProvider(InferenceCategory::Intent, "anthropic".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(
+            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            Some("claude-haiku-4-5"),
+        );
+    }
+
+    #[test]
+    fn show_preset_lists_providers() {
+        let (mut world, mut npc, mut config) = default_state();
+        let result = handle_command(Command::ShowPreset, &mut world, &mut npc, &mut config);
+        assert!(result.response.contains("anthropic"));
+        assert!(result.response.contains("ollama"));
     }
 
     // ── Feature flags ────────────────────────────────────────────────────────

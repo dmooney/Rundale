@@ -195,7 +195,7 @@ async fn main() -> Result<()> {
     let (client, model, mut ollama_process) = setup_provider(&cli, &provider_config).await?;
 
     // Build per-category client routing struct
-    let clients = build_inference_clients(&client, &model, &category_configs);
+    let clients = build_inference_clients(&provider_config, &client, &model, &category_configs);
 
     for (cat, cfg) in &category_configs {
         let key_status = if cfg.api_key.is_some() {
@@ -299,7 +299,14 @@ async fn setup_provider(
 }
 
 /// Builds the per-category inference routing struct from base and category configs.
+///
+/// For categories without an explicit override, falls back to the base
+/// provider's preset model for that role when the preset differs from the
+/// base model. This way, setting only `PARISH_PROVIDER=anthropic` (no
+/// per-category env vars) routes Dialogue → Opus, Simulation/Reaction →
+/// Sonnet, Intent → Haiku — even though `category_configs` is empty.
 fn build_inference_clients(
+    base_provider_config: &parish::config::ProviderConfig,
     base_client: &parish::inference::AnyClient,
     base_model: &str,
     category_configs: &std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
@@ -316,6 +323,21 @@ fn build_inference_clients(
         let model = cfg.model.clone().unwrap_or_else(|| base_model.to_string());
         overrides.insert(*category, (client, model));
     }
+
+    // Fill in per-role presets for categories without explicit overrides.
+    // The override reuses the base client (same provider/url/key) but
+    // points the category at the per-role preset model.
+    for category in InferenceCategory::ALL {
+        if overrides.contains_key(&category) {
+            continue;
+        }
+        if let Some(preset) = base_provider_config.provider.preset_model(category)
+            && preset != base_model
+        {
+            overrides.insert(category, (base_client.clone(), preset.to_string()));
+        }
+    }
+
     InferenceClients::new(base_client.clone(), base_model.to_string(), overrides)
 }
 

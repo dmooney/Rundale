@@ -406,6 +406,17 @@ export interface DebugEvent {
 	message: string;
 }
 
+export interface InferenceCategoryDebug {
+	/** Lowercase role name: "dialogue" | "simulation" | "intent" | "reaction". */
+	role: string;
+	/** Provider override; null means inherit base. */
+	provider: string | null;
+	/** Model override; null means inherit base model. */
+	model: string | null;
+	/** Base URL override; null means inherit base. */
+	base_url: string | null;
+}
+
 export interface InferenceDebug {
 	provider_name: string;
 	model_name: string;
@@ -416,6 +427,8 @@ export interface InferenceDebug {
 	reaction_req_id: number;
 	improv_enabled: boolean;
 	call_log: InferenceLogEntry[];
+	/** Per-role provider/model/url state (one entry per InferenceCategory). */
+	categories: InferenceCategoryDebug[];
 }
 
 export interface InferenceLogEntry {
