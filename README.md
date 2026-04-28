@@ -1,8 +1,19 @@
 # Rundale
 
-An Irish Living World Text Adventure, set in 1820 rural Ireland. Powered by the custom **Parish** engine.
+An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Parish** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](https://en.wikipedia.org/wiki/Great_Famine_(Ireland)).
 
-The player arrives as a newcomer to Kilteevan Village in the civil parish of Kilteevan (barony of Ballintobber), about two miles south-east of Roscommon town in County Roscommon. Locally the area falls under the Catholic parish of Roscommon and Kilteevan. NPCs are driven by LLM inference. A cognitive level-of-detail (LOD) system simulates hundreds of NPCs at varying fidelity based on proximity to the player. The geography is based on real early 19th century Ireland. The characters and establishments are fictional.
+The player arrives as a newcomer to Kilteevan Village, about two miles south-east of Roscommon town in County Roscommon. The village and surrounding area is populated with numerous non-player characters. NPCs are driven by LLM inference. A cognitive level-of-detail (LOD) system simulates NPCs at varying fidelity based on proximity to the player. The geography is based on real early 19th century Ireland. The characters and establishments are fictional.
+
+[![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" width="160"/><br/><b>Map</b></a></td>
+    <td align="center"><a href="docs/screenshots/ledger.png"><img src="docs/screenshots/thumbnails/ledger-thumbnail.png" width="160"/><br/><b>Ledger</b></a></td>
+    <td align="center"><a href="docs/screenshots/npc-designer.png"><img src="docs/screenshots/thumbnails/npc-designer-thumbnail.png" width="160"/><br/><b>NPCs</b></a></td>
+    <td align="center"><a href="docs/screenshots/location-designer.png"><img src="docs/screenshots/thumbnails/location-designer-thumbnail.png" width="160"/><br/><b>Locations</b></a></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -63,7 +74,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Autosave** every 45 s (configurable) plus manual `/save` and graceful-shutdown autosave on `/quit`.
 - **Append-only journal** of game events alongside snapshots, enabling deterministic replay from any snapshot + subsequent events.
 - **Cross-process save lock** prevents two instances from corrupting the same save.
-- **Save picker on startup** in both GUI (DAG visualization of branches) and headless modes.
+- **Save picker** in both GUI (DAG visualization of branches) and headless modes.
 
 ### Desktop GUI (Tauri 2 + Svelte 5)
 
@@ -90,7 +101,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 ### Headless / CLI
 
 - **Plain stdin/stdout REPL** for scripting, fixtures, and headless servers.
-- **Interactive save picker** on startup with the same branch model as the GUI.
+- **Interactive save picker** with the same branch model as the GUI.
 - **ANSI-coloured output** matching the GUI palette (NPC names, system messages, errors).
 - **`--script <file>`** mode for deterministic JSON-in/JSON-out execution — the backbone of the test harness.
 - **The full slash-command surface** works identically to the GUI.
@@ -133,25 +144,25 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 ### Documentation
 
 - **`docs/index.md`** is the master hub — phase status, design overview, ADR index, plans, research, and agent guides.
-- **24 ADRs** record the rationale behind graph-based worlds, cognitive LOD, SQLite write-ahead-log persistence, git-like branching, JSON-structured LLM output, real geography, per-category inference, and the geo-tool OSM pipeline.
+- **Architectural Decision Records** record the rationale behind graph-based worlds, cognitive LOD, SQLite write-ahead-log persistence, git-like branching, JSON-structured LLM output, real geography, per-category inference, and the geo-tool OSM pipeline.
 - **Historical research archive** — religion, family, education, crafts, food, transportation, and Hiberno-English dialect notes informing NPC dialogue.
-- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), symlinked from `CLAUDE.md` and `AGENTS.md`.
+- **`docs/agent/`** — slim, indexed reference for AI coding agents (build, architecture, style, gotchas, harness, skills, git workflow), linked from `CLAUDE.md` and `AGENTS.md`.
 
 ## AI disclosure
 
-Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions — and that the only way to find out is to build it.
+Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs (or more) at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions. I wanted to build something using AI that would be impossible any other way, at least for a solo dev.
 
-To that end, the project is developed entirely by AI coding agents — mostly **Claude Code**, with **Codex** and **Gemini** on specific tasks. Quality control is a combination of agents reviewing each other's work and extensive automated checks — the architecture-fitness tests, gameplay harness, eval rubrics, and snapshot baselines described above are designed to keep AI-written code honest. Human play-testing is the final gate.
+To that end, the project is developed entirely by AI coding agents — mostly **Claude Code**, with **Codex** and **Gemini** on specific tasks. Quality control is an evolving combination of agents reviewing each other's work and extensive automated checks — the architecture-fitness tests, gameplay harness, eval rubrics, and snapshot baselines described above are designed to keep AI-written code honest. Human play-testing is the final gate.
 
-Static game content in `mods/rundale/` — NPC personalities, schedules, relationships; location descriptions, lore, pronunciations — is also AI-generated, but human-reviewed before it lands.
+Static game content for the Ireland in 1820 setting in `mods/rundale/` — NPC personalities, schedules, relationships; location descriptions, lore, pronunciations — is also AI-generated, but human-reviewed before it lands.
 
 Character dialogue, mood, and behaviour are generated **in real time** by whichever LLM provider you've configured. Every NPC line, gossip rumour, and Tier 2/3 simulation tick comes from a live model call at play time; nothing is pre-baked. Each playthrough is genuinely different, and the dialogue's quality depends on the model you point the engine at.
 
 ## Quick Start
 
-The workspace ships with a [`justfile`](justfile); run `just --list` for the full set of recipes.
+The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an OpenAI-compatible LLM endpoint (e.g. [Ollama](https://ollama.ai/) on `localhost:11434`, LM Studio, OpenRouter, or a custom provider configured in `parish.toml`). There's no packaged release yet.
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
 
 ```sh
 # One-time: install system deps, Rust, Node, and frontend packages
@@ -160,7 +171,7 @@ just setup
 
 ### GUI Mode (Tauri Desktop App)
 
-The default experience is a Tauri 2 desktop app with a Svelte 5 frontend.
+The default experience is a desktop app.
 
 ```sh
 just run          # launches cargo tauri dev
@@ -198,9 +209,9 @@ docs/                  design, ADRs, plans, research, agent guides
 | [docs/index.md](docs/index.md) | Master hub — phase status, links to everything |
 | [docs/design/overview.md](docs/design/overview.md) | Architecture, tech stack, module tree, LLM providers |
 | [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases |
+| [docs/research/README.md](docs/research/README.md) | Research documents covering life in 1820's Ireland |
 | [docs/adr/README.md](docs/adr/README.md) | Architecture decision records and rationale |
-| [docs/known-issues.md](docs/known-issues.md) | Active bugs and UX issues |
-| [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | Agent guides — index into [docs/agent/](docs/agent/README.md) for build, style, and gotchas |
+| [AGENTS.md](AGENTS.md) | Agent guide — index into [docs/agent/](docs/agent/README.md) for build, style, and gotchas |
 
 ## Licence
 
