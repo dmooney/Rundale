@@ -138,7 +138,10 @@ pub fn check_festival_in_range(from: DateTime<Utc>, to: DateTime<Utc>) -> Option
         if let Some(festival) = Festival::check(date) {
             return Some(festival);
         }
-        date = date.succ_opt().unwrap_or(date);
+        match date.succ_opt() {
+            Some(next) => date = next,
+            None => break,
+        }
     }
     None
 }
@@ -527,6 +530,24 @@ mod tests {
         let to = Utc.with_ymd_and_hms(1820, 2, 3, 0, 0, 0).unwrap();
         let festival = check_festival_in_range(from, to);
         assert_eq!(festival, Some(Festival::Imbolc));
+    }
+
+    #[test]
+    fn test_festival_range_does_not_loop_at_naive_date_max() {
+        // succ_opt() returns None at NaiveDate::MAX; the previous code used
+        // .unwrap_or(date) which caused an infinite loop. Verify it terminates.
+        use chrono::NaiveDate;
+        let max = NaiveDate::MAX;
+        let from = max
+            .pred_opt()
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc();
+        let to = max.and_hms_opt(0, 0, 0).unwrap().and_utc();
+        // Should return in finite time (no festival on these distant dates)
+        let result = check_festival_in_range(from, to);
+        assert!(result.is_none());
     }
 
     #[test]
