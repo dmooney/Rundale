@@ -445,7 +445,8 @@ impl InferenceClients {
 ///
 /// - [`AnyClient::OpenAi`] wraps the OpenAI-compatible HTTP client used by
 ///   Ollama, LM Studio, OpenRouter, OpenAI, Google, Groq, xAI, Mistral,
-///   DeepSeek, Together, vLLM, and any custom OpenAI-compatible endpoint.
+///   DeepSeek, Together, NVIDIA NIM, vLLM, and any custom OpenAI-compatible
+///   endpoint.
 /// - [`AnyClient::Anthropic`] wraps [`AnthropicClient`], the native client
 ///   for Anthropic's Messages API (distinct schema, auth, and SSE events).
 /// - [`AnyClient::Simulator`] is the built-in offline mock.

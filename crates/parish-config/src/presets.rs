@@ -117,6 +117,22 @@ impl Provider {
                 Some("meta-llama/Llama-3.1-8B-Instruct-Turbo"),
                 Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
             ],
+            // NVIDIA NIM: Nemotron 3 family — NVIDIA's own Mamba-Transformer
+            // hybrid MoE models, purpose-tuned for this endpoint with 1M
+            // context and first-class tool calling. Per NVIDIA's docs, the
+            // Super 120B-A12B variant meets or beats DeepSeek-R1 on
+            // reasoning at much higher throughput. The Nano 30B-A3B (3B
+            // active params) is the balanced MoE for JSON simulation, and
+            // Nemotron Nano 9B v2 is the dedicated low-latency model.
+            // Users wanting alternatives (deepseek-ai/deepseek-v4-pro,
+            // meta/llama-3.1-405b-instruct, etc.) can override per
+            // category via PARISH_DIALOGUE_MODEL etc.
+            Provider::NvidiaNim => [
+                Some("nvidia/nemotron-3-super-120b-a12b"),
+                Some("nvidia/nemotron-3-nano-30b-a3b"),
+                Some("nvidia/nvidia-nemotron-nano-9b-v2"),
+                Some("nvidia/nemotron-3-nano-30b-a3b"),
+            ],
             // OpenRouter: cross-provider IDs mirror the Anthropic preset.
             Provider::OpenRouter => [
                 Some("anthropic/claude-opus-4-7"),
@@ -183,6 +199,7 @@ mod tests {
             Provider::Mistral,
             Provider::DeepSeek,
             Provider::Together,
+            Provider::NvidiaNim,
             Provider::OpenRouter,
         ] {
             let presets = provider.preset_models();
@@ -242,6 +259,27 @@ mod tests {
         assert_eq!(
             p.preset_model(InferenceCategory::Reaction),
             Some("claude-sonnet-4-6")
+        );
+    }
+
+    #[test]
+    fn nvidia_nim_preset_matches_user_intent() {
+        let p = Provider::NvidiaNim;
+        assert_eq!(
+            p.preset_model(InferenceCategory::Dialogue),
+            Some("nvidia/nemotron-3-super-120b-a12b")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Simulation),
+            Some("nvidia/nemotron-3-nano-30b-a3b")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Intent),
+            Some("nvidia/nvidia-nemotron-nano-9b-v2")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Reaction),
+            Some("nvidia/nemotron-3-nano-30b-a3b")
         );
     }
 
