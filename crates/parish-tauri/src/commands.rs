@@ -1914,9 +1914,18 @@ pub async fn react_to_message(
     emoji: String,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
+    fn is_snippet_injection_char(c: char) -> bool {
+        c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
+    }
+
     // Validate emoji is in the palette
     if reactions::reaction_description(&emoji).is_none() {
         return Err("Unknown reaction emoji.".to_string());
+    }
+
+    // Reject snippets that could inject content into NPC system prompts (#687).
+    if message_snippet.chars().any(is_snippet_injection_char) {
+        return Err("Message snippet contains disallowed characters.".to_string());
     }
 
     let mut npc_manager = state.npc_manager.lock().await;

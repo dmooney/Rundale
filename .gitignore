@@ -24,3 +24,7 @@ act-artifacts/
 
 .gemini/
 gha-creds-*.json
+
+# Local configuration — may contain API keys (Gemini, Ollama, etc.)
+# See parish.example.toml for the expected structure.
+parish.toml
