@@ -25,6 +25,10 @@ use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 
 // ── Public types ─────────────────────────────────────────────────────────────
 
+/// How often the server-side autosave task snapshots active sessions (seconds).
+/// Changing this risks silent data loss on crash — update tests accordingly.
+pub const AUTOSAVE_INTERVAL_SECS: u64 = 60;
+
 /// Google OAuth credentials (optional — feature disabled when absent).
 pub struct OAuthConfig {
     pub client_id: String,
@@ -863,7 +867,7 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
         }));
     }
 
-    // ── Autosave tick (60 s) ─────────────────────────────────────────────────
+    // ── Autosave tick ────────────────────────────────────────────────────────
     //
     // #230 — Fixes: previously a fresh `Database::open` (and therefore a full
     // `migrate()` round-trip) was executed on every tick.  Now we lazily open
@@ -879,7 +883,7 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
             // one user-visible warning per failure run, not one per tick.
             let mut last_autosave_failed = false;
             loop {
-                tokio::time::sleep(Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)).await;
 
                 let save_path = s.save_path.lock().await.clone();
                 let branch_id = *s.current_branch_id.lock().await;
@@ -1011,6 +1015,16 @@ fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn autosave_interval_is_60_seconds() {
+        // Regression sensor: if this changes, update comment in session.rs and
+        // verify players won't lose more than AUTOSAVE_INTERVAL_SECS of progress.
+        assert_eq!(
+            AUTOSAVE_INTERVAL_SECS, 60,
+            "autosave interval changed — verify data-loss risk is acceptable"
+        );
+    }
 
     /// Verifies that a fresh DB round-trips the Google OAuth link:
     /// after `link_oauth`, both `find_by_oauth` and

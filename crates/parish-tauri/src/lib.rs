@@ -7,6 +7,11 @@ pub mod commands;
 pub mod editor_commands;
 pub mod events;
 
+/// How often the Tauri autosave task snapshots the active session (seconds).
+/// Must match parish-server AUTOSAVE_INTERVAL_SECS — both represent the same
+/// player-visible save cadence.
+const AUTOSAVE_INTERVAL_SECS: u64 = 60;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -1582,11 +1587,11 @@ pub fn run() {
                     }
                 });
 
-                // Autosave tick: save snapshot every 60 seconds (if a save file is active)
+                // Autosave tick: save snapshot every AUTOSAVE_INTERVAL_SECS (if a save file is active)
                 let state_autosave = Arc::clone(&state_setup);
                 tokio::spawn(async move {
                     loop {
-                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)).await;
 
                         // Only autosave if a save file and branch are active
                         let save_path = state_autosave.save_path.lock().await.clone();
