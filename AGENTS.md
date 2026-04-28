@@ -16,12 +16,13 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 
 ## Current project state (quick map)
 
-- Rust workspace: **14 crates** under `crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
+- Rust workspace: **all crates** under `crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
   - Binaries: `parish-cli` (CLI/headless `parish`), `parish-server` (Axum web), `parish-tauri` (desktop), `parish-geo-tool`, `parish-npc-tool`.
   - Composition: `parish-core` re-exports the leaf crates under stable namespaces.
   - Leaf logic crates: `parish-config`, `parish-inference`, `parish-input`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-world`, `parish-types`.
+  - These crates make up the **Parish** game engine.
 - Frontend: `apps/ui/` (Svelte 5 + TypeScript)
-- Game content: `mods/rundale/`
+- Rundale game content: `mods/rundale/`
 - Test fixtures: `testing/fixtures/`
 - Deploy artifacts: `deploy/`
 - Documentation hub: `docs/index.md`
@@ -36,6 +37,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 4. **Gameplay proof:** For gameplay features, run `/prove <feature>` (unit tests alone are not sufficient).
 5. **No unexplained `#[allow]`:** Only with explicit justification.
 6. **Feature flags for new engine/gameplay features:** Gate with `config.flags.is_enabled("feature-name")`, default-on, and document in PR.
+7. **Keep README.md up to date.** Especially the feature list, repository structure and credits. Run `just notices` to update third party notices when dependencies are changed.
 
 ## Standard commands
 
