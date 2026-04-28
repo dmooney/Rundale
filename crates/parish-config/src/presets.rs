@@ -117,6 +117,19 @@ impl Provider {
                 Some("meta-llama/Llama-3.1-8B-Instruct-Turbo"),
                 Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
             ],
+            // NVIDIA NIM hosts the full Meta Llama family OpenAI-
+            // compatibly. Llama 3.1 405B for the flagship tier, Llama 3.3
+            // 70B (latest 70B, Dec 2024) for mid, Llama 3.1 8B for the
+            // cheap haiku tier. Users wanting NVIDIA-tuned variants such
+            // as `nvidia/llama-3.1-nemotron-70b-instruct` or reasoning
+            // models like `deepseek-ai/deepseek-r1` can override per-
+            // category via PARISH_DIALOGUE_MODEL etc.
+            Provider::NvidiaNim => [
+                Some("meta/llama-3.1-405b-instruct"),
+                Some("meta/llama-3.3-70b-instruct"),
+                Some("meta/llama-3.1-8b-instruct"),
+                Some("meta/llama-3.3-70b-instruct"),
+            ],
             // OpenRouter: cross-provider IDs mirror the Anthropic preset.
             Provider::OpenRouter => [
                 Some("anthropic/claude-opus-4-7"),
@@ -183,6 +196,7 @@ mod tests {
             Provider::Mistral,
             Provider::DeepSeek,
             Provider::Together,
+            Provider::NvidiaNim,
             Provider::OpenRouter,
         ] {
             let presets = provider.preset_models();
@@ -242,6 +256,27 @@ mod tests {
         assert_eq!(
             p.preset_model(InferenceCategory::Reaction),
             Some("claude-sonnet-4-6")
+        );
+    }
+
+    #[test]
+    fn nvidia_nim_preset_matches_user_intent() {
+        let p = Provider::NvidiaNim;
+        assert_eq!(
+            p.preset_model(InferenceCategory::Dialogue),
+            Some("meta/llama-3.1-405b-instruct")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Simulation),
+            Some("meta/llama-3.3-70b-instruct")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Intent),
+            Some("meta/llama-3.1-8b-instruct")
+        );
+        assert_eq!(
+            p.preset_model(InferenceCategory::Reaction),
+            Some("meta/llama-3.3-70b-instruct")
         );
     }
 

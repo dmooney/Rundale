@@ -26,7 +26,7 @@ struct Cli {
     script: Option<String>,
 
     /// LLM provider: ollama (default), lmstudio, openrouter, vllm, openai, google,
-    /// groq, xai, mistral, deepseek, together, anthropic, custom, simulator
+    /// groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, simulator
     #[arg(long, env = "PARISH_PROVIDER")]
     provider: Option<String>,
 
@@ -51,7 +51,7 @@ struct Cli {
     improv: bool,
 
     /// Cloud LLM provider for player dialogue: openrouter (default), openai,
-    /// google, groq, xai, mistral, deepseek, together, anthropic, custom
+    /// google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom
     #[arg(long, env = "PARISH_CLOUD_PROVIDER")]
     cloud_provider: Option<String>,
 

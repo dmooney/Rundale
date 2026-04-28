@@ -2,10 +2,10 @@
 //!
 //! Supports Ollama (local, default), LM Studio (local), vLLM (local),
 //! and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
-//! xAI (Grok), Mistral, DeepSeek, Together AI, and Anthropic (Claude) via
-//! the native Messages API. A custom OpenAI-compatible endpoint is also
-//! available. Configuration is resolved from a TOML file, environment
-//! variables, and CLI flags (in that priority order).
+//! xAI (Grok), Mistral, DeepSeek, Together AI, NVIDIA NIM, and Anthropic
+//! (Claude) via the native Messages API. A custom OpenAI-compatible
+//! endpoint is also available. Configuration is resolved from a TOML file,
+//! environment variables, and CLI flags (in that priority order).
 
 use parish_types::ParishError;
 use serde::Deserialize;
@@ -23,6 +23,7 @@ const DEFAULT_XAI_URL: &str = "https://api.x.ai";
 const DEFAULT_MISTRAL_URL: &str = "https://api.mistral.ai";
 const DEFAULT_DEEPSEEK_URL: &str = "https://api.deepseek.com";
 const DEFAULT_TOGETHER_URL: &str = "https://api.together.xyz";
+const DEFAULT_NVIDIA_NIM_URL: &str = "https://integrate.api.nvidia.com";
 const DEFAULT_ANTHROPIC_URL: &str = "https://api.anthropic.com";
 
 /// Supported LLM provider backends.
@@ -54,6 +55,9 @@ pub enum Provider {
     DeepSeek,
     /// Together AI (requires API key).
     Together,
+    /// NVIDIA NIM cloud inference via the OpenAI-compatible
+    /// `/v1/chat/completions` endpoint (requires API key).
+    NvidiaNim,
     /// Anthropic Claude via the native Messages API (requires API key).
     ///
     /// Unlike every other cloud provider, Anthropic does not use the
@@ -84,12 +88,14 @@ impl Provider {
             "mistral" => Ok(Provider::Mistral),
             "deepseek" | "deep-seek" | "deep_seek" => Ok(Provider::DeepSeek),
             "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
+            "nvidia-nim" | "nvidia_nim" | "nvidianim" | "nim" | "nvidia" => Ok(Provider::NvidiaNim),
             "anthropic" | "claude" => Ok(Provider::Anthropic),
             "custom" => Ok(Provider::Custom),
             "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
                 "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
-                 google, groq, xai, mistral, deepseek, together, anthropic, custom, simulator",
+                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, \
+                 simulator",
                 other
             ))),
         }
@@ -109,6 +115,7 @@ impl Provider {
             Provider::Mistral => DEFAULT_MISTRAL_URL,
             Provider::DeepSeek => DEFAULT_DEEPSEEK_URL,
             Provider::Together => DEFAULT_TOGETHER_URL,
+            Provider::NvidiaNim => DEFAULT_NVIDIA_NIM_URL,
             Provider::Anthropic => DEFAULT_ANTHROPIC_URL,
             Provider::Custom => "",
             Provider::Simulator => "",
@@ -127,6 +134,7 @@ impl Provider {
                 | Provider::Mistral
                 | Provider::DeepSeek
                 | Provider::Together
+                | Provider::NvidiaNim
                 | Provider::Anthropic
         )
     }
@@ -673,6 +681,26 @@ mod tests {
             Provider::Together
         );
         assert_eq!(
+            Provider::from_str_loose("nvidia-nim").unwrap(),
+            Provider::NvidiaNim
+        );
+        assert_eq!(
+            Provider::from_str_loose("nvidia_nim").unwrap(),
+            Provider::NvidiaNim
+        );
+        assert_eq!(
+            Provider::from_str_loose("nvidianim").unwrap(),
+            Provider::NvidiaNim
+        );
+        assert_eq!(
+            Provider::from_str_loose("nim").unwrap(),
+            Provider::NvidiaNim
+        );
+        assert_eq!(
+            Provider::from_str_loose("NVIDIA").unwrap(),
+            Provider::NvidiaNim
+        );
+        assert_eq!(
             Provider::from_str_loose("anthropic").unwrap(),
             Provider::Anthropic
         );
@@ -728,6 +756,10 @@ mod tests {
             "https://api.together.xyz"
         );
         assert_eq!(
+            Provider::NvidiaNim.default_base_url(),
+            "https://integrate.api.nvidia.com"
+        );
+        assert_eq!(
             Provider::Anthropic.default_base_url(),
             "https://api.anthropic.com"
         );
@@ -751,6 +783,7 @@ mod tests {
         assert!(Provider::Mistral.requires_api_key());
         assert!(Provider::DeepSeek.requires_api_key());
         assert!(Provider::Together.requires_api_key());
+        assert!(Provider::NvidiaNim.requires_api_key());
         assert!(Provider::Anthropic.requires_api_key());
 
         // Only Ollama auto-detects model
@@ -765,6 +798,7 @@ mod tests {
         assert!(Provider::Mistral.requires_model());
         assert!(Provider::DeepSeek.requires_model());
         assert!(Provider::Together.requires_model());
+        assert!(Provider::NvidiaNim.requires_model());
         assert!(Provider::Anthropic.requires_model());
         assert!(Provider::Custom.requires_model());
     }
@@ -920,6 +954,45 @@ model = "toml-model"
 
     #[test]
     #[serial(parish_env)]
+    fn test_resolve_config_nvidia_nim_requires_api_key() {
+        clear_parish_env();
+
+        let cli = CliOverrides {
+            provider: Some("nvidia-nim".to_string()),
+            base_url: None,
+            api_key: None,
+            model: Some("meta/llama-3.3-70b-instruct".to_string()),
+        };
+        let result = resolve_config(Some(Path::new("/nonexistent")), &cli);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("API key"), "got: {}", err_msg);
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_nvidia_nim_uses_dialogue_preset_when_model_unset() {
+        clear_parish_env();
+
+        // Provider + key but no model — the resolver should fall through to
+        // the NvidiaNim Dialogue preset declared in `presets.rs`.
+        let cli = CliOverrides {
+            provider: Some("nvidia-nim".to_string()),
+            base_url: None,
+            api_key: Some("nvapi-test".to_string()),
+            model: None,
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::NvidiaNim);
+        assert_eq!(config.base_url, "https://integrate.api.nvidia.com");
+        assert_eq!(
+            config.model.as_deref(),
+            Some("meta/llama-3.1-405b-instruct")
+        );
+    }
+
+    #[test]
+    #[serial(parish_env)]
     fn test_resolve_config_builtin_cloud_providers() {
         clear_parish_env();
 
@@ -936,6 +1009,11 @@ model = "toml-model"
             ("mistral", "https://api.mistral.ai", Provider::Mistral),
             ("deepseek", "https://api.deepseek.com", Provider::DeepSeek),
             ("together", "https://api.together.xyz", Provider::Together),
+            (
+                "nvidia-nim",
+                "https://integrate.api.nvidia.com",
+                Provider::NvidiaNim,
+            ),
             (
                 "anthropic",
                 "https://api.anthropic.com",
