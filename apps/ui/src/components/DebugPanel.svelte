@@ -10,8 +10,8 @@
 	import { submitInput } from '$lib/ipc';
 
 	/** Providers exposed as one-click preset buttons in the Inference tab.
-	 * Other providers (xai, deepseek, together, vllm) remain available via
-	 * `/preset <name>` typed into the input field. */
+	 * Other providers (xai, deepseek, together, nvidia-nim, vllm) remain
+	 * available via `/preset <name>` typed into the input field. */
 	const PRESET_PROVIDERS = [
 		'anthropic',
 		'openai',
