@@ -1,16 +1,10 @@
 name: Parish CI
 
-# Jobs run on the self-hosted [macOS, ARM64] runner `parish-mac-arm64`.
-# The `if: runner.os == 'Linux'` branches are intentionally dead on
-# production CI — they exist so `just act-*` (act via Linux container,
-# `-P self-hosted=…` in .actrc) reproduces the workflow faithfully.
-# Real Linux-regression coverage is a known gap; see docs/agent/act-local.md
-# if we ever register a Linux self-hosted runner to close it.
+# Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
-# Every job also gates on `github.event_name != 'pull_request' ||
-# <same-repo head>` as defense in depth: the repo is private (no public
-# forks), but a compromised collaborator's fork-PR would otherwise run
-# on the long-lived self-hosted runner per GitHub's hardening guidance.
+# Regression coverage for Linux (Tauri native dependencies) is now active
+# by default. macOS-specific builds are currently skipped in CI to save
+# credits, as the core logic is cross-platform.
 
 on:
   pull_request:
@@ -34,8 +28,7 @@ permissions:
 jobs:
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
-    runs-on: [self-hosted, macOS, ARM64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -73,19 +66,9 @@ jobs:
       - name: Unit and integration tests
         run: cargo test --workspace --all-targets
 
-      - name: Prune stale runner artifacts
-        if: always()
-        run: |
-          # Remove temp files left by this run (e.g., fixture output).
-          rm -f /tmp/fixture.out
-          # Prune cargo registry cache entries older than 30 days to keep disk healthy.
-          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
-            -mtime +30 -delete 2>/dev/null || true
-
   rust-multi-channel:
     name: Rust channel matrix
-    runs-on: [self-hosted, macOS, ARM64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -118,12 +101,6 @@ jobs:
       - name: Compile workspace
         run: cargo check --workspace --all-targets
 
-      - name: Prune stale runner artifacts
-        if: always()
-        run: |
-          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
-            -mtime +30 -delete 2>/dev/null || true
-
   docs-consistency:
     name: Docs consistency (paths cited in agent docs exist on disk)
     runs-on: ubuntu-latest
@@ -136,8 +113,7 @@ jobs:
 
   game-harness:
     name: Full game harness fixture sweep
-    runs-on: [self-hosted, macOS, ARM64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -171,17 +147,9 @@ jobs:
             tail -n 5 /tmp/fixture.out
           done
 
-      - name: Prune stale runner artifacts
-        if: always()
-        run: |
-          rm -f /tmp/fixture.out
-          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
-            -mtime +30 -delete 2>/dev/null || true
-
   ui-quality:
     name: UI quality (build, check, unit)
-    runs-on: [self-hosted, macOS, ARM64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/ui
@@ -210,18 +178,9 @@ jobs:
       - name: Unit tests
         run: npx vitest run
 
-      - name: Prune stale runner artifacts
-        if: always()
-        run: |
-          # Prune npm cache entries older than 30 days.
-          npm cache verify 2>/dev/null || true
-          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
-            -mtime +30 -delete 2>/dev/null || true
-
   ui-e2e:
     name: UI Playwright e2e
-    runs-on: [self-hosted, macOS, ARM64]
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/ui
@@ -276,10 +235,3 @@ jobs:
           name: playwright-report
           path: apps/ui/playwright-report/
           if-no-files-found: ignore
-
-      - name: Prune stale runner artifacts
-        if: always()
-        run: |
-          npm cache verify 2>/dev/null || true
-          find ~/.cargo/registry/cache -mindepth 3 -maxdepth 3 -type f \
-            -mtime +30 -delete 2>/dev/null || true
