@@ -750,6 +750,48 @@ mod tests {
         );
     }
 
+    // ── rust_crypto feature smoke test ────────────────────────────────────────
+    //
+    // jsonwebtoken 10+ requires an explicit crypto backend feature (rust_crypto
+    // or aws_lc_rs).  Without one, decode() panics at request time with:
+    //   "Could not automatically determine the process-level CryptoProvider"
+    // The server stays alive (Railway shows Online) but every CF-proxied request
+    // 502s.  This test exercises the full verify path so the missing feature is
+    // caught in CI, not in production (cf. Cloudflare Ray 9f391ab7df46c64a,
+    // 2026-04-28T21:19:18Z, and PR #803).
+
+    #[test]
+    fn jwt_crypto_provider_is_wired() {
+        use base64::Engine;
+        use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+
+        // Fake RSA-2048 public key — modulus = 256 × 0xFF, exponent = 65537.
+        let n = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(vec![0xFFu8; 256]);
+        let key = DecodingKey::from_rsa_components(&n, "AQAB").expect("key construction");
+
+        let mut v = Validation::new(Algorithm::RS256);
+        v.validate_exp = false;
+        v.validate_aud = false;
+
+        // Minimal syntactically-valid RS256 JWT with a garbage signature.
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(r#"{"alg":"RS256","typ":"JWT","kid":"test"}"#);
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(r#"{"sub":"t","email":"t@example.com","aud":"a","exp":9999999999}"#);
+        let fake_sig = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(vec![0u8; 256]);
+        let token = format!("{header}.{payload}.{fake_sig}");
+
+        // Must return Err (bad signature) — not panic with "CryptoProvider".
+        let result = decode::<CfClaims>(&token, &key, &v);
+        assert!(result.is_err(), "expected JWT decode to fail with bad sig");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            !err.contains("CryptoProvider"),
+            "rust_crypto feature not wired — re-add features=[\"rust_crypto\"] \
+             to jsonwebtoken in parish-server/Cargo.toml: {err}"
+        );
+    }
+
     // ── codex-#550 followup: reads must not block on in-flight refresh ─────
 
     #[tokio::test]
