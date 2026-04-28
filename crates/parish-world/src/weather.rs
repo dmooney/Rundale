@@ -96,7 +96,7 @@ pub struct WeatherEngine {
     /// Minimum duration in game-hours before a transition is allowed.
     min_duration_hours: f64,
     /// Game-hour of the last transition check (to avoid multiple checks per hour).
-    last_check_hour: Option<u32>,
+    last_check_hour: Option<i64>,
     /// Ring buffer of recent weather transitions: (timestamp, new_weather).
     history: VecDeque<(DateTime<Utc>, Weather)>,
 }
@@ -142,7 +142,7 @@ impl WeatherEngine {
     }
 
     /// Returns the game-hour of the last transition check, or `None` if unchecked.
-    pub fn last_check_hour(&self) -> Option<u32> {
+    pub fn last_check_hour(&self) -> Option<i64> {
         self.last_check_hour
     }
 
@@ -160,7 +160,7 @@ impl WeatherEngine {
         season: Season,
         rng: &mut impl Rng,
     ) -> Option<Weather> {
-        let current_hour = now.timestamp() as u32 / 3600;
+        let current_hour = now.timestamp() / 3600;
 
         // Only check once per game-hour
         if self.last_check_hour == Some(current_hour) {
