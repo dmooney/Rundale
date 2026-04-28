@@ -9,6 +9,9 @@ use parish_types::GameSpeed;
 use crate::commands::{Command, FlagSubcommand, validate_branch_name, validate_flag_name};
 use crate::intent_types::InputResult;
 
+const SPINNER_DEFAULT_SECS: u64 = 30;
+const SPINNER_MAX_SECS: u64 = 300;
+
 /// Attempts to parse a system command from raw input.
 ///
 /// Returns `Some(Command)` if the input matches a known `/` command,
@@ -165,14 +168,15 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             Some(Command::SetKey(value))
         }
     } else if lower == "/spinner" {
-        Some(Command::Spinner(30))
+        Some(Command::Spinner(SPINNER_DEFAULT_SECS))
     } else if lower.starts_with("/spinner ") {
         let secs = trimmed
             .get("/spinner ".len()..)
             .unwrap_or("")
             .trim()
             .parse::<u64>()
-            .unwrap_or(30);
+            .unwrap_or(SPINNER_DEFAULT_SECS)
+            .min(SPINNER_MAX_SECS);
         Some(Command::Spinner(secs))
     } else if lower == "/debug" {
         Some(Command::Debug(None))

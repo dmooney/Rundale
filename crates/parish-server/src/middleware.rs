@@ -59,7 +59,7 @@ pub async fn session_middleware(
     // Set the cookie when a new session was created.
     if is_new
         && let Ok(value) = HeaderValue::from_str(&format!(
-            "{}={}; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=/",
+            "{}={}; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000; Path=/",
             SESSION_COOKIE, session_id
         ))
     {

@@ -74,7 +74,7 @@ pub async fn login_google(State(global): State<Arc<GlobalState>>) -> Response {
     );
 
     let state_cookie = format!(
-        "{}={}; HttpOnly; SameSite=Lax; Max-Age=600; Path=/",
+        "{}={}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/",
         OAUTH_STATE_COOKIE, csrf_state
     );
 
@@ -197,11 +197,11 @@ pub async fn callback_google(
     // Build the response: set the parish_sid cookie to the target session,
     // clear the CSRF state cookie, and redirect to the game.
     let session_cookie = format!(
-        "{}={}; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=/",
+        "{}={}; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000; Path=/",
         SESSION_COOKIE, target_session_id
     );
     let clear_state_cookie = format!(
-        "{}=; HttpOnly; SameSite=Lax; Max-Age=0; Path=/",
+        "{}=; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Path=/",
         OAUTH_STATE_COOKIE
     );
 
@@ -225,7 +225,7 @@ pub async fn logout(State(global): State<Arc<GlobalState>>) -> Response {
     global.sessions.persist_new(&new_session_id);
 
     let cookie = format!(
-        "{}={}; HttpOnly; SameSite=Lax; Max-Age=31536000; Path=/",
+        "{}={}; HttpOnly; Secure; SameSite=Lax; Max-Age=31536000; Path=/",
         SESSION_COOKIE, new_session_id
     );
     let mut response = Redirect::to("/").into_response();
