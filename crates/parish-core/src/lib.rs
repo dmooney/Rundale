@@ -15,6 +15,11 @@ pub mod ipc;
 pub mod loading;
 pub mod prompts;
 
+/// How often autosave tasks should snapshot active sessions (seconds).
+/// Used by both the Axum web server and the Tauri desktop backend.
+/// Changing this risks silent data loss on crash — update tests accordingly.
+pub const AUTOSAVE_INTERVAL_SECS: u64 = 60;
+
 // Sub-crate re-exports — preserves `crate::X::...` paths used throughout
 pub use parish_config as config;
 pub use parish_inference as inference;

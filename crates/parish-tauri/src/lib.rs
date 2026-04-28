@@ -7,6 +7,8 @@ pub mod commands;
 pub mod editor_commands;
 pub mod events;
 
+use parish_core::AUTOSAVE_INTERVAL_SECS;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -1582,11 +1584,11 @@ pub fn run() {
                     }
                 });
 
-                // Autosave tick: save snapshot every 60 seconds (if a save file is active)
+                // Autosave tick: save snapshot every AUTOSAVE_INTERVAL_SECS (if a save file is active)
                 let state_autosave = Arc::clone(&state_setup);
                 tokio::spawn(async move {
                     loop {
-                        tokio::time::sleep(Duration::from_secs(60)).await;
+                        tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)).await;
 
                         // Only autosave if a save file and branch are active
                         let save_path = state_autosave.save_path.lock().await.clone();
