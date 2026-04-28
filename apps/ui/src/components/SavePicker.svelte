@@ -5,7 +5,8 @@
 	import { worldState, mapData, npcsHere } from '../stores/game';
 	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
 
-	let loading = false;
+	let loadingCount = 0;
+	$: loading = loadingCount > 0;
 	let forkingBranchId: number | null = null;
 	let forkName = '';
 	let forkError = '';
@@ -162,7 +163,7 @@
 	// ── Handlers ────────────────────────────────────────────────────
 
 	async function refreshSaves() {
-		loading = true;
+		loadingCount++;
 		try {
 			const allFiles = await discoverSaveFiles();
 			saveFiles.set(allFiles);
@@ -171,7 +172,7 @@
 		} catch (e) {
 			console.error('Failed to discover saves:', e);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	async function refreshGameState() {
@@ -190,7 +191,7 @@
 	}
 
 	async function handleLoadBranch(file: SaveFileInfo, branch: SaveBranchDisplay) {
-		loading = true;
+		loadingCount++;
 		try {
 			await loadBranch(file.path, branch.id);
 			await refreshGameState();
@@ -198,11 +199,11 @@
 		} catch (e) {
 			console.error('Load failed:', e);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	async function handleForkLedger() {
-		loading = true;
+		loadingCount++;
 		try {
 			await newSaveFile();
 			await refreshGameState();
@@ -211,11 +212,11 @@
 		} catch (e) {
 			console.error('Fork ledger failed:', e);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	async function handleNewGame() {
-		loading = true;
+		loadingCount++;
 		try {
 			await newGame();
 			await refreshGameState();
@@ -224,13 +225,13 @@
 		} catch (e) {
 			console.error('New game failed:', e);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	async function handleSwitchLedger(file: SaveFileInfo) {
 		const branch = file.branches[0];
 		if (!branch) return;
-		loading = true;
+		loadingCount++;
 		try {
 			await loadBranch(file.path, branch.id);
 			await refreshGameState();
@@ -239,13 +240,13 @@
 		} catch (e) {
 			console.error('Switch ledger failed:', e);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	async function handleFork(parentBranch: SaveBranchDisplay) {
 		const name = forkName.trim();
 		if (!name) return;
-		loading = true;
+		loadingCount++;
 		try {
 			await createBranch(name, parentBranch.id);
 			forkingBranchId = null;
@@ -266,7 +267,7 @@
 			console.error('Branch creation failed:', e);
 			forkError = String(e).substring(0, 60);
 		}
-		loading = false;
+		loadingCount--;
 	}
 
 	/** Generate a default branch name based on the parent branch's state. */
