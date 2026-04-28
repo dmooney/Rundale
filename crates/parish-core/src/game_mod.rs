@@ -469,10 +469,23 @@ impl GameMod {
         })?;
 
         // -- helper to read a text file relative to mod_dir -----------------
+        // Guards against directory traversal: a malicious mod.toml could
+        // specify "../../etc/passwd" — refuse anything that resolves outside
+        // mod_dir (#741).
         let read_text = |rel: &str| -> Result<String, ParishError> {
             let p = mod_dir.join(rel);
-            std::fs::read_to_string(&p)
-                .map_err(|e| ParishError::Config(format!("failed to read {}: {e}", p.display())))
+            let canonical = p.canonicalize().map_err(|e| {
+                ParishError::Config(format!("failed to resolve {}: {e}", p.display()))
+            })?;
+            if !canonical.starts_with(&mod_dir) {
+                return Err(ParishError::Config(format!(
+                    "manifest path {} escapes mod directory",
+                    rel
+                )));
+            }
+            std::fs::read_to_string(&canonical).map_err(|e| {
+                ParishError::Config(format!("failed to read {}: {e}", canonical.display()))
+            })
         };
 
         // -- helper to read + deserialize JSON ------------------------------
@@ -941,6 +954,54 @@ tier2_system = "prompts/tier2_system.txt"
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("mod directory not found"), "got: {err}");
+    }
+
+    /// #741 — a malicious mod.toml with a `..` path must be rejected, not
+    /// allowed to read files outside the mod directory.
+    #[test]
+    fn test_load_rejects_directory_traversal_in_manifest() {
+        let outer = TempDir::new().unwrap();
+        // Sensitive file outside the mod directory.
+        fs::write(outer.path().join("secret.txt"), "TOP SECRET").unwrap();
+
+        // Build a real mod inside outer/, then rewrite mod.toml so the
+        // `world` path traverses out to secret.txt.
+        let mod_dir = outer.path().join("mod");
+        fs::create_dir_all(&mod_dir).unwrap();
+
+        // Re-use the canonical fixture's contents but point a manifest path at a traversal.
+        let inner_tmp = create_test_mod();
+        for entry in fs::read_dir(inner_tmp.path()).unwrap() {
+            let entry = entry.unwrap();
+            let dest = mod_dir.join(entry.file_name());
+            if entry.path().is_dir() {
+                fs::create_dir_all(&dest).unwrap();
+                for sub in fs::read_dir(entry.path()).unwrap() {
+                    let sub = sub.unwrap();
+                    fs::copy(sub.path(), dest.join(sub.file_name())).unwrap();
+                }
+            } else {
+                fs::copy(entry.path(), &dest).unwrap();
+            }
+        }
+
+        // Overwrite mod.toml with a malicious anachronisms path. (anachronisms
+        // is read via read_text during load, unlike world/npcs which are
+        // resolved lazily by world_path()/npcs_path().)
+        let manifest = fs::read_to_string(mod_dir.join("mod.toml")).unwrap();
+        let evil = manifest.replace(
+            "anachronisms = \"anachronisms.json\"",
+            "anachronisms = \"../secret.txt\"",
+        );
+        fs::write(mod_dir.join("mod.toml"), evil).unwrap();
+
+        let result = GameMod::load(&mod_dir);
+        assert!(result.is_err(), "expected traversal to be rejected");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("escapes mod directory"),
+            "expected escape error, got: {err}"
+        );
     }
 
     #[test]
