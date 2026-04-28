@@ -8,6 +8,7 @@
 
 	let logEl: HTMLDivElement;
 	let hoveredMessageId: string | null = $state(null);
+	const pendingReactions = new Set<string>();
 
 	$effect(() => {
 		const _ = $textLog;
@@ -136,6 +137,9 @@
 
 	function handleReaction(entry: TextLogEntry, emoji: string) {
 		if (!entry.id) return;
+		const key = `${entry.id}:${emoji}`;
+		if (pendingReactions.has(key)) return;
+		pendingReactions.add(key);
 		// Optimistic UI update
 		addReaction(entry.id, emoji, 'player');
 		// Send to backend; roll back the optimistic reaction on failure
@@ -145,11 +149,15 @@
 		// reached a snapshot.
 		const messageId = entry.id;
 		const snippet = entry.content.slice(0, 80);
-		reactToMessage(entry.source, snippet, emoji).catch((err) => {
-			console.warn('reactToMessage failed:', err);
-			removeReaction(messageId, emoji, 'player');
-			pushErrorLog(`Could not record reaction ${emoji}: ${formatIpcError(err)}`);
-		});
+		reactToMessage(entry.source, snippet, emoji)
+			.catch((err) => {
+				console.warn('reactToMessage failed:', err);
+				removeReaction(messageId, emoji, 'player');
+				pushErrorLog(`Could not record reaction ${emoji}: ${formatIpcError(err)}`);
+			})
+			.finally(() => {
+				pendingReactions.delete(key);
+			});
 		// Close picker
 		hoveredMessageId = null;
 	}
