@@ -30,6 +30,7 @@
 	let componentDisposed = false;
 	let dragTargetId: number | null = null;
 	let dragMoved = false;
+	let dragMouseupHandler: (() => void) | null = null;
 
 	$: loc = $editorSelectedLocation;
 	$: locations = $editorLocations;
@@ -206,6 +207,10 @@
 
 	function destroyMap() {
 		mapLoaded = false;
+		if (dragMouseupHandler) {
+			window.removeEventListener('mouseup', dragMouseupHandler);
+			dragMouseupHandler = null;
+		}
 		map?.remove();
 		map = null;
 		// Reset animation memo so a later remount (deselect → reselect
@@ -326,11 +331,13 @@
 			dragMoved = true;
 			setMapData(locations, selectedId, { id: dragTargetId, lat: dragLat, lon: dragLon });
 		});
-		nextMap.on('mouseup', async () => {
+		// Listen on window so releasing outside the map canvas still ends the drag.
+		dragMouseupHandler = async () => {
+			if (!dragging) return;
 			// Capture dragTargetId before clearing it so the async update
 			// targets the correct location even if `loc` has since changed.
 			const targetId = dragTargetId;
-			if (dragging && dragMoved && targetId !== null) {
+			if (dragMoved && targetId !== null) {
 				await updateLocationById(targetId, (current) =>
 					applyDraggedCoordinates(current, locations, dragLat, dragLon)
 				);
@@ -339,7 +346,8 @@
 			dragTargetId = null;
 			dragMoved = false;
 			nextMap.dragPan.enable();
-		});
+		};
+		window.addEventListener('mouseup', dragMouseupHandler);
 		mapInitializing = false;
 	}
 

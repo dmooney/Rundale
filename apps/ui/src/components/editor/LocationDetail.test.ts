@@ -292,7 +292,7 @@ describe('LocationDetail', () => {
 		);
 		// A move should not trigger any update because drag was never started
 		await map.trigger('mousemove', { lngLat: { lat: 53.52, lng: -8.12 } });
-		await map.trigger('mouseup', {});
+		window.dispatchEvent(new MouseEvent('mouseup'));
 
 		expect(mockState.editorUpdateLocationsMock).not.toHaveBeenCalled();
 	});
@@ -323,7 +323,7 @@ describe('LocationDetail', () => {
 		await waitFor(() => {}); // let Svelte flush reactivity
 
 		// Release mouse — should commit to location 1 (the dragged one), not location 2
-		await map.trigger('mouseup', {});
+		window.dispatchEvent(new MouseEvent('mouseup'));
 
 		await waitFor(() => {
 			expect(mockState.editorUpdateLocationsMock).toHaveBeenCalledTimes(1);
