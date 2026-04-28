@@ -1906,6 +1906,10 @@ async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
+fn is_snippet_injection_char(c: char) -> bool {
+    c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
+}
+
 /// Player reacts to an NPC message with an emoji.
 #[tauri::command]
 pub async fn react_to_message(
@@ -1917,6 +1921,11 @@ pub async fn react_to_message(
     // Validate emoji is in the palette
     if reactions::reaction_description(&emoji).is_none() {
         return Err("Unknown reaction emoji.".to_string());
+    }
+
+    // Reject snippets that could inject content into NPC system prompts (#687).
+    if message_snippet.chars().any(is_snippet_injection_char) {
+        return Err("Message snippet contains disallowed characters.".to_string());
     }
 
     let mut npc_manager = state.npc_manager.lock().await;
