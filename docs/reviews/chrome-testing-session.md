@@ -79,7 +79,7 @@ every page load.
 | Debug: Events tab | Pass | Empty (no debug events stored in web mode) |
 | Debug: Inference tab | Pass | Not deeply tested |
 | WebSocket reconnect | Not tested | Would need to kill/restart server mid-session |
-| Theme/palette updates | Pass | Time-of-day tinting updated as clock advanced |
+| Theme/palette updates | Pass | Time-of-day palette updated as clock advanced |
 | Multiple NPC conversations | Pass | Talked to Fr. Tierney and Tommy O'Brien |
 
 ## Observations

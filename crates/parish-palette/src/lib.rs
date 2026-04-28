@@ -1,11 +1,11 @@
 //! Smooth color palette interpolation engine.
 //!
 //! Provides backend-agnostic RGB palette computation that smoothly
-//! interpolates between time-of-day keyframes and applies seasonal
-//! and weather tinting. UI renderers consume [`RawPalette`] values from this module.
+//! interpolates between time-of-day keyframes and enforces a minimum
+//! foreground/background contrast floor. UI renderers consume
+//! [`RawPalette`] values from this module.
 
 use parish_config::PaletteConfig;
-use parish_types::{Season, Weather};
 
 /// A backend-agnostic RGB color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,115 +225,9 @@ fn interpolated_palette(hour: u32, minute: u32) -> RawPalette {
     KEYFRAMES[0].palette
 }
 
-/// Season tint parameters from config: (r_mult, g_mult, b_mult, desaturation).
-fn season_tint_with_config(season: Season, config: &PaletteConfig) -> (f32, f32, f32, f32) {
-    let t = match season {
-        Season::Spring => config.season_tints.spring,
-        Season::Summer => config.season_tints.summer,
-        Season::Autumn => config.season_tints.autumn,
-        Season::Winter => config.season_tints.winter,
-    };
-    (t[0], t[1], t[2], t[3])
-}
-
-/// Season tint parameters: (r_mult, g_mult, b_mult, desaturation).
-///
-/// Used in tests via [`apply_season_tint`]; runtime code uses [`season_tint_with_config`].
-#[cfg(test)]
-fn season_tint(season: Season) -> (f32, f32, f32, f32) {
-    season_tint_with_config(season, &PaletteConfig::default())
-}
-
-/// Weather tint parameters from config: (r_mult, g_mult, b_mult, desaturation, brightness, contrast_reduction).
-fn weather_tint_with_config(
-    weather: Weather,
-    config: &PaletteConfig,
-) -> (f32, f32, f32, f32, f32, f32) {
-    let t = match weather {
-        Weather::Clear => config.weather_tints.clear,
-        Weather::PartlyCloudy => config.weather_tints.partly_cloudy,
-        Weather::Overcast => config.weather_tints.overcast,
-        Weather::LightRain => config.weather_tints.light_rain,
-        Weather::HeavyRain => config.weather_tints.heavy_rain,
-        Weather::Fog => config.weather_tints.fog,
-        Weather::Storm => config.weather_tints.storm,
-    };
-    (t[0], t[1], t[2], t[3], t[4], t[5])
-}
-
-/// Weather tint parameters: (r_mult, g_mult, b_mult, desaturation, brightness, contrast_reduction).
-///
-/// Kept for tests; runtime code uses [`weather_tint_with_config`].
-#[cfg(test)]
-#[allow(dead_code)] // available for future test use
-fn weather_tint(weather: Weather) -> (f32, f32, f32, f32, f32, f32) {
-    weather_tint_with_config(weather, &PaletteConfig::default())
-}
-
 /// Computes the luminance of an RGB color (ITU-R BT.601).
 fn luminance(c: RawColor) -> f32 {
     0.299 * c.r as f32 + 0.587 * c.g as f32 + 0.114 * c.b as f32
-}
-
-/// Applies a multiplicative tint, desaturation, and brightness to a single color.
-fn tint_color(
-    c: RawColor,
-    r_mult: f32,
-    g_mult: f32,
-    b_mult: f32,
-    desat: f32,
-    bright: f32,
-) -> RawColor {
-    let lum = luminance(c);
-
-    // Desaturate: blend toward gray (luminance)
-    let r = c.r as f32 + (lum - c.r as f32) * desat;
-    let g = c.g as f32 + (lum - c.g as f32) * desat;
-    let b = c.b as f32 + (lum - c.b as f32) * desat;
-
-    // Apply color multiplier and brightness
-    let r = (r * r_mult * bright).round().clamp(0.0, 255.0) as u8;
-    let g = (g * g_mult * bright).round().clamp(0.0, 255.0) as u8;
-    let b = (b * b_mult * bright).round().clamp(0.0, 255.0) as u8;
-
-    RawColor::new(r, g, b)
-}
-
-/// Applies season tinting to all palette colors.
-#[cfg(test)]
-fn apply_season_tint(palette: &mut RawPalette, season: Season) {
-    let (rm, gm, bm, desat) = season_tint(season);
-    palette.bg = tint_color(palette.bg, rm, gm, bm, desat, 1.0);
-    palette.fg = tint_color(palette.fg, rm, gm, bm, desat, 1.0);
-    palette.accent = tint_color(palette.accent, rm, gm, bm, desat, 1.0);
-    palette.panel_bg = tint_color(palette.panel_bg, rm, gm, bm, desat, 1.0);
-    palette.input_bg = tint_color(palette.input_bg, rm, gm, bm, desat, 1.0);
-    palette.border = tint_color(palette.border, rm, gm, bm, desat, 1.0);
-    palette.muted = tint_color(palette.muted, rm, gm, bm, desat, 1.0);
-}
-
-/// Applies weather tinting to all palette colors.
-///
-/// For fog, also reduces contrast by blending fg toward bg.
-///
-/// Kept for tests; runtime code uses [`compute_palette_with_config`].
-#[cfg(test)]
-#[allow(dead_code)] // available for future test use
-fn apply_weather_tint(palette: &mut RawPalette, weather: Weather) {
-    let (rm, gm, bm, desat, bright, contrast_reduction) = weather_tint(weather);
-    palette.bg = tint_color(palette.bg, rm, gm, bm, desat, bright);
-    palette.fg = tint_color(palette.fg, rm, gm, bm, desat, bright);
-    palette.accent = tint_color(palette.accent, rm, gm, bm, desat, bright);
-    palette.panel_bg = tint_color(palette.panel_bg, rm, gm, bm, desat, bright);
-    palette.input_bg = tint_color(palette.input_bg, rm, gm, bm, desat, bright);
-    palette.border = tint_color(palette.border, rm, gm, bm, desat, bright);
-    palette.muted = tint_color(palette.muted, rm, gm, bm, desat, bright);
-
-    // Fog contrast reduction: blend fg toward bg
-    if contrast_reduction > 0.0 {
-        palette.fg = lerp_color(palette.fg, palette.bg, contrast_reduction);
-        palette.muted = lerp_color(palette.muted, palette.bg, contrast_reduction * 0.5);
-    }
 }
 
 /// Minimum luminance difference between fg and bg to ensure readability.
@@ -402,55 +296,23 @@ fn ensure_contrast(palette: &mut RawPalette) {
     ensure_contrast_with_config(palette, &PaletteConfig::default());
 }
 
-/// Computes the fully interpolated and tinted palette using the provided [`PaletteConfig`].
+/// Computes the interpolated palette using the provided [`PaletteConfig`].
 ///
-/// Same pipeline as [`compute_palette`] but reads tint multipliers and contrast
-/// thresholds from `config` instead of hardcoded defaults.
-pub fn compute_palette_with_config(
-    hour: u32,
-    minute: u32,
-    season: Season,
-    weather: Weather,
-    config: &PaletteConfig,
-) -> RawPalette {
+/// Same pipeline as [`compute_palette`] but reads contrast thresholds from
+/// `config` instead of hardcoded defaults.
+pub fn compute_palette_with_config(hour: u32, minute: u32, config: &PaletteConfig) -> RawPalette {
     let mut palette = interpolated_palette(hour, minute);
-
-    let (rm, gm, bm, desat) = season_tint_with_config(season, config);
-    palette.bg = tint_color(palette.bg, rm, gm, bm, desat, 1.0);
-    palette.fg = tint_color(palette.fg, rm, gm, bm, desat, 1.0);
-    palette.accent = tint_color(palette.accent, rm, gm, bm, desat, 1.0);
-    palette.panel_bg = tint_color(palette.panel_bg, rm, gm, bm, desat, 1.0);
-    palette.input_bg = tint_color(palette.input_bg, rm, gm, bm, desat, 1.0);
-    palette.border = tint_color(palette.border, rm, gm, bm, desat, 1.0);
-    palette.muted = tint_color(palette.muted, rm, gm, bm, desat, 1.0);
-
-    let (rm, gm, bm, desat, bright, contrast_reduction) = weather_tint_with_config(weather, config);
-    palette.bg = tint_color(palette.bg, rm, gm, bm, desat, bright);
-    palette.fg = tint_color(palette.fg, rm, gm, bm, desat, bright);
-    palette.accent = tint_color(palette.accent, rm, gm, bm, desat, bright);
-    palette.panel_bg = tint_color(palette.panel_bg, rm, gm, bm, desat, bright);
-    palette.input_bg = tint_color(palette.input_bg, rm, gm, bm, desat, bright);
-    palette.border = tint_color(palette.border, rm, gm, bm, desat, bright);
-    palette.muted = tint_color(palette.muted, rm, gm, bm, desat, bright);
-
-    if contrast_reduction > 0.0 {
-        palette.fg = lerp_color(palette.fg, palette.bg, contrast_reduction);
-        palette.muted = lerp_color(palette.muted, palette.bg, contrast_reduction * 0.5);
-    }
-
     ensure_contrast_with_config(&mut palette, config);
     palette
 }
 
-/// Computes the fully interpolated and tinted palette for the given time, season, and weather.
+/// Computes the interpolated palette for the given time of day.
 ///
 /// This is the main entry point for UI renderers.
 /// 1. Smoothly interpolates between time-of-day keyframe palettes
-/// 2. Applies seasonal color tinting
-/// 3. Applies weather color tinting
-/// 4. Enforces minimum contrast between text and background
-pub fn compute_palette(hour: u32, minute: u32, season: Season, weather: Weather) -> RawPalette {
-    compute_palette_with_config(hour, minute, season, weather, &PaletteConfig::default())
+/// 2. Enforces minimum contrast between text and background
+pub fn compute_palette(hour: u32, minute: u32) -> RawPalette {
+    compute_palette_with_config(hour, minute, &PaletteConfig::default())
 }
 
 #[cfg(test)]
@@ -548,86 +410,17 @@ mod tests {
     }
 
     #[test]
-    fn test_season_clear_compute() {
-        // With Clear weather and Spring season, compute_palette should still produce valid colors
-        let p = compute_palette(12, 0, Season::Spring, Weather::Clear);
+    fn test_compute_palette_produces_valid_colors() {
+        let p = compute_palette(12, 0);
         assert_ne!(p.bg, RawColor::new(0, 0, 0));
     }
 
     #[test]
-    fn test_weather_clear_is_near_identity() {
-        // Clear weather should barely change the palette (only season effect)
-        let base = interpolated_palette(12, 0);
-        let tinted = compute_palette(12, 0, Season::Summer, Weather::Clear);
-        // Summer tint is subtle, bg should be close
-        let diff_r = (base.bg.r as i16 - tinted.bg.r as i16).unsigned_abs();
-        let diff_g = (base.bg.g as i16 - tinted.bg.g as i16).unsigned_abs();
-        assert!(
-            diff_r < 20,
-            "Summer tint should be subtle, got diff_r={diff_r}"
-        );
-        assert!(
-            diff_g < 20,
-            "Summer tint should be subtle, got diff_g={diff_g}"
-        );
-    }
-
-    #[test]
-    fn test_winter_is_bluer() {
-        let base = interpolated_palette(12, 0);
-        let mut winter = base;
-        apply_season_tint(&mut winter, Season::Winter);
-        // Winter blue channel should be >= base (blue multiplier is 1.04)
-        assert!(winter.bg.b >= base.bg.b, "Winter should tint bluer");
-    }
-
-    #[test]
-    fn test_storm_is_darker() {
-        let base = interpolated_palette(12, 0);
-        let stormy = compute_palette(12, 0, Season::Summer, Weather::Storm);
-        let base_lum = luminance(base.bg);
-        let storm_lum = luminance(stormy.bg);
-        assert!(
-            storm_lum < base_lum,
-            "Storm should darken: base_lum={base_lum}, storm_lum={storm_lum}"
-        );
-    }
-
-    #[test]
-    fn test_fog_reduces_contrast() {
-        let clear = compute_palette(12, 0, Season::Summer, Weather::Clear);
-        let foggy = compute_palette(12, 0, Season::Summer, Weather::Fog);
-        let clear_contrast = (luminance(clear.fg) - luminance(clear.bg)).abs();
-        let fog_contrast = (luminance(foggy.fg) - luminance(foggy.bg)).abs();
-        assert!(
-            fog_contrast < clear_contrast,
-            "Fog should reduce contrast: clear={clear_contrast}, fog={fog_contrast}"
-        );
-    }
-
-    #[test]
-    fn test_all_combinations_valid() {
-        let seasons = [
-            Season::Spring,
-            Season::Summer,
-            Season::Autumn,
-            Season::Winter,
-        ];
-        let weathers = [
-            Weather::Clear,
-            Weather::PartlyCloudy,
-            Weather::Overcast,
-            Weather::LightRain,
-            Weather::HeavyRain,
-            Weather::Fog,
-            Weather::Storm,
-        ];
-        for season in &seasons {
-            for weather in &weathers {
-                for hour in [0, 6, 12, 18, 23] {
-                    let _p = compute_palette(hour, 0, *season, *weather);
-                    // No panics, channels are within u8 range by construction
-                }
+    fn test_compute_palette_all_hours_valid() {
+        for hour in [0, 6, 12, 18, 23] {
+            for minute in [0, 15, 30, 45] {
+                let _p = compute_palette(hour, minute);
+                // No panics, channels are within u8 range by construction
             }
         }
     }
@@ -682,7 +475,7 @@ mod tests {
         // Verify contrast floor holds for every 15-minute slot across the full day
         for hour in 0..24 {
             for minute in [0, 15, 30, 45] {
-                let p = compute_palette(hour, minute, Season::Spring, Weather::Clear);
+                let p = compute_palette(hour, minute);
                 let contrast = (luminance(p.fg) - luminance(p.bg)).abs();
                 assert!(
                     contrast >= MIN_FG_BG_CONTRAST - 1.0,
@@ -719,59 +512,5 @@ mod tests {
     fn test_luminance() {
         assert!((luminance(RawColor::new(255, 255, 255)) - 255.0).abs() < 0.01);
         assert!((luminance(RawColor::new(0, 0, 0))).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_tint_color_identity() {
-        let c = RawColor::new(100, 150, 200);
-        let tinted = tint_color(c, 1.0, 1.0, 1.0, 0.0, 1.0);
-        assert_eq!(tinted, c);
-    }
-
-    #[test]
-    fn test_autumn_is_warmer() {
-        let base = interpolated_palette(12, 0);
-        let mut autumn = base;
-        apply_season_tint(&mut autumn, Season::Autumn);
-        // Autumn red multiplier is 1.06, should increase red
-        assert!(autumn.bg.r >= base.bg.r, "Autumn should tint warmer/redder");
-    }
-
-    #[test]
-    fn test_palette_new_variants() {
-        let base = interpolated_palette(12, 0);
-        let base_lum = luminance(base.bg);
-
-        // PartlyCloudy should be slightly darker than Clear
-        let partly_cloudy = compute_palette(12, 0, Season::Summer, Weather::PartlyCloudy);
-        let pc_lum = luminance(partly_cloudy.bg);
-        assert!(
-            pc_lum < base_lum,
-            "PartlyCloudy should be slightly darker than base: pc={pc_lum}, base={base_lum}"
-        );
-
-        // LightRain should be darker than PartlyCloudy
-        let light_rain = compute_palette(12, 0, Season::Summer, Weather::LightRain);
-        let lr_lum = luminance(light_rain.bg);
-        assert!(
-            lr_lum < pc_lum,
-            "LightRain should be darker than PartlyCloudy: lr={lr_lum}, pc={pc_lum}"
-        );
-
-        // HeavyRain should be darker than LightRain
-        let heavy_rain = compute_palette(12, 0, Season::Summer, Weather::HeavyRain);
-        let hr_lum = luminance(heavy_rain.bg);
-        assert!(
-            hr_lum < lr_lum,
-            "HeavyRain should be darker than LightRain: hr={hr_lum}, lr={lr_lum}"
-        );
-
-        // Storm should be darkest
-        let storm = compute_palette(12, 0, Season::Summer, Weather::Storm);
-        let st_lum = luminance(storm.bg);
-        assert!(
-            st_lum < hr_lum,
-            "Storm should be darker than HeavyRain: st={st_lum}, hr={hr_lum}"
-        );
     }
 }

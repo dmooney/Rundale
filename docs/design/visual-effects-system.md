@@ -115,7 +115,7 @@ animation. CSS `mix-blend-mode: screen` over the chat panel for the text inversi
 Vertical streaks descend across the chat panel — short, thin, semi-transparent lines with
 slight `blur` and a `linear-gradient` body that fades out at the bottom. They drift at
 slightly different speeds and horizontal positions, created with `nth-child` offset delays.
-Heavy rain has more streaks, faster, with a subtle blue tint. Light rain is sparse and slow.
+Heavy rain has more streaks, faster. Light rain is sparse and slow.
 
 **Implementation:**
 `<div class="rain-layer">` containing 20–40 `<span class="raindrop">` elements.
@@ -420,8 +420,8 @@ A `prefers-reduced-motion` media query wraps all `@keyframes` animations. When
 `prefers-reduced-motion: reduce` is active:
 
 - All animated effects are disabled.
-- Static versions replace animated ones where meaningful (e.g., a static rain tint
-  instead of falling streaks; a static amber corner glow instead of pulsing candles).
+- Static versions replace animated ones where meaningful (e.g., a static rain
+  overlay instead of falling streaks; a static amber corner glow instead of pulsing candles).
 - The Fairy simply doesn't visit.
 
 A player-facing toggle ("Effects: On / Minimal / Off") will be surfaced in a future

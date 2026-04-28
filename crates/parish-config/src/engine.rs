@@ -58,7 +58,7 @@ pub struct EngineConfig {
     /// NPC memory, cognition, and relationship tuning.
     #[serde(default)]
     pub npc: NpcConfig,
-    /// Color palette tints and contrast.
+    /// Color palette contrast configuration.
     #[serde(default)]
     pub palette: PaletteConfig,
     /// World graph tuning.
@@ -565,7 +565,7 @@ fn default_reaction_max_reactions() -> usize {
 // Palette
 // ---------------------------------------------------------------------------
 
-/// Color palette tinting and contrast configuration.
+/// Color palette contrast configuration.
 #[derive(Debug, Deserialize, Clone)]
 pub struct PaletteConfig {
     /// Minimum luminance contrast between foreground and background.
@@ -574,12 +574,6 @@ pub struct PaletteConfig {
     /// Minimum luminance contrast between muted text and background.
     #[serde(default = "default_min_muted_bg_contrast")]
     pub min_muted_bg_contrast: f32,
-    /// Season color tint multipliers.
-    #[serde(default)]
-    pub season_tints: SeasonTintConfig,
-    /// Weather color tint multipliers.
-    #[serde(default)]
-    pub weather_tints: WeatherTintConfig,
 }
 
 impl Default for PaletteConfig {
@@ -587,8 +581,6 @@ impl Default for PaletteConfig {
         Self {
             min_fg_bg_contrast: 80.0,
             min_muted_bg_contrast: 45.0,
-            season_tints: SeasonTintConfig::default(),
-            weather_tints: WeatherTintConfig::default(),
         }
     }
 }
@@ -598,109 +590,6 @@ fn default_min_fg_bg_contrast() -> f32 {
 }
 fn default_min_muted_bg_contrast() -> f32 {
     45.0
-}
-
-/// Season tint multipliers: `[r_mult, g_mult, b_mult, desaturation]`.
-#[derive(Debug, Deserialize, Clone)]
-pub struct SeasonTintConfig {
-    /// Spring tint.
-    #[serde(default = "default_spring_tint")]
-    pub spring: [f32; 4],
-    /// Summer tint.
-    #[serde(default = "default_summer_tint")]
-    pub summer: [f32; 4],
-    /// Autumn tint.
-    #[serde(default = "default_autumn_tint")]
-    pub autumn: [f32; 4],
-    /// Winter tint.
-    #[serde(default = "default_winter_tint")]
-    pub winter: [f32; 4],
-}
-
-impl Default for SeasonTintConfig {
-    fn default() -> Self {
-        Self {
-            spring: [0.98, 1.02, 0.98, 0.0],
-            summer: [1.03, 1.01, 0.97, 0.0],
-            autumn: [1.06, 1.00, 0.92, 0.0],
-            winter: [0.94, 0.96, 1.04, 0.08],
-        }
-    }
-}
-
-fn default_spring_tint() -> [f32; 4] {
-    [0.98, 1.02, 0.98, 0.0]
-}
-fn default_summer_tint() -> [f32; 4] {
-    [1.03, 1.01, 0.97, 0.0]
-}
-fn default_autumn_tint() -> [f32; 4] {
-    [1.06, 1.00, 0.92, 0.0]
-}
-fn default_winter_tint() -> [f32; 4] {
-    [0.94, 0.96, 1.04, 0.08]
-}
-
-/// Weather tint multipliers: `[r_mult, g_mult, b_mult, desaturation, brightness, contrast_reduction]`.
-#[derive(Debug, Deserialize, Clone)]
-pub struct WeatherTintConfig {
-    /// Clear weather (identity).
-    #[serde(default = "default_clear_tint")]
-    pub clear: [f32; 6],
-    /// Partly cloudy weather.
-    #[serde(default = "default_partly_cloudy_tint")]
-    pub partly_cloudy: [f32; 6],
-    /// Overcast weather.
-    #[serde(default = "default_overcast_tint")]
-    pub overcast: [f32; 6],
-    /// Light rain weather.
-    #[serde(default = "default_light_rain_tint")]
-    pub light_rain: [f32; 6],
-    /// Heavy rain weather.
-    #[serde(default = "default_heavy_rain_tint")]
-    pub heavy_rain: [f32; 6],
-    /// Fog weather.
-    #[serde(default = "default_fog_tint")]
-    pub fog: [f32; 6],
-    /// Storm weather.
-    #[serde(default = "default_storm_tint")]
-    pub storm: [f32; 6],
-}
-
-impl Default for WeatherTintConfig {
-    fn default() -> Self {
-        Self {
-            clear: [1.0, 1.0, 1.0, 0.0, 1.0, 0.0],
-            partly_cloudy: [0.97, 0.97, 0.98, 0.08, 0.96, 0.0],
-            overcast: [0.95, 0.95, 0.97, 0.15, 0.92, 0.0],
-            light_rain: [0.90, 0.92, 0.96, 0.15, 0.88, 0.0],
-            heavy_rain: [0.85, 0.87, 0.93, 0.25, 0.80, 0.0],
-            fog: [0.97, 0.97, 0.98, 0.35, 0.95, 0.15],
-            storm: [0.80, 0.82, 0.85, 0.30, 0.75, 0.0],
-        }
-    }
-}
-
-fn default_clear_tint() -> [f32; 6] {
-    [1.0, 1.0, 1.0, 0.0, 1.0, 0.0]
-}
-fn default_partly_cloudy_tint() -> [f32; 6] {
-    [0.97, 0.97, 0.98, 0.08, 0.96, 0.0]
-}
-fn default_overcast_tint() -> [f32; 6] {
-    [0.95, 0.95, 0.97, 0.15, 0.92, 0.0]
-}
-fn default_light_rain_tint() -> [f32; 6] {
-    [0.90, 0.92, 0.96, 0.15, 0.88, 0.0]
-}
-fn default_heavy_rain_tint() -> [f32; 6] {
-    [0.85, 0.87, 0.93, 0.25, 0.80, 0.0]
-}
-fn default_fog_tint() -> [f32; 6] {
-    [0.97, 0.97, 0.98, 0.35, 0.95, 0.15]
-}
-fn default_storm_tint() -> [f32; 6] {
-    [0.80, 0.82, 0.85, 0.30, 0.75, 0.0]
 }
 
 // ---------------------------------------------------------------------------
@@ -990,8 +879,7 @@ memory_capacity = 30
     fn test_palette_config_defaults() {
         let cfg = PaletteConfig::default();
         assert!((cfg.min_fg_bg_contrast - 80.0).abs() < f32::EPSILON);
-        assert_eq!(cfg.season_tints.spring, [0.98, 1.02, 0.98, 0.0]);
-        assert_eq!(cfg.weather_tints.clear, [1.0, 1.0, 1.0, 0.0, 1.0, 0.0]);
+        assert!((cfg.min_muted_bg_contrast - 45.0).abs() < f32::EPSILON);
     }
 
     #[test]

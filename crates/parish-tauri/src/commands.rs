@@ -168,19 +168,14 @@ pub async fn get_npcs_here(state: tauri::State<'_, Arc<AppState>>) -> Result<Vec
     Ok(parish_core::ipc::build_npcs_here(&world, &npc_manager))
 }
 
-/// Returns the current time-of-day palette (weather + season tinted) as CSS hex colours.
+/// Returns the current time-of-day palette as CSS hex colours.
 #[tauri::command]
 pub async fn get_theme(state: tauri::State<'_, Arc<AppState>>) -> Result<ThemePalette, String> {
     use chrono::Timelike;
     use parish_palette::compute_palette;
     let world = state.world.lock().await;
     let now = world.clock.now();
-    let raw = compute_palette(
-        now.hour(),
-        now.minute(),
-        world.clock.season(),
-        world.weather,
-    );
+    let raw = compute_palette(now.hour(), now.minute());
     Ok(ThemePalette::from(raw))
 }
 

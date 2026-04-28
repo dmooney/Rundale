@@ -13,7 +13,7 @@ use crate::ParishError;
 
 /// Current weather conditions in the game world.
 ///
-/// Affects color palette tinting and location description templates.
+/// Affects location description templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Weather {
     Clear,
