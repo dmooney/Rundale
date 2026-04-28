@@ -301,6 +301,147 @@ describe('InputField', () => {
 		});
 	});
 
+	// ── Model autocomplete (`/model …`) ─────────────────────────────────
+
+	describe('model autocomplete', () => {
+		function typeIntoEditor(editor: HTMLElement, text: string) {
+			editor.textContent = text;
+			const range = document.createRange();
+			const sel = window.getSelection();
+			if (editor.firstChild) {
+				range.setStart(editor.firstChild, text.length);
+			} else {
+				range.setStart(editor, 0);
+			}
+			range.collapse(true);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		it('shows model dropdown after `/model ` is typed', async () => {
+			const { getByRole, queryByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model ');
+			await fireEvent.input(editor);
+			const listbox = queryByRole('listbox');
+			expect(listbox).toBeTruthy();
+			expect(listbox?.getAttribute('aria-label')).toBe('Model suggestions');
+		});
+
+		it('filters models by typed substring', async () => {
+			const { getByRole, queryAllByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model claude');
+			await fireEvent.input(editor);
+			const options = queryAllByRole('option');
+			expect(options.length).toBeGreaterThan(0);
+			expect(options.every((o) => o.textContent?.toLowerCase().includes('claude'))).toBe(true);
+		});
+
+		it('Enter submits the typed text verbatim, not the highlighted suggestion', async () => {
+			// User types a custom model ID that has substring overlap with catalog
+			// entries (e.g. `claude-opus-99` would match `claude-opus-4-7`). Enter
+			// must submit exactly what was typed so a partial / custom ID is never
+			// silently swapped for a catalog match.
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model my-custom-fork');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+			expect(mockSubmitInput.mock.calls[0][0]).toBe('/model my-custom-fork');
+		});
+
+		it('Enter on `/model ` (empty query) submits the show-current command', async () => {
+			// Without this, an empty `/model ` + Enter would pick the first
+			// catalog suggestion and silently change the active model.
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model ');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+			expect(mockSubmitInput.mock.calls[0][0]).toBe('/model');
+		});
+
+		it('Tab picks the highlighted suggestion and submits it', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model claude');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+			const sent = mockSubmitInput.mock.calls[0][0];
+			expect(sent).toMatch(/^\/model claude-/);
+			expect(sent).not.toBe('/model claude');
+		});
+
+		it('Tab preserves the per-category prefix when picking a suggestion', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model.dialogue claude');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+			expect(mockSubmitInput.mock.calls[0][0]).toMatch(/^\/model\.dialogue claude-/);
+		});
+
+		it('clears the editor after picking a model with Tab', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model claude');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Tab' });
+
+			expect(editor.textContent).toBe('');
+		});
+
+		it('Escape dismisses the model dropdown', async () => {
+			const { getByRole, queryByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model ');
+			await fireEvent.input(editor);
+			expect(queryByRole('listbox')).toBeTruthy();
+
+			await fireEvent.keyDown(editor, { key: 'Escape' });
+			expect(queryByRole('listbox')).toBeNull();
+		});
+
+		it('does not show model dropdown for `/model` without a trailing space', async () => {
+			const { getByRole, queryByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/model');
+			await fireEvent.input(editor);
+			// Without the trailing space we still get the slash dropdown matching `/model`,
+			// but never the model-suggestions dropdown.
+			const listbox = queryByRole('listbox');
+			expect(listbox?.getAttribute('aria-label')).not.toBe('Model suggestions');
+		});
+
+		it('does not show model dropdown for unrelated commands', async () => {
+			const { getByRole, queryByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			typeIntoEditor(editor, '/provider llama3');
+			await fireEvent.input(editor);
+			const listbox = queryByRole('listbox');
+			expect(listbox?.getAttribute('aria-label')).not.toBe('Model suggestions');
+		});
+	});
+
 	// ── Input history ───────────────────────────────────────────────────
 
 	describe('input history', () => {
