@@ -254,11 +254,14 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
         })
         .collect();
 
+    // Single index built once, reused for both validation and reciprocal insertion
+    let id_to_index: HashMap<NpcId, usize> =
+        npcs.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
+
     // Validate referential integrity: all relationship targets must exist
-    let valid_ids: std::collections::HashSet<NpcId> = npcs.iter().map(|n| n.id).collect();
     for npc in &npcs {
         for target_id in npc.relationships.keys() {
-            if !valid_ids.contains(target_id) {
+            if !id_to_index.contains_key(target_id) {
                 return Err(ParishError::Setup(format!(
                     "{} has relationship with NPC {} but that NPC doesn't exist",
                     npc.name, target_id.0
@@ -275,10 +278,9 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
         }
     }
 
-    // Apply reciprocal relationships where missing
     for (from_id, to_id, kind, strength) in additions {
-        if let Some(target_npc) = npcs.iter_mut().find(|n| n.id == to_id) {
-            target_npc
+        if let Some(&idx) = id_to_index.get(&to_id) {
+            npcs[idx]
                 .relationships
                 .entry(from_id)
                 .or_insert_with(|| Relationship::new(kind, strength));

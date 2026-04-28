@@ -285,10 +285,14 @@ fn find_trade_partner(npcs: &[&mut Npc], merchant: &Npc) -> Option<NpcId> {
 /// - Both are healthy (not ill)
 /// - At least one is aged 18-45
 fn find_eligible_couples(npcs: &[&mut Npc]) -> Vec<(NpcId, NpcId)> {
+    // O(1) lookups instead of O(N) linear scans per relationship
+    let npc_index: std::collections::HashMap<NpcId, usize> =
+        npcs.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
+
     let mut couples = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for npc in npcs {
+    for npc in npcs.iter() {
         if npc.is_ill {
             continue;
         }
@@ -307,25 +311,17 @@ fn find_eligible_couples(npcs: &[&mut Npc]) -> Vec<(NpcId, NpcId)> {
             }
             seen.insert(pair);
 
-            // Check partner health
-            let partner_healthy = npcs
-                .iter()
-                .find(|n| n.id == *partner_id)
-                .is_some_and(|p| !p.is_ill);
-            if !partner_healthy {
+            let partner = match npc_index.get(partner_id).map(|&i| &npcs[i]) {
+                Some(p) => p,
+                None => continue,
+            };
+
+            if partner.is_ill {
                 continue;
             }
 
             // At least one must be of childbearing age (18-45)
-            let npc_eligible = (18..=45).contains(&npc.age);
-            let partner_age = npcs
-                .iter()
-                .find(|n| n.id == *partner_id)
-                .map(|p| p.age)
-                .unwrap_or(0);
-            let partner_eligible = (18..=45).contains(&partner_age);
-
-            if npc_eligible || partner_eligible {
+            if (18..=45).contains(&npc.age) || (18..=45).contains(&partner.age) {
                 couples.push(pair);
             }
         }
