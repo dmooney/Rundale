@@ -18,59 +18,68 @@ export const MODEL_CATALOG: ModelSuggestion[] = [
 	// Anthropic — native Messages API
 	{ name: 'claude-opus-4-7', provider: 'Anthropic' },
 	{ name: 'claude-sonnet-4-6', provider: 'Anthropic' },
-	{ name: 'claude-haiku-4-5-20251001', provider: 'Anthropic' },
-	{ name: 'claude-sonnet-4-20250514', provider: 'Anthropic' },
-	{ name: 'claude-opus-4-20250514', provider: 'Anthropic' },
+	{ name: 'claude-haiku-4-5', provider: 'Anthropic' },
 
 	// OpenAI
-	{ name: 'gpt-4.1', provider: 'OpenAI' },
-	{ name: 'gpt-4.1-mini', provider: 'OpenAI' },
+	{ name: 'gpt-5.5', provider: 'OpenAI' },
+	{ name: 'gpt-5.4-mini', provider: 'OpenAI' },
+	{ name: 'gpt-5.4-nano', provider: 'OpenAI' },
 	{ name: 'gpt-4o', provider: 'OpenAI' },
 	{ name: 'gpt-4o-mini', provider: 'OpenAI' },
-	{ name: 'o3-mini', provider: 'OpenAI' },
-	{ name: 'o1', provider: 'OpenAI' },
 
 	// Google Gemini
 	{ name: 'gemini-2.5-pro', provider: 'Google' },
 	{ name: 'gemini-2.5-flash', provider: 'Google' },
-	{ name: 'gemini-2.0-flash', provider: 'Google' },
+	{ name: 'gemini-2.5-flash-lite', provider: 'Google' },
 
 	// Groq (hosted open-source models)
+	{ name: 'openai/gpt-oss-120b', provider: 'Groq' },
 	{ name: 'llama-3.3-70b-versatile', provider: 'Groq' },
 	{ name: 'llama-3.1-8b-instant', provider: 'Groq' },
-	{ name: 'mixtral-8x7b-32768', provider: 'Groq' },
 
 	// xAI Grok
-	{ name: 'grok-2-1212', provider: 'xAI' },
-	{ name: 'grok-2-vision-1212', provider: 'xAI' },
+	{ name: 'grok-4.20-reasoning', provider: 'xAI' },
+	{ name: 'grok-4.20-non-reasoning', provider: 'xAI' },
+	{ name: 'grok-4.1-fast-non-reasoning', provider: 'xAI' },
 
-	// Mistral
-	{ name: 'mistral-large-latest', provider: 'Mistral' },
-	{ name: 'mistral-small-latest', provider: 'Mistral' },
+	// Mistral — dated IDs; the -latest aliases still resolve to older builds
+	{ name: 'mistral-large-2512', provider: 'Mistral' },
+	{ name: 'mistral-medium-2508', provider: 'Mistral' },
+	{ name: 'ministral-3-3b-2512', provider: 'Mistral' },
 
 	// DeepSeek
-	{ name: 'deepseek-chat', provider: 'DeepSeek' },
-	{ name: 'deepseek-reasoner', provider: 'DeepSeek' },
+	{ name: 'deepseek-v4-pro', provider: 'DeepSeek' },
+	{ name: 'deepseek-v4-flash', provider: 'DeepSeek' },
 
 	// Together AI
+	{ name: 'Qwen/Qwen3.5-397B-A17B', provider: 'Together' },
 	{ name: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', provider: 'Together' },
-	{ name: 'Qwen/Qwen2.5-72B-Instruct-Turbo', provider: 'Together' },
+	{ name: 'meta-llama/Llama-3.1-8B-Instruct-Turbo', provider: 'Together' },
 
 	// OpenRouter (vendor-prefixed slugs)
 	{ name: 'openrouter/auto', provider: 'OpenRouter' },
-	{ name: 'anthropic/claude-sonnet-4-20250514', provider: 'OpenRouter' },
+	{ name: 'anthropic/claude-opus-4-7', provider: 'OpenRouter' },
+	{ name: 'anthropic/claude-sonnet-4-6', provider: 'OpenRouter' },
+	{ name: 'anthropic/claude-haiku-4-5', provider: 'OpenRouter' },
 	{ name: 'openai/gpt-4o', provider: 'OpenRouter' },
 	{ name: 'google/gemini-2.5-flash', provider: 'OpenRouter' },
 	{ name: 'meta-llama/llama-3.3-70b-instruct', provider: 'OpenRouter' },
 
 	// Ollama (local tags) — Rundale's recommended tiers
+	{ name: 'qwen3:32b', provider: 'Ollama' },
 	{ name: 'qwen3:14b', provider: 'Ollama' },
 	{ name: 'qwen3:8b', provider: 'Ollama' },
 	{ name: 'qwen3:4b', provider: 'Ollama' },
-	{ name: 'llama3.2:3b', provider: 'Ollama' },
-	{ name: 'gemma2:9b', provider: 'Ollama' },
-	{ name: 'phi4', provider: 'Ollama' },
-	{ name: 'mistral-nemo', provider: 'Ollama' }
+
+	// LM Studio (local server)
+	{ name: 'qwen3:32b', provider: 'LM Studio' },
+	{ name: 'qwen3:14b', provider: 'LM Studio' },
+	{ name: 'qwen3:4b', provider: 'LM Studio' },
+
+	// vLLM (local inference server)
+	{ name: 'Qwen/Qwen3-32B', provider: 'vLLM' },
+	{ name: 'Qwen/Qwen3-14B', provider: 'vLLM' },
+	{ name: 'Qwen/Qwen3-4B', provider: 'vLLM' }
 ];
 
 /// Filter the catalog by a free-text query. Matches a substring against
