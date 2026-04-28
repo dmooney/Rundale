@@ -12,6 +12,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::NpcId;
 
+/// Maximum gossip items retained by the network. Oldest items are evicted first
+/// when the cap is reached, matching the pattern used by ConversationLog and
+/// ShortTermMemory.
+const GOSSIP_CAPACITY: usize = 200;
+
 /// Probability that a gossip item is transmitted during an interaction.
 const TRANSMISSION_CHANCE: f64 = 0.60;
 
@@ -70,6 +75,12 @@ impl GossipNetwork {
             distortion_level: 0,
             timestamp,
         });
+
+        // Evict oldest items when over capacity.
+        if self.items.len() > GOSSIP_CAPACITY {
+            self.items.sort_unstable_by_key(|g| g.timestamp);
+            self.items.drain(..self.items.len() - GOSSIP_CAPACITY);
+        }
 
         id
     }

@@ -46,9 +46,10 @@ export async function command<T>(name: string, args?: Record<string, unknown>): 
 	if (!resp.ok) {
 		throw new Error(`API error: ${resp.status} ${resp.statusText}`);
 	}
-	// submit_input returns 200 with no body
+	// submit_input returns 200 with no body; the two-step cast makes the
+	// unsoundness explicit and searchable rather than hiding it (#755).
 	const text = await resp.text();
-	if (!text) return undefined as T;
+	if (!text) return undefined as unknown as T;
 	return JSON.parse(text) as T;
 }
 
