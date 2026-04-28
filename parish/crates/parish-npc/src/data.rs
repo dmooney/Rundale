@@ -258,6 +258,10 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
     let id_to_index: HashMap<NpcId, usize> =
         npcs.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
 
+    if id_to_index.len() != npcs.len() {
+        return Err(ParishError::Setup("duplicate NPC id in data file".into()));
+    }
+
     // Validate referential integrity: all relationship targets must exist
     for npc in &npcs {
         for target_id in npc.relationships.keys() {
