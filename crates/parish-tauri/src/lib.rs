@@ -444,7 +444,9 @@ pub fn run() {
                     workspace_root.join(p)
                 };
                 // Create the directory so canonicalize can resolve it
-                std::fs::create_dir_all(&resolved).ok();
+                if let Err(e) = std::fs::create_dir_all(&resolved) {
+                    tracing::warn!(path = %resolved.display(), error = %e, "failed to create mod dir");
+                }
                 let canonical = match resolved.canonicalize() {
                     Ok(c) => c,
                     Err(_) => {
@@ -714,7 +716,9 @@ pub fn run() {
                     let times: &[(&str, u32)] =
                         &[("morning", 7), ("midday", 12), ("dusk", 18), ("night", 22)];
 
-                    std::fs::create_dir_all(&dir).ok();
+                    if let Err(e) = std::fs::create_dir_all(&dir) {
+                        tracing::warn!(path = %dir.display(), error = %e, "failed to create screenshot dir");
+                    }
 
                     for (name, target_hour) in times {
                         // Advance clock to target hour
@@ -802,7 +806,9 @@ pub fn run() {
                         for _ in 0..4 {
                             if p.join("mods/rundale/world.json").exists() {
                                 let sd = p.join("saves");
-                                std::fs::create_dir_all(&sd).ok();
+                                if let Err(e) = std::fs::create_dir_all(&sd) {
+                                    tracing::warn!(path = %sd.display(), error = %e, "failed to create saves dir");
+                                }
                                 found = Some(sd);
                                 break;
                             }

@@ -80,7 +80,9 @@ pub struct SaveFileInfo {
 /// migration of the legacy `parish_saves.db` file from the project root.
 pub fn ensure_saves_dir() -> PathBuf {
     let saves_dir = PathBuf::from(SAVES_DIR);
-    std::fs::create_dir_all(&saves_dir).ok();
+    if let Err(e) = std::fs::create_dir_all(&saves_dir) {
+        tracing::warn!(path = %saves_dir.display(), error = %e, "failed to create saves directory");
+    }
 
     // One-time migration from legacy location
     let legacy = Path::new("parish_saves.db");

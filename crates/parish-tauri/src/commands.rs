@@ -1484,7 +1484,9 @@ fn saves_dir() -> std::path::PathBuf {
     for _ in 0..4 {
         if p.join("mods/rundale/world.json").exists() {
             let sd = p.join("saves");
-            std::fs::create_dir_all(&sd).ok();
+            if let Err(e) = std::fs::create_dir_all(&sd) {
+                tracing::warn!(path = %sd.display(), error = %e, "failed to create saves dir");
+            }
             return sd;
         }
         match p.parent() {

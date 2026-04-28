@@ -681,7 +681,9 @@ impl NpcManager {
                                 minutes = travel_minutes,
                                 "NPC starting transit"
                             );
-                            let npc = self.npcs.get_mut(&id).unwrap();
+                            let Some(npc) = self.npcs.get_mut(&id) else {
+                                continue;
+                            };
                             npc.state = NpcState::InTransit {
                                 from,
                                 to: desired,
@@ -1120,12 +1122,11 @@ impl NpcManager {
                 let Some(npc) = self.npcs.get(&id) else {
                     continue;
                 };
-                (
-                    npc.doom.expect("doom was Some when collected"),
-                    npc.banshee_heralded,
-                    npc.name.clone(),
-                    npc.home,
-                )
+                let Some(d) = npc.doom else {
+                    // Doom was cleared between collection and processing — skip.
+                    continue;
+                };
+                (d, npc.banshee_heralded, npc.name.clone(), npc.home)
             };
 
             if now >= doom {
