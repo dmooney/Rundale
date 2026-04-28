@@ -282,6 +282,12 @@ pub fn resolve_category_configs(
         let cat_api_key = cat_api_key.filter(|s| !s.is_empty());
         let cat_model = cat_model.filter(|s| !s.is_empty());
 
+        // If no model was configured for this category and the resolved
+        // provider has a preset for this role, use the preset. Lets a user
+        // set just `PARISH_DIALOGUE_PROVIDER=anthropic` and get the Opus
+        // dialogue model without naming it explicitly.
+        let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
+
         // Validate
         if provider.requires_api_key() && cat_api_key.is_none() {
             return Err(ParishError::Config(format!(

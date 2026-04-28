@@ -165,6 +165,58 @@ impl GameConfig {
                 InferenceRateLimiter::from_config(cfg.for_category(cat));
         }
     }
+
+    /// Fills in any unset model fields with the appropriate provider preset.
+    ///
+    /// - The base [`Self::model_name`] is filled from
+    ///   `provider.preset_model(InferenceCategory::Dialogue)` if the base
+    ///   model name is empty.
+    /// - Each [`Self::category_model`] slot that is `None` is filled from
+    ///   the *effective* provider's preset for that role — the effective
+    ///   provider is the per-category override (`category_provider[idx]`)
+    ///   if set, otherwise the base [`Self::provider_name`].
+    ///
+    /// Already-configured models are never overwritten — this is the
+    /// "fill defaults" complement to [`crate::input::Command::ApplyPreset`],
+    /// which always overwrites. Returns true if any field changed.
+    ///
+    /// Called from [`crate::ipc::commands::handle_command`] after
+    /// `Command::SetProvider`/`SetCategoryProvider`, and from each
+    /// frontend's bootstrap so env-var / TOML / CLI configurations that
+    /// only specify a provider still get sensible per-role models.
+    pub fn fill_missing_models_from_presets(&mut self) -> bool {
+        use parish_config::Provider;
+        let mut changed = false;
+
+        // Base model: fall back to the base provider's Dialogue preset.
+        if self.model_name.is_empty()
+            && let Ok(p) = Provider::from_str_loose(&self.provider_name)
+            && let Some(m) = p.preset_model(InferenceCategory::Dialogue)
+        {
+            self.model_name = m.to_string();
+            changed = true;
+        }
+
+        // Per-category models: fall back to each effective provider's
+        // preset for that specific role.
+        for cat in InferenceCategory::ALL {
+            let idx = Self::cat_idx(cat);
+            if self.category_model[idx].is_some() {
+                continue;
+            }
+            let provider_str = self.category_provider[idx]
+                .as_deref()
+                .unwrap_or(&self.provider_name);
+            if let Ok(p) = Provider::from_str_loose(provider_str)
+                && let Some(m) = p.preset_model(cat)
+            {
+                self.category_model[idx] = Some(m.to_string());
+                changed = true;
+            }
+        }
+
+        changed
+    }
 }
 
 /// Applies an optional rate limiter to whichever inner client variant
@@ -303,6 +355,109 @@ mod tests {
         let cfg = GameConfig::default();
         let (client, _model) = cfg.resolve_category_client(InferenceCategory::Intent, None);
         assert!(client.is_none());
+    }
+
+    // ── fill_missing_models_from_presets ─────────────────────────────────────
+
+    #[test]
+    fn fill_missing_models_populates_base_and_categories_from_anthropic_preset() {
+        let mut cfg = GameConfig {
+            provider_name: "anthropic".to_string(),
+            ..GameConfig::default()
+        };
+        let changed = cfg.fill_missing_models_from_presets();
+        assert!(changed);
+        assert_eq!(cfg.model_name, "claude-opus-4-7");
+        assert_eq!(
+            cfg.category_model[InferenceCategory::Dialogue.idx()].as_deref(),
+            Some("claude-opus-4-7"),
+        );
+        assert_eq!(
+            cfg.category_model[InferenceCategory::Simulation.idx()].as_deref(),
+            Some("claude-sonnet-4-6"),
+        );
+        assert_eq!(
+            cfg.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            Some("claude-haiku-4-5"),
+        );
+        assert_eq!(
+            cfg.category_model[InferenceCategory::Reaction.idx()].as_deref(),
+            Some("claude-sonnet-4-6"),
+        );
+    }
+
+    #[test]
+    fn fill_missing_models_does_not_overwrite_existing_models() {
+        let mut cfg = GameConfig {
+            provider_name: "anthropic".to_string(),
+            model_name: "user-chosen-model".to_string(),
+            ..GameConfig::default()
+        };
+        let dialogue_idx = InferenceCategory::Dialogue.idx();
+        cfg.category_model[dialogue_idx] = Some("user-chosen-dialogue".to_string());
+
+        cfg.fill_missing_models_from_presets();
+        assert_eq!(cfg.model_name, "user-chosen-model");
+        assert_eq!(
+            cfg.category_model[dialogue_idx].as_deref(),
+            Some("user-chosen-dialogue"),
+        );
+        // The other three slots should still be filled from the preset.
+        assert!(cfg.category_model[InferenceCategory::Simulation.idx()].is_some());
+        assert!(cfg.category_model[InferenceCategory::Intent.idx()].is_some());
+        assert!(cfg.category_model[InferenceCategory::Reaction.idx()].is_some());
+    }
+
+    #[test]
+    fn fill_missing_models_uses_per_category_provider_when_overridden() {
+        // Base provider ollama; one category overridden to anthropic → that
+        // category should pick up the anthropic preset for its role, not the
+        // ollama one.
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            ..GameConfig::default()
+        };
+        let intent_idx = InferenceCategory::Intent.idx();
+        cfg.category_provider[intent_idx] = Some("anthropic".to_string());
+
+        cfg.fill_missing_models_from_presets();
+        assert_eq!(
+            cfg.category_model[intent_idx].as_deref(),
+            Some("claude-haiku-4-5"),
+        );
+        // The other categories should pick up the ollama presets.
+        assert_eq!(
+            cfg.category_model[InferenceCategory::Dialogue.idx()].as_deref(),
+            Some("qwen3:32b"),
+        );
+    }
+
+    #[test]
+    fn fill_missing_models_no_op_for_provider_without_preset() {
+        let mut cfg = GameConfig {
+            provider_name: "custom".to_string(),
+            ..GameConfig::default()
+        };
+        let changed = cfg.fill_missing_models_from_presets();
+        assert!(!changed);
+        assert_eq!(cfg.model_name, "");
+        assert!(cfg.category_model.iter().all(Option::is_none));
+    }
+
+    #[test]
+    fn fill_missing_models_returns_false_when_already_complete() {
+        let mut cfg = GameConfig {
+            provider_name: "anthropic".to_string(),
+            model_name: "x".to_string(),
+            category_model: [
+                Some("a".to_string()),
+                Some("b".to_string()),
+                Some("c".to_string()),
+                Some("d".to_string()),
+            ],
+            ..GameConfig::default()
+        };
+        assert!(!cfg.fill_missing_models_from_presets());
     }
 
     #[test]

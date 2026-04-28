@@ -7,6 +7,27 @@
 		selectedNpcId
 	} from '../stores/debug';
 	import type { NpcDebug, ScheduleVariantDebug } from '$lib/types';
+	import { submitInput } from '$lib/ipc';
+
+	/** Providers exposed as one-click preset buttons in the Inference tab.
+	 * Other providers (xai, deepseek, together, vllm) remain available via
+	 * `/preset <name>` typed into the input field. */
+	const PRESET_PROVIDERS = [
+		'anthropic',
+		'openai',
+		'google',
+		'openrouter',
+		'groq',
+		'mistral',
+		'ollama',
+		'lmstudio'
+	] as const;
+
+	function applyPreset(provider: string) {
+		submitInput(`/preset ${provider}`).catch((err) => {
+			console.error(`failed to apply preset ${provider}:`, err);
+		});
+	}
 
 	const tabs = [
 		'Overview',
@@ -519,6 +540,39 @@
 						{/if}
 					</div>
 					<div class="section">
+						<h4>Quick Presets</h4>
+						<div class="preset-row">
+							{#each PRESET_PROVIDERS as provider}
+								<button class="preset-btn" type="button" onclick={() => applyPreset(provider)}>{provider}</button>
+							{/each}
+						</div>
+						<div class="field muted">Sets a sensible model per inference role; API keys are not changed.</div>
+					</div>
+					{#if snap.inference.categories.length > 0}
+						<div class="section">
+							<h4>Per-role</h4>
+							<table class="role-table">
+								<thead>
+									<tr>
+										<th>Role</th>
+										<th>Provider</th>
+										<th>Model</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each snap.inference.categories as cat}
+										<tr>
+											<td>{cat.role}</td>
+											<td class:muted={!cat.provider}>{cat.provider ?? `(${snap.inference.provider_name})`}</td>
+											<td class:muted={!cat.model}>{cat.model ?? `(${snap.inference.model_name || '(auto)'})`}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+							<div class="field muted">Values in parentheses are inherited from the base provider/model.</div>
+						</div>
+					{/if}
+					<div class="section">
 						<div class="field muted">Reaction req id: {snap.inference.reaction_req_id}</div>
 					</div>
 					<div class="section">
@@ -767,6 +821,54 @@
 	.back-btn:focus-visible {
 		color: var(--color-fg);
 		border-color: var(--color-accent);
+	}
+
+	.preset-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.preset-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		color: var(--color-fg);
+		cursor: pointer;
+		padding: 0.15rem 0.5rem;
+		font-size: 0.7rem;
+		font-family: inherit;
+	}
+
+	.preset-btn:hover,
+	.preset-btn:focus-visible {
+		color: var(--color-fg);
+		border-color: var(--color-accent);
+		background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+	}
+
+	.role-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.7rem;
+		margin-bottom: 0.25rem;
+	}
+
+	.role-table th {
+		text-align: left;
+		padding: 0.1rem 0.5rem 0.1rem 0;
+		font-weight: 600;
+		color: var(--color-muted);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.role-table td {
+		padding: 0.1rem 0.5rem 0.1rem 0;
+		vertical-align: top;
+	}
+
+	.role-table td.muted {
+		color: var(--color-muted);
 	}
 
 	.player-here {

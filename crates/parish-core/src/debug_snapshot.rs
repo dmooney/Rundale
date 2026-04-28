@@ -490,6 +490,22 @@ pub struct DebugEvent {
     pub message: String,
 }
 
+/// Per-role inference configuration shown in the debug panel.
+///
+/// Mirrors one entry per [`crate::config::InferenceCategory`]. Provider
+/// names display as `(inherits base)` in the UI when `provider` is `None`.
+#[derive(Debug, Clone, Serialize)]
+pub struct InferenceCategoryDebug {
+    /// Lowercase role name: "dialogue", "simulation", "intent", "reaction".
+    pub role: String,
+    /// Provider override for this role; `None` means inherit base.
+    pub provider: Option<String>,
+    /// Model override for this role; `None` means inherit base model.
+    pub model: Option<String>,
+    /// Base URL override for this role; `None` means inherit base.
+    pub base_url: Option<String>,
+}
+
 /// Inference pipeline configuration for debug display.
 #[derive(Debug, Clone, Serialize)]
 pub struct InferenceDebug {
@@ -511,10 +527,37 @@ pub struct InferenceDebug {
     pub improv_enabled: bool,
     /// Recent inference call log entries (newest last).
     pub call_log: Vec<InferenceLogEntry>,
+    /// Per-role provider/model/url state (always 4 entries: Dialogue,
+    /// Simulation, Intent, Reaction). Each entry's `Option<String>` fields
+    /// are `None` when the role inherits from the base config.
+    pub categories: Vec<InferenceCategoryDebug>,
 }
 
 /// Re-export from parish-inference so callers don't need a separate import.
 pub use crate::inference::InferenceLogEntry;
+
+/// Builds the per-role debug entries from a [`crate::ipc::config::GameConfig`].
+///
+/// Always returns 4 entries in [`crate::config::InferenceCategory::ALL`] order,
+/// so the UI can render a stable table without conditional rows.
+pub fn build_inference_categories(
+    config: &crate::ipc::config::GameConfig,
+) -> Vec<InferenceCategoryDebug> {
+    use crate::config::InferenceCategory;
+    use crate::ipc::config::GameConfig;
+    InferenceCategory::ALL
+        .iter()
+        .map(|cat| {
+            let idx = GameConfig::cat_idx(*cat);
+            InferenceCategoryDebug {
+                role: cat.name().to_string(),
+                provider: config.category_provider[idx].clone(),
+                model: config.category_model[idx].clone(),
+                base_url: config.category_base_url[idx].clone(),
+            }
+        })
+        .collect()
+}
 
 /// Builds a complete debug snapshot from live game state.
 ///
@@ -1103,6 +1146,7 @@ mod tests {
             reaction_req_id: 100_000,
             improv_enabled: false,
             call_log: vec![],
+            categories: vec![],
         }
     }
 
@@ -1418,6 +1462,7 @@ mod tests {
             reaction_req_id: 0,
             improv_enabled: false,
             call_log: vec![],
+            categories: vec![],
         };
         let snapshot = build_debug_snapshot(
             &world,

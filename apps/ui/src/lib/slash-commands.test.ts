@@ -20,4 +20,12 @@ describe('slash command registry', () => {
 			}
 		]);
 	});
+
+	it('includes /preset in the autocomplete list', () => {
+		expect(SLASH_COMMANDS).toContainEqual({
+			command: '/preset',
+			description: 'Apply a recommended model set for a provider',
+			hasArgs: true
+		});
+	});
 });

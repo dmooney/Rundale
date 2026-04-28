@@ -379,6 +379,18 @@ pub fn resolve_config(
     let api_key = api_key.filter(|s| !s.is_empty());
     let model = model.filter(|s| !s.is_empty());
 
+    // Fall back to the provider's Dialogue preset if no model is configured.
+    // This lets users who set only `PARISH_PROVIDER=anthropic` (or the
+    // equivalent TOML/CLI flag) skip naming a model and still get a sensible
+    // default. Custom and Simulator have no preset; the existing
+    // `requires_model` validation in `setup_provider_client` continues to
+    // catch the Custom case.
+    let model = model.or_else(|| {
+        provider
+            .preset_model(InferenceCategory::Dialogue)
+            .map(String::from)
+    });
+
     // Validate
     if provider.requires_api_key() && api_key.is_none() {
         return Err(ParishError::Config(format!(
@@ -995,6 +1007,39 @@ model = "toml-model"
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("base_url"), "got: {}", err_msg);
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_falls_back_to_preset_model_when_unset() {
+        clear_parish_env();
+
+        // Set provider only — no model. Should pick up the Anthropic
+        // Dialogue preset.
+        let cli = CliOverrides {
+            provider: Some("anthropic".to_string()),
+            base_url: None,
+            api_key: Some("sk-test".to_string()),
+            model: None,
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Anthropic);
+        assert_eq!(config.model.as_deref(), Some("claude-opus-4-7"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_does_not_clobber_explicit_model() {
+        clear_parish_env();
+
+        let cli = CliOverrides {
+            provider: Some("anthropic".to_string()),
+            base_url: None,
+            api_key: Some("sk-test".to_string()),
+            model: Some("claude-3-opus-20240229".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.model.as_deref(), Some("claude-3-opus-20240229"));
     }
 
     #[test]

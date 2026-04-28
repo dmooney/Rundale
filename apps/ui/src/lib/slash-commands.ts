@@ -25,6 +25,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/provider', description: 'Show or change LLM provider', hasArgs: true },
 	{ command: '/model', description: 'Show or change LLM model', hasArgs: true },
 	{ command: '/key', description: 'Show or change API key', hasArgs: true },
+	{ command: '/preset', description: 'Apply a recommended model set for a provider', hasArgs: true },
 	{ command: '/cloud', description: 'Cloud provider settings', hasArgs: true },
 	{ command: '/debug', description: 'Debug panel', hasArgs: true },
 	{ command: '/spinner', description: 'Show loading spinner', hasArgs: true },
