@@ -253,10 +253,10 @@ pub fn resolve_category_configs(
 
         // Layer 5: Standard provider API key env var (e.g. ANTHROPIC_API_KEY).
         // Overrides TOML api_key; key is always bound to the provider that owns it.
-        if let Some(var) = provider.api_key_env_var() {
-            if let Some(val) = env_non_empty(var) {
-                cat_api_key = Some(val);
-            }
+        if let Some(var) = provider.api_key_env_var()
+            && let Some(val) = env_non_empty(var)
+        {
+            cat_api_key = Some(val);
         }
 
         // Resolve base URL: if overridden use that, else use provider default or base
@@ -393,6 +393,7 @@ mod tests {
             std::env::remove_var("MISTRAL_API_KEY");
             std::env::remove_var("DEEPSEEK_API_KEY");
             std::env::remove_var("TOGETHER_API_KEY");
+            std::env::remove_var("NVIDIA_API_KEY");
         }
     }
 

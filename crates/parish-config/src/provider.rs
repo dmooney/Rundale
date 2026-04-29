@@ -166,7 +166,7 @@ impl Provider {
             Provider::Mistral => Some("MISTRAL_API_KEY"),
             Provider::DeepSeek => Some("DEEPSEEK_API_KEY"),
             Provider::Together => Some("TOGETHER_API_KEY"),
-            // Provider::NvidiaNim => Some("NVIDIA_API_KEY"),  // add when variant lands
+            Provider::NvidiaNim => Some("NVIDIA_API_KEY"),
             _ => None,
         }
     }
@@ -395,10 +395,10 @@ pub fn resolve_config(
 
     // Standard provider key env var (e.g. ANTHROPIC_API_KEY) overrides TOML api_key.
     // The key is always bound to the provider that owns it.
-    if let Some(var) = provider.api_key_env_var() {
-        if let Some(val) = env_non_empty(var) {
-            api_key = Some(val);
-        }
+    if let Some(var) = provider.api_key_env_var()
+        && let Some(val) = env_non_empty(var)
+    {
+        api_key = Some(val);
     }
 
     let base_url = base_url.unwrap_or_else(|| provider.default_base_url().to_string());
@@ -515,10 +515,10 @@ pub fn resolve_cloud_config(
     };
 
     // Standard provider key env var overrides TOML api_key.
-    if let Some(var) = provider.api_key_env_var() {
-        if let Some(val) = env_non_empty(var) {
-            api_key = Some(val);
-        }
+    if let Some(var) = provider.api_key_env_var()
+        && let Some(val) = env_non_empty(var)
+    {
+        api_key = Some(val);
     }
 
     let base_url = base_url.unwrap_or_else(|| provider.default_base_url().to_string());
@@ -614,6 +614,7 @@ mod tests {
             std::env::remove_var("MISTRAL_API_KEY");
             std::env::remove_var("DEEPSEEK_API_KEY");
             std::env::remove_var("TOGETHER_API_KEY");
+            std::env::remove_var("NVIDIA_API_KEY");
         }
     }
 
@@ -988,30 +989,32 @@ model = "toml-model"
     #[serial(parish_env)]
     fn test_resolve_config_nvidia_nim_requires_api_key() {
         clear_parish_env();
+        // NVIDIA_API_KEY cleared by clear_parish_env — should fail.
 
         let cli = CliOverrides {
             provider: Some("nvidia-nim".to_string()),
             base_url: None,
-            api_key: None,
             model: Some("nvidia/nemotron-3-nano-30b-a3b".to_string()),
         };
         let result = resolve_config(Some(Path::new("/nonexistent")), &cli);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("API key"), "got: {}", err_msg);
+        assert!(err_msg.contains("NVIDIA_API_KEY"), "got: {}", err_msg);
     }
 
     #[test]
     #[serial(parish_env)]
     fn test_resolve_config_nvidia_nim_uses_dialogue_preset_when_model_unset() {
         clear_parish_env();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("NVIDIA_API_KEY", "nvapi-test") };
 
         // Provider + key but no model — the resolver should fall through to
         // the NvidiaNim Dialogue preset declared in `presets.rs`.
         let cli = CliOverrides {
             provider: Some("nvidia-nim".to_string()),
             base_url: None,
-            api_key: Some("nvapi-test".to_string()),
             model: None,
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
