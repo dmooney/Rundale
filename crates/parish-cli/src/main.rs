@@ -38,10 +38,6 @@ struct Cli {
     #[arg(long, env = "PARISH_BASE_URL")]
     base_url: Option<String>,
 
-    /// API key for cloud providers (e.g. OpenRouter)
-    #[arg(long, env = "PARISH_API_KEY")]
-    api_key: Option<String>,
-
     /// Path to config file (default: parish.toml)
     #[arg(long)]
     config: Option<String>,
@@ -63,10 +59,6 @@ struct Cli {
     #[arg(long, env = "PARISH_CLOUD_BASE_URL")]
     cloud_base_url: Option<String>,
 
-    /// Cloud LLM API key
-    #[arg(long, env = "PARISH_CLOUD_API_KEY")]
-    cloud_api_key: Option<String>,
-
     // --- Per-category provider overrides ---
     /// Dialogue LLM provider override
     #[arg(long, env = "PARISH_DIALOGUE_PROVIDER")]
@@ -77,9 +69,6 @@ struct Cli {
     /// Dialogue LLM base URL override
     #[arg(long, env = "PARISH_DIALOGUE_BASE_URL")]
     dialogue_base_url: Option<String>,
-    /// Dialogue LLM API key override
-    #[arg(long, env = "PARISH_DIALOGUE_API_KEY")]
-    dialogue_api_key: Option<String>,
 
     /// Simulation LLM provider override
     #[arg(long, env = "PARISH_SIMULATION_PROVIDER")]
@@ -90,9 +79,6 @@ struct Cli {
     /// Simulation LLM base URL override
     #[arg(long, env = "PARISH_SIMULATION_BASE_URL")]
     simulation_base_url: Option<String>,
-    /// Simulation LLM API key override
-    #[arg(long, env = "PARISH_SIMULATION_API_KEY")]
-    simulation_api_key: Option<String>,
 
     /// Intent parsing LLM provider override
     #[arg(long, env = "PARISH_INTENT_PROVIDER")]
@@ -103,9 +89,6 @@ struct Cli {
     /// Intent parsing LLM base URL override
     #[arg(long, env = "PARISH_INTENT_BASE_URL")]
     intent_base_url: Option<String>,
-    /// Intent parsing LLM API key override
-    #[arg(long, env = "PARISH_INTENT_API_KEY")]
-    intent_api_key: Option<String>,
 
     /// Path to a game mod directory (default: auto-detect mods/rundale/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
@@ -166,7 +149,6 @@ async fn main() -> Result<()> {
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
         base_url: cli.base_url.clone(),
-        api_key: cli.api_key.clone(),
         model: cli.model.clone(),
     };
     let provider_config = resolve_config(config_path, &overrides)?;
@@ -175,7 +157,6 @@ async fn main() -> Result<()> {
     let cloud_overrides = CliCloudOverrides {
         provider: cli.cloud_provider.clone(),
         base_url: cli.cloud_base_url.clone(),
-        api_key: cli.cloud_api_key.clone(),
         model: cli.cloud_model.clone(),
     };
     let cloud_config = resolve_cloud_config(config_path, &cloud_overrides)?;
@@ -382,27 +363,18 @@ fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
     let dialogue = CliOverrides {
         provider: cli.dialogue_provider.clone(),
         base_url: cli.dialogue_base_url.clone(),
-        api_key: cli.dialogue_api_key.clone(),
         model: cli.dialogue_model.clone(),
     };
-    if dialogue.provider.is_some()
-        || dialogue.base_url.is_some()
-        || dialogue.api_key.is_some()
-        || dialogue.model.is_some()
-    {
+    if dialogue.provider.is_some() || dialogue.base_url.is_some() || dialogue.model.is_some() {
         categories.insert("dialogue".to_string(), dialogue);
     }
 
     let simulation = CliOverrides {
         provider: cli.simulation_provider.clone(),
         base_url: cli.simulation_base_url.clone(),
-        api_key: cli.simulation_api_key.clone(),
         model: cli.simulation_model.clone(),
     };
-    if simulation.provider.is_some()
-        || simulation.base_url.is_some()
-        || simulation.api_key.is_some()
-        || simulation.model.is_some()
+    if simulation.provider.is_some() || simulation.base_url.is_some() || simulation.model.is_some()
     {
         categories.insert("simulation".to_string(), simulation);
     }
@@ -410,14 +382,9 @@ fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
     let intent = CliOverrides {
         provider: cli.intent_provider.clone(),
         base_url: cli.intent_base_url.clone(),
-        api_key: cli.intent_api_key.clone(),
         model: cli.intent_model.clone(),
     };
-    if intent.provider.is_some()
-        || intent.base_url.is_some()
-        || intent.api_key.is_some()
-        || intent.model.is_some()
-    {
+    if intent.provider.is_some() || intent.base_url.is_some() || intent.model.is_some() {
         categories.insert("intent".to_string(), intent);
     }
 

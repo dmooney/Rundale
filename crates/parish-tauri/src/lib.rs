@@ -1662,8 +1662,9 @@ fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>
             default.to_string()
         }
     });
-    let api_key = std::env::var("PARISH_API_KEY")
-        .ok()
+    let api_key = provider
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
         .filter(|s| !s.is_empty());
 
     let config = ProviderConfig {
@@ -1736,29 +1737,25 @@ fn build_cloud_client_from_env(
             .map(|p| p.default_base_url().to_string())
             .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
     });
-    let api_key = std::env::var("PARISH_CLOUD_API_KEY")
-        .ok()
+    let provider_enum = provider
+        .as_deref()
+        .and_then(|p| Provider::from_str_loose(p).ok())
+        .unwrap_or(Provider::OpenRouter);
+    let api_key = provider_enum
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
         .filter(|s| !s.is_empty());
     let model = std::env::var("PARISH_CLOUD_MODEL")
         .ok()
         .filter(|s| !s.is_empty());
 
     let client = api_key.as_deref().map(|key| {
-        let provider_enum = provider
-            .as_deref()
-            .and_then(|p| Provider::from_str_loose(p).ok())
-            .unwrap_or(Provider::OpenRouter);
-        parish_core::inference::build_client(
-            &provider_enum,
-            &base_url,
-            Some(key),
-            inference_config, // (#417) use TOML-configured timeouts
-        )
+        parish_core::inference::build_client(&provider_enum, &base_url, Some(key), inference_config)
     });
 
     CloudEnvConfig {
         client,
-        provider_name: provider.or_else(|| api_key.as_ref().map(|_| "openrouter".to_string())),
+        provider_name: provider,
         model_name: model,
         api_key,
         base_url: Some(base_url),
