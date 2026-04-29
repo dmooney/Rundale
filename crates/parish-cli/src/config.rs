@@ -139,11 +139,9 @@ pub fn resolve_category_configs(
         });
         let has_env = env_non_empty(&format!("{}_PROVIDER", category.env_prefix())).is_some()
             || env_non_empty(&format!("{}_BASE_URL", category.env_prefix())).is_some()
-            || env_non_empty(&format!("{}_API_KEY", category.env_prefix())).is_some()
             || env_non_empty(&format!("{}_MODEL", category.env_prefix())).is_some();
-        let has_cli = cli_override.is_some_and(|c| {
-            c.provider.is_some() || c.base_url.is_some() || c.api_key.is_some() || c.model.is_some()
-        });
+        let has_cli = cli_override
+            .is_some_and(|c| c.provider.is_some() || c.base_url.is_some() || c.model.is_some());
 
         // For dialogue: also check legacy [cloud] config
         let has_legacy_cloud = category == InferenceCategory::Dialogue
@@ -153,21 +151,21 @@ pub fn resolve_category_configs(
                 || toml_cfg.cloud.model.is_some()
                 || env_non_empty("PARISH_CLOUD_PROVIDER").is_some()
                 || env_non_empty("PARISH_CLOUD_BASE_URL").is_some()
-                || env_non_empty("PARISH_CLOUD_API_KEY").is_some()
                 || env_non_empty("PARISH_CLOUD_MODEL").is_some()
                 || cli_cloud.provider.is_some()
                 || cli_cloud.base_url.is_some()
-                || cli_cloud.api_key.is_some()
                 || cli_cloud.model.is_some());
 
         if !has_toml && !has_env && !has_cli && !has_legacy_cloud {
             continue;
         }
 
-        // Start from base config
+        // Start with no API key — it is resolved per-provider after the provider
+        // is known. Inheriting base.api_key would leak the base provider's key
+        // to a category that resolves to a different provider.
         let mut provider_str: Option<String> = None;
         let mut cat_base_url: Option<String> = None;
-        let mut cat_api_key: Option<String> = base.api_key.clone();
+        let mut cat_api_key: Option<String> = None;
         let mut cat_model: Option<String> = base.model.clone();
 
         // Layer 1: Legacy [cloud] for dialogue (lowest priority override)
@@ -191,9 +189,6 @@ pub fn resolve_category_configs(
             if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
                 cat_base_url = Some(val);
             }
-            if let Some(val) = env_non_empty("PARISH_CLOUD_API_KEY") {
-                cat_api_key = Some(val);
-            }
             if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
                 cat_model = Some(val);
             }
@@ -203,9 +198,6 @@ pub fn resolve_category_configs(
             }
             if let Some(ref val) = cli_cloud.base_url {
                 cat_base_url = Some(val.clone());
-            }
-            if let Some(ref val) = cli_cloud.api_key {
-                cat_api_key = Some(val.clone());
             }
             if let Some(ref val) = cli_cloud.model {
                 cat_model = Some(val.clone());
@@ -228,16 +220,13 @@ pub fn resolve_category_configs(
             }
         }
 
-        // Layer 3: Per-category env vars
+        // Layer 3: Per-category env vars (provider, base_url, model — no API_KEY)
         let prefix = category.env_prefix();
         if let Some(val) = env_non_empty(&format!("{prefix}_PROVIDER")) {
             provider_str = Some(val);
         }
         if let Some(val) = env_non_empty(&format!("{prefix}_BASE_URL")) {
             cat_base_url = Some(val);
-        }
-        if let Some(val) = env_non_empty(&format!("{prefix}_API_KEY")) {
-            cat_api_key = Some(val);
         }
         if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) {
             cat_model = Some(val);
@@ -251,26 +240,28 @@ pub fn resolve_category_configs(
             if let Some(ref val) = cli_ov.base_url {
                 cat_base_url = Some(val.clone());
             }
-            if let Some(ref val) = cli_ov.api_key {
-                cat_api_key = Some(val.clone());
-            }
             if let Some(ref val) = cli_ov.model {
                 cat_model = Some(val.clone());
             }
         }
 
-        // Resolve provider: if overridden use that, else inherit base
+        // Resolve provider early — needed before looking up the key env var.
         let provider = match &provider_str {
             Some(s) => Provider::from_str_loose(s)?,
             None => base.provider.clone(),
         };
+
+        // Layer 5: Standard provider API key env var (e.g. ANTHROPIC_API_KEY).
+        // Overrides TOML api_key; key is always bound to the provider that owns it.
+        if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
+            cat_api_key = Some(val);
+        }
 
         // Resolve base URL: if overridden use that, else use provider default or base
         let resolved_base_url = match cat_base_url {
             Some(url) if !url.is_empty() => url,
             _ => {
                 if provider_str.is_some() {
-                    // Provider was overridden, use its default URL
                     provider.default_base_url().to_string()
                 } else {
                     base.base_url.clone()
@@ -278,24 +269,22 @@ pub fn resolve_category_configs(
             }
         };
 
-        // Filter empty strings
         let cat_api_key = cat_api_key.filter(|s| !s.is_empty());
         let cat_model = cat_model.filter(|s| !s.is_empty());
 
-        // If no model was configured for this category and the resolved
-        // provider has a preset for this role, use the preset. Lets a user
-        // set just `PARISH_DIALOGUE_PROVIDER=anthropic` and get the Opus
-        // dialogue model without naming it explicitly.
+        // Fall back to the provider's preset for this role if no model set.
         let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
 
         // Validate
         if provider.requires_api_key() && cat_api_key.is_none() {
+            let hint = provider
+                .api_key_env_var()
+                .unwrap_or("the provider API key env var");
             return Err(ParishError::Config(format!(
-                "{} {:?} provider requires an API key. Set {}_API_KEY or --{}-api-key.",
+                "{} {:?} provider requires an API key. Set {}.",
                 category.name(),
                 provider,
-                prefix,
-                category.name()
+                hint
             )));
         }
         if provider == Provider::Custom && resolved_base_url.is_empty() {
@@ -376,26 +365,33 @@ mod tests {
     /// concurrent access is UB.
     fn clear_parish_env() {
         // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
-        // which serialises every test that touches `PARISH_*` env vars
-        // across this module (and the sibling `parish-config` tests that
-        // share the same `parish_env` key).
+        // which serialises every test that touches env vars across this
+        // module and the sibling `parish-config` tests.
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");
             std::env::remove_var("PARISH_BASE_URL");
             std::env::remove_var("PARISH_OLLAMA_URL");
-            std::env::remove_var("PARISH_API_KEY");
             std::env::remove_var("PARISH_MODEL");
             std::env::remove_var("PARISH_CLOUD_PROVIDER");
             std::env::remove_var("PARISH_CLOUD_BASE_URL");
-            std::env::remove_var("PARISH_CLOUD_API_KEY");
             std::env::remove_var("PARISH_CLOUD_MODEL");
-            // Per-category env vars
-            for cat in &["DIALOGUE", "SIMULATION", "INTENT"] {
+            for cat in &["DIALOGUE", "SIMULATION", "INTENT", "REACTION"] {
                 std::env::remove_var(format!("PARISH_{cat}_PROVIDER"));
                 std::env::remove_var(format!("PARISH_{cat}_BASE_URL"));
-                std::env::remove_var(format!("PARISH_{cat}_API_KEY"));
                 std::env::remove_var(format!("PARISH_{cat}_MODEL"));
             }
+            // Standard provider key vars — cleared so tests don't pick up
+            // real keys from the developer's shell environment.
+            std::env::remove_var("ANTHROPIC_API_KEY");
+            std::env::remove_var("OPENAI_API_KEY");
+            std::env::remove_var("OPENROUTER_API_KEY");
+            std::env::remove_var("GOOGLE_API_KEY");
+            std::env::remove_var("GROQ_API_KEY");
+            std::env::remove_var("XAI_API_KEY");
+            std::env::remove_var("MISTRAL_API_KEY");
+            std::env::remove_var("DEEPSEEK_API_KEY");
+            std::env::remove_var("TOGETHER_API_KEY");
+            std::env::remove_var("NVIDIA_API_KEY");
         }
     }
 
@@ -491,10 +487,11 @@ model = "qwen3:1.5b"
             model: Some("qwen3:14b".to_string()),
         };
         let cli_cat = CliCategoryOverrides::default();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("OPENROUTER_API_KEY", "sk-legacy") };
         let cli_cloud = CliCloudOverrides {
             provider: Some("openrouter".to_string()),
             base_url: None,
-            api_key: Some("sk-legacy".to_string()),
             model: Some("gpt-4".to_string()),
         };
         let configs =
@@ -563,12 +560,13 @@ model = "new-model"
             model: Some("qwen3:14b".to_string()),
         };
         let mut categories = HashMap::new();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("OPENROUTER_API_KEY", "sk-sim") };
         categories.insert(
             "simulation".to_string(),
             CliOverrides {
                 provider: Some("openrouter".to_string()),
                 base_url: None,
-                api_key: Some("sk-sim".to_string()),
                 model: Some("sim-model".to_string()),
             },
         );
@@ -596,12 +594,12 @@ model = "new-model"
             model: None,
         };
         let mut categories = HashMap::new();
+        // OPENROUTER_API_KEY is cleared by clear_parish_env — should fail.
         categories.insert(
             "intent".to_string(),
             CliOverrides {
                 provider: Some("openrouter".to_string()),
                 base_url: None,
-                api_key: None,
                 model: Some("model".to_string()),
             },
         );
