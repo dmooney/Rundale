@@ -139,7 +139,8 @@ pub fn resolve_category_configs(
         });
         let has_env = env_non_empty(&format!("{}_PROVIDER", category.env_prefix())).is_some()
             || env_non_empty(&format!("{}_BASE_URL", category.env_prefix())).is_some()
-            || env_non_empty(&format!("{}_MODEL", category.env_prefix())).is_some();
+            || env_non_empty(&format!("{}_MODEL", category.env_prefix())).is_some()
+            || env_non_empty(&format!("{}_API_KEY", category.env_prefix())).is_some();
         let has_cli = cli_override
             .is_some_and(|c| c.provider.is_some() || c.base_url.is_some() || c.model.is_some());
 
@@ -231,6 +232,9 @@ pub fn resolve_category_configs(
         if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) {
             cat_model = Some(val);
         }
+        if let Some(val) = env_non_empty(&format!("{prefix}_API_KEY")) {
+            cat_api_key = Some(val);
+        }
 
         // Layer 4: Per-category CLI flags
         if let Some(cli_ov) = cli_override {
@@ -250,6 +254,13 @@ pub fn resolve_category_configs(
             Some(s) => Provider::from_str_loose(s)?,
             None => base.provider.clone(),
         };
+
+        // If the resolved provider is the same as the base provider, and no
+        // category-specific key was provided yet, inherit the base key.
+        // (If the provider changed, inheriting the key would be a security leak.)
+        if provider == base.provider && cat_api_key.is_none() {
+            cat_api_key = base.api_key.clone();
+        }
 
         // Layer 5: Standard provider API key env var (e.g. ANTHROPIC_API_KEY).
         // Overrides TOML api_key; key is always bound to the provider that owns it.
@@ -611,6 +622,69 @@ model = "new-model"
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("intent"), "got: {}", err_msg);
         assert!(err_msg.contains("API key"), "got: {}", err_msg);
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_category_configs_inherits_base_api_key_when_same_provider() {
+        clear_parish_env();
+        // Base is OpenAI with a key from PARISH_API_KEY.
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("PARISH_API_KEY", "sk-base-key") };
+
+        let base_cli = CliOverrides {
+            provider: Some("openai".to_string()),
+            base_url: None,
+            model: Some("gpt-4".to_string()),
+        };
+        let base = resolve_config(Some(Path::new("/nonexistent")), &base_cli).unwrap();
+        assert_eq!(base.api_key.as_deref(), Some("sk-base-key"));
+
+        // Override dialogue model, but keep provider the same (implicitly).
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        std::fs::write(&path, "[provider.dialogue]\nmodel = \"gpt-4-turbo\"").unwrap();
+
+        let cli_cat = CliCategoryOverrides::default();
+        let cli_cloud = CliCloudOverrides::default();
+        let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
+
+        let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
+        assert_eq!(dialogue.provider, Provider::OpenAi);
+        // Inherited!
+        assert_eq!(dialogue.api_key.as_deref(), Some("sk-base-key"));
+        assert_eq!(dialogue.model.as_deref(), Some("gpt-4-turbo"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_category_configs_does_not_inherit_key_when_provider_changes() {
+        clear_parish_env();
+        // Base is OpenAI with a key.
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("OPENAI_API_KEY", "sk-openai") };
+
+        let base_cli = CliOverrides {
+            provider: Some("openai".to_string()),
+            base_url: None,
+            model: Some("gpt-4".to_string()),
+        };
+        let base = resolve_config(Some(Path::new("/nonexistent")), &base_cli).unwrap();
+
+        // Simulation is overridden to Anthropic but has NO key.
+        // It must NOT inherit the OpenAI key.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        std::fs::write(&path, "[provider.simulation]\nname = \"anthropic\"").unwrap();
+
+        let cli_cat = CliCategoryOverrides::default();
+        let cli_cloud = CliCloudOverrides::default();
+        let result = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("simulation"), "got: {err}");
+        assert!(err.contains("ANTHROPIC_API_KEY"), "got: {err}");
     }
 
     #[test]

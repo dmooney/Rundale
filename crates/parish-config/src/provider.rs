@@ -375,6 +375,9 @@ pub fn resolve_config(
     if let Some(val) = env_non_empty("PARISH_MODEL") {
         model = Some(val);
     }
+    if let Some(val) = env_non_empty("PARISH_API_KEY") {
+        api_key = Some(val);
+    }
 
     // CLI flags override env (non-key fields)
     if let Some(ref val) = cli.provider {
@@ -464,7 +467,7 @@ pub fn resolve_cloud_config(
 
     let mut provider_str = toml_cfg.cloud.name;
     let mut base_url = toml_cfg.cloud.base_url;
-    let api_key = toml_cfg.cloud.api_key;
+    let mut api_key = toml_cfg.cloud.api_key;
     let mut model = toml_cfg.cloud.model;
 
     // Env vars override TOML (non-key fields)
@@ -476,6 +479,9 @@ pub fn resolve_cloud_config(
     }
     if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
         model = Some(val);
+    }
+    if let Some(val) = env_non_empty("PARISH_CLOUD_API_KEY") {
+        api_key = Some(val);
     }
 
     // CLI flags override env (non-key fields)
@@ -1104,6 +1110,64 @@ model = "toml-model"
                 "{name} error should mention API key, got: {err_msg}"
             );
         }
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_parish_api_key_fallback() {
+        clear_parish_env();
+        // Standard provider key vars are NOT set.
+        // PARISH_API_KEY is set.
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("PARISH_API_KEY", "sk-fallback") };
+
+        let cli = CliOverrides {
+            provider: Some("openai".to_string()),
+            base_url: None,
+            model: Some("gpt-4".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.api_key.as_deref(), Some("sk-fallback"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_custom_provider_can_use_parish_api_key() {
+        clear_parish_env();
+        // Custom provider has no standard env var.
+        // It should be able to use PARISH_API_KEY.
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("PARISH_API_KEY", "sk-custom") };
+
+        let cli = CliOverrides {
+            provider: Some("custom".to_string()),
+            base_url: Some("http://localhost:9999".to_string()),
+            model: Some("model".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Custom);
+        assert_eq!(config.api_key.as_deref(), Some("sk-custom"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_standard_key_overrides_parish_api_key() {
+        clear_parish_env();
+        // Both standard provider key AND PARISH_API_KEY are set.
+        // The standard provider key must win.
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe {
+            std::env::set_var("OPENAI_API_KEY", "sk-standard");
+            std::env::set_var("PARISH_API_KEY", "sk-fallback");
+        }
+
+        let cli = CliOverrides {
+            provider: Some("openai".to_string()),
+            base_url: None,
+            model: Some("gpt-4".to_string()),
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.api_key.as_deref(), Some("sk-standard"));
     }
 
     #[test]
