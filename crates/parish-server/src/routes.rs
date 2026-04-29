@@ -813,6 +813,7 @@ async fn run_npc_turn(
     speaker_id: NpcId,
     prompt_input: &str,
     transcript: &[ConversationLine],
+    player_initiated: bool,
 ) -> Option<TurnOutcome> {
     let setup = {
         let mut world = state.world.lock().await;
@@ -836,7 +837,9 @@ async fn run_npc_turn(
     }?;
 
     let loading_cancel = tokio_util::sync::CancellationToken::new();
-    spawn_loading_animation(Arc::clone(state), loading_cancel.clone());
+    if player_initiated {
+        spawn_loading_animation(Arc::clone(state), loading_cancel.clone());
+    }
 
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
@@ -866,13 +869,15 @@ async fn run_npc_turn(
             state
                 .event_bus
                 .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
-            state.event_bus.emit(
-                "text-log",
-                &text_log(
-                    "system",
-                    "The parish storyteller has wandered off. Try again.",
-                ),
-            );
+            if player_initiated {
+                state.event_bus.emit(
+                    "text-log",
+                    &text_log(
+                        "system",
+                        "The parish storyteller has wandered off. Try again.",
+                    ),
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
@@ -923,19 +928,23 @@ async fn run_npc_turn(
                 req_id,
                 "NPC inference response channel closed without a reply",
             );
-            state.event_bus.emit(
-                "text-log",
-                &text_log("system", "The storyteller has wandered off mid-tale."),
-            );
+            if player_initiated {
+                state.event_bus.emit(
+                    "text-log",
+                    &text_log("system", "The storyteller has wandered off mid-tale."),
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
         InferenceAwaitOutcome::TimedOut { secs } => {
             tracing::warn!(req_id, secs, "NPC inference response timed out",);
-            state.event_bus.emit(
-                "text-log",
-                &text_log("system", "The storyteller is lost in thought. Try again."),
-            );
+            if player_initiated {
+                state.event_bus.emit(
+                    "text-log",
+                    &text_log("system", "The storyteller is lost in thought. Try again."),
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
@@ -943,11 +952,13 @@ async fn run_npc_turn(
 
     if response.error.is_some() {
         tracing::warn!("Inference error: {:?}", response.error);
-        let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-        state.event_bus.emit(
-            "text-log",
-            &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
-        );
+        if player_initiated {
+            let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+            state.event_bus.emit(
+                "text-log",
+                &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
+            );
+        }
         loading_cancel.cancel();
         return None;
     }
@@ -1087,6 +1098,7 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
             *speaker_id,
             trimmed.as_str(),
             &transcript,
+            true,
         )
         .await
         else {
@@ -1134,6 +1146,7 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
             speaker_id,
             "listens while the nearby conversation continues",
             &transcript,
+            false,
         )
         .await
         else {
@@ -1225,6 +1238,7 @@ async fn run_idle_banter(state: &Arc<AppState>) {
             first_speaker,
             "breaks the silence with a natural nearby remark",
             &transcript,
+            false,
         )
         .await
     {
@@ -1268,6 +1282,7 @@ async fn run_idle_banter(state: &Arc<AppState>) {
             speaker_id,
             "answers the nearby remark and keeps the local chatter going",
             &transcript,
+            false,
         )
         .await
         else {
