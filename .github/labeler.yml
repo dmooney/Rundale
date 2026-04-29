@@ -1,0 +1,68 @@
+# PR Labeler Configuration
+#
+# Maps modified paths to labels. Used by .github/workflows/label.yml
+
+frontend:
+  - apps/ui/**/*
+
+infra:
+  - .github/**/*
+  - deploy/**/*
+  - .claude/**/*
+  - justfile
+  - Cargo.toml
+  - Cargo.lock
+
+docs:
+  - docs/**/*
+  - README.md
+  - LICENSE
+  - NOTICE
+  - THIRD_PARTY_NOTICES.md
+  - AGENTS.md
+  - CLAUDE.md
+
+rundale:
+  - mods/rundale/**/*
+
+parish-core:
+  - crates/parish-core/**/*
+
+parish-cli:
+  - crates/parish-cli/**/*
+
+parish-server:
+  - crates/parish-server/**/*
+
+parish-tauri:
+  - crates/parish-tauri/**/*
+
+parish-geo-tool:
+  - crates/parish-geo-tool/**/*
+
+parish-npc-tool:
+  - crates/parish-npc-tool/**/*
+
+parish-config:
+  - crates/parish-config/**/*
+
+parish-inference:
+  - crates/parish-inference/**/*
+
+parish-world:
+  - crates/parish-world/**/*
+
+parish-palette:
+  - crates/parish-palette/**/*
+
+parish-npc:
+  - crates/parish-npc/**/*
+
+parish-persistence:
+  - crates/parish-persistence/**/*
+
+parish-input:
+  - crates/parish-input/**/*
+
+parish-types:
+  - crates/parish-types/**/*

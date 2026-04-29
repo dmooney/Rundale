@@ -11,6 +11,12 @@
     "mode-parity",
     "npc-reactions",
     "witness-scan",
-    "infra"
+    "infra",
+    "docs",
+    "ready-for-test",
+    "in-progress",
+    "codex-automation",
+    "railway-failure",
+    "requires-human"
   ]
 }

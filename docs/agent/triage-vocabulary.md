@@ -26,6 +26,9 @@ Canonical label set for open-issue triage. The machine-readable list lives in [`
 | `npc-reactions` | The LLM-driven NPC-reaction subsystem. |
 | `witness-scan` | The `/witness` verification workflow tooling. |
 | `infra` | CI, deploy, Docker, Cloudflare, Railway, GitHub Actions, runners. |
+| `docs` | Documentation changes: guides, ADRs, research, screenshots. |
+| `railway-failure` | Automated report of a failed deployment on Railway. |
+| `requires-human` | Triage or task that cannot be handled by automation alone. |
 
 ## Process labels (independent of theme/priority)
 
