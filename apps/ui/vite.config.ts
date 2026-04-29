@@ -14,6 +14,12 @@ export default defineConfig({
 		strictPort: true,
 		fs: {
 			allow: ['.']
+		},
+		proxy: {
+			'/api': {
+				target: `http://localhost:${process.env.PARISH_WEB_PORT || '3001'}`,
+				ws: true
+			}
 		}
 	},
 	test: {

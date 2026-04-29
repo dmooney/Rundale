@@ -610,10 +610,12 @@ describe('InputField', () => {
 			expect((mention as HTMLElement)?.dataset.npc).toBe('Padraig Darcy');
 		});
 
-		it('hides npc buttons during streaming', () => {
+		it('disables npc buttons during streaming but keeps them visible', () => {
 			streamingActive.set(true);
 			const { container } = render(InputField);
-			expect(container.querySelector('.npc-chips')).toBeFalsy();
+			expect(container.querySelector('.npc-chips')).toBeTruthy();
+			const btn = container.querySelector('.npc-chip') as HTMLButtonElement;
+			expect(btn.disabled).toBe(true);
 		});
 	});
 
@@ -660,11 +662,13 @@ describe('InputField', () => {
 			expect(mockSubmitInput).toHaveBeenCalledWith("go to Darcy's Pub");
 		});
 
-		it('hides chips during streaming', () => {
+		it('disables chips during streaming but keeps them visible', () => {
 			mapData.set(testMapData);
 			streamingActive.set(true);
 			const { container } = render(InputField);
-			expect(container.querySelector('.travel-chips')).toBeFalsy();
+			expect(container.querySelector('.travel-chips')).toBeTruthy();
+			const btn = container.querySelector('.travel-chip') as HTMLButtonElement;
+			expect(btn.disabled).toBe(true);
 		});
 	});
 

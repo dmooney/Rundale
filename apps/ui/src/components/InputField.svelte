@@ -923,13 +923,14 @@
 			{/each}
 		</ul>
 	{/if}
-	{#if $npcsHere.length > 0 && !$streamingActive}
+	{#if $npcsHere.length > 0}
 		<div class="npc-chips" data-testid="npc-chips">
 			<span class="npc-label">Speak To</span>
 			{#each $npcsHere as npc}
 				<button
 					class="npc-chip"
 					aria-label="Speak to {npc.name}"
+					disabled={$streamingActive}
 					onclick={() => insertNpcMention(npc.name)}
 				>
 					<span class="npc-chip-mood"><MoodIcon mood={npc.mood} /></span>
@@ -943,7 +944,7 @@
 			{/each}
 		</div>
 	{/if}
-	{#if adjacentLocations.length > 0 && !$streamingActive}
+	{#if adjacentLocations.length > 0}
 		<div class="travel-chips">
 			<span class="travel-label">Go To</span>
 			{#each adjacentLocations as loc}
@@ -1170,10 +1171,15 @@
 		transition: background 0.15s, border-color 0.15s, transform 0.15s, color 0.15s;
 	}
 
-	.npc-chip:hover,
-	.npc-chip:focus-visible {
+	.npc-chip:hover:not(:disabled),
+	.npc-chip:focus-visible:not(:disabled) {
 		border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
 		transform: translateY(-1px);
+	}
+
+	.npc-chip:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
 	.npc-chip-mood {

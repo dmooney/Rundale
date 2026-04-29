@@ -839,6 +839,7 @@ struct TurnOutcome {
     hints: Vec<parish_core::npc::IrishWordHint>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_npc_turn(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
@@ -847,6 +848,7 @@ async fn run_npc_turn(
     speaker_id: NpcId,
     prompt_input: &str,
     transcript: &[ConversationLine],
+    player_initiated: bool,
 ) -> Option<TurnOutcome> {
     let setup = {
         let mut world = state.world.lock().await;
@@ -870,7 +872,9 @@ async fn run_npc_turn(
     }?;
 
     let loading_cancel = tokio_util::sync::CancellationToken::new();
-    spawn_loading_animation(app.clone(), loading_cancel.clone());
+    if player_initiated {
+        spawn_loading_animation(app.clone(), loading_cancel.clone());
+    }
 
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
@@ -911,16 +915,18 @@ async fn run_npc_turn(
                 EVENT_STREAM_TURN_END,
                 StreamTurnEndPayload { turn_id: req_id },
             );
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".to_string(),
-                    content: "The parish storyteller has wandered off. Try again in a moment."
-                        .to_string(),
-                },
-            );
+            if player_initiated {
+                let _ = app.emit(
+                    EVENT_TEXT_LOG,
+                    TextLogPayload {
+                        id: String::new(),
+                        stream_turn_id: None,
+                        source: "system".to_string(),
+                        content: "The parish storyteller has wandered off. Try again in a moment."
+                            .to_string(),
+                    },
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
@@ -970,15 +976,17 @@ async fn run_npc_turn(
                 req_id,
                 "NPC inference response channel closed without a reply",
             );
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".to_string(),
-                    content: "The storyteller has wandered off mid-tale.".to_string(),
-                },
-            );
+            if player_initiated {
+                let _ = app.emit(
+                    EVENT_TEXT_LOG,
+                    TextLogPayload {
+                        id: String::new(),
+                        stream_turn_id: None,
+                        source: "system".to_string(),
+                        content: "The storyteller has wandered off mid-tale.".to_string(),
+                    },
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
@@ -995,15 +1003,17 @@ async fn run_npc_turn(
                 message: format!("Response timed out after {secs}s"),
             });
             drop(events);
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".to_string(),
-                    content: "The storyteller is lost in thought. Try again.".to_string(),
-                },
-            );
+            if player_initiated {
+                let _ = app.emit(
+                    EVENT_TEXT_LOG,
+                    TextLogPayload {
+                        id: String::new(),
+                        stream_turn_id: None,
+                        source: "system".to_string(),
+                        content: "The storyteller is lost in thought. Try again.".to_string(),
+                    },
+                );
+            }
             loading_cancel.cancel();
             return None;
         }
@@ -1021,16 +1031,18 @@ async fn run_npc_turn(
             category: "inference".to_string(),
             message: format!("Dialogue error: {err}"),
         });
-        let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-        let _ = app.emit(
-            EVENT_TEXT_LOG,
-            TextLogPayload {
-                id: String::new(),
-                stream_turn_id: None,
-                source: "system".to_string(),
-                content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
-            },
-        );
+        if player_initiated {
+            let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
+                },
+            );
+        }
         loading_cancel.cancel();
         return None;
     }
@@ -1192,6 +1204,7 @@ async fn handle_npc_conversation(
             *speaker_id,
             trimmed.as_str(),
             &transcript,
+            true,
         )
         .await
         else {
@@ -1238,6 +1251,7 @@ async fn handle_npc_conversation(
             speaker_id,
             "listens while the nearby conversation continues",
             &transcript,
+            false,
         )
         .await
         else {
@@ -1327,6 +1341,7 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
             first_speaker,
             "breaks the silence with a natural nearby remark",
             &transcript,
+            false,
         )
         .await
     {
@@ -1370,6 +1385,7 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
             speaker_id,
             "answers the nearby remark and keeps the local chatter going",
             &transcript,
+            false,
         )
         .await
         else {
@@ -1391,7 +1407,13 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
         let mut world = state.world.lock().await;
         world.clock.inference_resume();
     }
-    set_conversation_running(state, false).await;
+    // Update last_spoken_at regardless of success so a failed banter attempt
+    // creates a cooldown and does not spam failure messages on every 1s tick.
+    {
+        let mut conversation = state.conversation.lock().await;
+        conversation.last_spoken_at = std::time::Instant::now();
+        conversation.conversation_in_progress = false;
+    }
     emit_world_update(state, app).await;
 
     let _ = app.emit(
