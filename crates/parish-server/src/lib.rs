@@ -594,8 +594,9 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
             default.to_string()
         }
     });
-    let api_key = std::env::var("PARISH_API_KEY")
-        .ok()
+    let api_key = provider_enum
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
         .filter(|s| !s.is_empty());
 
     let provider_cfg = parish_core::config::ProviderConfig {
@@ -673,15 +674,20 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
             .map(|p| p.default_base_url().to_string())
             .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
     });
-    let api_key = std::env::var("PARISH_CLOUD_API_KEY")
-        .ok()
+    let provider_enum = provider
+        .as_deref()
+        .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
+        .unwrap_or(parish_core::config::Provider::OpenRouter);
+    let api_key = provider_enum
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
         .filter(|s| !s.is_empty());
     let model = std::env::var("PARISH_CLOUD_MODEL")
         .ok()
         .filter(|s| !s.is_empty());
 
     CloudEnvConfig {
-        provider_name: provider.or_else(|| api_key.as_ref().map(|_| "openrouter".to_string())),
+        provider_name: provider,
         model_name: model,
         api_key,
         base_url: Some(base_url),
