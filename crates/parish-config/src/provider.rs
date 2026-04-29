@@ -395,9 +395,7 @@ pub fn resolve_config(
 
     // Standard provider key env var (e.g. ANTHROPIC_API_KEY) overrides TOML api_key.
     // The key is always bound to the provider that owns it.
-    if let Some(var) = provider.api_key_env_var()
-        && let Some(val) = env_non_empty(var)
-    {
+    if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
     }
 
@@ -515,9 +513,7 @@ pub fn resolve_cloud_config(
     };
 
     // Standard provider key env var overrides TOML api_key.
-    if let Some(var) = provider.api_key_env_var()
-        && let Some(val) = env_non_empty(var)
-    {
+    if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
     }
 
