@@ -207,11 +207,11 @@
 	});
 
 	async function setupMount(): Promise<() => void> {
-		// Frontend auto-pause tracker — fires /pause after 300s of true UI
+		// Frontend auto-pause tracker — fires /pause after `auto_pause_timeout_seconds` of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
 		const tracker = createAutoPauseTracker({
-			idleMs: AUTO_PAUSE_MS,
+			idleMs: () => get(uiConfig).auto_pause_timeout_seconds * 1000,
 			mousemoveThrottleMs: MOUSEMOVE_THROTTLE_MS,
 			submitInput,
 			isWorldPaused: () => get(worldState)?.paused ?? false

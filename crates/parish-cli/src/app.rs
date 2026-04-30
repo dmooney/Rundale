@@ -385,7 +385,7 @@ impl App {
             reveal_unexplored_locations: self.reveal_unexplored_locations,
             max_follow_up_turns: 2,
             idle_banter_after_secs: 25,
-            auto_pause_after_secs: 60,
+            auto_pause_after_secs: 300,
             flags: self.flags.clone(),
             ..GameConfig::default()
         };

@@ -17,7 +17,7 @@ describe('createAutoPauseTracker', () => {
 
 	function makeTracker() {
 		return createAutoPauseTracker({
-			idleMs: 60_000,
+			idleMs: () => 60_000,
 			mousemoveThrottleMs: 1000,
 			submitInput,
 			isWorldPaused: () => worldPaused

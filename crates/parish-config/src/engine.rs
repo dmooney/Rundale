@@ -67,9 +67,43 @@ pub struct EngineConfig {
     /// Persistence / save system tuning.
     #[serde(default)]
     pub persistence: PersistenceConfig,
+    /// Session and pacing timeouts.
+    #[serde(default)]
+    pub session: SessionConfig,
     /// Map tile source registry and active default.
     #[serde(default)]
     pub map: MapConfig,
+}
+
+// ---------------------------------------------------------------------------
+// Session
+// ---------------------------------------------------------------------------
+
+/// Session and pacing timeouts.
+#[derive(Debug, Deserialize, Clone)]
+pub struct SessionConfig {
+    /// Real-time silence threshold before nearby NPCs may start banter.
+    #[serde(default = "default_idle_banter_after_secs")]
+    pub idle_banter_after_secs: u64,
+    /// Real-time inactivity threshold before the game auto-pauses.
+    #[serde(default = "default_auto_pause_after_secs")]
+    pub auto_pause_after_secs: u64,
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 300,
+        }
+    }
+}
+
+fn default_idle_banter_after_secs() -> u64 {
+    25
+}
+fn default_auto_pause_after_secs() -> u64 {
+    300
 }
 
 // ---------------------------------------------------------------------------

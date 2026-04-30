@@ -13,7 +13,7 @@
 
 export interface AutoPauseTrackerOptions {
 	/** Idle interval in milliseconds before auto-pause fires. */
-	idleMs: number;
+	idleMs: () => number;
 	/** Throttle window for mousemove activity events, in milliseconds. */
 	mousemoveThrottleMs: number;
 	/** Function to invoke pause/resume commands. */
@@ -56,7 +56,7 @@ export function createAutoPauseTracker(opts: AutoPauseTrackerOptions): AutoPause
 				pausedByAutoIdle = true;
 				void opts.submitInput('/pause');
 			}
-		}, opts.idleMs);
+		}, opts.idleMs());
 	}
 
 	function recordActivity() {
