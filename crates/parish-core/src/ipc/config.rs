@@ -6,6 +6,8 @@
 //! previously lived in each backend.
 
 use crate::config::{FeatureFlags, InferenceCategory, RateLimitConfig};
+
+const DEFAULT_AUTO_PAUSE_SECS: u64 = 300;
 use crate::inference::InferenceRateLimiter;
 
 /// Mutable runtime configuration for provider, model, and cloud settings.
@@ -252,7 +254,7 @@ impl Default for GameConfig {
             improv_enabled: false,
             max_follow_up_turns: 2,
             idle_banter_after_secs: 25,
-            auto_pause_after_secs: 300,
+            auto_pause_after_secs: DEFAULT_AUTO_PAUSE_SECS,
             category_provider: [None, None, None, None],
             category_model: Default::default(),
             category_api_key: Default::default(),
@@ -278,7 +280,7 @@ mod tests {
         assert!(c.api_key.is_none());
         assert_eq!(c.max_follow_up_turns, 2);
         assert_eq!(c.idle_banter_after_secs, 25);
-        assert_eq!(c.auto_pause_after_secs, 60);
+        assert_eq!(c.auto_pause_after_secs, DEFAULT_AUTO_PAUSE_SECS);
         assert!(c.active_tile_source.is_empty());
         assert!(c.tile_sources.is_empty());
         assert!(!c.reveal_unexplored_locations);

@@ -101,6 +101,10 @@ vi.mock('maplibre-gl', () => {
 
 vi.mock('$lib/ipc', () => ({
 	getUiConfig: vi.fn(async () => ({
+		hints_label: '',
+		default_accent: '',
+		splash_text: '',
+		auto_pause_timeout_seconds: 300,
 		active_tile_source: 'osm',
 		tile_sources: [
 			{

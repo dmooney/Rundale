@@ -1053,7 +1053,7 @@ describe('InputField', () => {
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
 			expect(mockSubmitInput).not.toHaveBeenCalledWith('/resume');
-			expect(mockSubmitInput).toHaveBeenCalledWith('/help', []);
+			expect(mockSubmitInput).toHaveBeenCalledWith('/help');
 		});
 
 		it('does not resume game if not paused', async () => {
