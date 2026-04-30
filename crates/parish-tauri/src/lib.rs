@@ -1585,6 +1585,7 @@ pub fn run() {
                             improv_enabled,
                             call_log,
                             categories,
+                            configured_providers: parish_core::debug_snapshot::build_configured_providers(),
                         };
 
                         // 6. Acquire world and npc_manager (canonical order)
@@ -1647,32 +1648,27 @@ pub fn run() {
 
 // ── Client initialisation from env ───────────────────────────────────────────
 
-/// Reads `PARISH_*` env vars into a [`ProviderConfig`] plus the display
-/// strings that populate [`GameConfig`].
+/// Reads configuration from `parish.toml` (if present) and `PARISH_*` env vars
+/// into a [`ProviderConfig`] plus the display strings that populate [`GameConfig`].
 fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>) {
-    let provider_name =
-        std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
-    let provider = Provider::from_str_loose(&provider_name).unwrap_or_default();
-    let model_override = std::env::var("PARISH_MODEL").ok().filter(|s| !s.is_empty());
-    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
-        let default = provider.default_base_url();
-        if default.is_empty() {
-            "http://localhost:11434".to_string()
-        } else {
-            default.to_string()
-        }
-    });
-    let api_key = provider
-        .api_key_env_var()
-        .and_then(|var| std::env::var(var).ok())
-        .filter(|s| !s.is_empty());
+    let config =
+        parish_core::config::resolve_config(None, &Default::default()).unwrap_or_else(|e| {
+            tracing::warn!(
+                "Failed to resolve configuration: {}; falling back to defaults",
+                e
+            );
+            ProviderConfig {
+                provider: parish_core::config::Provider::default(),
+                base_url: "http://localhost:11434".to_string(),
+                api_key: None,
+                model: None,
+            }
+        });
 
-    let config = ProviderConfig {
-        provider,
-        base_url: base_url.clone(),
-        api_key: api_key.clone(),
-        model: model_override,
-    };
+    let provider_name = config.provider_display();
+    let base_url = config.base_url.clone();
+    let api_key = config.api_key.clone();
+
     (config, provider_name, base_url, api_key)
 }
 

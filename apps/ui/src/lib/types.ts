@@ -429,6 +429,8 @@ export interface InferenceDebug {
 	call_log: InferenceLogEntry[];
 	/** Per-role provider/model/url state (one entry per InferenceCategory). */
 	categories: InferenceCategoryDebug[];
+	/** List of provider display names that have an API key configured (or are local). */
+	configured_providers: string[];
 }
 
 export interface InferenceLogEntry {
