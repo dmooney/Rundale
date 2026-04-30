@@ -234,8 +234,11 @@ pub fn handle_command(
         // ── Info commands ───────────────────────────────────────────────
         Command::About => CommandResult::text(
             [
-                "Parish — A text adventure set in 1820s rural Ireland.",
-                "Explore a living village powered by AI-driven NPCs.",
+                &format!("Parish v{} — An Irish Living World Text Adventure", env!("CARGO_PKG_VERSION")),
+                "Set in 1820 rural Ireland, powered by the custom Parish engine.",
+                "",
+                "Created by Dave Mooney © 2026",
+                "Licensed under GNU General Public License v3.0.",
                 "",
                 "Type /help for available commands.",
             ]
