@@ -399,6 +399,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
                 improv_enabled,
                 call_log,
                 categories: vec![],
+                configured_providers: vec![],
             };
 
             // Acquire world + npc_manager last, build snapshot, release.

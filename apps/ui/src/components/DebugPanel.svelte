@@ -8,6 +8,7 @@
 	} from '../stores/debug';
 	import type { NpcDebug, ScheduleVariantDebug } from '$lib/types';
 	import { submitInput } from '$lib/ipc';
+	import { Key } from 'phosphor-svelte';
 
 	/** Providers exposed as one-click preset buttons in the Inference tab.
 	 * Other providers (xai, deepseek, together, vllm) remain
@@ -535,7 +536,9 @@
 					<!-- List view -->
 					<div class="section">
 						<h4>Provider</h4>
-						<div class="field">{snap.inference.provider_name} · {snap.inference.model_name || '(auto)'} · {snap.inference.base_url || '(default)'} · Queue: {snap.inference.has_queue ? 'active' : 'none'} · Improv: {snap.inference.improv_enabled ? 'ON' : 'OFF'}</div>
+						<div class="field">{snap.inference.provider_name} · {snap.inference.model_name || '(auto)'} · {snap.inference.base_url || '(default)'}</div>
+						<div class="field">Queue: {snap.inference.has_queue ? 'Active' : 'Inactive'}</div>
+						<div class="field">Improv: {snap.inference.improv_enabled ? 'Active' : 'Inactive'}</div>
 						{#if snap.inference.cloud_provider}
 							<div class="field muted">Cloud: {snap.inference.cloud_provider} / {snap.inference.cloud_model || '(none)'}</div>
 						{/if}
@@ -544,7 +547,12 @@
 						<h4>Quick Presets</h4>
 						<div class="preset-row">
 							{#each PRESET_PROVIDERS as provider}
-								<button class="preset-btn" type="button" onclick={() => applyPreset(provider)}>{provider}</button>
+								<button class="preset-btn" type="button" onclick={() => applyPreset(provider)}>
+									{#if snap.inference.configured_providers.includes(provider)}
+										<span class="configured-icon" title="API key configured" aria-hidden="true"><Key size={14} weight="bold" /></span>
+									{/if}
+									{provider}
+								</button>
 							{/each}
 						</div>
 						<div class="field muted">Sets a sensible model per inference role; API keys are not changed.</div>
@@ -839,6 +847,9 @@
 		padding: 0.15rem 0.5rem;
 		font-size: 0.7rem;
 		font-family: inherit;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
 	}
 
 	.preset-btn:hover,
@@ -846,6 +857,11 @@
 		color: var(--color-fg);
 		border-color: var(--color-accent);
 		background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+	}
+
+	.configured-icon {
+		display: flex;
+		align-items: center;
 	}
 
 	.role-table {

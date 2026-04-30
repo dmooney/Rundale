@@ -207,6 +207,7 @@ pub async fn get_debug_snapshot(
         improv_enabled: config.improv_enabled,
         call_log,
         categories: parish_core::debug_snapshot::build_inference_categories(&config),
+        configured_providers: parish_core::debug_snapshot::build_configured_providers(),
     };
 
     Ok(debug_snapshot::build_debug_snapshot(

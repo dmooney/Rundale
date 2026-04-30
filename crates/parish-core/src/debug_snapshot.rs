@@ -531,10 +531,30 @@ pub struct InferenceDebug {
     /// Simulation, Intent, Reaction). Each entry's `Option<String>` fields
     /// are `None` when the role inherits from the base config.
     pub categories: Vec<InferenceCategoryDebug>,
+    /// List of provider display names that have an API key configured (or are local).
+    pub configured_providers: Vec<String>,
 }
 
 /// Re-export from parish-inference so callers don't need a separate import.
 pub use crate::inference::InferenceLogEntry;
+
+/// Returns a list of provider display names that are ready to use
+/// (either local providers, or cloud providers with an API key set).
+pub fn build_configured_providers() -> Vec<String> {
+    crate::config::Provider::ALL
+        .iter()
+        .filter(|p| p.is_configured_in_env())
+        .map(|p| {
+            crate::config::ProviderConfig {
+                provider: p.clone(),
+                base_url: String::new(),
+                api_key: None,
+                model: None,
+            }
+            .provider_display()
+        })
+        .collect()
+}
 
 /// Builds the per-role debug entries from a [`crate::ipc::config::GameConfig`].
 ///
@@ -1147,6 +1167,7 @@ mod tests {
             improv_enabled: false,
             call_log: vec![],
             categories: vec![],
+            configured_providers: vec![],
         }
     }
 
@@ -1463,6 +1484,7 @@ mod tests {
             improv_enabled: false,
             call_log: vec![],
             categories: vec![],
+            configured_providers: vec![],
         };
         let snapshot = build_debug_snapshot(
             &world,

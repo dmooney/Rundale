@@ -1,6 +1,6 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Supports Ollama (local, default), LM Studio (local), vLLM (local),
+//! Supports Simulator (offline, default), Ollama (local), LM Studio (local), vLLM (local),
 //! and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
 //! xAI (Grok), Mistral, DeepSeek, Together AI, NVIDIA NIM, and Anthropic
 //! (Claude) via the native Messages API. A custom OpenAI-compatible
@@ -28,9 +28,9 @@ const DEFAULT_ANTHROPIC_URL: &str = "https://api.anthropic.com";
 
 /// Supported LLM provider backends.
 ///
-/// All providers use the OpenAI-compatible chat completions API
-/// (`/v1/chat/completions`). Ollama is the default and includes
-/// auto-start, GPU detection, and model pulling features.
+/// All providers (except Simulator and Anthropic) use the OpenAI-compatible
+/// chat completions API (`/v1/chat/completions`). Simulator is the default.
+/// Ollama includes auto-start, GPU detection, and model pulling features.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Provider {
     /// Local Ollama server with auto-management.
@@ -74,6 +74,25 @@ pub enum Provider {
 }
 
 impl Provider {
+    /// All available providers.
+    pub const ALL: [Provider; 15] = [
+        Provider::Ollama,
+        Provider::LmStudio,
+        Provider::OpenRouter,
+        Provider::Vllm,
+        Provider::OpenAi,
+        Provider::Google,
+        Provider::Groq,
+        Provider::Xai,
+        Provider::Mistral,
+        Provider::DeepSeek,
+        Provider::Together,
+        Provider::NvidiaNim,
+        Provider::Anthropic,
+        Provider::Custom,
+        Provider::Simulator,
+    ];
+
     /// Parses a provider name string (case-insensitive).
     pub fn from_str_loose(s: &str) -> Result<Self, ParishError> {
         match s.to_lowercase().as_str() {
@@ -168,6 +187,19 @@ impl Provider {
             Provider::Together => Some("TOGETHER_API_KEY"),
             Provider::NvidiaNim => Some("NVIDIA_API_KEY"),
             _ => None,
+        }
+    }
+
+    /// Returns true if this provider is ready to be used (either local, or has its
+    /// API key configured in the environment).
+    pub fn is_configured_in_env(&self) -> bool {
+        if !self.requires_api_key() {
+            return true;
+        }
+        if let Some(var) = self.api_key_env_var() {
+            std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false)
+        } else {
+            false
         }
     }
 }
@@ -323,7 +355,10 @@ pub struct CliOverrides {
 impl ProviderConfig {
     /// Returns a display-friendly provider name.
     pub fn provider_display(&self) -> String {
-        format!("{:?}", self.provider).to_lowercase()
+        match self.provider {
+            Provider::NvidiaNim => "nvidia-nim".to_string(),
+            _ => format!("{:?}", self.provider).to_lowercase(),
+        }
     }
 }
 

@@ -163,6 +163,7 @@ pub async fn get_debug_snapshot(
         improv_enabled,
         call_log: raw_call_log.clone(),
         categories,
+        configured_providers: parish_core::debug_snapshot::build_configured_providers(),
     };
     let linked = global.sessions.google_account_for_session(&session_id.0);
     let auth = AuthDebug {

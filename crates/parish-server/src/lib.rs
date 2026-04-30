@@ -581,43 +581,31 @@ fn sanitize_base_url(url: &str) -> String {
 /// then overwrites `config.model_name` with the auto-resolved tag (for
 /// Ollama, the tier selector's pick).
 fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig) {
-    let provider_name =
-        std::env::var("PARISH_PROVIDER").unwrap_or_else(|_| "simulator".to_string());
-    let model = std::env::var("PARISH_MODEL").unwrap_or_default();
-    let provider_enum =
-        parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
-    let base_url = std::env::var("PARISH_BASE_URL").unwrap_or_else(|_| {
-        let default = provider_enum.default_base_url();
-        if default.is_empty() {
-            "http://localhost:11434".to_string()
-        } else {
-            default.to_string()
-        }
-    });
-    let api_key = provider_enum
-        .api_key_env_var()
-        .and_then(|var| std::env::var(var).ok())
-        .filter(|s| !s.is_empty());
+    let provider_cfg = parish_core::config::resolve_config(None, &Default::default())
+        .unwrap_or_else(|e| {
+            tracing::warn!(
+                "Failed to resolve configuration: {}; falling back to defaults",
+                e
+            );
+            parish_core::config::ProviderConfig {
+                provider: parish_core::config::Provider::default(),
+                base_url: "http://localhost:11434".to_string(),
+                api_key: None,
+                model: None,
+            }
+        });
 
-    let provider_cfg = parish_core::config::ProviderConfig {
-        provider: provider_enum,
-        base_url: base_url.clone(),
-        api_key: api_key.clone(),
-        model: if model.is_empty() {
-            None
-        } else {
-            Some(model.clone())
-        },
-    };
+    let provider_name = provider_cfg.provider_display();
+    let base_url = provider_cfg.base_url.clone();
+    let api_key = provider_cfg.api_key.clone();
 
-    // `model_name` starts as the env override (if any) or `gemma4:e4b` as a
+    // `model_name` starts as the resolved model override or `gemma4:e4b` as a
     // placeholder; the bootstrap replaces it with the auto-selected tier tag
     // before sessions are built.
-    let model_name = if model.is_empty() {
-        "gemma4:e4b".to_string()
-    } else {
-        model
-    };
+    let model_name = provider_cfg
+        .model
+        .clone()
+        .unwrap_or_else(|| "gemma4:e4b".to_string());
 
     tracing::info!(
         provider = %provider_name,
@@ -886,7 +874,8 @@ mod tests {
     #[test]
     #[serial(parish_env)]
     fn build_client_and_config_defaults() {
-        // In test env, PARISH_PROVIDER is usually not set → defaults to "simulator"
+        // In test env, clear PARISH_PROVIDER to ensure it defaults to "simulator"
+        unsafe { std::env::remove_var("PARISH_PROVIDER") };
         let (_client, config) = build_client_and_config();
         assert_eq!(config.provider_name, "simulator");
     }
