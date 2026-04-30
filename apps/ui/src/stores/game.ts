@@ -50,7 +50,8 @@ export const uiConfig = writable<UiConfig>({
 	default_accent: '#b08531',
 	splash_text: '',
 	active_tile_source: '',
-	tile_sources: []
+	tile_sources: [],
+	auto_pause_timeout_seconds: 300
 });
 
 export const fullMapOpen = writable<boolean>(false);

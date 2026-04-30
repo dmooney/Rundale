@@ -849,7 +849,6 @@ async fn run_npc_turn(
     speaker_id: NpcId,
     prompt_input: &str,
     transcript: &[ConversationLine],
-    player_initiated: bool,
 ) -> Option<TurnOutcome> {
     let setup = {
         let mut world = state.world.lock().await;
@@ -1195,7 +1194,6 @@ async fn handle_npc_conversation(
             *speaker_id,
             trimmed.as_str(),
             &transcript,
-            true,
         )
         .await
         else {
@@ -1242,7 +1240,6 @@ async fn handle_npc_conversation(
             speaker_id,
             "listens while the nearby conversation continues",
             &transcript,
-            false,
         )
         .await
         else {
@@ -1332,7 +1329,6 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
             first_speaker,
             "breaks the silence with a natural nearby remark",
             &transcript,
-            false,
         )
         .await
     {
@@ -1376,7 +1372,6 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
             speaker_id,
             "answers the nearby remark and keeps the local chatter going",
             &transcript,
-            false,
         )
         .await
         else {

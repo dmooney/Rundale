@@ -145,6 +145,8 @@ pub struct UiConfigSnapshot {
     pub active_tile_source: String,
     /// Registry of available map tile sources, alphabetical by id.
     pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
+    /// How many seconds of inactivity before auto-pausing the game.
+    pub auto_pause_timeout_seconds: u64,
 }
 
 /// Runtime conversation/session state used for continuity and inactivity timers.
@@ -578,6 +580,7 @@ pub fn run() {
             splash_text: splash_text.clone(),
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
         }
     } else {
         UiConfigSnapshot {
@@ -586,6 +589,7 @@ pub fn run() {
             splash_text,
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot,
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
         }
     };
 
@@ -615,8 +619,8 @@ pub fn run() {
         cloud_base_url: cloud_env.base_url,
         improv_enabled: false,
         max_follow_up_turns: 2,
-        idle_banter_after_secs: 25,
-        auto_pause_after_secs: 60,
+        idle_banter_after_secs: engine_config.session.idle_banter_after_secs,
+        auto_pause_after_secs: engine_config.session.auto_pause_after_secs,
         category_provider: [None, None, None, None],
         category_model: [None, None, None, None],
         category_api_key: [None, None, None, None],

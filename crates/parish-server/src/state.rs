@@ -37,6 +37,8 @@ pub struct UiConfigSnapshot {
     pub active_tile_source: String,
     /// Registry of available map tile sources, alphabetical by id.
     pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
+    /// How many seconds of inactivity before auto-pausing the game.
+    pub auto_pause_timeout_seconds: u64,
 }
 
 /// Current save state for display in the StatusBar.

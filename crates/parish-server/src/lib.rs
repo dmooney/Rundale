@@ -263,6 +263,8 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let active_tile_source = engine_config.map.default_tile_source.clone();
     config.active_tile_source = active_tile_source.clone();
     config.tile_sources = engine_config.map.id_label_pairs();
+    config.idle_banter_after_secs = engine_config.session.idle_banter_after_secs;
+    config.auto_pause_after_secs = engine_config.session.auto_pause_after_secs;
 
     let ui_config = if let Some(ref gm) = game_mod {
         UiConfigSnapshot {
@@ -271,6 +273,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             splash_text,
             active_tile_source: active_tile_source.clone(),
             tile_sources: tile_sources_snapshot.clone(),
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
         }
     } else {
         UiConfigSnapshot {
@@ -279,6 +282,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             splash_text,
             active_tile_source,
             tile_sources: tile_sources_snapshot,
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
         }
     };
 

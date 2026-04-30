@@ -93,6 +93,7 @@ export interface UiConfig {
 	splash_text: string;
 	active_tile_source: string;
 	tile_sources: TileSource[];
+	auto_pause_timeout_seconds: number;
 }
 
 /** A single map tile source sent from the backend. Mirrors
