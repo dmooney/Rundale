@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { get } from 'svelte/store';
-import { streamingActive, npcsHere, mapData, textLog } from '../stores/game';
+import { streamingActive, npcsHere, mapData, textLog, worldState } from '../stores/game';
 import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
@@ -1006,6 +1006,67 @@ describe('InputField', () => {
 			expect(last.subtype).toBe('error');
 			expect(last.content).toContain("Could not travel to Darcy's Pub");
 			expect(last.content).toContain('server busy');
+		});
+	});
+
+	// ── Auto-resume on send ──────────────────────────────────────────
+
+	describe('Auto-resume on send', () => {
+		beforeEach(() => {
+			worldState.set({
+				paused: true,
+				inference_paused: false,
+				paused_game_time: '12:00',
+				location_id: 'crossroads',
+				location_name: 'The Crossroads'
+			} as any);
+		});
+
+		it('does not resume game just by typing non-slash command while paused', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			editor.textContent = 'h';
+			await fireEvent.input(editor);
+
+			expect(mockSubmitInput).not.toHaveBeenCalledWith('/resume');
+		});
+
+		it('resumes game when sending non-slash command while paused', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			editor.textContent = 'hello';
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).toHaveBeenCalledWith('/resume');
+			expect(mockSubmitInput).toHaveBeenCalledWith('hello', []);
+		});
+
+		it('does not resume game when sending a slash command while paused', async () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			editor.textContent = '/help';
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).not.toHaveBeenCalledWith('/resume');
+			expect(mockSubmitInput).toHaveBeenCalledWith('/help', []);
+		});
+
+		it('does not resume game if not paused', async () => {
+			worldState.set({ paused: false } as any);
+			const { getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+
+			editor.textContent = 'hello';
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+
+			expect(mockSubmitInput).not.toHaveBeenCalledWith('/resume');
+			expect(mockSubmitInput).toHaveBeenCalledWith('hello', []);
 		});
 	});
 });

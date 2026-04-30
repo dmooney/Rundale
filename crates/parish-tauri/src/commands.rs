@@ -873,9 +873,7 @@ async fn run_npc_turn(
     }?;
 
     let loading_cancel = tokio_util::sync::CancellationToken::new();
-    if player_initiated {
-        spawn_loading_animation(app.clone(), loading_cancel.clone());
-    }
+    spawn_loading_animation(app.clone(), loading_cancel.clone());
 
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
@@ -916,18 +914,16 @@ async fn run_npc_turn(
                 EVENT_STREAM_TURN_END,
                 StreamTurnEndPayload { turn_id: req_id },
             );
-            if player_initiated {
-                let _ = app.emit(
-                    EVENT_TEXT_LOG,
-                    TextLogPayload {
-                        id: String::new(),
-                        stream_turn_id: None,
-                        source: "system".to_string(),
-                        content: "The parish storyteller has wandered off. Try again in a moment."
-                            .to_string(),
-                    },
-                );
-            }
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: "The parish storyteller has wandered off. Try again in a moment."
+                        .to_string(),
+                },
+            );
             loading_cancel.cancel();
             return None;
         }
@@ -977,17 +973,15 @@ async fn run_npc_turn(
                 req_id,
                 "NPC inference response channel closed without a reply",
             );
-            if player_initiated {
-                let _ = app.emit(
-                    EVENT_TEXT_LOG,
-                    TextLogPayload {
-                        id: String::new(),
-                        stream_turn_id: None,
-                        source: "system".to_string(),
-                        content: "The storyteller has wandered off mid-tale.".to_string(),
-                    },
-                );
-            }
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: "The storyteller has wandered off mid-tale.".to_string(),
+                },
+            );
             loading_cancel.cancel();
             return None;
         }
@@ -1004,17 +998,15 @@ async fn run_npc_turn(
                 message: format!("Response timed out after {secs}s"),
             });
             drop(events);
-            if player_initiated {
-                let _ = app.emit(
-                    EVENT_TEXT_LOG,
-                    TextLogPayload {
-                        id: String::new(),
-                        stream_turn_id: None,
-                        source: "system".to_string(),
-                        content: "The storyteller is lost in thought. Try again.".to_string(),
-                    },
-                );
-            }
+            let _ = app.emit(
+                EVENT_TEXT_LOG,
+                TextLogPayload {
+                    id: String::new(),
+                    stream_turn_id: None,
+                    source: "system".to_string(),
+                    content: "The storyteller is lost in thought. Try again.".to_string(),
+                },
+            );
             loading_cancel.cancel();
             return None;
         }
@@ -1032,18 +1024,16 @@ async fn run_npc_turn(
             category: "inference".to_string(),
             message: format!("Dialogue error: {err}"),
         });
-        if player_initiated {
-            let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".to_string(),
-                    content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
-                },
-            );
-        }
+        let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                stream_turn_id: None,
+                source: "system".to_string(),
+                content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
+            },
+        );
         loading_cancel.cancel();
         return None;
     }

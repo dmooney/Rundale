@@ -261,7 +261,7 @@
 			</div>
 		{/if}
 	{/each}
-	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming)}
+	{#if $streamingActive && ($textLog.length === 0 || !$textLog[$textLog.length - 1].streaming || $textLog[$textLog.length - 1].content === '')}
 		<div class="loading-row" role="status" aria-label="Generating response">
 			<svg class="triquetra-spinner" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<circle class="knot-circle" pathLength="120"

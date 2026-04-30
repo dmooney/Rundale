@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError } from '../stores/game';
+	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
@@ -576,6 +576,8 @@
 
 	// ── Submit ──────────────────────────────────────────────────────────────
 
+	let isSubmitting = $state(false);
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		// If a mention or slash dropdown is open, Enter selects the highlighted
@@ -595,7 +597,20 @@
 		}
 		syncEditorText();
 		const trimmed = editorText.trim();
-		if (!trimmed || $streamingActive) return;
+		if (!trimmed || $streamingActive || isSubmitting) return;
+
+		isSubmitting = true;
+
+		// If the game is paused and this is not a system command, resume
+		// before sending the input so the world ticks as expected (#831).
+		if ($worldState?.paused && !trimmed.startsWith('/')) {
+			try {
+				await submitInput('/resume');
+			} catch {
+				// Fall through — if resume fails, still try to send input
+			}
+		}
+
 		clearEditor();
 		dropdownMode = null;
 
@@ -612,6 +627,8 @@
 			await submitInput(trimmed, addressedTo);
 		} catch (err) {
 			pushErrorLog(`Could not send input: ${formatIpcError(err)}`);
+		} finally {
+			isSubmitting = false;
 		}
 	}
 
