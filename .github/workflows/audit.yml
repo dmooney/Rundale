@@ -11,9 +11,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'Cargo.lock'
-      - 'Cargo.toml'
-      - 'crates/**/Cargo.toml'
+      - 'parish/Cargo.lock'
+      - 'parish/Cargo.toml'
+      - 'parish/crates/**/Cargo.toml'
       - '.github/workflows/audit.yml'
 
 concurrency:

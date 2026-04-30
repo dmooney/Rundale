@@ -4,9 +4,9 @@
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
 FROM node:22-slim AS frontend
 WORKDIR /build
-COPY apps/ui/package*.json ./
+COPY parish/apps/ui/package*.json ./
 RUN npm ci
-COPY apps/ui/ ./
+COPY parish/apps/ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
@@ -15,11 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
-COPY Cargo.toml Cargo.lock ./
-COPY crates/ crates/
-# Copy metadata files required for compile-time embedding (see parish-server/src/lib.rs)
+# Mirror the repo layout so source-relative include_str! paths
+# (parish/crates/parish-server/src/lib.rs → ../../../../LICENSE) resolve.
+COPY parish/Cargo.toml parish/Cargo.lock parish/
+COPY parish/crates/ parish/crates/
+# Compile-time embedding targets (see parish-server/src/lib.rs)
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 # Build only the parish binary (excludes the Tauri desktop binary)
+WORKDIR /build/parish
 RUN cargo build --release -p parish --bin parish
 
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
@@ -50,7 +53,7 @@ RUN cd /tmp \
  && rm cloudflared
 
 WORKDIR /app
-COPY --from=builder /build/target/release/parish ./
+COPY --from=builder /build/parish/target/release/parish ./
 COPY --from=frontend /build/dist ./apps/ui/dist/
 COPY mods/ ./mods/
 RUN useradd -m -u 1000 app && chown -R app:app /app

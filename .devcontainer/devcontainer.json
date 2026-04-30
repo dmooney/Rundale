@@ -33,6 +33,6 @@
             "onAutoForward": "silent"
         }
     },
-    "postCreateCommand": "cargo build",
+    "postCreateCommand": "cd parish && cargo build",
     "remoteUser": "vscode"
 }

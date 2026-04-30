@@ -6,14 +6,14 @@
             "request": "launch",
             "name": "Debug (parish)",
             "cargo": {
-                "args": ["build", "--bin=parish", "--package=parish"],
+                "args": ["build", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--bin=parish", "--package=parish"],
                 "filter": {
                     "name": "parish",
                     "kind": "bin"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/parish",
             "env": {
                 "RUST_LOG": "debug"
             },
@@ -24,14 +24,14 @@
             "request": "launch",
             "name": "Release (parish)",
             "cargo": {
-                "args": ["build", "--release", "--bin=parish", "--package=parish"],
+                "args": ["build", "--release", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--bin=parish", "--package=parish"],
                 "filter": {
                     "name": "parish",
                     "kind": "bin"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/parish",
             "env": {
                 "RUST_LOG": "info"
             },
@@ -42,13 +42,13 @@
             "request": "launch",
             "name": "Debug Tests",
             "cargo": {
-                "args": ["test", "--no-run", "--lib", "--package=parish"],
+                "args": ["test", "--no-run", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--lib", "--package=parish"],
                 "filter": {
                     "kind": "lib"
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/parish",
             "env": {
                 "RUST_LOG": "debug"
             }
@@ -58,13 +58,13 @@
             "request": "launch",
             "name": "Debug Single Test",
             "cargo": {
-                "args": ["test", "--no-run", "--lib", "--package=parish"],
+                "args": ["test", "--no-run", "--manifest-path=${workspaceFolder}/parish/Cargo.toml", "--lib", "--package=parish"],
                 "filter": {
                     "kind": "lib"
                 }
             },
             "args": ["${input:testName}"],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/parish",
             "env": {
                 "RUST_LOG": "debug"
             }

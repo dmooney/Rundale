@@ -1,5 +1,5 @@
-/target
-node_modules/
+parish/target/
+parish/node_modules/
 *.swp
 *.swo
 *~
@@ -9,7 +9,7 @@ node_modules/
 *.db-wal
 logs/
 .claude/worktrees
-apps/ui/dist/
+parish/apps/ui/dist/
 claude/*
 .worktrees
 saves

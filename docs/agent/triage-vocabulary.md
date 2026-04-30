@@ -20,7 +20,7 @@ Canonical label set for open-issue triage. The machine-readable list lives in [`
 | `performance` | Latency, throughput, allocation, or resource use. (Do not use the older `perf` label.) |
 | `security` | Exploitable surface, auth/permission, secrets exposure, supply chain, workflow trust. |
 | `refactor` | Code quality, structural change, no behavior change. |
-| `frontend` | Anything in `apps/ui/` — Svelte components, MapLibre, styles. |
+| `frontend` | Anything in `parish/apps/ui/` — Svelte components, MapLibre, styles. |
 | `a11y` | Accessibility-specific (keyboard nav, ARIA, contrast). Pair with `frontend`. |
 | `mode-parity` | Tauri / web server / headless CLI behavioral divergence (project rule #2). |
 | `npc-reactions` | The LLM-driven NPC-reaction subsystem. |

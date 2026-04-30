@@ -1,0 +1,36 @@
+{
+  "productName": "Rundale",
+  "version": "0.1.0",
+  "identifier": "ie.parish.app",
+  "build": {
+    "frontendDist": "../../apps/ui/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "cd ../../apps/ui && npm run dev",
+    "beforeBuildCommand": "cd ../../apps/ui && npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Rundale — An Irish Living World",
+        "width": 1280,
+        "height": 800,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "copyright": "Copyright (C) 2026 Dave Mooney. Licensed under GPL-3.0.",
+    "licenseFile": "../../LICENSE",
+    "resources": [
+      "../../../LICENSE",
+      "../../../NOTICE",
+      "../../../THIRD_PARTY_NOTICES.md"
+    ]
+  }
+}

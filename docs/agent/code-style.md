@@ -13,7 +13,7 @@
 
 - Tab-indented Svelte/TypeScript files.
 - `PascalCase.svelte` components, `camelCase` stores/utilities.
-- Keep IPC types in `apps/ui/src/lib/types.ts` aligned with Rust `serde` output, including `snake_case` field names.
+- Keep IPC types in `parish/apps/ui/src/lib/types.ts` aligned with Rust `serde` output, including `snake_case` field names.
 
 ## Key dependencies
 

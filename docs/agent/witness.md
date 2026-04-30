@@ -21,8 +21,8 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 # Oath: <task-id>
 
 ## Scope
-- crates/parish-core/src/...
-- crates/parish-server/src/...
+- parish/crates/parish-core/src/...
+- parish/crates/parish-server/src/...
 
 ## Postconditions (Tier 0)
 - [ ] `just check` (includes `just witness-scan`)
@@ -39,7 +39,7 @@ Large AI-assisted refactors can report "done" while silently leaving placeholder
 
 ## What witness-scan checks
 
-`just witness-scan` inspects every file under `crates/`, `apps/`, `docs/`, `testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
+`just witness-scan` inspects every file under `parish/crates/`, `parish/apps/`, `docs/`, `parish/testing/`, and `mods/` that is modified relative to the merge-base with `origin/main`. It fails loudly if any of these patterns appear:
 
 | Pattern | Catches |
 |---|---|

@@ -13,10 +13,10 @@
 
 ## Game harness
 
-Scripted gameplay fixtures live in `testing/fixtures/`. Run one with:
+Scripted gameplay fixtures live in `parish/testing/fixtures/`. Run one with:
 
 ```sh
-cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt
+cargo run -p parish -- --script parish/testing/fixtures/test_walkthrough.txt
 # or
 just game-test
 just game-test-one test_movement_errors
@@ -26,8 +26,8 @@ just game-test-all
 ## Frontend
 
 ```sh
-cd apps/ui && npx vitest run    # unit tests
-cd apps/ui && npx playwright test    # e2e (auto-starts axum server)
+cd parish/apps/ui && npx vitest run    # unit tests
+cd parish/apps/ui && npx playwright test    # e2e (auto-starts axum server)
 just ui-test
 just ui-e2e
 just screenshots                 # regenerate docs/screenshots/*.png
@@ -42,7 +42,7 @@ just ui-e2e-update
 ## Web server (browser testing)
 
 ```sh
-cd apps/ui && npm run build && cd ../..
+cd parish/apps/ui && npm run build && cd ../../..
 cargo run -p parish -- --web            # default port 3001
 cargo run -p parish -- --web 8080
 ```
@@ -74,7 +74,7 @@ just baselines       # regenerate gameplay-output snapshots after intentional ch
 just harness-audit   # cross-reference fixtures, baselines, and roadmap for gaps
 ```
 
-See [../design/testing.md](../design/testing.md) §Eval baselines for the schema.
+See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-cli/tests/eval_baselines.rs`.
 
 ## Coverage
 
