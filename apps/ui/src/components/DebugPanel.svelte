@@ -8,7 +8,7 @@
 	} from '../stores/debug';
 	import type { NpcDebug, ScheduleVariantDebug } from '$lib/types';
 	import { submitInput } from '$lib/ipc';
-	import { Key } from 'phosphor-svelte';
+	import { Key, Check, WarningCircle } from 'phosphor-svelte';
 
 	/** Providers exposed as one-click preset buttons in the Inference tab.
 	 * Other providers (xai, deepseek, together, vllm) remain
@@ -547,9 +547,23 @@
 						<h4>Quick Presets</h4>
 						<div class="preset-row">
 							{#each PRESET_PROVIDERS as provider}
+								{@const isLocal = provider === 'ollama' || provider === 'lmstudio'}
+								{@const isConfigured = snap.inference.configured_providers.includes(provider)}
 								<button class="preset-btn" type="button" onclick={() => applyPreset(provider)}>
-									{#if snap.inference.configured_providers.includes(provider)}
-										<span class="configured-icon" title="API key configured" aria-hidden="true"><Key size={14} weight="bold" /></span>
+									{#if isLocal}
+										{#if isConfigured}
+											<span class="configured-icon" title="Local provider available" aria-hidden="true">
+												<Check size={14} weight="bold" />
+											</span>
+										{/if}
+									{:else if isConfigured}
+										<span class="configured-icon" title="API key configured" aria-hidden="true">
+											<Key size={14} weight="bold" />
+										</span>
+									{:else}
+										<span class="missing-icon" title="API key missing" aria-hidden="true">
+											<WarningCircle size={14} weight="bold" />
+										</span>
 									{/if}
 									{provider}
 								</button>
@@ -862,6 +876,14 @@
 	.configured-icon {
 		display: flex;
 		align-items: center;
+		color: var(--color-name);
+	}
+
+	.missing-icon {
+		display: flex;
+		align-items: center;
+		color: var(--color-muted);
+		opacity: 0.5;
 	}
 
 	.role-table {
