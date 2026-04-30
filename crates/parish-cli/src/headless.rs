@@ -71,7 +71,7 @@ pub async fn run_headless(
         let (_, dial_model) = clients.dialogue_client();
         println!("Dialogue: {} (override)", dial_model);
     }
-    println!("Type /help for commands, /quit to exit.");
+    println!("Type /help for commands, /about for credits, /quit to exit.");
     println!();
 
     // Initialize dialogue inference pipeline (cloud if configured, else local)
