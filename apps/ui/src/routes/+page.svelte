@@ -54,7 +54,7 @@
 	import { getStreamChunkDelayMs, takeNextStreamChunk } from '$lib/stream-pacing';
 	import type { LanguageHint } from '$lib/types';
 
-	const AUTO_PAUSE_MS = 60_000;
+	const AUTO_PAUSE_MS = 300_000;
 	const MOUSEMOVE_THROTTLE_MS = 1000;
 	const STREAM_WAIT_FOR_WORD_MS = 70;
 
@@ -207,7 +207,7 @@
 	});
 
 	async function setupMount(): Promise<() => void> {
-		// Frontend auto-pause tracker — fires /pause after 60s of true UI
+		// Frontend auto-pause tracker — fires /pause after 300s of true UI
 		// inactivity (no key/mouse/touch). The server-side tick_inactivity
 		// backstop in parish-server still runs for the tab-close case.
 		const tracker = createAutoPauseTracker({
