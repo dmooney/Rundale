@@ -278,7 +278,7 @@ mod tests {
         assert!(c.api_key.is_none());
         assert_eq!(c.max_follow_up_turns, 2);
         assert_eq!(c.idle_banter_after_secs, 25);
-        assert_eq!(c.auto_pause_after_secs, 60);
+        assert_eq!(c.auto_pause_after_secs, 300);
         assert!(c.active_tile_source.is_empty());
         assert!(c.tile_sources.is_empty());
         assert!(!c.reveal_unexplored_locations);

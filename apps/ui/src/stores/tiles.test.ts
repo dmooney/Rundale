@@ -38,7 +38,8 @@ function cfg(active = 'osm', sources = [osm(), historic()]): UiConfig {
 		default_accent: '',
 		splash_text: '',
 		active_tile_source: active,
-		tile_sources: sources
+		tile_sources: sources,
+		auto_pause_timeout_seconds: 300
 	};
 }
 
