@@ -8,4 +8,4 @@
 - **Serde defaults**: Use `#[serde(default)]` for optional fields in LLM response structs.
 - **Mode parity**: All modes (Tauri, CLI/headless, web server, future modes) must have feature parity. Implement shared logic in a leaf crate and re-export through `parish-core`, then wire it from every entry point.
 - **Tauri IPC types**: `parish/apps/ui/src/lib/types.ts` must match Rust serde output exactly (snake_case field names).
-- **Test fixtures path**: Integration tests run with cwd = crate root, so they reference `../../parish/testing/fixtures/...` and `../../mods/rundale/...`.
+- **Test fixtures path**: Integration tests run with cwd = crate root, so they reference `../../testing/fixtures/...` and `../../mods/rundale/...`.
