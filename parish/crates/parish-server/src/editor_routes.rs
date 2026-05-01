@@ -83,7 +83,9 @@ fn mods_root(state: &AppState) -> PathBuf {
 /// `GET /api/editor-list-mods`
 pub async fn editor_list_mods(
     Extension(state): Extension<Arc<AppState>>,
+    auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<Vec<ModSummary>>, (StatusCode, String)> {
+    let _email = require_email(auth)?;
     let root = mods_root(&state);
     tokio::task::spawn_blocking(move || {
         editor::handle_editor_list_mods(&root).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))
@@ -748,7 +750,9 @@ pub async fn editor_close(
 /// `GET /api/editor-list-saves`
 pub async fn editor_list_saves(
     Extension(state): Extension<Arc<AppState>>,
+    auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<Vec<SaveFileSummary>>, (StatusCode, String)> {
+    let _email = require_email(auth)?;
     let saves_dir = state.saves_dir.clone();
     tokio::task::spawn_blocking(move || {
         editor::handle_editor_list_saves(&saves_dir)
@@ -881,6 +885,24 @@ mod tests {
             mod_path: "mods/rundale".to_string(),
         };
         let result = editor_open_mod(Extension(state), None, Json(body)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn editor_list_mods_no_auth_returns_401() {
+        let state = crate::routes::tests::test_app_state();
+        let result = editor_list_mods(Extension(state), None).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn editor_list_saves_no_auth_returns_401() {
+        let state = crate::routes::tests::test_app_state();
+        let result = editor_list_saves(Extension(state), None).await;
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::UNAUTHORIZED);
