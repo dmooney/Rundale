@@ -2,7 +2,7 @@
 
 The production Parish web service deploys to Railway via [`deploy/Dockerfile`](../../deploy/Dockerfile) (config in [`railway.toml`](../../railway.toml)). When a deployment fails, the service stays broken silently until someone notices. The **watchdog** is an automated check that turns a silent failure into a labeled GitHub issue.
 
-Scope is deliberately small. It **detects and notifies** today; it does not auto-fix. Auto-fix is the v2 goal tracked in [#562](https://github.com/dmooney/Parish/issues/562).
+Scope is deliberately small. It **detects and notifies** today; it does not auto-fix. Auto-fix is the v2 goal tracked in [#562](https://github.com/dmooney/Rundale/issues/562).
 
 ## How it works
 
@@ -48,7 +48,7 @@ Override the service or project by setting `RAILWAY_SERVICE`, `RAILWAY_ENVIRONME
 
 ## Roadmap — toward v2 (agent-driven auto-fix)
 
-The watchdog is step one of [#562](https://github.com/dmooney/Parish/issues/562). Once notification is reliable, the intended next moves:
+The watchdog is step one of [#562](https://github.com/dmooney/Rundale/issues/562). Once notification is reliable, the intended next moves:
 
 - **Diagnose:** extend the script to attach a short agent-authored summary of the log excerpt (not a fix — just a diagnosis).
 - **Fix draft:** on well-understood failure patterns (workspace-manifest errors, missing files referenced by `COPY`, lockfile/toolchain mismatches), spawn an agent to open a fix PR against `main`.

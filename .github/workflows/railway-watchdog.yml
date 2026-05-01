@@ -1,6 +1,6 @@
 name: Railway deployment watchdog
 
-# Polls Railway every 10 minutes and opens a GitHub issue when the Parish
+# Polls Railway every 10 minutes and opens a GitHub issue when the Rundale
 # service has a FAILED/CRASHED deployment. See #562 for design notes and
 # roadmap toward Claude-driven auto-fix (v2).
 

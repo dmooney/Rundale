@@ -331,7 +331,7 @@ mod tests {
     fn resolve_category_client_anthropic_override_builds_native_client() {
         // Switching a single category to Anthropic should produce an
         // AnyClient::Anthropic variant, not a misrouted OpenAI-compat
-        // client. Regression guard for dmooney/parish#172.
+        // client. Regression guard for dmooney/Rundale#172.
         let mut cfg = GameConfig {
             provider_name: "ollama".to_string(),
             model_name: "base-model".to_string(),

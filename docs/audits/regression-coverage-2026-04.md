@@ -30,7 +30,7 @@ Per-area reports live under [`docs/audits/regression/`](regression/).
 
 > **Label note:** the user requested the `test-needed` label on each
 > issue. As of audit time this label does **not** exist on
-> `dmooney/parish`. Per the agreed policy, the issues below were filed
+> `dmooney/Rundale`. Per the agreed policy, the issues below were filed
 > with priority + theme labels only. Recommend creating
 > `test-needed` and back-applying it.
 
@@ -78,7 +78,7 @@ or worse).
 
 ## Prioritized backlog
 
-The 15 P0/P1 issues below are filed individually on `dmooney/parish`.
+The 15 P0/P1 issues below are filed individually on `dmooney/Rundale`.
 P2 gaps and any P0/P1 overflow are tracked in a single rolled-up
 issue. Each issue cites its area report.
 

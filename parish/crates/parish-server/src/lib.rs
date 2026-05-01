@@ -60,7 +60,7 @@ use state::{GameConfig, UiConfigSnapshot};
 ///
 /// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
 /// `apps/ui/dist/index.html` at build time.
-/// See: <https://github.com/dmooney/Parish/issues/543>
+/// See: <https://github.com/dmooney/Rundale/issues/543>
 pub const CSP_POLICY: &str = "default-src 'self'; \
                               script-src 'self' 'unsafe-inline'; \
                               worker-src 'self' blob:; \

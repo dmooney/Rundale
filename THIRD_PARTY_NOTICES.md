@@ -260,7 +260,7 @@ Full text: `assets/fonts/NotoSansSymbols2-LICENSE.txt` and
   this file (`/THIRD_PARTY_NOTICES.md`) as public routes alongside the
   static bundle, so the licence travels with the deployed binary as
   GPL-3.0 requires. The corresponding source remains available at
-  <https://github.com/dmooney/Parish>.
+  <https://github.com/dmooney/Rundale>.
 - This file must be kept in sync with direct dependencies. Any PR that adds
   a new runtime dependency must update the relevant table above and/or
   regenerate the `.rust.md` / `.ui.md` companions.

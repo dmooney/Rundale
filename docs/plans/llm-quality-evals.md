@@ -6,7 +6,7 @@
 
 Continuous, **quantitative** quality regression sensors over Tier 1 / Tier 2 NPC output — independent of, and complementary to, the existing pentest plan. The pentest plan red-teams for security; this plan tracks output *quality* over model swaps, prompt edits, and gameplay changes.
 
-This is the deferred LLM-as-judge piece from Phase 3 of the harness-engineering plan ([PR #538](https://github.com/dmooney/Parish/pull/538)). When that PR lands, Phase 3 introduces capture-on-green snapshot baselines + structural rubrics in `crates/parish-cli/tests/eval_baselines.rs`; those are computational sensors. This plan adds the inferential sensors the article calls out as the hardest piece of the Behaviour harness.
+This is the deferred LLM-as-judge piece from Phase 3 of the harness-engineering plan ([PR #538](https://github.com/dmooney/Rundale/pull/538)). When that PR lands, Phase 3 introduces capture-on-green snapshot baselines + structural rubrics in `crates/parish-cli/tests/eval_baselines.rs`; those are computational sensors. This plan adds the inferential sensors the article calls out as the hardest piece of the Behaviour harness.
 
 ## Status
 
@@ -87,7 +87,7 @@ A small CLI (`scripts/eval-leaderboard.py` or extend `parish-cli`) that prints t
 - New: `testing/evals/quality/tier1.yaml`, `corpus/`, `leaderboard.json`
 - New: `.agents/skills/eval-quality/SKILL.md`
 - Edit: `justfile` (add `eval-quality` recipe)
-- Edit (after [PR #538](https://github.com/dmooney/Parish/pull/538) lands): `crates/parish-cli/tests/eval_baselines.rs` (cross-reference in module doc)
+- Edit (after [PR #538](https://github.com/dmooney/Rundale/pull/538) lands): `crates/parish-cli/tests/eval_baselines.rs` (cross-reference in module doc)
 - Reference: `mods/rundale/prompts/tier1_system.txt`, `tier1_context.txt`, `tier2_system.txt`
 
 ## Verification
