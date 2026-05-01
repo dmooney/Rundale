@@ -978,13 +978,6 @@
 		margin-top: 0.4rem;
 	}
 
-	.log-header {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem;
-		align-items: baseline;
-	}
-
 	.log-id {
 		color: var(--color-muted);
 		font-size: 0.65rem;
@@ -1017,13 +1010,6 @@
 	.log-badge.error {
 		background: color-mix(in srgb, #ff4444 20%, transparent);
 		color: #ff4444;
-	}
-
-	.log-meta {
-		display: flex;
-		gap: 0.6rem;
-		font-size: 0.65rem;
-		margin-top: 0.1rem;
 	}
 
 	.log-error-msg {

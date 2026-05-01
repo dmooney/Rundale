@@ -193,6 +193,7 @@
 				<div class="bubble-wrapper">
 					<span class="label">{displayLabel(entry)}</span>
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						class="bubble-anchor"
 						class:focusable={npcReactable}
