@@ -50,11 +50,17 @@ pub fn format_exits(
 
     let exits: Vec<String> = neighbors
         .iter()
-        .filter_map(|(target_id, _conn)| {
+        .filter_map(|(target_id, conn)| {
             let minutes = graph.edge_travel_minutes(location_id, *target_id, speed_m_per_s);
-            graph
-                .get(*target_id)
-                .map(|loc| format!("{} ({} min {})", loc.name, minutes, transport_label))
+            graph.get(*target_id).map(|loc| {
+                let heading = graph
+                    .heading_between(location_id, *target_id)
+                    .unwrap_or_else(|| "unknown".to_string());
+                format!(
+                    "{} ({} — {} min {}) via {}",
+                    loc.name, heading, minutes, transport_label, conn.path_description
+                )
+            })
         })
         .collect();
 

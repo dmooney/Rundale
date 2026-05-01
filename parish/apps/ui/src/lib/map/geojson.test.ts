@@ -3,7 +3,8 @@ import {
 	locationsToGeoJSON,
 	edgesToGeoJSON,
 	computeOffMapCounts,
-	edgeKey
+	edgeKey,
+	curvedEdgeCoordinates
 } from './geojson';
 import type { MapData } from '$lib/types';
 
@@ -93,7 +94,7 @@ describe('edgesToGeoJSON', () => {
 		const fc = edgesToGeoJSON(buildMap());
 		expect(fc.features).toHaveLength(2);
 		expect(fc.features[0].geometry.type).toBe('LineString');
-		expect(fc.features[0].geometry.coordinates).toHaveLength(2);
+		expect(fc.features[0].geometry.coordinates.length).toBeGreaterThan(2);
 	});
 
 	it('normalizes traversal weights to 0..1', () => {
@@ -132,6 +133,24 @@ describe('edgesToGeoJSON', () => {
 		});
 		expect(fc.features).toHaveLength(1);
 		expect(fc.features[0].properties.src).toBe('a');
+	});
+});
+
+describe('curvedEdgeCoordinates', () => {
+	it('is direction-invariant for a given edge id pair', () => {
+		const forward = curvedEdgeCoordinates(-8.15, 53.59, -8.14, 53.6, {
+			startId: 'a',
+			endId: 'b'
+		});
+		const reverse = curvedEdgeCoordinates(-8.14, 53.6, -8.15, 53.59, {
+			startId: 'b',
+			endId: 'a'
+		}).reverse();
+		expect(forward.length).toBe(reverse.length);
+		for (let i = 0; i < forward.length; i += 1) {
+			expect(forward[i][0]).toBeCloseTo(reverse[i][0], 10);
+			expect(forward[i][1]).toBeCloseTo(reverse[i][1], 10);
+		}
 	});
 });
 
