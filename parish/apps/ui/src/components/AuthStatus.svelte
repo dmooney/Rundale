@@ -12,7 +12,7 @@
 
 	onMount(async () => {
 		// Skip fetch if in Tauri (no /api server running)
-		if ((window as any).__TAURI_INTERNALS__) return;
+		if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) return;
 
 		try {
 			const resp = await fetch('/api/auth/status');
