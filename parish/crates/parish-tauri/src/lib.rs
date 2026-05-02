@@ -286,11 +286,20 @@ pub struct AppState {
 
 // ── Data path resolution ─────────────────────────────────────────────────────
 
-/// Finds the `data/` directory by walking up from the current working directory.
+/// Resolves the `data/` directory once at app startup.
 ///
-/// During `cargo tauri dev` the cwd is `src-tauri/`; in production bundles it
-/// may be the app resources directory. We walk up at most 3 levels.
+/// Resolution order:
+/// 1. `PARISH_DATA_DIR` environment variable — explicit operator override.
+/// 2. Walks up to 4 ancestors of the cwd looking for `data/parish.json`.
+/// 3. Falls back to `./data` and lets the load functions fail with a clear error.
+///
+/// MUST only be called at startup; the result is stored on
+/// [`AppState::data_dir`]. Per-handler callers must read from state instead
+/// of re-probing the cwd (#771).
 pub(crate) fn find_data_dir() -> PathBuf {
+    if let Some(explicit) = std::env::var_os("PARISH_DATA_DIR") {
+        return PathBuf::from(explicit);
+    }
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..4 {
         if p.join("data/parish.json").exists() {
@@ -301,7 +310,6 @@ pub(crate) fn find_data_dir() -> PathBuf {
             None => break,
         }
     }
-    // Fallback — let the load functions fail with a clear error
     PathBuf::from("data")
 }
 

@@ -1745,7 +1745,7 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
             .map_err(|e| format!("Failed to load world from mod: {}", e))?;
         (world, gm.npcs_path())
     } else {
-        let data_dir = crate::find_data_dir();
+        let data_dir = state.data_dir.clone();
         let world = parish_core::world::WorldState::from_parish_file(
             &data_dir.join("parish.json"),
             parish_core::world::LocationId(15),
