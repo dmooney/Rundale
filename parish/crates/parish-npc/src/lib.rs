@@ -936,4 +936,172 @@ mod tests {
     fn test_strip_json_fence_markdown() {
         assert_eq!(strip_json_fence("```json\n{\"a\":1}\n```"), r#"{"a":1}"#);
     }
+
+    // ── Issue #731 — prompt template placeholder interpolation ────────────────
+
+    /// Tier 1 system prompt: every `{placeholder}` must be substituted.
+    ///
+    /// Uses the canonical test NPC fixture so any new placeholder added to the
+    /// template without a matching format-argument will cause a compile error
+    /// or leave a literal `{key}` in the output that this test catches.
+    ///
+    /// Note: the prompt embeds a JSON example block whose keys use single braces
+    /// (e.g. `{"action": ...}`). The regex `\{[a-z_]+\}` matches only
+    /// lower-case-word placeholders and skips those JSON key-value pairs, so
+    /// false positives from the example block are not possible.
+    #[test]
+    fn test_tier1_system_no_unsubstituted_placeholders() {
+        let re = regex::Regex::new(r"\{[a-z_]+\}").unwrap();
+        let npc = Npc::new_test_npc();
+        let prompt = build_tier1_system_prompt(&npc, false);
+
+        // No word-placeholder should survive substitution.
+        assert!(
+            !re.is_match(&prompt),
+            "Unsubstituted placeholder found in tier1 system prompt: {:?}",
+            re.find(&prompt).map(|m| m.as_str()),
+        );
+
+        // Known values must appear.
+        assert!(prompt.contains("Padraig O'Brien"), "NPC name missing");
+        assert!(prompt.contains("58"), "NPC age missing");
+        assert!(prompt.contains("Publican"), "NPC occupation missing");
+        assert!(prompt.contains("content"), "NPC mood missing");
+
+        // Anachronism and cultural guidelines are part of the contract; a
+        // future edit that removes them will trip this test intentionally.
+        assert!(
+            prompt.contains("Acts of Union"),
+            "historical context missing"
+        );
+        assert!(
+            prompt.contains("CULTURAL GUIDELINES"),
+            "cultural guidelines missing"
+        );
+    }
+
+    /// Tier 1 context prompt: every `{placeholder}` must be substituted.
+    ///
+    /// Uses a world backed by a real `WorldGraph` containing a
+    /// `description_template` with `{time}`, `{weather}`, and `{npcs_present}`
+    /// so that the `render_description` path is exercised — the one place where
+    /// silent leakage can actually occur at runtime (`.replace()` is not
+    /// compile-checked).
+    #[test]
+    fn test_tier1_context_no_unsubstituted_placeholders() {
+        use parish_world::{WorldState, graph::WorldGraph};
+
+        let re = regex::Regex::new(r"\{[a-z_]+\}").unwrap();
+
+        // Build a world whose description_template contains all three dynamic
+        // placeholders, so render_description must replace each of them.
+        let graph_json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "The Crossroads",
+                    "description_template": "A crossroads at {time}. The sky is {weather}. {npcs_present} stand nearby.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.618,
+                    "lon": -8.095,
+                    "connections": [{"target": 2, "path_description": "a lane"}],
+                    "associated_npcs": []
+                },
+                {
+                    "id": 2,
+                    "name": "The Church",
+                    "description_template": "The church at {time}.",
+                    "indoor": false,
+                    "public": true,
+                    "lat": 53.620,
+                    "lon": -8.097,
+                    "connections": [{"target": 1, "path_description": "back"}],
+                    "associated_npcs": []
+                }
+            ]
+        }"#;
+
+        let mut world = WorldState::new();
+        world.graph = WorldGraph::load_from_str(graph_json).unwrap();
+
+        let context = build_tier1_context(&world);
+
+        // No word-placeholder should survive substitution.
+        assert!(
+            !re.is_match(&context),
+            "Unsubstituted placeholder found in tier1 context: {:?} — full output: {context}",
+            re.find(&context).map(|m| m.as_str()),
+        );
+
+        // Known values must appear in the rendered output.
+        assert!(context.contains("The Crossroads"), "location name missing");
+        // WorldState::new() starts at 08:00 → TimeOfDay::Morning → "morning"
+        assert!(
+            context.contains("morning"),
+            "time-of-day substitution missing"
+        );
+        // WorldState::new() sets Weather::Clear → weather_display produces "clear"
+        assert!(context.contains("clear"), "weather substitution missing");
+        // Date / season from WorldState::new(): 20 March 1820, Spring
+        assert!(context.contains("1820"), "year missing from context");
+        assert!(context.contains("Spring"), "season missing from context");
+    }
+
+    /// Tier 2 system prompt: every `{placeholder}` must be substituted.
+    ///
+    /// `build_tier2_prompt` is a pure `format!()` call, so a new placeholder
+    /// added without a matching argument will cause a compile error.  This test
+    /// guards the runtime values: location name, time, weather, and at least one
+    /// NPC name must all appear in the final output.
+    #[test]
+    fn test_tier2_system_no_unsubstituted_placeholders() {
+        use crate::ticks::{NpcSnapshot, Tier2Group, build_tier2_prompt};
+        use parish_types::{LocationId, NpcId};
+
+        let re = regex::Regex::new(r"\{[a-z_]+\}").unwrap();
+
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            npcs: vec![
+                NpcSnapshot {
+                    id: NpcId(1),
+                    name: "Brigid Murphy".to_string(),
+                    occupation: "Weaver".to_string(),
+                    personality: "Steady and observant".to_string(),
+                    intelligence_tag: "INT[V3 A4 E4 P5 W4 C3]".to_string(),
+                    mood: "thoughtful".to_string(),
+                    relationship_context: String::new(),
+                },
+                NpcSnapshot {
+                    id: NpcId(7),
+                    name: "Seamus Fahey".to_string(),
+                    occupation: "Blacksmith".to_string(),
+                    personality: "Blunt and loyal".to_string(),
+                    intelligence_tag: "INT[V2 A3 E2 P5 W3 C2]".to_string(),
+                    mood: "tired".to_string(),
+                    relationship_context: String::new(),
+                },
+            ],
+        };
+
+        let prompt = build_tier2_prompt(&group, "Evening", "Overcast");
+
+        // No word-placeholder should survive substitution.
+        assert!(
+            !re.is_match(&prompt),
+            "Unsubstituted placeholder found in tier2 system prompt: {:?}",
+            re.find(&prompt).map(|m| m.as_str()),
+        );
+
+        // Known values from the fixture must appear.
+        assert!(prompt.contains("Darcy's Pub"), "location name missing");
+        assert!(prompt.contains("Evening"), "time missing");
+        assert!(prompt.contains("Overcast"), "weather missing");
+        assert!(prompt.contains("Brigid Murphy"), "NPC name 1 missing");
+        assert!(prompt.contains("Seamus Fahey"), "NPC name 2 missing");
+        assert!(prompt.contains("Weaver"), "occupation missing");
+        assert!(prompt.contains("thoughtful"), "mood missing");
+    }
 }
