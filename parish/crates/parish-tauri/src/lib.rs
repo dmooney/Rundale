@@ -29,7 +29,7 @@ use parish_core::ipc::ConversationLine;
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::reactions::ReactionTemplates;
 use parish_core::world::transport::TransportConfig;
-use parish_core::world::{LocationId, WorldState};
+use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
 
 // ── IPC type definitions ─────────────────────────────────────────────────────
 
@@ -509,12 +509,11 @@ pub fn run() {
             WorldState::new()
         })
     } else {
-        WorldState::from_parish_file(&data_dir.join("parish.json"), LocationId(15)).unwrap_or_else(
-            |e| {
+        WorldState::from_parish_file(&data_dir.join("parish.json"), DEFAULT_START_LOCATION)
+            .unwrap_or_else(|e| {
                 tracing::warn!("Failed to load parish.json: {}. Using default world.", e);
                 WorldState::new()
-            },
-        )
+            })
     };
 
     // Load NPCs — prefer mod data, fall back to legacy data/ directory
