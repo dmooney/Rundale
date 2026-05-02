@@ -13,6 +13,8 @@
 //!   is wrapped in `tokio::task::spawn_blocking`.
 //! - **#376** — `DefaultBodyLimit` on the editor router group + per-field
 //!   validation caps enforced before updating in-memory state.
+//! - **#750** — Per-field validation caps extracted to `parish_core::ipc::editor`
+//!   so Tauri and server enforce identical limits via the same code.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,26 +29,11 @@ use parish_core::editor::save_inspect::{
 };
 use parish_core::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, ValidationReport};
 use parish_core::ipc::editor::{self, EditorSaveResponse, EditorSession};
+// Shared validation caps and helpers (fix #750 — mode parity).
+use parish_core::ipc::editor::{validate_location_payload, validate_npc_payload};
 
 use crate::cf_auth::AuthContext;
 use crate::state::AppState;
-
-/// Per-field validation caps (issue #376).
-/// Limits are in Unicode characters, not bytes (#481).
-const NPC_NAME_MAX: usize = 80;
-const NPC_BIO_MAX: usize = 4096;
-const NPC_PERSONALITY_MAX: usize = 2048;
-const NPC_RELATIONSHIPS_MAX: usize = 256;
-const NPCS_PER_FILE_MAX: usize = 2000;
-const LOCATION_DESCRIPTION_MAX: usize = 4096;
-const LOCATIONS_PER_FILE_MAX: usize = 5000;
-
-/// Returns `true` if the string contains control characters (U+0000–U+001F, U+007F)
-/// that should not appear in user-facing text fields (#463).
-fn contains_control_chars(s: &str) -> bool {
-    s.chars()
-        .any(|c| c.is_ascii_control() && c != '\n' && c != '\r' && c != '\t')
-}
 
 // ── Helper: extract auth email from request extensions ───────────────────────
 
@@ -219,12 +206,13 @@ pub async fn editor_validate(
 
 /// `POST /api/editor-update-npcs` with JSON body `{ "npcs": ... }`
 ///
-/// Enforces per-field caps (#376):
-/// - NPC name ≤ 80 chars
-/// - NPC bio ≤ 4096 chars
-/// - NPC personality ≤ 2048 chars
-/// - relationships per NPC ≤ 256
-/// - NPCs per file ≤ 2000
+/// Enforces per-field caps (#376 / #750) via the shared
+/// [`parish_core::ipc::editor::validate_npc_payload`] helper:
+/// - NPC name ≤ [`parish_core::ipc::editor::NPC_NAME_MAX`] chars
+/// - NPC bio ≤ [`parish_core::ipc::editor::NPC_BIO_MAX`] chars
+/// - NPC personality ≤ [`parish_core::ipc::editor::NPC_PERSONALITY_MAX`] chars
+/// - relationships per NPC ≤ [`parish_core::ipc::editor::NPC_RELATIONSHIPS_MAX`]
+/// - NPCs per file ≤ [`parish_core::ipc::editor::NPCS_PER_FILE_MAX`]
 pub async fn editor_update_npcs(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
@@ -234,82 +222,10 @@ pub async fn editor_update_npcs(
     let npcs: parish_core::npc::NpcFile = serde_json::from_value(body.npcs)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid NPC data: {e}")))?;
 
-    // Per-field validation caps (fix #376).
-    if npcs.npcs.len() > NPCS_PER_FILE_MAX {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "too many NPCs: {} (max {NPCS_PER_FILE_MAX})",
-                npcs.npcs.len()
-            ),
-        ));
-    }
-    for npc in &npcs.npcs {
-        if contains_control_chars(&npc.name) {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "NPC name contains invalid control characters".to_string(),
-            ));
-        }
-        if npc.name.chars().count() > NPC_NAME_MAX {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "NPC name too long: {} chars (max {NPC_NAME_MAX})",
-                    npc.name.chars().count()
-                ),
-            ));
-        }
-        if let Some(ref bio) = npc.brief_description {
-            if contains_control_chars(bio) {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    format!(
-                        "NPC bio contains invalid control characters for '{}'",
-                        npc.name,
-                    ),
-                ));
-            }
-            if bio.chars().count() > NPC_BIO_MAX {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    format!(
-                        "NPC bio too long for '{}': {} chars (max {NPC_BIO_MAX})",
-                        npc.name,
-                        bio.chars().count()
-                    ),
-                ));
-            }
-        }
-        if contains_control_chars(&npc.personality) {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "NPC personality contains invalid control characters for '{}'",
-                    npc.name,
-                ),
-            ));
-        }
-        if npc.personality.chars().count() > NPC_PERSONALITY_MAX {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "NPC personality too long: {} chars (max {NPC_PERSONALITY_MAX})",
-                    npc.personality.chars().count()
-                ),
-            ));
-        }
-        if npc.relationships.len() > NPC_RELATIONSHIPS_MAX {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "too many relationships for NPC {}: {} (max {NPC_RELATIONSHIPS_MAX})",
-                    npc.name,
-                    npc.relationships.len()
-                ),
-            ));
-        }
-    }
+    // Per-field validation caps (fix #376 / #750).
+    // Delegated to the shared helper in parish_core::ipc::editor so Tauri and
+    // server enforce identical limits via the same code path.
+    validate_npc_payload(&npcs).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Offload the CPU-bound validate_snapshot to a blocking thread so
     // the editor_sessions lock isn't held across the O(NPCs × locations)
@@ -418,9 +334,10 @@ pub struct EditorUpdateNpcsBody {
 
 /// `POST /api/editor-update-locations` with JSON body `{ "locations": [...] }`
 ///
-/// Enforces per-field caps (#376):
-/// - location description ≤ 4096 chars
-/// - locations per file ≤ 5000
+/// Enforces per-field caps (#376 / #750) via the shared
+/// [`parish_core::ipc::editor::validate_location_payload`] helper:
+/// - location description ≤ [`parish_core::ipc::editor::LOCATION_DESCRIPTION_MAX`] chars
+/// - locations per file ≤ [`parish_core::ipc::editor::LOCATIONS_PER_FILE_MAX`]
 pub async fn editor_update_locations(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
@@ -435,37 +352,10 @@ pub async fn editor_update_locations(
             )
         })?;
 
-    // Per-field validation caps (fix #376).
-    if locations.len() > LOCATIONS_PER_FILE_MAX {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "too many locations: {} (max {LOCATIONS_PER_FILE_MAX})",
-                locations.len()
-            ),
-        ));
-    }
-    for loc in &locations {
-        if contains_control_chars(&loc.description_template) {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "location description contains invalid control characters for '{}'",
-                    loc.name,
-                ),
-            ));
-        }
-        if loc.description_template.chars().count() > LOCATION_DESCRIPTION_MAX {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                format!(
-                    "location description too long for '{}': {} chars (max {LOCATION_DESCRIPTION_MAX})",
-                    loc.name,
-                    loc.description_template.chars().count()
-                ),
-            ));
-        }
-    }
+    // Per-field validation caps (fix #376 / #750).
+    // Delegated to the shared helper in parish_core::ipc::editor so Tauri and
+    // server enforce identical limits via the same code path.
+    validate_location_payload(&locations).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     // Same clone-validate-install pattern as editor_update_npcs (#464
     // + codex-#574 P1/P2): offload CPU-bound validate to
@@ -832,6 +722,7 @@ pub async fn editor_read_snapshot(
 mod tests {
     use super::*;
     use axum::Extension;
+    use parish_core::ipc::editor::NPC_NAME_MAX;
 
     fn make_auth(email: &str) -> Option<Extension<AuthContext>> {
         Some(Extension(AuthContext {
@@ -1106,21 +997,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn contains_control_chars_permits_whitespace() {
-        assert!(!contains_control_chars("hello\nworld"));
-        assert!(!contains_control_chars("hello\tworld"));
-        assert!(!contains_control_chars("hello\r\nworld"));
-        assert!(!contains_control_chars("Pádraig Ó Flaithbheartaigh"));
-    }
-
-    #[test]
-    fn contains_control_chars_rejects_nulls_and_low_ascii() {
-        assert!(contains_control_chars("hello\x00world"));
-        assert!(contains_control_chars("hello\x01world"));
-        assert!(contains_control_chars("hello\x7Fworld"));
-        assert!(contains_control_chars("\x02"));
-    }
+    // Note: contains_control_chars is now a private implementation detail of
+    // validate_npc_payload / validate_location_payload in parish-core.
+    // The control-char unit tests live in parish-core/src/ipc/editor.rs.
 
     #[tokio::test]
     async fn editor_sessions_are_isolated_per_user() {
