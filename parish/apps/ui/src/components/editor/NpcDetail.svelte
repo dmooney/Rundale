@@ -84,8 +84,9 @@
 			<section class="section">
 				<h4 class="section-label">Identity</h4>
 				<div class="field-row">
-					<label class="field-label">Name</label>
+					<label class="field-label" for="npc-name">Name</label>
 					<input
+						id="npc-name"
 						class="field-input"
 						type="text"
 						value={npc.name}
@@ -93,8 +94,9 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Age</label>
+					<label class="field-label" for="npc-age">Age</label>
 					<input
+						id="npc-age"
 						class="field-input short"
 						type="number"
 						value={npc.age}
@@ -102,8 +104,9 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Occupation</label>
+					<label class="field-label" for="npc-occupation">Occupation</label>
 					<input
+						id="npc-occupation"
 						class="field-input"
 						type="text"
 						value={npc.occupation}
@@ -111,8 +114,9 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Mood</label>
+					<label class="field-label" for="npc-mood">Mood</label>
 					<input
+						id="npc-mood"
 						class="field-input"
 						type="text"
 						value={npc.mood}
@@ -120,8 +124,9 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Brief Description</label>
+					<label class="field-label" for="npc-brief-desc">Brief Description</label>
 					<input
+						id="npc-brief-desc"
 						class="field-input"
 						type="text"
 						value={npc.brief_description ?? ''}
@@ -133,8 +138,9 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Personality</label>
+					<label class="field-label" for="npc-personality">Personality</label>
 					<textarea
+						id="npc-personality"
 						class="field-textarea"
 						value={npc.personality}
 						on:change={(e) => handleFieldChange('personality', e.currentTarget.value)}
@@ -146,8 +152,9 @@
 			<section class="section">
 				<h4 class="section-label">Home & Workplace</h4>
 				<div class="field-row">
-					<label class="field-label">Home</label>
+					<label class="field-label" for="npc-home">Home</label>
 					<select
+						id="npc-home"
 						class="field-select"
 						value={npc.home}
 						on:change={(e) => handleFieldChange('home', parseInt(e.currentTarget.value))}
@@ -158,8 +165,9 @@
 					</select>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Workplace</label>
+					<label class="field-label" for="npc-workplace">Workplace</label>
 					<select
+						id="npc-workplace"
 						class="field-select"
 						value={npc.workplace ?? -1}
 						on:change={(e) => {
@@ -181,8 +189,9 @@
 					<h4 class="section-label">Intelligence</h4>
 					{#each intelligenceDimensions as dim}
 						<div class="field-row">
-							<label class="field-label">{dim.label}</label>
+							<label class="field-label" for="npc-intel-{dim.key}">{dim.label}</label>
 							<input
+								id="npc-intel-{dim.key}"
 								class="field-range"
 								type="range"
 								min="1"
