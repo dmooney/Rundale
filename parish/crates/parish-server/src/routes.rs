@@ -33,7 +33,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
-use parish_core::world::{LocationId, WorldState};
+use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
 
 use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
 use parish_core::persistence::Database;
@@ -1860,17 +1860,22 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
             let world = data_dir.join("world.json");
             if parish.exists() { parish } else { world }
         };
-        let world = WorldState::from_parish_file(&world_path, LocationId(15)).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load world data: {}. Using default world.", e);
-            WorldState::new()
-        });
+        let world =
+            WorldState::from_parish_file(&world_path, DEFAULT_START_LOCATION).map_err(|e| {
+                tracing::error!(
+                    "do_new_game: failed to load world from {:?}: {}",
+                    world_path,
+                    e
+                );
+                format!("Failed to load world data: {}", e)
+            })?;
         (world, data_dir.join("npcs.json"))
     };
 
-    let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
-        tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
-        NpcManager::new()
-    });
+    let mut npc_manager = NpcManager::load_from_file(&npcs_path).map_err(|e| {
+        tracing::error!("do_new_game: failed to load npcs: {}", e);
+        format!("Failed to load NPC data: {}", e)
+    })?;
     npc_manager.assign_tiers(&world, &[]);
 
     // Replace state atomically (both locks held together to prevent a window
@@ -2416,7 +2421,8 @@ pub(crate) mod tests {
         let data_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let world =
-            WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+            WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION)
+                .unwrap();
         let npc_manager = NpcManager::new();
         let transport = TransportConfig::default();
         let ui_config = crate::state::UiConfigSnapshot {
