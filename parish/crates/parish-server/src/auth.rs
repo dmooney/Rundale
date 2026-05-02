@@ -122,7 +122,7 @@ pub async fn callback_google(
         "{}/auth/callback/google",
         cfg.base_url.trim_end_matches('/')
     );
-    let access_token = match exchange_code(cfg, &code, &redirect_uri).await {
+    let access_token = match exchange_code(cfg, &code, &redirect_uri, GOOGLE_TOKEN_URL).await {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!("Token exchange failed: {}", e);
@@ -131,13 +131,14 @@ pub async fn callback_google(
     };
 
     // Fetch user info.
-    let (provider_user_id, display_name) = match fetch_user_info(&access_token).await {
-        Ok(u) => u,
-        Err(e) => {
-            tracing::warn!("Userinfo fetch failed: {}", e);
-            return Redirect::to("/?oauth_error=1").into_response();
-        }
-    };
+    let (provider_user_id, display_name) =
+        match fetch_user_info(&access_token, GOOGLE_USERINFO_URL).await {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::warn!("Userinfo fetch failed: {}", e);
+                return Redirect::to("/?oauth_error=1").into_response();
+            }
+        };
 
     // Determine which session to use.
     let current_session_id = cookie_value(&headers, SESSION_COOKIE);
@@ -274,14 +275,18 @@ pub async fn get_auth_status(
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /// Exchanges an authorization code for a Google access token.
+///
+/// `token_url` is normally [`GOOGLE_TOKEN_URL`]; tests may substitute a
+/// wiremock base URL to avoid hitting the real Google endpoint.
 async fn exchange_code(
     cfg: &crate::session::OAuthConfig,
     code: &str,
     redirect_uri: &str,
+    token_url: &str,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
     let resp = client
-        .post(GOOGLE_TOKEN_URL)
+        .post(token_url)
         .form(&[
             ("code", code),
             ("client_id", &cfg.client_id),
@@ -301,10 +306,16 @@ async fn exchange_code(
 }
 
 /// Fetches the Google user's `sub` (stable ID) and display name.
-async fn fetch_user_info(access_token: &str) -> Result<(String, String), String> {
+///
+/// `userinfo_url` is normally [`GOOGLE_USERINFO_URL`]; tests may substitute a
+/// wiremock base URL to avoid hitting the real Google endpoint.
+async fn fetch_user_info(
+    access_token: &str,
+    userinfo_url: &str,
+) -> Result<(String, String), String> {
     let client = reqwest::Client::new();
     let resp = client
-        .get(GOOGLE_USERINFO_URL)
+        .get(userinfo_url)
         .bearer_auth(access_token)
         .send()
         .await
@@ -369,4 +380,226 @@ fn urlenccode(s: &str) -> String {
         }
     }
     out
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use axum::http::{HeaderMap, HeaderValue, header};
+    use wiremock::matchers::{body_string_contains, header as header_matcher, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::session::OAuthConfig;
+
+    use super::{cookie_value, exchange_code, fetch_user_info, urlenccode};
+
+    // ── Pure helpers ──────────────────────────────────────────────────────────
+
+    /// Unreserved characters must pass through urlenccode unchanged.
+    #[test]
+    fn urlenccode_unreserved_chars_unchanged() {
+        let input = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
+        assert_eq!(urlenccode(input), input);
+    }
+
+    /// Space, `@`, `/`, and `+` must be percent-encoded.
+    #[test]
+    fn urlenccode_special_chars_are_percent_encoded() {
+        assert_eq!(urlenccode(" "), "%20");
+        assert_eq!(urlenccode("@"), "%40");
+        assert_eq!(urlenccode("/"), "%2F");
+        assert_eq!(urlenccode("+"), "%2B");
+    }
+
+    /// A multi-byte Unicode character must produce the right percent-encoded bytes.
+    #[test]
+    fn urlenccode_multibyte_unicode() {
+        // U+00E9 (é) encodes as UTF-8 0xC3 0xA9
+        assert_eq!(urlenccode("é"), "%C3%A9");
+    }
+
+    /// `cookie_value` must return `None` when no `Cookie` header is present.
+    #[test]
+    fn cookie_value_no_cookie_header_returns_none() {
+        let headers = HeaderMap::new();
+        assert_eq!(cookie_value(&headers, "parish_sid"), None);
+    }
+
+    /// `cookie_value` must extract the correct value from a multi-cookie header.
+    #[test]
+    fn cookie_value_extracts_named_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("other=abc; parish_sid=test-session-id; extra=xyz"),
+        );
+        assert_eq!(
+            cookie_value(&headers, "parish_sid"),
+            Some("test-session-id".to_string())
+        );
+    }
+
+    /// `cookie_value` must return `None` when the named cookie is absent.
+    #[test]
+    fn cookie_value_absent_cookie_returns_none() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("other=abc; unrelated=xyz"),
+        );
+        assert_eq!(cookie_value(&headers, "parish_sid"), None);
+    }
+
+    /// A cookie whose name is a prefix of the requested name must not match.
+    #[test]
+    fn cookie_value_prefix_name_does_not_match() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("parish=short; parish_sid=correct"),
+        );
+        assert_eq!(
+            cookie_value(&headers, "parish_sid"),
+            Some("correct".to_string())
+        );
+    }
+
+    // ── exchange_code — wiremock tests ────────────────────────────────────────
+
+    fn test_oauth_config(base_url: &str) -> OAuthConfig {
+        OAuthConfig {
+            client_id: "test-client-id".to_string(),
+            client_secret: "test-client-secret".to_string(),
+            base_url: base_url.to_string(),
+        }
+    }
+
+    /// Successful token exchange must return the access token string.
+    #[tokio::test]
+    async fn exchange_code_success_returns_access_token() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .and(body_string_contains("code=auth-code-123"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "access_token": "ya29.stub-token" })),
+            )
+            .mount(&server)
+            .await;
+
+        let cfg = test_oauth_config(&server.uri());
+        let token_url = format!("{}/token", server.uri());
+        let result = exchange_code(
+            &cfg,
+            "auth-code-123",
+            "https://example.com/callback",
+            &token_url,
+        )
+        .await;
+
+        assert_eq!(result, Ok("ya29.stub-token".to_string()));
+    }
+
+    /// A 401 response from the token endpoint must surface an error.
+    #[tokio::test]
+    async fn exchange_code_401_returns_error() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/token"))
+            .respond_with(
+                ResponseTemplate::new(401)
+                    .set_body_json(serde_json::json!({ "error": "invalid_client" })),
+            )
+            .mount(&server)
+            .await;
+
+        let cfg = test_oauth_config(&server.uri());
+        let token_url = format!("{}/token", server.uri());
+        let result =
+            exchange_code(&cfg, "bad-code", "https://example.com/callback", &token_url).await;
+
+        // A 401 body without `access_token` must produce an Err.
+        assert!(
+            result.is_err(),
+            "expected Err for 401 response, got {result:?}"
+        );
+    }
+
+    // ── fetch_user_info — wiremock tests ──────────────────────────────────────
+
+    /// Successful userinfo response with name must return (sub, name).
+    #[tokio::test]
+    async fn fetch_user_info_success_returns_sub_and_name() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .and(header_matcher("authorization", "Bearer stub-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sub": "google|12345",
+                "name": "Brigid O'Brien",
+                "email": "brigid@example.com"
+            })))
+            .mount(&server)
+            .await;
+
+        let userinfo_url = format!("{}/userinfo", server.uri());
+        let result = fetch_user_info("stub-token", &userinfo_url).await;
+
+        assert_eq!(
+            result,
+            Ok(("google|12345".to_string(), "Brigid O'Brien".to_string()))
+        );
+    }
+
+    /// When `name` is absent the display name should fall back to `email`.
+    #[tokio::test]
+    async fn fetch_user_info_falls_back_to_email_when_name_absent() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "sub": "google|99999",
+                "email": "nameless@example.com"
+            })))
+            .mount(&server)
+            .await;
+
+        let userinfo_url = format!("{}/userinfo", server.uri());
+        let result = fetch_user_info("any-token", &userinfo_url).await;
+
+        assert_eq!(
+            result,
+            Ok((
+                "google|99999".to_string(),
+                "nameless@example.com".to_string()
+            ))
+        );
+    }
+
+    /// A 401 from the userinfo endpoint must surface an error.
+    #[tokio::test]
+    async fn fetch_user_info_401_returns_error() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/userinfo"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+
+        let userinfo_url = format!("{}/userinfo", server.uri());
+        let result = fetch_user_info("expired-token", &userinfo_url).await;
+
+        // 401 body has no `sub` field — must be an error.
+        assert!(
+            result.is_err(),
+            "expected Err for 401 response, got {result:?}"
+        );
+    }
 }

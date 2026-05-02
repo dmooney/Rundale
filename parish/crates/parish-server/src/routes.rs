@@ -2276,14 +2276,22 @@ pub fn check_admin_against(
                 Err(StatusCode::FORBIDDEN)
             }
         }
-        None => {
-            if cfg!(debug_assertions) {
-                Ok(())
-            } else {
-                tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
-                Err(StatusCode::FORBIDDEN)
-            }
-        }
+        None => check_admin_no_config(email, cmd, cfg!(debug_assertions)),
+    }
+}
+
+/// Implements the fail-closed / fail-open logic for the unconfigured-admin
+/// case, parameterised on `is_debug` so both branches are unit-testable
+/// without a release build.
+///
+/// - `is_debug = true`  → `Ok(())` (fail-open for local dev)
+/// - `is_debug = false` → `Err(FORBIDDEN)` (fail-closed in production)
+pub fn check_admin_no_config(email: &str, cmd: &str, is_debug: bool) -> Result<(), StatusCode> {
+    if is_debug {
+        Ok(())
+    } else {
+        tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
+        Err(StatusCode::FORBIDDEN)
     }
 }
 
