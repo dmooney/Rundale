@@ -488,3 +488,58 @@ fn create_branch_65_char_name_is_400() {
 fn create_branch_valid_name_passes_validation() {
     assert_eq!(validate_branch_name("valid name"), Ok(()));
 }
+
+// ── #753 — /api/debug-snapshot admin gate ────────────────────────────────────
+//
+// `check_admin_against` is the testable variant of the production `check_admin`
+// call that now guards `get_debug_snapshot`.  These tests mirror the isolation
+// tests for admin commands (#332, #605) above: they supply an explicit admin
+// email rather than touching the `PARISH_ADMIN_EMAILS` OnceCell cache, so
+// they remain fully self-contained and order-independent regardless of how
+// other tests set the env var.
+
+/// Non-admin authenticated user must be rejected (403) from `/api/debug-snapshot`.
+#[test]
+fn debug_snapshot_non_admin_is_403() {
+    assert_eq!(
+        check_admin_against(
+            "attacker@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Err(StatusCode::FORBIDDEN),
+        "non-admin user must receive 403 from debug-snapshot gate"
+    );
+}
+
+/// Admin user must be allowed through the gate (Ok(())).
+#[test]
+fn debug_snapshot_admin_is_ok() {
+    assert_eq!(
+        check_admin_against(
+            "operator@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Ok(()),
+        "admin user must be allowed through the debug-snapshot gate"
+    );
+}
+
+/// Unauthenticated requests (no CF JWT) are rejected upstream by
+/// `cf_access_guard` with 401 before the handler is even reached.
+///
+/// That path is covered by `tests/auth_guard.rs`; this test confirms
+/// that the admin gate is independent from the auth gate: a completely
+/// un-configured admin list (`None`) behaves consistently with the
+/// rest of the admin-gate tests (fail-open in debug, fail-closed in release).
+#[test]
+fn debug_snapshot_no_admin_config_is_deterministic() {
+    let result = check_admin_against("any@example.com", "debug-snapshot", None);
+    // Debug builds (tests) are fail-open for local dev.
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}

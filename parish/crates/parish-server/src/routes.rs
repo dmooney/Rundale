@@ -98,14 +98,26 @@ pub async fn get_ui_config(
 
 /// `GET /api/debug-snapshot` — returns debug state for the debug panel.
 ///
+/// **Admin-only** (#753): gated by `PARISH_ADMIN_EMAILS` via the same
+/// [`check_admin`] guard used for provider/key commands.  Non-admin
+/// authenticated users receive 403; unauthenticated callers are rejected
+/// upstream by `cf_access_guard` with 401.
+///
+/// The DebugPanel in the UI is an admin-only feature accessed via F12 dev
+/// tooling; the endpoint gate makes that intent explicit and enforced.
+///
 /// The inference call log is **redacted** for web clients (#333): `prompt_text`,
 /// `response_text`, `system_prompt`, and `base_url` are stripped so that one
 /// user's LLM prompts are never exposed to other authenticated visitors.
 pub async fn get_debug_snapshot(
     Extension(state): Extension<Arc<AppState>>,
     Extension(session_id): Extension<SessionId>,
+    Extension(cf_auth): Extension<crate::cf_auth::AuthContext>,
     State(global): State<Arc<GlobalState>>,
-) -> impl IntoResponse {
+) -> Result<Json<debug_snapshot::DebugSnapshot>, StatusCode> {
+    // #753 — admin gate: only PARISH_ADMIN_EMAILS members may read the snapshot.
+    check_admin(&cf_auth.email, "debug-snapshot", admin_emails())?;
+
     // Snapshot each piece of state with a brief, non-overlapping lock window.
     // This avoids holding all 5+ locks simultaneously (#105, #282), which
     // caused latency spikes on all concurrent game operations and created
@@ -214,7 +226,7 @@ pub async fn get_debug_snapshot(
     // Also redact base_url from the inference config block.
     snapshot.inference.base_url = String::new();
 
-    Json(snapshot)
+    Ok(Json(snapshot))
 }
 
 // ── Input endpoint ──────────────────────────────────────────────────────────
