@@ -1010,6 +1010,7 @@
 			disabled={$streamingActive || isEditorEmpty()}
 			class="send-btn"
 			title={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
+			aria-label={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
 		>
 			Send
 		</button>
