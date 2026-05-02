@@ -1,0 +1,21 @@
+# Advance time to Lughnasa (Aug 1, 1820) so the Tier 4 CPU rules engine fires
+# on a festival date.  The default tick interval is 90 game-days (129 600 min).
+#
+# Start date: 1820-03-20 (spring equinox).
+# Aug 1 is 134 days later = 134 * 24 * 60 = 192 960 minutes.
+# 134 days > 90-day threshold, so the tier4 tick fires on the jump landing at
+# exactly 1820-08-01 = Lughnasa.  Festival::check is pure date logic — no RNG —
+# so at least one Tier 4 event (FestivalDetected) is guaranteed.
+#
+# Used by: rubric_tier4_events_appear_in_journal (eval_baselines.rs)
+
+/status
+/time
+
+# Jump exactly to Lughnasa: 134 days * 24 * 60 = 192 960 minutes.
+/wait 192960
+
+/status
+/time
+
+/quit
