@@ -1,0 +1,15 @@
+target/
+.git/
+**/node_modules/
+apps/ui/.svelte-kit/
+apps/ui/build/
+apps/ui/dist/
+saves/
+*.db
+*.db-journal
+.env
+.env.local
+.DS_Store
+**/*.log
+.vscode/
+.idea/
