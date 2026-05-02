@@ -2,7 +2,7 @@
 	import { worldState } from '../stores/game';
 	import { debugVisible } from '../stores/debug';
 	import { savePickerVisible } from '../stores/save';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import AuthStatus from './AuthStatus.svelte';
 
 	let displayHour = $state(0);
@@ -13,7 +13,7 @@
 	let anchorRealMs = 0;
 	let anchorGameMs = 0;
 	let speedFactor = 36.0;
-	let clockFrozen = false;
+	let clockFrozen = $state(false);
 
 	let rafId: number;
 
@@ -28,35 +28,50 @@
 	}
 
 	function tick() {
-		if (clockFrozen) {
-			// Use the anchored game time directly
-			const d = new Date(anchorGameMs);
-			displayHour = d.getUTCHours();
-			displayMinute = d.getUTCMinutes();
-		} else {
-			const elapsedRealMs = Date.now() - anchorRealMs;
-			const currentGameMs = anchorGameMs + elapsedRealMs * speedFactor;
-			const d = new Date(currentGameMs);
-			displayHour = d.getUTCHours();
-			displayMinute = d.getUTCMinutes();
-		}
+		// When frozen, don't schedule another frame — the display is already
+		// set to anchorGameMs by the snapshot $effect below.
+		if (clockFrozen) return;
+		const elapsedRealMs = Date.now() - anchorRealMs;
+		const currentGameMs = anchorGameMs + elapsedRealMs * speedFactor;
+		const d = new Date(currentGameMs);
+		displayHour = d.getUTCHours();
+		displayMinute = d.getUTCMinutes();
 		displayTimeLabel = timeOfDayLabel(displayHour);
 		rafId = requestAnimationFrame(tick);
 	}
 
-	// Re-anchor whenever we get a new world snapshot from the backend
+	// Re-anchor whenever we get a new world snapshot from the backend.
+	// When the clock freezes, update the display once and let the rAF loop
+	// stop naturally (tick() bails on the next frame). When it unfreezes,
+	// restart the loop.
 	$effect(() => {
 		const snap = $worldState;
 		if (snap) {
 			anchorRealMs = Date.now();
 			anchorGameMs = snap.game_epoch_ms;
 			speedFactor = snap.speed_factor;
+			const wasFrozen = clockFrozen;
 			clockFrozen = snap.paused || snap.inference_paused;
+
+			if (clockFrozen) {
+				// Snap display to anchored game time immediately.
+				const d = new Date(anchorGameMs);
+				displayHour = d.getUTCHours();
+				displayMinute = d.getUTCMinutes();
+				displayTimeLabel = timeOfDayLabel(displayHour);
+			}
 		}
 	});
 
-	onMount(() => {
-		rafId = requestAnimationFrame(tick);
+	// React to clockFrozen transitions: cancel the loop when frozen,
+	// restart it when unfrozen.
+	$effect(() => {
+		if (clockFrozen) {
+			cancelAnimationFrame(rafId);
+		} else {
+			// Start (or restart) the rAF loop.
+			rafId = requestAnimationFrame(tick);
+		}
 	});
 
 	onDestroy(() => {

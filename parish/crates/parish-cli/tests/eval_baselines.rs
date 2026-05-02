@@ -24,8 +24,10 @@
 
 use parish::testing::{ActionResult, GameTestHarness, ScriptResult, run_script_captured};
 use parish_types::events::GameEvent;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 /// Fixtures whose structured output is deterministic enough to baseline.
 /// Add new entries cautiously — non-deterministic NPC dialogue, weather
@@ -39,6 +41,25 @@ const BASELINED_FIXTURES: &[&str] = &[
     "test_all_locations",
 ];
 
+/// Cache of fixture results, populated once on first access.
+/// Each fixture runs exactly once regardless of how many tests reference it.
+static FIXTURE_CACHE: LazyLock<HashMap<&'static str, Vec<ScriptResult>>> = LazyLock::new(|| {
+    BASELINED_FIXTURES
+        .iter()
+        .map(|&name| {
+            let path = fixture_path(name);
+            assert!(
+                path.exists(),
+                "fixture {} not found at {}",
+                name,
+                path.display()
+            );
+            let results = run_script_captured(&path).expect("script execution");
+            (name, results)
+        })
+        .collect()
+});
+
 fn fixture_path(name: &str) -> PathBuf {
     Path::new("../../testing/fixtures").join(format!("{name}.txt"))
 }
@@ -47,15 +68,11 @@ fn baseline_path(name: &str) -> PathBuf {
     Path::new("../../testing/evals/baselines").join(format!("{name}.json"))
 }
 
-fn capture(name: &str) -> Vec<ScriptResult> {
-    let path = fixture_path(name);
-    assert!(
-        path.exists(),
-        "fixture {} not found at {}",
-        name,
-        path.display()
-    );
-    run_script_captured(&path).expect("script execution")
+fn capture(name: &str) -> &'static [ScriptResult] {
+    FIXTURE_CACHE
+        .get(name)
+        .unwrap_or_else(|| panic!("fixture {name} not in FIXTURE_CACHE"))
+        .as_slice()
 }
 
 fn updating_baselines() -> bool {

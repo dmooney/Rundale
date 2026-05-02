@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { worldState } from '../stores/game';
 import StatusBar from './StatusBar.svelte';
 import type { WorldSnapshot } from '$lib/types';
@@ -34,6 +35,10 @@ const snapshot: WorldSnapshot = {
 describe('StatusBar', () => {
 	beforeEach(() => {
 		worldState.set(null);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	it('shows loading when no world state', () => {
@@ -77,5 +82,33 @@ describe('StatusBar', () => {
 		const { container } = render(StatusBar);
 		const clock = container.querySelector('.clock');
 		expect(clock).toBeTruthy();
+	});
+
+	it('does not schedule another rAF frame after clockFrozen becomes true', async () => {
+		// Capture the rAF callback so we can invoke it manually.
+		let capturedCb: FrameRequestCallback | null = null;
+		const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+			capturedCb = cb;
+			return 1;
+		});
+
+		// Start with an unfrozen clock so the rAF loop is running.
+		worldState.set(snapshot); // paused: false
+		render(StatusBar);
+		await tick();
+
+		// Freeze the clock.
+		worldState.set({ ...snapshot, paused: true });
+		await tick();
+
+		// Clear any rAF calls made while transitioning to frozen.
+		rafSpy.mockClear();
+
+		// Simulate the next animation frame firing while the clock is frozen.
+		// tick() should bail immediately without scheduling another frame.
+		expect(capturedCb).not.toBeNull();
+		capturedCb!(performance.now());
+
+		expect(rafSpy).not.toHaveBeenCalled();
 	});
 });
