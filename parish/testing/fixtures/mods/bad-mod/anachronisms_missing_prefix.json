@@ -1,0 +1,6 @@
+{
+    "context_alert_suffix": "END",
+    "terms": [
+        {"term": "internet", "note": "not invented until the 20th century"}
+    ]
+}

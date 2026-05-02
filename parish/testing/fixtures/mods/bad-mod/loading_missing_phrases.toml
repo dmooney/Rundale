@@ -1,0 +1,2 @@
+spinner_frames = ["|", "/", "-", "\\"]
+spinner_colors = [[200, 180, 100]]

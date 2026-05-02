@@ -1,0 +1,12 @@
+{
+    "locations": [
+        {
+            "id": 1,
+            "name": "The Crossroads",
+            "description_template": "A crossroads {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": []
+        }
+    ]
+}

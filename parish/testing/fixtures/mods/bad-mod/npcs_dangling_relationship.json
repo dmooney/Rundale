@@ -1,0 +1,21 @@
+{
+    "npcs": [
+        {
+            "id": 1,
+            "name": "Séamas Burke",
+            "age": 45,
+            "occupation": "Farmer",
+            "personality": "Taciturn",
+            "home": 1,
+            "workplace": null,
+            "mood": "neutral",
+            "relationships": [
+                {
+                    "target_id": 999,
+                    "kind": "Friend",
+                    "strength": 0.5
+                }
+            ]
+        }
+    ]
+}

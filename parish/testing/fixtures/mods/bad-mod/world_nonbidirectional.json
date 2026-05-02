@@ -1,0 +1,34 @@
+{
+    "locations": [
+        {
+            "id": 1,
+            "name": "The Crossroads",
+            "description_template": "A crossroads {time}.",
+            "indoor": false,
+            "public": true,
+            "connections": [
+                {
+                    "target": 2,
+                    "path_description": "A narrow boreen."
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "name": "The Mill",
+            "description_template": "A mill {time}.",
+            "indoor": true,
+            "public": true,
+            "connections": [
+                {
+                    "target": 1,
+                    "path_description": "Back to the crossroads."
+                },
+                {
+                    "target": 999,
+                    "path_description": "A path to nowhere."
+                }
+            ]
+        }
+    ]
+}
