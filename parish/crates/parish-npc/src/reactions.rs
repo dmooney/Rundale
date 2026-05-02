@@ -329,7 +329,20 @@ pub async fn infer_player_message_reaction(
     let call =
         client.generate_json::<LlmReactionDecision>(model, &prompt, Some(&system), Some(40), None);
 
-    let response = tokio::time::timeout(timeout, call).await.ok()?.ok()?;
+    let response = match tokio::time::timeout(timeout, call).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
+            tracing::error!(error = ?e, "inference call failed in infer_player_message_reaction");
+            return None;
+        }
+        Err(_) => {
+            tracing::warn!(
+                "inference call timed out after {:?} in infer_player_message_reaction",
+                timeout
+            );
+            return None;
+        }
+    };
     let emoji = response.emoji?;
     reaction_description(&emoji)?;
     if rand::random::<f64>() >= 0.6 {
@@ -1822,6 +1835,30 @@ mod tests {
             );
         }
         // None is also valid (probabilistic gate or null from model).
+    }
+
+    /// Timeout path: a zero-duration timeout always fires, so the function
+    /// must return `None` (not panic).
+    #[tokio::test]
+    async fn infer_player_message_reaction_timeout_returns_none() {
+        use parish_inference::AnyClient;
+
+        let client = AnyClient::simulator();
+        let npc = test_npc(99, "Timeout Npc", "Farmer", None);
+
+        let result = infer_player_message_reaction(
+            &client,
+            "any-model",
+            &npc,
+            "Will this time out?",
+            std::time::Duration::ZERO,
+        )
+        .await;
+
+        assert!(
+            result.is_none(),
+            "zero-timeout must return None, got: {result:?}"
+        );
     }
 
     /// Fallback: generate_rule_reaction still fires for keyword inputs when

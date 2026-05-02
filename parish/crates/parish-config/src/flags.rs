@@ -68,12 +68,24 @@ impl FeatureFlags {
     ///
     /// Returns `Default::default()` if the file does not exist or cannot be
     /// parsed — this is not an error, since a missing file simply means no
-    /// flags have been persisted yet.
+    /// flags have been persisted yet. A parse failure (corrupt/stale JSON)
+    /// is unexpected, so it is logged as a warning.
     pub fn load_from_file(path: &Path) -> Self {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+        let content = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Self::default(),
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "could not read feature-flags file");
+                return Self::default();
+            }
+        };
+        match serde_json::from_str(&content) {
+            Ok(flags) => flags,
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "feature-flags file contains invalid JSON; using defaults");
+                Self::default()
+            }
+        }
     }
 
     /// Saves the current flag state to a JSON file, creating parent
@@ -180,6 +192,29 @@ mod tests {
         let flags = FeatureFlags::default();
         flags.save_to_file(&path).unwrap();
         assert!(path.exists());
+    }
+
+    #[test]
+    fn test_load_corrupt_json_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish-flags.json");
+        std::fs::write(&path, b"not valid json {{{{").unwrap();
+        // Should not panic; should return a default (empty) FeatureFlags.
+        let flags = FeatureFlags::load_from_file(&path);
+        assert!(flags.is_empty(), "corrupt JSON must yield default flags");
+    }
+
+    #[test]
+    fn test_load_wrong_schema_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish-flags.json");
+        // Valid JSON but wrong shape (array instead of object).
+        std::fs::write(&path, b"[1, 2, 3]").unwrap();
+        let flags = FeatureFlags::load_from_file(&path);
+        assert!(
+            flags.is_empty(),
+            "wrong-schema JSON must yield default flags"
+        );
     }
 
     #[test]
