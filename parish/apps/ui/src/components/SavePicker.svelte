@@ -438,12 +438,12 @@
 						</div>
 					{/each}
 
-					<div class="ledger-row new-ledger" on:click={handleForkLedger} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleForkLedger(); } }}>
+					<div class="ledger-row new-ledger" on:click={() => { if (!loading) handleForkLedger(); }} role="button" tabindex="0" aria-disabled={loading} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!loading && !e.repeat) handleForkLedger(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">Fork New Ledger</span>
 					</div>
 
-					<div class="ledger-row new-ledger" on:click={handleNewGame} role="button" tabindex="0" on:keydown={(e) => { if (!e.repeat && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleNewGame(); } }}>
+					<div class="ledger-row new-ledger" on:click={() => { if (!loading) handleNewGame(); }} role="button" tabindex="0" aria-disabled={loading} on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!loading && !e.repeat) handleNewGame(); } }}>
 						<span class="file-number">+</span>
 						<span class="file-name">New Game</span>
 					</div>
@@ -711,10 +711,12 @@
 		margin-bottom: 4px;
 		z-index: 5;
 	}
-	.dag-node:hover .node-branch-btn {
+	.dag-node:hover .node-branch-btn,
+	.dag-node:focus-within .node-branch-btn {
 		display: block;
 	}
-	.node-branch-btn:hover {
+	.node-branch-btn:hover,
+	.node-branch-btn:focus-visible {
 		color: var(--color-accent);
 		border-color: var(--color-accent);
 	}
@@ -888,6 +890,14 @@
 	.new-ledger {
 		border-bottom: none;
 		cursor: pointer;
+	}
+	.new-ledger:focus-visible {
+		outline: 2px solid var(--color-accent);
+		outline-offset: -2px;
+	}
+	.new-ledger[aria-disabled='true'] {
+		opacity: 0.5;
+		cursor: default;
 	}
 
 	.loading-msg {
