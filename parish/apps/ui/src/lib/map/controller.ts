@@ -328,7 +328,8 @@ export class MapController {
 		return { width: canvas.clientWidth, height: canvas.clientHeight };
 	}
 
-	/** Subscribes `fn` to MapLibre `move` and `resize` events.
+	/** Subscribes `fn` to MapLibre `move` and `resize` events,
+	 * coalesced to at most once per animation frame via rAF.
 	 *
 	 * Returns an unsubscribe function. Used by MapPanel to recompute
 	 * off-screen edge stubs only when the camera actually moves,
@@ -336,13 +337,25 @@ export class MapController {
 	 * for the entire mount lifetime (#350). The previous polling
 	 * approach burned CPU/GPU continuously and triggered downstream
 	 * Svelte reactivity churn even when the user wasn't interacting.
+	 *
+	 * MapLibre fires many `move` events per frame during smooth
+	 * panning; the rAF gate collapses those into a single `fn` call.
 	 */
 	addMoveListener(fn: () => void): () => void {
-		this.map.on('move', fn);
-		this.map.on('resize', fn);
+		let rafId: number | null = null;
+		const throttled = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				fn();
+			});
+		};
+		this.map.on('move', throttled);
+		this.map.on('resize', throttled);
 		return () => {
-			this.map.off('move', fn);
-			this.map.off('resize', fn);
+			this.map.off('move', throttled);
+			this.map.off('resize', throttled);
+			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
 	}
 
