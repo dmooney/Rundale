@@ -39,6 +39,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 6. **Feature flags for new engine/gameplay features:** Gate with `config.flags.is_enabled("feature-name")`, default-on, and document in PR.
 7. **Keep README.md up to date.** Especially the feature list, repository structure and credits. Run `just notices` to update third party notices when dependencies are changed.
 8. **Investigate with Five Whys.** When diagnosing a bug, regression, or unexpected behavior, run the `/five-whys` skill (or apply the method) to reach the root cause before patching.
+9. **Resolve runtime paths from explicit config, not the cwd.** Saves dir, mods dir, data dir, and similar runtime paths must be resolved once at startup (env var, CLI flag, or project-marker probe) and stored on `AppState` / `GlobalState`. Never call `current_dir()`, parent-walks, or marker-file searches from request handlers or per-call helpers — packaged builds, daemonised servers, and `/tmp` working directories all break that assumption (#771). Use `parish_persistence::picker::resolve_project_saves_dir` rather than re-rolling the walk.
 
 ## Standard commands
 

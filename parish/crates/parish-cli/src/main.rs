@@ -322,9 +322,19 @@ fn build_inference_clients(
     InferenceClients::new(base_client.clone(), base_model.to_string(), overrides)
 }
 
-/// Finds the active mod data directory (containing `world.json` + `npcs.json`).
+/// Resolves the active mod data directory (containing `world.json` + `npcs.json`)
+/// once at startup.
+///
+/// Resolution order:
+/// 1. `PARISH_DATA_DIR` environment variable — explicit operator override.
+/// 2. Walks up to 4 ancestors of the cwd looking for `mods/rundale/world.json`.
+/// 3. Falls back to `./mods/rundale` and lets the load functions fail with a
+///    clear error.
 fn find_data_dir() -> PathBuf {
     const MOD_REL: &str = "mods/rundale";
+    if let Some(explicit) = std::env::var_os("PARISH_DATA_DIR") {
+        return PathBuf::from(explicit);
+    }
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..4 {
         if p.join(MOD_REL).join("world.json").exists() {

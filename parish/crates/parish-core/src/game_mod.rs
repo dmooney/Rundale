@@ -755,8 +755,28 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
     Ok(DiscoveredMods { setting, auxiliary })
 }
 
-/// Walk up from cwd searching for a `mods/` directory.
+/// Resolves the `mods/` directory.
+///
+/// Resolution order:
+/// 1. `PARISH_MODS_DIR` environment variable — explicit operator override.
+/// 2. Walks up from the current working directory searching for a `mods/`
+///    directory.
+///
+/// Per AGENTS.md rule #8, prefer the env-var path in production and packaged
+/// builds; the cwd-walk is the development fallback.
 fn find_mods_root() -> Option<PathBuf> {
+    if let Some(explicit) = std::env::var_os("PARISH_MODS_DIR") {
+        let p = PathBuf::from(explicit);
+        if p.is_dir() {
+            return Some(p);
+        }
+        // Misconfigured override — fall through to the cwd-walk so dev
+        // environments aren't broken by a stale env var, but log it.
+        tracing::warn!(
+            path = %p.display(),
+            "PARISH_MODS_DIR is set but does not point to a directory; falling back to cwd-walk"
+        );
+    }
     let mut dir = std::env::current_dir().ok()?;
     loop {
         let candidate = dir.join("mods");
