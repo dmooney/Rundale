@@ -349,5 +349,71 @@ describe('DebugPanel', () => {
 			const { container } = render(DebugPanel);
 			expect(container.textContent).toContain('anthropic');
 		});
+
+		it('resets selectedLogId when panel is closed so list view shows on reopen (regression #775)', async () => {
+			// selectedLogId is a component-level `let` — it is initialised once at construction,
+			// not on each visibility toggle, so stale values survive open/close cycles.
+			// The fix (closePanel()) must null it via the X button handler.
+			const snap = makeSnapshot({
+				inference: {
+					provider_name: 'anthropic',
+					model_name: 'claude-3-haiku',
+					base_url: '',
+					cloud_provider: null,
+					cloud_model: null,
+					has_queue: false,
+					reaction_req_id: 0,
+					improv_enabled: false,
+					categories: [],
+					configured_providers: ['anthropic'],
+					call_log: [
+						{
+							request_id: 5,
+							timestamp: '09:10',
+							model: 'claude-3-haiku',
+							streaming: false,
+							duration_ms: 200,
+							prompt_len: 50,
+							response_len: 30,
+							error: null,
+							system_prompt: null,
+							prompt_text: 'Hello',
+							response_text: 'Hi there.',
+							max_tokens: null
+						}
+					]
+				}
+			});
+
+			debugSnapshot.set(snap);
+			debugTab.set(7);
+			debugVisible.set(true);
+
+			const { container } = render(DebugPanel);
+
+			// Select the log entry — this sets selectedLogId = 5 inside the component.
+			const logRow = container.querySelector('.log-row') as HTMLButtonElement;
+			expect(logRow).toBeTruthy();
+			await fireEvent.click(logRow);
+			await tick();
+
+			// Confirm we are in the detail view.
+			expect(container.querySelector('.log-detail-header')).toBeTruthy();
+
+			// Close via the X button so closePanel() runs (not debugVisible.set directly —
+			// that would bypass the fix and make the test vacuous).
+			const closeBtn = container.querySelector('.debug-close') as HTMLButtonElement;
+			expect(closeBtn).toBeTruthy();
+			await fireEvent.click(closeBtn);
+			await tick();
+
+			// Reopen the panel on the same snapshot (same request_id=5 is still present).
+			debugVisible.set(true);
+			await tick();
+
+			// After closePanel() the list view should be shown, not the stale detail view.
+			expect(container.querySelector('.log-detail-header')).toBeFalsy();
+			expect(container.querySelector('.log-row')).toBeTruthy();
+		});
 	});
 });
