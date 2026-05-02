@@ -22,7 +22,10 @@
 //!   `assert!` names the fixture, the step, the rule that fired, and the
 //!   canonical fix.
 
+use parish::npc::manager::TierTransition;
+use parish::npc::types::CogTier;
 use parish::testing::{ActionResult, GameTestHarness, ScriptResult, run_script_captured};
+use parish::world::LocationId;
 use parish_types::events::GameEvent;
 use std::collections::HashMap;
 use std::fs;
@@ -358,4 +361,156 @@ fn rubric_festival_event_published_on_festival_date() {
          See: parish/crates/parish-npc/src/tier4.rs (tick_tier4) and \
          parish/crates/parish-npc/src/manager.rs (apply_tier4_events)."
     );
+}
+
+// ============================================================
+// Gameplay rubrics — Tier promotion/demotion on proximity (#721)
+// ============================================================
+
+/// Asserts that NPCs promote to Tier 1 when the player moves co-located and
+/// demote when the player moves away.
+///
+/// Strategy:
+/// - Load the full Rundale world (real NPCs, real world graph).
+/// - Player starts at Kilteevan Village (id=15).  The Walsh family (Eamon,
+///   Kathleen, Ciaran — NpcIds 15/16/17) home at Boatman's Cottage (id=20),
+///   BFS-distance 3 from Kilteevan.  Distance 3 <= tier3_max_distance(5), so
+///   they start at Tier 3.  (The vanilla Rundale world has max graph-distance
+///   4, so no NPC ever reaches Tier 4 from the default start.)
+/// - Teleport the player to Boatman's Cottage by directly writing
+///   `world.player_location`, then call `assign_tiers` to recompute distances.
+///   Distance becomes 0 → tier1_max_distance(0), so Walsh NPCs promote to
+///   Tier 1.  Assert at least one `TierTransition` carries `new_tier=Tier1`.
+/// - Teleport back to Kilteevan Village and call `assign_tiers` again.
+///   Distance becomes 3 → Tier 3 again.  Assert that the NPCs that promoted
+///   now have a demotion transition back to their original tier.
+///
+/// This test uses direct field assignment + `assign_tiers` rather than script
+/// harness movement so that NPC schedule ticks cannot relocate the Walsh
+/// family between the assertion steps.
+///
+/// Fixture: `parish/testing/fixtures/test_tier_promotion.txt`
+#[test]
+fn rubric_tier_promotion_on_proximity() {
+    let mut h = GameTestHarness::new();
+
+    // --- 1. Verify starting state -----------------------------------------------
+
+    // Player starts at Kilteevan Village.
+    assert_eq!(
+        h.app.world.player_location,
+        LocationId(15),
+        "rubric_tier_promotion_on_proximity: expected player to start at \
+         Kilteevan Village (id=15).  Check the default mod start location."
+    );
+
+    // Walsh family (NpcIds 15, 16, 17) home at Boatman's Cottage (id=20),
+    // BFS-distance 3 from Kilteevan.  Tier 3 range is d <= 5.
+    let walsh_ids = [
+        parish::npc::NpcId(15), // Eamon Walsh
+        parish::npc::NpcId(16), // Kathleen Walsh
+        parish::npc::NpcId(17), // Ciaran Walsh
+    ];
+
+    for id in walsh_ids {
+        let tier = h.app.npc_manager.tier_of(id).unwrap_or(CogTier::Tier4);
+        assert!(
+            matches!(tier, CogTier::Tier3 | CogTier::Tier4),
+            "rubric_tier_promotion_on_proximity: NpcId({}) expected Tier3/Tier4 \
+             at start (distance 3 from Kilteevan) but got {:?}.\n\
+             FIX: verify initial tier assignment in GameTestHarness::new() and \
+             that the Walsh NPCs' home location (id=20) is reachable from \
+             Kilteevan (id=15) at the expected distance.",
+            id.0,
+            tier
+        );
+    }
+
+    // --- 2. Teleport to Boatman's Cottage and check promotion -------------------
+
+    // Move player to Boatman's Cottage (id=20, distance=0 from itself).
+    // Distance 0 <= tier1_max_distance(0), so Walsh NPCs must promote to Tier 1.
+    h.app.world.player_location = LocationId(20);
+    let promotion_transitions = h.app.npc_manager.assign_tiers(&h.app.world, &[]);
+
+    // At least one Walsh NPC must have a Tier1 promotion transition.
+    let promoted_to_tier1: Vec<&TierTransition> = promotion_transitions
+        .iter()
+        .filter(|t| walsh_ids.contains(&t.npc_id) && t.new_tier == CogTier::Tier1 && t.promoted)
+        .collect();
+
+    assert!(
+        !promoted_to_tier1.is_empty(),
+        "rubric_tier_promotion_on_proximity: expected at least one Walsh NPC \
+         (NpcIds 15/16/17) to promote to Tier 1 after player moved to \
+         Boatman's Cottage (id=20), but no Tier1 promotion was returned by \
+         assign_tiers.\n\
+         Transitions returned: {:?}\n\
+         FIX: check NpcManager::assign_tiers BFS logic in \
+         parish/crates/parish-npc/src/manager.rs.  tier1_max_distance=0 means \
+         distance 0 (same location) must map to CogTier::Tier1.",
+        promotion_transitions
+            .iter()
+            .map(|t| format!("{:?} {:?}->{:?}", t.npc_id, t.old_tier, t.new_tier))
+            .collect::<Vec<_>>()
+    );
+
+    // Confirm the tier map reflects Tier 1 after assign_tiers.
+    for id in walsh_ids {
+        let tier = h.app.npc_manager.tier_of(id).unwrap_or(CogTier::Tier4);
+        assert_eq!(
+            tier,
+            CogTier::Tier1,
+            "rubric_tier_promotion_on_proximity: NpcId({}) tier_of() reports {:?} \
+             after player co-location; expected Tier1.\n\
+             FIX: NpcManager::assign_tiers must update tier_assignments map for \
+             every NPC, not just those with transitions.",
+            id.0,
+            tier
+        );
+    }
+
+    // --- 3. Teleport back to Kilteevan and check demotion -----------------------
+
+    h.app.world.player_location = LocationId(15);
+    let demotion_transitions = h.app.npc_manager.assign_tiers(&h.app.world, &[]);
+
+    // At least one Walsh NPC must demote (new_tier != Tier1, promoted=false).
+    let demoted_from_tier1: Vec<&TierTransition> = demotion_transitions
+        .iter()
+        .filter(|t| {
+            walsh_ids.contains(&t.npc_id)
+                && t.old_tier == CogTier::Tier1
+                && t.new_tier != CogTier::Tier1
+                && !t.promoted
+        })
+        .collect();
+
+    assert!(
+        !demoted_from_tier1.is_empty(),
+        "rubric_tier_promotion_on_proximity: expected at least one Walsh NPC \
+         (NpcIds 15/16/17) to demote from Tier 1 after player returned to \
+         Kilteevan Village (id=15), but no demotion transition was returned.\n\
+         Transitions returned: {:?}\n\
+         FIX: check NpcManager::assign_tiers demotion branch.  BFS distance \
+         from Kilteevan (id=15) to Boatman's Cottage (id=20) is 3, which is \
+         > tier1_max_distance(0) and <= tier3_max_distance(5).",
+        demotion_transitions
+            .iter()
+            .map(|t| format!("{:?} {:?}->{:?}", t.npc_id, t.old_tier, t.new_tier))
+            .collect::<Vec<_>>()
+    );
+
+    // Confirm the tier map reflects Tier 3 (not Tier 1) after demotion.
+    for id in walsh_ids {
+        let tier = h.app.npc_manager.tier_of(id).unwrap_or(CogTier::Tier4);
+        assert!(
+            tier != CogTier::Tier1,
+            "rubric_tier_promotion_on_proximity: NpcId({}) tier_of() still \
+             reports Tier1 after player moved back to Kilteevan — demotion did \
+             not take effect.  Got {:?}.",
+            id.0,
+            tier
+        );
+    }
 }

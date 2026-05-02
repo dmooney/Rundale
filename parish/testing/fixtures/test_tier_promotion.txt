@@ -1,0 +1,29 @@
+# Integration scenario: proximity-driven tier promotion and demotion.
+#
+# Start: player at Kilteevan Village (id=15).
+# The Walsh family (Eamon, Kathleen, Ciaran) home at Boatman's Cottage (id=20),
+# which is BFS-distance 3 from Kilteevan — within Tier 3 range (max=5).
+# No NPC in vanilla Rundale is ever Tier 4 (max dist=4 < tier4 threshold>5).
+#
+# Promotion step: player travels to Boatman's Cottage.
+# Distance becomes 0 → Walsh NPCs promote to Tier 1.
+#
+# Demotion step: player returns to Kilteevan.
+# Distance becomes 3 again → Walsh NPCs demote to Tier 3.
+#
+# Used by: rubric_tier_promotion_on_proximity (parish-cli/tests/eval_baselines.rs)
+
+/status
+/time
+
+# Confirm starting location
+go to boatman's cottage
+
+/status
+
+# Confirm player reached the cottage
+go to kilteevan
+
+/status
+
+/quit
