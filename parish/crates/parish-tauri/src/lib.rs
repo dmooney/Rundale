@@ -3,6 +3,7 @@
 //! The Rust game engine exposes game state to the Svelte frontend via
 //! typed Tauri commands ([`commands`]) and events ([`events`]).
 
+pub mod command_registry;
 pub mod commands;
 pub mod editor_commands;
 pub mod events;
