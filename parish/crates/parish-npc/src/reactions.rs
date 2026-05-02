@@ -21,10 +21,11 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Duration;
 
 use crate::{Npc, NpcId};
+use crate::familiarity::FamiliarityTier;
 use parish_config::ReactionConfig;
 use parish_inference::AnyClient;
 use parish_types::dice::DiceRoll;
@@ -364,6 +365,13 @@ pub enum ReactionKind {
     Welcome,
     /// The NPC introduces themselves by name.
     Introduction,
+    /// A warmer recognition shaped by shared game-days with this NPC.
+    ///
+    /// Only fires when the NPC is already introduced *and* has climbed to
+    /// [`FamiliarityTier::Acquaintance`] or higher. The inner tier drives
+    /// which template pool is used — an `Acquaintance` "seen you before",
+    /// a `Familiar` "come in and sit by the fire".
+    Familiar(FamiliarityTier),
 }
 
 /// A resolved reaction from one NPC.
@@ -403,6 +411,9 @@ pub struct ReactionTemplates {
     /// Occupation-specific greetings (non-workplace).
     #[serde(default = "default_occupation_greetings")]
     pub occupation_greetings: OccupationGreetings,
+    /// Tier-gated familiar greetings ("the blow-in arc").
+    #[serde(default = "default_familiar_greetings")]
+    pub familiar_greetings: FamiliarGreetings,
 }
 
 impl Default for ReactionTemplates {
@@ -413,6 +424,7 @@ impl Default for ReactionTemplates {
             welcomes: default_welcomes(),
             introductions: default_introductions(),
             occupation_greetings: default_occupation_greetings(),
+            familiar_greetings: default_familiar_greetings(),
         }
     }
 }
@@ -471,6 +483,27 @@ pub struct OccupationGreetings {
     /// Priest greetings (blessings etc.).
     #[serde(default)]
     pub priest: Vec<String>,
+}
+
+/// Familiarity-tier-gated greetings ("the blow-in arc").
+///
+/// One pool per non-`Stranger` tier. The arrival system only draws from
+/// these pools when the NPC is already introduced *and* the player has
+/// climbed the relevant tier for them.
+#[derive(Debug, Clone, Deserialize)]
+pub struct FamiliarGreetings {
+    /// Seen a couple of times — vague recognition.
+    #[serde(default)]
+    pub acquaintance: Vec<String>,
+    /// A known face. Small-talk unlocks.
+    #[serde(default)]
+    pub known: Vec<String>,
+    /// Personal welcome. The NPC wants you here.
+    #[serde(default)]
+    pub welcome: Vec<String>,
+    /// Treated like one of their own.
+    #[serde(default)]
+    pub familiar: Vec<String>,
 }
 
 // ── Core algorithm ──────────────────────────────────────────────────────────
@@ -613,8 +646,9 @@ pub fn generate_arrival_reactions(
         reactions.sort_by_key(|r| match r.kind {
             ReactionKind::Introduction => 0u8,
             ReactionKind::Welcome => 1,
-            ReactionKind::Greeting => 2,
-            ReactionKind::Gesture => 3,
+            ReactionKind::Familiar(_) => 2,
+            ReactionKind::Greeting => 3,
+            ReactionKind::Gesture => 4,
         });
         reactions.truncate(config.max_reactions);
     }
@@ -675,6 +709,29 @@ fn pick_canned_text(
             };
             if pool.is_empty() {
                 "\"I'm {},\" they say.".to_string()
+            } else {
+                roll.pick(pool).clone()
+            }
+        }
+        ReactionKind::Familiar(tier) => {
+            let pool = match tier {
+                FamiliarityTier::Acquaintance => &templates.familiar_greetings.acquaintance,
+                FamiliarityTier::Known => &templates.familiar_greetings.known,
+                FamiliarityTier::Welcome => &templates.familiar_greetings.welcome,
+                FamiliarityTier::Familiar => &templates.familiar_greetings.familiar,
+                // Stranger should never reach Familiar(_); fall back to any greeting.
+                FamiliarityTier::Stranger => {
+                    return substitute_placeholders(
+                        &pick_greeting_by_time(time_of_day, templates, roll),
+                        npc,
+                        display_name,
+                        time_of_day,
+                        weather,
+                    );
+                }
+            };
+            if pool.is_empty() {
+                pick_greeting_by_time(time_of_day, templates, roll)
             } else {
                 roll.pick(pool).clone()
             }
@@ -936,6 +993,181 @@ fn default_occupation_greetings() -> OccupationGreetings {
             "\"The peace of God be upon you,\" says {name}.".into(),
         ],
     }
+}
+
+fn default_familiar_greetings() -> FamiliarGreetings {
+    FamiliarGreetings {
+        acquaintance: vec![
+            "\"I've seen your face before,\" says {name}, with a second glance.".into(),
+            "\"Yourself again,\" {name} observes without stopping their work.".into(),
+            "\"You're about the parish a bit these days,\" {name} remarks.".into(),
+            "\"Back again,\" says {name}, neither warm nor cold.".into(),
+            "\"I know your step now,\" {name} says, half to themselves.".into(),
+            "\"You — I remember you from before,\" says {name}.".into(),
+            "{name} gives you a longer look this time, measuring.".into(),
+            "\"A second time, then,\" says {name} with a brief nod.".into(),
+        ],
+        known: vec![
+            "\"Ah, it's yourself,\" says {name} warmly. \"Welcome back.\"".into(),
+            "\"You're a familiar face now,\" says {name} with a small smile.".into(),
+            "\"Good to see you back,\" says {name}, genuinely pleased.".into(),
+            "\"Dia dhuit,\" says {name}. \"It's always a welcome sight, you coming through.\"".into(),
+            "\"And how are you keeping?\" {name} asks, setting down what they're holding.".into(),
+            "\"I was wondering if you'd be by today,\" says {name}.".into(),
+            "\"Any news with you?\" asks {name}, pleased to see you.".into(),
+            "\"The wind must have carried you,\" says {name}. \"Come on in.\"".into(),
+            "\"Grand to see you,\" {name} says, and clearly means it.".into(),
+            "\"Ah, 'tis yourself — the {time} is all the better for it,\" says {name}.".into(),
+        ],
+        welcome: vec![
+            "\"Come in, come in. Take the weight off,\" says {name}, pulling out a stool.".into(),
+            "\"There you are — I was saving you a place by the fire,\" says {name}.".into(),
+            "\"Céad míle fáilte,\" says {name}. \"Sit down and tell me how you are.\"".into(),
+            "\"Ah, you're here. Good,\" says {name}, brightening visibly.".into(),
+            "\"You'll have a sup of tea with me,\" {name} says — not a question.".into(),
+            "\"It's as if the house knew you were coming,\" says {name}.".into(),
+            "\"In with you out of the {weather},\" says {name}. \"You're always welcome here.\"".into(),
+            "\"You've a seat here whenever you want it,\" says {name}.".into(),
+            "\"Stay a while,\" says {name}. \"It does me good to see you.\"".into(),
+        ],
+        familiar: vec![
+            "\"Close the door behind you — the kettle's on,\" says {name}, not looking up.".into(),
+            "\"You know where everything is,\" {name} says. \"Help yourself.\"".into(),
+            "\"Ah, 'tis only yourself,\" says {name}, and goes back to their work as though you'd never left.".into(),
+            "\"You'll have the usual,\" says {name}. It isn't a question.".into(),
+            "\"I'd have been worried if you hadn't come by today,\" says {name}.".into(),
+            "\"Sit yourself down there like you always do,\" says {name}.".into(),
+            "\"The house feels right when you're in it,\" {name} says, quieter than their usual voice.".into(),
+            "\"Come in and leave the door on the latch,\" says {name}.".into(),
+            "\"You're a part of the place now, so you are,\" says {name}.".into(),
+        ],
+    }
+}
+
+/// Generates arrival reactions with familiarity-gated greeting tiers.
+///
+/// This is the blow-in arc variant of `generate_arrival_reactions` that
+/// unlocks warmer, more personal greetings as familiarity tiers increase.
+/// The outcome depends on whether the NPC is at their workplace,
+/// whether the player has been introduced, and the current familiarity tier.
+pub fn generate_arrival_reactions_with_familiarity(
+    npcs: &[&Npc],
+    introduced: &HashSet<NpcId>,
+    familiarity: &HashMap<NpcId, FamiliarityTier>,
+    location: &LocationData,
+    time_of_day: TimeOfDay,
+    weather: &str,
+    templates: &ReactionTemplates,
+    config: &ReactionConfig,
+    dice: &[DiceRoll],
+) -> Vec<NpcReaction> {
+    let mut reactions = Vec::new();
+
+    for (i, npc) in npcs.iter().enumerate() {
+        let roll_idx = i * 2;
+        if roll_idx + 1 >= dice.len() {
+            break;
+        }
+        let chance_roll = &dice[roll_idx];
+        let type_roll = &dice[roll_idx + 1];
+
+        let threshold = reaction_threshold(npc, location, time_of_day, config);
+        if !chance_roll.check(threshold) {
+            continue; // NPC stays silent
+        }
+
+        let is_introduced = introduced.contains(&npc.id);
+        let at_workplace = is_at_workplace(npc, location);
+        let occupation = npc.occupation.to_lowercase();
+        let familiarity_tier = familiarity
+            .get(&npc.id)
+            .copied()
+            .unwrap_or(FamiliarityTier::Stranger);
+        // A familiar greeting can only surface once the player has been
+        // introduced *and* climbed above `Stranger` for this NPC. The
+        // probability of picking a familiar greeting over a generic one
+        // rises with tier: acquaintances only occasionally warm up,
+        // familiars almost always do.
+        let familiar_chance = match familiarity_tier {
+            FamiliarityTier::Stranger => 0.0,
+            FamiliarityTier::Acquaintance => 0.5,
+            FamiliarityTier::Known => 0.7,
+            FamiliarityTier::Welcome => 0.85,
+            FamiliarityTier::Familiar => 0.95,
+        };
+        let familiar_unlocked = is_introduced && familiar_chance > 0.0;
+
+        let (kind, introduces, use_llm) = if at_workplace && !is_introduced {
+            (ReactionKind::Introduction, true, true)
+        } else if at_workplace && is_introduced {
+            // At workplace, NPCs already deliver a warm role-specific
+            // welcome — but once the player is a known face, *some* of
+            // those welcomes give way to personal familiar greetings.
+            // The bar here is deliberately lower than the non-workplace
+            // path so the arc is visible inside the pub/shop/church
+            // where the player naturally spends time.
+            if familiarity_tier >= FamiliarityTier::Known && type_roll.check(familiar_chance) {
+                (ReactionKind::Familiar(familiarity_tier), false, true)
+            } else {
+                (ReactionKind::Welcome, false, true)
+            }
+        } else if !is_introduced && type_roll.check(0.25) {
+            (ReactionKind::Introduction, true, true)
+        } else if !is_introduced {
+            (ReactionKind::Gesture, false, false)
+        } else if familiar_unlocked && type_roll.check(familiar_chance) {
+            (ReactionKind::Familiar(familiarity_tier), false, false)
+        } else if is_priest_occupation(&occupation) {
+            (ReactionKind::Greeting, false, type_roll.check(0.5))
+        } else if type_roll.check(0.5) {
+            (ReactionKind::Greeting, false, false)
+        } else {
+            (ReactionKind::Gesture, false, false)
+        };
+
+        let display_name = if is_introduced || introduces {
+            npc.name.clone()
+        } else {
+            npc.brief_description.clone()
+        };
+
+        let canned_text = pick_canned_text(
+            &kind,
+            npc,
+            &display_name,
+            at_workplace,
+            &occupation,
+            time_of_day,
+            weather,
+            templates,
+            type_roll,
+        );
+
+        reactions.push(NpcReaction {
+            npc_id: npc.id,
+            npc_display_name: display_name,
+            kind,
+            canned_text,
+            introduces,
+            use_llm,
+        });
+    }
+
+    // Cap the number of simultaneous reactions, prioritising the most
+    // socially significant kinds first so the publican always greets you
+    // before a random patron does.
+    if config.max_reactions > 0 && reactions.len() > config.max_reactions {
+        reactions.sort_by_key(|r| match r.kind {
+            ReactionKind::Introduction => 0u8,
+            ReactionKind::Welcome => 1,
+            ReactionKind::Familiar(_) => 2,
+            ReactionKind::Greeting => 3,
+            ReactionKind::Gesture => 4,
+        });
+        reactions.truncate(config.max_reactions);
+    }
+
+    reactions
 }
 
 // ── LLM greeting ────────────────────────────────────────────────────────────

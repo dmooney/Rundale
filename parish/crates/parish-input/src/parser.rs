@@ -87,6 +87,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::Designer)
     } else if lower == "/npcs" {
         Some(Command::NpcsHere)
+    } else if lower == "/standing" || lower == "/familiarity" {
+        Some(Command::Standing)
     } else if lower == "/time" {
         Some(Command::Time)
     } else if lower == "/where" {

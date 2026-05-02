@@ -106,6 +106,11 @@ pub enum Command {
     Designer,
     /// Show NPCs at the current location with details.
     NpcsHere,
+    /// Show the player's social standing with NPCs they have met.
+    ///
+    /// Prints a table of familiarity tier and encounter-day counts so the
+    /// player can see how their blow-in arc is progressing.
+    Standing,
     /// Show detailed time, weather, and season info.
     Time,
     /// Wait in place for a number of game minutes, advancing time.
