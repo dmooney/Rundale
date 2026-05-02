@@ -37,6 +37,17 @@
 
 	const filteredModels = $derived(filterModels(modelQuery));
 
+	/** Computes the id of the currently-highlighted dropdown option for
+	 *  `aria-activedescendant`. Returns undefined when no dropdown is open. */
+	const activeDescendantId = $derived(
+		dropdownMode !== null ? `${dropdownMode}-option-${selectedIndex}` : undefined
+	);
+
+	/** The id of the currently-open listbox, for `aria-controls`. */
+	const dropdownListboxId = $derived(
+		dropdownMode !== null ? `${dropdownMode}-listbox` : undefined
+	);
+
 	// ── Input history ───────────────────────────────────────────────────────
 	const HISTORY_KEY = 'parish-input-history';
 	const HISTORY_MAX = 50;
@@ -407,6 +418,8 @@
 			chip.contentEditable = 'false';
 			chip.dataset.npc = npcName;
 			chip.textContent = `@${npcName}`;
+			chip.setAttribute('role', 'img');
+			chip.setAttribute('aria-label', `Mention: ${npcName}`);
 			editorEl.textContent = '';
 			editorEl.appendChild(chip);
 			const trailing = document.createTextNode('\u00A0');
@@ -437,6 +450,8 @@
 		chip.contentEditable = 'false';
 		chip.dataset.npc = npcName;
 		chip.textContent = `@${npcName}`;
+		chip.setAttribute('role', 'img');
+		chip.setAttribute('aria-label', `Mention: ${npcName}`);
 
 		const parent = textNode.parentNode!;
 		if (before) {
@@ -549,6 +564,8 @@
 		chip.contentEditable = 'false';
 		chip.dataset.npc = npcName;
 		chip.textContent = `@${npcName}`;
+		chip.setAttribute('role', 'img');
+		chip.setAttribute('aria-label', `Mention: ${npcName}`);
 
 		const trailing = document.createTextNode('\u00A0');
 		const sel = window.getSelection();
@@ -886,9 +903,10 @@
 
 <div class="input-wrapper">
 	{#if dropdownMode === 'mention' && filteredNpcs.length > 0}
-		<ul class="mention-dropdown" role="listbox" aria-label="Mention NPC">
+		<ul id="mention-listbox" class="mention-dropdown" role="listbox" aria-label="Mention NPC">
 			{#each filteredNpcs as npc, i}
 				<li
+					id="mention-option-{i}"
 					role="option"
 					aria-selected={i === selectedIndex}
 					class="mention-item"
@@ -905,9 +923,10 @@
 		</ul>
 	{/if}
 	{#if dropdownMode === 'slash' && filteredCommands.length > 0}
-		<ul class="mention-dropdown" role="listbox" aria-label="Slash commands">
+		<ul id="slash-listbox" class="mention-dropdown" role="listbox" aria-label="Slash commands">
 			{#each filteredCommands as cmd, i}
 				<li
+					id="slash-option-{i}"
 					role="option"
 					aria-selected={i === selectedIndex}
 					class="mention-item"
@@ -922,9 +941,10 @@
 		</ul>
 	{/if}
 	{#if dropdownMode === 'model' && filteredModels.length > 0}
-		<ul class="mention-dropdown" role="listbox" aria-label="Model suggestions">
+		<ul id="model-listbox" class="mention-dropdown" role="listbox" aria-label="Model suggestions">
 			{#each filteredModels as model, i}
 				<li
+					id="model-option-{i}"
 					role="option"
 					aria-selected={i === selectedIndex}
 					class="mention-item"
@@ -991,10 +1011,14 @@
 				class="input-field"
 				class:disabled={$streamingActive}
 				contenteditable={!$streamingActive}
-				role="textbox"
+				role="combobox"
 				tabindex="0"
 				aria-label="Player input"
 				aria-disabled={$streamingActive}
+				aria-haspopup="listbox"
+				aria-expanded={dropdownMode !== null}
+				aria-controls={dropdownListboxId}
+				aria-activedescendant={activeDescendantId}
 				data-testid="input-field"
 				onkeydown={handleKeydown}
 				oninput={handleInput}

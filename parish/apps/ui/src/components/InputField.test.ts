@@ -57,27 +57,27 @@ describe('InputField', () => {
 
 	it('renders an editable input area', () => {
 		const { getByRole } = render(InputField);
-		const editor = getByRole('textbox');
+		const editor = getByRole('combobox');
 		expect(editor).toBeTruthy();
 		expect(editor.getAttribute('contenteditable')).toBe('true');
 	});
 
 	it('shows placeholder when empty', () => {
 		const { getByRole } = render(InputField);
-		const editor = getByRole('textbox');
+		const editor = getByRole('combobox');
 		expect(editor.dataset.placeholder).toBe('What do you do? (@ to mention NPC)');
 	});
 
 	it('is not editable when streaming', () => {
 		streamingActive.set(true);
 		const { getByRole } = render(InputField);
-		const editor = getByRole('textbox');
+		const editor = getByRole('combobox');
 		expect(editor.getAttribute('contenteditable')).toBe('false');
 	});
 
 	it('clears editor after submit', async () => {
 		const { getByRole } = render(InputField);
-		const editor = getByRole('textbox');
+		const editor = getByRole('combobox');
 		editor.textContent = 'hello';
 		await fireEvent.input(editor);
 		await fireEvent.keyDown(editor, { key: 'Enter' });
@@ -86,7 +86,7 @@ describe('InputField', () => {
 
 	it('enables send button when editor has text', async () => {
 		const { getByRole } = render(InputField);
-		const editor = getByRole('textbox');
+		const editor = getByRole('combobox');
 		const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
 		expect(sendBtn.disabled).toBe(true);
 
@@ -124,7 +124,7 @@ describe('InputField', () => {
 
 		it('shows mention dropdown when @ is typed with a letter', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			expect(queryByRole('listbox')).toBeNull();
 
@@ -135,7 +135,7 @@ describe('InputField', () => {
 
 		it('filters NPCs by typed text', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -146,7 +146,7 @@ describe('InputField', () => {
 
 		it('shows matching NPCs for @S', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@S');
 			await fireEvent.input(editor);
@@ -158,7 +158,7 @@ describe('InputField', () => {
 		it('does not show dropdown when no NPCs present', async () => {
 			npcsHere.set([]);
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -167,7 +167,7 @@ describe('InputField', () => {
 
 		it('dismisses dropdown on Escape', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -179,7 +179,7 @@ describe('InputField', () => {
 
 		it('shows occupation for introduced NPCs', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -189,7 +189,7 @@ describe('InputField', () => {
 
 		it('inserts a mention chip with full name on selection', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -224,7 +224,7 @@ describe('InputField', () => {
 
 		it('shows slash dropdown when / is typed', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/');
 			await fireEvent.input(editor);
@@ -235,7 +235,7 @@ describe('InputField', () => {
 
 		it('filters commands by typed text', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/pa');
 			await fireEvent.input(editor);
@@ -246,7 +246,7 @@ describe('InputField', () => {
 
 		it('navigates dropdown with ArrowDown/ArrowUp', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/he');
 			await fireEvent.input(editor);
@@ -257,7 +257,7 @@ describe('InputField', () => {
 
 		it('dismisses slash dropdown on Escape', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/');
 			await fireEvent.input(editor);
@@ -269,7 +269,7 @@ describe('InputField', () => {
 
 		it('selects no-arg command via Enter and submits', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/pa');
 			await fireEvent.input(editor);
@@ -280,7 +280,7 @@ describe('InputField', () => {
 
 		it('selects arg command via Tab and inserts with trailing space', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/fo');
 			await fireEvent.input(editor);
@@ -293,7 +293,7 @@ describe('InputField', () => {
 
 		it('does not show slash dropdown when / is mid-text', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'go to a/b');
 			await fireEvent.input(editor);
@@ -320,7 +320,7 @@ describe('InputField', () => {
 
 		it('shows model dropdown after `/model ` is typed', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model ');
 			await fireEvent.input(editor);
@@ -331,7 +331,7 @@ describe('InputField', () => {
 
 		it('filters models by typed substring', async () => {
 			const { getByRole, queryAllByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model claude');
 			await fireEvent.input(editor);
@@ -346,7 +346,7 @@ describe('InputField', () => {
 			// must submit exactly what was typed so a partial / custom ID is never
 			// silently swapped for a catalog match.
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model my-custom-fork');
 			await fireEvent.input(editor);
@@ -360,7 +360,7 @@ describe('InputField', () => {
 			// Without this, an empty `/model ` + Enter would pick the first
 			// catalog suggestion and silently change the active model.
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model ');
 			await fireEvent.input(editor);
@@ -372,7 +372,7 @@ describe('InputField', () => {
 
 		it('Tab picks the highlighted suggestion and submits it', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model claude');
 			await fireEvent.input(editor);
@@ -386,7 +386,7 @@ describe('InputField', () => {
 
 		it('Tab preserves the per-category prefix when picking a suggestion', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model.dialogue claude');
 			await fireEvent.input(editor);
@@ -398,7 +398,7 @@ describe('InputField', () => {
 
 		it('clears the editor after picking a model with Tab', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model claude');
 			await fireEvent.input(editor);
@@ -409,7 +409,7 @@ describe('InputField', () => {
 
 		it('Escape dismisses the model dropdown', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model ');
 			await fireEvent.input(editor);
@@ -421,7 +421,7 @@ describe('InputField', () => {
 
 		it('does not show model dropdown for `/model` without a trailing space', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/model');
 			await fireEvent.input(editor);
@@ -433,7 +433,7 @@ describe('InputField', () => {
 
 		it('does not show model dropdown for unrelated commands', async () => {
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '/provider llama3');
 			await fireEvent.input(editor);
@@ -461,14 +461,14 @@ describe('InputField', () => {
 
 		it('ArrowUp on empty editor with no history does nothing', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 			await fireEvent.keyDown(editor, { key: 'ArrowUp' });
 			expect(editor.textContent).toBe('');
 		});
 
 		it('recalls previous input with ArrowUp after submit', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'hello');
 			await fireEvent.input(editor);
@@ -489,7 +489,7 @@ describe('InputField', () => {
 
 		it('ArrowDown restores draft after navigating history', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'first');
 			await fireEvent.input(editor);
@@ -508,7 +508,7 @@ describe('InputField', () => {
 
 		it('persists history to sessionStorage', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'persist me');
 			await fireEvent.input(editor);
@@ -520,7 +520,7 @@ describe('InputField', () => {
 
 		it('does not store consecutive duplicate inputs', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'same');
 			await fireEvent.input(editor);
@@ -540,7 +540,7 @@ describe('InputField', () => {
 	describe('multi-line input', () => {
 		it('Shift+Enter does not submit', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'line one';
 			await fireEvent.input(editor);
@@ -553,7 +553,7 @@ describe('InputField', () => {
 
 		it('Enter without Shift submits', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'submit me';
 			await fireEvent.input(editor);
@@ -600,7 +600,7 @@ describe('InputField', () => {
 
 		it('clicking an npc chip inserts an @name mention chip into the editor', async () => {
 			const { container, getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
 			await fireEvent.click(chip);
 
@@ -717,7 +717,7 @@ describe('InputField', () => {
 
 		it('inserts pasted plain text into an empty editor', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox') as HTMLElement;
+			const editor = getByRole('combobox') as HTMLElement;
 			editor.focus();
 			placeCursorAtEnd(editor);
 
@@ -730,7 +730,7 @@ describe('InputField', () => {
 
 		it('inserts pasted text at the cursor and keeps editorText state in sync (send enabled)', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox') as HTMLElement;
+			const editor = getByRole('combobox') as HTMLElement;
 			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
@@ -746,7 +746,7 @@ describe('InputField', () => {
 
 		it('pasting submits via Enter with the pasted content', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox') as HTMLElement;
+			const editor = getByRole('combobox') as HTMLElement;
 			editor.focus();
 			placeCursorAtEnd(editor);
 
@@ -861,7 +861,7 @@ describe('InputField', () => {
 
 		it('Tab completes a matching prefix', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'go to pub');
 			await fireEvent.input(editor);
@@ -872,7 +872,7 @@ describe('InputField', () => {
 
 		it('Tab does nothing when no matches', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'go to xyz');
 			await fireEvent.input(editor);
@@ -883,7 +883,7 @@ describe('InputField', () => {
 
 		it('Tab cycles through all visited locations on empty input', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			await fireEvent.keyDown(editor, { key: 'Tab' });
 			const first = editor.textContent ?? '';
@@ -896,7 +896,7 @@ describe('InputField', () => {
 
 		it('Tab completes unvisited (frontier) locations with lower priority', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'mill');
 			await fireEvent.input(editor);
@@ -908,7 +908,7 @@ describe('InputField', () => {
 
 		it('Tab cycles through multiple matches', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			// "the" matches "The Crossroads" and "The Church"
 			typeIntoEditor(editor, 'the');
@@ -926,7 +926,7 @@ describe('InputField', () => {
 
 		it('typing resets completion state', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, 'pub');
 			await fireEvent.input(editor);
@@ -955,7 +955,7 @@ describe('InputField', () => {
 				}
 			]);
 			const { getByRole, queryByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			typeIntoEditor(editor, '@P');
 			await fireEvent.input(editor);
@@ -976,7 +976,7 @@ describe('InputField', () => {
 				throw new Error('network down');
 			});
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'hello there';
 			await fireEvent.input(editor);
@@ -1039,7 +1039,7 @@ describe('InputField', () => {
 
 		it('does not resume game just by typing non-slash command while paused', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'h';
 			await fireEvent.input(editor);
@@ -1049,7 +1049,7 @@ describe('InputField', () => {
 
 		it('resumes game when sending non-slash command while paused', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'hello';
 			await fireEvent.input(editor);
@@ -1061,7 +1061,7 @@ describe('InputField', () => {
 
 		it('does not resume game when sending a slash command while paused', async () => {
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = '/help';
 			await fireEvent.input(editor);
@@ -1074,7 +1074,7 @@ describe('InputField', () => {
 		it('does not resume game if not paused', async () => {
 			worldState.set({ paused: false } as any);
 			const { getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 
 			editor.textContent = 'hello';
 			await fireEvent.input(editor);
@@ -1082,6 +1082,66 @@ describe('InputField', () => {
 
 			expect(mockSubmitInput).not.toHaveBeenCalledWith('/resume');
 			expect(mockSubmitInput).toHaveBeenCalledWith('hello', []);
+		});
+	});
+
+	// ── ARIA: combobox + listbox attributes (#683) ──────────────────────────
+	describe('ARIA combobox attributes (#683)', () => {
+		const testNpcs = [
+			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' }
+		];
+
+		function typeIntoEditor(editor: HTMLElement, text: string) {
+			editor.textContent = text;
+			const range = document.createRange();
+			const sel = window.getSelection();
+			if (editor.firstChild) {
+				range.setStart(editor.firstChild, text.length);
+			} else {
+				range.setStart(editor, 0);
+			}
+			range.collapse(true);
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+		}
+
+		it('editor has aria-haspopup="listbox" and aria-expanded=false when closed', () => {
+			const { getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+			expect(editor.getAttribute('aria-haspopup')).toBe('listbox');
+			expect(editor.getAttribute('aria-expanded')).toBe('false');
+		});
+
+		it('aria-expanded becomes true when mention dropdown opens', async () => {
+			npcsHere.set(testNpcs);
+			const { getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+			typeIntoEditor(editor, '@P');
+			await fireEvent.input(editor);
+			expect(editor.getAttribute('aria-expanded')).toBe('true');
+		});
+
+		it('mention chip inserted via selectNpc has role="img" and aria-label', async () => {
+			npcsHere.set(testNpcs);
+			const { getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+			typeIntoEditor(editor, '@P');
+			await fireEvent.input(editor);
+			await fireEvent.keyDown(editor, { key: 'Enter' });
+			const chip = editor.querySelector('.mention-chip') as HTMLElement;
+			expect(chip.getAttribute('role')).toBe('img');
+			expect(chip.getAttribute('aria-label')).toBe('Mention: Padraig Darcy');
+		});
+
+		it('mention chip inserted via npc-chip button has role="img" and aria-label', async () => {
+			npcsHere.set(testNpcs);
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('combobox');
+			const npcBtn = container.querySelector('.npc-chip') as HTMLButtonElement;
+			await fireEvent.click(npcBtn);
+			const chip = editor.querySelector('.mention-chip') as HTMLElement;
+			expect(chip.getAttribute('role')).toBe('img');
+			expect(chip.getAttribute('aria-label')).toBe('Mention: Padraig Darcy');
 		});
 	});
 });
