@@ -14,6 +14,13 @@ use parish_world::graph::WorldGraph;
 /// Default directory for save files.
 pub const SAVES_DIR: &str = "saves";
 
+/// Marker file used to identify the project root when resolving paths.
+/// Present in checkouts and in packaged builds that ship the default mod.
+const PROJECT_ROOT_MARKER: &str = "mods/rundale/world.json";
+
+/// Environment variable that overrides saves-dir resolution explicitly.
+const SAVES_DIR_ENV: &str = "PARISH_SAVES_DIR";
+
 /// Prefix for auto-numbered save files.
 const SAVE_PREFIX: &str = "parish_";
 
@@ -98,6 +105,52 @@ pub fn ensure_saves_dir() -> PathBuf {
     }
 
     saves_dir
+}
+
+/// Resolves the project's saves directory once at startup.
+///
+/// Resolution order:
+/// 1. `PARISH_SAVES_DIR` environment variable — explicit operator override.
+/// 2. Walks up to 4 ancestors of `start` looking for [`PROJECT_ROOT_MARKER`];
+///    returns `<that>/saves`.
+/// 3. Falls back to `./saves` via [`ensure_saves_dir`].
+///
+/// The returned directory is created on disk if missing. Callers MUST resolve
+/// once at startup and store the result on shared state. Do not call from
+/// request handlers — `current_dir()` may differ at handler invocation time
+/// (packaged builds, daemonised servers, working-directory changes), which is
+/// the bug behind #771.
+pub fn resolve_project_saves_dir(start: &Path) -> PathBuf {
+    if let Some(explicit) = std::env::var_os(SAVES_DIR_ENV) {
+        let p = PathBuf::from(explicit);
+        if let Err(e) = std::fs::create_dir_all(&p) {
+            tracing::warn!(path = %p.display(), error = %e, "failed to create saves directory");
+        }
+        return p;
+    }
+
+    let mut p = start.to_path_buf();
+    for _ in 0..4 {
+        if p.join(PROJECT_ROOT_MARKER).exists() {
+            let sd = p.join(SAVES_DIR);
+            if let Err(e) = std::fs::create_dir_all(&sd) {
+                tracing::warn!(path = %sd.display(), error = %e, "failed to create saves directory");
+            }
+            return sd;
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    ensure_saves_dir()
+}
+
+/// Convenience wrapper for [`resolve_project_saves_dir`] that anchors at the
+/// process's current working directory.
+pub fn resolve_project_saves_dir_from_cwd() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    resolve_project_saves_dir(&cwd)
 }
 
 /// Discovers all save files in the given directory and reads their metadata.
@@ -507,6 +560,48 @@ mod tests {
         std::fs::write(tmp.path().join("parish_001.db"), "").unwrap();
         let path2 = new_save_path(tmp.path());
         assert!(path2.to_string_lossy().contains("parish_002.db"));
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_finds_marker() {
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let nested = project.join("a").join("b").join("c");
+        std::fs::create_dir_all(nested.join("ignore")).unwrap();
+        std::fs::create_dir_all(project.join("mods/rundale")).unwrap();
+        std::fs::write(project.join("mods/rundale/world.json"), "{}").unwrap();
+
+        // Saved env value, restored at end of scope
+        let prev = std::env::var_os(SAVES_DIR_ENV);
+        // SAFETY: tests run serially per-binary; we save and restore.
+        unsafe { std::env::remove_var(SAVES_DIR_ENV) };
+
+        let resolved = resolve_project_saves_dir(&nested);
+        assert_eq!(resolved, project.join("saves"));
+        assert!(resolved.is_dir());
+
+        if let Some(v) = prev {
+            unsafe { std::env::set_var(SAVES_DIR_ENV, v) };
+        }
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_env_override() {
+        let tmp = TempDir::new().unwrap();
+        let explicit = tmp.path().join("custom_saves");
+
+        let prev = std::env::var_os(SAVES_DIR_ENV);
+        unsafe { std::env::set_var(SAVES_DIR_ENV, &explicit) };
+
+        // Anchor doesn't matter — env var wins.
+        let resolved = resolve_project_saves_dir(tmp.path());
+        assert_eq!(resolved, explicit);
+        assert!(resolved.is_dir());
+
+        match prev {
+            Some(v) => unsafe { std::env::set_var(SAVES_DIR_ENV, v) },
+            None => unsafe { std::env::remove_var(SAVES_DIR_ENV) },
+        }
     }
 
     #[test]
