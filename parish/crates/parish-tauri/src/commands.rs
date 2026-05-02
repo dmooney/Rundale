@@ -241,12 +241,9 @@ pub async fn submit_input(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let text = text.trim().to_string();
+    let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
-    }
-    if text.len() > 2000 {
-        return Err("Input too long (max 2000 characters).".to_string());
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
@@ -283,6 +280,20 @@ pub async fn submit_input(
 }
 
 // ── #752 — addressed_to validation ───────────────────────────────────────────
+
+/// Validates and trims player free-text input for `submit_input`.
+///
+/// - Trims leading/trailing whitespace.
+/// - Returns `Ok(String)` (the trimmed text) for empty input — callers should
+///   short-circuit before calling this if they want to silently drop empties.
+/// - Returns `Err` when the trimmed length exceeds 2000 characters.
+pub fn validate_input_text(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim().to_string();
+    if trimmed.len() > 2000 {
+        return Err("Input too long (max 2000 characters).".to_string());
+    }
+    Ok(trimmed)
+}
 
 /// Validates the `addressed_to` list from the `submit_input` command.
 ///
@@ -1912,6 +1923,15 @@ async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
+/// Returns `true` for characters that are banned from reaction message snippets
+/// to prevent NPC system-prompt injection (#687).
+///
+/// Banned: double-quote, backslash, Unicode line/paragraph separators, and
+/// all ASCII control characters (including newline, carriage return, tab).
+pub fn is_snippet_injection_char(c: char) -> bool {
+    c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
+}
+
 /// Player reacts to an NPC message with an emoji.
 #[tauri::command]
 pub async fn react_to_message(
@@ -1920,10 +1940,6 @@ pub async fn react_to_message(
     emoji: String,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
-    fn is_snippet_injection_char(c: char) -> bool {
-        c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
-    }
-
     // Validate emoji is in the palette
     if reactions::reaction_description(&emoji).is_none() {
         return Err("Unknown reaction emoji.".to_string());
