@@ -4,14 +4,14 @@
 
 Most engine commands should be run from the `parish/` directory:
 
-- Build: `cd parish && cargo build` (builds the default member, `parish-cli`)
-- Build everything: `cd parish && cargo build --workspace`
-- Release build: `cd parish && cargo build --release`
-- Run: `cd parish && cargo run -p parish` (or `cargo run`, since parish-cli is the default)
-- Test all: `cd parish && cargo test --workspace`
-- Test one: `cd parish && cargo test <test_name>`
-- Format check: `cd parish && cargo fmt --check` (apply: `cd parish && cargo fmt`)
-- Lint: `cd parish && cargo clippy --workspace -- -D warnings`
+- Build: `cargo build` (builds the default member, `parish-cli`)
+- Build everything: `cargo build --workspace`
+- Release build: `cargo build --release`
+- Run: `cargo run -p parish` (or `cargo run`, since parish-cli is the default)
+- Test all: `cargo test --workspace`
+- Test one: `cargo test <test_name>`
+- Format check: `cargo fmt --check` (apply: `cargo fmt`)
+- Lint: `cargo clippy --workspace -- -D warnings`
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 
