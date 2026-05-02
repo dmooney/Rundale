@@ -19,7 +19,7 @@ use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
 use parish_core::ipc::{GameConfig, ThemePalette};
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::transport::TransportConfig;
-use parish_core::world::{LocationId, WorldState};
+use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 
@@ -503,10 +503,11 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
     let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
     let (world, npc_manager) = tokio::task::spawn_blocking(move || {
-        let world = WorldState::from_parish_file(&world_path, LocationId(15)).unwrap_or_else(|e| {
-            tracing::warn!("Session init: failed to load world: {}. Using default.", e);
-            WorldState::new()
-        });
+        let world = WorldState::from_parish_file(&world_path, DEFAULT_START_LOCATION)
+            .unwrap_or_else(|e| {
+                tracing::warn!("Session init: failed to load world: {}. Using default.", e);
+                WorldState::new()
+            });
         let mut npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|e| {
                 tracing::warn!("Session init: failed to load npcs.json: {}. No NPCs.", e);
@@ -602,7 +603,7 @@ async fn restore_session(
     let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
     let (mut world, mut npc_manager) = tokio::task::spawn_blocking(move || {
-        let world = WorldState::from_parish_file(&world_path, LocationId(15))
+        let world = WorldState::from_parish_file(&world_path, DEFAULT_START_LOCATION)
             .unwrap_or_else(|_| WorldState::new());
         let npc_manager = NpcManager::load_from_file(&data_dir.join("npcs.json"))
             .unwrap_or_else(|_| NpcManager::new());
@@ -1044,6 +1045,7 @@ fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parish_core::world::LocationId;
 
     #[test]
     fn autosave_interval_is_60_seconds() {

@@ -28,8 +28,8 @@ use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
-use parish_core::world::LocationId;
 use parish_core::world::transport::TransportMode;
+use parish_core::world::{DEFAULT_START_LOCATION, LocationId};
 
 use crate::events::{
     EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
@@ -1769,7 +1769,7 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
         let data_dir = state.data_dir.clone();
         let world = parish_core::world::WorldState::from_parish_file(
             &data_dir.join("parish.json"),
-            parish_core::world::LocationId(15),
+            DEFAULT_START_LOCATION,
         )
         .map_err(|e| format!("Failed to load parish.json: {}", e))?;
         (world, data_dir.join("npcs.json"))
