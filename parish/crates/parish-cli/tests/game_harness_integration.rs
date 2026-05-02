@@ -436,17 +436,20 @@ fn test_multiple_looks_same_location() {
 fn test_long_journey_fairy_fort() {
     let mut h = GameTestHarness::new();
 
-    // Navigate to the Fairy Fort (multiple hops from Kilteevan)
+    // Navigate to the Fairy Fort (multiple hops from Kilteevan).
+    // world.json confirms The Fairy Fort (id=11) is connected via The Bog Road
+    // (id=12), which is reachable from Kilteevan Village. NotFound is a bug.
     let r = h.execute("go to fairy fort");
     match r {
         ActionResult::Moved { to, minutes, .. } => {
             assert_eq!(to, "The Fairy Fort");
             assert!(minutes > 0);
         }
-        ActionResult::NotFound { .. } => {
-            // If graph doesn't have fairy fort connected, that's also valid
-        }
-        other => panic!("Unexpected result: {:?}", other),
+        other => panic!(
+            "Expected Moved to 'The Fairy Fort' but got: {other:?}\n\
+             The Fairy Fort exists in world.json (id=11) and is reachable \
+             from Kilteevan Village via The Bog Road — NotFound is a bug."
+        ),
     }
 }
 
