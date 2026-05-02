@@ -1480,11 +1480,12 @@ fn print_location_description(app: &App) {
 /// Handles movement in headless mode.
 async fn handle_headless_movement(app: &mut App, target: &str) {
     let transport = default_transport(app);
-    let result = movement::resolve_movement(
+    let result = movement::resolve_movement_with_weather(
         target,
         &app.world.graph,
         app.world.player_location,
         &transport,
+        app.world.weather,
     );
 
     match result {
@@ -1535,6 +1536,11 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
                 &transport.label,
             );
             println!("{}", exits);
+        }
+        MovementResult::BlockedByWeather {
+            weather, reason, ..
+        } => {
+            println!("{} (The weather is {}. Best wait it out.)", reason, weather);
         }
     }
 }

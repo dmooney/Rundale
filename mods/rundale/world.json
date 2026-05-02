@@ -236,7 +236,8 @@
             "connections": [
                 {
                     "target": 20,
-                    "path_description": "a stony path along the waterline to a thatched cottage"
+                    "path_description": "a stony path along the waterline to a thatched cottage",
+                    "hazard": "lakeshore"
                 }
             ],
             "lat": 53.4667761235753,
@@ -315,7 +316,8 @@
             "connections": [
                 {
                     "target": 12,
-                    "path_description": "a barely visible path through gorse and bracken"
+                    "path_description": "a barely visible path through gorse and bracken",
+                    "hazard": "exposed"
                 }
             ],
             "lat": 53.62831265298641,
@@ -339,7 +341,8 @@
             "connections": [
                 {
                     "target": 11,
-                    "path_description": "a barely visible path through gorse to the fort"
+                    "path_description": "a barely visible path through gorse to the fort",
+                    "hazard": "exposed"
                 },
                 {
                     "target": 10,
@@ -435,11 +438,13 @@
                 },
                 {
                     "target": 17,
-                    "path_description": "a mossy path south past the old ruins to the holy well"
+                    "path_description": "a mossy path south past the old ruins to the holy well",
+                    "hazard": "flood"
                 },
                 {
                     "target": 18,
-                    "path_description": "a track west along the stream to the mill"
+                    "path_description": "a track west along the stream to the mill",
+                    "hazard": "flood"
                 },
                 {
                     "target": 19,
@@ -525,7 +530,8 @@
             "connections": [
                 {
                     "target": 15,
-                    "path_description": "the mossy path north back to the village"
+                    "path_description": "the mossy path north back to the village",
+                    "hazard": "flood"
                 }
             ],
             "lat": 53.6329651682621,
@@ -553,7 +559,8 @@
             "connections": [
                 {
                     "target": 15,
-                    "path_description": "the track east along the stream back to the village"
+                    "path_description": "the track east along the stream back to the village",
+                    "hazard": "flood"
                 }
             ],
             "lat": 53.6329229156473,
@@ -614,7 +621,8 @@
             "connections": [
                 {
                     "target": 8,
-                    "path_description": "the stony path back along the waterline to the bay"
+                    "path_description": "the stony path back along the waterline to the bay",
+                    "hazard": "lakeshore"
                 },
                 {
                     "target": 21,

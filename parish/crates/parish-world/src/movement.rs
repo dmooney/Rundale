@@ -2,10 +2,16 @@
 //!
 //! Handles resolving player movement intents to destinations, computing
 //! travel time along paths, and producing narration text for travel.
+//!
+//! Severe weather can block certain connections (marked with
+//! [`Hazard`](super::graph::Hazard)) and slow others. The weather-aware
+//! entry point is [`resolve_movement_with_weather`]; the legacy
+//! [`resolve_movement`] is preserved as a `Weather::Clear` wrapper so
+//! tests and older callers keep working.
 
-use super::graph::WorldGraph;
+use super::graph::{Connection, Hazard, WorldGraph};
 use super::transport::TransportMode;
-use parish_types::LocationId;
+use parish_types::{LocationId, Weather};
 
 /// The result of resolving a movement command.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +31,81 @@ pub enum MovementResult {
     NotFound(String),
     /// The player is already at the target location.
     AlreadyHere,
+    /// A route to the destination exists in fair weather, but the current
+    /// weather has closed every path. The player learns *why* they cannot
+    /// go, and is expected to wait the weather out.
+    BlockedByWeather {
+        /// The intended destination.
+        destination: LocationId,
+        /// The hazard that blocked the journey.
+        hazard: Hazard,
+        /// The current weather causing the block.
+        weather: Weather,
+        /// Player-facing refusal text.
+        reason: String,
+    },
+}
+
+/// How the current weather affects a single connection.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WeatherEffect {
+    /// Edge is open and travels at normal speed.
+    Clear,
+    /// Edge is open, but effective speed is multiplied by `factor` (< 1.0).
+    Slowed {
+        /// Multiplier to apply to the base transport speed (e.g. 0.5 = half speed).
+        factor: f64,
+        /// Short prose phrase to splice into narration.
+        note: &'static str,
+    },
+    /// Edge is fully impassable under the current weather.
+    Impassable {
+        /// Short reason shown to the player when the path is refused.
+        reason: &'static str,
+    },
+}
+
+/// Evaluates how the current weather affects travel along `conn`.
+///
+/// Edge rules:
+/// - [`Hazard::Flood`] + [`Weather::Storm`]      → impassable.
+/// - [`Hazard::Flood`] + [`Weather::HeavyRain`]  → slowed 0.6×, rising water.
+/// - [`Hazard::Lakeshore`] + [`Weather::Storm`]  → impassable.
+/// - [`Hazard::Lakeshore`] + [`Weather::HeavyRain`] → slowed 0.7×, spray.
+/// - [`Hazard::Exposed`] + [`Weather::Fog`]      → slowed 0.6×, lost path.
+/// - [`Hazard::Exposed`] + [`Weather::HeavyRain`] → slowed 0.75×, mire.
+/// - [`Hazard::Exposed`] + [`Weather::Storm`]    → slowed 0.5×, squalls.
+/// - Anything else → clear.
+pub fn weather_effect(conn: &Connection, weather: Weather) -> WeatherEffect {
+    match (conn.hazard, weather) {
+        (Hazard::Flood, Weather::Storm) => WeatherEffect::Impassable {
+            reason: "The stream has burst its banks — the crossing is underwater and impassable.",
+        },
+        (Hazard::Flood, Weather::HeavyRain) => WeatherEffect::Slowed {
+            factor: 0.6,
+            note: "picking your way across rising water",
+        },
+        (Hazard::Lakeshore, Weather::Storm) => WeatherEffect::Impassable {
+            reason: "The lake is a fury of whitecaps. Spray and wind drive you back from the shore.",
+        },
+        (Hazard::Lakeshore, Weather::HeavyRain) => WeatherEffect::Slowed {
+            factor: 0.7,
+            note: "head down against the lake-spray",
+        },
+        (Hazard::Exposed, Weather::Fog) => WeatherEffect::Slowed {
+            factor: 0.6,
+            note: "feeling your way through the fog, losing the path more than once",
+        },
+        (Hazard::Exposed, Weather::HeavyRain) => WeatherEffect::Slowed {
+            factor: 0.75,
+            note: "boots sucking in the mire",
+        },
+        (Hazard::Exposed, Weather::Storm) => WeatherEffect::Slowed {
+            factor: 0.5,
+            note: "bent double against the wind",
+        },
+        _ => WeatherEffect::Clear,
+    }
 }
 
 /// Resolves a movement intent target to a `MovementResult`.
@@ -65,6 +146,113 @@ pub fn resolve_movement(
         destination: destination_id,
         path,
         minutes,
+        narration,
+    }
+}
+
+/// Resolves a movement intent under the current weather.
+///
+/// Behaves like [`resolve_movement`] but routes around edges that are
+/// impassable in the current weather and applies per-edge speed
+/// multipliers for slowed edges. If every route to the destination is
+/// impassable, returns [`MovementResult::BlockedByWeather`] so the
+/// caller can explain the obstacle and let the player wait it out.
+///
+/// When `Weather::Clear` is passed (or the graph has no hazard tags),
+/// the result is identical to [`resolve_movement`].
+pub fn resolve_movement_with_weather(
+    target: &str,
+    graph: &WorldGraph,
+    current: LocationId,
+    transport: &TransportMode,
+    weather: Weather,
+) -> MovementResult {
+    let destination_id = match graph.find_by_name(target) {
+        Some(id) => id,
+        None => return MovementResult::NotFound(target.to_string()),
+    };
+
+    if destination_id == current {
+        return MovementResult::AlreadyHere;
+    }
+
+    // Try weather-aware pathfinding first, skipping impassable edges.
+    let filtered_path = graph.shortest_path_filtered(current, destination_id, |_from, _to, c| {
+        !matches!(weather_effect(c, weather), WeatherEffect::Impassable { .. })
+    });
+
+    let path = match filtered_path {
+        Some(p) => p,
+        None => {
+            // Fall back to an unfiltered path: if one exists, the weather
+            // is what's stopping us; otherwise the destination is simply
+            // unreachable (e.g. graph islands).
+            let full_path = match graph.shortest_path(current, destination_id) {
+                Some(p) => p,
+                None => return MovementResult::NotFound(target.to_string()),
+            };
+
+            // Find the first impassable edge along the fair-weather path
+            // and surface that reason to the player.
+            for window in full_path.windows(2) {
+                if let Some(conn) = graph.connection_between(window[0], window[1])
+                    && let WeatherEffect::Impassable { reason } = weather_effect(conn, weather)
+                {
+                    return MovementResult::BlockedByWeather {
+                        destination: destination_id,
+                        hazard: conn.hazard,
+                        weather,
+                        reason: reason.to_string(),
+                    };
+                }
+            }
+
+            // Shouldn't happen: filtered path was None but no edge was
+            // impassable. Fall through to fair-weather arrival so the
+            // player is never stuck without feedback.
+            let minutes = graph.path_travel_time(&full_path, transport.speed_m_per_s);
+            let narration = build_travel_narration(&full_path, graph, minutes, transport);
+            return MovementResult::Arrived {
+                destination: destination_id,
+                path: full_path,
+                minutes,
+                narration,
+            };
+        }
+    };
+
+    // Apply per-edge slowdown from weather.
+    let mut total_minutes: u16 = 0;
+    let mut notes: Vec<&'static str> = Vec::new();
+    for window in path.windows(2) {
+        let base = graph.edge_travel_minutes(window[0], window[1], transport.speed_m_per_s);
+        let (edge_minutes, note) =
+            if let Some(conn) = graph.connection_between(window[0], window[1]) {
+                match weather_effect(conn, weather) {
+                    WeatherEffect::Clear => (base, None),
+                    WeatherEffect::Slowed { factor, note } => {
+                        let scaled = ((base as f64 / factor).ceil() as u16).max(base);
+                        (scaled, Some(note))
+                    }
+                    WeatherEffect::Impassable { .. } => (base, None), // filtered out above
+                }
+            } else {
+                (base, None)
+            };
+        total_minutes = total_minutes.saturating_add(edge_minutes);
+        if let Some(n) = note
+            && !notes.contains(&n)
+        {
+            notes.push(n);
+        }
+    }
+
+    let narration = build_weather_narration(&path, graph, total_minutes, transport, &notes);
+
+    MovementResult::Arrived {
+        destination: destination_id,
+        path,
+        minutes: total_minutes,
         narration,
     }
 }
@@ -116,6 +304,26 @@ fn build_travel_narration(
         "You set off along {} toward {}. ({} minutes {})",
         first_desc, dest_name, total_minutes, transport.label
     )
+}
+
+/// Builds travel narration that appends weather-caused detour notes.
+///
+/// When the route crosses one or more hazard-tagged edges whose effect
+/// is `Slowed`, the distinct notes are joined with semicolons and
+/// appended in parentheses so the player sees why their journey took
+/// longer than usual.
+fn build_weather_narration(
+    path: &[LocationId],
+    graph: &WorldGraph,
+    total_minutes: u16,
+    transport: &TransportMode,
+    notes: &[&'static str],
+) -> String {
+    let base = build_travel_narration(path, graph, total_minutes, transport);
+    if notes.is_empty() || base.is_empty() {
+        return base;
+    }
+    format!("{} (The weather: {}.)", base, notes.join("; "))
 }
 
 #[cfg(test)]
@@ -337,5 +545,322 @@ mod tests {
             fast_time <= walk_time,
             "jaunting car ({fast_time} min) should be <= walking ({walk_time} min)"
         );
+    }
+
+    // ── Weather-gated movement tests ────────────────────────────────────────
+
+    /// A four-node graph where the crossroads -> church edge is flood-prone.
+    /// In a storm, travel from the pub to the fairy fort must still be
+    /// possible because there's no alternative route — the resolver should
+    /// surface the blocker, not silently route through it.
+    fn hazard_graph() -> WorldGraph {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1, "name": "The Crossroads",
+                    "description_template": "A crossroads.",
+                    "indoor": false, "public": true,
+                    "lat": 53.618, "lon": -8.095,
+                    "connections": [
+                        {"target": 2, "path_description": "a short lane"},
+                        {"target": 3, "path_description": "a winding boreen over a ford", "hazard": "flood"},
+                        {"target": 5, "path_description": "the long road around"}
+                    ]
+                },
+                {
+                    "id": 2, "name": "Darcy's Pub",
+                    "description_template": "A pub.",
+                    "indoor": true, "public": true,
+                    "lat": 53.6195, "lon": -8.0925,
+                    "connections": [
+                        {"target": 1, "path_description": "back to the crossroads"}
+                    ]
+                },
+                {
+                    "id": 3, "name": "St. Brigid's Church",
+                    "description_template": "A church.",
+                    "indoor": false, "public": true,
+                    "lat": 53.6215, "lon": -8.099,
+                    "connections": [
+                        {"target": 1, "path_description": "the boreen back over the ford", "hazard": "flood"},
+                        {"target": 4, "path_description": "through gorse", "hazard": "exposed"},
+                        {"target": 5, "path_description": "the long road back"}
+                    ]
+                },
+                {
+                    "id": 4, "name": "The Fairy Fort",
+                    "description_template": "A fairy fort.",
+                    "indoor": false, "public": true,
+                    "lat": 53.627, "lon": -8.052,
+                    "connections": [
+                        {"target": 3, "path_description": "back through gorse", "hazard": "exposed"}
+                    ]
+                },
+                {
+                    "id": 5, "name": "The Long Road",
+                    "description_template": "Just a waypoint.",
+                    "indoor": false, "public": true,
+                    "lat": 53.620, "lon": -8.080,
+                    "connections": [
+                        {"target": 1, "path_description": "back to the crossroads the long way"},
+                        {"target": 3, "path_description": "the long road to the church"}
+                    ]
+                }
+            ]
+        }"#;
+        WorldGraph::load_from_str(json).unwrap()
+    }
+
+    #[test]
+    fn test_clear_weather_matches_legacy_resolver() {
+        let graph = hazard_graph();
+        let legacy = resolve_movement("church", &graph, LocationId(2), &walking());
+        let weather_aware = resolve_movement_with_weather(
+            "church",
+            &graph,
+            LocationId(2),
+            &walking(),
+            Weather::Clear,
+        );
+        // Destinations and path equality under clear weather.
+        match (legacy, weather_aware) {
+            (
+                MovementResult::Arrived {
+                    destination: d1,
+                    path: p1,
+                    ..
+                },
+                MovementResult::Arrived {
+                    destination: d2,
+                    path: p2,
+                    ..
+                },
+            ) => {
+                assert_eq!(d1, d2);
+                assert_eq!(p1, p2);
+            }
+            (a, b) => panic!("mismatch: {:?} vs {:?}", a, b),
+        }
+    }
+
+    #[test]
+    fn test_storm_reroutes_around_flooded_ford() {
+        let graph = hazard_graph();
+        // Pub -> Church: direct goes via the ford, but we have the long road.
+        let result = resolve_movement_with_weather(
+            "church",
+            &graph,
+            LocationId(2),
+            &walking(),
+            Weather::Storm,
+        );
+        match result {
+            MovementResult::Arrived {
+                destination, path, ..
+            } => {
+                assert_eq!(destination, LocationId(3));
+                // Must route around the ford, so the path must include the long road (id 5).
+                assert!(
+                    path.contains(&LocationId(5)),
+                    "storm should reroute via the long road, got {:?}",
+                    path
+                );
+                assert!(
+                    !path.windows(2).any(|w| {
+                        (w[0] == LocationId(1) && w[1] == LocationId(3))
+                            || (w[0] == LocationId(3) && w[1] == LocationId(1))
+                    }),
+                    "path must not use the flooded ford, got {:?}",
+                    path
+                );
+            }
+            other => panic!("expected Arrived via reroute, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_storm_blocks_when_no_alternative() {
+        // Two-node graph where the only connection is flood-prone.
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1, "name": "Home",
+                    "description_template": "Home.",
+                    "indoor": false, "public": true,
+                    "lat": 53.618, "lon": -8.095,
+                    "connections": [
+                        {"target": 2, "path_description": "a ford crossing", "hazard": "flood"}
+                    ]
+                },
+                {
+                    "id": 2, "name": "Across",
+                    "description_template": "Across.",
+                    "indoor": false, "public": true,
+                    "lat": 53.620, "lon": -8.093,
+                    "connections": [
+                        {"target": 1, "path_description": "a ford crossing", "hazard": "flood"}
+                    ]
+                }
+            ]
+        }"#;
+        let graph = WorldGraph::load_from_str(json).unwrap();
+        let result = resolve_movement_with_weather(
+            "across",
+            &graph,
+            LocationId(1),
+            &walking(),
+            Weather::Storm,
+        );
+        match result {
+            MovementResult::BlockedByWeather {
+                destination,
+                weather,
+                hazard,
+                reason,
+            } => {
+                assert_eq!(destination, LocationId(2));
+                assert_eq!(weather, Weather::Storm);
+                assert_eq!(hazard, Hazard::Flood);
+                assert!(reason.to_lowercase().contains("stream"));
+            }
+            other => panic!("expected BlockedByWeather, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_heavy_rain_slows_but_does_not_block() {
+        let graph = hazard_graph();
+        let clear = resolve_movement_with_weather(
+            "church",
+            &graph,
+            LocationId(1),
+            &walking(),
+            Weather::Clear,
+        );
+        let rain = resolve_movement_with_weather(
+            "church",
+            &graph,
+            LocationId(1),
+            &walking(),
+            Weather::HeavyRain,
+        );
+        match (clear, rain) {
+            (
+                MovementResult::Arrived {
+                    minutes: m_clear, ..
+                },
+                MovementResult::Arrived {
+                    minutes: m_rain,
+                    narration,
+                    ..
+                },
+            ) => {
+                assert!(
+                    m_rain >= m_clear,
+                    "heavy rain should be at least as slow: clear {} min, rain {} min",
+                    m_clear,
+                    m_rain
+                );
+                assert!(
+                    narration.to_lowercase().contains("rising water")
+                        || narration.to_lowercase().contains("weather:"),
+                    "narration should mention weather note, got: {}",
+                    narration
+                );
+            }
+            other => panic!("expected both Arrived, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_fog_slows_exposed_path() {
+        let graph = hazard_graph();
+        // Crossroads (1) -> Fairy Fort (4) goes via Church -> gorse (exposed).
+        let clear = resolve_movement_with_weather(
+            "fairy fort",
+            &graph,
+            LocationId(1),
+            &walking(),
+            Weather::Clear,
+        );
+        let fog = resolve_movement_with_weather(
+            "fairy fort",
+            &graph,
+            LocationId(1),
+            &walking(),
+            Weather::Fog,
+        );
+        match (clear, fog) {
+            (
+                MovementResult::Arrived {
+                    minutes: m_clear, ..
+                },
+                MovementResult::Arrived {
+                    minutes: m_fog,
+                    narration,
+                    ..
+                },
+            ) => {
+                assert!(
+                    m_fog > m_clear,
+                    "fog should slow the exposed leg: clear {} min, fog {} min",
+                    m_clear,
+                    m_fog
+                );
+                assert!(
+                    narration.to_lowercase().contains("fog")
+                        || narration.to_lowercase().contains("path"),
+                    "fog narration should mention the condition, got: {}",
+                    narration
+                );
+            }
+            other => panic!("expected both Arrived, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_weather_effect_table() {
+        // Every hazard behaves sensibly under its matching weather.
+        let flood_conn = Connection {
+            target: LocationId(2),
+            traversal_minutes: None,
+            path_description: String::new(),
+            hazard: Hazard::Flood,
+        };
+        assert!(matches!(
+            weather_effect(&flood_conn, Weather::Storm),
+            WeatherEffect::Impassable { .. }
+        ));
+        assert!(matches!(
+            weather_effect(&flood_conn, Weather::HeavyRain),
+            WeatherEffect::Slowed { .. }
+        ));
+        assert_eq!(
+            weather_effect(&flood_conn, Weather::Clear),
+            WeatherEffect::Clear
+        );
+
+        let lake_conn = Connection {
+            hazard: Hazard::Lakeshore,
+            ..flood_conn.clone()
+        };
+        assert!(matches!(
+            weather_effect(&lake_conn, Weather::Storm),
+            WeatherEffect::Impassable { .. }
+        ));
+
+        let exposed_conn = Connection {
+            hazard: Hazard::Exposed,
+            ..flood_conn.clone()
+        };
+        assert!(matches!(
+            weather_effect(&exposed_conn, Weather::Fog),
+            WeatherEffect::Slowed { .. }
+        ));
+        // Exposed paths are not impassable even in a storm — just slower.
+        assert!(matches!(
+            weather_effect(&exposed_conn, Weather::Storm),
+            WeatherEffect::Slowed { .. }
+        ));
     }
 }

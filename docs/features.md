@@ -29,6 +29,7 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 - **Seven weather states:** Clear, PartlyCloudy, Overcast, LightRain, HeavyRain, Fog, Storm (`crates/parish-types/src/ids.rs`)
 - Weather transition engine runs in the simulation tick path
 - Weather state available to NPC dialogue context
+- **Weather-gated travel** — connections carry optional `hazard` tags (`flood`, `lakeshore`, `exposed`) that make paths impassable in a storm, slower in heavy rain, or treacherous in fog. The flooded ford refuses the player back; an alternate route is used where one exists (`crates/parish-world/src/movement.rs`). `/weather` shows the current weather; `/weather <name>` forces a state for testing.
 
 ### Festivals
 - Four traditional Irish calendar festivals, data-driven from mod files:

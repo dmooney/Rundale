@@ -130,6 +130,13 @@ pub enum Command {
     Flags,
     /// Invalid flag name was provided.
     InvalidFlagName(String),
+    /// Show or set the current weather.
+    ///
+    /// `None` reports the current weather; `Some(name)` forces a weather
+    /// state for play-testing (accepts `clear`, `partly cloudy`,
+    /// `overcast`, `light rain`, `heavy rain`, `fog`, `storm`, and
+    /// common aliases).
+    Weather(Option<String>),
 }
 
 /// Maximum allowed length for save branch names.

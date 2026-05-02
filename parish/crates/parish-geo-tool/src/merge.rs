@@ -213,11 +213,13 @@ pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_dista
             target: gen_id,
             traversal_minutes: None,
             path_description: fwd_desc,
+            hazard: Default::default(),
         });
         locations[gi].data.connections.push(Connection {
             target: cur_id,
             traversal_minutes: None,
             path_description: rev_desc,
+            hazard: Default::default(),
         });
     }
 }

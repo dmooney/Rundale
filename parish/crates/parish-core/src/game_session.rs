@@ -25,7 +25,7 @@ use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_rea
 use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::encounter::check_encounter;
-use crate::world::movement::{MovementResult, resolve_movement};
+use crate::world::movement::{MovementResult, resolve_movement_with_weather};
 use crate::world::time::TimeOfDay;
 use crate::world::transport::TransportMode;
 use crate::world::{Location, LocationId, WorldState};
@@ -114,7 +114,13 @@ pub fn apply_movement(
     target: &str,
     transport: &TransportMode,
 ) -> GameEffects {
-    let result = resolve_movement(target, &world.graph, world.player_location, transport);
+    let result = resolve_movement_with_weather(
+        target,
+        &world.graph,
+        world.player_location,
+        transport,
+        world.weather,
+    );
 
     match result {
         MovementResult::Arrived {
@@ -238,6 +244,21 @@ pub fn apply_movement(
                 messages: vec![GameMessage {
                     source: "system",
                     subtype: None,
+                    text,
+                }],
+                ..Default::default()
+            }
+        }
+
+        MovementResult::BlockedByWeather {
+            weather, reason, ..
+        } => {
+            let text = format!("{} (The weather is {}. Best wait it out.)", reason, weather);
+            world.log(text.clone());
+            GameEffects {
+                messages: vec![GameMessage {
+                    source: "system",
+                    subtype: Some("blocked-weather"),
                     text,
                 }],
                 ..Default::default()

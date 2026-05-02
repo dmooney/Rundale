@@ -24,6 +24,7 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
 - **Game clock** with seven time-of-day phases (Midnight → Evening) and a configurable real-to-game speed factor (Slowest 80 min/day → Ludicrous ~100 sec/day) tunable at runtime via `/speed`.
 - **Four seasons** with seasonal NPC schedules, weather biases, and Tier 4 life-event rates.
 - **Weather state machine** — seven states (Clear → PartlyCloudy → Overcast → LightRain → HeavyRain → Storm, plus Fog), adjacent-state-only transitions, 2-hour minimum dwell, season-biased probabilities. NPCs seek shelter in heavy rain.
+- **Weather-gated travel** — hazard-tagged routes can become impassable in storms or slower in heavy rain and fog, with alternate-route pathfinding where available.
 - **Travel & encounters** — per-edge travel time from lat/lon and transport mode (walk vs. horse/cart), with time-of-day-weighted en-route encounters.
 - **Festivals** — Imbolc, Bealtaine, Lughnasa, Samhain trigger relationship boosts and narrative hooks.
 - **Mythology hooks** — locations carry a `mythological_significance` field that's surfaced into NPC prompts and reserved for future folklore systems.

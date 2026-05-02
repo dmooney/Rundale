@@ -254,6 +254,19 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         }
     } else if lower == "/flags" {
         Some(Command::Flags)
+    } else if lower == "/weather" {
+        Some(Command::Weather(None))
+    } else if lower.starts_with("/weather ") {
+        let arg = trimmed
+            .get("/weather ".len()..)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        if arg.is_empty() {
+            Some(Command::Weather(None))
+        } else {
+            Some(Command::Weather(Some(arg)))
+        }
     } else if lower == "/flag" || lower == "/flag list" {
         Some(Command::Flag(FlagSubcommand::List))
     } else if lower.starts_with("/flag ") {
