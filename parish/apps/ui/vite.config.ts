@@ -10,7 +10,12 @@ export default defineConfig({
 	plugins: [sveltekit(), svelteTesting()],
 	clearScreen: false,
 	server: {
-		port: parseInt(process.env.PARISH_DEV_PORT || '5173', 10) || 5173,
+		// Port priority: PARISH_DEV_PORT (project-specific override) > PORT
+		// (set by harnesses such as Claude Code Desktop's `autoPort` and other
+		// PaaS-style runners) > the conventional Vite default 5173.
+		port:
+			parseInt(process.env.PARISH_DEV_PORT || process.env.PORT || '5173', 10) ||
+			5173,
 		strictPort: true,
 		fs: {
 			allow: ['.']
