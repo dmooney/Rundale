@@ -5,7 +5,15 @@
 //! coordinate between [`EditorSession`] (the in-memory state) and the
 //! `parish-core::editor` pure functions. All I/O happens here; the caller
 //! only needs to acquire the session lock.
+//!
+//! # Per-field validation caps (issue #376 / #750)
+//!
+//! [`validate_npc_payload`] and [`validate_location_payload`] enforce the
+//! same limits on every backend.  Both [`handle_editor_update_npcs`] and
+//! [`handle_editor_update_locations`] call them before mutating the session,
+//! so the Tauri path is validated identically to the Axum server path.
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -18,6 +26,195 @@ use crate::editor::save_inspect::{
 };
 use crate::editor::types::{EditorDoc, EditorModSnapshot, ModSummary, ValidationReport};
 use crate::editor::validate;
+
+// ── Per-field validation caps (issue #376 / #750) ───────────────────────────
+//
+// Limits are in Unicode code-points, not bytes.  Exposed as `pub const` so
+// the server-side editor_routes can reference the same values rather than
+// maintaining its own parallel definitions.
+
+/// Maximum Unicode chars for an NPC name.
+pub const NPC_NAME_MAX: usize = 80;
+/// Maximum Unicode chars for an NPC bio (brief description).
+pub const NPC_BIO_MAX: usize = 4096;
+/// Maximum Unicode chars for an NPC personality field.
+pub const NPC_PERSONALITY_MAX: usize = 2048;
+/// Maximum number of relationships per NPC.
+pub const NPC_RELATIONSHIPS_MAX: usize = 256;
+/// Maximum number of NPCs in one file.
+pub const NPCS_PER_FILE_MAX: usize = 2000;
+/// Maximum Unicode chars for a location description template.
+pub const LOCATION_DESCRIPTION_MAX: usize = 4096;
+/// Maximum number of locations in one file.
+pub const LOCATIONS_PER_FILE_MAX: usize = 5000;
+
+/// Errors produced by [`validate_npc_payload`] and [`validate_location_payload`].
+///
+/// Implements [`fmt::Display`] so both Tauri (which maps errors to `String`)
+/// and Axum (which maps to `(StatusCode::BAD_REQUEST, e.to_string())`) can
+/// convert it with `.to_string()` / `.map_err(|e| ...)` without any extra
+/// plumbing.
+#[derive(Debug, PartialEq)]
+pub enum EditorValidationError {
+    TooManyNpcs { count: usize },
+    NpcNameControlChars { name: String },
+    NpcNameTooLong { name: String, count: usize },
+    NpcBioControlChars { name: String },
+    NpcBioTooLong { name: String, count: usize },
+    NpcPersonalityControlChars { name: String },
+    NpcPersonalityTooLong { name: String, count: usize },
+    NpcTooManyRelationships { name: String, count: usize },
+    TooManyLocations { count: usize },
+    LocationDescriptionControlChars { name: String },
+    LocationDescriptionTooLong { name: String, count: usize },
+}
+
+impl fmt::Display for EditorValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TooManyNpcs { count } => {
+                write!(f, "too many NPCs: {count} (max {NPCS_PER_FILE_MAX})")
+            }
+            Self::NpcNameControlChars { name } => write!(
+                f,
+                "NPC name contains invalid control characters for '{name}'"
+            ),
+            Self::NpcNameTooLong { name, count } => write!(
+                f,
+                "NPC name too long for '{name}': {count} chars (max {NPC_NAME_MAX})"
+            ),
+            Self::NpcBioControlChars { name } => write!(
+                f,
+                "NPC bio contains invalid control characters for '{name}'"
+            ),
+            Self::NpcBioTooLong { name, count } => write!(
+                f,
+                "NPC bio too long for '{name}': {count} chars (max {NPC_BIO_MAX})"
+            ),
+            Self::NpcPersonalityControlChars { name } => write!(
+                f,
+                "NPC personality contains invalid control characters for '{name}'"
+            ),
+            Self::NpcPersonalityTooLong { name, count } => write!(
+                f,
+                "NPC personality too long for '{name}': {count} chars (max {NPC_PERSONALITY_MAX})"
+            ),
+            Self::NpcTooManyRelationships { name, count } => write!(
+                f,
+                "too many relationships for NPC '{name}': {count} (max {NPC_RELATIONSHIPS_MAX})"
+            ),
+            Self::TooManyLocations { count } => write!(
+                f,
+                "too many locations: {count} (max {LOCATIONS_PER_FILE_MAX})"
+            ),
+            Self::LocationDescriptionControlChars { name } => write!(
+                f,
+                "location description contains invalid control characters for '{name}'"
+            ),
+            Self::LocationDescriptionTooLong { name, count } => write!(
+                f,
+                "location description too long for '{name}': {count} chars (max {LOCATION_DESCRIPTION_MAX})"
+            ),
+        }
+    }
+}
+
+/// Returns `true` if the string contains ASCII control characters (U+0000–U+001F,
+/// U+007F) other than horizontal tab, line feed, and carriage return.
+///
+/// These characters should not appear in user-facing text fields (fix #463).
+fn contains_control_chars(s: &str) -> bool {
+    s.chars()
+        .any(|c| c.is_ascii_control() && c != '\n' && c != '\r' && c != '\t')
+}
+
+/// Validates the per-field caps for an NPC payload (fix #376 / #750).
+///
+/// Returns `Err(EditorValidationError)` on the first violation found.
+/// Both the Tauri and Axum paths call this before mutating session state.
+pub fn validate_npc_payload(npcs: &parish_npc::NpcFile) -> Result<(), EditorValidationError> {
+    if npcs.npcs.len() > NPCS_PER_FILE_MAX {
+        return Err(EditorValidationError::TooManyNpcs {
+            count: npcs.npcs.len(),
+        });
+    }
+    for npc in &npcs.npcs {
+        if contains_control_chars(&npc.name) {
+            return Err(EditorValidationError::NpcNameControlChars {
+                name: npc.name.clone(),
+            });
+        }
+        let name_chars = npc.name.chars().count();
+        if name_chars > NPC_NAME_MAX {
+            return Err(EditorValidationError::NpcNameTooLong {
+                name: npc.name.clone(),
+                count: name_chars,
+            });
+        }
+        if let Some(ref bio) = npc.brief_description {
+            if contains_control_chars(bio) {
+                return Err(EditorValidationError::NpcBioControlChars {
+                    name: npc.name.clone(),
+                });
+            }
+            let bio_chars = bio.chars().count();
+            if bio_chars > NPC_BIO_MAX {
+                return Err(EditorValidationError::NpcBioTooLong {
+                    name: npc.name.clone(),
+                    count: bio_chars,
+                });
+            }
+        }
+        if contains_control_chars(&npc.personality) {
+            return Err(EditorValidationError::NpcPersonalityControlChars {
+                name: npc.name.clone(),
+            });
+        }
+        let personality_chars = npc.personality.chars().count();
+        if personality_chars > NPC_PERSONALITY_MAX {
+            return Err(EditorValidationError::NpcPersonalityTooLong {
+                name: npc.name.clone(),
+                count: personality_chars,
+            });
+        }
+        if npc.relationships.len() > NPC_RELATIONSHIPS_MAX {
+            return Err(EditorValidationError::NpcTooManyRelationships {
+                name: npc.name.clone(),
+                count: npc.relationships.len(),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Validates the per-field caps for a location payload (fix #376 / #750).
+///
+/// Returns `Err(EditorValidationError)` on the first violation found.
+/// Both the Tauri and Axum paths call this before mutating session state.
+pub fn validate_location_payload(
+    locations: &[parish_world::graph::LocationData],
+) -> Result<(), EditorValidationError> {
+    if locations.len() > LOCATIONS_PER_FILE_MAX {
+        return Err(EditorValidationError::TooManyLocations {
+            count: locations.len(),
+        });
+    }
+    for loc in locations {
+        if contains_control_chars(&loc.description_template) {
+            return Err(EditorValidationError::LocationDescriptionControlChars {
+                name: loc.name.clone(),
+            });
+        }
+        let desc_chars = loc.description_template.chars().count();
+        if desc_chars > LOCATION_DESCRIPTION_MAX {
+            return Err(EditorValidationError::LocationDescriptionTooLong {
+                name: loc.name.clone(),
+                count: desc_chars,
+            });
+        }
+    }
+    Ok(())
+}
 
 // ── Editor session ──────────────────────────────────────────────────────────
 
@@ -120,6 +317,10 @@ pub fn handle_editor_validate(session: &Mutex<EditorSession>) -> Result<Validati
 
 /// Replaces the NPC data in the session with the provided value.
 ///
+/// Enforces per-field validation caps via [`validate_npc_payload`] before
+/// mutating session state — closes the mode-parity gap (#750) so the Tauri
+/// path rejects oversized payloads identically to the Axum server path.
+///
 /// Bumps `version` (a mutating operation) but **not** `generation` — peer
 /// updates do not change the snapshot lineage. Concurrent `update_locations`
 /// requests that captured the same generation are still allowed to commit;
@@ -128,6 +329,7 @@ pub fn handle_editor_update_npcs(
     session: &Mutex<EditorSession>,
     npcs: parish_npc::NpcFile,
 ) -> Result<ValidationReport, String> {
+    validate_npc_payload(&npcs).map_err(|e| e.to_string())?;
     let mut s = session.lock().map_err(|e| e.to_string())?;
     let snap = s
         .snapshot
@@ -142,6 +344,10 @@ pub fn handle_editor_update_npcs(
 
 /// Replaces the locations in the session with the provided value.
 ///
+/// Enforces per-field validation caps via [`validate_location_payload`] before
+/// mutating session state — closes the mode-parity gap (#750) so the Tauri
+/// path rejects oversized payloads identically to the Axum server path.
+///
 /// Bumps `version` (a mutating operation) but **not** `generation` — peer
 /// updates do not change the snapshot lineage. Concurrent `update_npcs`
 /// requests that captured the same generation are still allowed to commit;
@@ -150,6 +356,7 @@ pub fn handle_editor_update_locations(
     session: &Mutex<EditorSession>,
     locations: Vec<parish_world::graph::LocationData>,
 ) -> Result<ValidationReport, String> {
+    validate_location_payload(&locations).map_err(|e| e.to_string())?;
     let mut s = session.lock().map_err(|e| e.to_string())?;
     let snap = s
         .snapshot
@@ -696,5 +903,327 @@ mod tests {
         let s = session.lock().unwrap();
         assert_eq!(s.version, 3, "reload must bump version");
         assert_eq!(s.generation, 2, "reload must bump generation");
+    }
+
+    // ── validate_npc_payload tests (issue #750) ──────────────────────────────
+
+    /// Builds a minimal `NpcFileEntry` for use in validation unit tests.
+    fn npc_entry(name: &str, personality: &str) -> parish_npc::NpcFileEntry {
+        parish_npc::NpcFileEntry {
+            id: 1,
+            name: name.to_string(),
+            brief_description: None,
+            age: 30,
+            occupation: "Farmer".to_string(),
+            personality: personality.to_string(),
+            intelligence: None,
+            home: 1,
+            workplace: None,
+            mood: "calm".to_string(),
+            schedule: None,
+            seasonal_schedule: None,
+            relationships: vec![],
+            knowledge: vec![],
+        }
+    }
+
+    #[test]
+    fn validate_npc_payload_accepts_valid() {
+        let npc = npc_entry("Padraig Darcy", "Kind and generous");
+        let file = parish_npc::NpcFile { npcs: vec![npc] };
+        assert!(validate_npc_payload(&file).is_ok());
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_too_many_npcs() {
+        // Need 2001 NPCs (NPCS_PER_FILE_MAX + 1); we give each a unique id.
+        let npcs: Vec<_> = (0u32..=(NPCS_PER_FILE_MAX as u32))
+            .map(|i| {
+                let mut e = npc_entry("X", "ok");
+                e.id = i;
+                e
+            })
+            .collect();
+        let file = parish_npc::NpcFile { npcs };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::TooManyNpcs { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("too many NPCs"), "message: {msg}");
+        assert!(
+            msg.contains(&NPCS_PER_FILE_MAX.to_string()),
+            "message: {msg}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_name_too_long() {
+        let long_name = "a".repeat(NPC_NAME_MAX + 1);
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry(&long_name, "fine")],
+        };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcNameTooLong { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains(&NPC_NAME_MAX.to_string()), "message: {msg}");
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_name_control_char() {
+        let name_with_null = "Bad\x00Name".to_string();
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry(&name_with_null, "fine")],
+        };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcNameControlChars { .. }),
+            "unexpected error variant: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_bio_too_long() {
+        let long_bio = "b".repeat(NPC_BIO_MAX + 1);
+        let mut npc = npc_entry("Alice", "fine");
+        npc.brief_description = Some(long_bio);
+        let file = parish_npc::NpcFile { npcs: vec![npc] };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcBioTooLong { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains(&NPC_BIO_MAX.to_string()), "message: {msg}");
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_bio_control_char() {
+        let mut npc = npc_entry("Alice", "fine");
+        npc.brief_description = Some("bio with \x01 control".to_string());
+        let file = parish_npc::NpcFile { npcs: vec![npc] };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcBioControlChars { .. }),
+            "unexpected error variant: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_personality_too_long() {
+        let long_personality = "p".repeat(NPC_PERSONALITY_MAX + 1);
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry("Alice", &long_personality)],
+        };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcPersonalityTooLong { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains(&NPC_PERSONALITY_MAX.to_string()),
+            "message: {msg}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_personality_control_char() {
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry("Alice", "personality with \x1f problem")],
+        };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EditorValidationError::NpcPersonalityControlChars { .. }
+            ),
+            "unexpected error variant: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_rejects_too_many_relationships() {
+        let mut npc = npc_entry("Alice", "fine");
+        npc.relationships = (0..=NPC_RELATIONSHIPS_MAX)
+            .map(|i| parish_npc::RelationshipFileEntry {
+                target_id: i as u32 + 100,
+                kind: parish_npc::types::RelationshipKind::Friend,
+                strength: 0.5,
+            })
+            .collect();
+        let file = parish_npc::NpcFile { npcs: vec![npc] };
+        let err = validate_npc_payload(&file).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::NpcTooManyRelationships { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains(&NPC_RELATIONSHIPS_MAX.to_string()),
+            "message: {msg}"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_allows_tab_newline_cr_in_personality() {
+        // Tab, LF and CR must NOT be flagged as control characters.
+        let personality = "Line one\nLine two\r\nTabbed\there";
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry("Alice", personality)],
+        };
+        assert!(
+            validate_npc_payload(&file).is_ok(),
+            "tab/LF/CR must not be rejected"
+        );
+    }
+
+    #[test]
+    fn validate_npc_payload_allows_irish_fada_names() {
+        // Multi-byte UTF-8 sequences must be counted in code-points, not bytes.
+        // A name of exactly NPC_NAME_MAX fada chars must pass.
+        let fada_name = "\u{00E9}".repeat(NPC_NAME_MAX); // 'é' × 80
+        let file = parish_npc::NpcFile {
+            npcs: vec![npc_entry(&fada_name, "fine")],
+        };
+        assert!(
+            validate_npc_payload(&file).is_ok(),
+            "80 fada chars must be accepted"
+        );
+    }
+
+    // ── validate_location_payload tests (issue #750) ─────────────────────────
+
+    /// Builds a minimal `LocationData` for validation unit tests.
+    fn location_data(name: &str, description: &str) -> parish_world::graph::LocationData {
+        parish_world::graph::LocationData {
+            id: parish_types::LocationId(1),
+            name: name.to_string(),
+            description_template: description.to_string(),
+            indoor: false,
+            public: true,
+            connections: vec![],
+            lat: 0.0,
+            lon: 0.0,
+            associated_npcs: vec![],
+            mythological_significance: None,
+            aliases: vec![],
+            geo_kind: parish_world::graph::GeoKind::default(),
+            relative_to: None,
+            geo_source: None,
+        }
+    }
+
+    #[test]
+    fn validate_location_payload_accepts_valid() {
+        let locs = vec![location_data("Kilteevan", "A quiet village.")];
+        assert!(validate_location_payload(&locs).is_ok());
+    }
+
+    #[test]
+    fn validate_location_payload_rejects_too_many_locations() {
+        let locs: Vec<_> = (0..=LOCATIONS_PER_FILE_MAX)
+            .map(|i| {
+                let mut l = location_data("X", "ok");
+                l.id = parish_types::LocationId(i as u32);
+                l
+            })
+            .collect();
+        let err = validate_location_payload(&locs).unwrap_err();
+        assert!(
+            matches!(err, EditorValidationError::TooManyLocations { .. }),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("too many locations"), "message: {msg}");
+        assert!(
+            msg.contains(&LOCATIONS_PER_FILE_MAX.to_string()),
+            "message: {msg}"
+        );
+    }
+
+    #[test]
+    fn validate_location_payload_rejects_description_too_long() {
+        let long_desc = "d".repeat(LOCATION_DESCRIPTION_MAX + 1);
+        let locs = vec![location_data("Village", &long_desc)];
+        let err = validate_location_payload(&locs).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EditorValidationError::LocationDescriptionTooLong { .. }
+            ),
+            "unexpected error variant: {err}"
+        );
+        let msg = err.to_string();
+        assert!(
+            msg.contains(&LOCATION_DESCRIPTION_MAX.to_string()),
+            "message: {msg}"
+        );
+    }
+
+    #[test]
+    fn validate_location_payload_rejects_description_control_char() {
+        let locs = vec![location_data("Village", "desc\x02bad")];
+        let err = validate_location_payload(&locs).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                EditorValidationError::LocationDescriptionControlChars { .. }
+            ),
+            "unexpected error variant: {err}"
+        );
+    }
+
+    #[test]
+    fn validate_location_payload_allows_tab_newline_cr_in_description() {
+        let desc = "Line one\nLine two\r\nTabbed\there";
+        let locs = vec![location_data("Village", desc)];
+        assert!(
+            validate_location_payload(&locs).is_ok(),
+            "tab/LF/CR must not be rejected"
+        );
+    }
+
+    // ── handle_editor_update_npcs rejects oversized payload (issue #750) ─────
+
+    #[test]
+    fn handle_editor_update_npcs_rejects_long_name_before_session_lock() {
+        let session = seeded_session(0, 0);
+        let long_name = "x".repeat(NPC_NAME_MAX + 1);
+        let npc = npc_entry(&long_name, "fine");
+        let file = parish_npc::NpcFile { npcs: vec![npc] };
+        let err = handle_editor_update_npcs(&session, file).unwrap_err();
+        assert!(
+            err.contains("NPC name too long"),
+            "expected name-too-long error, got: {err}"
+        );
+        // Version must NOT have been bumped — the error fired before mutation.
+        let s = session.lock().unwrap();
+        assert_eq!(
+            s.version, 0,
+            "version must not be bumped on early rejection"
+        );
+    }
+
+    #[test]
+    fn handle_editor_update_locations_rejects_long_description_before_session_lock() {
+        let session = seeded_session(0, 0);
+        let long_desc = "d".repeat(LOCATION_DESCRIPTION_MAX + 1);
+        let locs = vec![location_data("Village", &long_desc)];
+        let err = handle_editor_update_locations(&session, locs).unwrap_err();
+        assert!(
+            err.contains("location description too long"),
+            "expected description-too-long error, got: {err}"
+        );
+        // Version must NOT have been bumped.
+        let s = session.lock().unwrap();
+        assert_eq!(
+            s.version, 0,
+            "version must not be bumped on early rejection"
+        );
     }
 }
