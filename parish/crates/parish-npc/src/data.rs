@@ -195,6 +195,18 @@ pub fn load_npcs_from_file(path: &Path) -> Result<Vec<Npc>, ParishError> {
 pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
     let file: NpcFile = serde_json::from_str(json).map_err(ParishError::Serialization)?;
 
+    // Pre-pass: reject duplicate NPC IDs before doing any further work.
+    // Mirrors the pattern in WorldGraph::load_from_str (parish-world/src/graph.rs).
+    let mut seen_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    for entry in &file.npcs {
+        if !seen_ids.insert(entry.id) {
+            return Err(ParishError::Setup(format!(
+                "duplicate NPC id: {}",
+                entry.id
+            )));
+        }
+    }
+
     // First pass: create all NPCs with their direct relationships
     let mut npcs: Vec<Npc> = file
         .npcs
@@ -656,6 +668,95 @@ mod tests {
         assert!(
             err_msg.contains("999"),
             "error should mention the invalid NPC id: {err_msg}"
+        );
+    }
+
+    // ----- regression tests for issue #748 (duplicate NPC ID detection) -----
+
+    fn minimal_npc_json(id: u32, name: &str) -> String {
+        format!(
+            r#"{{
+                "id": {id},
+                "name": "{name}",
+                "age": 30,
+                "occupation": "Farmer",
+                "personality": "Quiet",
+                "home": 1,
+                "workplace": null,
+                "mood": "calm",
+                "schedule": [
+                    {{"start_hour": 0, "end_hour": 23, "location": 1, "activity": "resting"}}
+                ],
+                "relationships": []
+            }}"#
+        )
+    }
+
+    /// A valid file with three distinct IDs must load without error.
+    #[test]
+    fn test_three_unique_ids_loads_ok() {
+        let a = minimal_npc_json(1, "Alice");
+        let b = minimal_npc_json(2, "Bob");
+        let c = minimal_npc_json(3, "Carol");
+        let json = format!(r#"{{"npcs": [{a},{b},{c}]}}"#);
+        let npcs = load_npcs_from_str(&json).expect("three unique IDs should load");
+        assert_eq!(npcs.len(), 3);
+    }
+
+    /// A file where two NPCs share the same ID must return Err and the
+    /// message must name the offending id (mirrors WorldGraph behaviour).
+    #[test]
+    fn test_duplicate_id_returns_error_with_id() {
+        let a = minimal_npc_json(1, "Alice");
+        let duplicate = minimal_npc_json(1, "AliceCopy");
+        let b = minimal_npc_json(2, "Bob");
+        let json = format!(r#"{{"npcs": [{a},{duplicate},{b}]}}"#);
+        let result = load_npcs_from_str(&json);
+        assert!(result.is_err(), "duplicate NPC id should return Err");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains('1'),
+            "error message should name the duplicate id; got: {err_msg}"
+        );
+        assert!(
+            err_msg.to_lowercase().contains("duplicate"),
+            "error message should say 'duplicate'; got: {err_msg}"
+        );
+    }
+
+    /// After adding duplicate detection the relationship validation must still
+    /// fire: a file with unique IDs but a dangling relationship target is an
+    /// error, and the message names the bad target id.
+    #[test]
+    fn test_relationship_validation_still_fires_after_dedup_check() {
+        let a = minimal_npc_json(1, "Alice");
+        // Bob references NPC 99 which doesn't exist
+        let bob = r#"{
+            "id": 2,
+            "name": "Bob",
+            "age": 40,
+            "occupation": "Blacksmith",
+            "personality": "Loud",
+            "home": 1,
+            "workplace": null,
+            "mood": "calm",
+            "schedule": [
+                {"start_hour": 0, "end_hour": 23, "location": 1, "activity": "resting"}
+            ],
+            "relationships": [
+                {"target_id": 99, "kind": "Friend", "strength": 0.7}
+            ]
+        }"#;
+        let json = format!(r#"{{"npcs": [{a},{bob}]}}"#);
+        let result = load_npcs_from_str(&json);
+        assert!(
+            result.is_err(),
+            "dangling relationship target should return Err"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("99"),
+            "error should mention the missing target id; got: {err_msg}"
         );
     }
 }
