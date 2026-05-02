@@ -1553,23 +1553,31 @@ async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
         path
     };
 
-    let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+    let existing_branch_id = *branch_id_guard;
+    let (resolved_branch_id, resolved_branch_name) =
+        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
+            let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+            let branch_id = if let Some(id) = existing_branch_id {
+                id
+            } else {
+                let branch = db.find_branch("main").map_err(|e| e.to_string())?;
+                branch.map(|b| b.id).unwrap_or(1)
+            };
+            db.save_snapshot(branch_id, &snapshot)
+                .map_err(|e| e.to_string())?;
+            Ok((branch_id, "main".to_string()))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
-    let branch_id = if let Some(id) = *branch_id_guard {
-        id
-    } else {
-        let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-        let id = branch.map(|b| b.id).unwrap_or(1);
-        *branch_id_guard = Some(id);
-        *branch_name_guard = Some("main".to_string());
-        id
-    };
+    if branch_id_guard.is_none() {
+        *branch_id_guard = Some(resolved_branch_id);
+        *branch_name_guard = Some(resolved_branch_name.clone());
+    }
 
-    db.save_snapshot(branch_id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    let filename = db_path
-        .file_name()
+    let filename = save_path_guard
+        .as_ref()
+        .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "save".to_string());
     let branch_name = branch_name_guard.as_deref().unwrap_or("main");
@@ -1602,20 +1610,24 @@ pub async fn load_branch(
         *state.save_lock.lock().await = Some(lock);
     }
 
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-
-    let (_, snapshot) = db
-        .load_latest_snapshot(branch_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
-
-    // Find the branch name
-    let branches = db.list_branches().map_err(|e| e.to_string())?;
-    let branch_name = branches
-        .iter()
-        .find(|b| b.id == branch_id)
-        .map(|b| b.name.clone())
-        .unwrap_or_else(|| "unknown".to_string());
+    let path_clone = path.clone();
+    let (snapshot, branch_name) =
+        tokio::task::spawn_blocking(move || -> Result<(GameSnapshot, String), String> {
+            let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+            let (_, snapshot) = db
+                .load_latest_snapshot(branch_id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
+            let branches = db.list_branches().map_err(|e| e.to_string())?;
+            let branch_name = branches
+                .iter()
+                .find(|b| b.id == branch_id)
+                .map(|b| b.name.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            Ok((snapshot, branch_name))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
     // Restore state
     let mut world = state.world.lock().await;
@@ -1671,44 +1683,45 @@ async fn do_create_branch(
     name: &str,
     parent_branch_id: i64,
 ) -> Result<String, String> {
-    let save_path_guard = state.save_path.lock().await;
-
-    let db_path = save_path_guard
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-
-    let db_path_clone = db_path.clone();
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
 
     tracing::info!(
         "Creating branch '{}' with parent {} in {:?}",
         name,
         parent_branch_id,
-        db_path_clone
+        db_path
     );
 
-    let new_id = db
-        .create_branch(name, Some(parent_branch_id))
-        .map_err(|e| {
-            tracing::error!("create_branch failed: {}", e);
-            e.to_string()
-        })?;
-
-    tracing::info!("Branch '{}' created with id {}", name, new_id);
-
-    drop(save_path_guard);
-
-    // Save current state to the new branch
+    // Capture snapshot before spawn_blocking so the tokio locks are not held across it.
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
     drop(npc_manager);
     drop(world);
 
-    db.save_snapshot(new_id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    tracing::info!("Snapshot saved to branch '{}'", name);
+    let name_owned = name.to_string();
+    let new_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        let new_id = db
+            .create_branch(&name_owned, Some(parent_branch_id))
+            .map_err(|e| {
+                tracing::error!("create_branch failed: {}", e);
+                e.to_string()
+            })?;
+        tracing::info!("Branch '{}' created with id {}", name_owned, new_id);
+        db.save_snapshot(new_id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        tracing::info!("Snapshot saved to branch '{}'", name_owned);
+        Ok(new_id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     // Switch to the new branch
     *state.current_branch_id.lock().await = Some(new_id);
@@ -1729,24 +1742,28 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
         .ok_or_else(|| "Could not lock the new save file.".to_string())?;
     *state.save_lock.lock().await = Some(lock);
 
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-
-    let branch = db
-        .find_branch("main")
-        .map_err(|e| e.to_string())?
-        .ok_or("Failed to create main branch")?;
-
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
     drop(npc_manager);
     drop(world);
 
-    db.save_snapshot(branch.id, &snapshot)
-        .map_err(|e| e.to_string())?;
+    let path_clone = path.clone();
+    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let branch = db
+            .find_branch("main")
+            .map_err(|e| e.to_string())?
+            .ok_or("Failed to create main branch")?;
+        db.save_snapshot(branch.id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        Ok(branch.id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_id.lock().await = Some(branch_id);
     *state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
@@ -1793,19 +1810,8 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
         *conv = ConversationRuntimeState::new();
     }
 
-    // Create a new save file with the fresh state
-    let path = new_save_path(&state.saves_dir);
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-    let branch = db
-        .find_branch("main")
-        .map_err(|e| e.to_string())?
-        .ok_or("Failed to create main branch")?;
-
+    // Capture snapshot and emit world update before spawn_blocking.
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
-    db.save_snapshot(branch.id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    // Emit updated state
     let transport = state.transport.default_mode();
     let mut ws = snapshot_from_world(&world, transport);
     ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
@@ -1814,8 +1820,24 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     drop(npc_manager);
     drop(world);
 
+    // Create a new save file with the fresh state
+    let path = new_save_path(&state.saves_dir);
+    let path_clone = path.clone();
+    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let branch = db
+            .find_branch("main")
+            .map_err(|e| e.to_string())?
+            .ok_or("Failed to create main branch")?;
+        db.save_snapshot(branch.id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        Ok(branch.id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
     *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_id.lock().await = Some(branch_id);
     *state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
@@ -1860,14 +1882,21 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
 
 /// Formats branch list as text for the /branches command.
 async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path = state.save_path.lock().await;
-    let db_path = save_path
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
-    let branches = db.list_branches().map_err(|e| e.to_string())?;
-
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
     let current_id = *state.current_branch_id.lock().await;
+
+    let branches = tokio::task::spawn_blocking(move || -> Result<Vec<_>, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        db.list_branches().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     let mut lines = vec!["Branches:".to_string()];
     for b in &branches {
@@ -1884,16 +1913,25 @@ async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> 
 
 /// Formats branch log as text for the /log command.
 async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path = state.save_path.lock().await;
-    let branch_id = state.current_branch_id.lock().await;
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
+    let bid = state
+        .current_branch_id
+        .lock()
+        .await
+        .ok_or("No active branch.")?;
 
-    let db_path = save_path
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-    let bid = branch_id.ok_or("No active branch.")?;
-
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
-    let log = db.branch_log(bid).map_err(|e| e.to_string())?;
+    let log = tokio::task::spawn_blocking(move || -> Result<Vec<_>, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        db.branch_log(bid).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     if log.is_empty() {
         return Ok("No snapshots yet on this branch.".to_string());
