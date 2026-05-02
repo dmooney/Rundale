@@ -38,6 +38,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 5. **No unexplained `#[allow]`:** Only with explicit justification.
 6. **Feature flags for new engine/gameplay features:** Gate with `config.flags.is_enabled("feature-name")`, default-on, and document in PR.
 7. **Keep README.md up to date.** Especially the feature list, repository structure and credits. Run `just notices` to update third party notices when dependencies are changed.
+8. **Investigate with Five Whys.** When diagnosing a bug, regression, or unexpected behavior, run the `/five-whys` skill (or apply the method) to reach the root cause before patching.
 
 ## Standard commands
 
