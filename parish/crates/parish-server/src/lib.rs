@@ -11,6 +11,7 @@ pub mod auth;
 pub mod cf_auth;
 pub mod editor_routes;
 pub mod middleware;
+pub mod route_registry;
 pub mod routes;
 pub mod session;
 pub mod state;
