@@ -360,7 +360,9 @@ impl SessionRegistry {
         for id in &expired_ids {
             // Layer 1: allowlist — UUID v4 looks like
             // `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx` (hex + hyphens only).
-            if !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') || id.contains("..") {
+            // Uses the shared `is_valid_session_id` helper (same rule as
+            // cookie ingress in `get_or_create_session`).
+            if !is_valid_session_id(id) {
                 tracing::warn!(
                     session_id = %id,
                     "purge_expired_disk_sessions: rejected unsafe session ID, skipping fs remove"
@@ -421,6 +423,23 @@ impl SessionRegistry {
     }
 }
 
+// ── Session ID validation ─────────────────────────────────────────────────────
+
+/// Returns `true` when `id` is a structurally valid session ID.
+///
+/// A valid ID contains only lowercase hex digits and hyphens (the UUID v4
+/// character set: `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`).  The check also
+/// rejects `..` to make it impossible to construct a path-traversal sequence
+/// before the value ever reaches `Path::join`.
+///
+/// This is the single source of truth for session-ID validation; both
+/// [`get_or_create_session`] (cookie ingress) and
+/// [`SessionRegistry::purge_expired_disk_sessions`] (DB-sourced IDs) call
+/// this helper.
+pub fn is_valid_session_id(id: &str) -> bool {
+    !id.is_empty() && !id.contains("..") && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
 // ── Public session resolution ─────────────────────────────────────────────────
 
 /// Returns the session for `cookie_id`, restoring or creating one as needed.
@@ -432,24 +451,34 @@ pub async fn get_or_create_session(
     cookie_id: Option<&str>,
 ) -> (String, Arc<SessionEntry>, bool) {
     // 1. Hot path: session already in memory.
+    //    Reject malformed cookie values before any DB lookup or path join.
     if let Some(id) = cookie_id {
-        if let Some(entry) = global.sessions.get_in_memory(id) {
-            entry
-                .last_active
-                .store(SessionRegistry::now_unix(), Ordering::Relaxed);
-            global.sessions.update_last_active(id);
-            return (id.to_string(), entry, false);
-        }
-        // 2. Session known in DB but evicted from memory — restore it.
-        if global.sessions.exists_in_db(id) {
-            match restore_session(global, id).await {
-                Ok(entry) => {
-                    global.sessions.insert(id.to_string(), Arc::clone(&entry));
-                    global.sessions.update_last_active(id);
-                    return (id.to_string(), entry, false);
-                }
-                Err(e) => {
-                    tracing::warn!(session_id = %id, "Session restore failed: {}. Starting fresh.", e);
+        if !is_valid_session_id(id) {
+            tracing::warn!(
+                cookie_value = %id,
+                "get_or_create_session: invalid session ID format, treating as no session"
+            );
+            // Fall through to step 3: create a fresh session.
+        } else {
+            // 1a. Hot path: session already in memory.
+            if let Some(entry) = global.sessions.get_in_memory(id) {
+                entry
+                    .last_active
+                    .store(SessionRegistry::now_unix(), Ordering::Relaxed);
+                global.sessions.update_last_active(id);
+                return (id.to_string(), entry, false);
+            }
+            // 2. Session known in DB but evicted from memory — restore it.
+            if global.sessions.exists_in_db(id) {
+                match restore_session(global, id).await {
+                    Ok(entry) => {
+                        global.sessions.insert(id.to_string(), Arc::clone(&entry));
+                        global.sessions.update_last_active(id);
+                        return (id.to_string(), entry, false);
+                    }
+                    Err(e) => {
+                        tracing::warn!(session_id = %id, "Session restore failed: {}. Starting fresh.", e);
+                    }
                 }
             }
         }

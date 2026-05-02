@@ -255,6 +255,11 @@ pub async fn submit_input(
     if text.len() > 2000 {
         return StatusCode::BAD_REQUEST;
     }
+    // #752 — cap addressed_to to prevent unbounded memory/allocation via the
+    // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
+    if let Err(status) = validate_addressed_to(&body.addressed_to) {
+        return status;
+    }
 
     touch_player_activity(&state).await;
 
@@ -2190,6 +2195,25 @@ pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == ' ')
     {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    Ok(())
+}
+
+// ── #752 — addressed_to validation ──────────────────────────────────────────
+
+/// Validates the `addressed_to` field from `POST /api/submit-input`.
+///
+/// Rules (mode-parity with the Tauri path in `parish-tauri`):
+/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - Each name is at most **100** characters.
+///
+/// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
+pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), StatusCode> {
+    if addressed_to.len() > 10 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if addressed_to.iter().any(|name| name.len() > 100) {
         return Err(StatusCode::BAD_REQUEST);
     }
     Ok(())
