@@ -1027,14 +1027,15 @@ impl GameTestHarness {
                 narration,
             }
         } else {
-            // Check which variant based on message content
-            let msg = effects
-                .messages
-                .first()
-                .map(|m| m.text.as_str())
-                .unwrap_or("");
-            if msg.contains("faintest notion") || msg.contains("You haven't") {
-                // Extract target name from the message
+            // Check which variant based on message content and subtype
+            let first = effects.messages.first();
+            let msg = first.map(|m| m.text.as_str()).unwrap_or("");
+            let subtype = first.and_then(|m| m.subtype);
+            if subtype == Some("blocked-weather") {
+                ActionResult::SystemCommand {
+                    response: msg.to_string(),
+                }
+            } else if msg.contains("faintest notion") || msg.contains("You haven't") {
                 let name = target.to_string();
                 ActionResult::NotFound { target: name }
             } else {

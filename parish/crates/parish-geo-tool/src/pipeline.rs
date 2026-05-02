@@ -207,6 +207,7 @@ fn build_locations(
             target: to_id,
             traversal_minutes: None,
             path_description: conn.path_description.clone(),
+            hazard: Default::default(),
         });
 
         // Reverse connection (bidirectional)
@@ -214,6 +215,7 @@ fn build_locations(
             target: from_id,
             traversal_minutes: None,
             path_description: conn.reverse_path_description.clone(),
+            hazard: Default::default(),
         });
     }
 
