@@ -22,7 +22,8 @@
 //!   `assert!` names the fixture, the step, the rule that fired, and the
 //!   canonical fix.
 
-use parish::testing::{ActionResult, ScriptResult, run_script_captured};
+use parish::testing::{ActionResult, GameTestHarness, ScriptResult, run_script_captured};
+use parish_types::events::GameEvent;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -204,4 +205,140 @@ fn rubric_look_descriptions_are_non_empty() {
             }
         }
     }
+}
+
+// ============================================================
+// Gameplay rubrics — Tier 4 CPU rules engine (#722)
+// ============================================================
+
+/// Asserts that at least one Tier 4 life event surfaces after advancing game
+/// time past the 90-day tick threshold onto a festival date.
+///
+/// Strategy:
+/// - Load the full Rundale world (real NPCs, real world graph).
+/// - Subscribe to the event bus *before* advancing time so no events are lost.
+/// - Advance exactly to Lughnasa (Aug 1, 1820): 134 days * 24 * 60 = 192 960
+///   minutes from start (1820-03-20).  134 days > the 90-day tier4 threshold,
+///   so the tick fires exactly once with `game_date = 1820-08-01`.
+///   `Festival::check(Aug 1)` returns `Some(Lughnasa)` unconditionally —
+///   no RNG involved — so at least one event is guaranteed.
+/// - Assert the tier4 tick was recorded, the debug log shows it, and the
+///   event bus received at least one GameEvent.
+///
+/// Fixture: `parish/testing/fixtures/test_tier4_far_npcs.txt`
+#[test]
+fn rubric_tier4_events_appear_in_journal() {
+    let mut h = GameTestHarness::new();
+
+    let tier4_count_before = h.app.npc_manager.tier4_npcs().len();
+
+    // Subscribe to the event bus BEFORE advancing time.
+    let mut rx = h.app.world.event_bus.subscribe();
+
+    // Advance exactly to Lughnasa (Aug 1): 134 days * 24 * 60 = 192 960 min.
+    // 134 days > 90-day tier4 threshold from a None baseline, so the tick
+    // fires with game_date = 1820-08-01 = Lughnasa.  Festival::check is pure
+    // date math — no RNG — guaranteeing at least one FestivalDetected event.
+    const MINUTES_TO_LUGHNASA: i64 = 134 * 24 * 60; // 192 960
+    h.advance_time(MINUTES_TO_LUGHNASA);
+
+    // Check 1: tier4 tick was recorded (last_tier4_game_time is Some).
+    assert!(
+        h.app.npc_manager.last_tier4_game_time().is_some(),
+        "test_tier4_far_npcs: tier4 tick should have fired after advancing \
+         {MINUTES_TO_LUGHNASA} game-minutes (~134 days to Lughnasa).\n\
+         FIX: check NpcManager::needs_tier4_tick and GameTestHarness::advance_time \
+         in parish/crates/parish-cli/src/testing.rs.\n\
+         Tier 4 NPC count at test start: {tier4_count_before}."
+    );
+
+    // Check 2: the debug log contains at least one `[tier4]` entry.
+    let tier4_log: Vec<&str> = h
+        .debug_log()
+        .into_iter()
+        .filter(|line| line.contains("[tier4]"))
+        .collect();
+    assert!(
+        !tier4_log.is_empty(),
+        "test_tier4_far_npcs: expected at least one '[tier4] N events' debug entry \
+         after the tick interval elapsed, but the debug log contained none.\n\
+         Full debug log: {:?}",
+        h.debug_log()
+    );
+
+    // Check 3: a FestivalStarted(Lughnasa) GameEvent was published on the bus.
+    // tick_tier4 calls Festival::check(1820-08-01) = Some(Lughnasa) and emits
+    // FestivalDetected; apply_tier4_events converts it to FestivalStarted.
+    let mut lughnasa_fired = false;
+    while let Ok(evt) = rx.try_recv() {
+        if let GameEvent::FestivalStarted { name, .. } = &evt
+            && name == "Lughnasa"
+        {
+            lughnasa_fired = true;
+        }
+    }
+    assert!(
+        lughnasa_fired,
+        "test_tier4_far_npcs: expected a FestivalStarted(\"Lughnasa\") GameEvent \
+         published on the tier4 tick with game_date = 1820-08-01, but it was absent.\n\
+         Debug log (tier4 entries): {tier4_log:?}\n\
+         FIX: verify tick_tier4 calls Festival::check(game_date) and \
+         apply_tier4_events emits GameEvent::FestivalStarted for FestivalDetected events."
+    );
+}
+
+// ============================================================
+// Gameplay rubrics — Festival fixture (#720)
+// ============================================================
+
+/// Asserts that a `FestivalStarted { name: "Samhain" }` `GameEvent` is
+/// published when the game clock is advanced to exactly November 1, 1820.
+///
+/// Strategy:
+/// - Load the full Rundale world.
+/// - Subscribe to the event bus *before* advancing time.
+/// - Advance exactly to Samhain (Nov 1, 1820): 226 days * 24 * 60 = 325 440
+///   minutes from start (1820-03-20).  226 days > 90-day tier4 threshold
+///   (last_tier4 = None), so the tick fires once with `game_date = 1820-11-01`.
+///   `Festival::check(Nov 1)` returns `Some(Samhain)` unconditionally.
+/// - Drain the event bus and assert that a `FestivalStarted { "Samhain" }`
+///   event was received.
+///
+/// Fixture: `parish/testing/fixtures/test_festival_samhain.txt`
+#[test]
+fn rubric_festival_event_published_on_festival_date() {
+    let mut h = GameTestHarness::new();
+
+    // Subscribe BEFORE advancing so no events are lost.
+    let mut rx = h.app.world.event_bus.subscribe();
+
+    // Advance exactly to Samhain (Nov 1): 226 days * 24 * 60 = 325 440 min.
+    // 226 days > 90-day tier4 threshold from a None baseline, so the tick
+    // fires with game_date = 1820-11-01 = Samhain.
+    const MINUTES_TO_SAMHAIN: i64 = 226 * 24 * 60; // 325 440
+    h.advance_time(MINUTES_TO_SAMHAIN);
+
+    // Drain the bus and collect FestivalStarted events.
+    let mut samhain_fired = false;
+    while let Ok(evt) = rx.try_recv() {
+        if let GameEvent::FestivalStarted { name, .. } = &evt
+            && name == "Samhain"
+        {
+            samhain_fired = true;
+        }
+    }
+
+    assert!(
+        samhain_fired,
+        "test_festival_samhain: expected a FestivalStarted(\"Samhain\") GameEvent \
+         after advancing {MINUTES_TO_SAMHAIN} game-minutes (226 days) to land on \
+         Samhain (Nov 1, 1820), but none was received.\n\
+         FIX: verify that tick_tier4 calls Festival::check(game_date) where \
+         game_date is the current clock date when the tier4 tick fires, that \
+         apply_tier4_events converts FestivalDetected → GameEvent::FestivalStarted, \
+         and that GameTestHarness::advance_time publishes tier4 events on \
+         world.event_bus.\n\
+         See: parish/crates/parish-npc/src/tier4.rs (tick_tier4) and \
+         parish/crates/parish-npc/src/manager.rs (apply_tier4_events)."
+    );
 }

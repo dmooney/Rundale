@@ -1,0 +1,25 @@
+# Advance the clock to exactly Samhain (Nov 1, 1820) and verify festival display.
+#
+# Start date: 1820-03-20 (spring equinox, 8:00 UTC).
+# Samhain (Nov 1) is 226 days later = 226 * 24 * 60 = 325 440 minutes.
+#
+# The Tier 4 tick fires when elapsed >= 90 days (last_tier4 = None at start).
+# Advancing exactly 325 440 min lands the tick on 1820-11-01 = Samhain.
+# Festival::check is pure date logic — no RNG — so FestivalDetected is
+# guaranteed and the FestivalStarted event is published unconditionally.
+#
+# /time shows "Festival: Samhain" because the clock's check_festival() method
+# reads the same date.
+#
+# Used by: rubric_festival_event_published_on_festival_date (eval_baselines.rs)
+
+/status
+/time
+
+# Jump exactly to Samhain: 226 days * 24 * 60 = 325 440 minutes.
+/wait 325440
+
+/status
+/time
+
+/quit
