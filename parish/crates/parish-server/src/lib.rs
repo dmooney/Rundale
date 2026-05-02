@@ -136,6 +136,40 @@ pub async fn serve_third_party_notices() -> impl IntoResponse {
     )
 }
 
+/// Applies the production security-response-header stack to `router`.
+///
+/// All six `SetResponseHeaderLayer` entries are defined here once and used by
+/// both [`run_server`] (production path) and the `security_headers` integration
+/// tests, so the tests exercise the real header values rather than a hand-rolled
+/// duplicate.
+pub fn apply_security_layers(router: Router) -> Router {
+    router
+        .layer(SetResponseHeaderLayer::overriding(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(CSP_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            REFERRER_POLICY,
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+        ))
+}
+
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 
@@ -532,32 +566,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .layer(axum_mw::from_fn_with_state(
             ip_limiter,
             ip_rate_limit_middleware,
-        ))
-        // ── Security hardening headers (outermost layer — covers all routes) ──
-        .layer(SetResponseHeaderLayer::overriding(
-            CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP_POLICY),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            STRICT_TRANSPORT_SECURITY,
-            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_FRAME_OPTIONS,
-            HeaderValue::from_static("DENY"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            REFERRER_POLICY,
-            HeaderValue::from_static("strict-origin-when-cross-origin"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::HeaderName::from_static("permissions-policy"),
-            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
         ));
+    // ── Security hardening headers (outermost layer — covers all routes) ──
+    let app = apply_security_layers(app);
 
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Parish web server listening on http://{}", addr);

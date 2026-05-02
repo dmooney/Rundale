@@ -1,48 +1,23 @@
 /// Integration tests for security hardening response headers (issue #389).
 ///
-/// These tests build a minimal router that applies the same
-/// `SetResponseHeaderLayer` stack used in `run_server`, then drive it with
-/// `tower::ServiceExt::oneshot` to assert that every response carries the
-/// required headers without needing a live TCP port.
+/// These tests drive a minimal router that is wrapped with the production
+/// `apply_security_layers` helper from `parish_server`, so every assertion
+/// exercises the real header values rather than a hand-rolled duplicate of the
+/// `run_server` stack.
 use axum::Router;
 use axum::http::header::{
     CONTENT_SECURITY_POLICY, REFERRER_POLICY, STRICT_TRANSPORT_SECURITY, X_CONTENT_TYPE_OPTIONS,
     X_FRAME_OPTIONS,
 };
-use axum::http::{HeaderValue, Request, StatusCode};
+use axum::http::{Request, StatusCode};
 use axum::routing::get;
-use parish_server::{ALLOWED_EXTERNAL_ORIGINS, CSP_POLICY};
+use parish_server::{ALLOWED_EXTERNAL_ORIGINS, CSP_POLICY, apply_security_layers};
 use tower::ServiceExt;
-use tower_http::set_header::SetResponseHeaderLayer;
 
-/// Build the same security-header layer stack as `run_server`.
+/// Build a minimal ping router wrapped in the production security-header stack.
 fn security_header_router() -> Router {
-    Router::new()
-        .route("/ping", get(|| async { StatusCode::OK }))
-        .layer(SetResponseHeaderLayer::overriding(
-            CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP_POLICY),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            STRICT_TRANSPORT_SECURITY,
-            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_FRAME_OPTIONS,
-            HeaderValue::from_static("DENY"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            REFERRER_POLICY,
-            HeaderValue::from_static("strict-origin-when-cross-origin"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::HeaderName::from_static("permissions-policy"),
-            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
-        ))
+    let inner = Router::new().route("/ping", get(|| async { StatusCode::OK }));
+    apply_security_layers(inner)
 }
 
 #[tokio::test]
@@ -59,6 +34,11 @@ async fn response_has_content_security_policy_header() {
         .get(CONTENT_SECURITY_POLICY)
         .expect("Content-Security-Policy header must be present on every response");
     let csp_str = csp.to_str().unwrap();
+    // Verify the value matches the production constant exactly.
+    assert_eq!(
+        csp_str, CSP_POLICY,
+        "CSP header value must match the production CSP_POLICY constant"
+    );
     assert!(
         csp_str.contains("default-src 'self'"),
         "CSP must set default-src 'self'; got: {csp_str}"
