@@ -248,10 +248,12 @@ pub async fn submit_input(
     if text.len() > 2000 {
         return Err("Input too long (max 2000 characters).".to_string());
     }
+    // #752 — cap addressed_to to prevent unbounded memory/allocation via the
+    // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
+    let addressed_to = addressed_to.unwrap_or_default();
+    validate_addressed_to(&addressed_to)?;
 
     touch_player_activity(&state).await;
-
-    let addressed_to = addressed_to.unwrap_or_default();
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
@@ -277,6 +279,25 @@ pub async fn submit_input(
         }
     }
 
+    Ok(())
+}
+
+// ── #752 — addressed_to validation ───────────────────────────────────────────
+
+/// Validates the `addressed_to` list from the `submit_input` command.
+///
+/// Rules (mode-parity with the server path in `parish-server`):
+/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - Each name is at most **100** characters.
+///
+/// Returns `Err(String)` with a user-visible message on any violation.
+pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
+    if addressed_to.len() > 10 {
+        return Err("Too many addressees (max 10).".to_string());
+    }
+    if addressed_to.iter().any(|name| name.len() > 100) {
+        return Err("Addressee name too long (max 100 characters).".to_string());
+    }
     Ok(())
 }
 
