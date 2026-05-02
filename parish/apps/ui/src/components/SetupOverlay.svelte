@@ -20,7 +20,7 @@
 	let downloadTotal = $state(0);
 	let hasError = $state(false);
 	let errorMsg = $state('');
-	let messagesEl: HTMLDivElement | null = $state(null);
+	let messagesEl: HTMLDivElement;
 
 	let downloadPct = $derived(
 		downloadTotal > 0 ? Math.min(100, (downloadCompleted / downloadTotal) * 100) : null

@@ -441,7 +441,9 @@ impl parish_core::inference::setup::SetupProgress for TauriProgress {
         tracing::info!("{}", msg);
         let _ = self.app.emit(
             events::EVENT_SETUP_STATUS,
-            events::SetupStatusPayload { message: msg.to_string() },
+            events::SetupStatusPayload {
+                message: msg.to_string(),
+            },
         );
     }
 
@@ -456,7 +458,9 @@ impl parish_core::inference::setup::SetupProgress for TauriProgress {
         tracing::error!("{}", msg);
         let _ = self.app.emit(
             events::EVENT_SETUP_STATUS,
-            events::SetupStatusPayload { message: format!("Error: {}", msg) },
+            events::SetupStatusPayload {
+                message: format!("Error: {}", msg),
+            },
         );
     }
 }
@@ -571,10 +575,9 @@ pub fn run() {
     let (provider_config, provider_name, base_url, api_key) = provider_config_from_env();
     let cloud_env = build_cloud_client_from_env(&engine_config.inference);
 
-    // Clone configs so they can be moved into the async setup spawn.
-    // Bootstrap itself is deferred until after the Tauri window opens so it
-    // can emit progress events to the frontend setup overlay.
-    let provider_config_for_spawn = provider_config.clone();
+    // Clone inference config before it is moved into AppState so the async
+    // setup spawn can still reference it during bootstrap. provider_config
+    // itself is not stored in AppState and will be moved directly into the spawn.
     let inference_config_for_spawn = engine_config.inference.clone();
 
     // Build splash text from mod title + build info
@@ -801,16 +804,15 @@ pub fn run() {
             // so tokio::spawn cannot be called directly here — we must go through
             // tauri::async_runtime::spawn, which uses the Tauri-managed tokio handle.
             let state_setup = Arc::clone(&state);
-            let handle_setup = handle.clone();
             tauri::async_runtime::spawn(async move {
                 // ── Bootstrap inference provider ─────────────────────────────
                 // Runs here (inside the async spawn) rather than synchronously in
                 // run() so the Tauri window is open and can receive setup-status /
                 // setup-progress events while Ollama is being installed/started.
                 {
-                    let progress = TauriProgress { app: handle_setup.clone() };
+                    let progress = TauriProgress { app: handle.clone() };
                     match bootstrap_provider(
-                        &provider_config_for_spawn,
+                        &provider_config,
                         &inference_config_for_spawn,
                         &progress,
                     )
@@ -824,7 +826,7 @@ pub fn run() {
                                 config.model_name = model_name;
                                 config.fill_missing_models_from_presets();
                             }
-                            let _ = handle_setup.emit(
+                            let _ = handle.emit(
                                 events::EVENT_SETUP_DONE,
                                 events::SetupDonePayload {
                                     success: true,
@@ -834,7 +836,7 @@ pub fn run() {
                         }
                         Err(e) => {
                             tracing::error!("Failed to initialise inference provider: {}", e);
-                            let _ = handle_setup.emit(
+                            let _ = handle.emit(
                                 events::EVENT_SETUP_DONE,
                                 events::SetupDonePayload {
                                     success: false,
