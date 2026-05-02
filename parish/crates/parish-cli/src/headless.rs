@@ -1348,8 +1348,21 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 
     // Collect results as tasks finish, then persist + print each reaction.
     while let Some(result) = join_set.join_next().await {
-        let Ok((npc_name, Some(emoji))) = result else {
-            continue;
+        let (npc_name, emoji) = match result {
+            Ok((name, Some(emoji))) => (name, emoji),
+            Ok((_, None)) => continue,
+            Err(e) if e.is_panic() => {
+                tracing::error!(error = %e, "npc reaction task panicked");
+                continue;
+            }
+            Err(e) if e.is_cancelled() => {
+                tracing::debug!("npc reaction task cancelled (shutdown)");
+                continue;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "npc reaction task ended unexpectedly");
+                continue;
+            }
         };
 
         // Persist to reaction_log so NPC memory is maintained (#403).

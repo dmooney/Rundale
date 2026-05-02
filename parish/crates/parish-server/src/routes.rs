@@ -1517,8 +1517,6 @@ fn emit_npc_reactions(
     let player_msg_id = player_msg_id.to_string();
     let player_input = player_input.to_string();
 
-    // #651 — await the task handle and surface any panic to the log so errors
-    // are never silently swallowed.
     let handle = tokio::spawn(async move {
         let (npcs_here, llm_enabled, reaction_client, reaction_model) = {
             let npc_manager = state.npc_manager.lock().await;
@@ -1585,8 +1583,21 @@ fn emit_npc_reactions(
 
         // Collect results as tasks finish, then persist + emit each reaction.
         while let Some(result) = join_set.join_next().await {
-            let Ok((npc_name, Some(emoji))) = result else {
-                continue;
+            let (npc_name, emoji) = match result {
+                Ok((name, Some(emoji))) => (name, emoji),
+                Ok((_, None)) => continue,
+                Err(e) if e.is_panic() => {
+                    tracing::error!(error = %e, "npc reaction task panicked");
+                    continue;
+                }
+                Err(e) if e.is_cancelled() => {
+                    tracing::debug!("npc reaction task cancelled (shutdown)");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "npc reaction task ended unexpectedly");
+                    continue;
+                }
             };
 
             // Persist to reaction_log so NPC memory is maintained (#403).
@@ -1612,12 +1623,20 @@ fn emit_npc_reactions(
         }
     });
 
-    // Spawn a lightweight watcher that logs any panic from the reaction batch
-    // (#651). This keeps emit_npc_reactions non-blocking while ensuring panics
-    // are visible in the tracing output rather than silently swallowed.
+    // Watcher: keeps emit_npc_reactions non-blocking while making panics visible
+    // and quietly absorbing the cancellation seen during runtime shutdown.
     tokio::spawn(async move {
-        if let Err(e) = handle.await {
-            tracing::error!(error = %e, "emit_npc_reactions task panicked");
+        match handle.await {
+            Ok(_) => {}
+            Err(e) if e.is_panic() => {
+                tracing::error!(error = %e, "emit_npc_reactions task panicked");
+            }
+            Err(e) if e.is_cancelled() => {
+                tracing::debug!("emit_npc_reactions task cancelled (shutdown)");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "emit_npc_reactions task ended unexpectedly");
+            }
         }
     });
 }
