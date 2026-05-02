@@ -18,6 +18,13 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
      gh pr view $PR --json number,title,headRefName,baseRefName,mergeable,mergeStateStatus,state,isDraft,statusCheckRollup,reviewDecision,body,url
      ```
      Save to a file; reread fields as needed.
+   - Capture portability vars used downstream:
+     ```sh
+     BASE=$(gh pr view $PR --json baseRefName --jq .baseRefName)
+     HEAD=$(gh pr view $PR --json headRefName --jq .headRefName)
+     OWNER=$(gh repo view --json owner --jq .owner.login)
+     REPO=$(gh repo view --json name --jq .name)
+     ```
 
 2. **Pre-flight gates.**
    - `state == OPEN` and `isDraft == false`. If draft, ask the user before marking ready.
@@ -29,16 +36,16 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - Check out the PR branch in a clean worktree:
      ```sh
      gh pr checkout $PR
-     git fetch origin main
-     git merge origin/main --no-edit
+     git fetch origin $BASE
+     git merge origin/$BASE --no-edit
      ```
    - Resolve conflicts file-by-file. For each `git diff --name-only --diff-filter=U`:
-     - Read both sides. Read `git log --oneline origin/main..HEAD` (PR intent) and `git log --oneline HEAD..origin/main` (upstream intent).
-     - Prefer the PR's intent for new logic; prefer main's version for code already-merged upstream.
+     - Read both sides. Read `git log --oneline origin/$BASE..HEAD` (PR intent) and `git log --oneline HEAD..origin/$BASE` (upstream intent).
+     - Prefer the PR's intent for new logic; prefer the base's version for code already-merged upstream.
      - Verify no `<<<<<<<` / `=======` / `>>>>>>>` markers remain. `git add <file>`.
    - Conclude: `git commit --no-edit` (merge) — do NOT use `git rebase`, since force-pushing rewrites history that bots already commented on, breaking thread anchors.
    - `just check` must pass before push.
-   - `git push origin <headRefName>` (no force; merges advance the branch fast-forward).
+   - `git push` (no force; merges advance the branch fast-forward; relies on `gh pr checkout`'s tracking config so fork PRs work too).
 
 4. **Address unaddressed bot review threads.**
    - Inline threads:
@@ -52,14 +59,14 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
              }
            }
          }
-       }' -f owner=dmooney -f repo=Rundale -F pr=$PR \
+       }' -f owner=$OWNER -f repo=$REPO -F pr=$PR \
        --jq '.data.repository.pullRequest.reviewThreads.nodes[]
               | select(.isResolved == false and .isOutdated == false)
               | select(.comments.nodes[0].author.login | endswith("[bot]"))'
      ```
    - Review summary bodies (gemini sometimes leaves substantive feedback only here):
      ```sh
-     gh api repos/dmooney/Rundale/pulls/$PR/reviews --jq '.[] | select(.user.login | endswith("[bot]")) | {id, state, body: (.body[:500])}'
+     gh api repos/:owner/:repo/pulls/$PR/reviews --jq '.[] | select(.user.login | endswith("[bot]")) | {id, state, body: (.body[:500])}'
      ```
    - For each unaddressed thread/review:
      - Read the cited path/line. Decide: **act** (legitimate bug/nit) or **dismiss** (false positive, out-of-scope, intentional).
