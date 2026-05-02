@@ -12,7 +12,7 @@ RUN npm run build
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
 FROM rust:1.95.0-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 # Mirror the repo layout so source-relative include_str! paths
@@ -28,7 +28,7 @@ RUN cargo build --release -p parish --bin parish
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl libssl3 \
+    ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Download cloudflared at a pinned version and verify against an inline SHA-256.
