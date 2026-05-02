@@ -267,18 +267,22 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
         }
     }
 
-    // Second pass: ensure bidirectional relationships
-    let mut additions: Vec<(NpcId, NpcId, RelationshipKind, f64)> = Vec::new();
+    // Second pass: ensure bidirectional relationships.
+    // Build an index so reciprocal insertion is O(n) instead of O(n²).
+    let id_to_index: HashMap<NpcId, usize> =
+        npcs.iter().enumerate().map(|(i, n)| (n.id, i)).collect();
+
+    let total_edges: usize = npcs.iter().map(|n| n.relationships.len()).sum();
+    let mut additions: Vec<(NpcId, NpcId, RelationshipKind, f64)> = Vec::with_capacity(total_edges);
     for npc in &npcs {
         for (target_id, rel) in &npc.relationships {
             additions.push((npc.id, *target_id, rel.kind, rel.strength));
         }
     }
 
-    // Apply reciprocal relationships where missing
     for (from_id, to_id, kind, strength) in additions {
-        if let Some(target_npc) = npcs.iter_mut().find(|n| n.id == to_id) {
-            target_npc
+        if let Some(&idx) = id_to_index.get(&to_id) {
+            npcs[idx]
                 .relationships
                 .entry(from_id)
                 .or_insert_with(|| Relationship::new(kind, strength));
