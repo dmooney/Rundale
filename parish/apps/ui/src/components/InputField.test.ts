@@ -612,7 +612,7 @@ describe('InputField', () => {
 
 		it('syncs editorText after npc chip click so send button is enabled (#684)', async () => {
 			const { container, getByRole } = render(InputField);
-			const editor = getByRole('textbox');
+			const editor = getByRole('combobox');
 			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
