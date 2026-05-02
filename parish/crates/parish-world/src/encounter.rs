@@ -67,19 +67,7 @@ pub fn check_encounter_with_config(
     }
 
     // Generate flavor text based on time of day
-    let description = match time_of_day {
-        TimeOfDay::Dawn => "You pass an early riser walking their dog along the road.",
-        TimeOfDay::Morning => "A farmer nods to you from the far side of a gate as you pass.",
-        TimeOfDay::Midday => "You spot someone cycling past on the road ahead.",
-        TimeOfDay::Afternoon => "A car slows as it passes you. The driver gives a wave.",
-        TimeOfDay::Dusk => {
-            "A figure walks ahead of you in the fading light, then turns off down a lane."
-        }
-        TimeOfDay::Night => {
-            "You hear footsteps on the road behind you, but when you turn, no one is there."
-        }
-        TimeOfDay::Midnight => "An owl hoots from a nearby tree, breaking the silence.",
-    };
+    let description = fallback_description(time_of_day);
 
     Some(EncounterEvent {
         npc_id: None,
@@ -117,12 +105,35 @@ pub fn check_encounter_with_table(
         .by_time
         .get(&key)
         .cloned()
-        .unwrap_or_else(|| "You notice something on the road.".to_string());
+        .unwrap_or_else(|| fallback_description(time_of_day).to_string());
 
     Some(EncounterEvent {
         npc_id: None,
         description,
     })
+}
+
+/// Returns the period-appropriate fallback description for the given time of day.
+///
+/// All strings here must pass the anachronism check — no references to technology
+/// post-dating the 1820s Irish setting (no bicycles, motorcars, telephones, etc.).
+/// The companion test `test_fallback_descriptions_no_anachronisms` enforces this.
+fn fallback_description(time_of_day: TimeOfDay) -> &'static str {
+    match time_of_day {
+        TimeOfDay::Dawn => {
+            "A lone figure trudges along the road in the early morning grey, bundle on their back."
+        }
+        TimeOfDay::Morning => "A farmer nods to you from the far side of a gate as you pass.",
+        TimeOfDay::Midday => "You spot someone on the road ahead, driving a cart at a lazy pace.",
+        TimeOfDay::Afternoon => "A cart slows as it passes you. The driver gives a wave.",
+        TimeOfDay::Dusk => {
+            "A figure walks ahead of you in the fading light, then turns off down a lane."
+        }
+        TimeOfDay::Night => {
+            "You hear footsteps on the road behind you, but when you turn, no one is there."
+        }
+        TimeOfDay::Midnight => "An owl hoots from a nearby tree, breaking the silence.",
+    }
 }
 
 #[cfg(test)]
@@ -298,5 +309,70 @@ mod tests {
     fn test_encounter_just_below_threshold() {
         let result = check_encounter(TimeOfDay::Midday, 0.19);
         assert!(result.is_some());
+    }
+
+    /// Every fallback description must be free of anachronistic terms.
+    ///
+    /// Extend `FORBIDDEN_WORDS` when a new term is added to `mods/rundale/anachronisms.json`
+    /// that could plausibly appear in encounter prose.  Adding a new time-of-day arm to
+    /// `fallback_description` without updating the word list will NOT cause this test to fail
+    /// silently — the helper covers every `TimeOfDay` variant exhaustively.
+    #[test]
+    fn test_fallback_descriptions_no_anachronisms() {
+        /// Terms that post-date the 1820s Irish setting and must never appear in engine
+        /// encounter text.  Uses whole-word matching so "cart" does not false-positive
+        /// on "car".
+        const FORBIDDEN_WORDS: &[&str] = &[
+            "car",
+            "bicycle",
+            "cycling",
+            "bike",
+            "automobile",
+            "engine",
+            "motor",
+            "phone",
+            "radio",
+            "tractor",
+            "train",
+            "railway",
+            "railroad",
+            "locomotive",
+            "electric",
+            "electricity",
+            "television",
+            "computer",
+            "internet",
+            "smartphone",
+        ];
+
+        let times = [
+            TimeOfDay::Dawn,
+            TimeOfDay::Morning,
+            TimeOfDay::Midday,
+            TimeOfDay::Afternoon,
+            TimeOfDay::Dusk,
+            TimeOfDay::Night,
+            TimeOfDay::Midnight,
+        ];
+
+        for time in &times {
+            let description = fallback_description(*time);
+            // Lowercase first and bind it so the reference lives long enough.
+            let lowered = description.to_lowercase();
+            let word_set: std::collections::HashSet<&str> = lowered
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|s| !s.is_empty())
+                .collect();
+
+            for &forbidden in FORBIDDEN_WORDS {
+                assert!(
+                    !word_set.contains(forbidden),
+                    "Anachronism '{}' found in {:?} encounter description: {:?}",
+                    forbidden,
+                    time,
+                    description,
+                );
+            }
+        }
     }
 }
