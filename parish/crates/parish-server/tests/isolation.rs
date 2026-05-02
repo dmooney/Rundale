@@ -5,7 +5,9 @@
 /// boundaries without requiring a fully initialised game world where possible.
 use axum::http::StatusCode;
 
-use parish_server::routes::{check_admin_against, is_admin_command, validate_branch_name};
+use parish_server::routes::{
+    check_admin_against, is_admin_command, redact_call_log, validate_branch_name,
+};
 
 // ── #332 — Admin-command gate ─────────────────────────────────────────────────
 
@@ -109,11 +111,10 @@ fn check_admin_against_none_config_is_deterministic() {
 
 /// The debug-snapshot handler strips sensitive fields from the call log.
 ///
-/// We exercise the redaction logic directly by constructing an
-/// `InferenceLogEntry` with sensitive content, applying the same
-/// zeroing-out transformation that `get_debug_snapshot` performs, then
-/// asserting the serialised JSON contains `prompt_len` but not the
-/// secret text.
+/// Constructs an `InferenceLogEntry` with sensitive content, passes it through
+/// the production `redact_call_log` function (the same path called by
+/// `get_debug_snapshot`), then asserts the serialised JSON contains
+/// `prompt_len` but not the secret text.
 #[test]
 fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
     use parish_core::debug_snapshot::InferenceLogEntry;
@@ -134,23 +135,14 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
         max_tokens: None,
     };
 
-    // Apply the same redaction that `get_debug_snapshot` applies (#333).
-    let redacted = InferenceLogEntry {
-        request_id: entry.request_id,
-        timestamp: entry.timestamp.clone(),
-        model: entry.model.clone(),
-        streaming: entry.streaming,
-        duration_ms: entry.duration_ms,
-        prompt_len: entry.prompt_len,
-        response_len: entry.response_len,
-        error: entry.error.clone(),
-        max_tokens: entry.max_tokens,
-        system_prompt: None,
-        prompt_text: String::new(),
-        response_text: String::new(),
-    };
+    // Call the production redaction function — the same path `get_debug_snapshot`
+    // calls (#333).  This ensures the test exercises real production code rather
+    // than a hand-rolled copy.
+    let redacted_log = redact_call_log(&[entry]);
+    assert_eq!(redacted_log.len(), 1, "redacted log must have one entry");
+    let redacted = &redacted_log[0];
 
-    let json = serde_json::to_value(&redacted).unwrap();
+    let json = serde_json::to_value(redacted).unwrap();
 
     // Must contain prompt_len.
     assert!(

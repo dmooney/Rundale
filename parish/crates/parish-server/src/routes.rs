@@ -96,6 +96,39 @@ pub async fn get_ui_config(
     Json(state.ui_config.clone())
 }
 
+/// Redact an inference call log for web clients (#333).
+///
+/// Strips `prompt_text`, `response_text`, and `system_prompt` from every entry
+/// so that one user's LLM prompts are never exposed to other authenticated
+/// visitors.  `prompt_len` / `response_len` and all other metadata are kept so
+/// the debug panel remains informative.
+///
+/// Called by both [`get_debug_snapshot`] (production path) and the
+/// `debug_snapshot_call_log_has_prompt_len_not_prompt_text` integration test, so
+/// the test exercises the real redaction rather than a hand-rolled copy.
+pub fn redact_call_log(
+    entries: &[parish_core::debug_snapshot::InferenceLogEntry],
+) -> Vec<parish_core::debug_snapshot::InferenceLogEntry> {
+    entries
+        .iter()
+        .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
+            request_id: e.request_id,
+            timestamp: e.timestamp.clone(),
+            model: e.model.clone(),
+            streaming: e.streaming,
+            duration_ms: e.duration_ms,
+            prompt_len: e.prompt_len,
+            response_len: e.response_len,
+            error: e.error.clone(),
+            max_tokens: e.max_tokens,
+            // Redacted fields:
+            system_prompt: None,
+            prompt_text: String::new(),
+            response_text: String::new(),
+        })
+        .collect()
+}
+
 /// `GET /api/debug-snapshot` — returns debug state for the debug panel.
 ///
 /// The inference call log is **redacted** for web clients (#333): `prompt_text`,
@@ -193,24 +226,7 @@ pub async fn get_debug_snapshot(
 
     // Replace call_log entries with redacted forms (no prompt/response text,
     // no system_prompt, no base_url).
-    snapshot.inference.call_log = raw_call_log
-        .iter()
-        .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
-            request_id: e.request_id,
-            timestamp: e.timestamp.clone(),
-            model: e.model.clone(),
-            streaming: e.streaming,
-            duration_ms: e.duration_ms,
-            prompt_len: e.prompt_len,
-            response_len: e.response_len,
-            error: e.error.clone(),
-            max_tokens: e.max_tokens,
-            // Redacted fields:
-            system_prompt: None,
-            prompt_text: String::new(),
-            response_text: String::new(),
-        })
-        .collect();
+    snapshot.inference.call_log = redact_call_log(&raw_call_log);
     // Also redact base_url from the inference config block.
     snapshot.inference.base_url = String::new();
 
