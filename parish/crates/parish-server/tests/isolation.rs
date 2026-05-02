@@ -5,7 +5,9 @@
 /// boundaries without requiring a fully initialised game world where possible.
 use axum::http::StatusCode;
 
-use parish_server::routes::{check_admin_against, is_admin_command, validate_branch_name};
+use parish_server::routes::{
+    check_admin_against, check_admin_no_config, is_admin_command, validate_branch_name,
+};
 
 // ── #332 — Admin-command gate ─────────────────────────────────────────────────
 
@@ -98,6 +100,33 @@ fn check_admin_against_different_admin_sets_are_independent() {
 fn check_admin_against_none_config_is_deterministic() {
     let result = check_admin_against("any@example.com", "/key sk-x", None);
     // In test/debug builds, cfg!(debug_assertions) is true → Ok(()).
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
+/// Covers the release-mode fail-closed branch of `check_admin_against`.
+///
+/// `cfg!(debug_assertions)` is always `true` under `cargo test`, so the
+/// release path is exercised via `check_admin_no_config(is_debug = false)`.
+/// This is the testable helper extracted specifically to cover issue #763.
+#[test]
+fn check_admin_no_config_release_mode_is_fail_closed() {
+    // Simulate release build: is_debug = false → must be FORBIDDEN.
+    let result = check_admin_no_config("any@example.com", "/key sk-x", false);
+    assert_eq!(
+        result,
+        Err(StatusCode::FORBIDDEN),
+        "release build with no admin config must deny (fail-closed)"
+    );
+}
+
+/// Confirm the debug-mode path of `check_admin_no_config` allows any user.
+#[test]
+fn check_admin_no_config_debug_mode_is_fail_open() {
+    let result = check_admin_no_config("any@example.com", "/key sk-x", true);
     assert_eq!(
         result,
         Ok(()),
