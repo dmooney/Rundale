@@ -67,6 +67,7 @@
 				m.locations.map((l) => ({ lat: l.lat, lon: l.lon })),
 				60
 			);
+			hasFitOnce = true;
 		}
 
 		mounted = true;
@@ -84,7 +85,7 @@
 	// initial fetch resolves, or after `/new` while world state is
 	// rebuilding), the map stays on MapController's hard-coded default
 	// center until the user pans manually. (#351)
-	let hasFitOnce = false;
+	let hasFitOnce = $state(false);
 
 	// Push map data changes into the controller. The first time mapData
 	// becomes non-empty after mount, also fit bounds so a delayed first
