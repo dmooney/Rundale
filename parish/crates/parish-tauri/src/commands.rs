@@ -1482,30 +1482,8 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
 // ── Persistence commands ────────────────────────────────────────────────────
 
 use parish_core::persistence::Database;
-use parish_core::persistence::picker::{
-    SaveFileInfo, discover_saves, ensure_saves_dir, new_save_path,
-};
+use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
-
-/// Resolves the saves directory at the project root (where `mods/` lives).
-fn saves_dir() -> std::path::PathBuf {
-    let mut p = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    for _ in 0..4 {
-        if p.join("mods/rundale/world.json").exists() {
-            let sd = p.join("saves");
-            if let Err(e) = std::fs::create_dir_all(&sd) {
-                tracing::warn!(path = %sd.display(), error = %e, "failed to create saves dir");
-            }
-            return sd;
-        }
-        match p.parent() {
-            Some(parent) => p = parent.to_path_buf(),
-            None => break,
-        }
-    }
-    // Fallback: use ensure_saves_dir which creates ./saves
-    ensure_saves_dir()
-}
 
 /// Returns the list of save files with branch metadata.
 #[tauri::command]
@@ -1513,8 +1491,7 @@ pub async fn discover_save_files(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<SaveFileInfo>, String> {
     let world = state.world.lock().await;
-    let sd = saves_dir();
-    let saves = discover_saves(&sd, &world.graph);
+    let saves = discover_saves(&state.saves_dir, &world.graph);
     for s in &saves {
         tracing::info!(
             "Save file: {} — {} branches: {:?}",
@@ -1549,9 +1526,8 @@ async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = if let Some(ref path) = *save_path_guard {
         path.clone()
     } else {
-        // Create a new save file
-        let sd = saves_dir();
-        let path = new_save_path(&sd);
+        // Create a new save file in the resolved saves directory.
+        let path = new_save_path(&state.saves_dir);
         *save_path_guard = Some(path.clone());
         path
     };
@@ -1725,8 +1701,7 @@ async fn do_create_branch(
 pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     use parish_core::persistence::SaveFileLock;
 
-    let sd = saves_dir();
-    let path = new_save_path(&sd);
+    let path = new_save_path(&state.saves_dir);
 
     // Acquire lock on the new save file, releasing any previous lock.
     let lock = SaveFileLock::try_acquire(&path)
@@ -1770,7 +1745,7 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
             .map_err(|e| format!("Failed to load world from mod: {}", e))?;
         (world, gm.npcs_path())
     } else {
-        let data_dir = crate::find_data_dir();
+        let data_dir = state.data_dir.clone();
         let world = parish_core::world::WorldState::from_parish_file(
             &data_dir.join("parish.json"),
             parish_core::world::LocationId(15),
@@ -1798,8 +1773,7 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     }
 
     // Create a new save file with the fresh state
-    let sd = saves_dir();
-    let path = new_save_path(&sd);
+    let path = new_save_path(&state.saves_dir);
     let db = Database::open(&path).map_err(|e| e.to_string())?;
     let branch = db
         .find_branch("main")

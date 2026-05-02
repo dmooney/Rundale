@@ -14,6 +14,13 @@ use parish_world::graph::WorldGraph;
 /// Default directory for save files.
 pub const SAVES_DIR: &str = "saves";
 
+/// Marker file used to identify the project root when resolving paths.
+/// Present in checkouts and in packaged builds that ship the default mod.
+const PROJECT_ROOT_MARKER: &str = "mods/rundale/world.json";
+
+/// Environment variable that overrides saves-dir resolution explicitly.
+const SAVES_DIR_ENV: &str = "PARISH_SAVES_DIR";
+
 /// Prefix for auto-numbered save files.
 const SAVE_PREFIX: &str = "parish_";
 
@@ -74,22 +81,23 @@ pub struct SaveFileInfo {
     pub locked: bool,
 }
 
-/// Ensures the saves directory exists and returns its path.
-///
-/// Creates the directory if it doesn't exist. Also performs a one-time
-/// migration of the legacy `parish_saves.db` file from the project root.
-pub fn ensure_saves_dir() -> PathBuf {
-    let saves_dir = PathBuf::from(SAVES_DIR);
+/// Ensures the saves directory exists at `saves_dir` and runs the one-time
+/// migration of the legacy `parish_saves.db` (alongside the directory) into
+/// it. Returns the same path back for chaining.
+pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
     if let Err(e) = std::fs::create_dir_all(&saves_dir) {
         tracing::warn!(path = %saves_dir.display(), error = %e, "failed to create saves directory");
     }
 
-    // One-time migration from legacy location
-    let legacy = Path::new("parish_saves.db");
+    // One-time migration from the legacy location next to the saves dir.
+    let legacy = saves_dir
+        .parent()
+        .map(|p| p.join("parish_saves.db"))
+        .unwrap_or_else(|| PathBuf::from("parish_saves.db"));
     if legacy.exists() {
         let target = saves_dir.join(format!("{}{:03}.{}", SAVE_PREFIX, 1, SAVE_EXT));
         if !target.exists() {
-            if let Err(e) = std::fs::rename(legacy, &target) {
+            if let Err(e) = std::fs::rename(&legacy, &target) {
                 eprintln!("Warning: Could not migrate {}: {}", legacy.display(), e);
             } else {
                 println!("Migrated save file to {}", target.display());
@@ -98,6 +106,64 @@ pub fn ensure_saves_dir() -> PathBuf {
     }
 
     saves_dir
+}
+
+/// Backwards-compatible wrapper that creates `./saves` (relative to cwd).
+///
+/// Prefer [`resolve_project_saves_dir`] for new callers — it returns an
+/// absolute path anchored at a deliberate startup-time location and does not
+/// depend on the cwd at the time of the call.
+pub fn ensure_saves_dir() -> PathBuf {
+    ensure_saves_dir_at(PathBuf::from(SAVES_DIR))
+}
+
+/// Anchors `p` against `start` if `p` is relative; absolute paths pass through.
+fn anchor_against(start: &Path, p: PathBuf) -> PathBuf {
+    if p.is_absolute() { p } else { start.join(p) }
+}
+
+/// Resolves the project's saves directory once at startup.
+///
+/// Resolution order:
+/// 1. `PARISH_SAVES_DIR` environment variable — explicit operator override.
+///    Relative values are anchored to `start` so the result is independent of
+///    the cwd at use time.
+/// 2. Walks up to 4 ancestors of `start` looking for [`PROJECT_ROOT_MARKER`];
+///    returns `<that>/saves`.
+/// 3. Falls back to `start.join("saves")`.
+///
+/// The returned directory is always absolute when `start` is absolute, is
+/// created on disk if missing, and is stable for the lifetime of the process.
+/// Callers MUST resolve once at startup and store the result on shared state.
+/// Do not call from request handlers — `current_dir()` may differ at handler
+/// invocation time (packaged builds, daemonised servers, working-directory
+/// changes), which is the bug behind #771.
+pub fn resolve_project_saves_dir(start: &Path) -> PathBuf {
+    if let Some(explicit) = std::env::var_os(SAVES_DIR_ENV) {
+        let p = anchor_against(start, PathBuf::from(explicit));
+        return ensure_saves_dir_at(p);
+    }
+
+    let mut p = start.to_path_buf();
+    for _ in 0..4 {
+        if p.join(PROJECT_ROOT_MARKER).exists() {
+            return ensure_saves_dir_at(p.join(SAVES_DIR));
+        }
+        match p.parent() {
+            Some(parent) => p = parent.to_path_buf(),
+            None => break,
+        }
+    }
+    // No marker found anywhere up the tree: anchor the fallback at `start` so
+    // we still return a path that doesn't depend on the cwd at use time.
+    ensure_saves_dir_at(start.join(SAVES_DIR))
+}
+
+/// Convenience wrapper for [`resolve_project_saves_dir`] that anchors at the
+/// process's current working directory.
+pub fn resolve_project_saves_dir_from_cwd() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    resolve_project_saves_dir(&cwd)
 }
 
 /// Discovers all save files in the given directory and reads their metadata.
@@ -507,6 +573,104 @@ mod tests {
         std::fs::write(tmp.path().join("parish_001.db"), "").unwrap();
         let path2 = new_save_path(tmp.path());
         assert!(path2.to_string_lossy().contains("parish_002.db"));
+    }
+
+    /// Process-wide gate that serialises tests which mutate
+    /// [`SAVES_DIR_ENV`]. Cargo runs unit tests within one binary in parallel
+    /// threads by default; without this, two tests touching the env var
+    /// race with each other (and with anything else that reads the env).
+    fn env_test_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// RAII helper that restores [`SAVES_DIR_ENV`] to its previous value when
+    /// dropped, even if the test panics.
+    struct EnvGuard(Option<std::ffi::OsString>);
+    impl EnvGuard {
+        fn capture() -> Self {
+            EnvGuard(std::env::var_os(SAVES_DIR_ENV))
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: env mutation is gated by `env_test_lock`.
+            match self.0.take() {
+                Some(v) => unsafe { std::env::set_var(SAVES_DIR_ENV, v) },
+                None => unsafe { std::env::remove_var(SAVES_DIR_ENV) },
+            }
+        }
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_finds_marker() {
+        let _gate = env_test_lock();
+        let _restore = EnvGuard::capture();
+
+        let tmp = TempDir::new().unwrap();
+        let project = tmp.path().join("project");
+        let nested = project.join("a").join("b").join("c");
+        std::fs::create_dir_all(nested.join("ignore")).unwrap();
+        std::fs::create_dir_all(project.join("mods/rundale")).unwrap();
+        std::fs::write(project.join("mods/rundale/world.json"), "{}").unwrap();
+
+        // SAFETY: env mutation is gated by `env_test_lock`.
+        unsafe { std::env::remove_var(SAVES_DIR_ENV) };
+
+        let resolved = resolve_project_saves_dir(&nested);
+        assert_eq!(resolved, project.join("saves"));
+        assert!(resolved.is_absolute());
+        assert!(resolved.is_dir());
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_env_override() {
+        let _gate = env_test_lock();
+        let _restore = EnvGuard::capture();
+
+        let tmp = TempDir::new().unwrap();
+        let explicit = tmp.path().join("custom_saves");
+
+        // SAFETY: env mutation is gated by `env_test_lock`.
+        unsafe { std::env::set_var(SAVES_DIR_ENV, &explicit) };
+
+        // Anchor doesn't matter — env var wins.
+        let resolved = resolve_project_saves_dir(tmp.path());
+        assert_eq!(resolved, explicit);
+        assert!(resolved.is_absolute());
+        assert!(resolved.is_dir());
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_anchors_relative_env() {
+        let _gate = env_test_lock();
+        let _restore = EnvGuard::capture();
+
+        let tmp = TempDir::new().unwrap();
+        // SAFETY: env mutation is gated by `env_test_lock`.
+        unsafe { std::env::set_var(SAVES_DIR_ENV, "rel/sub") };
+
+        let resolved = resolve_project_saves_dir(tmp.path());
+        assert_eq!(resolved, tmp.path().join("rel/sub"));
+        assert!(resolved.is_absolute());
+        assert!(resolved.is_dir());
+    }
+
+    #[test]
+    fn test_resolve_project_saves_dir_fallback_anchors_at_start() {
+        let _gate = env_test_lock();
+        let _restore = EnvGuard::capture();
+
+        let tmp = TempDir::new().unwrap();
+        // SAFETY: env mutation is gated by `env_test_lock`.
+        unsafe { std::env::remove_var(SAVES_DIR_ENV) };
+
+        // No marker file anywhere → fallback path. Result must still be
+        // anchored at `start`, not the cwd.
+        let resolved = resolve_project_saves_dir(tmp.path());
+        assert_eq!(resolved, tmp.path().join("saves"));
+        assert!(resolved.is_absolute());
+        assert!(resolved.is_dir());
     }
 
     #[test]

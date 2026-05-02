@@ -265,6 +265,9 @@ pub struct AppState {
     pub transport: TransportConfig,
     /// Data directory used to derive the feature-flags persistence path.
     pub data_dir: PathBuf,
+    /// Saves directory resolved once at startup (#771).
+    /// Every save/load command reads this rather than re-probing the cwd.
+    pub saves_dir: PathBuf,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
     /// Editor session — separate from gameplay state, may be empty.
@@ -283,11 +286,20 @@ pub struct AppState {
 
 // ── Data path resolution ─────────────────────────────────────────────────────
 
-/// Finds the `data/` directory by walking up from the current working directory.
+/// Resolves the `data/` directory once at app startup.
 ///
-/// During `cargo tauri dev` the cwd is `src-tauri/`; in production bundles it
-/// may be the app resources directory. We walk up at most 3 levels.
+/// Resolution order:
+/// 1. `PARISH_DATA_DIR` environment variable — explicit operator override.
+/// 2. Walks up to 4 ancestors of the cwd looking for `data/parish.json`.
+/// 3. Falls back to `./data` and lets the load functions fail with a clear error.
+///
+/// MUST only be called at startup; the result is stored on
+/// [`AppState::data_dir`]. Per-handler callers must read from state instead
+/// of re-probing the cwd (#771).
 pub(crate) fn find_data_dir() -> PathBuf {
+    if let Some(explicit) = std::env::var_os("PARISH_DATA_DIR") {
+        return PathBuf::from(explicit);
+    }
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     for _ in 0..4 {
         if p.join("data/parish.json").exists() {
@@ -298,7 +310,6 @@ pub(crate) fn find_data_dir() -> PathBuf {
             None => break,
         }
     }
-    // Fallback — let the load functions fail with a clear error
     PathBuf::from("data")
 }
 
@@ -636,6 +647,10 @@ pub fn run() {
     // sensible Dialogue/Simulation/Intent/Reaction defaults.
     game_config.fill_missing_models_from_presets();
 
+    // Resolve the saves directory once at startup (#771). Subsequent save/load
+    // commands read `state.saves_dir` instead of re-probing the cwd.
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir_from_cwd();
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -659,6 +674,7 @@ pub fn run() {
         current_branch_name: Mutex::new(None),
         transport,
         data_dir: data_dir.clone(),
+        saves_dir,
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
@@ -804,31 +820,10 @@ pub fn run() {
                 {
                     use parish_core::persistence::Database;
                     use parish_core::persistence::SaveFileLock;
-                    use parish_core::persistence::picker::{
-                        discover_saves, ensure_saves_dir, new_save_path,
-                    };
+                    use parish_core::persistence::picker::{discover_saves, new_save_path};
                     use parish_core::persistence::snapshot::GameSnapshot;
 
-                    let saves_dir = {
-                        // Anchor saves dir at the project root (where mods/ lives).
-                        let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-                        let mut found = None;
-                        for _ in 0..4 {
-                            if p.join("mods/rundale/world.json").exists() {
-                                let sd = p.join("saves");
-                                if let Err(e) = std::fs::create_dir_all(&sd) {
-                                    tracing::warn!(path = %sd.display(), error = %e, "failed to create saves dir");
-                                }
-                                found = Some(sd);
-                                break;
-                            }
-                            match p.parent() {
-                                Some(parent) => p = parent.to_path_buf(),
-                                None => break,
-                            }
-                        }
-                        found.unwrap_or_else(ensure_saves_dir)
-                    };
+                    let saves_dir = state_setup.saves_dir.clone();
 
                     let world = state_setup.world.lock().await;
                     let saves = discover_saves(&saves_dir, &world.graph);

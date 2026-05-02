@@ -159,25 +159,20 @@ async fn reload_live_world_from_disk(
 
 // ── Save inspector (read-only) ──────────────────────────────────────────────
 
-fn saves_dir() -> PathBuf {
-    parish_core::persistence::picker::ensure_saves_dir()
-}
-
 #[tauri::command]
 pub async fn editor_list_saves(
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<SaveFileSummary>, String> {
-    editor::handle_editor_list_saves(&saves_dir())
+    editor::handle_editor_list_saves(&state.saves_dir)
 }
 
 #[tauri::command]
 pub async fn editor_list_branches(
     save_path: String,
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<BranchSummary>, String> {
     let raw = PathBuf::from(&save_path);
-    let root = saves_dir();
-    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &state.saves_dir)?;
     editor::handle_editor_list_branches(&canonical)
 }
 
@@ -185,11 +180,10 @@ pub async fn editor_list_branches(
 pub async fn editor_list_snapshots(
     save_path: String,
     branch_id: i64,
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<SnapshotSummary>, String> {
     let raw = PathBuf::from(&save_path);
-    let root = saves_dir();
-    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &state.saves_dir)?;
     editor::handle_editor_list_snapshots(&canonical, branch_id)
 }
 
@@ -197,10 +191,9 @@ pub async fn editor_list_snapshots(
 pub async fn editor_read_snapshot(
     save_path: String,
     branch_id: i64,
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Option<SnapshotDetail>, String> {
     let raw = PathBuf::from(&save_path);
-    let root = saves_dir();
-    let canonical = parish_core::ipc::editor::validate_within(&raw, &root)?;
+    let canonical = parish_core::ipc::editor::validate_within(&raw, &state.saves_dir)?;
     editor::handle_editor_read_snapshot(&canonical, branch_id)
 }
