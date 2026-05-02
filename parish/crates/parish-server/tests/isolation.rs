@@ -218,12 +218,13 @@ async fn second_ws_upgrade_same_email_is_409() {
     // Build a minimal AppState using the public builder.
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
-    use parish_core::world::{LocationId, WorldState};
+    use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
     use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-    let world = WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+    let world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),
@@ -332,12 +333,13 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::events::GameEvent;
     use parish_core::world::transport::TransportConfig;
-    use parish_core::world::{LocationId, WorldState};
+    use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
     use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-    let world = WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+    let world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),

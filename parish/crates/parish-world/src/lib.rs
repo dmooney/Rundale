@@ -18,7 +18,7 @@ pub mod events {
     pub use parish_types::events::*;
 }
 
-pub use parish_types::{Location, LocationId, Weather};
+pub use parish_types::{DEFAULT_START_LOCATION, Location, LocationId, Weather};
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;

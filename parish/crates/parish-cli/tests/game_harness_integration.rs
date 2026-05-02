@@ -5,7 +5,7 @@
 //! NPC canned responses all work end-to-end.
 
 use parish::testing::{ActionResult, GameTestHarness};
-use parish::world::LocationId;
+use parish::world::DEFAULT_START_LOCATION;
 use parish::world::time::{Season, TimeOfDay};
 
 #[test]
@@ -14,7 +14,7 @@ fn test_full_walkthrough_crossroads_to_pub_and_back() {
 
     // Start at Kilteevan Village
     assert_eq!(h.player_location(), "Kilteevan Village");
-    assert_eq!(h.location_id(), LocationId(15));
+    assert_eq!(h.location_id(), DEFAULT_START_LOCATION);
 
     // Move to crossroads first
     h.execute("go to crossroads");
