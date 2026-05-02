@@ -512,10 +512,7 @@
 		// send or clear their draft first. Surface a clear reminder and
 		// bail out.
 		//
-		// codex P2 on #573: isEditorEmpty() reads the cached editorText,
-		// which can be stale when the DOM was modified programmatically
-		// (e.g. insertNpcMention drops in chips without firing input
-		// events that re-sync). Pull a fresh plain-text view first so a
+		// #684: pull a fresh plain-text view before the empty check so a
 		// non-empty draft can't sneak past this guard.
 		syncEditorText();
 		if (!isEditorEmpty()) {
@@ -572,6 +569,7 @@
 		sel?.removeAllRanges();
 		sel?.addRange(range);
 		editorEl.focus();
+		syncEditorText();
 	}
 
 	// ── Submit ──────────────────────────────────────────────────────────────

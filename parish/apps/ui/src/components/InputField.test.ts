@@ -610,6 +610,21 @@ describe('InputField', () => {
 			expect((mention as HTMLElement)?.dataset.npc).toBe('Padraig Darcy');
 		});
 
+		it('syncs editorText after npc chip click so send button is enabled (#684)', async () => {
+			const { container, getByRole } = render(InputField);
+			const editor = getByRole('textbox');
+			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+			expect(sendBtn.disabled).toBe(true);
+
+			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
+			await fireEvent.click(chip);
+
+			// editorText must be synced synchronously — send button must be enabled.
+			expect(sendBtn.disabled).toBe(false);
+			// The DOM text representation must contain the NPC name.
+			expect(editor.textContent).toContain('Padraig Darcy');
+		});
+
 		it('disables npc buttons during streaming but keeps them visible', () => {
 			streamingActive.set(true);
 			const { container } = render(InputField);
