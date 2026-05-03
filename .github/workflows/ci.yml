@@ -130,6 +130,8 @@ jobs:
 
       - name: Cache Rust artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
 
       - name: Install Linux native deps (Tauri/WebKit)
         if: runner.os == 'Linux'
