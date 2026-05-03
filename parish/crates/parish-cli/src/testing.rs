@@ -980,7 +980,7 @@ impl GameTestHarness {
     /// Delegates all post-movement logic to [`parish_core::game_session::apply_movement`]
     /// so the test harness stays in sync with the other backends automatically.
     fn handle_movement(&mut self, target: &str) -> ActionResult {
-        use parish_core::game_session::apply_movement;
+        use parish_core::game_session::{apply_movement, apply_travel_encounter};
 
         let transport = self.default_transport();
         let reaction_templates = self
@@ -997,6 +997,11 @@ impl GameTestHarness {
             target,
             &transport,
         );
+
+        // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.
+        if effects.world_changed && !self.app.flags.is_disabled("travel-encounters") {
+            apply_travel_encounter(&mut self.app.world, &effects);
+        }
 
         // Log tier transitions to the debug log (mirrors Tauri/server behaviour)
         for tt in &effects.tier_transitions {

@@ -700,22 +700,64 @@ async fn handle_game_input(
 /// [`parish_core::game_session::apply_movement`], then emits the returned
 /// effects to the frontend.
 async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHandle) {
-    use parish_core::game_session::apply_movement;
+    use parish_core::game_session::{
+        apply_movement, enrich_travel_encounter, roll_travel_encounter,
+    };
 
     let transport = state.transport.default_mode().clone();
 
     // Apply all movement state changes within a single lock scope to prevent
     // TOCTOU races.
-    let effects = {
+    let (effects, rolled_encounter) = {
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
-        apply_movement(
+        let effects = apply_movement(
             &mut world,
             &mut npc_manager,
             &state.reaction_templates,
             target,
             &transport,
-        )
+        );
+        let rolled = if effects.world_changed {
+            let config = state.config.lock().await;
+            if !config.flags.is_disabled("travel-encounters") {
+                roll_travel_encounter(&world, &effects)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        (effects, rolled)
+    };
+
+    // Resolve encounter text — LLM-enriched when a reaction client exists
+    // and the `travel-encounters-llm` flag is not explicitly disabled.
+    let encounter_line: Option<String> = if let Some(rolled) = rolled_encounter.as_ref() {
+        let llm_enabled = {
+            let cfg = state.config.lock().await;
+            !cfg.flags.is_disabled("travel-encounters-llm")
+        };
+        let (reaction_client, reaction_model) = if llm_enabled {
+            let config = state.config.lock().await;
+            let base_client = state.client.lock().await;
+            config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref())
+        } else {
+            (None, String::new())
+        };
+        let text = if let Some(client) = reaction_client.as_ref() {
+            enrich_travel_encounter(rolled, client, &reaction_model, 15).await
+        } else {
+            rolled.canned.text.clone()
+        };
+        let formatted = format!("  · {text}");
+        {
+            let mut world = state.world.lock().await;
+            world.log(formatted.clone());
+        }
+        Some(formatted)
+    } else {
+        None
     };
 
     // Emit travel-start animation payload first
@@ -730,6 +772,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             None => text_log(msg.source, &msg.text),
         };
         let _ = app.emit(EVENT_TEXT_LOG, payload);
+    }
+
+    // Emit travel encounter line if one fired
+    if let Some(line) = encounter_line {
+        let _ = app.emit(EVENT_TEXT_LOG, text_log("system", &line));
     }
 
     // Emit NPC arrival reactions — stream gradually like normal NPC dialogue

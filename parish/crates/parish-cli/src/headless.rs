@@ -1518,6 +1518,25 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
                     });
             }
 
+            // Travel encounter — default-on, kill-switchable via the `travel-encounters` flag.
+            if !app.flags.is_disabled("travel-encounters") {
+                use crate::world::wayfarers;
+                let clock_minutes = app.world.clock.now().timestamp() / 60;
+                let seed = wayfarers::encounter_seed(
+                    clock_minutes,
+                    app.world.player_location,
+                    destination,
+                );
+                let time = app.world.clock.time_of_day();
+                let season = app.world.clock.season();
+                let weather = app.world.weather;
+                if let Some(enc) = wayfarers::resolve_encounter(time, season, weather, seed) {
+                    let line = format!("  · {}", enc.text);
+                    app.world.log(line.clone());
+                    println!("{line}");
+                }
+            }
+
             print_location_arrival(app);
             print_arrival_reactions(app).await;
         }
