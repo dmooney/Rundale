@@ -7,12 +7,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use crate::data::load_npcs_from_file;
 use crate::transitions::{deflate_npc_state, inflate_npc_context};
 use crate::types::{CogTier, NpcState};
-use crate::{Npc, NpcId};
+use crate::{Npc, NpcId, schedule_resolver, tier_assigner};
 use parish_config::CognitiveTierConfig;
 use parish_types::LocationId;
 use parish_types::ParishError;
@@ -426,68 +426,96 @@ impl NpcManager {
             .as_ref()
             .is_some_and(|(loc, _)| *loc == player_location);
         if !cache_hit {
-            let distances = bfs_distances(player_location, graph);
+            let distances = tier_assigner::bfs_distances(player_location, graph);
             self.bfs_distances_cache = Some((player_location, distances));
         }
-        // SAFETY: we just ensured the cache is populated above.
-        let distances = &self
-            .bfs_distances_cache
-            .as_ref()
-            .expect("cache populated above")
-            .1;
+        // Single pass: build both the diff list and the complete assignment
+        // map while holding an immutable borrow of `self.bfs_distances_cache`.
+        // We then drop that borrow before invoking `apply_tier_changes`, which
+        // mutates `self`.
+        let (changes, final_assignments) = {
+            let distances = &self
+                .bfs_distances_cache
+                .as_ref()
+                .expect("cache populated above")
+                .1;
 
-        // First pass: compute new tier assignments and detect changes
-        let mut changes: Vec<(NpcId, CogTier, CogTier)> = Vec::new();
+            let mut changes = Vec::new();
+            let mut assignments = Vec::with_capacity(self.npcs.len());
 
-        for npc in self.npcs.values() {
-            let distance = match npc.state {
-                NpcState::Present => distances.get(&npc.location).copied(),
-                NpcState::InTransit { from, to, .. } => {
-                    // Use the closer of from/to
-                    let d_from = distances.get(&from).copied();
-                    let d_to = distances.get(&to).copied();
-                    match (d_from, d_to) {
-                        (Some(a), Some(b)) => Some(a.min(b)),
-                        (Some(a), None) => Some(a),
-                        (None, Some(b)) => Some(b),
-                        (None, None) => None,
-                    }
+            for npc in self.npcs.values() {
+                let distance = tier_assigner::npc_distance(npc, distances);
+                let new_tier = tier_assigner::tier_for_distance(distance, &config);
+                assignments.push((npc.id, new_tier));
+
+                let old_tier = self
+                    .tier_assignments
+                    .get(&npc.id)
+                    .copied()
+                    .unwrap_or(CogTier::Tier4);
+                if new_tier != old_tier {
+                    changes.push(tier_assigner::TierChange {
+                        npc_id: npc.id,
+                        old_tier,
+                        new_tier,
+                    });
                 }
-            };
-
-            let new_tier = match distance {
-                Some(d) if d <= config.tier1_max_distance => CogTier::Tier1,
-                Some(d) if d <= config.tier2_max_distance => CogTier::Tier2,
-                Some(d) if d <= config.tier3_max_distance => CogTier::Tier3,
-                _ => CogTier::Tier4,
-            };
-
-            let old_tier = self
-                .tier_assignments
-                .get(&npc.id)
-                .copied()
-                .unwrap_or(CogTier::Tier4);
-
-            if new_tier != old_tier {
-                changes.push((npc.id, old_tier, new_tier));
             }
+            (changes, assignments)
+        };
 
-            self.tier_assignments.insert(npc.id, new_tier);
+        // Persist the final tier for every NPC BEFORE applying side effects so
+        // that event listeners calling `tier_of` see up-to-date data.
+        for (id, tier) in final_assignments {
+            self.tier_assignments.insert(id, tier);
         }
 
-        // Second pass: handle tier transitions (inflate/deflate)
-        let mut transitions = Vec::new();
+        // Apply side effects: inflate/deflate, publish events.
+        let transitions = self.apply_tier_changes(&changes, world, recent_events, game_time);
 
-        for (npc_id, old_tier, new_tier) in &changes {
-            let promoted = tier_rank(*new_tier) < tier_rank(*old_tier);
-            let demoted = tier_rank(*new_tier) > tier_rank(*old_tier);
+        tracing::debug!(
+            player_location = player_location.0,
+            tier1 = self.tier1_npcs().len(),
+            tier2 = self.tier2_npcs().len(),
+            transitions = transitions.len(),
+            "Tier assignment complete"
+        );
+
+        transitions
+    }
+
+    /// Applies the side-effects of a tier-assignment pass.
+    ///
+    /// For each [`tier_assigner::TierChange`]:
+    /// - inflate context on promotion,
+    /// - capture a deflated summary on demotion,
+    /// - publish a `NpcArrived` event when entering Tier 1,
+    /// - assemble the corresponding [`TierTransition`].
+    ///
+    /// Note: the per-NPC `tier_assignments` map is updated by the caller before
+    /// this is invoked so that event listeners calling `tier_of` see current data.
+    fn apply_tier_changes(
+        &mut self,
+        changes: &[tier_assigner::TierChange],
+        world: &WorldState,
+        recent_events: &[GameEvent],
+        game_time: DateTime<Utc>,
+    ) -> Vec<TierTransition> {
+        let mut transitions = Vec::with_capacity(changes.len());
+
+        for change in changes {
+            let npc_id = change.npc_id;
+            let old_tier = change.old_tier;
+            let new_tier = change.new_tier;
+            let promoted = tier_assigner::tier_rank(new_tier) < tier_assigner::tier_rank(old_tier);
+            let demoted = tier_assigner::tier_rank(new_tier) > tier_assigner::tier_rank(old_tier);
             let npc_name = self
                 .npcs
-                .get(npc_id)
+                .get(&npc_id)
                 .map(|n| n.name.clone())
                 .unwrap_or_default();
 
-            if promoted && let Some(npc) = self.npcs.get_mut(npc_id) {
+            if promoted && let Some(npc) = self.npcs.get_mut(&npc_id) {
                 inflate_npc_context(npc, recent_events, game_time);
                 tracing::debug!(
                     npc_id = npc_id.0,
@@ -497,9 +525,9 @@ impl NpcManager {
                 );
             }
 
-            if demoted && let Some(npc) = self.npcs.get(npc_id) {
+            if demoted && let Some(npc) = self.npcs.get(&npc_id) {
                 let summary = deflate_npc_state(npc, recent_events);
-                if let Some(npc_mut) = self.npcs.get_mut(npc_id) {
+                if let Some(npc_mut) = self.npcs.get_mut(&npc_id) {
                     npc_mut.deflated_summary = Some(summary);
                 }
                 tracing::debug!(
@@ -511,33 +539,25 @@ impl NpcManager {
             }
 
             // Publish arrival events for NPCs entering Tier 1
-            if *new_tier == CogTier::Tier1
-                && *old_tier != CogTier::Tier1
-                && let Some(npc) = self.npcs.get(npc_id)
+            if new_tier == CogTier::Tier1
+                && old_tier != CogTier::Tier1
+                && let Some(npc) = self.npcs.get(&npc_id)
             {
                 world.event_bus.publish(GameEvent::NpcArrived {
-                    npc_id: *npc_id,
+                    npc_id,
                     location: npc.location,
                     timestamp: game_time,
                 });
             }
 
             transitions.push(TierTransition {
-                npc_id: *npc_id,
+                npc_id,
                 npc_name,
-                old_tier: *old_tier,
-                new_tier: *new_tier,
+                old_tier,
+                new_tier,
                 promoted,
             });
         }
-
-        tracing::debug!(
-            player_location = player_location.0,
-            tier1 = self.tier1_npcs().len(),
-            tier2 = self.tier2_npcs().len(),
-            transitions = transitions.len(),
-            "Tier assignment complete"
-        );
 
         transitions
     }
@@ -579,25 +599,13 @@ impl NpcManager {
         weather: parish_types::Weather,
     ) -> Vec<ScheduleEvent> {
         let now = clock.now();
-        let current_hour = now.hour() as u8;
         let season = clock.season();
         let day_type = clock.day_type();
         let mut events = Vec::new();
 
-        // Pre-collect cuaird targets: for each NPC, gather friend home locations.
-        let cuaird_targets: HashMap<NpcId, Vec<LocationId>> = self
-            .npcs
-            .iter()
-            .map(|(id, npc)| {
-                let friends: Vec<LocationId> = npc
-                    .relationships
-                    .iter()
-                    .filter(|(_, r)| r.strength > 0.3)
-                    .filter_map(|(friend_id, _)| self.npcs.get(friend_id).and_then(|f| f.home))
-                    .collect();
-                (*id, friends)
-            })
-            .collect();
+        // Resolution-phase inputs are pure helpers in `schedule_resolver`.
+        let cuaird_targets = schedule_resolver::collect_cuaird_targets(&self.npcs);
+        let ctx = schedule_resolver::TickContext::new(now, season, day_type, weather, graph);
 
         let npc_ids: Vec<NpcId> = self.npcs.keys().copied().collect();
 
@@ -608,91 +616,51 @@ impl NpcManager {
 
             match &npc.state {
                 NpcState::Present => {
-                    if let Some(mut desired) = npc.desired_location(current_hour, season, day_type)
+                    let resolution =
+                        schedule_resolver::resolve_desired_location(npc, &cuaird_targets, &ctx);
+                    let schedule_resolver::ScheduleResolution::MoveTo { target: desired } =
+                        resolution
+                    else {
+                        continue;
+                    };
+
+                    if desired != npc.location
+                        && let Some(path) = graph.shortest_path(npc.location, desired)
                     {
-                        // Cuaird override: rotate visiting location by day-of-year
-                        if let Some(entry) = npc.schedule_entry(current_hour, season, day_type)
-                            && entry.cuaird
-                            && let Some(friends) = cuaird_targets.get(&id)
-                            && !friends.is_empty()
-                        {
-                            let day_of_year = now.ordinal() as usize;
-                            desired = friends[day_of_year % friends.len()];
-                        }
-                        // Weather shelter override: NPCs seek indoor locations in bad weather
-                        let dominated_by_rain = matches!(
-                            weather,
-                            parish_types::Weather::LightRain
-                                | parish_types::Weather::HeavyRain
-                                | parish_types::Weather::Storm
-                        );
-                        if dominated_by_rain {
-                            let is_farmer = npc.occupation.to_lowercase() == "farmer";
-                            let dest_is_outdoor =
-                                graph.get(desired).map(|d| !d.indoor).unwrap_or(false);
-
-                            // Farmers tolerate light rain
-                            let needs_shelter = if is_farmer {
-                                !matches!(weather, parish_types::Weather::LightRain)
-                                    && dest_is_outdoor
-                            } else {
-                                dest_is_outdoor
-                            };
-
-                            if needs_shelter {
-                                // Override to home if it's indoor, otherwise stay put
-                                if let Some(home) = npc.home {
-                                    let home_is_indoor =
-                                        graph.get(home).map(|d| d.indoor).unwrap_or(false);
-                                    if home_is_indoor {
-                                        desired = home;
-                                    } else {
-                                        continue; // No indoor option, stay put
-                                    }
-                                } else {
-                                    continue; // No home, stay put
-                                }
-                            }
-                        }
-
-                        if desired != npc.location
-                            && let Some(path) = graph.shortest_path(npc.location, desired)
-                        {
-                            // NPCs walk at ~1.25 m/s (~4.5 km/h)
-                            let travel_minutes = graph.path_travel_time(&path, 1.25);
-                            let arrives_at = now + Duration::minutes(travel_minutes as i64);
-                            let from = npc.location;
-                            let npc_name = npc.name.clone();
-                            let dest_name = graph
-                                .get(desired)
-                                .map(|d| d.name.clone())
-                                .unwrap_or_else(|| "?".to_string());
-                            events.push(ScheduleEvent {
-                                npc_id: id,
-                                npc_name,
-                                kind: ScheduleEventKind::Departed {
-                                    from,
-                                    to: desired,
-                                    to_name: dest_name,
-                                    minutes: travel_minutes,
-                                },
-                            });
-                            tracing::debug!(
-                                npc = %npc.name,
-                                from = from.0,
-                                to = desired.0,
-                                minutes = travel_minutes,
-                                "NPC starting transit"
-                            );
-                            let Some(npc) = self.npcs.get_mut(&id) else {
-                                continue;
-                            };
-                            npc.state = NpcState::InTransit {
+                        // NPCs walk at ~1.25 m/s (~4.5 km/h)
+                        let travel_minutes = graph.path_travel_time(&path, 1.25);
+                        let arrives_at = now + Duration::minutes(travel_minutes as i64);
+                        let from = npc.location;
+                        let npc_name = npc.name.clone();
+                        let dest_name = graph
+                            .get(desired)
+                            .map(|d| d.name.clone())
+                            .unwrap_or_else(|| "?".to_string());
+                        events.push(ScheduleEvent {
+                            npc_id: id,
+                            npc_name,
+                            kind: ScheduleEventKind::Departed {
                                 from,
                                 to: desired,
-                                arrives_at,
-                            };
-                        }
+                                to_name: dest_name,
+                                minutes: travel_minutes,
+                            },
+                        });
+                        tracing::debug!(
+                            npc = %npc.name,
+                            from = from.0,
+                            to = desired.0,
+                            minutes = travel_minutes,
+                            "NPC starting transit"
+                        );
+                        let Some(npc) = self.npcs.get_mut(&id) else {
+                            continue;
+                        };
+                        npc.state = NpcState::InTransit {
+                            from,
+                            to: desired,
+                            arrives_at,
+                        };
                     }
                 }
                 NpcState::InTransit { to, arrives_at, .. } => {
@@ -1217,39 +1185,6 @@ impl NpcManager {
 impl Default for NpcManager {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Computes BFS distances from a source location to all reachable locations.
-fn bfs_distances(source: LocationId, graph: &WorldGraph) -> HashMap<LocationId, u32> {
-    let mut distances: HashMap<LocationId, u32> = HashMap::new();
-    let mut queue: VecDeque<LocationId> = VecDeque::new();
-
-    distances.insert(source, 0);
-    queue.push_back(source);
-
-    while let Some(current) = queue.pop_front() {
-        let current_dist = distances[&current];
-        for (neighbor, _) in graph.neighbors(current) {
-            if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
-                e.insert(current_dist + 1);
-                queue.push_back(neighbor);
-            }
-        }
-    }
-
-    distances
-}
-
-/// Maps cognitive tiers to a numeric rank for comparison.
-///
-/// Lower rank = closer to the player = higher cognitive fidelity.
-fn tier_rank(tier: CogTier) -> u8 {
-    match tier {
-        CogTier::Tier1 => 1,
-        CogTier::Tier2 => 2,
-        CogTier::Tier3 => 3,
-        CogTier::Tier4 => 4,
     }
 }
 

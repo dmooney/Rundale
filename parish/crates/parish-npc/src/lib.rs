@@ -13,8 +13,10 @@ pub mod memory;
 pub mod mood;
 pub mod overhear;
 pub mod reactions;
+pub mod schedule_resolver;
 pub mod ticks;
 pub mod tier4;
+pub mod tier_assigner;
 pub mod transitions;
 pub mod types;
 
