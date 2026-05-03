@@ -1,0 +1,22 @@
+# GitHub Labeler configuration — used by actions/labeler@v6 in label.yml.
+# Maps PR file-path globs to labels.
+# Note: bug/performance labels are not mapped here because file-path globs
+# cannot distinguish intent (every Rust PR would be tagged); apply those
+# labels manually or via PR title conventions instead.
+
+infra:
+  - '.github/**'
+  - 'deploy/**'
+  - 'justfile'
+  - '.env.example'
+  - '.gitattributes'
+  - '.gitignore'
+
+frontend:
+  - 'parish/apps/ui/**'
+
+security:
+  - 'parish/crates/parish-server/src/cf_auth.rs'
+  - 'parish/crates/parish-server/src/auth/**'
+  - 'parish/crates/**/*auth*'
+  - 'parish/crates/**/*security*'

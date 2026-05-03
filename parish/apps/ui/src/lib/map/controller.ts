@@ -46,6 +46,10 @@ export interface MapControllerOptions {
 	interactive: boolean;
 	/** Initial zoom level. Minimap uses a fixed zoom; full map fits bounds. */
 	initialZoom?: number;
+	/** Initial map center as [lng, lat]. Defaults to [-8.15, 53.59] (Kiltoom/
+	 *  Kilteevan area). Pass the world's reference center from mod config so
+	 *  the map opens on the correct region before game data loads. */
+	initialCenter?: [number, number];
 	/** Raster tile source to use for the base layer. Undefined or a source
 	 *  with an empty URL yields a flat-background fallback. */
 	tileSource?: TileSource;
@@ -116,7 +120,7 @@ export class MapController {
 		this.map = new maplibregl.Map({
 			container: options.container,
 			style: buildStyle(options.variant, theme, this.tileSource),
-			center: [-8.15, 53.59], // Kiltoom/Kilteevan reference center
+			center: options.initialCenter ?? [-8.15, 53.59], // Kiltoom/Kilteevan fallback; pass from mod config
 			zoom: options.initialZoom ?? (options.variant === 'minimap' ? 14 : 13),
 			interactive: options.interactive,
 			attributionControl: options.variant === 'full' ? undefined : false,

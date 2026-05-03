@@ -74,7 +74,7 @@
 		background: var(--color-input-bg);
 		color: var(--color-fg);
 		font-size: 0.75rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		box-sizing: border-box;
 	}
 
@@ -94,7 +94,7 @@
 		background: none;
 		cursor: pointer;
 		text-align: left;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		color: var(--color-fg);
 	}
 	.list-item:hover {

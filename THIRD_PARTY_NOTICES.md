@@ -42,14 +42,6 @@ for the frontend. The generated output is written alongside this file as
 
 ## Fonts
 
-### Noto Sans Symbols 2
-
-- Source: <https://github.com/notofonts/symbols2>
-- Copyright: 2022 The Noto Project Authors
-- Licence: **SIL Open Font License 1.1 (OFL-1.1)**
-- Bundled: `assets/fonts/NotoSansSymbols2-Regular.ttf`
-- Full licence text: `assets/fonts/NotoSansSymbols2-LICENSE.txt`
-
 ---
 
 ## Frontend runtime dependencies (`apps/ui/package.json`)
@@ -241,11 +233,6 @@ and in this file.
 Full text: <https://creativecommons.org/licenses/by-sa/3.0/legalcode>.
 
 Applies to the National Library of Scotland historic map tiles.
-
-### SIL Open Font License 1.1
-
-Full text: `assets/fonts/NotoSansSymbols2-LICENSE.txt` and
-<https://openfontlicense.org/>.
 
 ---
 

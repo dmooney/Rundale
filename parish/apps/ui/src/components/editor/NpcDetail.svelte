@@ -283,7 +283,7 @@
 	}
 
 	.detail-title {
-		font-family: 'Cinzel', serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		margin: 0;
 		color: var(--color-accent);
@@ -296,7 +296,7 @@
 		background: none;
 		color: var(--color-accent);
 		font-size: 0.7rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		cursor: pointer;
 	}
 	.save-btn:hover:not(:disabled) {
@@ -350,7 +350,7 @@
 		background: var(--color-input-bg);
 		color: var(--color-fg);
 		font-size: 0.75rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 	}
 
 	.field-input.short {
@@ -367,7 +367,7 @@
 		background: var(--color-input-bg);
 		color: var(--color-fg);
 		font-size: 0.75rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		resize: vertical;
 	}
 

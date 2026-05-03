@@ -108,7 +108,7 @@
 	}
 
 	.validator-title {
-		font-family: 'Cinzel', serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		margin: 0;
 		color: var(--color-accent);
@@ -121,7 +121,7 @@
 		background: none;
 		color: var(--color-accent);
 		font-size: 0.7rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		cursor: pointer;
 	}
 	.run-btn:hover:not(:disabled) {
@@ -139,16 +139,16 @@
 	}
 
 	.summary-clean {
-		color: #44cc44;
+		color: var(--color-ok);
 	}
 
 	.summary-errors {
-		color: #ff4444;
+		color: var(--color-error);
 		margin-right: 0.75rem;
 	}
 
 	.summary-warnings {
-		color: #ccaa44;
+		color: var(--color-warning);
 	}
 
 	.issue-list {
@@ -167,7 +167,7 @@
 		background: none;
 		cursor: pointer;
 		text-align: left;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		color: var(--color-fg);
 		font-size: 0.75rem;
 	}
@@ -176,11 +176,11 @@
 	}
 
 	.issue-row.is-error {
-		border-left: 3px solid #ff4444;
+		border-left: 3px solid var(--color-error);
 	}
 
 	.issue-row.is-warning {
-		border-left: 3px solid #ccaa44;
+		border-left: 3px solid var(--color-warning);
 	}
 
 	.issue-severity {
@@ -194,13 +194,13 @@
 	}
 
 	.is-error .issue-severity {
-		background: color-mix(in srgb, #ff4444 20%, transparent);
-		color: #ff4444;
+		background: color-mix(in srgb, var(--color-error) 20%, transparent);
+		color: var(--color-error);
 	}
 
 	.is-warning .issue-severity {
-		background: color-mix(in srgb, #ccaa44 20%, transparent);
-		color: #ccaa44;
+		background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+		color: var(--color-warning);
 	}
 
 	.issue-cat {

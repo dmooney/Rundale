@@ -229,6 +229,4 @@ contributors, licensed under the
 [Open Database Licence 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
 Historic 6″ Ordnance Survey Ireland tiles (1829–1842) courtesy of the
 [National Library of Scotland](https://maps.nls.uk/), licensed under
-[CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). UI glyphs
-use [Noto Sans Symbols 2](https://github.com/notofonts/symbols2) under the
-[SIL Open Font License 1.1](assets/fonts/NotoSansSymbols2-LICENSE.txt).
+[CC-BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). UI icons use [Phosphor Icons](https://phosphoricons.com/) under MIT.

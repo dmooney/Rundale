@@ -8,7 +8,11 @@ const THEME: ThemeColors = {
 	accent: '#b08531',
 	panelBg: '#f5f5d3',
 	border: '#cec293',
-	muted: '#76663b'
+	muted: '#76663b',
+	mapEdge: '#8f7e56',
+	mapSelected: '#f4cf75',
+	mapRelative: '#7dd7ff',
+	mapStroke: '#1a140a'
 };
 
 function osm(): TileSource {

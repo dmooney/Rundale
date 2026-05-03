@@ -266,11 +266,12 @@
 				type: 'geojson',
 				data: { type: 'FeatureCollection', features: [] }
 			});
+			const { mapEdge, mapSelected, mapRelative, mapStroke } = readThemeColors();
 			nextMap.addLayer({
 				id: 'editor-edges',
 				type: 'line',
 				source: 'editor-edges',
-				paint: { 'line-color': '#8f7e56', 'line-width': 2, 'line-opacity': 0.85 }
+				paint: { 'line-color': mapEdge, 'line-width': 2, 'line-opacity': 0.85 }
 			});
 			nextMap.addLayer({
 				id: 'editor-locations',
@@ -280,12 +281,12 @@
 					'circle-radius': ['case', ['==', ['get', 'selected'], 1], 8, 5],
 					'circle-color': [
 						'case',
-						['==', ['get', 'selected'], 1], '#f4cf75',
-						['==', ['get', 'relative'], 1], '#7dd7ff',
-						'#8f7e56'
+						['==', ['get', 'selected'], 1], mapSelected,
+						['==', ['get', 'relative'], 1], mapRelative,
+						mapEdge
 					],
 					'circle-stroke-width': 1.2,
-					'circle-stroke-color': '#1a140a'
+					'circle-stroke-color': mapStroke
 				}
 			});
 			nextMap.on('click', 'editor-locations', async (event) => {
@@ -608,7 +609,7 @@
 	}
 
 	.detail-title {
-		font-family: 'Cinzel', serif;
+		font-family: var(--font-display);
 		font-size: 0.95rem;
 		margin: 0;
 		color: var(--color-accent);
@@ -622,7 +623,7 @@
 		background: none;
 		color: var(--color-accent);
 		font-size: 0.7rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		cursor: pointer;
 	}
 	.save-btn:hover:not(:disabled),
@@ -677,7 +678,7 @@
 		background: var(--color-input-bg);
 		color: var(--color-fg);
 		font-size: 0.75rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 	}
 	.field-input.short {
 		max-width: 100px;
@@ -706,7 +707,7 @@
 		background: var(--color-input-bg);
 		color: var(--color-fg);
 		font-size: 0.75rem;
-		font-family: 'IM Fell English', serif;
+		font-family: var(--font-body);
 		resize: vertical;
 		box-sizing: border-box;
 	}

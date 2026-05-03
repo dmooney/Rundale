@@ -15,6 +15,15 @@
 	--color-irish:    #2aa198; /* Solarized cyan  — Irish vocabulary */
 	--color-name:     #859900; /* Solarized green — NPC/character names */
 	--color-location: #b58900; /* Solarized yellow — place names */
+	/* Semantic status colors — used for validation, alerts, and editor UI */
+	--color-ok:      #44cc44; /* success / clean */
+	--color-error:   #ff4444; /* error / failure */
+	--color-warning: #ccaa44; /* warning / caution */
+	/* Map editor colors */
+	--color-map-edge:     #8f7e56; /* default edge/node color on the editor map */
+	--color-map-selected: #f4cf75; /* selected location highlight */
+	--color-map-relative: #7dd7ff; /* relative-anchor location highlight */
+	--color-map-stroke:   #1a140a; /* circle stroke */
 	/* Typography */
 	--font-body: 'IM Fell English', Georgia, serif;
 	--font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;

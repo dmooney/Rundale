@@ -31,6 +31,11 @@ export interface ThemeColors {
 	panelBg: string;
 	border: string;
 	muted: string;
+	/** Map editor overlay colors — vars defined in app.css (#711). */
+	mapEdge: string;
+	mapSelected: string;
+	mapRelative: string;
+	mapStroke: string;
 }
 
 /** Reads the live theme colors from CSS custom properties on `:root`. */
@@ -44,13 +49,22 @@ export function readThemeColors(root: HTMLElement = document.documentElement): T
 		accent: get('--color-accent', '#b08531'),
 		panelBg: get('--color-panel-bg', '#f5f5d3'),
 		border: get('--color-border', '#cec293'),
-		muted: get('--color-muted', '#76663b')
+		muted: get('--color-muted', '#76663b'),
+		mapEdge: get('--color-map-edge', '#8f7e56'),
+		mapSelected: get('--color-map-selected', '#f4cf75'),
+		mapRelative: get('--color-map-relative', '#7dd7ff'),
+		mapStroke: get('--color-map-stroke', '#1a140a')
 	};
 }
 
-/** MapLibre demo glyphs endpoint — free, no auth, network-dependent. */
-// TODO: bundle Open Sans glyph PBFs as static assets to work fully offline.
-const GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf';
+/**
+ * MapLibre glyphs endpoint default — the MapLibre demo CDN, which has no SLA.
+ * Override via `buildStyle`'s `glyphsUrl` parameter to point at self-hosted
+ * PBFs (e.g. `/fonts/{fontstack}/{range}.pbf`) once bundled as static assets.
+ * TODO: bundle Open Sans glyph PBFs as static assets to work fully offline.
+ */
+export const DEFAULT_GLYPHS_URL =
+	'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf';
 
 /**
  * Builds a MapLibre style spec for the given map variant and theme.
@@ -69,7 +83,8 @@ const GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf'
 export function buildStyle(
 	variant: MapVariant,
 	theme: ThemeColors,
-	tileSource?: TileSource
+	tileSource?: TileSource,
+	glyphsUrl: string = DEFAULT_GLYPHS_URL
 ): StyleSpecification {
 	const layers: LayerSpecification[] = [];
 	const rasterSourceId = 'map-tiles';
@@ -369,7 +384,7 @@ export function buildStyle(
 
 	return {
 		version: 8,
-		glyphs: GLYPHS_URL,
+		glyphs: glyphsUrl,
 		sources,
 		layers
 	};

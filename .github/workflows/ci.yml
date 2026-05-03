@@ -33,9 +33,10 @@ jobs:
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: true
 
@@ -73,13 +74,14 @@ jobs:
   rust-multi-channel:
     name: Rust channel matrix
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         toolchain: [stable, beta]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: true
 
@@ -108,6 +110,7 @@ jobs:
   docs-consistency:
     name: Docs consistency (paths cited in agent docs exist on disk)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,9 +122,10 @@ jobs:
   game-harness:
     name: Full game harness fixture sweep
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: true
 
@@ -155,17 +159,18 @@ jobs:
   ui-quality:
     name: UI quality (build, check, unit)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: parish/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -186,17 +191,18 @@ jobs:
   ui-e2e:
     name: UI Playwright e2e
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: parish/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -235,7 +241,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: parish/apps/ui/playwright-report/
