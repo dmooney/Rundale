@@ -3,8 +3,8 @@
 	import { editorOpenMod } from '$lib/editor-ipc';
 	import type { ModSummary } from '$lib/editor-types';
 
-	let loading = false;
-	let error = '';
+	let loading = $state(false);
+	let error = $state('');
 
 	async function openMod(mod_summary: ModSummary) {
 		loading = true;
@@ -21,7 +21,7 @@
 		}
 	}
 
-	$: mods = $editorMods;
+	const mods = $derived($editorMods);
 </script>
 
 <div class="mod-browser">
@@ -34,7 +34,7 @@
 			{#each mods as mod_item}
 				<button
 					class="mod-card"
-					on:click={() => openMod(mod_item)}
+					onclick={() => openMod(mod_item)}
 					disabled={loading}
 				>
 					<span class="mod-card-name">{mod_item.title ?? mod_item.name}</span>

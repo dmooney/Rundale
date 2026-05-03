@@ -10,9 +10,9 @@
 	import { editorUpdateNpcs, editorSave } from '$lib/editor-ipc';
 	import type { NpcFileEntry, ScheduleVariantFileEntry } from '$lib/editor-types';
 
-	$: npc = $editorSelectedNpc;
-	$: locations = $editorLocations;
-	$: allNpcs = $editorNpcs;
+	const npc = $derived($editorSelectedNpc);
+	const locations = $derived($editorLocations);
+	const allNpcs = $derived($editorNpcs);
 
 	function locationName(id: number): string {
 		return locations.find((l) => l.id === id)?.name ?? `#${id}`;
@@ -76,7 +76,7 @@
 	{#if npc}
 		<div class="detail-header">
 			<h3 class="detail-title">{npc.name}</h3>
-			<button class="save-btn" on:click={handleSave} disabled={!$editorDirty}>Save NPCs</button>
+			<button class="save-btn" onclick={handleSave} disabled={!$editorDirty}>Save NPCs</button>
 		</div>
 
 		<div class="detail-scroll">
@@ -90,7 +90,7 @@
 						class="field-input"
 						type="text"
 						value={npc.name}
-						on:change={(e) => handleFieldChange('name', e.currentTarget.value)}
+						onchange={(e) => handleFieldChange('name', e.currentTarget.value)}
 					/>
 				</div>
 				<div class="field-row">
@@ -100,7 +100,7 @@
 						class="field-input short"
 						type="number"
 						value={npc.age}
-						on:change={(e) => handleFieldChange('age', parseInt(e.currentTarget.value))}
+						onchange={(e) => handleFieldChange('age', parseInt(e.currentTarget.value))}
 					/>
 				</div>
 				<div class="field-row">
@@ -110,7 +110,7 @@
 						class="field-input"
 						type="text"
 						value={npc.occupation}
-						on:change={(e) => handleFieldChange('occupation', e.currentTarget.value)}
+						onchange={(e) => handleFieldChange('occupation', e.currentTarget.value)}
 					/>
 				</div>
 				<div class="field-row">
@@ -120,7 +120,7 @@
 						class="field-input"
 						type="text"
 						value={npc.mood}
-						on:change={(e) => handleFieldChange('mood', e.currentTarget.value)}
+						onchange={(e) => handleFieldChange('mood', e.currentTarget.value)}
 					/>
 				</div>
 				<div class="field-row">
@@ -131,7 +131,7 @@
 						type="text"
 						value={npc.brief_description ?? ''}
 						placeholder="(auto-generated from occupation)"
-						on:change={(e) => {
+						onchange={(e) => {
 							const val = e.currentTarget.value.trim();
 							handleFieldChange('brief_description', val || null);
 						}}
@@ -143,7 +143,7 @@
 						id="npc-personality"
 						class="field-textarea"
 						value={npc.personality}
-						on:change={(e) => handleFieldChange('personality', e.currentTarget.value)}
+						onchange={(e) => handleFieldChange('personality', e.currentTarget.value)}
 					></textarea>
 				</div>
 			</section>
@@ -157,7 +157,7 @@
 						id="npc-home"
 						class="field-select"
 						value={npc.home}
-						on:change={(e) => handleFieldChange('home', parseInt(e.currentTarget.value))}
+						onchange={(e) => handleFieldChange('home', parseInt(e.currentTarget.value))}
 					>
 						{#each locations as loc}
 							<option value={loc.id}>{loc.name}</option>
@@ -170,7 +170,7 @@
 						id="npc-workplace"
 						class="field-select"
 						value={npc.workplace ?? -1}
-						on:change={(e) => {
+						onchange={(e) => {
 							const v = parseInt(e.currentTarget.value);
 							handleFieldChange('workplace', v === -1 ? null : v);
 						}}
@@ -197,7 +197,7 @@
 								min="1"
 								max="5"
 								value={npc.intelligence?.[dim.key] ?? 3}
-								on:change={(e) => {
+								onchange={(e) => {
 									if (!npc?.intelligence) return;
 									const updated = {
 										...npc.intelligence,

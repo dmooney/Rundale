@@ -7,7 +7,7 @@ export const debugVisible = writable<boolean>(false);
 /** Latest debug snapshot from the backend. */
 export const debugSnapshot = writable<DebugSnapshot | null>(null);
 
-/** Active debug tab index (0=Overview, 1=NPCs, 2=World, 3=Events, 4=Inference). */
+/** Active debug tab index (0=Overview, 1=NPCs, 2=World, 3=Weather, 4=Gossip, 5=Conv, 6=Events, 7=Inference). */
 export const debugTab = writable<number>(0);
 
 /** Preferred dock position for debug panel on wide screens. */

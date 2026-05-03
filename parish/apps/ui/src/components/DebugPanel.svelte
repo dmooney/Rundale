@@ -42,7 +42,7 @@
 		'Inference'
 	];
 
-	let selectedLogId: number | null = null;
+	let selectedLogId: number | null = $state(null);
 
 	function selectTab(index: number) {
 		debugTab.set(index);
@@ -86,10 +86,10 @@
 		return m ? m[1].trim() : null;
 	}
 
-	$: snap = $debugSnapshot;
-	$: tab = $debugTab;
-	$: npcId = $selectedNpcId;
-	$: selectedNpc = snap?.npcs.find((n: NpcDebug) => n.id === npcId) ?? null;
+	const snap = $derived($debugSnapshot);
+	const tab = $derived($debugTab);
+	const npcId = $derived($selectedNpcId);
+	const selectedNpc = $derived(snap?.npcs.find((n: NpcDebug) => n.id === npcId) ?? null);
 </script>
 
 {#if $debugVisible && snap}

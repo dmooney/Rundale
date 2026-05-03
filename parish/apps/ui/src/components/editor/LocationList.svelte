@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { editorLocations, editorSelectedLocationId } from '../../stores/editor';
 
-	let search = '';
+	let search = $state('');
 
-	$: locs = $editorLocations;
-	$: filtered = search
+	const locs = $derived($editorLocations);
+	const filtered = $derived(search
 		? locs.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
-		: locs;
+		: locs);
 </script>
 
 <div class="loc-list">
@@ -25,7 +25,7 @@
 			<button
 				class="list-item"
 				class:active={$editorSelectedLocationId === loc.id}
-				on:click={() => editorSelectedLocationId.set(loc.id)}
+				onclick={() => editorSelectedLocationId.set(loc.id)}
 			>
 				<span class="item-name">{loc.name}</span>
 				<span class="item-meta">

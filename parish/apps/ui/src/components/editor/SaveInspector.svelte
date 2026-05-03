@@ -7,13 +7,13 @@
 	} from '$lib/editor-ipc';
 	import type { SaveFileSummary, BranchSummary, SnapshotDetail } from '$lib/editor-types';
 
-	let saves: SaveFileSummary[] = [];
-	let selectedSave: SaveFileSummary | null = null;
-	let branches: BranchSummary[] = [];
-	let selectedBranch: BranchSummary | null = null;
-	let snapshot: SnapshotDetail | null = null;
-	let loading = false;
-	let error = '';
+	let saves: SaveFileSummary[] = $state([]);
+	let selectedSave: SaveFileSummary | null = $state(null);
+	let branches: BranchSummary[] = $state([]);
+	let selectedBranch: BranchSummary | null = $state(null);
+	let snapshot: SnapshotDetail | null = $state(null);
+	let loading = $state(false);
+	let error = $state('');
 
 	async function refreshSaves() {
 		loading = true;
@@ -86,7 +86,7 @@
 <div class="save-inspector">
 	<div class="panel-header">
 		<h3 class="panel-title">Save Inspector</h3>
-		<button class="refresh-btn" on:click={refreshSaves} disabled={loading}>
+		<button class="refresh-btn" onclick={refreshSaves} disabled={loading}>
 			{loading ? '...' : 'Refresh'}
 		</button>
 	</div>
@@ -100,7 +100,7 @@
 					<button
 						class="col-item"
 						class:active={selectedSave?.path === save.path}
-						on:click={() => selectSave(save)}
+						onclick={() => selectSave(save)}
 					>
 						<span class="item-name">{save.filename}</span>
 						<span class="item-meta">{save.file_size} &middot; {save.branch_count} branches</span>
@@ -120,7 +120,7 @@
 					<button
 						class="col-item"
 						class:active={selectedBranch?.id === branch.id}
-						on:click={() => selectBranch(branch)}
+						onclick={() => selectBranch(branch)}
 					>
 						<span class="item-name">{branch.name}</span>
 						<span class="item-meta">
@@ -145,7 +145,7 @@
 			<div class="snapshot-header">
 				<h4 class="col-title">Latest Snapshot</h4>
 				{#if snapshot}
-					<button class="export-btn" on:click={exportSnapshot}>Export JSON</button>
+					<button class="export-btn" onclick={exportSnapshot}>Export JSON</button>
 				{/if}
 			</div>
 			<div class="col-scroll">

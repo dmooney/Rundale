@@ -8,7 +8,7 @@
 	import { editorValidate } from '$lib/editor-ipc';
 	import type { ValidationIssue } from '$lib/editor-types';
 
-	let running = false;
+	let running = $state(false);
 
 	async function runValidation() {
 		running = true;
@@ -38,17 +38,17 @@
 		}
 	}
 
-	$: report = $editorValidation;
-	$: allIssues = report
+	const report = $derived($editorValidation);
+	const allIssues = $derived(report
 		? [...report.errors.map((e) => ({ ...e, _severity: 'error' as const })),
 		   ...report.warnings.map((w) => ({ ...w, _severity: 'warning' as const }))]
-		: [];
+		: []);
 </script>
 
 <div class="validator-panel">
 	<div class="validator-header">
 		<h3 class="validator-title">Validation</h3>
-		<button class="run-btn" on:click={runValidation} disabled={running}>
+		<button class="run-btn" onclick={runValidation} disabled={running}>
 			{running ? 'Running...' : 'Re-validate'}
 		</button>
 	</div>
@@ -73,7 +73,7 @@
 					class="issue-row"
 					class:is-error={issue._severity === 'error'}
 					class:is-warning={issue._severity === 'warning'}
-					on:click={() => jumpToIssue(issue)}
+					onclick={() => jumpToIssue(issue)}
 				>
 					<span class="issue-severity">{issue._severity === 'error' ? 'ERR' : 'WARN'}</span>
 					<span class="issue-cat">{issue.category}</span>
