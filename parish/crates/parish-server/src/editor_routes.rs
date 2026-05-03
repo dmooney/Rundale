@@ -204,53 +204,44 @@ pub async fn editor_validate(
     Ok(Json(report))
 }
 
-/// `POST /api/editor-update-npcs` with JSON body `{ "npcs": ... }`
+// ── Generic clone-validate-install helper (fix #700) ─────────────────────────
+
+/// Shared boilerplate for editor field-update routes.
 ///
-/// Enforces per-field caps (#376 / #750) via the shared
-/// [`parish_core::ipc::editor::validate_npc_payload`] helper:
-/// - NPC name ≤ [`parish_core::ipc::editor::NPC_NAME_MAX`] chars
-/// - NPC bio ≤ [`parish_core::ipc::editor::NPC_BIO_MAX`] chars
-/// - NPC personality ≤ [`parish_core::ipc::editor::NPC_PERSONALITY_MAX`] chars
-/// - relationships per NPC ≤ [`parish_core::ipc::editor::NPC_RELATIONSHIPS_MAX`]
-/// - NPCs per file ≤ [`parish_core::ipc::editor::NPCS_PER_FILE_MAX`]
-pub async fn editor_update_npcs(
-    Extension(state): Extension<Arc<AppState>>,
-    auth: Option<Extension<AuthContext>>,
-    Json(body): Json<EditorUpdateNpcsBody>,
-) -> Result<Json<ValidationReport>, (StatusCode, String)> {
-    let email = require_email(auth)?;
-    let npcs: parish_core::npc::NpcFile = serde_json::from_value(body.npcs)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid NPC data: {e}")))?;
-
-    // Per-field validation caps (fix #376 / #750).
-    // Delegated to the shared helper in parish_core::ipc::editor so Tauri and
-    // server enforce identical limits via the same code path.
-    validate_npc_payload(&npcs).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-
-    // Offload the CPU-bound validate_snapshot to a blocking thread so
-    // the editor_sessions lock isn't held across the O(NPCs × locations)
-    // work (#464). We clone the current snapshot out under a brief
-    // lock, mutate the clone's npcs field + run validate on the clone
-    // inside spawn_blocking, then re-acquire the lock and either
-    // install wholesale (fast path, no concurrent edit) or overlay the
-    // mutated field + re-validate under-lock (slow path, concurrent
-    // edit happened during our spawn_blocking window).
-    //
-    // codex-#574 P1: capture the clone's mod_path and session version
-    // so the write-back rejects any request whose session was torn
-    // down (editor_close) or re-opened on a different mod
-    // (editor_open_mod) while we were validating. Without this guard
-    // a stale request could mutate a freshly-opened session.
-    //
-    // codex-#574 P2: when the session version changed concurrently,
-    // the report from our clone doesn't describe the post-merge
-    // state. Re-run validate on the merged snapshot under the lock so
-    // the returned report matches what's actually stored. This
-    // holds the lock across validate on the contended path only; the
-    // fast path (no concurrent edit) stays fully offloaded.
+/// Implements the clone-validate-install pattern documented in
+/// `editor_update_npcs`/`editor_update_locations` (#464, codex-#574 P1/P2):
+///
+/// 1. Clone the current snapshot out from under a brief lock (fast).
+/// 2. Run `mutate` + `validate_snapshot` on the clone inside
+///    `spawn_blocking` so the lock isn't held across CPU-bound work.
+/// 3. Re-acquire the lock and guard the write-back:
+///    - **generation mismatch** → 409 (session was reloaded/saved/closed).
+///    - **mod_path mismatch** → 409 (different mod opened mid-flight).
+///    - **version unchanged** → fast-path: install the clone wholesale.
+///    - **version changed** → slow-path: `overlay` the specific field into
+///      the live snapshot and re-validate under the lock so the stored
+///      report reflects the merged state (codex-#574 P2).
+///
+/// `mutate` — called inside `spawn_blocking` on the cloned snapshot; must
+/// apply the incoming field data and call `validate_snapshot`.
+///
+/// `overlay` — called under the lock on the *live* snapshot when a
+/// concurrent peer update happened; should copy the single updated field
+/// from the validated clone into the live snapshot and then re-validate.
+async fn update_editor_field<M, O>(
+    state: &Arc<AppState>,
+    email: &str,
+    mutate: M,
+    overlay: O,
+) -> Result<ValidationReport, (StatusCode, String)>
+where
+    M: FnOnce(EditorModSnapshot) -> EditorModSnapshot + Send + 'static,
+    O: FnOnce(&mut EditorModSnapshot, EditorModSnapshot) + Send + 'static,
+{
+    // Step 1: clone snapshot out of the lock and capture identity fields.
     let (snapshot_clone, captured_version, captured_generation, captured_mod_path) = {
         let sessions = state.editor_sessions.lock().await;
-        let s = sessions.get(&email).ok_or_else(|| {
+        let s = sessions.get(email).ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
                 "no mod is open in the editor".to_string(),
@@ -265,31 +256,24 @@ pub async fn editor_update_npcs(
         let mod_path = snap.mod_path.clone();
         (snap, s.version, s.generation, mod_path)
     };
-    let validated = tokio::task::spawn_blocking(move || {
-        let mut s = snapshot_clone;
-        s.npcs = npcs;
-        parish_core::editor::validate::validate_snapshot(&mut s);
-        s
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // Step 2: mutate + validate off the hot path.
+    let validated = tokio::task::spawn_blocking(move || mutate(snapshot_clone))
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // Step 3: write-back under the lock.
     let validation = {
         let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions.get_mut(&email).ok_or_else(|| {
+        let session = sessions.get_mut(email).ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
                 "no mod is open in the editor".to_string(),
             )
         })?;
-        // codex-#574 P1 (round 2): `generation` bumps only on
-        // snapshot-replacement events (open / reload / save / close).
-        // If it changed during our spawn_blocking window the snapshot
-        // we validated is from a different lineage — overlaying our
-        // stale field would silently undo the save/reload. Reject
-        // with 409 so the client re-reads and retries. Version-only
-        // mismatch (same generation) still goes through the overlay
-        // path below — that's just a peer update_locations race.
+        // codex-#574 P1: generation guards snapshot-replacement events
+        // (open / reload / save / close). Reject with 409 so the client
+        // re-reads and retries.
         if session.generation != captured_generation {
             return Err((
                 StatusCode::CONFLICT,
@@ -314,15 +298,55 @@ pub async fn editor_update_npcs(
             // Fast path: no concurrent edit. Install wholesale.
             *snap = validated;
         } else {
-            // Peer-update race: overlay our field and re-validate
-            // under lock so the stored report describes the merged
-            // state (codex-#574 P2).
-            snap.npcs = validated.npcs;
-            parish_core::editor::validate::validate_snapshot(snap);
+            // Peer-update race: overlay our field and re-validate under
+            // lock so the stored report describes the merged state
+            // (codex-#574 P2).
+            overlay(snap, validated);
         }
         session.version = session.version.wrapping_add(1);
         snap.validation.clone()
     };
+
+    Ok(validation)
+}
+
+/// `POST /api/editor-update-npcs` with JSON body `{ "npcs": ... }`
+///
+/// Enforces per-field caps (#376 / #750) via the shared
+/// [`parish_core::ipc::editor::validate_npc_payload`] helper:
+/// - NPC name ≤ [`parish_core::ipc::editor::NPC_NAME_MAX`] chars
+/// - NPC bio ≤ [`parish_core::ipc::editor::NPC_BIO_MAX`] chars
+/// - NPC personality ≤ [`parish_core::ipc::editor::NPC_PERSONALITY_MAX`] chars
+/// - relationships per NPC ≤ [`parish_core::ipc::editor::NPC_RELATIONSHIPS_MAX`]
+/// - NPCs per file ≤ [`parish_core::ipc::editor::NPCS_PER_FILE_MAX`]
+pub async fn editor_update_npcs(
+    Extension(state): Extension<Arc<AppState>>,
+    auth: Option<Extension<AuthContext>>,
+    Json(body): Json<EditorUpdateNpcsBody>,
+) -> Result<Json<ValidationReport>, (StatusCode, String)> {
+    let email = require_email(auth)?;
+    let npcs: parish_core::npc::NpcFile = serde_json::from_value(body.npcs)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid NPC data: {e}")))?;
+
+    // Per-field validation caps (fix #376 / #750).
+    // Delegated to the shared helper in parish_core::ipc::editor so Tauri and
+    // server enforce identical limits via the same code path.
+    validate_npc_payload(&npcs).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let validation = update_editor_field(
+        &state,
+        &email,
+        |mut s| {
+            s.npcs = npcs;
+            parish_core::editor::validate::validate_snapshot(&mut s);
+            s
+        },
+        |live, validated| {
+            live.npcs = validated.npcs;
+            parish_core::editor::validate::validate_snapshot(live);
+        },
+    )
+    .await?;
 
     Ok(Json(validation))
 }
@@ -357,77 +381,20 @@ pub async fn editor_update_locations(
     // server enforce identical limits via the same code path.
     validate_location_payload(&locations).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    // Same clone-validate-install pattern as editor_update_npcs (#464
-    // + codex-#574 P1/P2): offload CPU-bound validate to
-    // spawn_blocking, guard the write-back against session identity
-    // changes (editor_close or editor_open_mod on a different mod),
-    // and re-validate under lock on the contended path so the stored
-    // report matches the post-merge state.
-    let (snapshot_clone, captured_version, captured_generation, captured_mod_path) = {
-        let sessions = state.editor_sessions.lock().await;
-        let s = sessions.get(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        let snap = s.snapshot.clone().ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        let mod_path = snap.mod_path.clone();
-        (snap, s.version, s.generation, mod_path)
-    };
-    let validated = tokio::task::spawn_blocking(move || {
-        let mut s = snapshot_clone;
-        s.locations = locations;
-        parish_core::editor::validate::validate_snapshot(&mut s);
-        s
-    })
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let validation = {
-        let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions.get_mut(&email).ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        // codex-#574 P1 (round 2): see editor_update_npcs for the
-        // rationale. generation guards against open/reload/save/close
-        // races; version-only mismatch goes through the safe overlay
-        // path below.
-        if session.generation != captured_generation {
-            return Err((
-                StatusCode::CONFLICT,
-                "editor session was reloaded/saved/reopened during update; retry".to_string(),
-            ));
-        }
-        let snap = session.snapshot.as_mut().ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                "no mod is open in the editor".to_string(),
-            )
-        })?;
-        if snap.mod_path != captured_mod_path {
-            return Err((
-                StatusCode::CONFLICT,
-                "editor session was re-opened on a different mod during update; retry".to_string(),
-            ));
-        }
-        if session.version == captured_version {
-            *snap = validated;
-        } else {
-            snap.locations = validated.locations;
-            parish_core::editor::validate::validate_snapshot(snap);
-        }
-        session.version = session.version.wrapping_add(1);
-        snap.validation.clone()
-    };
+    let validation = update_editor_field(
+        &state,
+        &email,
+        |mut s| {
+            s.locations = locations;
+            parish_core::editor::validate::validate_snapshot(&mut s);
+            s
+        },
+        |live, validated| {
+            live.locations = validated.locations;
+            parish_core::editor::validate::validate_snapshot(live);
+        },
+    )
+    .await?;
 
     Ok(Json(validation))
 }

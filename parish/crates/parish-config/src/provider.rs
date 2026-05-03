@@ -362,6 +362,74 @@ impl ProviderConfig {
     }
 }
 
+// ── Shared 4-layer resolution helper (fix #769) ───────────────────────────────
+
+/// Raw fields produced by the first three resolution layers
+/// (TOML → env vars → CLI flags) before provider-specific finalization.
+///
+/// `api_key` is kept separate from the other fields because the standard
+/// provider env var (step 4) may later override the TOML escape-hatch value.
+struct RawLayers {
+    provider_str: Option<String>,
+    base_url: Option<String>,
+    /// TOML escape-hatch key value; may be replaced in step 4.
+    api_key: Option<String>,
+    model: Option<String>,
+}
+
+/// Applies layers 2 and 3 of the resolution pipeline over a `RawLayers`
+/// already seeded from TOML (layer 1):
+///
+/// 2. Environment variables keyed by `env_prefix`
+///    (`{env_prefix}_PROVIDER`, `{env_prefix}_BASE_URL`, `{env_prefix}_MODEL`)
+/// 3. CLI override fields (`cli_provider`, `cli_base_url`, `cli_model`)
+///
+/// Layer 4 (provider API key env var) and all finalization logic are
+/// handled by the callers because they diverge between the two functions.
+fn apply_env_and_cli_layers(
+    mut raw: RawLayers,
+    env_prefix: &str,
+    cli_provider: Option<&str>,
+    cli_base_url: Option<&str>,
+    cli_model: Option<&str>,
+) -> RawLayers {
+    // Layer 2: env vars override TOML (non-key fields).
+    if let Some(val) = env_non_empty(&format!("{env_prefix}_PROVIDER")) {
+        raw.provider_str = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{env_prefix}_BASE_URL")) {
+        raw.base_url = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{env_prefix}_MODEL")) {
+        raw.model = Some(val);
+    }
+
+    // Layer 3: CLI flags override env (non-key fields).
+    if let Some(val) = cli_provider {
+        raw.provider_str = Some(val.to_string());
+    }
+    if let Some(val) = cli_base_url {
+        raw.base_url = Some(val.to_string());
+    }
+    if let Some(val) = cli_model {
+        raw.model = Some(val.to_string());
+    }
+
+    raw
+}
+
+/// Reads the TOML config file (or returns a default if missing/unspecified).
+///
+/// When `config_path` is `None`, returns the default config without probing
+/// the current working directory. The path must be resolved at startup from
+/// an explicit CLI flag or env var — never from `current_dir()` (Rule 9).
+fn load_toml(config_path: Option<&Path>) -> Result<TomlConfig, ParishError> {
+    match config_path {
+        Some(path) => read_toml_config(path),
+        None => Ok(TomlConfig::default()),
+    }
+}
+
 /// Resolves provider configuration from file, env vars, and CLI flags.
 ///
 /// Resolution order (later overrides earlier):
@@ -378,65 +446,48 @@ pub fn resolve_config(
     config_path: Option<&Path>,
     cli: &CliOverrides,
 ) -> Result<ProviderConfig, ParishError> {
-    let toml_cfg = if let Some(path) = config_path {
-        read_toml_config(path)?
-    } else {
-        let cwd_path = Path::new("parish.toml");
-        if cwd_path.exists() {
-            read_toml_config(cwd_path)?
-        } else {
-            TomlConfig::default()
-        }
+    let toml_cfg = load_toml(config_path)?;
+
+    // Layer 1: seed from TOML, then apply layers 2 (env) and 3 (CLI).
+    let toml_raw = RawLayers {
+        provider_str: toml_cfg.provider.name,
+        base_url: toml_cfg.provider.base_url,
+        api_key: toml_cfg.provider.api_key,
+        model: toml_cfg.provider.model,
     };
+    let mut raw = apply_env_and_cli_layers(
+        toml_raw,
+        "PARISH",
+        cli.provider.as_deref(),
+        cli.base_url.as_deref(),
+        cli.model.as_deref(),
+    );
 
-    let mut provider_str = toml_cfg.provider.name;
-    let mut base_url = toml_cfg.provider.base_url;
-    let mut api_key = toml_cfg.provider.api_key;
-    let mut model = toml_cfg.provider.model;
-
-    // Env vars override TOML (non-key fields)
-    if let Some(val) = env_non_empty("PARISH_PROVIDER") {
-        provider_str = Some(val);
-    }
-    if let Some(val) = env_non_empty("PARISH_BASE_URL") {
-        base_url = Some(val);
-    }
-    if base_url.is_none()
+    // Deprecated PARISH_OLLAMA_URL fallback (local to this function only).
+    if raw.base_url.is_none()
         && let Some(val) = env_non_empty("PARISH_OLLAMA_URL")
     {
         tracing::warn!("PARISH_OLLAMA_URL is deprecated, use PARISH_BASE_URL instead");
-        base_url = Some(val);
-    }
-    if let Some(val) = env_non_empty("PARISH_MODEL") {
-        model = Some(val);
-    }
-
-    // CLI flags override env (non-key fields)
-    if let Some(ref val) = cli.provider {
-        provider_str = Some(val.clone());
-    }
-    if let Some(ref val) = cli.base_url {
-        base_url = Some(val.clone());
-    }
-    if let Some(ref val) = cli.model {
-        model = Some(val.clone());
+        raw.base_url = Some(val);
     }
 
     // Resolve provider early — needed to look up the right key env var.
-    let provider = match &provider_str {
+    let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
         None => Provider::default(),
     };
 
-    // Standard provider key env var (e.g. ANTHROPIC_API_KEY) overrides TOML api_key.
-    // The key is always bound to the provider that owns it.
+    // Layer 4: Standard provider key env var overrides TOML api_key.
+    let mut api_key = raw.api_key;
     if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
     }
 
-    let base_url = base_url.unwrap_or_else(|| provider.default_base_url().to_string());
+    let base_url = raw
+        .base_url
+        .unwrap_or_else(|| provider.default_base_url().to_string());
     let api_key = api_key.filter(|s| !s.is_empty());
-    let model = model.filter(|s| !s.is_empty());
+    let model = raw.model.filter(|s| !s.is_empty());
 
     // Fall back to the provider's Dialogue preset if no model is configured.
     let model = model.or_else(|| {
@@ -486,73 +537,53 @@ pub fn resolve_cloud_config(
     config_path: Option<&Path>,
     cli: &CliCloudOverrides,
 ) -> Result<Option<CloudConfig>, ParishError> {
-    let toml_cfg = if let Some(path) = config_path {
-        read_toml_config(path)?
-    } else {
-        let cwd_path = Path::new("parish.toml");
-        if cwd_path.exists() {
-            read_toml_config(cwd_path)?
-        } else {
-            TomlConfig::default()
-        }
+    let toml_cfg = load_toml(config_path)?;
+
+    // Layer 1: seed from TOML, then apply layers 2 (env) and 3 (CLI).
+    let toml_raw = RawLayers {
+        provider_str: toml_cfg.cloud.name,
+        base_url: toml_cfg.cloud.base_url,
+        api_key: toml_cfg.cloud.api_key,
+        model: toml_cfg.cloud.model,
     };
-
-    let mut provider_str = toml_cfg.cloud.name;
-    let mut base_url = toml_cfg.cloud.base_url;
-    let api_key = toml_cfg.cloud.api_key;
-    let mut model = toml_cfg.cloud.model;
-
-    // Env vars override TOML (non-key fields)
-    if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") {
-        provider_str = Some(val);
-    }
-    if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
-        base_url = Some(val);
-    }
-    if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
-        model = Some(val);
-    }
-
-    // CLI flags override env (non-key fields)
-    if let Some(ref val) = cli.provider {
-        provider_str = Some(val.clone());
-    }
-    if let Some(ref val) = cli.base_url {
-        base_url = Some(val.clone());
-    }
-    if let Some(ref val) = cli.model {
-        model = Some(val.clone());
-    }
+    let raw = apply_env_and_cli_layers(
+        toml_raw,
+        "PARISH_CLOUD",
+        cli.provider.as_deref(),
+        cli.base_url.as_deref(),
+        cli.model.as_deref(),
+    );
 
     // If no explicit cloud config was provided, return None (backward compatible).
     // Provider key env vars are intentionally excluded from this check — having
     // OPENROUTER_API_KEY set globally should not auto-activate cloud mode.
-    if provider_str.is_none()
-        && base_url.is_none()
-        && api_key.is_none()
-        && model.is_none()
-        && cli.provider.is_none()
-        && cli.base_url.is_none()
-        && cli.model.is_none()
+    // `raw` was produced by `apply_env_and_cli_layers` which already incorporates
+    // CLI overrides, so checking `cli.*` again would be redundant and could miss
+    // env-var-only activations.
+    if raw.provider_str.is_none()
+        && raw.base_url.is_none()
+        && raw.api_key.is_none()
+        && raw.model.is_none()
     {
         return Ok(None);
     }
 
-    let mut api_key = api_key.filter(|s| !s.is_empty());
-    let model = model.filter(|s| !s.is_empty());
-
     // Resolve provider early (default to OpenRouter for cloud).
-    let provider = match &provider_str {
+    let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
         None => Provider::OpenRouter,
     };
 
-    // Standard provider key env var overrides TOML api_key.
+    // Layer 4: Standard provider key env var overrides TOML api_key.
+    let mut api_key = raw.api_key.filter(|s| !s.is_empty());
     if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
     }
 
-    let base_url = base_url.unwrap_or_else(|| provider.default_base_url().to_string());
+    let base_url = raw
+        .base_url
+        .unwrap_or_else(|| provider.default_base_url().to_string());
+    let model = raw.model.filter(|s| !s.is_empty());
 
     let model = model.ok_or_else(|| {
         ParishError::Config(
