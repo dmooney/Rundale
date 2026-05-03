@@ -459,6 +459,43 @@ async fn dispatch_screenshot(_path: std::path::PathBuf) -> anyhow::Result<()> {
     anyhow::bail!("screenshot capture is only implemented on Linux")
 }
 
+// ── Setup progress reporter (GUI mode) ───────────────────────────────────────
+
+/// Forwards inference bootstrap progress to the frontend via Tauri events.
+/// Used inside the async `.setup()` spawn so the window exists before we call it.
+struct TauriProgress {
+    app: tauri::AppHandle,
+}
+
+impl parish_core::inference::setup::SetupProgress for TauriProgress {
+    fn on_status(&self, msg: &str) {
+        tracing::info!("{}", msg);
+        let _ = self.app.emit(
+            events::EVENT_SETUP_STATUS,
+            events::SetupStatusPayload {
+                message: msg.to_string(),
+            },
+        );
+    }
+
+    fn on_pull_progress(&self, completed: u64, total: u64) {
+        let _ = self.app.emit(
+            events::EVENT_SETUP_PROGRESS,
+            events::SetupProgressPayload { completed, total },
+        );
+    }
+
+    fn on_error(&self, msg: &str) {
+        tracing::error!("{}", msg);
+        let _ = self.app.emit(
+            events::EVENT_SETUP_STATUS,
+            events::SetupStatusPayload {
+                message: format!("Error: {}", msg),
+            },
+        );
+    }
+}
+
 // ── Tauri entry point ─────────────────────────────────────────────────────────
 
 /// Parses `--demo*` CLI flags from an argument list into a [`DemoConfig`].
@@ -611,24 +648,13 @@ pub fn run() {
     let engine_config = parish_core::config::load_engine_config(None);
 
     // Read provider config from env vars (optional).
-    // On Ollama this runs the full install / auto-start / GPU-detect / pull
-    // / warmup sequence — so the desktop app matches the CLI on first launch.
     let (provider_config, provider_name, base_url, api_key) = provider_config_from_env();
-    let setup_runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("failed to build tokio runtime for provider bootstrap");
-    let (client, model_name, ollama_process) = setup_runtime
-        .block_on(bootstrap_provider(
-            &provider_config,
-            &engine_config.inference,
-        ))
-        .unwrap_or_else(|e| {
-            tracing::error!("Failed to initialise inference provider: {}", e);
-            eprintln!("[Parish] Failed to initialise inference provider: {}", e);
-            std::process::exit(1);
-        });
     let cloud_env = build_cloud_client_from_env(&engine_config.inference);
+
+    // Clone inference config before it is moved into AppState so the async
+    // setup spawn can still reference it during bootstrap. provider_config
+    // itself is not stored in AppState and will be moved directly into the spawn.
+    let inference_config_for_spawn = engine_config.inference.clone();
 
     // Build splash text from mod title + build info
     let game_title = game_mod
@@ -699,7 +725,7 @@ pub fn run() {
         provider_name,
         base_url,
         api_key,
-        model_name,
+        model_name: String::new(), // filled in after async bootstrap
         cloud_provider_name: cloud_env.provider_name,
         cloud_model_name: cloud_env.model_name,
         cloud_api_key: cloud_env.api_key,
@@ -738,7 +764,7 @@ pub fn run() {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
-        client: Mutex::new(client.clone()),
+        client: Mutex::new(None), // populated after async bootstrap completes
         cloud_client: Mutex::new(cloud_env.client),
         conversation: Mutex::new(ConversationRuntimeState::new()),
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
@@ -761,7 +787,7 @@ pub fn run() {
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
-        ollama_process: Mutex::new(ollama_process),
+        ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         config: Mutex::new(game_config),
         demo_config,
@@ -867,6 +893,51 @@ pub fn run() {
             // tauri::async_runtime::spawn, which uses the Tauri-managed tokio handle.
             let state_setup = Arc::clone(&state);
             tauri::async_runtime::spawn(async move {
+                // ── Bootstrap inference provider ─────────────────────────────
+                // Runs here (inside the async spawn) rather than synchronously in
+                // run() so the Tauri window is open and can receive setup-status /
+                // setup-progress events while Ollama is being installed/started.
+                {
+                    let progress = TauriProgress { app: handle.clone() };
+                    match bootstrap_provider(
+                        &provider_config,
+                        &inference_config_for_spawn,
+                        &progress,
+                    )
+                    .await
+                    {
+                        Ok((client, model_name, ollama_process)) => {
+                            *state_setup.client.lock().await = client;
+                            *state_setup.ollama_process.lock().await = ollama_process;
+                            {
+                                let mut config = state_setup.config.lock().await;
+                                config.model_name = model_name;
+                                config.fill_missing_models_from_presets();
+                            }
+                            let _ = handle.emit(
+                                events::EVENT_SETUP_DONE,
+                                events::SetupDonePayload {
+                                    success: true,
+                                    error: String::new(),
+                                },
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to initialise inference provider: {}", e);
+                            let _ = handle.emit(
+                                events::EVENT_SETUP_DONE,
+                                events::SetupDonePayload {
+                                    success: false,
+                                    error: e.to_string(),
+                                },
+                            );
+                            // Do not call process::exit — leave the window open so
+                            // the user can read the error in the setup overlay.
+                            return;
+                        }
+                    }
+                }
+
                 // Initialise inference queue now that the tokio runtime is running
                 {
                     let provider_name = {
@@ -1797,6 +1868,7 @@ fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>
 async fn bootstrap_provider(
     config: &ProviderConfig,
     inference_config: &parish_core::config::InferenceConfig,
+    progress: &dyn parish_core::inference::setup::SetupProgress,
 ) -> anyhow::Result<(
     Option<AnyClient>,
     String,
@@ -1812,11 +1884,10 @@ async fn bootstrap_provider(
         ));
     }
 
-    let progress = parish_core::inference::setup::StdoutProgress;
     let (client, model, process) = parish_core::inference::setup::setup_provider_client(
         config,
         inference_config, // (#417) use TOML-configured timeouts
-        &progress,
+        progress,
     )
     .await?;
     Ok((Some(client), model, process))

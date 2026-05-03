@@ -35,6 +35,12 @@ pub const EVENT_TRAVEL_START: &str = "travel-start";
 pub const EVENT_THEME_SWITCH: &str = "theme-switch";
 /// Event emitted when a `/map` command selects a new map tile source.
 pub const EVENT_TILES_SWITCH: &str = "tiles-switch";
+/// Event emitted during inference provider bootstrap with a status message.
+pub const EVENT_SETUP_STATUS: &str = "setup-status";
+/// Event emitted during model download with byte-level progress.
+pub const EVENT_SETUP_PROGRESS: &str = "setup-progress";
+/// Event emitted when bootstrap finishes (success or failure).
+pub const EVENT_SETUP_DONE: &str = "setup-done";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;
@@ -79,6 +85,31 @@ pub struct TextLogPayload {
     pub source: std::borrow::Cow<'static, str>,
     /// The log entry text.
     pub content: String,
+}
+
+/// Payload for `setup-status` and `setup-progress` / `setup-done` events.
+#[derive(serde::Serialize, Clone)]
+pub struct SetupStatusPayload {
+    /// Human-readable status message.
+    pub message: String,
+}
+
+/// Payload for `setup-progress` events (model download progress).
+#[derive(serde::Serialize, Clone)]
+pub struct SetupProgressPayload {
+    /// Bytes downloaded so far.
+    pub completed: u64,
+    /// Total bytes expected (0 if unknown).
+    pub total: u64,
+}
+
+/// Payload for `setup-done` events.
+#[derive(serde::Serialize, Clone)]
+pub struct SetupDonePayload {
+    /// True if bootstrap succeeded.
+    pub success: bool,
+    /// Error message if `success` is false; empty string otherwise.
+    pub error: String,
 }
 
 /// Payload for `npc-reaction` events.

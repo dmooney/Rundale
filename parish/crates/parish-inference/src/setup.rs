@@ -103,7 +103,7 @@ pub struct OllamaSetup {
 ///
 /// Implemented differently by headless and other modes to show
 /// installation, detection, and download progress appropriately.
-pub trait SetupProgress {
+pub trait SetupProgress: Send + Sync {
     /// Reports a status message during setup.
     fn on_status(&self, msg: &str);
     /// Reports model pull progress (bytes downloaded vs total).
@@ -1326,34 +1326,38 @@ mod tests {
 
     /// Tracks status messages for testing.
     struct TestProgress {
-        messages: std::cell::RefCell<Vec<String>>,
+        messages: std::sync::Mutex<Vec<String>>,
     }
 
     impl TestProgress {
         fn new() -> Self {
             Self {
-                messages: std::cell::RefCell::new(Vec::new()),
+                messages: std::sync::Mutex::new(Vec::new()),
             }
         }
 
         fn messages(&self) -> Vec<String> {
-            self.messages.borrow().clone()
+            self.messages.lock().unwrap().clone()
         }
     }
 
     impl SetupProgress for TestProgress {
         fn on_status(&self, msg: &str) {
-            self.messages.borrow_mut().push(msg.to_string());
+            self.messages.lock().unwrap().push(msg.to_string());
         }
 
         fn on_pull_progress(&self, completed: u64, total: u64) {
             self.messages
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .push(format!("progress: {}/{}", completed, total));
         }
 
         fn on_error(&self, msg: &str) {
-            self.messages.borrow_mut().push(format!("ERROR: {}", msg));
+            self.messages
+                .lock()
+                .unwrap()
+                .push(format!("ERROR: {}", msg));
         }
     }
 
