@@ -931,23 +931,6 @@ pub async fn setup_ollama_with_config(
     })
 }
 
-/// Sends a trivial generate request to force Ollama to load the model into VRAM.
-///
-/// Without this, Ollama defers model loading until the first real request,
-/// causing a long delay on the player's first interaction. The warmup prompt
-/// is minimal so the response completes quickly once the model is loaded.
-///
-/// Uses a dedicated HTTP client with a 5-minute timeout since the first
-/// model load (moving weights from disk to VRAM) can be slow.
-#[allow(dead_code)] // Kept as default-timeout wrapper for external callers
-async fn warmup_model(
-    base_url: &str,
-    model_name: &str,
-    progress: &dyn SetupProgress,
-) -> Result<(), ParishError> {
-    warmup_model_with_config(base_url, model_name, progress, &InferenceConfig::default()).await
-}
-
 /// Sends a trivial generate request to force Ollama to load the model into VRAM,
 /// with configurable timeout.
 ///

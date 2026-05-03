@@ -13,8 +13,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use once_cell::sync::OnceCell;
-
 // ── Auth context (injected as Axum extension) ─────────────────────────────────
 
 /// Identity extracted from a validated Cloudflare Access JWT.
@@ -354,7 +352,7 @@ impl CfAccessVerifier {
 
 // ── Global verifier singleton ──────────────────────────────────────────────────
 
-static CF_VERIFIER: OnceCell<Option<Arc<CfAccessVerifier>>> = OnceCell::new();
+static CF_VERIFIER: std::sync::OnceLock<Option<Arc<CfAccessVerifier>>> = std::sync::OnceLock::new();
 
 /// Returns the global `CfAccessVerifier`, initialising it once from env.
 pub fn global_verifier() -> Option<Arc<CfAccessVerifier>> {
@@ -376,7 +374,7 @@ fn signing_key() -> &'static [u8] {
     // any other replica — any non-sticky LB path between `/api/session-init`
     // and `/api/ws` would 401 valid tokens and trigger reconnect loops.
     // Debug builds still auto-generate a key for local dev convenience.
-    static KEY: OnceCell<Vec<u8>> = OnceCell::new();
+    static KEY: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
     KEY.get_or_init(|| {
         if let Some(k) = std::env::var("PARISH_WS_SIGNING_KEY")
             .ok()

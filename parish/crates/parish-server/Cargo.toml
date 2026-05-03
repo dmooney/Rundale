@@ -26,7 +26,6 @@ dashmap        = "6"
 reqwest        = { workspace = true, features = ["json"] }
 rusqlite       = { workspace = true }
 jsonwebtoken   = { version = "10", features = ["rust_crypto"] }
-once_cell      = { workspace = true }
 hmac           = "0.12"
 sha2           = "0.10"
 hex            = "0.4"

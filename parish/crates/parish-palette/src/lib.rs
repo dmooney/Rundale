@@ -241,13 +241,6 @@ fn luminance(c: RawColor) -> f32 {
 #[cfg(test)]
 const MIN_FG_BG_CONTRAST: f32 = 80.0;
 
-/// Minimum luminance difference between muted text and bg.
-///
-/// Kept as a reference constant; runtime code reads from [`PaletteConfig`].
-#[cfg(test)]
-#[allow(dead_code)] // retained for parity with MIN_FG_BG_CONTRAST and future test use
-const MIN_MUTED_BG_CONTRAST: f32 = 45.0;
-
 /// Pushes a foreground color away from a background color to meet a minimum
 /// luminance contrast. Preserves the hue by scaling all channels proportionally.
 fn ensure_color_contrast(fg: RawColor, bg: RawColor, min_contrast: f32) -> RawColor {

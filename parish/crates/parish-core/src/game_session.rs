@@ -21,7 +21,9 @@ use crate::inference::AnyClient;
 use crate::inference::InferenceLog;
 use crate::ipc::{build_travel_start, types::TravelStartPayload};
 use crate::npc::manager::{NpcManager, TierTransition};
-use crate::npc::reactions::{NpcReaction, ReactionTemplates, generate_arrival_reactions};
+use crate::npc::reactions::{
+    ArrivalContext, NpcReaction, ReactionTemplates, generate_arrival_reactions,
+};
 use crate::npc::{Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::encounter::check_encounter;
@@ -293,16 +295,14 @@ pub fn apply_arrival_reactions(
     let introduced = npc_manager.introduced_set();
     let roll_dice = dice::roll_n(npcs.len() * 2);
 
-    let reactions = generate_arrival_reactions(
-        &npcs,
-        &introduced,
-        &loc_data,
-        tod,
-        &weather,
+    let arrival_ctx = ArrivalContext {
+        location: &loc_data,
+        time_of_day: tod,
+        weather: &weather,
         templates,
         config,
-        &roll_dice,
-    );
+    };
+    let reactions = generate_arrival_reactions(&npcs, &introduced, &arrival_ctx, &roll_dice);
 
     for reaction in &reactions {
         if reaction.introduces {
@@ -368,16 +368,14 @@ fn apply_arrival_reactions_inner(
     let config = ReactionConfig::default();
     let roll_dice = dice::roll_n(npcs.len() * 2);
 
-    let reactions = generate_arrival_reactions(
-        &npcs,
-        &introduced,
-        &loc_data,
-        tod,
-        &weather,
+    let arrival_ctx = ArrivalContext {
+        location: &loc_data,
+        time_of_day: tod,
+        weather: &weather,
         templates,
-        &config,
-        &roll_dice,
-    );
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&npcs, &introduced, &arrival_ctx, &roll_dice);
 
     for reaction in &reactions {
         if reaction.introduces {

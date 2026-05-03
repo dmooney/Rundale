@@ -2261,9 +2261,8 @@ fn parse_admin_emails(list: &str) -> std::collections::HashSet<String> {
 /// mid-flight authorization changes from a stray `std::env::set_var` — a
 /// property we rely on for the security guarantee of `check_admin`.
 fn admin_emails() -> Option<&'static std::collections::HashSet<String>> {
-    use once_cell::sync::OnceCell;
     use std::collections::HashSet;
-    static CACHE: OnceCell<Option<HashSet<String>>> = OnceCell::new();
+    static CACHE: std::sync::OnceLock<Option<HashSet<String>>> = std::sync::OnceLock::new();
     CACHE
         .get_or_init(|| {
             std::env::var("PARISH_ADMIN_EMAILS")

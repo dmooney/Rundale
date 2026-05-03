@@ -526,23 +526,40 @@ pub fn reaction_threshold(
     threshold.clamp(0.0, 1.0)
 }
 
+/// Scene context passed to [`generate_arrival_reactions`].
+///
+/// Bundles the location, time, weather, template bank, and reaction config
+/// so the function signature stays manageable as game state grows.
+pub struct ArrivalContext<'a> {
+    /// The location the player has just entered.
+    pub location: &'a LocationData,
+    /// Current time of day.
+    pub time_of_day: TimeOfDay,
+    /// Current weather description (e.g. `"clear"`, `"rainy"`).
+    pub weather: &'a str,
+    /// Mod-provided (or default) text templates.
+    pub templates: &'a ReactionTemplates,
+    /// Reaction probability config.
+    pub config: &'a ReactionConfig,
+}
+
 /// Generates arrival reactions for NPCs at the player's current location.
 ///
 /// Each NPC needs **two** dice rolls in `dice` (one for reaction chance,
 /// one for type/template selection). So `dice.len()` must be `≥ npcs.len() * 2`.
 ///
 /// Returns only NPCs that actually react — silent NPCs are omitted.
-#[allow(clippy::too_many_arguments)]
 pub fn generate_arrival_reactions(
     npcs: &[&Npc],
     introduced: &HashSet<NpcId>,
-    location: &LocationData,
-    time_of_day: TimeOfDay,
-    weather: &str,
-    templates: &ReactionTemplates,
-    config: &ReactionConfig,
+    ctx: &ArrivalContext<'_>,
     dice: &[DiceRoll],
 ) -> Vec<NpcReaction> {
+    let location = ctx.location;
+    let time_of_day = ctx.time_of_day;
+    let weather = ctx.weather;
+    let templates = ctx.templates;
+    let config = ctx.config;
     let mut reactions = Vec::new();
 
     for (i, npc) in npcs.iter().enumerate() {
@@ -584,17 +601,14 @@ pub fn generate_arrival_reactions(
             npc.brief_description.clone()
         };
 
-        let canned_text = pick_canned_text(
-            &kind,
+        let npc_ctx = NpcArrivalCtx {
             npc,
-            &display_name,
+            display_name: &display_name,
             at_workplace,
-            &occupation,
-            time_of_day,
-            weather,
-            templates,
-            type_roll,
-        );
+            occupation: &occupation,
+        };
+        let canned_text =
+            pick_canned_text(&kind, &npc_ctx, time_of_day, weather, templates, type_roll);
 
         reactions.push(NpcReaction {
             npc_id: npc.id,
@@ -626,19 +640,24 @@ fn is_priest_occupation(occupation: &str) -> bool {
     occupation.contains("priest") || occupation.contains("clergy") || occupation.contains("curate")
 }
 
+/// Per-NPC context used inside [`pick_canned_text`].
+struct NpcArrivalCtx<'a> {
+    npc: &'a Npc,
+    display_name: &'a str,
+    at_workplace: bool,
+    occupation: &'a str,
+}
+
 /// Picks a canned text template and substitutes placeholders.
-#[allow(clippy::too_many_arguments)]
 fn pick_canned_text(
     kind: &ReactionKind,
-    npc: &Npc,
-    display_name: &str,
-    at_workplace: bool,
-    occupation: &str,
+    npc_ctx: &NpcArrivalCtx<'_>,
     time_of_day: TimeOfDay,
     weather: &str,
     templates: &ReactionTemplates,
     roll: &DiceRoll,
 ) -> String {
+    let occupation = npc_ctx.occupation;
     let raw = match kind {
         ReactionKind::Gesture => roll.pick(&templates.gestures).clone(),
         ReactionKind::Greeting => {
@@ -668,7 +687,7 @@ fn pick_canned_text(
             }
         }
         ReactionKind::Introduction => {
-            let pool = if at_workplace {
+            let pool = if npc_ctx.at_workplace {
                 &templates.introductions.workplace
             } else {
                 &templates.introductions.casual
@@ -681,7 +700,13 @@ fn pick_canned_text(
         }
     };
 
-    substitute_placeholders(&raw, npc, display_name, time_of_day, weather)
+    substitute_placeholders(
+        &raw,
+        npc_ctx.npc,
+        npc_ctx.display_name,
+        time_of_day,
+        weather,
+    )
 }
 
 fn pick_greeting_by_time(
@@ -1004,31 +1029,49 @@ pub fn build_reaction_prompt(
     (system, context)
 }
 
+/// Scene context for [`resolve_llm_greeting`].
+///
+/// Bundles the location, time, weather, and introduction/workplace flags
+/// so the async function signature stays below clippy's argument threshold.
+pub struct LlmGreetingParams<'a> {
+    /// Name of the location the player entered.
+    pub location_name: &'a str,
+    /// Current time of day.
+    pub time_of_day: TimeOfDay,
+    /// Current weather description.
+    pub weather: &'a str,
+    /// Whether the player has been introduced to this NPC.
+    pub is_introduced: bool,
+    /// Whether the NPC is currently at their workplace.
+    pub at_workplace: bool,
+    /// LLM inference client.
+    pub client: &'a AnyClient,
+    /// Model identifier to pass to the client.
+    pub model: &'a str,
+    /// Timeout in seconds for the LLM call.
+    pub timeout_secs: u64,
+}
+
 /// Attempts an LLM-generated greeting with a short timeout.
 ///
 /// Returns the LLM text if it responds in time, or the canned fallback
 /// text from the reaction if the call times out or errors.
-#[allow(clippy::too_many_arguments)]
 pub async fn resolve_llm_greeting(
     reaction: &NpcReaction,
     npc: &Npc,
-    location_name: &str,
-    time_of_day: TimeOfDay,
-    weather: &str,
-    is_introduced: bool,
-    at_workplace: bool,
-    client: &AnyClient,
-    model: &str,
-    timeout_secs: u64,
+    params: &LlmGreetingParams<'_>,
 ) -> String {
     let (system, context) = build_reaction_prompt(
         npc,
-        location_name,
-        time_of_day,
-        weather,
-        is_introduced,
-        at_workplace,
+        params.location_name,
+        params.time_of_day,
+        params.weather,
+        params.is_introduced,
+        params.at_workplace,
     );
+    let client = params.client;
+    let model = params.model;
+    let timeout_secs = params.timeout_secs;
 
     let timeout = Duration::from_secs(timeout_secs);
     let result = tokio::time::timeout(
@@ -1359,16 +1402,14 @@ mod tests {
         // Low rolls: will pass threshold and pick introduction
         let dice = fixed_n(&[0.0, 0.1]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Introduction);
@@ -1387,16 +1428,14 @@ mod tests {
         let config = ReactionConfig::default();
         let dice = fixed_n(&[0.0, 0.5]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Afternoon,
-            "overcast",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Afternoon,
+            weather: "overcast",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Welcome);
@@ -1414,16 +1453,14 @@ mod tests {
         // Roll 0.99 will be above threshold (~0.55 base for outdoor non-workplace)
         let dice = fixed_n(&[0.99, 0.5]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert!(reactions.is_empty());
     }
@@ -1443,16 +1480,14 @@ mod tests {
         let config = ReactionConfig::default();
         let dice = fixed_n(&[0.0, 0.3]); // low roll passes, type_roll < 0.5 for priest greeting
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Greeting);
@@ -1516,16 +1551,14 @@ mod tests {
         let config = ReactionConfig::default();
         let dice: Vec<DiceRoll> = vec![];
 
-        let reactions = generate_arrival_reactions(
-            &[],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[], &introduced, &ctx, &dice);
 
         assert!(reactions.is_empty());
     }
@@ -1541,16 +1574,14 @@ mod tests {
         // NPC1: low rolls → reacts. NPC2: high chance_roll → silent
         let dice = fixed_n(&[0.0, 0.1, 0.99, 0.5]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc1, &npc2],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc1, &npc2], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].npc_id, NpcId(1));
@@ -1566,16 +1597,14 @@ mod tests {
         // type_roll 0.5 >= 0.25 → gesture for unintroduced non-workplace NPC
         let dice = fixed_n(&[0.0, 0.5]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Gesture);
@@ -1595,16 +1624,14 @@ mod tests {
         // type_roll 0.1 < 0.25 → casual introduction
         let dice = fixed_n(&[0.0, 0.1]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Introduction);
@@ -1635,16 +1662,15 @@ mod tests {
         // All chance rolls = 0.0 (pass), type rolls = 0.3 → Greeting for each
         let dice = fixed_n(&[0.0, 0.3, 0.0, 0.3, 0.0, 0.3, 0.0, 0.3]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc1, &npc2, &npc3, &npc4],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions =
+            generate_arrival_reactions(&[&npc1, &npc2, &npc3, &npc4], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 2);
     }
@@ -1668,16 +1694,14 @@ mod tests {
         // npc2: chance 0.0 (pass), type 0.1 → Introduction
         let dice = fixed_n(&[0.0, 0.6, 0.0, 0.1]);
 
-        let reactions = generate_arrival_reactions(
-            &[&npc1, &npc2],
-            &introduced,
-            &loc,
-            TimeOfDay::Morning,
-            "clear",
-            &templates,
-            &config,
-            &dice,
-        );
+        let ctx = ArrivalContext {
+            location: &loc,
+            time_of_day: TimeOfDay::Morning,
+            weather: "clear",
+            templates: &templates,
+            config: &config,
+        };
+        let reactions = generate_arrival_reactions(&[&npc1, &npc2], &introduced, &ctx, &dice);
 
         assert_eq!(reactions.len(), 1);
         assert_eq!(reactions[0].kind, ReactionKind::Introduction);

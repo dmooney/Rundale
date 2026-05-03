@@ -1384,7 +1384,9 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 async fn print_arrival_reactions(app: &mut App) {
     use parish_core::config::ReactionConfig;
     use parish_core::dice;
-    use parish_core::npc::reactions::{generate_arrival_reactions, resolve_llm_greeting};
+    use parish_core::npc::reactions::{
+        ArrivalContext, LlmGreetingParams, generate_arrival_reactions, resolve_llm_greeting,
+    };
 
     let npcs = app.npc_manager.npcs_at(app.world.player_location);
     if npcs.is_empty() {
@@ -1408,16 +1410,14 @@ async fn print_arrival_reactions(app: &mut App) {
     let config = ReactionConfig::default();
     let roll_dice = dice::roll_n(npcs.len() * 2);
 
-    let reactions = generate_arrival_reactions(
-        &npcs,
-        &introduced,
-        &loc_data,
-        tod,
-        &weather,
-        &templates,
-        &config,
-        &roll_dice,
-    );
+    let arrival_ctx = ArrivalContext {
+        location: &loc_data,
+        time_of_day: tod,
+        weather: &weather,
+        templates: &templates,
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&npcs, &introduced, &arrival_ctx, &roll_dice);
 
     for reaction in &reactions {
         let text = if reaction.use_llm {
@@ -1425,19 +1425,17 @@ async fn print_arrival_reactions(app: &mut App) {
                 let npc = app.npc_manager.get(reaction.npc_id);
                 if let Some(npc) = npc {
                     let at_workplace = npc.workplace.is_some_and(|wp| wp == loc_data.id);
-                    resolve_llm_greeting(
-                        reaction,
-                        npc,
-                        &loc_data.name,
-                        tod,
-                        &weather,
-                        introduced.contains(&reaction.npc_id),
+                    let llm_params = LlmGreetingParams {
+                        location_name: &loc_data.name,
+                        time_of_day: tod,
+                        weather: &weather,
+                        is_introduced: introduced.contains(&reaction.npc_id),
                         at_workplace,
                         client,
-                        &app.reaction_model.clone(),
-                        config.llm_timeout_secs,
-                    )
-                    .await
+                        model: &app.reaction_model.clone(),
+                        timeout_secs: config.llm_timeout_secs,
+                    };
+                    resolve_llm_greeting(reaction, npc, &llm_params).await
                 } else {
                     reaction.canned_text.clone()
                 }
