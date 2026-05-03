@@ -80,6 +80,14 @@ screenshots:
 game-test:
     cd parish && just game-test
 
+# Run a specific test fixture by name
+game-test-one NAME:
+    cd parish && just game-test-one {{NAME}}
+
+# Run all test fixtures
+game-test-all:
+    cd parish && just game-test-all
+
 # List all commands available in the parish engine
 parish-help:
     cd parish && just --list

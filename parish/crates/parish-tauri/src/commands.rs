@@ -28,8 +28,8 @@ use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
-use parish_core::world::LocationId;
 use parish_core::world::transport::TransportMode;
+use parish_core::world::{DEFAULT_START_LOCATION, LocationId};
 
 use crate::events::{
     EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_STREAM_TURN_END, EVENT_TEXT_LOG,
@@ -241,17 +241,16 @@ pub async fn submit_input(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let text = text.trim().to_string();
+    let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
     }
-    if text.len() > 2000 {
-        return Err("Input too long (max 2000 characters).".to_string());
-    }
+    // #752 — cap addressed_to to prevent unbounded memory/allocation via the
+    // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
+    let addressed_to = addressed_to.unwrap_or_default();
+    validate_addressed_to(&addressed_to)?;
 
     touch_player_activity(&state).await;
-
-    let addressed_to = addressed_to.unwrap_or_default();
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
@@ -277,6 +276,39 @@ pub async fn submit_input(
         }
     }
 
+    Ok(())
+}
+
+// ── #752 — addressed_to validation ───────────────────────────────────────────
+
+/// Validates and trims player free-text input for `submit_input`.
+///
+/// - Trims leading/trailing whitespace.
+/// - Returns `Ok(String)` (the trimmed text) for empty input — callers should
+///   short-circuit before calling this if they want to silently drop empties.
+/// - Returns `Err` when the trimmed length exceeds 2000 characters.
+pub fn validate_input_text(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim().to_string();
+    if trimmed.len() > 2000 {
+        return Err("Input too long (max 2000 characters).".to_string());
+    }
+    Ok(trimmed)
+}
+
+/// Validates the `addressed_to` list from the `submit_input` command.
+///
+/// Rules (mode-parity with the server path in `parish-server`):
+/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - Each name is at most **100** characters.
+///
+/// Returns `Err(String)` with a user-visible message on any violation.
+pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
+    if addressed_to.len() > 10 {
+        return Err("Too many addressees (max 10).".to_string());
+    }
+    if addressed_to.iter().any(|name| name.len() > 100) {
+        return Err("Addressee name too long (max 100 characters).".to_string());
+    }
     Ok(())
 }
 
@@ -1482,30 +1514,8 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
 // ── Persistence commands ────────────────────────────────────────────────────
 
 use parish_core::persistence::Database;
-use parish_core::persistence::picker::{
-    SaveFileInfo, discover_saves, ensure_saves_dir, new_save_path,
-};
+use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
-
-/// Resolves the saves directory at the project root (where `mods/` lives).
-fn saves_dir() -> std::path::PathBuf {
-    let mut p = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    for _ in 0..4 {
-        if p.join("mods/rundale/world.json").exists() {
-            let sd = p.join("saves");
-            if let Err(e) = std::fs::create_dir_all(&sd) {
-                tracing::warn!(path = %sd.display(), error = %e, "failed to create saves dir");
-            }
-            return sd;
-        }
-        match p.parent() {
-            Some(parent) => p = parent.to_path_buf(),
-            None => break,
-        }
-    }
-    // Fallback: use ensure_saves_dir which creates ./saves
-    ensure_saves_dir()
-}
 
 /// Returns the list of save files with branch metadata.
 #[tauri::command]
@@ -1513,8 +1523,7 @@ pub async fn discover_save_files(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<Vec<SaveFileInfo>, String> {
     let world = state.world.lock().await;
-    let sd = saves_dir();
-    let saves = discover_saves(&sd, &world.graph);
+    let saves = discover_saves(&state.saves_dir, &world.graph);
     for s in &saves {
         tracing::info!(
             "Save file: {} — {} branches: {:?}",
@@ -1549,30 +1558,37 @@ async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = if let Some(ref path) = *save_path_guard {
         path.clone()
     } else {
-        // Create a new save file
-        let sd = saves_dir();
-        let path = new_save_path(&sd);
+        // Create a new save file in the resolved saves directory.
+        let path = new_save_path(&state.saves_dir);
         *save_path_guard = Some(path.clone());
         path
     };
 
-    let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+    let existing_branch_id = *branch_id_guard;
+    let (resolved_branch_id, resolved_branch_name) =
+        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
+            let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+            let branch_id = if let Some(id) = existing_branch_id {
+                id
+            } else {
+                let branch = db.find_branch("main").map_err(|e| e.to_string())?;
+                branch.map(|b| b.id).unwrap_or(1)
+            };
+            db.save_snapshot(branch_id, &snapshot)
+                .map_err(|e| e.to_string())?;
+            Ok((branch_id, "main".to_string()))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
-    let branch_id = if let Some(id) = *branch_id_guard {
-        id
-    } else {
-        let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-        let id = branch.map(|b| b.id).unwrap_or(1);
-        *branch_id_guard = Some(id);
-        *branch_name_guard = Some("main".to_string());
-        id
-    };
+    if branch_id_guard.is_none() {
+        *branch_id_guard = Some(resolved_branch_id);
+        *branch_name_guard = Some(resolved_branch_name.clone());
+    }
 
-    db.save_snapshot(branch_id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    let filename = db_path
-        .file_name()
+    let filename = save_path_guard
+        .as_ref()
+        .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "save".to_string());
     let branch_name = branch_name_guard.as_deref().unwrap_or("main");
@@ -1605,20 +1621,24 @@ pub async fn load_branch(
         *state.save_lock.lock().await = Some(lock);
     }
 
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-
-    let (_, snapshot) = db
-        .load_latest_snapshot(branch_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
-
-    // Find the branch name
-    let branches = db.list_branches().map_err(|e| e.to_string())?;
-    let branch_name = branches
-        .iter()
-        .find(|b| b.id == branch_id)
-        .map(|b| b.name.clone())
-        .unwrap_or_else(|| "unknown".to_string());
+    let path_clone = path.clone();
+    let (snapshot, branch_name) =
+        tokio::task::spawn_blocking(move || -> Result<(GameSnapshot, String), String> {
+            let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+            let (_, snapshot) = db
+                .load_latest_snapshot(branch_id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
+            let branches = db.list_branches().map_err(|e| e.to_string())?;
+            let branch_name = branches
+                .iter()
+                .find(|b| b.id == branch_id)
+                .map(|b| b.name.clone())
+                .unwrap_or_else(|| "unknown".to_string());
+            Ok((snapshot, branch_name))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
     // Restore state
     let mut world = state.world.lock().await;
@@ -1674,44 +1694,45 @@ async fn do_create_branch(
     name: &str,
     parent_branch_id: i64,
 ) -> Result<String, String> {
-    let save_path_guard = state.save_path.lock().await;
-
-    let db_path = save_path_guard
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-
-    let db_path_clone = db_path.clone();
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
 
     tracing::info!(
         "Creating branch '{}' with parent {} in {:?}",
         name,
         parent_branch_id,
-        db_path_clone
+        db_path
     );
 
-    let new_id = db
-        .create_branch(name, Some(parent_branch_id))
-        .map_err(|e| {
-            tracing::error!("create_branch failed: {}", e);
-            e.to_string()
-        })?;
-
-    tracing::info!("Branch '{}' created with id {}", name, new_id);
-
-    drop(save_path_guard);
-
-    // Save current state to the new branch
+    // Capture snapshot before spawn_blocking so the tokio locks are not held across it.
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
     drop(npc_manager);
     drop(world);
 
-    db.save_snapshot(new_id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    tracing::info!("Snapshot saved to branch '{}'", name);
+    let name_owned = name.to_string();
+    let new_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        let new_id = db
+            .create_branch(&name_owned, Some(parent_branch_id))
+            .map_err(|e| {
+                tracing::error!("create_branch failed: {}", e);
+                e.to_string()
+            })?;
+        tracing::info!("Branch '{}' created with id {}", name_owned, new_id);
+        db.save_snapshot(new_id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        tracing::info!("Snapshot saved to branch '{}'", name_owned);
+        Ok(new_id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     // Switch to the new branch
     *state.current_branch_id.lock().await = Some(new_id);
@@ -1725,20 +1746,12 @@ async fn do_create_branch(
 pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     use parish_core::persistence::SaveFileLock;
 
-    let sd = saves_dir();
-    let path = new_save_path(&sd);
+    let path = new_save_path(&state.saves_dir);
 
     // Acquire lock on the new save file, releasing any previous lock.
     let lock = SaveFileLock::try_acquire(&path)
         .ok_or_else(|| "Could not lock the new save file.".to_string())?;
     *state.save_lock.lock().await = Some(lock);
-
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-
-    let branch = db
-        .find_branch("main")
-        .map_err(|e| e.to_string())?
-        .ok_or("Failed to create main branch")?;
 
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
@@ -1746,11 +1759,22 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
     drop(npc_manager);
     drop(world);
 
-    db.save_snapshot(branch.id, &snapshot)
-        .map_err(|e| e.to_string())?;
+    let path_clone = path.clone();
+    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let branch = db
+            .find_branch("main")
+            .map_err(|e| e.to_string())?
+            .ok_or("Failed to create main branch")?;
+        db.save_snapshot(branch.id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        Ok(branch.id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_id.lock().await = Some(branch_id);
     *state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
@@ -1770,10 +1794,10 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
             .map_err(|e| format!("Failed to load world from mod: {}", e))?;
         (world, gm.npcs_path())
     } else {
-        let data_dir = crate::find_data_dir();
+        let data_dir = state.data_dir.clone();
         let world = parish_core::world::WorldState::from_parish_file(
             &data_dir.join("parish.json"),
-            parish_core::world::LocationId(15),
+            DEFAULT_START_LOCATION,
         )
         .map_err(|e| format!("Failed to load parish.json: {}", e))?;
         (world, data_dir.join("npcs.json"))
@@ -1797,20 +1821,8 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
         *conv = ConversationRuntimeState::new();
     }
 
-    // Create a new save file with the fresh state
-    let sd = saves_dir();
-    let path = new_save_path(&sd);
-    let db = Database::open(&path).map_err(|e| e.to_string())?;
-    let branch = db
-        .find_branch("main")
-        .map_err(|e| e.to_string())?
-        .ok_or("Failed to create main branch")?;
-
+    // Capture snapshot and emit world update before spawn_blocking.
     let snapshot = GameSnapshot::capture(&world, &npc_manager);
-    db.save_snapshot(branch.id, &snapshot)
-        .map_err(|e| e.to_string())?;
-
-    // Emit updated state
     let transport = state.transport.default_mode();
     let mut ws = snapshot_from_world(&world, transport);
     ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
@@ -1819,8 +1831,24 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     drop(npc_manager);
     drop(world);
 
+    // Create a new save file with the fresh state
+    let path = new_save_path(&state.saves_dir);
+    let path_clone = path.clone();
+    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
+        let branch = db
+            .find_branch("main")
+            .map_err(|e| e.to_string())?
+            .ok_or("Failed to create main branch")?;
+        db.save_snapshot(branch.id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        Ok(branch.id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
     *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch.id);
+    *state.current_branch_id.lock().await = Some(branch_id);
     *state.current_branch_name.lock().await = Some("main".to_string());
 
     Ok(())
@@ -1865,14 +1893,21 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
 
 /// Formats branch list as text for the /branches command.
 async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path = state.save_path.lock().await;
-    let db_path = save_path
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
-    let branches = db.list_branches().map_err(|e| e.to_string())?;
-
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
     let current_id = *state.current_branch_id.lock().await;
+
+    let branches = tokio::task::spawn_blocking(move || -> Result<Vec<_>, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        db.list_branches().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     let mut lines = vec!["Branches:".to_string()];
     for b in &branches {
@@ -1889,16 +1924,25 @@ async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> 
 
 /// Formats branch log as text for the /log command.
 async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
-    let save_path = state.save_path.lock().await;
-    let branch_id = state.current_branch_id.lock().await;
+    let db_path = {
+        let guard = state.save_path.lock().await;
+        guard
+            .as_ref()
+            .ok_or("No active save file. Use /save first.")?
+            .clone()
+    };
+    let bid = state
+        .current_branch_id
+        .lock()
+        .await
+        .ok_or("No active branch.")?;
 
-    let db_path = save_path
-        .as_ref()
-        .ok_or("No active save file. Use /save first.")?;
-    let bid = branch_id.ok_or("No active branch.")?;
-
-    let db = Database::open(db_path).map_err(|e| e.to_string())?;
-    let log = db.branch_log(bid).map_err(|e| e.to_string())?;
+    let log = tokio::task::spawn_blocking(move || -> Result<Vec<_>, String> {
+        let db = Database::open(&db_path).map_err(|e| e.to_string())?;
+        db.branch_log(bid).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     if log.is_empty() {
         return Ok("No snapshots yet on this branch.".to_string());
@@ -1917,6 +1961,15 @@ async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
+/// Returns `true` for characters that are banned from reaction message snippets
+/// to prevent NPC system-prompt injection (#687).
+///
+/// Banned: double-quote, backslash, Unicode line/paragraph separators, and
+/// all ASCII control characters (including newline, carriage return, tab).
+pub fn is_snippet_injection_char(c: char) -> bool {
+    c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
+}
+
 /// Player reacts to an NPC message with an emoji.
 #[tauri::command]
 pub async fn react_to_message(
@@ -1925,10 +1978,6 @@ pub async fn react_to_message(
     emoji: String,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
-    fn is_snippet_injection_char(c: char) -> bool {
-        c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
-    }
-
     // Validate emoji is in the palette
     if reactions::reaction_description(&emoji).is_none() {
         return Err("Unknown reaction emoji.".to_string());
@@ -1973,8 +2022,6 @@ fn emit_npc_reactions(
     let player_msg_id = player_msg_id.to_string();
     let player_input = player_input.to_string();
 
-    // #651 — await the task handle and surface any panic to the log so errors
-    // are never silently swallowed.
     let handle = tokio::spawn(async move {
         let (npcs_here, llm_enabled, reaction_client, reaction_model) = {
             let npc_manager = state.npc_manager.lock().await;
@@ -2041,8 +2088,21 @@ fn emit_npc_reactions(
 
         // Collect results as tasks finish, then persist + emit each reaction.
         while let Some(result) = join_set.join_next().await {
-            let Ok((npc_name, Some(emoji))) = result else {
-                continue;
+            let (npc_name, emoji) = match result {
+                Ok((name, Some(emoji))) => (name, emoji),
+                Ok((_, None)) => continue,
+                Err(e) if e.is_panic() => {
+                    tracing::error!(error = %e, "npc reaction task panicked");
+                    continue;
+                }
+                Err(e) if e.is_cancelled() => {
+                    tracing::debug!("npc reaction task cancelled (shutdown)");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "npc reaction task ended unexpectedly");
+                    continue;
+                }
             };
 
             // Persist to reaction_log so NPC memory is maintained (#403).
@@ -2068,12 +2128,20 @@ fn emit_npc_reactions(
         }
     });
 
-    // Spawn a lightweight watcher that logs any panic from the reaction batch
-    // (#651). This keeps emit_npc_reactions non-blocking while ensuring panics
-    // are visible in the tracing output rather than silently swallowed.
+    // Watcher: keeps emit_npc_reactions non-blocking while making panics visible
+    // and quietly absorbing the cancellation seen during runtime shutdown.
     tokio::spawn(async move {
-        if let Err(e) = handle.await {
-            tracing::error!(error = %e, "emit_npc_reactions task panicked");
+        match handle.await {
+            Ok(_) => {}
+            Err(e) if e.is_panic() => {
+                tracing::error!(error = %e, "emit_npc_reactions task panicked");
+            }
+            Err(e) if e.is_cancelled() => {
+                tracing::debug!("emit_npc_reactions task cancelled (shutdown)");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "emit_npc_reactions task ended unexpectedly");
+            }
         }
     });
 }

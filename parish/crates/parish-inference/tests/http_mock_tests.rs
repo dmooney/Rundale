@@ -1,11 +1,13 @@
 //! HTTP-mocked integration tests for the inference clients.
 //!
 //! Uses `wiremock` to stand up a local HTTP server that stands in for
-//! Ollama's native API (`/api/generate`) and the OpenAI-compatible API
-//! (`/v1/chat/completions`). These tests exercise the request/response
+//! Ollama's native API (`/api/generate`), the OpenAI-compatible API
+//! (`/v1/chat/completions`), and the Anthropic Messages API
+//! (`/v1/messages`). These tests exercise the request/response
 //! plumbing, streaming NDJSON / SSE parsing, error mapping, and auth
 //! header behavior without needing a real LLM backend.
 
+use parish_inference::AnthropicClient;
 use parish_inference::TOKEN_CHANNEL_CAPACITY;
 use parish_inference::client::OllamaClient;
 use parish_inference::openai_client::OpenAiClient;
@@ -555,4 +557,326 @@ async fn openai_generate_request_omits_max_tokens_when_none() {
     let client = OpenAiClient::new(&server.uri(), None);
     let out = client.generate("m", "p", None, None, None).await.unwrap();
     assert_eq!(out, "ok");
+}
+
+// =============================================================================
+// AnthropicClient — native /v1/messages endpoint  (closes #727)
+// =============================================================================
+//
+// Anthropic differences from OpenAI:
+//   - Endpoint:   POST /v1/messages  (not /v1/chat/completions)
+//   - Auth:       x-api-key header   (not Authorization: Bearer)
+//   - Version:    anthropic-version: 2023-06-01  (always required)
+//   - Response:   {"content": [{"type":"text","text":"…"}]}  (not "choices")
+//   - Streaming:  terminated by {"type":"message_stop"}  (not data: [DONE])
+//   - max_tokens: required field in every request (client fills in 4096 default)
+
+#[tokio::test]
+async fn anthropic_generate_returns_choice_content() {
+    // "choice_content" name mirrors the OpenAI sibling; Anthropic uses
+    // content blocks instead of choices — `extract_text` joins all Text blocks.
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "Hello from the mock"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let out = client
+        .generate("claude-test", "hi", None, None, None)
+        .await
+        .expect("generate should succeed");
+    assert_eq!(out, "Hello from the mock");
+}
+
+#[tokio::test]
+async fn anthropic_generate_sends_x_api_key_when_set() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .and(header("x-api-key", "sk-ant-test-1234"))
+        .and(header("anthropic-version", "2023-06-01"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "authed"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), Some("sk-ant-test-1234"));
+    // wiremock returns 404 if the matcher doesn't match, which fails the call.
+    let out = client.generate("m", "p", None, None, None).await.unwrap();
+    assert_eq!(out, "authed");
+}
+
+#[tokio::test]
+async fn anthropic_generate_omits_key_when_absent() {
+    let server = MockServer::start().await;
+    // This mock matches when x-api-key is absent.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "ok"}]
+        })))
+        .mount(&server)
+        .await;
+
+    // This mock matches only when x-api-key is present; assert it is never hit.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .and(header_exists("x-api-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "with-key"}]
+        })))
+        .expect(0)
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let out = client.generate("m", "p", None, None, None).await.unwrap();
+    assert_eq!(out, "ok");
+}
+
+#[tokio::test]
+async fn anthropic_generate_maps_401_to_inference_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), Some("sk-bad"));
+    let err = client
+        .generate("m", "p", None, None, None)
+        .await
+        .expect_err("401 must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("inference error") || msg.contains("401"),
+        "expected inference error, got: {msg}"
+    );
+}
+
+#[tokio::test]
+async fn anthropic_generate_stream_parses_sse_chunks() {
+    let server = MockServer::start().await;
+    // Anthropic SSE format: `data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"…"}}`
+    // terminated by `data: {"type":"message_stop"}` (not [DONE]).
+    let sse = [
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}"#,
+        r#"data: {"type":"message_stop"}"#,
+    ]
+    .join("\n");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    let full = client
+        .generate_stream("m", "p", None, tx, None, None)
+        .await
+        .unwrap();
+
+    assert_eq!(full, "Hello!");
+    let mut tokens = Vec::new();
+    while let Ok(t) = rx.try_recv() {
+        tokens.push(t);
+    }
+    assert_eq!(tokens, vec!["Hel", "lo", "!"]);
+}
+
+#[tokio::test]
+async fn anthropic_generate_stream_honors_done_sentinel() {
+    // Anthropic's stream sentinel is {"type":"message_stop"}, not [DONE].
+    // Any delta arriving after message_stop must be dropped.
+    let server = MockServer::start().await;
+    let sse = [
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}"#,
+        r#"data: {"type":"message_stop"}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"dropped"}}"#,
+    ]
+    .join("\n");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    let full = client
+        .generate_stream("m", "p", None, tx, None, None)
+        .await
+        .unwrap();
+    assert_eq!(full, "ab");
+
+    let mut tokens = Vec::new();
+    while let Ok(t) = rx.try_recv() {
+        tokens.push(t);
+    }
+    // "dropped" must not appear — message_stop terminated the stream.
+    assert_eq!(tokens, vec!["a", "b"]);
+}
+
+#[tokio::test]
+async fn anthropic_generate_handles_empty_choices() {
+    // "empty_choices" name mirrors the OpenAI sibling; Anthropic uses
+    // content blocks — an empty content array degrades gracefully to "".
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": []
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let out = client.generate("m", "p", None, None, None).await.unwrap();
+    // empty content degrades gracefully to empty string, not an error
+    assert_eq!(out, "");
+}
+
+// =============================================================================
+// Provider smoke — OpenAI-compatible providers via build_client  (closes #728)
+// =============================================================================
+//
+// One table-driven loop verifies that every OpenAI-compatible provider
+// (LM Studio, vLLM, OpenRouter, Google/Gemini, Groq, xAI, Mistral,
+// DeepSeek, Together, Custom) routes its request to the correct URL path
+// and sends / omits the Authorization header as required.
+//
+// Each case is (provider_label, provider, optional_api_key).
+// Local providers (LmStudio, Vllm, Custom) carry no API key; cloud
+// providers send Bearer <key>.
+//
+// We use `build_client` from `parish_inference` so we exercise the actual
+// provider dispatch logic (all these variants dispatch to OpenAiClient).
+
+#[tokio::test]
+async fn openai_compatible_provider_smoke() {
+    use parish_config::Provider;
+    use parish_inference::InferenceConfig;
+    use parish_inference::build_client;
+
+    struct ProviderCase {
+        label: &'static str,
+        provider: Provider,
+        api_key: Option<&'static str>,
+    }
+
+    let cases: Vec<ProviderCase> = vec![
+        ProviderCase {
+            label: "LmStudio",
+            provider: Provider::LmStudio,
+            api_key: None,
+        },
+        ProviderCase {
+            label: "Vllm",
+            provider: Provider::Vllm,
+            api_key: None,
+        },
+        ProviderCase {
+            label: "OpenRouter",
+            provider: Provider::OpenRouter,
+            api_key: Some("sk-or-test"),
+        },
+        ProviderCase {
+            label: "Google (Gemini)",
+            provider: Provider::Google,
+            api_key: Some("goog-test"),
+        },
+        ProviderCase {
+            label: "Groq",
+            provider: Provider::Groq,
+            api_key: Some("gsk-test"),
+        },
+        ProviderCase {
+            label: "xAI",
+            provider: Provider::Xai,
+            api_key: Some("xai-test"),
+        },
+        ProviderCase {
+            label: "Mistral",
+            provider: Provider::Mistral,
+            api_key: Some("ms-test"),
+        },
+        ProviderCase {
+            label: "DeepSeek",
+            provider: Provider::DeepSeek,
+            api_key: Some("ds-test"),
+        },
+        ProviderCase {
+            label: "Together",
+            provider: Provider::Together,
+            api_key: Some("tgt-test"),
+        },
+        ProviderCase {
+            label: "Custom",
+            provider: Provider::Custom,
+            api_key: None,
+        },
+    ];
+
+    for case in &cases {
+        let server = MockServer::start().await;
+
+        // Mount a mock that expects POST /v1/chat/completions.
+        // For key-bearing providers, additionally require the Authorization header.
+        if let Some(key) = case.api_key {
+            let bearer = format!("Bearer {key}");
+            Mock::given(method("POST"))
+                .and(path("/v1/chat/completions"))
+                .and(header("Authorization", bearer.as_str()))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "choices": [{"message": {"content": "ok"}}]
+                })))
+                .mount(&server)
+                .await;
+        } else {
+            // For key-absent providers: first assert Authorization is never sent.
+            Mock::given(method("POST"))
+                .and(path("/v1/chat/completions"))
+                .and(header_exists("Authorization"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "choices": [{"message": {"content": "with-auth"}}]
+                })))
+                .expect(0)
+                .mount(&server)
+                .await;
+            // Then mount the permissive success mock.
+            Mock::given(method("POST"))
+                .and(path("/v1/chat/completions"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "choices": [{"message": {"content": "ok"}}]
+                })))
+                .mount(&server)
+                .await;
+        }
+
+        let client = build_client(
+            &case.provider,
+            &server.uri(),
+            case.api_key,
+            &InferenceConfig::default(),
+        );
+        let out = client
+            .generate("m", "p", None, None, None)
+            .await
+            .unwrap_or_else(|e| panic!("provider {} generate failed: {e}", case.label));
+        assert_eq!(
+            out, "ok",
+            "provider {} returned unexpected response",
+            case.label
+        );
+    }
 }

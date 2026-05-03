@@ -106,4 +106,38 @@ describe('MapPanel', () => {
 		const { container } = render(MapPanel);
 		expect(container.querySelector('[data-testid="map-panel"]')).toBeTruthy();
 	});
+
+	// ── Accessible location list (#111) ────────────────────────────────
+	describe('accessible location list (#111)', () => {
+		it('renders a navigation landmark with nearby locations when map data present', () => {
+			mapData.set(testMap);
+			const { getByRole } = render(MapPanel);
+			expect(getByRole('navigation', { name: 'Nearby locations' })).toBeTruthy();
+		});
+
+		it('adjacent location button has aria-disabled="false", non-adjacent has aria-disabled="true"', () => {
+			const mapWithBoth = {
+				...testMap,
+				locations: [
+					...testMap.locations,
+					{ id: 'loc3', name: 'Dalkey', lat: 53.27, lon: -6.1, adjacent: false, hops: 2 }
+				]
+			};
+			mapData.set(mapWithBoth);
+			const { getAllByRole } = render(MapPanel);
+			const locBtns = getAllByRole('button').filter(
+				(b) => b.classList.contains('sr-only-loc-btn')
+			);
+			const howth = locBtns.find((b) => b.textContent === 'Howth') as HTMLButtonElement;
+			const dalkey = locBtns.find((b) => b.textContent === 'Dalkey') as HTMLButtonElement;
+			expect(howth.getAttribute('aria-disabled')).toBe('false');
+			expect(dalkey.getAttribute('aria-disabled')).toBe('true');
+		});
+
+		it('does not render navigation landmark when no map data', () => {
+			mapData.set(null);
+			const { queryByRole } = render(MapPanel);
+			expect(queryByRole('navigation', { name: 'Nearby locations' })).toBeNull();
+		});
+	});
 });

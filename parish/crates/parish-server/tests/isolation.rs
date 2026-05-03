@@ -1,11 +1,15 @@
 /// Integration tests for cross-user / shared-state isolation
-/// (issues #332, #333, #334, #335, #605).
+/// (issues #332, #333, #334, #335, #605, #752, #785).
 ///
 /// These tests drive minimal axum routers that exercise the security
 /// boundaries without requiring a fully initialised game world where possible.
 use axum::http::StatusCode;
 
-use parish_server::routes::{check_admin_against, is_admin_command, validate_branch_name};
+use parish_server::routes::{
+    check_admin_against, check_admin_no_config, is_admin_command, redact_call_log,
+    validate_addressed_to, validate_branch_name,
+};
+use parish_server::session::is_valid_session_id;
 
 // ── #332 — Admin-command gate ─────────────────────────────────────────────────
 
@@ -105,15 +109,41 @@ fn check_admin_against_none_config_is_deterministic() {
     );
 }
 
+/// Covers the release-mode fail-closed branch of `check_admin_against`.
+///
+/// `cfg!(debug_assertions)` is always `true` under `cargo test`, so the
+/// release path is exercised via `check_admin_no_config(is_debug = false)`.
+/// This is the testable helper extracted specifically to cover issue #763.
+#[test]
+fn check_admin_no_config_release_mode_is_fail_closed() {
+    // Simulate release build: is_debug = false → must be FORBIDDEN.
+    let result = check_admin_no_config("any@example.com", "/key sk-x", false);
+    assert_eq!(
+        result,
+        Err(StatusCode::FORBIDDEN),
+        "release build with no admin config must deny (fail-closed)"
+    );
+}
+
+/// Confirm the debug-mode path of `check_admin_no_config` allows any user.
+#[test]
+fn check_admin_no_config_debug_mode_is_fail_open() {
+    let result = check_admin_no_config("any@example.com", "/key sk-x", true);
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
 // ── #333 — Debug snapshot redaction ──────────────────────────────────────────
 
 /// The debug-snapshot handler strips sensitive fields from the call log.
 ///
-/// We exercise the redaction logic directly by constructing an
-/// `InferenceLogEntry` with sensitive content, applying the same
-/// zeroing-out transformation that `get_debug_snapshot` performs, then
-/// asserting the serialised JSON contains `prompt_len` but not the
-/// secret text.
+/// Constructs an `InferenceLogEntry` with sensitive content, passes it through
+/// the production `redact_call_log` function (the same path called by
+/// `get_debug_snapshot`), then asserts the serialised JSON contains
+/// `prompt_len` but not the secret text.
 #[test]
 fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
     use parish_core::debug_snapshot::InferenceLogEntry;
@@ -134,23 +164,14 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
         max_tokens: None,
     };
 
-    // Apply the same redaction that `get_debug_snapshot` applies (#333).
-    let redacted = InferenceLogEntry {
-        request_id: entry.request_id,
-        timestamp: entry.timestamp.clone(),
-        model: entry.model.clone(),
-        streaming: entry.streaming,
-        duration_ms: entry.duration_ms,
-        prompt_len: entry.prompt_len,
-        response_len: entry.response_len,
-        error: entry.error.clone(),
-        max_tokens: entry.max_tokens,
-        system_prompt: None,
-        prompt_text: String::new(),
-        response_text: String::new(),
-    };
+    // Call the production redaction function — the same path `get_debug_snapshot`
+    // calls (#333).  This ensures the test exercises real production code rather
+    // than a hand-rolled copy.
+    let redacted_log = redact_call_log(&[entry]);
+    assert_eq!(redacted_log.len(), 1, "redacted log must have one entry");
+    let redacted = &redacted_log[0];
 
-    let json = serde_json::to_value(&redacted).unwrap();
+    let json = serde_json::to_value(redacted).unwrap();
 
     // Must contain prompt_len.
     assert!(
@@ -189,12 +210,13 @@ async fn second_ws_upgrade_same_email_is_409() {
     // Build a minimal AppState using the public builder.
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
-    use parish_core::world::{LocationId, WorldState};
+    use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
     use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-    let world = WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+    let world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),
@@ -303,12 +325,13 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::events::GameEvent;
     use parish_core::world::transport::TransportConfig;
-    use parish_core::world::{LocationId, WorldState};
+    use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
     use parish_server::state::{GameConfig, UiConfigSnapshot, build_app_state};
 
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
-    let world = WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+    let world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
     let npc_manager = NpcManager::new();
     let ui_config = UiConfigSnapshot {
         hints_label: "test".to_string(),
@@ -458,4 +481,141 @@ fn create_branch_65_char_name_is_400() {
 #[test]
 fn create_branch_valid_name_passes_validation() {
     assert_eq!(validate_branch_name("valid name"), Ok(()));
+}
+
+// ── #753 — /api/debug-snapshot admin gate ────────────────────────────────────
+//
+// `check_admin_against` is the testable variant of the production `check_admin`
+// call that now guards `get_debug_snapshot`.  These tests mirror the isolation
+// tests for admin commands (#332, #605) above: they supply an explicit admin
+// email rather than touching the `PARISH_ADMIN_EMAILS` OnceCell cache, so
+// they remain fully self-contained and order-independent regardless of how
+// other tests set the env var.
+
+/// Non-admin authenticated user must be rejected (403) from `/api/debug-snapshot`.
+#[test]
+fn debug_snapshot_non_admin_is_403() {
+    assert_eq!(
+        check_admin_against(
+            "attacker@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Err(StatusCode::FORBIDDEN),
+        "non-admin user must receive 403 from debug-snapshot gate"
+    );
+}
+
+/// Admin user must be allowed through the gate (Ok(())).
+#[test]
+fn debug_snapshot_admin_is_ok() {
+    assert_eq!(
+        check_admin_against(
+            "operator@example.com",
+            "debug-snapshot",
+            Some("operator@example.com"),
+        ),
+        Ok(()),
+        "admin user must be allowed through the debug-snapshot gate"
+    );
+}
+
+/// Unauthenticated requests (no CF JWT) are rejected upstream by
+/// `cf_access_guard` with 401 before the handler is even reached.
+///
+/// That path is covered by `tests/auth_guard.rs`; this test confirms
+/// that the admin gate is independent from the auth gate: a completely
+/// un-configured admin list (`None`) behaves consistently with the
+/// rest of the admin-gate tests (fail-open in debug, fail-closed in release).
+#[test]
+fn debug_snapshot_no_admin_config_is_deterministic() {
+    let result = check_admin_against("any@example.com", "debug-snapshot", None);
+    // Debug builds (tests) are fail-open for local dev.
+    assert_eq!(
+        result,
+        Ok(()),
+        "debug build with no admin config must allow (fail-open for local dev)"
+    );
+}
+
+// ── #785 — Session cookie format validation ──────────────────────────────────
+
+/// A well-formed UUID v4 is accepted.
+#[test]
+fn session_id_valid_uuid_v4_passes() {
+    assert!(is_valid_session_id("550e8400-e29b-41d4-a716-446655440000"));
+}
+
+/// An empty string must be rejected — it would produce a useless path.
+#[test]
+fn session_id_empty_string_is_rejected() {
+    assert!(!is_valid_session_id(""));
+}
+
+/// A path-traversal attempt (`..`) must be rejected unconditionally.
+#[test]
+fn session_id_path_traversal_is_rejected() {
+    assert!(!is_valid_session_id("../../../etc/passwd"));
+}
+
+/// A `..`-containing value that still has only hex/hyphen chars is rejected
+/// because `..` is blocked explicitly.
+#[test]
+fn session_id_double_dot_only_hex_is_rejected() {
+    assert!(!is_valid_session_id("aaaa..bbbb"));
+}
+
+/// Non-hex characters (e.g. a slash or uppercase letter) are rejected.
+#[test]
+fn session_id_non_hex_chars_are_rejected() {
+    assert!(!is_valid_session_id("UPPERCASE-UUID-IS-INVALID"));
+    assert!(!is_valid_session_id("bad/path"));
+    assert!(!is_valid_session_id("with spaces"));
+}
+
+// ── #752 — addressed_to length cap ──────────────────────────────────────────
+
+/// Empty addressee list is always valid.
+#[test]
+fn addressed_to_empty_list_passes() {
+    assert_eq!(validate_addressed_to(&[]), Ok(()));
+}
+
+/// Up to 10 entries with short names is valid.
+#[test]
+fn addressed_to_ten_entries_passes() {
+    let names: Vec<String> = (0..10).map(|i| format!("npc{i}")).collect();
+    assert_eq!(validate_addressed_to(&names), Ok(()));
+}
+
+/// 11 entries must be rejected (exceeds the 10-entry cap).
+#[test]
+fn addressed_to_eleven_entries_is_rejected() {
+    let names: Vec<String> = (0..11).map(|i| format!("npc{i}")).collect();
+    assert_eq!(validate_addressed_to(&names), Err(StatusCode::BAD_REQUEST));
+}
+
+/// A single name longer than 100 characters must be rejected.
+#[test]
+fn addressed_to_name_over_100_chars_is_rejected() {
+    let long_name = "a".repeat(101);
+    assert_eq!(
+        validate_addressed_to(&[long_name]),
+        Err(StatusCode::BAD_REQUEST)
+    );
+}
+
+/// A name of exactly 100 characters must be accepted.
+#[test]
+fn addressed_to_name_exactly_100_chars_passes() {
+    let name = "a".repeat(100);
+    assert_eq!(validate_addressed_to(&[name]), Ok(()));
+}
+
+/// Mix: valid count but one name is oversized — still rejected.
+#[test]
+fn addressed_to_valid_count_but_oversized_name_is_rejected() {
+    let mut names: Vec<String> = (0..5).map(|i| format!("npc{i}")).collect();
+    names.push("x".repeat(101));
+    assert_eq!(validate_addressed_to(&names), Err(StatusCode::BAD_REQUEST));
 }

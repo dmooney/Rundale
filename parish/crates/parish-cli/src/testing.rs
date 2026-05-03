@@ -21,9 +21,9 @@ use crate::inference::simulator::SimulatorClient;
 use crate::input::{self, Command, InputResult, IntentKind};
 use crate::npc::Npc;
 use crate::npc::manager::NpcManager;
-use crate::world::LocationId;
 use crate::world::description::{format_exits, render_description};
 use crate::world::time::{Season, TimeOfDay};
+use crate::world::{DEFAULT_START_LOCATION, LocationId};
 use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
 use serde::{Deserialize, Serialize};
@@ -905,7 +905,7 @@ impl GameTestHarness {
             let parish_path = Path::new("data/parish.json");
             if parish_path.exists()
                 && let Ok(world) =
-                    crate::world::WorldState::from_parish_file(parish_path, LocationId(15))
+                    crate::world::WorldState::from_parish_file(parish_path, DEFAULT_START_LOCATION)
             {
                 self.app.world = world;
             }
@@ -1027,14 +1027,15 @@ impl GameTestHarness {
                 narration,
             }
         } else {
-            // Check which variant based on message content
-            let msg = effects
-                .messages
-                .first()
-                .map(|m| m.text.as_str())
-                .unwrap_or("");
-            if msg.contains("faintest notion") || msg.contains("You haven't") {
-                // Extract target name from the message
+            // Check which variant based on message content and subtype
+            let first = effects.messages.first();
+            let msg = first.map(|m| m.text.as_str()).unwrap_or("");
+            let subtype = first.and_then(|m| m.subtype);
+            if subtype == Some("blocked-weather") {
+                ActionResult::SystemCommand {
+                    response: msg.to_string(),
+                }
+            } else if msg.contains("faintest notion") || msg.contains("You haven't") {
                 let name = target.to_string();
                 ActionResult::NotFound { target: name }
             } else {
@@ -1343,7 +1344,7 @@ mod tests {
     fn test_harness_new_starts_at_kilteevan() {
         let h = GameTestHarness::new();
         assert_eq!(h.player_location(), "Kilteevan Village");
-        assert_eq!(h.location_id(), LocationId(15));
+        assert_eq!(h.location_id(), DEFAULT_START_LOCATION);
     }
 
     #[test]

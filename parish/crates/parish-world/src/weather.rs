@@ -146,6 +146,20 @@ impl WeatherEngine {
         self.last_check_hour
     }
 
+    /// Forces the weather to a specific state immediately, resetting the
+    /// minimum-duration timer so the engine won't try to transition away
+    /// for another `min_duration_hours`. Intended for the `/weather <name>`
+    /// command and deterministic play-test scripts.
+    pub fn force(&mut self, weather: Weather, now: DateTime<Utc>) {
+        self.current = weather;
+        self.since = now;
+        self.last_check_hour = Some(now.timestamp() / 3600);
+        if self.history.len() >= HISTORY_CAPACITY {
+            self.history.pop_front();
+        }
+        self.history.push_back((now, weather));
+    }
+
     /// Ticks the weather engine. Returns `Some(new_weather)` if a
     /// transition occurred, `None` if the weather is unchanged.
     ///

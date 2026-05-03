@@ -1024,84 +1024,81 @@ mod tests {
     }
 
     // --- category command tests ---
+    //
+    // Table-driven: all four InferenceCategory variants × three verbs (model, provider, key)
+    // × two operations (show, set).  If a new category is added to InferenceCategory::ALL the
+    // compiler will NOT remind you to add tests here — keep the ALL_CATS slice in sync manually.
 
     #[test]
-    fn test_parse_category_model_dialogue_show() {
-        assert_eq!(
-            parse_system_command("/model.dialogue"),
-            Some(Command::ShowCategoryModel(InferenceCategory::Dialogue))
-        );
-    }
+    fn test_parse_category_all_show_and_set() {
+        // (category name slug, InferenceCategory variant, show/set examples)
+        type ShowFn = fn(InferenceCategory) -> Command;
+        type SetFn = fn(InferenceCategory, String) -> Command;
 
-    #[test]
-    fn test_parse_category_model_dialogue_set() {
-        assert_eq!(
-            parse_system_command("/model.dialogue gpt-4"),
-            Some(Command::SetCategoryModel(
-                InferenceCategory::Dialogue,
-                "gpt-4".to_string()
-            ))
-        );
-    }
+        struct Case {
+            slug: &'static str,
+            cat: InferenceCategory,
+        }
+        let cases = [
+            Case {
+                slug: "dialogue",
+                cat: InferenceCategory::Dialogue,
+            },
+            Case {
+                slug: "simulation",
+                cat: InferenceCategory::Simulation,
+            },
+            Case {
+                slug: "intent",
+                cat: InferenceCategory::Intent,
+            },
+            Case {
+                slug: "reaction",
+                cat: InferenceCategory::Reaction,
+            },
+        ];
 
-    #[test]
-    fn test_parse_category_model_simulation() {
-        assert_eq!(
-            parse_system_command("/model.simulation"),
-            Some(Command::ShowCategoryModel(InferenceCategory::Simulation))
-        );
-        assert_eq!(
-            parse_system_command("/model.simulation qwen3:8b"),
-            Some(Command::SetCategoryModel(
-                InferenceCategory::Simulation,
-                "qwen3:8b".to_string()
-            ))
-        );
-    }
+        let verbs: &[(&str, ShowFn, SetFn)] = &[
+            (
+                "model",
+                Command::ShowCategoryModel as ShowFn,
+                Command::SetCategoryModel as SetFn,
+            ),
+            (
+                "provider",
+                Command::ShowCategoryProvider as ShowFn,
+                Command::SetCategoryProvider as SetFn,
+            ),
+            (
+                "key",
+                Command::ShowCategoryKey as ShowFn,
+                Command::SetCategoryKey as SetFn,
+            ),
+        ];
 
-    #[test]
-    fn test_parse_category_model_intent() {
-        assert_eq!(
-            parse_system_command("/model.intent"),
-            Some(Command::ShowCategoryModel(InferenceCategory::Intent))
-        );
-        assert_eq!(
-            parse_system_command("/model.intent qwen3:1.5b"),
-            Some(Command::SetCategoryModel(
-                InferenceCategory::Intent,
-                "qwen3:1.5b".to_string()
-            ))
-        );
-    }
+        for case in &cases {
+            for (verb, show_fn, set_fn) in verbs {
+                // show (bare command)
+                let show_input = format!("/{}.{}", verb, case.slug);
+                assert_eq!(
+                    parse_system_command(&show_input),
+                    Some(show_fn(case.cat)),
+                    "show failed for {}.{}",
+                    verb,
+                    case.slug
+                );
 
-    #[test]
-    fn test_parse_category_provider_show_set() {
-        assert_eq!(
-            parse_system_command("/provider.dialogue"),
-            Some(Command::ShowCategoryProvider(InferenceCategory::Dialogue))
-        );
-        assert_eq!(
-            parse_system_command("/provider.intent openrouter"),
-            Some(Command::SetCategoryProvider(
-                InferenceCategory::Intent,
-                "openrouter".to_string()
-            ))
-        );
-    }
-
-    #[test]
-    fn test_parse_category_key_show_set() {
-        assert_eq!(
-            parse_system_command("/key.dialogue"),
-            Some(Command::ShowCategoryKey(InferenceCategory::Dialogue))
-        );
-        assert_eq!(
-            parse_system_command("/key.simulation sk-test"),
-            Some(Command::SetCategoryKey(
-                InferenceCategory::Simulation,
-                "sk-test".to_string()
-            ))
-        );
+                // set (command with argument)
+                let set_input = format!("/{}.{} test-value", verb, case.slug);
+                assert_eq!(
+                    parse_system_command(&set_input),
+                    Some(set_fn(case.cat, "test-value".to_string())),
+                    "set failed for {}.{}",
+                    verb,
+                    case.slug
+                );
+            }
+        }
     }
 
     #[test]

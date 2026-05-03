@@ -11,6 +11,7 @@ pub mod auth;
 pub mod cf_auth;
 pub mod editor_routes;
 pub mod middleware;
+pub mod route_registry;
 pub mod routes;
 pub mod session;
 pub mod state;
@@ -43,7 +44,42 @@ use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
 use state::{GameConfig, UiConfigSnapshot};
 
+/// Specific HTTPS origins the frontend genuinely connects to or loads images
+/// from.  These are the only external endpoints referenced in
+/// `apps/ui/src/` — everything else is same-origin (`'self'`).
+///
+/// - `https://tile.openstreetmap.org` — default OSM raster tile source
+///   (`parish-config` `default_tile_sources`).
+/// - `https://mapseries-tilesets.s3.amazonaws.com` — historic Ordnance Survey
+///   tiles (the "historic" tile source baked into `default_tile_sources`).
+/// - `https://demotiles.maplibre.org` — MapLibre glyph PBFs used by the
+///   map label layer (`style.ts` `GLYPHS_URL`).
+/// - `https://fonts.googleapis.com` — Google Fonts CSS `<link>` in `app.html`.
+/// - `https://fonts.gstatic.com` — Google Fonts glyph files (font-src).
+///
+/// Update this list whenever `apps/ui/src/` gains a new external dependency.
+/// Keeping it in a dedicated constant lets the security-headers test assert
+/// membership without repeating the origin strings.
+pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
+    "https://tile.openstreetmap.org",
+    "https://mapseries-tilesets.s3.amazonaws.com",
+    "https://demotiles.maplibre.org",
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+];
+
 /// Content-Security-Policy value shared between production and tests.
+///
+/// # connect-src and img-src
+///
+/// The bare `https:` wildcard has been replaced with only the specific HTTPS
+/// origins the frontend actually uses (see [`ALLOWED_EXTERNAL_ORIGINS`]).
+/// This addresses issue #751.
+///
+/// MapLibre fetches tiles via `fetch()` (CORS → connect-src) AND renders them
+/// as raster images (img-src), so the tile-server origins appear in both
+/// directives.  MapLibre also fetches glyph PBFs at runtime for the label
+/// layer, so `demotiles.maplibre.org` is in connect-src as well.
 ///
 /// # script-src 'unsafe-inline' (TODO: replace with hash)
 ///
@@ -55,18 +91,20 @@ use state::{GameConfig, UiConfigSnapshot};
 /// The proper fix is to compute the SHA-256 of that bootstrap block and add
 /// `'sha256-<base64>'` to `script-src`.  That hash is deterministic per build
 /// but must be regenerated whenever SvelteKit changes the bootstrap text.
-/// Until that build-time integration exists, `'unsafe-inline'` is restored here
+/// Until that build-time integration exists, `'unsafe-inline'` is retained here
 /// so the app keeps working.
 ///
 /// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
-/// `apps/ui/dist/index.html` at build time.
+/// `apps/ui/dist/index.html` at build time.  SvelteKit exposes a `kit.csp`
+/// config option that emits hashes automatically — that is the recommended
+/// path forward.
 /// See: <https://github.com/dmooney/Rundale/issues/543>
 pub const CSP_POLICY: &str = "default-src 'self'; \
                               script-src 'self' 'unsafe-inline'; \
                               worker-src 'self' blob:; \
                               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                              img-src 'self' data: blob: https:; \
-                              connect-src 'self' ws: wss: https:; \
+                              img-src 'self' data: blob: https://tile.openstreetmap.org https://mapseries-tilesets.s3.amazonaws.com; \
+                              connect-src 'self' ws: wss: https://tile.openstreetmap.org https://mapseries-tilesets.s3.amazonaws.com https://demotiles.maplibre.org https://fonts.googleapis.com; \
                               font-src 'self' https://fonts.gstatic.com; \
                               frame-ancestors 'none'; \
                               base-uri 'self'; \
@@ -97,6 +135,40 @@ pub async fn serve_third_party_notices() -> impl IntoResponse {
         [(CONTENT_TYPE, "text/markdown; charset=utf-8")],
         include_str!("../../../../THIRD_PARTY_NOTICES.md"),
     )
+}
+
+/// Applies the production security-response-header stack to `router`.
+///
+/// All six `SetResponseHeaderLayer` entries are defined here once and used by
+/// both [`run_server`] (production path) and the `security_headers` integration
+/// tests, so the tests exercise the real header values rather than a hand-rolled
+/// duplicate.
+pub fn apply_security_layers(router: Router) -> Router {
+    router
+        .layer(SetResponseHeaderLayer::overriding(
+            CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(CSP_POLICY),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            REFERRER_POLICY,
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+        ))
 }
 
 /// Global auth-failure counter — exposed via `GET /metrics`.
@@ -495,32 +567,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .layer(axum_mw::from_fn_with_state(
             ip_limiter,
             ip_rate_limit_middleware,
-        ))
-        // ── Security hardening headers (outermost layer — covers all routes) ──
-        .layer(SetResponseHeaderLayer::overriding(
-            CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(CSP_POLICY),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            STRICT_TRANSPORT_SECURITY,
-            HeaderValue::from_static("max-age=31536000; includeSubDomains"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_FRAME_OPTIONS,
-            HeaderValue::from_static("DENY"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            X_CONTENT_TYPE_OPTIONS,
-            HeaderValue::from_static("nosniff"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            REFERRER_POLICY,
-            HeaderValue::from_static("strict-origin-when-cross-origin"),
-        ))
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::HeaderName::from_static("permissions-policy"),
-            HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
         ));
+    // ── Security hardening headers (outermost layer — covers all routes) ──
+    let app = apply_security_layers(app);
 
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Parish web server listening on http://{}", addr);

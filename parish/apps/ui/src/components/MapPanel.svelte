@@ -268,6 +268,39 @@
 			</svg>
 		</button>
 	</div>
+	<!-- Accessible location list — visually hidden, keyboard-navigable.
+	     The canvas map has no HTML nodes per location, so this list gives
+	     screen readers and keyboard users access to nearby locations. -->
+	{#if $mapData}
+		<nav aria-label="Nearby locations">
+			<ul class="sr-only-list" role="list">
+				{#each $mapData.locations.filter(l => l.id !== $mapData?.player_location) as loc}
+					<li>
+						<button
+							tabindex="0"
+							aria-label="{loc.name}{loc.adjacent ? '' : ' (not adjacent)'}"
+							aria-disabled={!loc.adjacent}
+							class="sr-only-loc-btn"
+							onclick={() => {
+								if (!loc.adjacent) return;
+								submitInput(`go to ${loc.name}`).catch((err) => {
+									pushErrorLog(`Could not travel to ${loc.name}: ${formatIpcError(err)}`);
+								});
+							}}
+							onkeydown={(e) => {
+								if ((e.key === 'Enter' || e.key === ' ') && loc.adjacent) {
+									e.preventDefault();
+									submitInput(`go to ${loc.name}`).catch((err) => {
+										pushErrorLog(`Could not travel to ${loc.name}: ${formatIpcError(err)}`);
+									});
+								}
+							}}
+						>{loc.name}</button>
+					</li>
+				{/each}
+			</ul>
+		</nav>
+	{/if}
 	<!-- map-wrap is always in the DOM so onMount can bind the container
 	     before mapData arrives. MapLibre needs a stable element to attach to. -->
 	<div class="map-wrap">
@@ -442,5 +475,24 @@
 		font-style: italic;
 		font-size: 0.85rem;
 		pointer-events: none;
+	}
+
+	/* Screen-reader-only location list: visually hidden but fully keyboard/AT
+	   accessible. Provides a text alternative for the canvas-based map nodes. */
+	.sr-only-list {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+		list-style: none;
+	}
+
+	.sr-only-loc-btn {
+		all: unset;
 	}
 </style>

@@ -139,61 +139,128 @@ pub struct NpcSnapshot {
 
 impl NpcSnapshot {
     /// Captures a snapshot from a live NPC.
+    ///
+    /// Uses exhaustive destructuring so that adding a new field to [`Npc`]
+    /// produces a compile error here until it is either persisted or explicitly
+    /// excluded with a `_field: _` binding and a comment explaining why.
     pub fn from_npc(npc: &Npc) -> Self {
+        // Exhaustive destructuring — no `..`. Every field of `Npc` must be
+        // listed. To intentionally exclude a field from persistence, bind it
+        // as `field_name: _` and add an "intentionally not persisted" comment.
+        let Npc {
+            id,
+            name,
+            brief_description,
+            age,
+            occupation,
+            personality,
+            intelligence,
+            location,
+            mood,
+            home,
+            workplace,
+            schedule,
+            relationships,
+            memory,
+            long_term_memory,
+            knowledge,
+            state,
+            deflated_summary,
+            reaction_log: _, // intentionally not persisted: transient runtime state, reset to default on load
+            last_activity,
+            is_ill,
+            doom,
+            banshee_heralded,
+        } = npc;
+
         Self {
-            id: npc.id,
-            name: npc.name.clone(),
-            brief_description: npc.brief_description.clone(),
-            age: npc.age,
-            occupation: npc.occupation.clone(),
-            personality: npc.personality.clone(),
-            intelligence: npc.intelligence,
-            location: npc.location,
-            mood: npc.mood.clone(),
-            home: npc.home,
-            workplace: npc.workplace,
-            schedule: npc.schedule.clone(),
-            relationships: npc.relationships.clone(),
-            memory: npc.memory.clone(),
-            long_term_memory: npc.long_term_memory.clone(),
-            knowledge: npc.knowledge.clone(),
-            state: npc.state.clone(),
-            last_activity: npc.last_activity.clone(),
-            is_ill: npc.is_ill,
-            doom: npc.doom,
-            banshee_heralded: npc.banshee_heralded,
-            deflated_summary: npc.deflated_summary.clone(),
+            id: *id,
+            name: name.clone(),
+            brief_description: brief_description.clone(),
+            age: *age,
+            occupation: occupation.clone(),
+            personality: personality.clone(),
+            intelligence: *intelligence,
+            location: *location,
+            mood: mood.clone(),
+            home: *home,
+            workplace: *workplace,
+            schedule: schedule.clone(),
+            relationships: relationships.clone(),
+            memory: memory.clone(),
+            long_term_memory: long_term_memory.clone(),
+            knowledge: knowledge.clone(),
+            state: state.clone(),
+            last_activity: last_activity.clone(),
+            is_ill: *is_ill,
+            doom: *doom,
+            banshee_heralded: *banshee_heralded,
+            // #338: previously hard-coded to None, erasing the
+            // demotion summary on every save/load cycle. Round-tripped
+            // through NpcSnapshot.deflated_summary now.
+            deflated_summary: deflated_summary.clone(),
         }
     }
 
     /// Restores the snapshot into a live NPC.
+    ///
+    /// Uses exhaustive destructuring so that adding a new field to
+    /// [`NpcSnapshot`] produces a compile error here until it is mapped back
+    /// to [`Npc`] or explicitly excluded.
     pub fn into_npc(self) -> Npc {
+        // Exhaustive destructuring — no `..`.
+        let NpcSnapshot {
+            id,
+            name,
+            brief_description,
+            age,
+            occupation,
+            personality,
+            intelligence,
+            location,
+            mood,
+            home,
+            workplace,
+            schedule,
+            relationships,
+            memory,
+            long_term_memory,
+            knowledge,
+            state,
+            last_activity,
+            is_ill,
+            doom,
+            banshee_heralded,
+            deflated_summary,
+        } = self;
+
         Npc {
-            id: self.id,
-            name: self.name,
-            brief_description: self.brief_description,
-            age: self.age,
-            occupation: self.occupation,
-            personality: self.personality,
-            intelligence: self.intelligence,
-            location: self.location,
-            mood: self.mood,
-            home: self.home,
-            workplace: self.workplace,
-            schedule: self.schedule,
-            relationships: self.relationships,
-            memory: self.memory,
-            long_term_memory: self.long_term_memory,
-            knowledge: self.knowledge,
-            state: self.state,
-            last_activity: self.last_activity,
-            is_ill: self.is_ill,
-            doom: self.doom,
-            banshee_heralded: self.banshee_heralded,
+            id,
+            name,
+            brief_description,
+            age,
+            occupation,
+            personality,
+            intelligence,
+            location,
+            mood,
+            home,
+            workplace,
+            schedule,
+            relationships,
+            memory,
+            long_term_memory,
+            knowledge,
+            state,
+            last_activity,
+            is_ill,
+            doom,
+            banshee_heralded,
             // #338: previously hard-coded to None, erasing the
             // demotion summary on every save/load cycle. Round-tripped
             // through NpcSnapshot.deflated_summary now.
-            deflated_summary: self.deflated_summary,
+            deflated_summary,
+            // intentionally not persisted: transient runtime state, reset to default on load
             reaction_log: parish_npc::reactions::ReactionLog::default(),
         }
     }
@@ -441,6 +508,116 @@ mod tests {
         assert_eq!(restored.name, "NPC 1");
         assert_eq!(restored.location, LocationId(2));
         assert_eq!(restored.mood, "calm");
+    }
+
+    /// Regression guard for #749 — every persisted field must survive a
+    /// `from_npc` → JSON → `into_npc` round-trip with non-default values.
+    /// If a new field is added to `Npc` but not wired through `NpcSnapshot`,
+    /// the exhaustive destructuring in `from_npc`/`into_npc` will already
+    /// produce a compile error; this test provides runtime correctness coverage.
+    #[test]
+    fn test_npc_snapshot_roundtrip_all_persisted_fields() {
+        use parish_npc::memory::MemoryEntry;
+        use parish_npc::transitions::NpcSummary;
+        use parish_npc::types::{Intelligence, NpcState, Relationship, RelationshipKind};
+
+        let summary = NpcSummary {
+            npc_id: NpcId(42),
+            location: LocationId(7),
+            mood: "melancholy".to_string(),
+            recent_activity: vec!["tended the field".to_string()],
+            key_relationship_changes: vec![],
+        };
+
+        let npc = Npc {
+            id: NpcId(42),
+            name: "Brigid Ní Fhaoláin".to_string(),
+            brief_description: "a tall woman in a grey shawl".to_string(),
+            age: 47,
+            occupation: "Midwife".to_string(),
+            personality: "Quiet and deliberate, moves with purpose.".to_string(),
+            intelligence: Intelligence::new(4, 3, 5, 2, 4, 3),
+            location: LocationId(7),
+            mood: "melancholy".to_string(),
+            home: Some(LocationId(3)),
+            workplace: Some(LocationId(7)),
+            schedule: None,
+            relationships: {
+                let mut m = HashMap::new();
+                m.insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.6));
+                m
+            },
+            memory: {
+                let mut mem = ShortTermMemory::new();
+                mem.add(MemoryEntry {
+                    timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
+                    content: "Saw a crow on the gate post.".to_string(),
+                    participants: vec![NpcId(42)],
+                    location: LocationId(7),
+                    kind: None,
+                });
+                mem
+            },
+            long_term_memory: LongTermMemory::new(),
+            knowledge: vec!["The well on Kilmore road is dry.".to_string()],
+            state: NpcState::Present,
+            deflated_summary: Some(summary.clone()),
+            reaction_log: parish_npc::reactions::ReactionLog::default(),
+            last_activity: Some("Delivered a baby at the Burke farm.".to_string()),
+            is_ill: true,
+            doom: Some(Utc.with_ymd_and_hms(1820, 6, 1, 0, 0, 0).unwrap()),
+            banshee_heralded: true,
+        };
+
+        // Round-trip through JSON to exercise the full serialize/deserialize path.
+        let snap = NpcSnapshot::from_npc(&npc);
+        let json = serde_json::to_string(&snap).unwrap();
+        let parsed: NpcSnapshot = serde_json::from_str(&json).unwrap();
+        let restored = parsed.into_npc();
+
+        assert_eq!(restored.id, NpcId(42));
+        assert_eq!(restored.name, "Brigid Ní Fhaoláin");
+        assert_eq!(restored.brief_description, "a tall woman in a grey shawl");
+        assert_eq!(restored.age, 47);
+        assert_eq!(restored.occupation, "Midwife");
+        assert_eq!(
+            restored.personality,
+            "Quiet and deliberate, moves with purpose."
+        );
+        assert_eq!(restored.location, LocationId(7));
+        assert_eq!(restored.mood, "melancholy");
+        assert_eq!(restored.home, Some(LocationId(3)));
+        assert_eq!(restored.workplace, Some(LocationId(7)));
+        assert_eq!(restored.relationships.len(), 1);
+        let rel = restored.relationships.get(&NpcId(5)).unwrap();
+        assert!((rel.strength - 0.6).abs() < f64::EPSILON);
+        assert_eq!(restored.memory.len(), 1, "short-term memory entry lost");
+        assert_eq!(restored.knowledge, vec!["The well on Kilmore road is dry."]);
+        assert!(matches!(restored.state, NpcState::Present));
+        assert_eq!(
+            restored.deflated_summary,
+            Some(summary),
+            "deflated_summary must survive save/load (#338)"
+        );
+        assert_eq!(
+            restored.last_activity.as_deref(),
+            Some("Delivered a baby at the Burke farm.")
+        );
+        assert!(restored.is_ill, "is_ill lost on round-trip");
+        assert_eq!(
+            restored.doom,
+            Some(Utc.with_ymd_and_hms(1820, 6, 1, 0, 0, 0).unwrap()),
+            "doom timestamp lost on round-trip"
+        );
+        assert!(
+            restored.banshee_heralded,
+            "banshee_heralded lost on round-trip"
+        );
+        // reaction_log is intentionally not persisted — verify it is reset.
+        assert!(
+            restored.reaction_log.is_empty(),
+            "reaction_log should be reset on load (not persisted)"
+        );
     }
 
     /// #338: deflated_summary used to be hard-coded to None on

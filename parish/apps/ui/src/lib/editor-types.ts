@@ -71,9 +71,12 @@ export interface NpcFile {
 	npcs: NpcFileEntry[];
 }
 
+export type Hazard = 'none' | 'flood' | 'lakeshore' | 'exposed';
+
 export interface Connection {
 	target: number;
 	path_description: string;
+	hazard?: Hazard;
 }
 
 export type GeoKind = 'real' | 'manual' | 'fictional';

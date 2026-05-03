@@ -111,15 +111,13 @@ async fn stream_reaction_texts_streams_llm_response_on_success() {
 
     assert_eq!(log_names.lock().unwrap().len(), 1);
     let streamed = tokens.lock().unwrap().join("");
-    // Depending on scheduler timing, the background streaming task may
-    // complete after this helper returns, yielding an empty capture.
-    // If we *did* capture text, it must contain the mocked payload.
-    if !streamed.is_empty() {
-        assert!(
-            streamed.contains("Well, good day to ye"),
-            "LLM success path streamed unexpected content: got '{streamed}'"
-        );
-    }
+    // stream_reaction_texts awaits stream_npc_tokens, which drains the
+    // receiver channel before returning. All tokens are captured by the
+    // time the .await above completes — no scheduler-timing ambiguity.
+    assert!(
+        streamed.contains("Well, good day to ye"),
+        "LLM success path streamed unexpected content: got '{streamed}'"
+    );
 }
 
 #[tokio::test]
@@ -152,10 +150,15 @@ async fn stream_reaction_texts_falls_back_to_canned_on_http_error() {
     )
     .await;
 
-    // In the streaming design, HTTP errors cause the spawned task to drop
-    // the channel, so stream_npc_tokens finishes with an empty stream.
-    // The key invariant is: no panic, no hang, function completes.
-    let _ = tokens.lock().unwrap().join("");
+    // When the upstream HTTP call returns a 500, the spawned task's
+    // generate_stream call fails and drops tx, closing the channel.
+    // stream_npc_tokens drains an empty channel and returns "".
+    // The key invariants: no panic, no hang, and no tokens emitted.
+    let streamed = tokens.lock().unwrap().join("");
+    assert!(
+        streamed.is_empty(),
+        "HTTP error path must emit no tokens (got '{streamed}')"
+    );
 }
 
 #[tokio::test]
@@ -194,10 +197,15 @@ async fn stream_reaction_texts_falls_back_to_canned_on_timeout() {
     )
     .await;
 
-    // On timeout, the channel is closed immediately, and stream_npc_tokens
-    // finishes with whatever was received (likely empty). This is still a
-    // non-panic outcome.
-    let _ = tokens.lock().unwrap().join("");
+    // The mock delays 6 s; the timeout fires after 5 s (ReactionConfig default).
+    // tokio::time::timeout drops tx, closing the channel before any data
+    // arrives. stream_npc_tokens drains an empty channel and returns "".
+    // Invariants: no panic, no hang, and no tokens emitted.
+    let streamed = tokens.lock().unwrap().join("");
+    assert!(
+        streamed.is_empty(),
+        "Timeout path must emit no tokens (got '{streamed}')"
+    );
 }
 
 #[tokio::test]

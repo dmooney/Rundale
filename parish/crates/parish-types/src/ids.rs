@@ -60,6 +60,13 @@ impl fmt::Display for Weather {
 #[serde(transparent)]
 pub struct LocationId(pub u32);
 
+/// The default starting location for a new game — Kiltoom crossroads, Rundale.
+///
+/// This is a stop-gap constant until the start location becomes a configurable
+/// field in the mod manifest. Long-term fix: add `start_location` to the mod
+/// manifest and read it in all three backends (Tauri, web, CLI).
+pub const DEFAULT_START_LOCATION: LocationId = LocationId(15);
+
 /// Unique identifier for an NPC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]

@@ -397,8 +397,9 @@
 			<section class="section">
 				<h4 class="section-label">Identity</h4>
 				<div class="field-row">
-					<label class="field-label">Name</label>
+					<label class="field-label" for="loc-name">Name</label>
 					<input
+						id="loc-name"
 						class="field-input"
 						type="text"
 						value={loc.name}
@@ -406,16 +407,18 @@
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Indoor</label>
+					<label class="field-label" for="loc-indoor">Indoor</label>
 					<input
+						id="loc-indoor"
 						type="checkbox"
 						checked={loc.indoor}
 						on:change={(e) => handleFieldChange('indoor', e.currentTarget.checked)}
 					/>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Public</label>
+					<label class="field-label" for="loc-public">Public</label>
 					<input
+						id="loc-public"
 						type="checkbox"
 						checked={loc.public}
 						on:change={(e) => handleFieldChange('public', e.currentTarget.checked)}
@@ -426,8 +429,9 @@
 			<section class="section">
 				<h4 class="section-label">Coordinates</h4>
 				<div class="field-row">
-					<label class="field-label">Geo kind</label>
+					<label class="field-label" for="loc-geo-kind">Geo kind</label>
 					<select
+						id="loc-geo-kind"
 						class="field-input"
 						value={loc.geo_kind ?? 'fictional'}
 						on:change={(e) => handleFieldChange('geo_kind', e.currentTarget.value as GeoKind)}
@@ -438,8 +442,9 @@
 					</select>
 				</div>
 				<div class="field-row">
-					<label class="field-label">Mode</label>
+					<label class="field-label" for="loc-coord-mode">Mode</label>
 					<select
+						id="loc-coord-mode"
 						class="field-input"
 						value={loc.relative_to ? 'relative' : 'absolute'}
 						on:change={(e) => setCoordinateMode(e.currentTarget.value as 'absolute' | 'relative')}
@@ -450,8 +455,9 @@
 				</div>
 				{#if loc.relative_to}
 					<div class="field-row">
-						<label class="field-label">Anchor</label>
+						<label class="field-label" for="loc-anchor">Anchor</label>
 						<select
+							id="loc-anchor"
 							class="field-input"
 							value={loc.relative_to.anchor}
 							on:change={(e) => applyRelativeField('anchor', e.currentTarget.value)}
@@ -462,16 +468,18 @@
 						</select>
 					</div>
 					<div class="field-row">
-						<label class="field-label">dNorth m</label>
+						<label class="field-label" for="loc-dnorth">dNorth m</label>
 						<input
+							id="loc-dnorth"
 							class="field-input short"
 							type="number"
 							step="1"
 							value={loc.relative_to.dnorth_m}
 							on:change={(e) => applyRelativeField('dnorth_m', e.currentTarget.value)}
 						/>
-						<label class="field-label">dEast m</label>
+						<label class="field-label" for="loc-deast">dEast m</label>
 						<input
+							id="loc-deast"
 							class="field-input short"
 							type="number"
 							step="1"
@@ -481,16 +489,18 @@
 					</div>
 				{:else}
 					<div class="field-row">
-						<label class="field-label">Lat</label>
+						<label class="field-label" for="loc-lat">Lat</label>
 						<input
+							id="loc-lat"
 							class="field-input short"
 							type="number"
 							step="0.00001"
 							value={loc.lat}
 							on:change={(e) => handleFieldChange('lat', parseFloat(e.currentTarget.value))}
 						/>
-						<label class="field-label">Lon</label>
+						<label class="field-label" for="loc-lon">Lon</label>
 						<input
+							id="loc-lon"
 							class="field-input short"
 							type="number"
 							step="0.00001"
@@ -500,8 +510,9 @@
 					</div>
 				{/if}
 				<div class="field-row">
-					<label class="field-label">Geo source</label>
+					<label class="field-label" for="loc-geo-source">Geo source</label>
 					<input
+						id="loc-geo-source"
 						class="field-input"
 						type="text"
 						value={loc.geo_source ?? ''}
@@ -531,6 +542,7 @@
 				<h4 class="section-label">Description Template</h4>
 				<textarea
 					class="field-textarea tall"
+					aria-label="Description template"
 					value={loc.description_template}
 					on:change={(e) => handleFieldChange('description_template', e.currentTarget.value)}
 				></textarea>
@@ -551,6 +563,7 @@
 				<h4 class="section-label">Mythological Significance</h4>
 				<textarea
 					class="field-textarea"
+					aria-label="Mythological significance"
 					value={loc.mythological_significance ?? ''}
 					placeholder="Fairy fort, holy well, cursed ground…"
 					on:change={(e) =>

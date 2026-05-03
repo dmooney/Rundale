@@ -1,0 +1,83 @@
+# Weather-on-the-Road Play-Test
+# ===============================
+# Demonstrates that severe weather closes hazard-tagged connections:
+#   - Flood hazard (stream crossing)   + Storm     -> impassable
+#   - Flood hazard                     + HeavyRain -> slowed
+#   - Lakeshore hazard                 + Storm     -> impassable
+#   - Exposed hazard (open bog track)  + Fog       -> slowed
+# Hazard annotations live in mods/rundale/world.json.
+
+# ── 1. Baseline: clear spring morning in Kilteevan Village ───────────────
+/status
+/weather
+/where
+
+# ── 2. Normal travel: village -> mill on a dry morning ──────────────────
+# Stream-side track is fine in clear weather.
+go to the mill
+/where
+go to Kilteevan Village
+
+# ── 3. Force a storm and try the same journey ──────────────────────────
+# The stream has burst its banks — the crossing should refuse us.
+/weather storm
+/weather
+go to the mill
+/where
+
+# ── 4. The holy well path also crosses the stream ──────────────────────
+# Same flood hazard; the refusal should fire again.
+go to the holy well
+/where
+
+# ── 5. But a non-hazardous path is still open ─────────────────────────
+# The forge is reached by "a lane toward the ring of the anvil" — no hazard.
+go to the forge
+/where
+go to Kilteevan Village
+
+# ── 6. Wait out the storm (drop to heavy rain) ────────────────────────
+/weather heavy rain
+/weather
+
+# Heavy rain: flood-prone paths are passable, just slower.
+# Narration should mention "rising water".
+go to the mill
+/where
+go to Kilteevan Village
+
+# ── 7. Lakeshore + storm: Hodson Bay to the Boatman's Cottage ─────────
+# First travel south while the weather is still workable.
+/weather clear
+go to Knockcroghery Village
+/where
+go to Curraghboy Village
+/where
+go to The Boatman's Cottage
+/where
+
+# Now kick up a storm. The lakeshore path should refuse.
+/weather storm
+go to Hodson Bay
+/where
+
+# ── 8. Fog on the exposed track to the Fairy Fort ─────────────────────
+/weather clear
+go to Curraghboy Village
+go to Knockcroghery Village
+go to Kilteevan Village
+go to The Crossroads
+go to The Bog Road
+/where
+
+/weather fog
+/weather
+# Exposed gorse track: slower in fog, not impassable.
+# Narration should mention "feeling your way" or similar.
+go to The Fairy Fort
+/where
+
+# ── 9. Clear up and close out ─────────────────────────────────────────
+/weather clear
+/weather
+/status

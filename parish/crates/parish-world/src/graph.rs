@@ -44,6 +44,36 @@ pub struct RelativeRef {
     pub deast_m: f64,
 }
 
+/// Weather hazard tag for a connection (edge) in the world graph.
+///
+/// Marks paths that become dangerous, slow, or impassable under specific
+/// weather. The hazard is applied bidirectionally in both connection
+/// entries because world-graph edges are authored in both directions.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Hazard {
+    /// No weather hazard. Default; same as the field being absent.
+    #[default]
+    None,
+    /// Crosses a stream, ford, weir, or low bridge. Impassable in a Storm
+    /// (water washes over the crossing) and slower in HeavyRain.
+    Flood,
+    /// A lakeshore, headland, or open waterline path. Impassable in a
+    /// Storm (waves and wind drive you back) and slower in HeavyRain.
+    Lakeshore,
+    /// A rough track across open bog, gorse, or hilltop with no
+    /// landmarks. Slower in Fog (easy to lose the path) and slower in
+    /// HeavyRain (ground turns to mire).
+    Exposed,
+}
+
+impl Hazard {
+    /// Returns `true` when this hazard is considered absent / trivial.
+    pub fn is_none(&self) -> bool {
+        matches!(self, Hazard::None)
+    }
+}
+
 /// A connection (edge) between two locations in the world graph.
 ///
 /// Each connection has a target location and a prose description of the path.
@@ -57,6 +87,11 @@ pub struct Connection {
     pub traversal_minutes: Option<u16>,
     /// Prose description of the path (e.g., "a narrow boreen lined with hawthorn").
     pub path_description: String,
+    /// Optional weather hazard tag that gates or slows this edge when the
+    /// world weather is severe. Defaults to [`Hazard::None`] when absent
+    /// from the JSON so existing mods remain unchanged.
+    #[serde(default, skip_serializing_if = "Hazard::is_none")]
+    pub hazard: Hazard,
 }
 
 /// Extended location data for the world graph.
@@ -335,6 +370,64 @@ impl WorldGraph {
                 .filter(|(score, _)| *score >= config.fuzzy_threshold)
                 .map(|(_, id)| id)
         })
+    }
+
+    /// Finds the shortest path between two locations using BFS, skipping
+    /// any edge where `allow(from, to, &connection)` returns `false`.
+    ///
+    /// Used by the weather-aware movement resolver to route around
+    /// flooded fords, storm-lashed lakeshore paths, and fogbound open
+    /// bog tracks. The closure is called once per candidate edge; the
+    /// path is reconstructed only from edges that passed the filter.
+    pub fn shortest_path_filtered<F>(
+        &self,
+        from: LocationId,
+        to: LocationId,
+        allow: F,
+    ) -> Option<Vec<LocationId>>
+    where
+        F: Fn(LocationId, LocationId, &Connection) -> bool,
+    {
+        if from == to {
+            return Some(vec![from]);
+        }
+        if !self.locations.contains_key(&from) || !self.locations.contains_key(&to) {
+            return None;
+        }
+
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+        let mut predecessors: HashMap<LocationId, LocationId> = HashMap::new();
+
+        visited.insert(from);
+        queue.push_back(from);
+
+        while let Some(current) = queue.pop_front() {
+            for (neighbor_id, conn) in self.neighbors(current) {
+                if !allow(current, neighbor_id, conn) {
+                    continue;
+                }
+                if !visited.contains(&neighbor_id) {
+                    visited.insert(neighbor_id);
+                    predecessors.insert(neighbor_id, current);
+
+                    if neighbor_id == to {
+                        let mut path = vec![to];
+                        let mut node = to;
+                        while let Some(&pred) = predecessors.get(&node) {
+                            path.push(pred);
+                            node = pred;
+                        }
+                        path.reverse();
+                        return Some(path);
+                    }
+
+                    queue.push_back(neighbor_id);
+                }
+            }
+        }
+
+        None
     }
 
     /// Finds the shortest path between two locations using BFS.

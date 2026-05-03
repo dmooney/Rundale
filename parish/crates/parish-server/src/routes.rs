@@ -33,7 +33,7 @@ use parish_core::npc::manager::NpcManager;
 use parish_core::npc::parse_npc_stream_response;
 use parish_core::npc::reactions;
 use parish_core::npc::ticks::apply_tier1_response_with_config;
-use parish_core::world::{LocationId, WorldState};
+use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
 
 use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
 use parish_core::persistence::Database;
@@ -96,7 +96,48 @@ pub async fn get_ui_config(
     Json(state.ui_config.clone())
 }
 
+/// Redact an inference call log for web clients (#333).
+///
+/// Strips `prompt_text`, `response_text`, and `system_prompt` from every entry
+/// so that one user's LLM prompts are never exposed to other authenticated
+/// visitors.  `prompt_len` / `response_len` and all other metadata are kept so
+/// the debug panel remains informative.
+///
+/// Called by both [`get_debug_snapshot`] (production path) and the
+/// `debug_snapshot_call_log_has_prompt_len_not_prompt_text` integration test, so
+/// the test exercises the real redaction rather than a hand-rolled copy.
+pub fn redact_call_log(
+    entries: &[parish_core::debug_snapshot::InferenceLogEntry],
+) -> Vec<parish_core::debug_snapshot::InferenceLogEntry> {
+    entries
+        .iter()
+        .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
+            request_id: e.request_id,
+            timestamp: e.timestamp.clone(),
+            model: e.model.clone(),
+            streaming: e.streaming,
+            duration_ms: e.duration_ms,
+            prompt_len: e.prompt_len,
+            response_len: e.response_len,
+            error: e.error.clone(),
+            max_tokens: e.max_tokens,
+            // Redacted fields:
+            system_prompt: None,
+            prompt_text: String::new(),
+            response_text: String::new(),
+        })
+        .collect()
+}
+
 /// `GET /api/debug-snapshot` — returns debug state for the debug panel.
+///
+/// **Admin-only** (#753): gated by `PARISH_ADMIN_EMAILS` via the same
+/// [`check_admin`] guard used for provider/key commands.  Non-admin
+/// authenticated users receive 403; unauthenticated callers are rejected
+/// upstream by `cf_access_guard` with 401.
+///
+/// The DebugPanel in the UI is an admin-only feature accessed via F12 dev
+/// tooling; the endpoint gate makes that intent explicit and enforced.
 ///
 /// The inference call log is **redacted** for web clients (#333): `prompt_text`,
 /// `response_text`, `system_prompt`, and `base_url` are stripped so that one
@@ -104,8 +145,12 @@ pub async fn get_ui_config(
 pub async fn get_debug_snapshot(
     Extension(state): Extension<Arc<AppState>>,
     Extension(session_id): Extension<SessionId>,
+    Extension(cf_auth): Extension<crate::cf_auth::AuthContext>,
     State(global): State<Arc<GlobalState>>,
-) -> impl IntoResponse {
+) -> Result<Json<debug_snapshot::DebugSnapshot>, StatusCode> {
+    // #753 — admin gate: only PARISH_ADMIN_EMAILS members may read the snapshot.
+    check_admin(&cf_auth.email, "debug-snapshot", admin_emails())?;
+
     // Snapshot each piece of state with a brief, non-overlapping lock window.
     // This avoids holding all 5+ locks simultaneously (#105, #282), which
     // caused latency spikes on all concurrent game operations and created
@@ -193,28 +238,11 @@ pub async fn get_debug_snapshot(
 
     // Replace call_log entries with redacted forms (no prompt/response text,
     // no system_prompt, no base_url).
-    snapshot.inference.call_log = raw_call_log
-        .iter()
-        .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
-            request_id: e.request_id,
-            timestamp: e.timestamp.clone(),
-            model: e.model.clone(),
-            streaming: e.streaming,
-            duration_ms: e.duration_ms,
-            prompt_len: e.prompt_len,
-            response_len: e.response_len,
-            error: e.error.clone(),
-            max_tokens: e.max_tokens,
-            // Redacted fields:
-            system_prompt: None,
-            prompt_text: String::new(),
-            response_text: String::new(),
-        })
-        .collect();
+    snapshot.inference.call_log = redact_call_log(&raw_call_log);
     // Also redact base_url from the inference config block.
     snapshot.inference.base_url = String::new();
 
-    Json(snapshot)
+    Ok(Json(snapshot))
 }
 
 // ── Input endpoint ──────────────────────────────────────────────────────────
@@ -242,6 +270,11 @@ pub async fn submit_input(
     }
     if text.len() > 2000 {
         return StatusCode::BAD_REQUEST;
+    }
+    // #752 — cap addressed_to to prevent unbounded memory/allocation via the
+    // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
+    if let Err(status) = validate_addressed_to(&body.addressed_to) {
+        return status;
     }
 
     touch_player_activity(&state).await;
@@ -1517,8 +1550,6 @@ fn emit_npc_reactions(
     let player_msg_id = player_msg_id.to_string();
     let player_input = player_input.to_string();
 
-    // #651 — await the task handle and surface any panic to the log so errors
-    // are never silently swallowed.
     let handle = tokio::spawn(async move {
         let (npcs_here, llm_enabled, reaction_client, reaction_model) = {
             let npc_manager = state.npc_manager.lock().await;
@@ -1585,8 +1616,21 @@ fn emit_npc_reactions(
 
         // Collect results as tasks finish, then persist + emit each reaction.
         while let Some(result) = join_set.join_next().await {
-            let Ok((npc_name, Some(emoji))) = result else {
-                continue;
+            let (npc_name, emoji) = match result {
+                Ok((name, Some(emoji))) => (name, emoji),
+                Ok((_, None)) => continue,
+                Err(e) if e.is_panic() => {
+                    tracing::error!(error = %e, "npc reaction task panicked");
+                    continue;
+                }
+                Err(e) if e.is_cancelled() => {
+                    tracing::debug!("npc reaction task cancelled (shutdown)");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "npc reaction task ended unexpectedly");
+                    continue;
+                }
             };
 
             // Persist to reaction_log so NPC memory is maintained (#403).
@@ -1612,12 +1656,20 @@ fn emit_npc_reactions(
         }
     });
 
-    // Spawn a lightweight watcher that logs any panic from the reaction batch
-    // (#651). This keeps emit_npc_reactions non-blocking while ensuring panics
-    // are visible in the tracing output rather than silently swallowed.
+    // Watcher: keeps emit_npc_reactions non-blocking while making panics visible
+    // and quietly absorbing the cancellation seen during runtime shutdown.
     tokio::spawn(async move {
-        if let Err(e) = handle.await {
-            tracing::error!(error = %e, "emit_npc_reactions task panicked");
+        match handle.await {
+            Ok(_) => {}
+            Err(e) if e.is_panic() => {
+                tracing::error!(error = %e, "emit_npc_reactions task panicked");
+            }
+            Err(e) if e.is_cancelled() => {
+                tracing::debug!("emit_npc_reactions task cancelled (shutdown)");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "emit_npc_reactions task ended unexpectedly");
+            }
         }
     });
 }
@@ -1829,15 +1881,20 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
             let world = data_dir.join("world.json");
             if parish.exists() { parish } else { world }
         };
-        let world = WorldState::from_parish_file(&world_path, LocationId(15)).unwrap_or_else(|e| {
-            tracing::warn!("Failed to load world data: {}. Using default world.", e);
-            WorldState::new()
-        });
+        let world =
+            WorldState::from_parish_file(&world_path, DEFAULT_START_LOCATION).map_err(|e| {
+                tracing::error!(
+                    "do_new_game: failed to load world from {:?}: {}",
+                    world_path,
+                    e
+                );
+                format!("Failed to load world data: {}", e)
+            })?;
         (world, data_dir.join("npcs.json"))
     };
 
     let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
-        tracing::warn!("Failed to load npcs.json: {}. No NPCs.", e);
+        tracing::warn!("do_new_game: failed to load npcs.json: {}. No NPCs.", e);
         NpcManager::new()
     });
     npc_manager.assign_tiers(&world, &[]);
@@ -2164,6 +2221,25 @@ pub fn validate_branch_name(name: &str) -> Result<(), StatusCode> {
     Ok(())
 }
 
+// ── #752 — addressed_to validation ──────────────────────────────────────────
+
+/// Validates the `addressed_to` field from `POST /api/submit-input`.
+///
+/// Rules (mode-parity with the Tauri path in `parish-tauri`):
+/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - Each name is at most **100** characters.
+///
+/// Returns `Err(StatusCode::BAD_REQUEST)` on any violation.
+pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), StatusCode> {
+    if addressed_to.len() > 10 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if addressed_to.iter().any(|name| name.len() > 100) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    Ok(())
+}
+
 // ── #332 — Admin-only command guard ─────────────────────────────────────────
 
 /// Parses a comma-separated list of emails into a `HashSet`, trimming
@@ -2257,14 +2333,22 @@ pub fn check_admin_against(
                 Err(StatusCode::FORBIDDEN)
             }
         }
-        None => {
-            if cfg!(debug_assertions) {
-                Ok(())
-            } else {
-                tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
-                Err(StatusCode::FORBIDDEN)
-            }
-        }
+        None => check_admin_no_config(email, cmd, cfg!(debug_assertions)),
+    }
+}
+
+/// Implements the fail-closed / fail-open logic for the unconfigured-admin
+/// case, parameterised on `is_debug` so both branches are unit-testable
+/// without a release build.
+///
+/// - `is_debug = true`  → `Ok(())` (fail-open for local dev)
+/// - `is_debug = false` → `Err(FORBIDDEN)` (fail-closed in production)
+pub fn check_admin_no_config(email: &str, cmd: &str, is_debug: bool) -> Result<(), StatusCode> {
+    if is_debug {
+        Ok(())
+    } else {
+        tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
+        Err(StatusCode::FORBIDDEN)
     }
 }
 
@@ -2377,7 +2461,8 @@ pub(crate) mod tests {
         let data_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let world =
-            WorldState::from_parish_file(&data_dir.join("world.json"), LocationId(15)).unwrap();
+            WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION)
+                .unwrap();
         let npc_manager = NpcManager::new();
         let transport = TransportConfig::default();
         let ui_config = crate::state::UiConfigSnapshot {
