@@ -89,15 +89,15 @@ test.describe('Parish Web UI', () => {
 		await page.goto('/');
 		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({ timeout: 10_000 });
 
-		// Wait for theme to apply
-		await page.waitForTimeout(1000);
+		// Wait for the app shell to be fully rendered before taking the screenshot.
+		await expect(page.locator('.app-shell')).toBeVisible();
 		await page.screenshot({ path: 'e2e-results/initial-load.png', fullPage: true });
 
 		// After a command
 		const input = page.locator('[data-testid="input-field"]');
 		await input.fill('/status');
 		await input.press('Enter');
-		await page.waitForTimeout(500);
+		await expect(page.locator('[data-testid="chat-panel"]')).toContainText('Location:', { timeout: 5_000 });
 		await page.screenshot({ path: 'e2e-results/after-status.png', fullPage: true });
 	});
 });

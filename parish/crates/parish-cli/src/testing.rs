@@ -26,6 +26,8 @@ use crate::world::time::{Season, TimeOfDay};
 use crate::world::{DEFAULT_START_LOCATION, LocationId};
 use parish_core::ipc::capitalize_first;
 use parish_core::world::transport::TransportMode;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -109,6 +111,8 @@ pub struct GameTestHarness {
     db_sync: Option<crate::persistence::Database>,
     /// Optional offline simulator used as a fallback when no canned response exists.
     simulator: Option<Arc<SimulatorClient>>,
+    /// Seeded RNG shared across all weather/gossip calls for deterministic results.
+    rng: StdRng,
 }
 
 impl GameTestHarness {
@@ -163,6 +167,7 @@ impl GameTestHarness {
             canned_responses: HashMap::new(),
             db_sync,
             simulator: None,
+            rng: StdRng::seed_from_u64(0),
         }
     }
 
@@ -393,16 +398,15 @@ impl GameTestHarness {
         // don't skip weather checks. The engine deduplicates by game-hour internally.
         let season = self.app.world.clock.season();
         let now = self.app.world.clock.now();
-        let mut rng = rand::rng();
         let hours_elapsed = (minutes / 60).max(1) as u32;
         for h in 0..hours_elapsed {
             let check_time =
                 now - chrono::Duration::minutes((hours_elapsed.saturating_sub(h + 1) as i64) * 60);
-            if let Some(new_weather) = self
-                .app
-                .world
-                .weather_engine
-                .tick(check_time, season, &mut rng)
+            if let Some(new_weather) =
+                self.app
+                    .world
+                    .weather_engine
+                    .tick(check_time, season, &mut self.rng)
             {
                 self.app.world.weather = new_weather;
             }
@@ -439,12 +443,16 @@ impl GameTestHarness {
         // Propagate gossip between co-located NPCs
         if !self.app.world.gossip_network.is_empty() {
             let groups = self.app.npc_manager.tier2_groups();
-            for npc_ids in groups.values() {
+            // Sort by LocationId to ensure deterministic RNG sequencing across ticks.
+            let mut sorted_keys: Vec<_> = groups.keys().copied().collect();
+            sorted_keys.sort();
+            for loc_id in sorted_keys {
+                let npc_ids = &groups[&loc_id];
                 if npc_ids.len() >= 2 {
                     crate::npc::ticks::propagate_gossip_at_location(
                         npc_ids,
                         &mut self.app.world.gossip_network,
-                        &mut rng,
+                        &mut self.rng,
                     );
                 }
             }
@@ -464,10 +472,11 @@ impl GameTestHarness {
                     .values_mut()
                     .filter(|n| tier4_ids.contains(&n.id))
                     .collect();
+                // Sort by NpcId for deterministic RNG sequencing across ticks.
+                tier4_refs.sort_by_key(|n| n.id);
                 let season = self.app.world.clock.season();
                 let game_date = now.date_naive();
-                let mut rng2 = rand::rng();
-                crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng2)
+                crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut self.rng)
             };
             let banshee_on = !self.app.flags.is_disabled("banshee");
             let game_events = self
@@ -561,8 +570,11 @@ impl GameTestHarness {
                 // Tick weather engine (shared handler doesn't do this)
                 let season = self.app.world.clock.season();
                 let now = self.app.world.clock.now();
-                let mut rng = rand::rng();
-                if let Some(new_weather) = self.app.world.weather_engine.tick(now, season, &mut rng)
+                if let Some(new_weather) =
+                    self.app
+                        .world
+                        .weather_engine
+                        .tick(now, season, &mut self.rng)
                 {
                     self.app.world.weather = new_weather;
                 }
@@ -2096,6 +2108,7 @@ mod tests {
             canned_responses: std::collections::HashMap::new(),
             db_sync: None,
             simulator: None,
+            rng: rand::rngs::StdRng::seed_from_u64(0),
         };
 
         // Advance by the default tier4 tick interval (90 game-days = 90 * 24 * 60 minutes)

@@ -31,8 +31,10 @@ test.describe('Screenshot generation', () => {
 				await addTextLog(page, entry);
 			}
 
-			// Wait for all renders to settle
-			await page.waitForTimeout(500);
+			// Wait for the last log entry to appear before taking the screenshot.
+			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+				TEXT_LOG[TEXT_LOG.length - 1].content
+			);
 
 			// Save to docs/screenshots/ for the project
 			await page.screenshot({
@@ -62,7 +64,10 @@ test.describe('Visual regression baselines', () => {
 				await addTextLog(page, entry);
 			}
 
-			await page.waitForTimeout(500);
+			// Wait for the last log entry to appear before comparing screenshots.
+			await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+				TEXT_LOG[TEXT_LOG.length - 1].content
+			);
 
 			// Playwright visual comparison (stores baselines in snapshotDir)
 			await expect(page).toHaveScreenshot(`gui-${time}.png`, {
