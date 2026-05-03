@@ -254,6 +254,8 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         }
     } else if lower == "/flags" {
         Some(Command::Flags)
+    } else if lower == "/mail" || lower == "/letters" || lower == "/post" {
+        Some(Command::Mail)
     } else if lower == "/weather" {
         Some(Command::Weather(None))
     } else if lower.starts_with("/weather ") {
