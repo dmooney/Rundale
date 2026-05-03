@@ -1,0 +1,66 @@
+# Session at Darcy's Pub — demo script for the /session command.
+#
+# Covers every guard on the handler:
+#   1. Wrong location     — hint points the player at the pub
+#   2. Right place, wrong time — hint says come back after dusk
+#   3. Right place, right time — vignette
+#   4. Same night, same place — deterministic (same vignette)
+#   5. Next night         — different vignette (new seed)
+#   6. Kill-switch flag   — /flag disable session silences it
+#
+# Starts at The Crossroads, 08:00 20 Mar 1820 (spring morning, clear).
+
+/status
+/time
+
+# ── 1. Wrong location ──────────────────────────────────────────────────
+# At the crossroads in the morning — expect a hint pointing at the pub.
+/session
+
+# Walk to the pub.
+go to the pub
+/status
+
+# ── 2. Right place, wrong time ─────────────────────────────────────────
+# Still morning — the pub is quiet, the musicians aren't out yet.
+/session
+
+# ── 3. Right place, right time ─────────────────────────────────────────
+# Advance 11 game-hours (660 min) to land in the evening.
+/wait 660
+/time
+/session
+
+# ── 4. Deterministic re-call ───────────────────────────────────────────
+# Same date, same place → same vignette. The handler is stateless, so
+# calling /session twice on the same night must return the same scene.
+/session
+
+# ── 5. Several nights in a row → variety ───────────────────────────────
+# Fast-forward a full game day (1440 min) and try /session again. Repeat
+# a few times so the demo shows more than one (musician, tune) pair and
+# at least one singer-with-verse lands in the log.
+/wait 1440
+/session
+
+/wait 1440
+/tune
+
+/wait 1440
+/music
+
+/wait 1440
+/fiddle
+
+/wait 1440
+/seisiun
+
+# ── 6. Kill-switch ─────────────────────────────────────────────────────
+/flag disable session
+/session
+
+# Re-enable and confirm the session returns.
+/flag enable session
+/session
+
+/quit

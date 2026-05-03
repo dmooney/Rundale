@@ -5,6 +5,7 @@ pub mod encounter;
 pub mod geo;
 pub mod graph;
 pub mod movement;
+pub mod session;
 pub mod transport;
 pub mod weather;
 

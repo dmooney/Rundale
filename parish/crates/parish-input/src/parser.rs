@@ -267,6 +267,11 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         } else {
             Some(Command::Weather(Some(arg)))
         }
+    } else if matches!(
+        lower.as_str(),
+        "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun"
+    ) {
+        Some(Command::Session)
     } else if lower == "/flag" || lower == "/flag list" {
         Some(Command::Flag(FlagSubcommand::List))
     } else if lower.starts_with("/flag ") {
