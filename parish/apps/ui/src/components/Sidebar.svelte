@@ -4,6 +4,33 @@
 	let { onclose }: { onclose?: () => void } = $props();
 </script>
 
+{#snippet hintList()}
+	{#if $nameHints.length > 0 || $languageHints.length > 0}
+		<ul class="hint-list">
+			{#each $nameHints as hint}
+				<li class="hint-item name-hint hint-name">
+					<span class="word">{hint.word}</span>
+					<span class="pronunciation">[{hint.pronunciation}]</span>
+					{#if hint.meaning}
+						<span class="meaning">— {hint.meaning}</span>
+					{/if}
+				</li>
+			{/each}
+			{#each $languageHints as hint}
+				<li class="hint-item hint-irish">
+					<span class="word">{hint.word}</span>
+					<span class="pronunciation">[{hint.pronunciation}]</span>
+					{#if hint.meaning}
+						<span class="meaning">— {hint.meaning}</span>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{:else}
+		<p class="empty">No words yet.</p>
+	{/if}
+{/snippet}
+
 {#if onclose}
 	<div class="focail-panel">
 		<div class="panel-header">
@@ -11,60 +38,14 @@
 			<button type="button" class="close-btn" aria-label="Close Irish words panel" title="Close" onclick={onclose}><span aria-hidden="true">&times;</span></button>
 		</div>
 		<div class="panel-content">
-			{#if $nameHints.length > 0 || $languageHints.length > 0}
-				<ul class="hint-list">
-					{#each $nameHints as hint}
-						<li class="hint-item name-hint hint-name">
-							<span class="word">{hint.word}</span>
-							<span class="pronunciation">[{hint.pronunciation}]</span>
-							{#if hint.meaning}
-								<span class="meaning">— {hint.meaning}</span>
-							{/if}
-						</li>
-					{/each}
-					{#each $languageHints as hint}
-						<li class="hint-item hint-irish">
-							<span class="word">{hint.word}</span>
-							<span class="pronunciation">[{hint.pronunciation}]</span>
-							{#if hint.meaning}
-								<span class="meaning">— {hint.meaning}</span>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="empty">No words yet.</p>
-			{/if}
+			{@render hintList()}
 		</div>
 	</div>
 {:else}
 	<aside class="sidebar" data-testid="sidebar">
 		<details open>
 			<summary>{$uiConfig.hints_label}</summary>
-			{#if $nameHints.length > 0 || $languageHints.length > 0}
-				<ul class="hint-list">
-					{#each $nameHints as hint}
-						<li class="hint-item name-hint hint-name">
-							<span class="word">{hint.word}</span>
-							<span class="pronunciation">[{hint.pronunciation}]</span>
-							{#if hint.meaning}
-								<span class="meaning">— {hint.meaning}</span>
-							{/if}
-						</li>
-					{/each}
-					{#each $languageHints as hint}
-						<li class="hint-item hint-irish">
-							<span class="word">{hint.word}</span>
-							<span class="pronunciation">[{hint.pronunciation}]</span>
-							{#if hint.meaning}
-								<span class="meaning">— {hint.meaning}</span>
-							{/if}
-						</li>
-					{/each}
-				</ul>
-			{:else}
-				<p class="empty">No words yet.</p>
-			{/if}
+			{@render hintList()}
 		</details>
 	</aside>
 {/if}

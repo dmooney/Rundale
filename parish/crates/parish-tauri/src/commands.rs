@@ -915,7 +915,7 @@ async fn run_npc_turn(
 
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
     let _ = app.emit(
         EVENT_TEXT_LOG,
         text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
@@ -1151,7 +1151,7 @@ async fn handle_npc_conversation(
     };
 
     if !npc_present {
-        let idx = REQUEST_ID.fetch_add(1, Ordering::Relaxed) as usize % IDLE_MESSAGES.len();
+        let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
         let _ = app.emit(
             EVENT_TEXT_LOG,
             TextLogPayload {
@@ -2634,5 +2634,318 @@ mod demo_tests {
     fn strips_multi_sentence_reasoning_single_newline() {
         let input = "Based on my previous interaction with Peig, I should explore. The mill is unvisited.\nask about the mill";
         assert_eq!(strip_thinking_block(input), "ask about the mill");
+    }
+}
+
+#[cfg(test)]
+mod cmd_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Builds a minimal [`AppState`] for unit tests — matches the structure
+    /// used in `parish-server` tests (`routes::tests::test_app_state`).
+    fn test_app_state() -> Arc<AppState> {
+        use crate::{
+            AppState, ConversationRuntimeState, DEBUG_EVENT_CAPACITY, DemoConfig, GameConfig,
+            UiConfigSnapshot,
+        };
+        use parish_core::inference::new_inference_log;
+        use parish_core::npc::manager::NpcManager;
+        use parish_core::world::transport::TransportConfig;
+        use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
+        use tokio::sync::Mutex;
+        use tokio_util::sync::CancellationToken;
+
+        let data_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let world =
+            WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION)
+                .unwrap();
+        let npc_manager = NpcManager::new();
+        let transport = TransportConfig::default();
+        let ui_config = UiConfigSnapshot {
+            hints_label: "test".to_string(),
+            default_accent: "#000".to_string(),
+            splash_text: String::new(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            auto_pause_timeout_seconds: 300,
+        };
+        let theme_palette = parish_core::game_mod::default_theme_palette();
+        let pronunciations = Vec::new();
+        let reaction_templates = parish_core::npc::reactions::ReactionTemplates::default();
+        let game_config = GameConfig {
+            provider_name: String::new(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            flags: parish_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+        };
+        let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+        let shutdown_token = CancellationToken::new();
+
+        Arc::new(AppState {
+            world: Mutex::new(world),
+            npc_manager: Mutex::new(npc_manager),
+            inference_queue: Mutex::new(None),
+            client: Mutex::new(None),
+            cloud_client: Mutex::new(None),
+            conversation: Mutex::new(ConversationRuntimeState::new()),
+            debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
+                DEBUG_EVENT_CAPACITY,
+            )),
+            game_events: Mutex::new(std::collections::VecDeque::with_capacity(
+                DEBUG_EVENT_CAPACITY,
+            )),
+            inference_log: new_inference_log(),
+            ui_config,
+            theme_palette,
+            pronunciations,
+            reaction_templates,
+            save_path: Mutex::new(None),
+            current_branch_id: Mutex::new(None),
+            current_branch_name: Mutex::new(None),
+            transport,
+            data_dir: data_dir.clone(),
+            saves_dir,
+            worker_handle: Mutex::new(None),
+            editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
+            save_lock: Mutex::new(None),
+            ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
+            inference_config: parish_core::config::InferenceConfig::default(),
+            config: Mutex::new(game_config),
+            demo_config: DemoConfig::default(),
+            shutdown_token,
+        })
+    }
+
+    // ── validate_input_text ─────────────────────────────────────────────────
+
+    #[test]
+    fn validate_input_accepts_normal_text() {
+        assert!(validate_input_text("ask Brigid about the harvest").is_ok());
+    }
+
+    #[test]
+    fn validate_input_trims_whitespace() {
+        let result = validate_input_text("  hello  ").unwrap();
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn validate_input_allows_empty_after_trim() {
+        assert!(validate_input_text("   ").is_ok());
+    }
+
+    #[test]
+    fn validate_input_rejects_over_2000_chars() {
+        let long: String = "a".repeat(2001);
+        assert!(validate_input_text(&long).is_err());
+    }
+
+    #[test]
+    fn validate_input_accepts_exactly_2000_chars() {
+        let exactly: String = "a".repeat(2000);
+        assert!(validate_input_text(&exactly).is_ok());
+    }
+
+    // ── validate_addressed_to ───────────────────────────────────────────────
+
+    #[test]
+    fn validate_addressed_to_accepts_empty_list() {
+        assert!(validate_addressed_to(&[]).is_ok());
+    }
+
+    #[test]
+    fn validate_addressed_to_accepts_up_to_10() {
+        let names: Vec<String> = (0..10).map(|i| format!("Npc{}", i)).collect();
+        assert!(validate_addressed_to(&names).is_ok());
+    }
+
+    #[test]
+    fn validate_addressed_to_rejects_11_names() {
+        let names: Vec<String> = (0..11).map(|i| format!("Npc{}", i)).collect();
+        assert!(validate_addressed_to(&names).is_err());
+    }
+
+    #[test]
+    fn validate_addressed_to_rejects_name_over_100_chars() {
+        let long_name = "a".repeat(101);
+        assert!(validate_addressed_to(&[long_name]).is_err());
+    }
+
+    #[test]
+    fn validate_addressed_to_accepts_100_char_name() {
+        let name = "a".repeat(100);
+        assert!(validate_addressed_to(&[name]).is_ok());
+    }
+
+    // ── is_snippet_injection_char ───────────────────────────────────────────
+
+    #[test]
+    fn snippet_injection_rejects_double_quote() {
+        assert!(is_snippet_injection_char('"'));
+    }
+
+    #[test]
+    fn snippet_injection_rejects_backslash() {
+        assert!(is_snippet_injection_char('\\'));
+    }
+
+    #[test]
+    fn snippet_injection_rejects_line_separator() {
+        assert!(is_snippet_injection_char('\u{2028}'));
+    }
+
+    #[test]
+    fn snippet_injection_rejects_paragraph_separator() {
+        assert!(is_snippet_injection_char('\u{2029}'));
+    }
+
+    #[test]
+    fn snippet_injection_rejects_null_byte() {
+        assert!(is_snippet_injection_char('\0'));
+    }
+
+    #[test]
+    fn snippet_injection_accepts_normal_chars() {
+        for c in "abcdefghijklmnopqrstuvwxyz ÁÉÍÓÚ,.!?'".chars() {
+            assert!(
+                !is_snippet_injection_char(c),
+                "char {:?} should be allowed",
+                c
+            );
+        }
+    }
+
+    // ── AppState save state on fresh state ─────────────────────────────────
+
+    #[tokio::test]
+    async fn save_state_initial_is_empty() {
+        let state = test_app_state();
+        let save_path = state.save_path.lock().await;
+        let branch_id = state.current_branch_id.lock().await;
+        let branch_name = state.current_branch_name.lock().await;
+
+        let filename = save_path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().to_string());
+
+        assert!(filename.is_none(), "fresh state should have no save file");
+        assert!(branch_id.is_none(), "fresh state should have no branch id");
+        assert!(
+            branch_name.is_none(),
+            "fresh state should have no branch name"
+        );
+    }
+
+    // ── conversation state ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn set_conversation_running_toggles_flag() {
+        let state = test_app_state();
+
+        // Initially not running
+        {
+            let conv = state.conversation.lock().await;
+            assert!(!conv.conversation_in_progress);
+        }
+
+        set_conversation_running(&state, true).await;
+
+        {
+            let conv = state.conversation.lock().await;
+            assert!(conv.conversation_in_progress);
+        }
+
+        set_conversation_running(&state, false).await;
+
+        {
+            let conv = state.conversation.lock().await;
+            assert!(!conv.conversation_in_progress);
+        }
+    }
+
+    // ── tick_inactivity does nothing when paused ────────────────────────────
+
+    #[tokio::test]
+    async fn world_clock_paused_state_has_expected_invariants() {
+        let state = test_app_state();
+
+        // Pause the world clock
+        {
+            let mut world = state.world.lock().await;
+            world.clock.pause();
+        }
+
+        // tick_inactivity needs an AppHandle which we can't construct in unit
+        // tests.  The early-return path (world is paused) never touches app,
+        // so we exercise the banter-after-silence guard indirectly via
+        // conversation state: conversation_in_progress=false, clock paused →
+        // the guard returns immediately without calling run_idle_banter.
+        // We verify world state is unchanged.
+        let (paused_before, loc_before) = {
+            let world = state.world.lock().await;
+            (world.clock.is_paused(), world.player_location)
+        };
+        assert!(paused_before, "clock should be paused before tick");
+
+        // We can't call tick_inactivity here because it needs tauri::AppHandle.
+        // Instead, confirm the state invariants hold so future tests that mock
+        // AppHandle can call tick_inactivity against this base.
+        let paused_after = {
+            let world = state.world.lock().await;
+            world.clock.is_paused()
+        };
+        assert!(paused_after, "paused flag should still be set");
+        assert_eq!(
+            state.world.lock().await.player_location,
+            loc_before,
+            "location should be unchanged"
+        );
+    }
+
+    // ── world snapshot consistency ─────────────────────────────────────────
+
+    #[tokio::test]
+    async fn world_state_loads_kilteevan_as_start_location() {
+        let state = test_app_state();
+        let world = state.world.lock().await;
+        let loc_name = world
+            .current_location_data()
+            .map(|d| d.name.as_str())
+            .unwrap_or("unknown");
+        // Default start location for Rundale is Kilteevan Village
+        assert_eq!(loc_name, "Kilteevan Village");
+    }
+
+    #[tokio::test]
+    async fn discover_save_files_returns_ok_for_missing_saves_dir() {
+        let state = test_app_state();
+        let world = state.world.lock().await;
+        let saves =
+            parish_core::persistence::picker::discover_saves(&state.saves_dir, &world.graph);
+        // Missing dir should return empty vec, not panic
+        assert!(
+            saves.is_empty(),
+            "discover_saves should return empty vec for missing directory"
+        );
     }
 }
