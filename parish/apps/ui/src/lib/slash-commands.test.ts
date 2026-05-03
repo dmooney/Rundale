@@ -52,6 +52,7 @@ const FEATURES_MD_COMMANDS: ReadonlyArray<{ command: string; hasArgs: boolean }>
 	{ command: '/load',     hasArgs: true  },
 	{ command: '/branches', hasArgs: false },
 	{ command: '/log',      hasArgs: false },
+	{ command: '/mail',     hasArgs: false },
 	// Display
 	{ command: '/map',      hasArgs: true  },
 	{ command: '/designer', hasArgs: false },
