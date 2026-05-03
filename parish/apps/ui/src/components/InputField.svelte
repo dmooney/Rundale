@@ -1016,7 +1016,14 @@
 				data-placeholder={$streamingActive ? 'Waiting…' : 'What do you do? (@ to mention NPC)'}
 			></div>
 		</div>
-		<button type="button" onclick={handleSubmit} disabled={$streamingActive || isEditorEmpty()} class="send-btn">
+		<button
+			type="button"
+			onclick={handleSubmit}
+			disabled={$streamingActive || isEditorEmpty()}
+			class="send-btn"
+			title={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
+			aria-label={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
+		>
 			Send
 		</button>
 	</div>
@@ -1115,6 +1122,11 @@
 
 	.send-btn:hover:not(:disabled) {
 		opacity: 0.85;
+	}
+
+	.send-btn:focus-visible {
+		outline: 2px solid var(--color-fg);
+		outline-offset: 2px;
 	}
 
 	.mention-dropdown {

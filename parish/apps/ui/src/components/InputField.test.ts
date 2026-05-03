@@ -87,7 +87,7 @@ describe('InputField', () => {
 	it('enables send button when editor has text', async () => {
 		const { getByRole } = render(InputField);
 		const editor = getByRole('combobox');
-		const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+		const sendBtn = getByRole('button', { name: /send/i }) as HTMLButtonElement;
 		expect(sendBtn.disabled).toBe(true);
 
 		editor.textContent = 'hello';
@@ -613,7 +613,7 @@ describe('InputField', () => {
 		it('syncs editorText after npc chip click so send button is enabled (#684)', async () => {
 			const { container, getByRole } = render(InputField);
 			const editor = getByRole('combobox');
-			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+			const sendBtn = getByRole('button', { name: /send/i }) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
 			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
@@ -731,7 +731,7 @@ describe('InputField', () => {
 		it('inserts pasted text at the cursor and keeps editorText state in sync (send enabled)', async () => {
 			const { getByRole } = render(InputField);
 			const editor = getByRole('combobox') as HTMLElement;
-			const sendBtn = getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+			const sendBtn = getByRole('button', { name: /send/i }) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
 			editor.focus();
