@@ -826,6 +826,7 @@ mod tests {
             traversal_minutes: None,
             path_description: String::new(),
             hazard: Hazard::Flood,
+            compass_heading: None,
         };
         assert!(matches!(
             weather_effect(&flood_conn, Weather::Storm),
