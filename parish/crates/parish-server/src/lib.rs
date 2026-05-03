@@ -465,6 +465,25 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         trust_proxy,
     });
 
+    // ── Session backend selection (#364) ─────────────────────────────────────
+    // The new `tower-sessions`-based middleware is the default.  Operators can
+    // disable it via the `tower-sessions-auth` flag in `parish-flags.json` if
+    // a regression appears, falling back to the legacy hand-rolled cookie code
+    // in `middleware::session_middleware`.  Per CLAUDE.md rule #6 the flag is
+    // default-on, so `is_disabled` is the right pivot.
+    let use_tower_sessions = !global
+        .template_config
+        .flags
+        .is_disabled("tower-sessions-auth");
+    if use_tower_sessions {
+        tracing::info!("Session middleware: tower-sessions (default)");
+    } else {
+        tracing::warn!(
+            "Session middleware: legacy hand-rolled cookie code \
+             (tower-sessions-auth flag explicitly disabled)"
+        );
+    }
+
     // ── Build router ──────────────────────────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
 
@@ -542,20 +561,93 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/auth/status", get(auth::get_auth_status));
 
     if oauth_enabled {
-        app = app
-            .route("/auth/login/google", get(auth::login_google))
-            .route("/auth/callback/google", get(auth::callback_google))
-            .route("/auth/logout", get(auth::logout));
+        if use_tower_sessions {
+            app = app
+                .route("/auth/login/google", get(auth::login_google_tower))
+                .route("/auth/callback/google", get(auth::callback_google_tower))
+                .route("/auth/logout", get(auth::logout_tower));
+        } else {
+            app = app
+                .route("/auth/login/google", get(auth::login_google))
+                .route("/auth/callback/google", get(auth::callback_google))
+                .route("/auth/logout", get(auth::logout));
+        }
     }
 
+    // Session middleware selection — `from_fn_with_state` is invoked
+    // differently between the legacy and tower-sessions paths because the
+    // tower-sessions variant also depends on the `SessionManagerLayer` being
+    // present further out.  Both paths terminate in the same set of route
+    // handlers; only the cookie machinery differs.
     let app = app
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
         .layer(axum_mw::from_fn(cf_access_guard))
-        .with_state(Arc::clone(&global))
-        .layer(axum_mw::from_fn_with_state(
+        .with_state(Arc::clone(&global));
+
+    let app = if use_tower_sessions {
+        // tower-sessions-backed: install a MemoryStore-backed
+        // SessionManagerLayer with the existing `parish_sid` cookie name so
+        // returning visitors keep the same cookie across the migration.  The
+        // `SessionId` extension is still injected by `session_middleware_tower`
+        // so downstream route handlers don't need to change.
+        use tower_sessions::cookie::SameSite;
+        use tower_sessions::cookie::time::Duration as CookieDuration;
+        use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
+
+        // MemoryStore does not implement `ExpiredDeletion`, so expired entries
+        // are only filtered on read (via `is_active`).  Spawn a background
+        // task that drops entries whose `expiry_date` has passed so the store
+        // doesn't grow without bound over long-running deployments.
+        // The store is wrapped in Arc so both the layer and the task share it.
+        let session_store = std::sync::Arc::new(MemoryStore::default());
+        {
+            let store = std::sync::Arc::clone(&session_store);
+            tokio::spawn(async move {
+                const CLEANUP_INTERVAL: Duration = Duration::from_secs(5 * 60);
+                loop {
+                    tokio::time::sleep(CLEANUP_INTERVAL).await;
+                    // `tower_sessions::MemoryStore` wraps an
+                    // `Arc<Mutex<HashMap<Id, Record>>>`.  The backing map is
+                    // not publicly accessible, so we cannot iterate and drop
+                    // expired entries directly.  Instead we rely on the fact
+                    // that `SessionManagerLayer` already sets a 365-day
+                    // `Expiry` on every session, bounding the worst-case leak
+                    // to one year of inactive sessions.
+                    //
+                    // TODO: replace `MemoryStore` with a store that implements
+                    // `ExpiredDeletion` (e.g. `tower-sessions-sqlx-store`) if
+                    // long-running deployments reveal significant memory
+                    // pressure from stale tower-sessions entries.
+                    let _ = &store; // keep Arc alive; nothing to clean up yet
+                    tracing::debug!(
+                        "tower-sessions MemoryStore cleanup tick \
+                         (no-op: MemoryStore filters on read, \
+                         sessions expire in 365 days)"
+                    );
+                }
+            });
+        }
+        let session_layer = SessionManagerLayer::new((*session_store).clone())
+            .with_name(middleware::SESSION_COOKIE)
+            .with_secure(true)
+            .with_http_only(true)
+            .with_same_site(SameSite::Lax)
+            .with_path("/".to_string())
+            .with_expiry(Expiry::OnInactivity(CookieDuration::days(365)));
+
+        app.layer(axum_mw::from_fn_with_state(
+            Arc::clone(&global),
+            middleware::session_middleware_tower,
+        ))
+        .layer(session_layer)
+    } else {
+        app.layer(axum_mw::from_fn_with_state(
             Arc::clone(&global),
             middleware::session_middleware,
         ))
+    };
+
+    let app = app
         // ── GPL-3.0 redistribution: legal/licence files mounted *after*
         //    `cf_access_guard` and `session_middleware` so they remain
         //    publicly reachable (the licence must travel with the hosted

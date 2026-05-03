@@ -108,6 +108,7 @@ versions, copyright holders, and licence texts: run `just notices` →
 | tokio, tokio-util | MIT | <https://github.com/tokio-rs/tokio> |
 | toml | MIT OR Apache-2.0 | <https://github.com/toml-rs/toml> |
 | tower, tower-http | MIT | <https://github.com/tower-rs/tower> |
+| tower-sessions | MIT | <https://github.com/maxcountryman/tower-sessions> |
 | tracing, tracing-appender, tracing-subscriber | MIT | <https://github.com/tokio-rs/tracing> |
 | uuid | MIT OR Apache-2.0 | <https://github.com/uuid-rs/uuid> |
 

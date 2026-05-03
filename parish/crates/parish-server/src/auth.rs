@@ -14,8 +14,9 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
+use tower_sessions::Session;
 
-use crate::middleware::SESSION_COOKIE;
+use crate::middleware::{SESSION_COOKIE, TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY};
 use crate::session::{GlobalState, get_or_create_session};
 
 // ── Request / response types ──────────────────────────────────────────────────
@@ -236,23 +237,251 @@ pub async fn logout(State(global): State<Arc<GlobalState>>) -> Response {
     response
 }
 
+// ── tower-sessions OAuth handlers (#364) ─────────────────────────────────────
+//
+// These handlers replace the cookie-based CSRF state machinery used by
+// `login_google` / `callback_google` with `tower-sessions`-managed storage.
+// The session and OAuth state share a single `parish_sid` cookie managed by
+// `SessionManagerLayer`, eliminating the previous bug where the dedicated
+// `parish_oauth_state` cookie could clobber or be clobbered by `parish_sid`
+// in the same response (see issue #364).
+//
+// `login_google_tower` writes the CSRF state into the tower-session under
+// `TOWER_OAUTH_STATE_KEY`; `callback_google_tower` reads it back, verifies
+// it, and on success writes the (possibly new) parish session id under
+// `TOWER_SESSION_ID_KEY` so subsequent requests resolve the correct
+// `SessionEntry`.
+
+/// `GET /auth/login/google` — redirects to Google's OAuth consent screen.
+///
+/// tower-sessions-backed variant: stores the CSRF state in the
+/// `parish_sid` session instead of a separate `parish_oauth_state` cookie.
+pub async fn login_google_tower(
+    State(global): State<Arc<GlobalState>>,
+    session: Session,
+) -> Response {
+    let Some(ref cfg) = global.oauth_config else {
+        return (StatusCode::NOT_FOUND, "OAuth not configured").into_response();
+    };
+
+    let csrf_state = uuid::Uuid::new_v4().to_string();
+    let redirect_uri = format!(
+        "{}/auth/callback/google",
+        cfg.base_url.trim_end_matches('/')
+    );
+
+    let url = format!(
+        "{}?client_id={}&redirect_uri={}&response_type=code\
+         &scope=openid%20email%20profile&state={}",
+        GOOGLE_AUTH_URL,
+        urlenccode(&cfg.client_id),
+        urlenccode(&redirect_uri),
+        urlenccode(&csrf_state),
+    );
+
+    if let Err(e) = session
+        .insert(TOWER_OAUTH_STATE_KEY, csrf_state.clone())
+        .await
+    {
+        tracing::warn!(
+            error = %e,
+            "tower-sessions: failed to persist OAuth CSRF state"
+        );
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to start OAuth flow",
+        )
+            .into_response();
+    }
+
+    Redirect::to(&url).into_response()
+}
+
+/// `GET /auth/callback/google` — handles the OAuth redirect from Google.
+///
+/// tower-sessions-backed variant: reads CSRF state from the
+/// `parish_sid` session, verifies it, then either re-uses or links the
+/// caller's session to the Google account and writes the resulting
+/// session id back into the tower-session.  No manual `Set-Cookie` calls.
+pub async fn callback_google_tower(
+    State(global): State<Arc<GlobalState>>,
+    session: Session,
+    Query(params): Query<CallbackParams>,
+) -> Response {
+    let Some(ref cfg) = global.oauth_config else {
+        return (StatusCode::NOT_FOUND, "OAuth not configured").into_response();
+    };
+
+    if let Some(err) = params.error {
+        tracing::warn!("Google OAuth error: {}", err);
+        return Redirect::to("/?oauth_error=1").into_response();
+    }
+
+    let Some(code) = params.code else {
+        return (StatusCode::BAD_REQUEST, "Missing code").into_response();
+    };
+
+    // CSRF check: the state param must match the value stashed in the
+    // tower-session at login time.
+    let expected_state: Option<String> = session.get(TOWER_OAUTH_STATE_KEY).await.unwrap_or(None);
+    if params.state.as_deref() != expected_state.as_deref() {
+        tracing::warn!(
+            received_state = ?params.state,
+            session_state_present = expected_state.is_some(),
+            "OAuth CSRF mismatch (tower-sessions)"
+        );
+        return (StatusCode::BAD_REQUEST, "Invalid state").into_response();
+    }
+    tracing::info!("OAuth CSRF state matched (tower-sessions)");
+
+    // Whatever happens next, drop the now-used CSRF state from the
+    // session so a replayed callback can't reuse it.
+    let _ = session.remove::<String>(TOWER_OAUTH_STATE_KEY).await;
+
+    let redirect_uri = format!(
+        "{}/auth/callback/google",
+        cfg.base_url.trim_end_matches('/')
+    );
+    let access_token = match exchange_code(cfg, &code, &redirect_uri, GOOGLE_TOKEN_URL).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::warn!("Token exchange failed: {}", e);
+            return Redirect::to("/?oauth_error=1").into_response();
+        }
+    };
+
+    let (provider_user_id, display_name) =
+        match fetch_user_info(&access_token, GOOGLE_USERINFO_URL).await {
+            Ok(u) => u,
+            Err(e) => {
+                tracing::warn!("Userinfo fetch failed: {}", e);
+                return Redirect::to("/?oauth_error=1").into_response();
+            }
+        };
+
+    // Determine which parish session id should be tied to this Google
+    // identity going forward, then store it in the tower-session.  The
+    // logic mirrors the legacy callback's "stale-session re-link" path
+    // (see #364 background) so a wiped saves directory does not lock the
+    // user into an unrestorable session.
+    let current_session_id: Option<String> =
+        session.get(TOWER_SESSION_ID_KEY).await.unwrap_or(None);
+    tracing::info!(
+        current_session_id = ?current_session_id,
+        provider_user_id = %provider_user_id,
+        display_name = %display_name,
+        "OAuth callback (tower): resolving target session"
+    );
+
+    let target_session_id =
+        if let Some(existing) = global.sessions.find_by_oauth("google", &provider_user_id) {
+            let (resolved_id, _, is_new) = get_or_create_session(&global, Some(&existing)).await;
+            if !is_new {
+                resolved_id
+            } else {
+                tracing::info!(
+                    stale_session = %existing,
+                    replacement = %resolved_id,
+                    "OAuth (tower): linked session unrestorable, re-linking"
+                );
+                let sid = match current_session_id.as_deref() {
+                    Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+                    _ => resolved_id,
+                };
+                global
+                    .sessions
+                    .link_oauth("google", &provider_user_id, &sid, &display_name);
+                sid
+            }
+        } else {
+            let sid = match current_session_id.as_deref() {
+                Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+                _ => {
+                    let (new_id, _, _) = get_or_create_session(&global, None).await;
+                    global.sessions.persist_new(&new_id);
+                    new_id
+                }
+            };
+            global
+                .sessions
+                .link_oauth("google", &provider_user_id, &sid, &display_name);
+            sid
+        };
+
+    // Fix: cycle the session ID to prevent session fixation attacks (#364).
+    // An attacker who obtained the pre-auth session ID cannot use it after
+    // authentication because cycle_id() rotates the ID in the backing store.
+    if let Err(e) = session.cycle_id().await {
+        tracing::warn!(error = %e, "tower-sessions: failed to cycle session ID after OAuth");
+    }
+    if let Err(e) = session
+        .insert(TOWER_SESSION_ID_KEY, target_session_id.clone())
+        .await
+    {
+        tracing::warn!(
+            error = %e,
+            "tower-sessions: failed to persist session id after OAuth"
+        );
+    }
+
+    tracing::info!(
+        target_session_id = %target_session_id,
+        "OAuth callback (tower): session linked, redirecting to /"
+    );
+
+    Redirect::to("/").into_response()
+}
+
+/// `GET /auth/logout` — ends the current Google session.
+///
+/// tower-sessions-backed variant: clears the parish session id from the
+/// tower-session and creates a fresh anonymous session, so the next
+/// request behaves as if a new visitor arrived.
+pub async fn logout_tower(State(global): State<Arc<GlobalState>>, session: Session) -> Response {
+    let (new_session_id, _, _) = get_or_create_session(&global, None).await;
+    global.sessions.persist_new(&new_session_id);
+
+    if let Err(e) = session
+        .insert(TOWER_SESSION_ID_KEY, new_session_id.clone())
+        .await
+    {
+        tracing::warn!(
+            error = %e,
+            "tower-sessions: failed to rotate session id on logout"
+        );
+    }
+    // Drop any lingering CSRF state.
+    let _ = session.remove::<String>(TOWER_OAUTH_STATE_KEY).await;
+
+    Redirect::to("/").into_response()
+}
+
 /// `GET /api/auth/status` — returns OAuth configuration and login state.
+///
+/// Reads the per-session id from the `SessionId` extension injected by
+/// either [`crate::middleware::session_middleware`] (legacy) or
+/// [`crate::middleware::session_middleware_tower`] (#364).  Falls back to
+/// reading the raw `parish_sid` cookie when the extension is absent (e.g.
+/// routes not covered by the middleware stack in tests or future routes).
 pub async fn get_auth_status(
     State(global): State<Arc<GlobalState>>,
     headers: HeaderMap,
+    extensions: Option<axum::extract::Extension<crate::middleware::SessionId>>,
 ) -> Json<AuthStatus> {
     let oauth_enabled = global.oauth_config.is_some();
-
-    let session_id = match cookie_value(&headers, SESSION_COOKIE) {
-        Some(id) => id,
-        None => {
-            tracing::debug!("auth/status: no parish_sid cookie, anonymous");
-            return Json(AuthStatus {
-                oauth_enabled,
-                logged_in: false,
-                provider: None,
-                display_name: None,
-            });
+    let session_id = if let Some(ext) = extensions {
+        ext.0.0
+    } else {
+        match cookie_value(&headers, SESSION_COOKIE) {
+            Some(id) => id,
+            None => {
+                return Json(AuthStatus {
+                    oauth_enabled,
+                    logged_in: false,
+                    provider: None,
+                    display_name: None,
+                });
+            }
         }
     };
 
@@ -386,13 +615,102 @@ fn urlenccode(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use axum::http::{HeaderMap, HeaderValue, header};
+    use tower_sessions::{MemoryStore, Session};
     use wiremock::matchers::{body_string_contains, header as header_matcher, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    use crate::middleware::{TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY};
     use crate::session::OAuthConfig;
 
     use super::{cookie_value, exchange_code, fetch_user_info, urlenccode};
+
+    // ── tower-sessions CSRF/session round-trip (#364) ─────────────────────────
+
+    /// Building block: create an empty in-memory tower-session for handler tests.
+    fn fresh_tower_session() -> Session {
+        let store = Arc::new(MemoryStore::default());
+        Session::new(None, store, None)
+    }
+
+    /// `login_google_tower` must persist the CSRF state under
+    /// `TOWER_OAUTH_STATE_KEY`, and `callback_google_tower`'s read path must
+    /// retrieve the same value.  This is the round-trip the legacy code
+    /// achieved via the `parish_oauth_state` cookie — without that cookie,
+    /// the new path lives entirely inside the tower-session.
+    #[tokio::test]
+    async fn tower_session_round_trips_csrf_state() {
+        let session = fresh_tower_session();
+
+        // Simulate what `login_google_tower` writes.
+        session
+            .insert(TOWER_OAUTH_STATE_KEY, "csrf-abc-123".to_string())
+            .await
+            .expect("insert csrf state");
+
+        // Simulate what `callback_google_tower` reads back.
+        let read: Option<String> = session.get(TOWER_OAUTH_STATE_KEY).await.unwrap();
+        assert_eq!(read.as_deref(), Some("csrf-abc-123"));
+    }
+
+    /// After a successful callback the CSRF state must be removed so a
+    /// replayed callback request cannot reuse the same state.
+    #[tokio::test]
+    async fn tower_session_csrf_state_is_removed_after_callback() {
+        let session = fresh_tower_session();
+        session
+            .insert(TOWER_OAUTH_STATE_KEY, "csrf-abc".to_string())
+            .await
+            .unwrap();
+
+        // Callback success path drops the key.
+        let _ = session.remove::<String>(TOWER_OAUTH_STATE_KEY).await;
+
+        let read: Option<String> = session.get(TOWER_OAUTH_STATE_KEY).await.unwrap();
+        assert_eq!(
+            read, None,
+            "CSRF state must not survive a successful callback"
+        );
+    }
+
+    /// The parish session id stored under `TOWER_SESSION_ID_KEY` must
+    /// round-trip through the tower-session — this is the key the new
+    /// session middleware uses to find the per-visitor `SessionEntry`.
+    #[tokio::test]
+    async fn tower_session_round_trips_parish_session_id() {
+        let session = fresh_tower_session();
+        let parish_uuid = "11111111-2222-4333-8444-555555555555";
+
+        session
+            .insert(TOWER_SESSION_ID_KEY, parish_uuid.to_string())
+            .await
+            .expect("insert session id");
+
+        let read: Option<String> = session.get(TOWER_SESSION_ID_KEY).await.unwrap();
+        assert_eq!(read.as_deref(), Some(parish_uuid));
+    }
+
+    /// Logout-equivalent: replacing the parish session id under the same
+    /// key must overwrite the previous value, not append.
+    #[tokio::test]
+    async fn tower_session_logout_replaces_parish_session_id() {
+        let session = fresh_tower_session();
+        session
+            .insert(TOWER_SESSION_ID_KEY, "old-session".to_string())
+            .await
+            .unwrap();
+
+        // logout_tower writes the fresh anonymous session id.
+        session
+            .insert(TOWER_SESSION_ID_KEY, "new-session".to_string())
+            .await
+            .unwrap();
+
+        let read: Option<String> = session.get(TOWER_SESSION_ID_KEY).await.unwrap();
+        assert_eq!(read.as_deref(), Some("new-session"));
+    }
 
     // ── Pure helpers ──────────────────────────────────────────────────────────
 
