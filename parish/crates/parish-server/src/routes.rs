@@ -287,7 +287,7 @@ pub async fn submit_input(
             {
                 return status;
             }
-            handle_system_command(cmd, &state).await;
+            handle_system_command(cmd, &state, &auth.email).await;
         }
         InputResult::GameInput(raw) => {
             // Emit the player's own text as a dialogue bubble only for actual dialogue

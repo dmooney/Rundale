@@ -33,9 +33,9 @@ export function startWebGpuBridge(): () => void {
 		try {
 			const text = await webGpuProvider.generate(
 				req.prompt,
-				req.system,
-				req.max_tokens,
-				req.temperature,
+				req.system ?? null,
+				req.max_tokens ?? null,
+				req.temperature ?? null,
 				(token) => {
 					if (!cancelled.has(req.id)) {
 						sendWebSocketMessage({ type: 'inference-token', id: req.id, token });

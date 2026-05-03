@@ -161,7 +161,7 @@ impl Provider {
                 Some("Qwen/Qwen3-4B"),
                 Some("Qwen/Qwen3-14B"),
             ],
-            Provider::Custom | Provider::Simulator => [None, None, None, None],
+            Provider::WebGpu | Provider::Custom | Provider::Simulator => [None, None, None, None],
         }
     }
 

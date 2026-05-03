@@ -22,7 +22,9 @@ import type {
 	TravelStartPayload,
 	DebugSnapshot,
 	SaveFileInfo,
-	SaveState
+	SaveState,
+	InferenceRequestPayload,
+	WebSocketMessage
 } from './types';
 
 // ── Transport detection ─────────────────────────────────────────────────────
@@ -297,3 +299,21 @@ export const onNpcReaction = (cb: (payload: NpcReactionPayload) => void) =>
 
 export const onTravelStart = (cb: (payload: TravelStartPayload) => void) =>
 	onEvent<TravelStartPayload>('travel-start', cb);
+
+export { type InferenceRequestPayload, type WebSocketMessage } from './types';
+
+export const onInferenceRequest = (cb: (payload: InferenceRequestPayload) => void) =>
+	onEvent<InferenceRequestPayload>('inference-request', cb);
+
+/** Sends a WebSocket message from the browser back to the server (WebGPU inference responses). */
+export function sendWebSocketMessage(msg: WebSocketMessage): void {
+	if (IS_TAURI) {
+		console.warn('WebSocket messages are not supported in Tauri mode');
+		return;
+	}
+	if (!ws || ws.readyState !== WebSocket.OPEN) {
+		console.warn('WebSocket not connected, dropping message:', msg);
+		return;
+	}
+	ws.send(JSON.stringify(msg));
+}
