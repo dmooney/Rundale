@@ -114,6 +114,15 @@ pub enum Command {
     NewGame,
     /// Manually tick NPC schedules without advancing time.
     Tick,
+    /// Post a letter to a correspondent at the Letter Office.
+    PostLetter {
+        /// Correspondent ID or partial name.
+        correspondent: Option<String>,
+        /// Optional topic/subject for the letter.
+        topic: String,
+    },
+    /// Check mail status and collect letters at the Letter Office.
+    Mail,
     /// Show or change the UI theme.
     Theme(Option<String>),
     /// Show or set whether unexplored map locations are fully revealed.
