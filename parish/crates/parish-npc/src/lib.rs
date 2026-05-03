@@ -39,8 +39,7 @@ use types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
 // Re-export shared types from parish-types
 pub use parish_types::{
     EmotionFamily, EmotionGates, EmotionImpulse, EmotionState, IrishWordHint, LanguageHint, NpcId,
-    SEPARATOR_HOLDBACK, Temperament, extract_dialogue_from_partial_json, find_response_separator,
-    floor_char_boundary, project_top_k,
+    Temperament, extract_dialogue_from_partial_json, floor_char_boundary, project_top_k,
 };
 
 // Re-export the NPC data-file schema so downstream crates (e.g. the Parish
@@ -391,7 +390,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, emotions_enabled: bool
     // JSON schema exposes emotion_delta only when the flag is on.
     // Families are lower-case strings matching EmotionFamily's serde
     // rename_all = "lowercase".
-    let schema_line = if emotions_enabled {
+    let _schema_line = if emotions_enabled {
         "{{\"action\": \"what you physically do\", \"mood\": \"your mood after this\", \
          \"internal_thought\": \"what you think but don't say\", \
          \"irish_words\": [{{\"word\": \"...\", \"pronunciation\": \"...\", \"meaning\": \"...\"}}], \

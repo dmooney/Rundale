@@ -168,7 +168,6 @@ impl GameConfig {
         }
     }
 
-<<<<<<< HEAD:parish/crates/parish-core/src/ipc/config.rs
     /// Fills in any unset model fields with the appropriate provider preset.
     ///
     /// - The base [`Self::model_name`] is filled from
@@ -257,6 +256,8 @@ fn attach_rate_limit(
         (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
         // Simulator has no network calls and ignores rate limiting.
         (c @ AnyClient::Simulator(_), _) => c,
+    }
+}
 
 impl Default for GameConfig {
     fn default() -> Self {
