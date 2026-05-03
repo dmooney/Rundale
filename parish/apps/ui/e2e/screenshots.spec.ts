@@ -32,7 +32,7 @@ test.describe('Screenshot generation', () => {
 			}
 
 			// Wait for all renders to settle
-			await page.waitForTimeout(500);
+			await page.waitForLoadState('networkidle');
 
 			// Save to docs/screenshots/ for the project
 			await page.screenshot({
@@ -62,7 +62,7 @@ test.describe('Visual regression baselines', () => {
 				await addTextLog(page, entry);
 			}
 
-			await page.waitForTimeout(500);
+			await page.waitForLoadState('networkidle');
 
 			// Playwright visual comparison (stores baselines in snapshotDir)
 			await expect(page).toHaveScreenshot(`gui-${time}.png`, {

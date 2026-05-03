@@ -24,14 +24,12 @@ test.describe('Input field interactions', () => {
 	test('input is disabled during streaming', async ({ page }) => {
 		// Simulate loading state
 		await emitEvent(page, 'loading', { active: true });
-		await page.waitForTimeout(100);
 
 		const input = page.locator('[data-testid="input-field"]');
 		await expect(input).toHaveAttribute('aria-disabled', 'true');
 
 		// End loading
 		await emitEvent(page, 'loading', { active: false });
-		await page.waitForTimeout(100);
 		await expect(input).toHaveAttribute('aria-disabled', 'false');
 	});
 });
@@ -44,22 +42,17 @@ test.describe('Streaming simulation', () => {
 
 		// Start loading
 		await emitEvent(page, 'loading', { active: true });
-		await page.waitForTimeout(100);
 
 		// Send tokens
 		await emitEvent(page, 'stream-token', { token: 'Ah, ', turn_id: 1, source: 'Siobhan Murphy' });
-		await page.waitForTimeout(50);
 		await emitEvent(page, 'stream-token', { token: "you're ", turn_id: 1, source: 'Siobhan Murphy' });
-		await page.waitForTimeout(50);
 		await emitEvent(page, 'stream-token', { token: 'welcome!', turn_id: 1, source: 'Siobhan Murphy' });
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1 });
-		await page.waitForTimeout(100);
 
 		await expect(page.getByText("Ah, you're welcome!")).toBeVisible();
 
 		// End stream
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
-		await page.waitForTimeout(100);
 	});
 
 	test('keeps overlapping multi-npc streams attached to the right speaker', async ({ page }) => {
@@ -68,7 +61,6 @@ test.describe('Streaming simulation', () => {
 		await page.waitForLoadState('networkidle');
 
 		await emitEvent(page, 'loading', { active: true });
-		await page.waitForTimeout(100);
 
 		await emitEvent(page, 'text-log', {
 			id: 'msg-1',
@@ -81,7 +73,6 @@ test.describe('Streaming simulation', () => {
 			turn_id: 11,
 			source: 'Siobhan Murphy'
 		});
-		await page.waitForTimeout(80);
 		await expect(page.locator('.bubble-row.npc').nth(0).locator('.label')).toHaveText('Siobhan Murphy');
 
 		// Queue Padraig before Siobhan has finished animating.
@@ -105,8 +96,6 @@ test.describe('Streaming simulation', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 11 });
 		await emitEvent(page, 'stream-turn-end', { turn_id: 12 });
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
-
-		await page.waitForTimeout(1500);
 
 		const npcRows = page.locator('.bubble-row.npc');
 		await expect(npcRows).toHaveCount(2);

@@ -84,21 +84,19 @@ test.describe('Theme application', () => {
 
 		// Emit morning theme
 		await applyTheme(page, PALETTES.morning);
-		await page.waitForTimeout(300);
-
-		let bgColor = await page.evaluate(() =>
-			getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
-		);
-		expect(bgColor).toBe(PALETTES.morning.bg);
+		await expect.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+			)
+		).toBe(PALETTES.morning.bg);
 
 		// Switch to night theme
 		await applyTheme(page, PALETTES.night);
-		await page.waitForTimeout(300);
-
-		bgColor = await page.evaluate(() =>
-			getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
-		);
-		expect(bgColor).toBe(PALETTES.night.bg);
+		await expect.poll(() =>
+			page.evaluate(() =>
+				getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+			)
+		).toBe(PALETTES.night.bg);
 	});
 });
 
@@ -112,7 +110,6 @@ test.describe('Event handling', () => {
 			source: 'system',
 			content: 'You arrive at the market square.'
 		});
-		await page.waitForTimeout(300);
 
 		await expect(page.getByText('You arrive at the market square.')).toBeVisible();
 	});
@@ -127,7 +124,6 @@ test.describe('Event handling', () => {
 
 		// Emit world update to midday
 		await emitEvent(page, 'world-update', SNAPSHOTS.midday);
-		await page.waitForTimeout(500);
 
 		await expect(page.locator('.time-label')).toContainText('Midday');
 	});
