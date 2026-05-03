@@ -10,6 +10,11 @@
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
+	import {
+		setStoredModelId,
+		clearStoredModelId,
+		getStoredModelId
+	} from '$lib/webgpu/engine';
 
 	let editorEl: HTMLDivElement;
 	let editorText = $state('');
@@ -638,6 +643,14 @@
 
 		const addressedTo = [...selectedNpcRealNames];
 		selectedNpcRealNames = [];
+
+		// Intercept the WebGPU model picker entirely client-side: the model
+		// override lives in localStorage so the next inference request from
+		// the server gets routed to the new weights without a server round-
+		// trip. We also forward `/model <id>` so the server's GameConfig
+		// reflects the same value (so the bridge passes it through verbatim).
+		if (handleWebGpuModelCommand(trimmed)) return;
+
 		try {
 			await submitInput(trimmed, addressedTo);
 		} catch (err) {
@@ -645,6 +658,38 @@
 		} finally {
 			isSubmitting = false;
 		}
+	}
+
+	function handleWebGpuModelCommand(trimmed: string): boolean {
+		const lower = trimmed.toLowerCase();
+		if (!lower.startsWith('/webgpu-model')) return false;
+		const arg = trimmed.slice('/webgpu-model'.length).trim();
+		if (arg.length === 0) {
+			const current = getStoredModelId();
+			pushErrorLog(
+				`WebGPU model: ${current ?? '(auto-detect based on your GPU)'}`
+			);
+			return true;
+		}
+		if (arg === 'reset' || arg === 'auto') {
+			clearStoredModelId();
+			pushErrorLog('WebGPU model reset to auto-detect.');
+			// We deliberately don't try to clear `config.model_name` on
+			// the server: `/model` with no arg parses as `ShowModel` (see
+			// `crates/parish-input/src/lib.rs`), so it wouldn't actually
+			// clear anything. The bridge's `resolveModelChoice` already
+			// rejects non-HF-repo ids like `qwen3:14b`, so a stale server
+			// default falls through to GPU-tier auto-detect on its own.
+			return true;
+		}
+		setStoredModelId(arg);
+		pushErrorLog(`WebGPU model set to ${arg}. Next request will reload the engine.`);
+		// Don't mirror the choice into `config.model_name`: localStorage
+		// already wins inside `resolveModelChoice`, and writing the HF
+		// repo id into a config field designed for Ollama tags would
+		// confuse other (non-WebGPU) provider switches the player makes
+		// later.
+		return true;
 	}
 
 	// ── Keyboard handling ───────────────────────────────────────────────────

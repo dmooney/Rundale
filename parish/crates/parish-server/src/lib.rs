@@ -15,6 +15,7 @@ pub mod route_registry;
 pub mod routes;
 pub mod session;
 pub mod state;
+pub mod webgpu_bridge;
 pub mod ws;
 
 use std::net::SocketAddr;

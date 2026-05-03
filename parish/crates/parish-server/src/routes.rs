@@ -330,6 +330,46 @@ async fn rebuild_inference(state: &Arc<AppState>) {
 
     let any_client = if provider_name == "simulator" {
         AnyClient::simulator()
+    } else if provider_name == "webgpu" {
+        // The bridge lives on the per-session AppState — it's always
+        // present, but only this provider arm wires it into a client that
+        // actually forwards traffic. Tauri/CLI never reach this branch
+        // because they don't run the web server, so the unavailable
+        // fallback in `build_client` is the right shape there.
+        // `webgpu-provider` is default-on (see CLAUDE.md rule #6 for new
+        // engine features). `is_disabled` only returns true when the flag
+        // has been explicitly set to false, so an unset flag still enables
+        // the feature.
+        if state
+            .config
+            .lock()
+            .await
+            .flags
+            .is_disabled("webgpu-provider")
+        {
+            state.event_bus.emit(
+                "text-log",
+                &text_log(
+                    "system",
+                    "WebGPU provider is currently disabled. Re-enable it with \
+                     `/flag enable webgpu-provider` and try again.",
+                ),
+            );
+            // Fall through to a simulator client so the player isn't
+            // stranded with a dead provider.
+            let built = AnyClient::simulator();
+            let mut client_guard = state.client.lock().await;
+            *client_guard = Some(built.clone());
+            built
+        } else {
+            let webgpu_client = parish_core::inference::WebGpuClient::with_transport(
+                std::sync::Arc::new(state.webgpu_bridge.clone()),
+            );
+            let built = AnyClient::webgpu(webgpu_client);
+            let mut client_guard = state.client.lock().await;
+            *client_guard = Some(built.clone());
+            built
+        }
     } else {
         if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
             state.event_bus.emit(
@@ -432,13 +472,20 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                     .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
                     .unwrap_or(parish_core::config::Provider::OpenRouter);
                 drop(config);
-                let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(parish_core::inference::build_client(
+                let built = parish_core::inference::build_client(
                     &provider_enum,
                     &base_url,
                     api_key.as_deref(),
                     &state.inference_config, // (#417) use TOML-configured timeouts
-                ));
+                );
+                // If someone configured WebGPU as the cloud provider (rare
+                // but not disallowed by `Provider::from_str_loose`), swap
+                // the unavailable handle for a bridge-backed one instead
+                // of leaving a permanently-unusable variant in state.
+                let transport: std::sync::Arc<dyn parish_core::inference::WebGpuTransport> =
+                    std::sync::Arc::new(state.webgpu_bridge.clone());
+                let mut cloud_guard = state.cloud_client.lock().await;
+                *cloud_guard = Some(built.with_webgpu_transport(&transport));
             }
             CommandEffect::Quit => {
                 // Web server cannot be quit from the game.
@@ -563,13 +610,28 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     state.event_bus.emit("world-update", &ws);
 }
 
+/// Wraps an `Option<AnyClient>` so any `Provider::WebGpu` variant it
+/// carries is backed by this session's bridge. `resolve_category_client`
+/// lives in `parish-core` and can't see the bridge, so category overrides
+/// like `/provider.intent webgpu` would otherwise come out unavailable.
+fn attach_webgpu_to_category(
+    client: Option<AnyClient>,
+    state: &Arc<AppState>,
+) -> Option<AnyClient> {
+    let transport: std::sync::Arc<dyn parish_core::inference::WebGpuTransport> =
+        std::sync::Arc::new(state.webgpu_bridge.clone());
+    client.map(|c| c.with_webgpu_transport(&transport))
+}
+
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
 async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<AppState>) {
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
         let config = state.config.lock().await;
         let base_client = state.client.lock().await;
-        config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref())
+        let (c, m) =
+            config.resolve_category_client(InferenceCategory::Intent, base_client.as_ref());
+        (attach_webgpu_to_category(c, state), m)
     };
 
     // Parse intent: tries local keywords first, then LLM for ambiguous input.
@@ -750,6 +812,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             let base_client = state.client.lock().await;
             let (rc, rm) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
+            let rc = attach_webgpu_to_category(rc, state);
             (
                 npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
                 world.player_location,
@@ -2350,6 +2413,46 @@ pub fn check_admin_no_config(email: &str, cmd: &str, is_debug: bool) -> Result<(
         tracing::warn!(user = %email, command = %cmd, "admin command rejected — no admin configured");
         Err(StatusCode::FORBIDDEN)
     }
+}
+
+/// Slash-command prefixes whose effects mutate LLM provider config.
+///
+/// Any first token (or two-token pair for `/cloud <sub>`) matching this list
+/// is considered an admin command and is gated by `PARISH_ADMIN_EMAILS`.
+const ADMIN_COMMANDS: &[&str] = &[
+    "/key",
+    "/provider",
+    "/model",
+    "/cloud",
+    "/key.",
+    "/model.",
+    "/provider.",
+];
+
+/// Matches both bare commands (`/key`) and commands with arguments (`/key sk-abc`).
+/// Dotted category commands (`/key.dialogue`, `/model.simulation`) are matched by
+/// `starts_with` since the dot is part of the prefix, not a space separator.
+///
+/// `/provider webgpu` is **not** admin-gated: the actual computation happens
+/// in the calling visitor's browser, so there is no shared cost or security
+/// risk that warrants restricting opt-in. Other `/provider <name>` values
+/// stay admin-only because they would force the server to talk to a paid
+/// API on behalf of every session.
+fn is_admin_command_text(text: &str) -> bool {
+    let lower = text.trim().to_ascii_lowercase();
+    if lower == "/provider webgpu" || lower.starts_with("/provider webgpu ") {
+        return false;
+    }
+    ADMIN_COMMANDS.iter().any(|prefix| {
+        if prefix.ends_with('.') {
+            // Dotted prefix: `/key.`, `/model.`, `/provider.` — matched by starts_with
+            // so `/key.dialogue sk-abc` is caught.
+            lower.starts_with(*prefix)
+        } else {
+            // Plain prefix: exact match (bare command) or `<prefix> <args>`.
+            lower == *prefix || lower.starts_with(&format!("{} ", prefix))
+        }
+    })
 }
 
 /// Returns `true` if the parsed command is an admin-only operation.

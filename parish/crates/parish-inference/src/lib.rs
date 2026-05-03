@@ -11,10 +11,12 @@ pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
 pub(crate) mod utf8_stream;
+pub mod webgpu_client;
 
 pub use anthropic_client::AnthropicClient;
 pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
+pub use webgpu_client::{WebGpuClient, WebGpuRequest, WebGpuTransport};
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -64,6 +66,11 @@ pub fn build_client(
             inference_config,
         )),
         Provider::Simulator => AnyClient::simulator(),
+        // WebGPU never has an HTTP transport. The web server overrides this
+        // unavailable handle with one carrying a real per-session bridge in
+        // `rebuild_inference`; Tauri/CLI keep the unavailable handle and any
+        // call surfaces a clear "browser-only" error rather than misrouting.
+        Provider::WebGpu => AnyClient::WebGpu(WebGpuClient::unavailable()),
         _ => AnyClient::OpenAi(OpenAiClient::new_with_config(
             base_url,
             api_key,
@@ -456,6 +463,9 @@ pub enum AnyClient {
     OpenAi(OpenAiClient),
     /// Anthropic's native Messages API client (see [`AnthropicClient`]).
     Anthropic(AnthropicClient),
+    /// Browser-side inference over the per-session WebSocket bridge
+    /// (see [`WebGpuClient`]). Only ever functional in the web build.
+    WebGpu(WebGpuClient),
     /// The built-in offline simulator (generates funny nonsense locally).
     Simulator(Arc<SimulatorClient>),
 }
@@ -469,6 +479,11 @@ impl AnyClient {
     /// Wraps a real `AnthropicClient`.
     pub fn anthropic(client: AnthropicClient) -> Self {
         Self::Anthropic(client)
+    }
+
+    /// Wraps a real `WebGpuClient`.
+    pub fn webgpu(client: WebGpuClient) -> Self {
+        Self::WebGpu(client)
     }
 
     /// Creates a new simulator client.
@@ -491,6 +506,10 @@ impl AnyClient {
                     .await
             }
             Self::Anthropic(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::WebGpu(c) => {
                 c.generate(model, prompt, system, max_tokens, temperature)
                     .await
             }
@@ -520,6 +539,18 @@ impl AnyClient {
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
+            Self::WebGpu(c) => {
+                // Convert bounded Sender to UnboundedSender for WebGpu.
+                let (unbounded_tx, mut unbounded_rx) = mpsc::unbounded_channel();
+                let bounded_tx = token_tx.clone();
+                tokio::spawn(async move {
+                    while let Some(token) = unbounded_rx.recv().await {
+                        let _ = bounded_tx.send(token).await;
+                    }
+                });
+                c.generate_stream(model, prompt, system, unbounded_tx, max_tokens, temperature)
+                    .await
+            }
             Self::Simulator(c) => {
                 c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
@@ -532,6 +563,9 @@ impl AnyClient {
     /// Like [`generate_stream`] but constrains the provider to emit valid JSON.
     /// Used for Tier 1 NPC responses where dialogue is embedded in a JSON
     /// structure and extracted incrementally during streaming.
+    ///
+    /// WebGpu does not support streaming JSON (browser-side inference doesn't
+    /// require token-streaming JSON); use [`generate_json`] instead.
     pub async fn generate_stream_json(
         &self,
         model: &str,
@@ -550,6 +584,10 @@ impl AnyClient {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
+            Self::WebGpu(_) => Err(ParishError::Inference(
+                "streaming JSON not supported for WebGPU provider; use generate_json instead"
+                    .to_string(),
+            )),
             Self::Simulator(c) => {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
@@ -575,6 +613,10 @@ impl AnyClient {
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
             }
+            Self::WebGpu(c) => {
+                c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
             Self::Simulator(c) => {
                 c.generate_json::<T>(model, prompt, system, max_tokens, temperature)
                     .await
@@ -586,7 +628,7 @@ impl AnyClient {
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
             Self::OpenAi(c) => Some(c),
-            Self::Anthropic(_) | Self::Simulator(_) => None,
+            Self::Anthropic(_) | Self::WebGpu(_) | Self::Simulator(_) => None,
         }
     }
 
@@ -594,7 +636,15 @@ impl AnyClient {
     pub fn as_anthropic(&self) -> Option<&AnthropicClient> {
         match self {
             Self::Anthropic(c) => Some(c),
-            Self::OpenAi(_) | Self::Simulator(_) => None,
+            Self::OpenAi(_) | Self::WebGpu(_) | Self::Simulator(_) => None,
+        }
+    }
+
+    /// Returns a reference to the inner `WebGpuClient`, if this is the WebGPU bridge.
+    pub fn as_webgpu(&self) -> Option<&WebGpuClient> {
+        match self {
+            Self::WebGpu(c) => Some(c),
+            Self::OpenAi(_) | Self::Anthropic(_) | Self::Simulator(_) => None,
         }
     }
 
@@ -603,15 +653,45 @@ impl AnyClient {
         matches!(self, Self::Simulator(_))
     }
 
+    /// Returns `true` if this is the WebGPU bridge (with or without an attached transport).
+    pub fn is_webgpu(&self) -> bool {
+        matches!(self, Self::WebGpu(_))
+    }
+
+    /// Swaps an unavailable [`WebGpuClient`] for one backed by `transport`.
+    ///
+    /// Every call site that hands a `Provider::WebGpu` selection to
+    /// [`build_client`] receives a [`WebGpuClient::unavailable`] handle by
+    /// design — `build_client` lives in `parish-inference` and cannot see
+    /// the web server's per-session bridge. This helper lets those call
+    /// sites (session startup, `/provider.<category>` overrides, cloud
+    /// rebuilds) post-process the result and inject a real transport so
+    /// valid WebGPU configs don't end up permanently unusable.
+    ///
+    /// For non-WebGPU variants, or when the handle already carries a
+    /// transport, the client is returned unchanged.
+    pub fn with_webgpu_transport(
+        self,
+        transport: &Arc<dyn webgpu_client::WebGpuTransport>,
+    ) -> Self {
+        match self {
+            Self::WebGpu(c) if !c.is_available() => {
+                Self::WebGpu(WebGpuClient::with_transport(Arc::clone(transport)))
+            }
+            other => other,
+        }
+    }
+
     /// Returns `true` if the underlying client has a rate limiter attached.
     ///
-    /// The simulator is always unlimited (no network calls), so this is
-    /// `false` for `Self::Simulator`.
+    /// The simulator and WebGPU bridge are always unlimited (no shared
+    /// network bottleneck — WebGPU runs in the user's own browser), so
+    /// they always report `false`.
     pub fn has_rate_limiter(&self) -> bool {
         match self {
             Self::OpenAi(c) => c.has_rate_limiter(),
             Self::Anthropic(c) => c.has_rate_limiter(),
-            Self::Simulator(_) => false,
+            Self::WebGpu(_) | Self::Simulator(_) => false,
         }
     }
 }

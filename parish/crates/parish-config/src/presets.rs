@@ -161,7 +161,8 @@ impl Provider {
                 Some("Qwen/Qwen3-4B"),
                 Some("Qwen/Qwen3-14B"),
             ],
-            Provider::Custom | Provider::Simulator => [None, None, None, None],
+            // WebGPU and other local providers have no cloud models.
+            Provider::Custom | Provider::WebGpu | Provider::Simulator => [None, None, None, None],
         }
     }
 
