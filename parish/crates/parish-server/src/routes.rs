@@ -317,7 +317,7 @@ pub async fn submit_input(
 ///
 /// Config is read in a scoped block so the lock is dropped before any other
 /// lock is acquired, minimising the race window between concurrent rebuilds.
-async fn rebuild_inference(state: &Arc<AppState>, caller_email: &str) {
+async fn rebuild_inference(state: &Arc<AppState>, _caller_email: &str) {
     // Read config first, then drop the lock before acquiring any other lock.
     let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
