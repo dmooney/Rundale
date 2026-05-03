@@ -9,6 +9,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 - [code-style.md](docs/agent/code-style.md) — Rust + Svelte conventions
 - [gotchas.md](docs/agent/gotchas.md) — Tokio, SQLite, Ollama, mode parity pitfalls
 - [git-workflow.md](docs/agent/git-workflow.md) — commits, tests, and PR standards
+- [agent-check.md](docs/agent/agent-check.md) — proof evidence and judge verdict gate
 - [skills.md](docs/agent/skills.md) — `/check`, `/verify`, `/prove`, `/play`, etc.
 - [harness.md](docs/agent/harness.md) — one-page map of every sensor, skill, and gate (start here when something fails)
 
@@ -40,6 +41,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 7. **Keep README.md up to date.** Especially the feature list, repository structure and credits. Run `just notices` to update third party notices when dependencies are changed.
 8. **Investigate with Five Whys.** When diagnosing a bug, regression, or unexpected behavior, run the `/five-whys` skill (or apply the method) to reach the root cause before patching.
 9. **Resolve runtime paths from explicit config, not the cwd.** Saves dir, mods dir, data dir, and similar runtime paths must be resolved once at startup (env var, CLI flag, or project-marker probe) and stored on `AppState` / `GlobalState`. Never call `current_dir()`, parent-walks, or marker-file searches from request handlers or per-call helpers — packaged builds, daemonised servers, and `/tmp` working directories all break that assumption (#771). Use `parish_persistence::picker::resolve_project_saves_dir` rather than re-rolling the walk.
+10. **Proof evidence for proof-relevant PRs (enforced):** Runtime, UI, gameplay, CI, harness, and agent-instruction changes must include a changed proof bundle under `docs/proofs/` with a gameplay transcript, screenshot, or gif plus an independent judge verdict in `judge.md`. `just agent-check` and CI reject missing proof or recorded debt.
 
 ## Standard commands
 
@@ -48,6 +50,7 @@ just build         # cargo build (default member parish-cli)
 just run           # cargo tauri dev
 just run-headless
 just check         # fmt + clippy + tests
+just agent-check   # proof evidence + judge verdict gate
 just verify        # check + harness walkthrough
 
 just ui-test       # frontend unit tests

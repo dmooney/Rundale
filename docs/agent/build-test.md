@@ -70,6 +70,7 @@ System packages on Linux: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindica
 - `/verify` — full pre-push checklist (gates + harness walkthrough)
 - `/prove <feature>` — required after implementing any gameplay feature
 - `/rubric` — snapshot baselines + structural rubrics (sister to `/prove`)
+- `just agent-check` — requires proof evidence and a judge verdict for proof-relevant PRs
 - `/feature-scaffold <name>` — depth-first decomposition before coding
 - `/game-test [script]` — harness run
 

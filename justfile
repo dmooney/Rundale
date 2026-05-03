@@ -46,6 +46,10 @@ web PORT="3001":
 check:
     cd parish && just check
 
+# Agent proof gate: requires changed proof evidence and judge verdicts for proof-relevant PRs
+agent-check:
+    bash parish/scripts/agent-check.sh
+
 # Pre-push gate: check + game harness walkthrough
 verify:
     cd parish && just verify

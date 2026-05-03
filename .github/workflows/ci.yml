@@ -30,6 +30,22 @@ permissions:
   contents: read
 
 jobs:
+  agent-check:
+    name: Agent proof gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          clean: true
+          fetch-depth: 0
+
+      - name: Validate proof evidence
+        run: bash parish/scripts/agent-check.sh
+
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
     runs-on: ubuntu-latest

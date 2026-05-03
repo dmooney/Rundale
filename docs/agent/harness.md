@@ -17,7 +17,8 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | Introduce an out-of-period word in a fixture | Rubric fails | `eval_baselines.rs` → `rubric_anachronisms_are_empty` |
 | Accidentally return `Moved { minutes: 0 }` (frozen clock) | Rubric fails | `eval_baselines.rs` → `rubric_movement_minutes_are_positive` |
 | Silently break the location-description renderer | Rubric fails | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty` |
-| Leave AI partial-completion markers (`todo!()`, `// ...`, etc.) in changed files | Witness scan fails | `parish/justfile` → `witness-scan` (gates `just check` and `just verify`) |
+| Leave AI partial-completion markers in changed files | Witness scan fails | `parish/justfile` -> `witness-scan` (gates `just check` and `just verify`) |
+| Open a PR with runtime, UI, gameplay, CI, harness, or agent-instruction changes but no proof | Agent proof gate fails | `parish/scripts/agent-check.sh` (CI: `agent-check`, local: `just agent-check`) |
 | Want to know which gameplay subsystems lack a fixture | Read-only report | `just harness-audit` → `parish/scripts/harness-audit.sh` |
 
 ## Skills
@@ -28,18 +29,20 @@ Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlin
 2. **`/prove <feature>`** — after implementing, drive the feature through the script harness and read the JSON critically. Required for any gameplay change.
 3. **`/rubric`** — sister to `/prove`: deterministic snapshot-diff + structural rubrics over baselined fixtures. Cheaper than reading JSON; runs on every `cargo test`.
 4. **`/play [scenario]`** — autonomous play-test, exploration-style.
-5. **`/check`** — `fmt + clippy + test + witness-scan + check-doc-paths`. The pre-commit gate.
+5. **`/check`** — `agent-check + fmt + clippy + test + witness-scan + check-doc-paths`. The pre-commit gate.
 6. **`/verify`** — `/check` plus the full `game-test` walkthrough. The pre-push gate.
 
 ## Quality gates in order
 
 ```
-local:  just check    # fmt + clippy + test + witness-scan + check-doc-paths
+local:  just agent-check      # proof evidence + judge verdict + fast debt scan
+        just check    # agent-check + fmt + clippy + test + witness-scan + check-doc-paths
         just verify   # check + game-test fixture sweep
         just baselines        # only after intentional gameplay output changes (UPDATE_BASELINES=1)
         just harness-audit    # read-only coverage report
 
-CI:     rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
+CI:     agent-check           # proof evidence + judge verdict + fast debt scan
+        rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
         rust-multi-channel    # cargo check on stable + beta
         docs-consistency      # check-doc-paths
         game-harness          # every fixture in testing/fixtures/
@@ -51,7 +54,7 @@ CI:     rust-quality-gate     # fmt + clippy + test (the architecture-fitness te
 These rules are still **convention only** — no test enforces them. If you find yourself working around them, that's a candidate for the next sensor:
 
 - Tests with behavior changes — `AGENTS.md` §3
-- Gameplay proof for gameplay features — `AGENTS.md` §4
+- Content-level proof quality beyond the committed judge verdict — `AGENTS.md` §4 and §10
 - No unexplained `#[allow]` — `AGENTS.md` §5
 - Feature flags for new engine/gameplay features — `AGENTS.md` §6
 - Mode-parity *wiring* (every IPC handler called from every entry point) — `AGENTS.md` §2 (the *dep-level* part is enforced; the wiring part isn't)

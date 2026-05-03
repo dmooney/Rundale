@@ -4,9 +4,9 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 
 | Skill | Description |
 |---|---|
-| `/check` | Run fmt + clippy + tests (quality gate) |
+| `/check` | Run proof gate + fmt + clippy + tests (quality gate) |
 | `/game-test [script]` | Run GameTestHarness to verify game behavior |
-| `/verify` | Full pre-push checklist (quality gate + harness) |
+| `/verify` | Full pre-push checklist (proof gate + quality gate + harness) |
 | `/screenshot` | Regenerate GUI screenshots via Playwright (headless Chromium) |
 | `/fix-issue` | End-to-end GitHub issue workflow |
 | `/chrome-test` | Live browser testing session via browser MCP tools |

@@ -10,14 +10,15 @@ Run the complete Rundale pre-push verification checklist.
 
 ## Steps
 
-Run `just verify` from the repo root. This runs: fmt-check, clippy, tests, witness-scan, doc-paths, and the game harness walkthrough script.
+Run `just verify` from the repo root. This runs: agent-check, fmt-check, clippy, tests, witness-scan, doc-paths, and the game harness walkthrough script.
 
 If `just verify` fails, diagnose by running steps individually:
-1. **Format check**: `cd parish && cargo fmt --check`. Fix with `cd parish && cargo fmt`, then report what changed.
-2. **Lint**: `cd parish && cargo clippy -- -D warnings`. Fix any warnings before proceeding.
-3. **Tests**: `cd parish && cargo test`. All tests must pass.
-4. **Game harness**: `cd parish && cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt` and inspect JSON output for correctness.
+1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `docs/proofs/` when it reports missing evidence.
+2. **Format check**: `cd parish && cargo fmt --check`. Fix with `cd parish && cargo fmt`, then report what changed.
+3. **Lint**: `cd parish && cargo clippy -- -D warnings`. Fix any warnings before proceeding.
+4. **Tests**: `cd parish && cargo test`. All tests must pass.
+5. **Game harness**: `cd parish && cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt` and inspect JSON output for correctness.
 
-5. **Summary**: Report pass/fail for each step. Only if ALL steps pass, confirm it is safe to push.
+6. **Summary**: Report pass/fail for each step. Only if ALL steps pass, confirm it is safe to push.
 
 If any step fails, stop and report the failure. Do NOT push. Fix the issue first.

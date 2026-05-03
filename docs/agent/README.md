@@ -10,6 +10,7 @@ Quick reference for AI coding agents and human contributors working in this repo
 | Tokio / SQLite / Ollama gotchas | [gotchas.md](gotchas.md) |
 | Git workflow & engineering standards | [git-workflow.md](git-workflow.md) |
 | Witness-style completion gates | [witness.md](witness.md) |
+| PR proof evidence gate | [agent-check.md](agent-check.md) |
 | Agent skills (`/check`, `/prove`, ...) | [skills.md](skills.md) |
 | **Harness map** — what fires when, every sensor and gate | [harness.md](harness.md) |
 | Running CI locally with `act` | [act-local.md](act-local.md) |

@@ -262,21 +262,27 @@ baselines:
 harness-audit:
     ./scripts/harness-audit.sh
 
-# Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
-check: fmt-check clippy test witness-scan check-doc-paths
+# Agent proof gate: requires changed proof evidence and judge verdicts for proof-relevant PRs
+agent-check:
+    bash ./scripts/agent-check.sh
 
-# Pre-push gate: check + game harness walkthrough
-verify: fmt-check clippy test game-test witness-scan check-doc-paths
+# Pre-commit gate: proof, format, lint, tests, placeholder scan, doc-paths
+check: agent-check fmt-check clippy test witness-scan check-doc-paths
+
+# Pre-push gate: proof, check + game harness walkthrough
+verify: agent-check fmt-check clippy test game-test witness-scan check-doc-paths
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:
     #!/usr/bin/env bash
     set -euo pipefail
+    _root=$(git rev-parse --show-toplevel)
+    cd "$_root"
     tmpfile=$(mktemp)
     _base=$(git merge-base origin/main HEAD 2>/dev/null || git merge-base main HEAD 2>/dev/null || echo "HEAD")
     git diff --name-only -z --diff-filter=d "$_base" \
       | tr '\0' '\n' \
-      | grep -E '^(crates|apps|docs|testing|mods)/' \
+      | grep -E '^(parish/crates|parish/apps|docs|parish/testing|mods)/' \
       | grep -v '^docs/agent/witness\.md$' \
       > "$tmpfile" || true
 
