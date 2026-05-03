@@ -79,8 +79,21 @@ pub struct SessionEntry {
     pub app_state: Arc<AppState>,
     /// Unix timestamp of the last API request from this session.
     pub last_active: AtomicU64,
+    /// Cancellation token — cancelled when the session is evicted so background
+    /// tick tasks shut down gracefully instead of running until the JoinHandle
+    /// is aborted (#228).
+    _shutdown_token: tokio_util::sync::CancellationToken,
     /// Background tick task handles — dropped when the session is evicted.
     _tick_handles: Vec<JoinHandle<()>>,
+}
+
+impl Drop for SessionEntry {
+    fn drop(&mut self) {
+        // Signal all background tasks to stop gracefully before their handles
+        // are dropped.  Tasks observe the token in their select! loops and exit
+        // cleanly, completing any in-flight autosave iteration first (#228).
+        self._shutdown_token.cancel();
+    }
 }
 
 // ── SessionRegistry ──────────────────────────────────────────────────────────
@@ -548,11 +561,13 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         tracing::warn!("Session initial save failed: {}", e);
     }
 
-    let handles = spawn_session_ticks(Arc::clone(&app_state));
+    let shutdown_token = tokio_util::sync::CancellationToken::new();
+    let handles = spawn_session_ticks(Arc::clone(&app_state), shutdown_token.clone());
 
     Arc::new(SessionEntry {
         app_state,
         last_active: AtomicU64::new(SessionRegistry::now_unix()),
+        _shutdown_token: shutdown_token,
         _tick_handles: handles,
     })
 }
@@ -660,11 +675,13 @@ async fn restore_session(
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some(branch_name);
 
-    let handles = spawn_session_ticks(Arc::clone(&app_state));
+    let shutdown_token = tokio_util::sync::CancellationToken::new();
+    let handles = spawn_session_ticks(Arc::clone(&app_state), shutdown_token.clone());
 
     Ok(Arc::new(SessionEntry {
         app_state,
         last_active: AtomicU64::new(SessionRegistry::now_unix()),
+        _shutdown_token: shutdown_token,
         _tick_handles: handles,
     }))
 }
@@ -797,17 +814,28 @@ where
 }
 
 /// Spawns the three per-session background tasks and returns their handles.
-fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
+///
+/// Each task observes `shutdown_token` via `tokio::select!` so it exits
+/// cleanly when the token is cancelled (e.g. on session eviction) rather than
+/// running until its `JoinHandle` is aborted (#228).
+fn spawn_session_ticks(
+    state: Arc<AppState>,
+    shutdown_token: tokio_util::sync::CancellationToken,
+) -> Vec<JoinHandle<()>> {
     let mut handles = Vec::with_capacity(3);
 
     // ── World tick (5 s) ─────────────────────────────────────────────────────
     {
         let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
             // Round-robin cursor for budgeted gossip propagation (#466).
             let mut gossip_cursor: usize = 0;
             loop {
-                tokio::time::sleep(Duration::from_secs(5)).await;
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
 
                 {
                     let world = s.world.lock().await;
@@ -889,9 +917,13 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
     // ── Inactivity tick (1 s) ────────────────────────────────────────────────
     {
         let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+                }
                 crate::routes::tick_inactivity(&s).await;
             }
         }));
@@ -906,6 +938,7 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
     // inside `AsyncDatabase`, so a slow fsync can never stall the Tokio runtime.
     {
         let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
         handles.push(tokio::spawn(async move {
             use parish_core::persistence::snapshot::GameSnapshot;
             use parish_core::persistence::{AsyncDatabase, Database};
@@ -913,7 +946,13 @@ fn spawn_session_ticks(state: Arc<AppState>) -> Vec<JoinHandle<()>> {
             // one user-visible warning per failure run, not one per tick.
             let mut last_autosave_failed = false;
             loop {
-                tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)).await;
+                // Wait for the interval or cancellation.  Cancellation exits
+                // only after the *sleep* fires, so any in-flight autosave
+                // iteration completes before the task stops (#228).
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)) => {}
+                }
 
                 let save_path = s.save_path.lock().await.clone();
                 let branch_id = *s.current_branch_id.lock().await;
