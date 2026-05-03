@@ -100,6 +100,22 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         Some(Command::NewGame)
     } else if lower == "/tick" {
         Some(Command::Tick)
+    } else if lower == "/mail" {
+        Some(Command::Mail)
+    } else if lower == "/post" {
+        Some(Command::PostLetter {
+            correspondent: None,
+            topic: String::new(),
+        })
+    } else if lower.starts_with("/post ") {
+        let args = trimmed.get("/post ".len()..).unwrap_or("").trim();
+        let mut parts = args.splitn(2, ' ');
+        let correspondent = parts.next().map(|s| s.to_string());
+        let topic = parts.next().unwrap_or("").trim().to_string();
+        Some(Command::PostLetter {
+            correspondent,
+            topic,
+        })
     } else if lower == "/theme" {
         Some(Command::Theme(None))
     } else if lower.starts_with("/theme ") {
