@@ -1,0 +1,21 @@
+[package]
+name = "parish-rag"
+version = "0.1.0"
+edition = "2024"
+description = "Retrieval-augmented generation for Parish NPC knowledge"
+license = "LicenseRef-Proprietary"
+
+[[bin]]
+name = "npc_knowledge_demo"
+path = "src/bin/npc_knowledge_demo.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"
