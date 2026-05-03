@@ -555,6 +555,7 @@ fn build_tracked_locations(
                 target: ids[peer_idx],
                 traversal_minutes: None,
                 path_description: format!("toward {peer_name}"),
+                hazard: Default::default(),
             });
         }
 
