@@ -64,6 +64,32 @@ mod tests {
         assert_eq!(parse_system_command("/help"), Some(Command::Help));
     }
 
+    /// Zero-argument commands must NOT match when trailing text is present.
+    /// Regression: the refactored match split on the first space, so
+    /// `/pause foo` would match when it should not.
+    #[test]
+    fn test_zero_arg_commands_reject_trailing_text() {
+        assert_eq!(parse_system_command("/pause foo"), None);
+        assert_eq!(parse_system_command("/resume now"), None);
+        assert_eq!(parse_system_command("/quit please"), None);
+        assert_eq!(parse_system_command("/save me"), None);
+        assert_eq!(parse_system_command("/branches list"), None);
+        assert_eq!(parse_system_command("/log all"), None);
+        assert_eq!(parse_system_command("/status detailed"), None);
+        assert_eq!(parse_system_command("/where am I"), None);
+        assert_eq!(parse_system_command("/help me"), None);
+        assert_eq!(parse_system_command("/irish on"), None);
+        assert_eq!(parse_system_command("/improv mode"), None);
+        assert_eq!(parse_system_command("/about us"), None);
+        assert_eq!(parse_system_command("/designer mode"), None);
+        assert_eq!(parse_system_command("/npcs here"), None);
+        assert_eq!(parse_system_command("/time now"), None);
+        assert_eq!(parse_system_command("/new game"), None);
+        assert_eq!(parse_system_command("/tick once"), None);
+        assert_eq!(parse_system_command("/flags all"), None);
+        assert_eq!(parse_system_command("/session start"), None);
+    }
+
     #[test]
     fn test_parse_unknown_command() {
         assert_eq!(parse_system_command("/unknown"), None);

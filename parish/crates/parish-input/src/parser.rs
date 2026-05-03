@@ -20,286 +20,199 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
     let trimmed = input.trim();
     let lower = trimmed.to_lowercase();
 
-    if lower == "/pause" {
-        Some(Command::Pause)
-    } else if lower == "/resume" {
-        Some(Command::Resume)
-    } else if lower == "/quit" {
-        Some(Command::Quit)
-    } else if lower == "/save" {
-        Some(Command::Save)
-    } else if lower == "/fork" || lower.starts_with("/fork ") {
-        let name = trimmed
-            .get("/fork".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() {
-            Some(Command::Help) // bare /fork → show help
-        } else {
-            match validate_branch_name(&name) {
-                Ok(valid) => Some(Command::Fork(valid)),
-                Err(msg) => Some(Command::InvalidBranchName(msg)),
+    // Split into the command keyword and the remainder argument string.
+    // e.g. "/map clonalis" → keyword="/map", rest="clonalis"
+    //      "/map"          → keyword="/map", rest=""
+    let (keyword, rest_trimmed) = match lower.find(' ') {
+        Some(pos) => (&lower[..pos], trimmed[pos..].trim()),
+        None => (lower.as_str(), ""),
+    };
+
+    match (keyword, rest_trimmed) {
+        // Zero-argument commands
+        ("/pause", "") => Some(Command::Pause),
+        ("/resume", "") => Some(Command::Resume),
+        ("/quit", "") => Some(Command::Quit),
+        ("/save", "") => Some(Command::Save),
+        ("/branches", "") => Some(Command::Branches),
+        ("/log", "") => Some(Command::Log),
+        ("/status", "") | ("/where", "") => Some(Command::Status),
+        ("/help", "") => Some(Command::Help),
+        ("/irish", "") => Some(Command::ToggleSidebar),
+        ("/improv", "") => Some(Command::ToggleImprov),
+        ("/about", "") => Some(Command::About),
+        ("/designer", "") => Some(Command::Designer),
+        ("/npcs", "") => Some(Command::NpcsHere),
+        ("/time", "") => Some(Command::Time),
+        ("/new", "") => Some(Command::NewGame),
+        ("/tick", "") => Some(Command::Tick),
+        ("/flags", "") => Some(Command::Flags),
+        ("/session", "") | ("/tune", "") | ("/music", "") | ("/fiddle", "") | ("/seisiun", "") => {
+            Some(Command::Session)
+        }
+
+        // Commands with arguments
+        ("/fork", "") => Some(Command::Help), // bare /fork → show help
+        ("/fork", rest) => match validate_branch_name(rest) {
+            Ok(valid) => Some(Command::Fork(valid)),
+            Err(msg) => Some(Command::InvalidBranchName(msg)),
+        },
+
+        ("/load", "") => Some(Command::Load(String::new())), // empty string = show save picker
+        ("/load", rest) => match validate_branch_name(rest) {
+            Ok(valid) => Some(Command::Load(valid)),
+            Err(msg) => Some(Command::InvalidBranchName(msg)),
+        },
+
+        ("/map", "") => Some(Command::Map(None)),
+        ("/map", rest) => Some(Command::Map(Some(rest.to_string()))),
+
+        ("/wait", rest) => {
+            let mins = rest.parse::<u32>().unwrap_or(15);
+            Some(Command::Wait(mins))
+        }
+
+        ("/theme", "") => Some(Command::Theme(None)),
+        ("/theme", rest) => Some(Command::Theme(Some(rest.to_string()))),
+
+        ("/unexplored", rest) => {
+            let arg = rest.to_lowercase();
+            match arg.as_str() {
+                "reveal" | "show" | "on" => Some(Command::Unexplored(Some(true))),
+                "hide" | "off" => Some(Command::Unexplored(Some(false))),
+                _ => Some(Command::Unexplored(None)),
             }
         }
-    } else if lower == "/load" || lower.starts_with("/load ") {
-        let name = trimmed
-            .get("/load".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() {
-            Some(Command::Load(String::new())) // empty string = show save picker
-        } else {
-            match validate_branch_name(&name) {
-                Ok(valid) => Some(Command::Load(valid)),
-                Err(msg) => Some(Command::InvalidBranchName(msg)),
-            }
+
+        ("/preset", "") => Some(Command::ShowPreset),
+        ("/preset", rest) => Some(Command::ApplyPreset(rest.to_string())),
+
+        ("/provider", "") => Some(Command::ShowProvider),
+        ("/provider", rest) => Some(Command::SetProvider(rest.to_string())),
+
+        ("/model", "") => Some(Command::ShowModel),
+        ("/model", rest) => Some(Command::SetModel(rest.to_string())),
+
+        ("/key", "") => Some(Command::ShowKey),
+        ("/key", rest) => Some(Command::SetKey(rest.to_string())),
+
+        ("/spinner", rest) => {
+            let secs = rest
+                .parse::<u64>()
+                .unwrap_or(SPINNER_DEFAULT_SECS)
+                .min(SPINNER_MAX_SECS);
+            Some(Command::Spinner(secs))
         }
-    } else if lower == "/branches" {
-        Some(Command::Branches)
-    } else if lower == "/log" {
-        Some(Command::Log)
-    } else if lower == "/status" {
-        Some(Command::Status)
-    } else if lower == "/help" {
-        Some(Command::Help)
-    } else if lower == "/irish" {
-        Some(Command::ToggleSidebar)
-    } else if lower == "/improv" {
-        Some(Command::ToggleImprov)
-    } else if lower == "/about" {
-        Some(Command::About)
-    } else if lower == "/map" {
-        Some(Command::Map(None))
-    } else if lower.starts_with("/map ") {
-        let arg = trimmed
-            .get("/map ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if arg.is_empty() {
-            Some(Command::Map(None))
-        } else {
-            Some(Command::Map(Some(arg)))
-        }
-    } else if lower == "/designer" {
-        Some(Command::Designer)
-    } else if lower == "/npcs" {
-        Some(Command::NpcsHere)
-    } else if lower == "/time" {
-        Some(Command::Time)
-    } else if lower == "/where" {
-        Some(Command::Status)
-    } else if lower == "/wait" {
-        Some(Command::Wait(15))
-    } else if lower.starts_with("/wait ") {
-        let mins = trimmed[6..].trim().parse::<u32>().unwrap_or(15);
-        Some(Command::Wait(mins))
-    } else if lower == "/new" {
-        Some(Command::NewGame)
-    } else if lower == "/tick" {
-        Some(Command::Tick)
-    } else if lower == "/theme" {
-        Some(Command::Theme(None))
-    } else if lower.starts_with("/theme ") {
-        let arg = trimmed
-            .get("/theme ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if arg.is_empty() {
-            Some(Command::Theme(None))
-        } else {
-            Some(Command::Theme(Some(arg)))
-        }
-    } else if lower == "/unexplored" {
-        Some(Command::Unexplored(None))
-    } else if lower.starts_with("/unexplored ") {
-        let arg = trimmed
-            .get("/unexplored ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_lowercase();
-        match arg.as_str() {
-            "reveal" | "show" | "on" => Some(Command::Unexplored(Some(true))),
-            "hide" | "off" => Some(Command::Unexplored(Some(false))),
-            _ => Some(Command::Unexplored(None)),
-        }
-    } else if let Some(cmd) = parse_category_command(trimmed, &lower) {
-        Some(cmd)
-    } else if lower == "/preset" {
-        Some(Command::ShowPreset)
-    } else if lower.starts_with("/preset ") {
-        let name = trimmed
-            .get("/preset ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() {
-            Some(Command::ShowPreset)
-        } else {
-            Some(Command::ApplyPreset(name))
-        }
-    } else if lower == "/provider" {
-        Some(Command::ShowProvider)
-    } else if lower.starts_with("/provider ") {
-        let name = trimmed
-            .get("/provider ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() {
-            Some(Command::ShowProvider)
-        } else {
-            Some(Command::SetProvider(name))
-        }
-    } else if lower == "/model" {
-        Some(Command::ShowModel)
-    } else if lower.starts_with("/model ") {
-        let name = trimmed
-            .get("/model ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if name.is_empty() {
-            Some(Command::ShowModel)
-        } else {
-            Some(Command::SetModel(name))
-        }
-    } else if lower == "/key" {
-        Some(Command::ShowKey)
-    } else if lower.starts_with("/key ") {
-        let value = trimmed
-            .get("/key ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if value.is_empty() {
-            Some(Command::ShowKey)
-        } else {
-            Some(Command::SetKey(value))
-        }
-    } else if lower == "/spinner" {
-        Some(Command::Spinner(SPINNER_DEFAULT_SECS))
-    } else if lower.starts_with("/spinner ") {
-        let secs = trimmed
-            .get("/spinner ".len()..)
-            .unwrap_or("")
-            .trim()
-            .parse::<u64>()
-            .unwrap_or(SPINNER_DEFAULT_SECS)
-            .min(SPINNER_MAX_SECS);
-        Some(Command::Spinner(secs))
-    } else if lower == "/debug" {
-        Some(Command::Debug(None))
-    } else if lower.starts_with("/debug ") {
-        let sub = trimmed
-            .get("/debug ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if sub.is_empty() {
-            Some(Command::Debug(None))
-        } else {
-            Some(Command::Debug(Some(sub)))
-        }
-    } else if lower == "/speed" {
-        Some(Command::ShowSpeed)
-    } else if lower.starts_with("/speed ") {
-        let arg = trimmed.get("/speed ".len()..).unwrap_or("").trim();
-        match GameSpeed::from_name(arg) {
+
+        ("/debug", "") => Some(Command::Debug(None)),
+        ("/debug", rest) => Some(Command::Debug(Some(rest.to_string()))),
+
+        ("/speed", "") => Some(Command::ShowSpeed),
+        ("/speed", rest) => match GameSpeed::from_name(rest) {
             Some(speed) => Some(Command::SetSpeed(speed)),
-            None if arg.is_empty() => Some(Command::ShowSpeed),
-            None => Some(Command::InvalidSpeed(arg.to_string())),
+            None => Some(Command::InvalidSpeed(rest.to_string())),
+        },
+
+        ("/cloud", "") => Some(Command::ShowCloud),
+        ("/cloud", rest) => parse_cloud_subcommand(rest),
+
+        ("/weather", "") => Some(Command::Weather(None)),
+        ("/weather", rest) => Some(Command::Weather(Some(rest.to_string()))),
+
+        ("/flag", "") => Some(Command::Flag(FlagSubcommand::List)),
+        ("/flag", rest) if rest.to_lowercase() == "list" => {
+            Some(Command::Flag(FlagSubcommand::List))
         }
-    } else if lower == "/cloud" {
-        Some(Command::ShowCloud)
-    } else if lower.starts_with("/cloud ") {
-        let rest = trimmed.get("/cloud ".len()..).unwrap_or("").trim();
-        let rest_lower = rest.to_lowercase();
-        if rest_lower.starts_with("provider ") {
-            let name = rest
-                .get("provider ".len()..)
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            if name.is_empty() {
+        ("/flag", rest) => parse_flag_subcommand(rest),
+
+        // Dot-notation per-category commands: /model.<cat>, /provider.<cat>, /key.<cat>
+        (kw, _)
+            if kw.starts_with("/model.")
+                || kw.starts_with("/provider.")
+                || kw.starts_with("/key.") =>
+        {
+            // Re-assemble the full trimmed string for parse_category_command since it
+            // expects the original (potentially mixed-case) trimmed input alongside the
+            // lowercase version for prefix-stripping.
+            parse_category_command(trimmed, &lower)
+        }
+
+        _ => None,
+    }
+}
+
+/// Parses `/cloud <subcommand>` arguments.
+fn parse_cloud_subcommand(rest: &str) -> Option<Command> {
+    let rest_lower = rest.to_lowercase();
+
+    // Split subcommand keyword from its argument.
+    let (sub_kw, sub_arg) = match rest_lower.find(' ') {
+        Some(pos) => (&rest_lower[..pos], rest[pos..].trim()),
+        None => (rest_lower.as_str(), ""),
+    };
+
+    match sub_kw {
+        "provider" => {
+            if sub_arg.is_empty() {
                 Some(Command::ShowCloud)
             } else {
-                Some(Command::SetCloudProvider(name))
+                Some(Command::SetCloudProvider(sub_arg.to_string()))
             }
-        } else if rest_lower == "provider" {
-            Some(Command::ShowCloud)
-        } else if rest_lower.starts_with("model ") {
-            let name = rest.get("model ".len()..).unwrap_or("").trim().to_string();
-            if name.is_empty() {
+        }
+        "model" => {
+            if sub_arg.is_empty() {
                 Some(Command::ShowCloudModel)
             } else {
-                Some(Command::SetCloudModel(name))
+                Some(Command::SetCloudModel(sub_arg.to_string()))
             }
-        } else if rest_lower == "model" {
-            Some(Command::ShowCloudModel)
-        } else if rest_lower.starts_with("key ") {
-            let value = rest.get("key ".len()..).unwrap_or("").trim().to_string();
-            if value.is_empty() {
+        }
+        "key" => {
+            if sub_arg.is_empty() {
                 Some(Command::ShowCloudKey)
             } else {
-                Some(Command::SetCloudKey(value))
+                Some(Command::SetCloudKey(sub_arg.to_string()))
             }
-        } else if rest_lower == "key" {
-            Some(Command::ShowCloudKey)
-        } else {
-            Some(Command::ShowCloud)
         }
-    } else if lower == "/flags" {
-        Some(Command::Flags)
-    } else if lower == "/weather" {
-        Some(Command::Weather(None))
-    } else if lower.starts_with("/weather ") {
-        let arg = trimmed
-            .get("/weather ".len()..)
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        if arg.is_empty() {
-            Some(Command::Weather(None))
-        } else {
-            Some(Command::Weather(Some(arg)))
-        }
-    } else if matches!(
-        lower.as_str(),
-        "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun"
-    ) {
-        Some(Command::Session)
-    } else if lower == "/flag" || lower == "/flag list" {
-        Some(Command::Flag(FlagSubcommand::List))
-    } else if lower.starts_with("/flag ") {
-        let rest = trimmed.get("/flag ".len()..).unwrap_or("").trim();
-        let rest_lower = rest.to_lowercase();
-        if rest_lower.starts_with("enable ") {
-            let name = rest.get("enable ".len()..).unwrap_or("").trim();
-            match validate_flag_name(name) {
-                Ok(valid) => Some(Command::Flag(FlagSubcommand::Enable(valid))),
-                Err(msg) => Some(Command::InvalidFlagName(msg)),
+        _ => Some(Command::ShowCloud),
+    }
+}
+
+/// Parses `/flag <subcommand>` arguments (enable/disable/list).
+fn parse_flag_subcommand(rest: &str) -> Option<Command> {
+    let rest_lower = rest.to_lowercase();
+
+    let (sub_kw, sub_arg) = match rest_lower.find(' ') {
+        Some(pos) => (&rest_lower[..pos], rest[pos..].trim()),
+        None => (rest_lower.as_str(), ""),
+    };
+
+    match sub_kw {
+        "enable" => {
+            if sub_arg.is_empty() {
+                // `/flag enable` with no name → show list
+                Some(Command::Flag(FlagSubcommand::List))
+            } else {
+                match validate_flag_name(sub_arg) {
+                    Ok(valid) => Some(Command::Flag(FlagSubcommand::Enable(valid))),
+                    Err(msg) => Some(Command::InvalidFlagName(msg)),
+                }
             }
-        } else if rest_lower.starts_with("disable ") {
-            let name = rest.get("disable ".len()..).unwrap_or("").trim();
-            match validate_flag_name(name) {
-                Ok(valid) => Some(Command::Flag(FlagSubcommand::Disable(valid))),
-                Err(msg) => Some(Command::InvalidFlagName(msg)),
-            }
-        } else if rest_lower == "enable" || rest_lower == "disable" || rest_lower == "list" {
-            Some(Command::Flag(FlagSubcommand::List))
-        } else {
-            // `/flag <name>` without enable/disable — treat as usage error
-            Some(Command::InvalidFlagName(format!(
-                "Unknown flag sub-command '{}'. Use: /flag enable <name>, /flag disable <name>, /flag list",
-                rest
-            )))
         }
-    } else {
-        None
+        "disable" => {
+            if sub_arg.is_empty() {
+                Some(Command::Flag(FlagSubcommand::List))
+            } else {
+                match validate_flag_name(sub_arg) {
+                    Ok(valid) => Some(Command::Flag(FlagSubcommand::Disable(valid))),
+                    Err(msg) => Some(Command::InvalidFlagName(msg)),
+                }
+            }
+        }
+        "list" => Some(Command::Flag(FlagSubcommand::List)),
+        _ => Some(Command::InvalidFlagName(format!(
+            "Unknown flag sub-command '{}'. Use: /flag enable <name>, /flag disable <name>, /flag list",
+            rest
+        ))),
     }
 }
 
