@@ -10,7 +10,8 @@ use crate::intent_types::{IntentKind, PlayerIntent};
 /// Catches common movement and look phrases without requiring an LLM call.
 /// Returns `None` if the input doesn't match any known pattern.
 pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
-    let lower = raw_input.trim().to_lowercase();
+    let trimmed = raw_input.trim();
+    let lower = trimmed.to_lowercase();
 
     // Movement patterns — multi-word phrases checked first (longest match wins),
     // then single-verb prefixes. Covers common, colloquial, and unusual verbs.
@@ -86,8 +87,15 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
 
     // Try multi-word phrases first for longest-match semantics
     for prefix in &move_phrases {
-        if let Some(target) = lower.strip_prefix(prefix) {
-            let target = target.trim();
+        if lower.starts_with(prefix) {
+            // Match on lowercase, but extract target from original (trimmed) input.
+            // Use char count to find the byte boundary, avoiding UTF-8 safety issues.
+            let byte_offset: usize = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(i, _)| i)
+                .unwrap_or(trimmed.len());
+            let target = trimmed[byte_offset..].trim();
             if !target.is_empty() {
                 return Some(PlayerIntent {
                     intent: IntentKind::Move,
@@ -101,8 +109,15 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
 
     // Then try bare verb + destination
     for prefix in &move_verbs {
-        if let Some(target) = lower.strip_prefix(prefix) {
-            let target = target.trim();
+        if lower.starts_with(prefix) {
+            // Match on lowercase, but extract target from original (trimmed) input.
+            // Use char count to find the byte boundary, avoiding UTF-8 safety issues.
+            let byte_offset: usize = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(i, _)| i)
+                .unwrap_or(trimmed.len());
+            let target = trimmed[byte_offset..].trim();
             if !target.is_empty() {
                 return Some(PlayerIntent {
                     intent: IntentKind::Move,

@@ -207,7 +207,7 @@ mod tests {
     fn test_local_parse_head_to() {
         let intent = parse_intent_local("head to Murphy's Farm").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
-        assert_eq!(intent.target, Some("murphy's farm".to_string()));
+        assert_eq!(intent.target, Some("Murphy's Farm".to_string()));
     }
 
     #[test]
@@ -233,7 +233,7 @@ mod tests {
     fn test_local_parse_case_insensitive() {
         let intent = parse_intent_local("GO TO THE PUB").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
-        assert_eq!(intent.target, Some("the pub".to_string()));
+        assert_eq!(intent.target, Some("THE PUB".to_string()));
 
         let intent = parse_intent_local("LOOK").unwrap();
         assert_eq!(intent.intent, IntentKind::Look);
@@ -483,11 +483,11 @@ mod tests {
     fn test_local_parse_unusual_verbs_case_insensitive() {
         let intent = parse_intent_local("SAUNTER TO THE PUB").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
-        assert_eq!(intent.target, Some("the pub".to_string()));
+        assert_eq!(intent.target, Some("THE PUB".to_string()));
 
         let intent = parse_intent_local("Mosey To The Church").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
-        assert_eq!(intent.target, Some("the church".to_string()));
+        assert_eq!(intent.target, Some("The Church".to_string()));
 
         let intent = parse_intent_local("WANDER crossroads").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
@@ -952,6 +952,83 @@ mod tests {
         let result = extract_mention("hello @Padraig how are you").unwrap();
         assert_eq!(result.name, "Padraig");
         assert_eq!(result.remaining, "hello how are you");
+    }
+
+    // --- Bug #669 tests: trailing punctuation, first-word casing, connector words ---
+
+    #[test]
+    fn test_extract_mention_trailing_punctuation() {
+        // Bug 1: trailing punctuation should be stripped from the name
+        let result = extract_mention("@Padraig, hello there").unwrap();
+        assert_eq!(result.name, "Padraig");
+        assert_eq!(result.remaining, "hello there");
+
+        let result = extract_mention("@Siobhan! how are you").unwrap();
+        assert_eq!(result.name, "Siobhan");
+        assert_eq!(result.remaining, "how are you");
+
+        let result = extract_mention("@Mary? yes").unwrap();
+        assert_eq!(result.name, "Mary");
+        assert_eq!(result.remaining, "yes");
+
+        let result = extract_mention("@John: hello").unwrap();
+        assert_eq!(result.name, "John");
+        assert_eq!(result.remaining, "hello");
+
+        let result = extract_mention("@Liam; great").unwrap();
+        assert_eq!(result.name, "Liam");
+        assert_eq!(result.remaining, "great");
+    }
+
+    #[test]
+    fn test_extract_mention_trailing_punctuation_multiword() {
+        // Trailing punctuation on the last word of a multi-word name
+        let result = extract_mention("@Padraig Darcy, hello").unwrap();
+        assert_eq!(result.name, "Padraig Darcy");
+        assert_eq!(result.remaining, "hello");
+
+        let result = extract_mention("@Mary Ann! how are you").unwrap();
+        assert_eq!(result.name, "Mary Ann");
+        assert_eq!(result.remaining, "how are you");
+    }
+
+    #[test]
+    fn test_extract_mention_first_word_must_be_uppercase() {
+        // Bug 2: First word must start with capital letter, return None otherwise
+        assert!(extract_mention("@padraig hello").is_none());
+        assert!(extract_mention("@john welcome").is_none());
+        assert!(extract_mention("hello @siobhan").is_none());
+        assert!(extract_mention("@mary").is_none());
+        assert!(extract_mention("@123abc hello").is_none());
+
+        // But uppercase should work
+        let result = extract_mention("@Padraig hello").unwrap();
+        assert_eq!(result.name, "Padraig");
+
+        let result = extract_mention("@Mary there").unwrap();
+        assert_eq!(result.name, "Mary");
+    }
+
+    #[test]
+    fn test_extract_mention_connector_words() {
+        // Bug 3: Single-character connector words like "O'" should be allowed in names
+        let result = extract_mention("@Padraig O'Brien hello").unwrap();
+        assert_eq!(result.name, "Padraig O'Brien");
+        assert_eq!(result.remaining, "hello");
+
+        // Single letter "D" in the middle should also be allowed
+        let result = extract_mention("@Jean D'Arc").unwrap();
+        assert_eq!(result.name, "Jean D'Arc");
+        assert_eq!(result.remaining, "");
+
+        // But a single lowercase letter still stops the name (unless preceded by connector punctuation)
+        // Actually, single letters at the start should not be allowed as first word
+        assert!(extract_mention("@o hello").is_none());
+
+        // Single-character words can appear in the middle even without connector punctuation
+        let result = extract_mention("@Mary A Smith").unwrap();
+        assert_eq!(result.name, "Mary A Smith");
+        assert_eq!(result.remaining, "");
     }
 
     #[test]
