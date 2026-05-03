@@ -257,6 +257,7 @@ pub async fn submit_input(
             handle_system_command(cmd, &state, &app).await;
         }
         InputResult::GameInput(raw) => {
+            tracing::info!(input = %raw, "chat [player]");
             // Emit the player's own text as a dialogue bubble only for actual dialogue
             let player_msg = text_log("player", format!("> {}", raw));
             let player_msg_id = player_msg.id.clone();
@@ -655,6 +656,11 @@ async fn handle_game_input(
     // `talk to <name>` / `speak to <name>` — bypass @mention parsing and
     // route directly to the multi-target dispatch loop with this single
     // addressee. The chip-selection list still gets prepended below.
+    //
+    // Pass `raw` (the original input) rather than an empty string so that
+    // dialogue like "Hello Brigid, good morning!" is not discarded when the
+    // intent parser classifies it as Talk. An empty `raw` still produces the
+    // "say something first" prompt, which is correct for bare "talk to X".
     if is_talk && let Some(target) = talk_target {
         let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + 1);
         for name in addressed_to {
@@ -665,7 +671,7 @@ async fn handle_game_input(
         if !targets.iter().any(|t| t == &target) {
             targets.push(target);
         }
-        handle_npc_conversation(String::new(), targets, state, app).await;
+        handle_npc_conversation(raw, targets, state, app).await;
         return;
     }
 
@@ -725,6 +731,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
     // Emit all player-visible messages in order
     for msg in &effects.messages {
+        tracing::info!(source = %msg.source, text = %msg.text.trim(), "chat");
         let payload = match msg.subtype {
             Some(st) => text_log_typed(msg.source, &msg.text, st),
             None => text_log(msg.source, &msg.text),
@@ -1072,6 +1079,9 @@ async fn run_npc_turn(
     loading_cancel.cancel();
 
     let parsed = parse_npc_stream_response(&response.text);
+    if !parsed.dialogue.trim().is_empty() {
+        tracing::info!(speaker = %display_label, dialogue = %parsed.dialogue.trim(), "chat [npc]");
+    }
     let hints = parsed
         .metadata
         .as_ref()
@@ -2144,4 +2154,485 @@ fn emit_npc_reactions(
             }
         }
     });
+}
+
+// ── Demo / auto-player commands ──────────────────────────────────────────────
+
+/// A single NPC visible to the demo player at the current location.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct DemoNpcInfo {
+    pub name: String,
+    pub description: String,
+}
+
+/// An adjacent location visible to the demo player.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct DemoAdjacentLocation {
+    pub name: String,
+    pub travel_minutes: Option<u16>,
+    pub visited: bool,
+}
+
+/// A snapshot of the game context passed to the LLM player each turn.
+///
+/// Backend fills all fields except `recent_log`; the frontend appends the
+/// last 40 entries from the `textLog` store before calling `get_llm_player_action`.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct DemoContextSnapshot {
+    pub location_name: String,
+    pub location_description: String,
+    pub game_time: String,
+    pub season: String,
+    pub weather: String,
+    pub npcs_here: Vec<DemoNpcInfo>,
+    pub adjacent: Vec<DemoAdjacentLocation>,
+    pub recent_log: Vec<String>,
+    pub extra_prompt: Option<String>,
+}
+
+/// Demo configuration returned by `get_demo_config`.
+#[derive(serde::Serialize, Clone)]
+pub struct DemoConfigPayload {
+    pub auto_start: bool,
+    pub extra_prompt: Option<String>,
+    pub turn_pause_secs: f32,
+    pub max_turns: Option<u32>,
+}
+
+/// Returns the demo configuration (CLI flags parsed at startup).
+#[tauri::command]
+pub async fn get_demo_config(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<DemoConfigPayload, String> {
+    let dc = &state.demo_config;
+    Ok(DemoConfigPayload {
+        auto_start: dc.auto_start,
+        extra_prompt: dc.extra_prompt.clone(),
+        turn_pause_secs: dc.turn_pause_secs,
+        max_turns: dc.max_turns,
+    })
+}
+
+/// Builds a context snapshot for the LLM demo player.
+///
+/// Returns location, time, weather, NPCs present, and adjacent locations.
+/// The `recent_log` field is empty; the frontend fills it from the text log
+/// store before passing the snapshot to `get_llm_player_action`.
+#[tauri::command]
+pub async fn get_demo_context(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<DemoContextSnapshot, String> {
+    {
+        let config = state.config.lock().await;
+        if !config.flags.is_enabled("demo-mode") {
+            return Err("Demo mode is not active.".to_string());
+        }
+    }
+
+    // Lock order: world → npc_manager (matches AppState contract).
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+
+    let player_loc = world.player_location;
+
+    let location_name = world
+        .graph
+        .get(player_loc)
+        .map(|d| d.name.clone())
+        .unwrap_or_default();
+
+    let location_description = if let Some(loc_data) = world.current_location_data() {
+        parish_core::world::description::render_description(
+            loc_data,
+            world.clock.time_of_day(),
+            &world.weather.to_string(),
+            &[],
+        )
+    } else {
+        String::new()
+    };
+
+    use chrono::Datelike;
+    let now = world.clock.now();
+    let time_of_day = world.clock.time_of_day();
+    let game_time = format!(
+        "{}, {} {} {}, {}",
+        now.format("%A"),
+        now.day(),
+        now.format("%B"),
+        now.year(),
+        time_of_day,
+    );
+    let season = format!("{}", world.clock.season());
+    let weather = world.weather.to_string();
+
+    let npcs_here = npc_manager
+        .npcs_at(player_loc)
+        .iter()
+        .map(|npc| {
+            let introduced = npc_manager.is_introduced(npc.id);
+            DemoNpcInfo {
+                name: npc.display_name(introduced).to_string(),
+                description: npc.occupation.clone(),
+            }
+        })
+        .collect();
+
+    let speed = state.transport.default_mode().speed_m_per_s;
+    let adjacent = world
+        .graph
+        .neighbors(player_loc)
+        .into_iter()
+        .map(|(neighbor_id, _conn)| {
+            let name = world
+                .graph
+                .get(neighbor_id)
+                .map(|d| d.name.clone())
+                .unwrap_or_else(|| format!("Location {}", neighbor_id.0));
+            let travel_minutes = Some(world.graph.edge_travel_minutes(
+                player_loc,
+                neighbor_id,
+                speed,
+            ));
+            let visited = world.visited_locations.contains(&neighbor_id);
+            DemoAdjacentLocation {
+                name,
+                travel_minutes,
+                visited,
+            }
+        })
+        .collect();
+
+    let extra_prompt = state.demo_config.extra_prompt.clone();
+
+    Ok(DemoContextSnapshot {
+        location_name,
+        location_description,
+        game_time,
+        season,
+        weather,
+        npcs_here,
+        adjacent,
+        recent_log: Vec::new(),
+        extra_prompt,
+    })
+}
+
+/// Extracts the player action from an LLM response.
+///
+/// Handles three patterns:
+/// 1. Completion: model received `{"action": "` and completed it — response is
+///    something like `go to the mill"}`. Extract up to the closing quote.
+/// 2. Full JSON: model output `{"action": "go to the mill"}` — scan for `{`
+///    and JSON-parse from there.
+/// 3. Fallback: no JSON at all — strip thinking preamble, take last line.
+fn extract_action_from_response(text: &str) -> String {
+    // Strip thinking blocks first so all patterns operate on clean text.
+    let stripped = strip_thinking_block(text);
+    let trimmed = stripped.trim();
+
+    // Pattern 1: fill-in-the-blank completion — response starts with the
+    // action text and ends with `"}` or just `"`. The model completed
+    // `{"action": "` → `go to the mill"}`.
+    // We also handle `go to the mill"` (no closing brace).
+    let completion = trimmed
+        .trim_end_matches('}')
+        .trim_end()
+        .trim_end_matches('"')
+        .trim();
+    // Valid completion: no opening brace in the extracted text (it's pure action).
+    if !completion.is_empty() && !completion.starts_with('{') && !completion.contains("action") {
+        // Check that the raw response looked like a completion (no full JSON object).
+        if !trimmed.contains("{\"action\"") && !trimmed.contains("{ \"action\"") {
+            return completion.to_string();
+        }
+    }
+
+    // Pattern 2: full JSON object anywhere in the response.
+    let mut search = trimmed;
+    while let Some(start) = search.find('{') {
+        let candidate = &search[start..];
+        if let Ok(val) = serde_json::from_str::<serde_json::Value>(candidate)
+            && let Some(action) = val.get("action").and_then(|v| v.as_str())
+        {
+            let action = action.trim();
+            if !action.is_empty() {
+                return action.to_string();
+            }
+        }
+        search = &search[start + 1..];
+    }
+
+    // Pattern 3: fallback — take last meaningful line from already-stripped text.
+    trimmed.trim_matches('"').trim_matches('\'').to_string()
+}
+
+/// Strips reasoning preamble from LLM responses so only the action remains.
+///
+/// Handles two patterns:
+/// 1. Tagged blocks: `<thinking>...</thinking>` / `<think>...</think>` from
+///    reasoning models (deepseek-r1, qwq). Takes everything after the last
+///    closing tag.
+/// 2. Plain-text multi-paragraph reasoning: if the response has blank-line-
+///    separated paragraphs, takes the last paragraph. This covers models that
+///    output reasoning prose before the final action without tags.
+///
+/// Falls back to the full trimmed text if neither pattern applies.
+fn strip_thinking_block(text: &str) -> &str {
+    let trimmed = text.trim();
+
+    // Strip tagged thinking blocks first.
+    for close_tag in &["</thinking>", "</think>"] {
+        if let Some(pos) = trimmed.rfind(close_tag) {
+            let after = trimmed[pos + close_tag.len()..].trim();
+            if !after.is_empty() {
+                return after;
+            }
+        }
+    }
+
+    // If the response has multiple blank-line-separated paragraphs, take the
+    // last one — reasoning models often output rationale before the action.
+    if let Some(last_para) = trimmed.rsplit("\n\n").find(|p| !p.trim().is_empty()) {
+        let candidate = last_para.trim();
+        // Only use the last paragraph if it looks like a short action (≤ 3
+        // lines), not if the whole thing is one paragraph of prose.
+        let line_count = candidate.lines().count();
+        if line_count <= 3 && candidate.len() < trimmed.len() {
+            return candidate;
+        }
+    }
+
+    // Last-line fallback: models sometimes separate reasoning from action with
+    // a single newline. If the last non-empty line is much shorter than the
+    // full response, treat it as the action.
+    let lines: Vec<&str> = trimmed.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lines.len() > 1
+        && let Some(&last) = lines.last()
+    {
+        let last = last.trim();
+        if last.len() <= 200 && last.len() < trimmed.len() {
+            return last;
+        }
+    }
+
+    trimmed
+}
+
+/// Asks the LLM to choose the next player action given the current game context.
+///
+/// The frontend fills `ctx.recent_log` from the text log store before calling
+/// this command. Returns the trimmed action string.
+#[tauri::command]
+pub async fn get_llm_player_action(
+    ctx: DemoContextSnapshot,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<String, String> {
+    {
+        let config = state.config.lock().await;
+        if !config.flags.is_enabled("demo-mode") {
+            return Err("Demo mode is not active.".to_string());
+        }
+    }
+
+    // Resolve client and model (base client; no per-category override for demo).
+    let (client_opt, model) = {
+        let config = state.config.lock().await;
+        let client_guard = state.client.lock().await;
+        let model = config.model_name.clone();
+        let client = client_guard.as_ref().cloned();
+        (client, model)
+    };
+
+    let Some(client) = client_opt else {
+        return Err("No LLM client configured.".to_string());
+    };
+
+    let extra_section = ctx
+        .extra_prompt
+        .as_deref()
+        .map(|p| format!("\n\n{}", p))
+        .unwrap_or_default();
+
+    let system_prompt = format!(
+        "You are playing Rundale, an Irish living-world simulation set in 1820. You are a \
+wandering stranger exploring the townlands of east Roscommon. The world is populated by \
+historical Irish villagers — farmers, priests, weavers, matchmakers — each living their \
+own life.\n\
+\n\
+Explore naturally: talk to people, learn their stories, travel between locations, and \
+respond to whatever you encounter. Act as a curious outsider would.{extra}\n\
+\n\
+Respond with a JSON object containing a single field \"action\" — the text the player \
+would type into the game. Do NOT use meta-commands like \"talk to X\"; write the actual \
+words or command directly.\n\
+\n\
+Examples:\n\
+  {{\"action\": \"Good morning! What brings you out at this hour?\"}}\n\
+  {{\"action\": \"go to the mill\"}}\n\
+  {{\"action\": \"look\"}}\n\
+  {{\"action\": \"ask about the harvest\"}}\n\
+\n\
+Your entire response must be a single JSON object — nothing before or after it.",
+        extra = extra_section,
+    );
+
+    let mut user_parts: Vec<String> = Vec::new();
+    user_parts.push(format!("Location: {}", ctx.location_name));
+    if !ctx.location_description.is_empty() {
+        user_parts.push(ctx.location_description.clone());
+    }
+    user_parts.push(format!("Date and time: {} | {}", ctx.game_time, ctx.season));
+    user_parts.push(format!("Weather: {}", ctx.weather));
+
+    if ctx.npcs_here.is_empty() {
+        user_parts.push("NPCs here: none".to_string());
+    } else {
+        let npc_lines: Vec<String> = ctx
+            .npcs_here
+            .iter()
+            .map(|n| format!("  - {} ({})", n.name, n.description))
+            .collect();
+        user_parts.push(format!("NPCs here:\n{}", npc_lines.join("\n")));
+    }
+
+    if !ctx.adjacent.is_empty() {
+        let adj_lines: Vec<String> = ctx
+            .adjacent
+            .iter()
+            .map(|a| {
+                let mins = a
+                    .travel_minutes
+                    .map(|m| format!("{} min", m))
+                    .unwrap_or_else(|| "? min".to_string());
+                let vis = if a.visited { "visited" } else { "unvisited" };
+                format!("  - {} ({}, {})", a.name, mins, vis)
+            })
+            .collect();
+        user_parts.push(format!("Adjacent locations:\n{}", adj_lines.join("\n")));
+    }
+
+    if !ctx.recent_log.is_empty() {
+        let log_lines: Vec<String> = ctx.recent_log.iter().map(|l| format!("> {}", l)).collect();
+        user_parts.push(format!("Recent events:\n{}", log_lines.join("\n")));
+    }
+
+    // Fill-in-the-blank technique: end the prompt with an incomplete JSON
+    // object so the model completes the string rather than reasoning about it.
+    user_parts.push("Action (complete the JSON):\n{\"action\": \"".to_string());
+
+    let user_prompt = user_parts.join("\n\n");
+
+    let raw = client
+        .generate(
+            &model,
+            &user_prompt,
+            Some(&system_prompt),
+            Some(200),
+            Some(0.9),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Primary: extract the "action" field from JSON output.
+    // The system prompt asks for {"action": "..."}, which is robust against
+    // any amount of preamble or reasoning text the model emits before it.
+    let action_text = extract_action_from_response(&raw);
+    tracing::info!(
+        location = %ctx.location_name,
+        raw_len = raw.len(),
+        action = %action_text,
+        "demo turn: LLM chose action"
+    );
+    Ok(action_text)
+}
+
+#[cfg(test)]
+mod demo_tests {
+    use super::{extract_action_from_response, strip_thinking_block};
+
+    #[test]
+    fn extracts_action_from_json() {
+        let input = r#"{"action": "Good morning! How are you today?"}"#;
+        assert_eq!(
+            extract_action_from_response(input),
+            "Good morning! How are you today?"
+        );
+    }
+
+    #[test]
+    fn extracts_action_from_json_after_preamble() {
+        let input = "Let me think... However, we are a wandering stranger.\n{\"action\": \"go to the crossroads\"}";
+        assert_eq!(extract_action_from_response(input), "go to the crossroads");
+    }
+
+    #[test]
+    fn extracts_action_from_json_after_thinking_tags() {
+        let input = "<think>reasoning here</think>\n{\"action\": \"look\"}";
+        assert_eq!(extract_action_from_response(input), "look");
+    }
+
+    #[test]
+    fn falls_back_to_stripping_when_no_json() {
+        let input = "Some reasoning.\nask about the harvest";
+        assert_eq!(extract_action_from_response(input), "ask about the harvest");
+    }
+
+    #[test]
+    fn strips_thinking_block_before_action() {
+        let input =
+            "<thinking>\nI should greet the farmer.\n</thinking>\nHello there, good morning!";
+        assert_eq!(strip_thinking_block(input), "Hello there, good morning!");
+    }
+
+    #[test]
+    fn strips_think_tag_variant() {
+        let input = "<think>reasoning</think>\ngo to the mill";
+        assert_eq!(strip_thinking_block(input), "go to the mill");
+    }
+
+    #[test]
+    fn no_thinking_block_returns_trimmed() {
+        let input = "  ask Brigid about the harvest  ";
+        assert_eq!(strip_thinking_block(input), "ask Brigid about the harvest");
+    }
+
+    #[test]
+    fn only_thinking_block_falls_back_to_full() {
+        let input = "<thinking>just thinking, nothing after</thinking>";
+        assert_eq!(
+            strip_thinking_block(input),
+            "<thinking>just thinking, nothing after</thinking>"
+        );
+    }
+
+    #[test]
+    fn uses_last_closing_tag_for_nested() {
+        let input = "<thinking>outer <think>inner</think> more</thinking>\nlook around";
+        assert_eq!(strip_thinking_block(input), "look around");
+    }
+
+    #[test]
+    fn strips_plain_text_reasoning_before_action() {
+        let input = "Looking at the context, I see Peig is here. I should greet her warmly.\n\nHello Peig, good morning!";
+        assert_eq!(strip_thinking_block(input), "Hello Peig, good morning!");
+    }
+
+    #[test]
+    fn single_paragraph_returned_as_is() {
+        let input = "Hello Seamus, how goes the harvest?";
+        assert_eq!(strip_thinking_block(input), input);
+    }
+
+    #[test]
+    fn strips_single_newline_reasoning_before_action() {
+        let input = "I need to explore. The crossroads is nearby.\ngo to the crossroads";
+        assert_eq!(strip_thinking_block(input), "go to the crossroads");
+    }
+
+    #[test]
+    fn strips_multi_sentence_reasoning_single_newline() {
+        let input = "Based on my previous interaction with Peig, I should explore. The mill is unvisited.\nask about the mill";
+        assert_eq!(strip_thinking_block(input), "ask about the mill");
+    }
 }

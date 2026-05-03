@@ -127,6 +127,31 @@ pub struct SaveState {
     pub branch_name: Option<String>,
 }
 
+/// Configuration for the LLM demo / auto-player mode.
+///
+/// Read-only after startup; set via `--demo` CLI flags.
+pub struct DemoConfig {
+    /// Whether to start the demo loop automatically on launch.
+    pub auto_start: bool,
+    /// Extra prompt instructions loaded from `--demo-prompt <file>`.
+    pub extra_prompt: Option<String>,
+    /// Seconds to pause between demo turns (default 2.0).
+    pub turn_pause_secs: f32,
+    /// Maximum number of turns before stopping (None = unlimited).
+    pub max_turns: Option<u32>,
+}
+
+impl Default for DemoConfig {
+    fn default() -> Self {
+        Self {
+            auto_start: false,
+            extra_prompt: None,
+            turn_pause_secs: 2.0,
+            max_turns: None,
+        }
+    }
+}
+
 /// Maximum number of debug events to retain.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
 
@@ -283,6 +308,8 @@ pub struct AppState {
     /// Used by rebuild paths so `/provider` switches honour the configured
     /// values instead of falling back to compiled-in defaults. (#417)
     pub inference_config: parish_core::config::InferenceConfig,
+    /// Demo / auto-player configuration. Read-only after startup.
+    pub demo_config: DemoConfig,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -430,12 +457,57 @@ async fn dispatch_screenshot(_path: std::path::PathBuf) -> anyhow::Result<()> {
 
 // ── Tauri entry point ─────────────────────────────────────────────────────────
 
+/// Parses `--demo*` CLI flags from an argument list into a [`DemoConfig`].
+///
+/// Extracted for unit-testability: does not read env vars or touch the filesystem
+/// (except via `std::fs::read_to_string` for `--demo-prompt`, which silently
+/// returns `None` on error).
+pub(crate) fn parse_demo_args(args: &[String]) -> DemoConfig {
+    let auto_start = args.iter().any(|a| a == "--demo");
+    let extra_prompt = args
+        .iter()
+        .position(|a| a == "--demo-prompt")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|p| std::fs::read_to_string(p).ok());
+    let turn_pause_secs = args
+        .iter()
+        .position(|a| a == "--demo-pause")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| s.parse::<f32>().ok())
+        .unwrap_or(2.0);
+    let max_turns = args
+        .iter()
+        .position(|a| a == "--demo-max-turns")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| s.parse::<u32>().ok());
+    DemoConfig {
+        auto_start,
+        extra_prompt,
+        turn_pause_secs,
+        max_turns,
+    }
+}
+
 /// Called from `main.rs`. Initialises game state and launches the Tauri app.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialise tracing so RUST_LOG is respected (e.g. RUST_LOG=info,parish_tauri_lib=debug).
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     dotenvy::dotenv().ok();
 
     let data_dir = find_data_dir();
+
+    // Parse optional --demo flags.
+    let demo_config: DemoConfig = {
+        let args: Vec<String> = std::env::args().collect();
+        parse_demo_args(&args)
+    };
 
     // Parse optional --screenshot <dir> flag.
     // Relative paths are resolved against the workspace root (parent of data/).
@@ -642,6 +714,10 @@ pub fn run() {
         tile_sources: engine_config.map.id_label_pairs(),
         reveal_unexplored_locations: false,
     };
+    // Enable demo-mode flag when --demo was passed so the demo commands work.
+    if demo_config.auto_start {
+        game_config.flags.enable("demo-mode");
+    }
     // Fill any unset model fields from the chosen provider's presets so a
     // user who set only `PARISH_PROVIDER=anthropic` (or `--provider`) gets
     // sensible Dialogue/Simulation/Intent/Reaction defaults.
@@ -681,6 +757,7 @@ pub fn run() {
         ollama_process: Mutex::new(ollama_process),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         config: Mutex::new(game_config),
+        demo_config,
     });
 
     tauri::Builder::default()
@@ -701,6 +778,9 @@ pub fn run() {
             commands::new_game,
             commands::get_save_state,
             commands::react_to_message,
+            commands::get_demo_config,
+            commands::get_demo_context,
+            commands::get_llm_player_action,
             editor_commands::editor_list_mods,
             editor_commands::editor_open_mod,
             editor_commands::editor_get_snapshot,
@@ -1865,5 +1945,38 @@ mod tests {
         // Sanity: both tasks ran and incremented the counters.
         assert_eq!(*world_lock.lock().await, 11);
         assert_eq!(*npc_lock.lock().await, 11);
+    }
+
+    #[test]
+    fn parse_demo_args_defaults_when_no_flags() {
+        let args: Vec<String> = vec!["parish-tauri".to_string()];
+        let cfg = super::parse_demo_args(&args);
+        assert!(!cfg.auto_start);
+        assert!(cfg.extra_prompt.is_none());
+        assert!((cfg.turn_pause_secs - 2.0).abs() < f32::EPSILON);
+        assert!(cfg.max_turns.is_none());
+    }
+
+    #[test]
+    fn parse_demo_args_sets_auto_start() {
+        let args: Vec<String> = vec!["parish-tauri".to_string(), "--demo".to_string()];
+        let cfg = super::parse_demo_args(&args);
+        assert!(cfg.auto_start);
+    }
+
+    #[test]
+    fn parse_demo_args_custom_pause_and_max_turns() {
+        let args: Vec<String> = vec![
+            "parish-tauri".to_string(),
+            "--demo".to_string(),
+            "--demo-pause".to_string(),
+            "5".to_string(),
+            "--demo-max-turns".to_string(),
+            "10".to_string(),
+        ];
+        let cfg = super::parse_demo_args(&args);
+        assert!(cfg.auto_start);
+        assert!((cfg.turn_pause_secs - 5.0).abs() < f32::EPSILON);
+        assert_eq!(cfg.max_turns, Some(10));
     }
 }

@@ -135,10 +135,10 @@ impl Provider {
             ],
             // OpenRouter: cross-provider IDs mirror the Anthropic preset.
             Provider::OpenRouter => [
-                Some("anthropic/claude-opus-4-7"),
-                Some("anthropic/claude-sonnet-4-6"),
-                Some("anthropic/claude-haiku-4-5"),
-                Some("anthropic/claude-sonnet-4-6"),
+                Some("inclusionai/ling-2.6-1t:free"),
+                Some("inclusionai/ling-2.6-1t:free"),
+                Some("inclusionai/ling-2.6-1t:free"),
+                Some("inclusionai/ling-2.6-1t:free"),
             ],
             // Local providers (Ollama / LM Studio / vLLM): qwen3 32B is
             // the largest size that still fits modern consumer hardware;

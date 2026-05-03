@@ -9,9 +9,13 @@
 	import Sidebar from '../components/Sidebar.svelte';
 	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
+	import DemoBanner from '../components/DemoBanner.svelte';
+	import DemoPanel from '../components/DemoPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
+	import { startDemoLoop, stopDemo } from '../lib/demo-player';
 
 	/** Which mobile-only panel is open (if any). Desktop ignores this. */
 	let mobilePanel = $state<'none' | 'map' | 'sidebar'>('none');
@@ -32,6 +36,7 @@
 		getUiConfig,
 		getTheme,
 		getDebugSnapshot,
+		getDemoConfig,
 		onWorldUpdate,
 		onStreamToken,
 		onStreamTurnEnd,
@@ -68,11 +73,20 @@
 		pumpHandle: ReturnType<typeof setTimeout> | null;
 	};
 
-	// F5 toggle for save picker, F12 toggle for debug panel, M toggle for map
+	// F5 toggle for save picker, F11 toggle for demo panel, F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && get(demoEnabled)) {
+			e.preventDefault();
+			stopDemo();
+			return;
+		}
 		if (e.key === 'F5') {
 			e.preventDefault();
 			savePickerVisible.update((v) => !v);
+		}
+		if (e.key === 'F11') {
+			e.preventDefault();
+			demoVisible.update((v) => !v);
 		}
 		if (e.key === 'F12') {
 			e.preventDefault();
@@ -294,6 +308,20 @@
 					{ source: 'system', content: cfg.splash_text },
 					...log
 				]);
+			}
+		} catch (_) {}
+
+		// Fetch demo config and auto-start if requested.
+		try {
+			const dc = await getDemoConfig();
+			demoConfig.set({
+				auto_start: dc.auto_start,
+				extra_prompt: dc.extra_prompt,
+				turn_pause_secs: dc.turn_pause_secs,
+				max_turns: dc.max_turns
+			});
+			if (dc.auto_start) {
+				startDemoLoop();
 			}
 		} catch (_) {}
 
@@ -532,14 +560,19 @@
 			}));
 
 			listeners.push(await onLoading((payload) => {
-				streamingActive.set(payload.active);
 				if (payload.active) {
-					// Update animated loading phrase and spinner
+					// Loading started: mark streaming active and update spinner UI.
+					streamingActive.set(true);
 					if (payload.spinner) loadingSpinner.set(payload.spinner);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
-					// The loading animation ticks repeatedly while a turn is in
-					// flight; don't mutate chat state on those frames.
+				} else if (pendingNpcTurns.size === 0 && pendingStreamEndHints === null) {
+					// Loading ended with no NPC stream in flight — clear immediately.
+					// When a stream IS in flight, the text pump is still dripping
+					// characters; finishNpcStream() clears streamingActive after the
+					// pump drains so the input field and demo loop wait for text to
+					// finish displaying.
+					streamingActive.set(false);
 				}
 			}));
 
@@ -660,6 +693,10 @@
 </div>
 
 <DebugPanel />
+<DemoBanner />
+{#if $demoVisible}
+	<DemoPanel />
+{/if}
 <SavePicker />
 
 <style>

@@ -137,6 +137,11 @@ pub enum Command {
     /// `overcast`, `light rain`, `heavy rain`, `fog`, `storm`, and
     /// common aliases).
     Weather(Option<String>),
+    /// Listen to the traditional music session at the pub.
+    ///
+    /// Location-gated (the pub) and time-gated (dusk through midnight).
+    /// Produces a short evocative vignette generated from the game clock.
+    Session,
 }
 
 /// Maximum allowed length for save branch names.

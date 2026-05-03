@@ -17,3 +17,4 @@ Custom slash commands defined in `.agents/skills/`, with `.claude/skills/` as a 
 | `/triage-backlog` | Apply theme + priority labels to open issues lacking them. Vocabulary in [`triage-vocabulary.md`](triage-vocabulary.md). Paired with the `triage-audit` weekly workflow. |
 | `/crate-audit` | Audit workspace crate layout (naming, manifests, big-file splits, extraction candidates, README freshness). Produces a phased pure-relocation refactor PR. |
 | `/techdebt [path]` | Continuous debt loop: process `TODO.md`, dispatch fix agents, discover new debt when empty, and repeat until no actionable debt remains in scope. |
+| `/demo [turns] [pause]` | Run the LLM auto-player in the live Tauri app to verify Tauri IPC changes, surface streaming/frontend bugs, and generate NPC dialogue samples. Use after changes that the script harness cannot exercise. |

@@ -109,6 +109,29 @@ run:
         cargo tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:$PORT\"}}"
     fi
 
+# Run the game in LLM demo / auto-player mode (Tauri desktop GUI).
+# Optional args: PAUSE=seconds between turns (default 2), MAX_TURNS=limit (default unlimited).
+# Uses mods/rundale/demo-prompt.txt as the extra prompt.
+demo PAUSE="2" MAX_TURNS="":
+    #!/usr/bin/env bash
+    eval "$(fnm env)"
+    test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
+    PORT=5173
+    while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
+        PORT=$((PORT + 1))
+        if [ "$PORT" -gt 5200 ]; then echo "No free port found in range 5173-5200" >&2; exit 1; fi
+    done
+    export PARISH_DEV_PORT=$PORT
+    PROMPT_FILE="{{justfile_directory()}}/../mods/rundale/demo-prompt.txt"
+    DEMO_ARGS="--demo --demo-prompt $PROMPT_FILE --demo-pause {{PAUSE}}"
+    if [ -n "{{MAX_TURNS}}" ]; then DEMO_ARGS="$DEMO_ARGS --demo-max-turns {{MAX_TURNS}}"; fi
+    echo "Demo mode: pause={{PAUSE}}s, max_turns=${MAX_TURNS:-unlimited}, prompt=$PROMPT_FILE"
+    if [ "$PORT" -eq 5173 ]; then
+        cargo tauri dev -- -- $DEMO_ARGS
+    else
+        cargo tauri dev --config "{\"build\":{\"devUrl\":\"http://localhost:$PORT\"}}" -- -- $DEMO_ARGS
+    fi
+
 # Run the game in headless REPL mode (plain stdin/stdout)
 run-headless:
     cargo run -p parish -- --headless

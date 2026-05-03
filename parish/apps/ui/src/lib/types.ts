@@ -480,3 +480,35 @@ export interface SaveState {
 	branch_id: number | null;
 	branch_name: string | null;
 }
+
+// ── Demo / auto-player types ─────────────────────────────────────────────────
+
+export interface DemoNpcInfo {
+	name: string;
+	description: string;
+}
+
+export interface DemoAdjacentLocation {
+	name: string;
+	travel_minutes: number | null;
+	visited: boolean;
+}
+
+export interface DemoContextSnapshot {
+	location_name: string;
+	location_description: string;
+	game_time: string;
+	season: string;
+	weather: string;
+	npcs_here: DemoNpcInfo[];
+	adjacent: DemoAdjacentLocation[];
+	recent_log: string[];
+	extra_prompt: string | null;
+}
+
+export interface DemoConfigPayload {
+	auto_start: boolean;
+	extra_prompt: string | null;
+	turn_pause_secs: number;
+	max_turns: number | null;
+}

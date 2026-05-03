@@ -32,6 +32,10 @@ run:
 run-headless:
     cd parish && just run-headless
 
+# Run the LLM demo / auto-player (optional: PAUSE=seconds MAX_TURNS=n)
+demo PAUSE="2" MAX_TURNS="":
+    cd parish && just demo {{PAUSE}} {{MAX_TURNS}}
+
 # Run the axum web server
 web PORT="3001":
     cd parish && just web {{PORT}}

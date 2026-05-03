@@ -17,6 +17,9 @@ if [[ -z "$CHANGED_RS" && -z "$UNSTAGED_RS" && -z "$UNTRACKED_RS" ]]; then
     exit 0
 fi
 
+# Cargo workspace lives under parish/ since the 855f2a9 relocation refactor.
+cd parish
+
 echo "=== Parish Quality Gates ==="
 echo "Rust files changed -- running checks..."
 echo ""
