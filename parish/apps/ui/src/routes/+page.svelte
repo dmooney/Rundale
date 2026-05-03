@@ -14,7 +14,7 @@
 	import SavePicker from '../components/SavePicker.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
 	import { startDemoLoop, stopDemo } from '../lib/demo-player';
 
@@ -564,7 +564,6 @@
 				if (payload.active) {
 					// Loading started: mark streaming active and update spinner UI.
 					streamingActive.set(true);
-					if (payload.spinner) loadingSpinner.set(payload.spinner);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
 				} else if (pendingNpcTurns.size === 0 && pendingStreamEndHints === null) {

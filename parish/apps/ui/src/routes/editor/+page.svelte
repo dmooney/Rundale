@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { editorListMods, editorOpenMod } from '$lib/editor-ipc';
+	import { editorListMods } from '$lib/editor-ipc';
 	import {
 		editorMods,
 		editorSnapshot,
@@ -44,9 +44,9 @@
 		}
 	});
 
-	$: snap = $editorSnapshot;
-	$: tab = $editorTab;
-	$: issueCount = $editorIssueCount;
+	const snap = $derived($editorSnapshot);
+	const tab = $derived($editorTab);
+	const issueCount = $derived($editorIssueCount);
 </script>
 
 <div class="editor-page">
@@ -67,7 +67,7 @@
 				<button
 					class="tab-btn"
 					class:active={tab === t.id}
-					on:click={() => selectTab(t.id)}
+					onclick={() => selectTab(t.id)}
 				>
 					{t.label}
 					{#if t.id === 'validator' && issueCount > 0}

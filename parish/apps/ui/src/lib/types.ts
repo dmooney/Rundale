@@ -44,6 +44,15 @@ export interface MapData {
 	transport_id?: string;
 }
 
+/** Tooltip data shown when hovering a map location marker.
+ *  Used by both MapPanel (minimap) and FullMapOverlay (full map). */
+export interface MapTooltipInfo {
+	name: string;
+	indoor?: boolean;
+	travel_minutes?: number;
+	visited?: boolean;
+}
+
 /** A waypoint along a travel path. */
 export interface TravelWaypoint {
 	id: string;
@@ -84,8 +93,6 @@ export interface LanguageHint {
 	meaning: string | null;
 }
 
-/** Backward-compatible alias. */
-export type IrishWordHint = LanguageHint;
 
 export interface UiConfig {
 	hints_label: string;
@@ -139,7 +146,7 @@ export interface StreamTurnEndPayload {
 }
 
 export interface StreamEndPayload {
-	hints: IrishWordHint[];
+	hints: LanguageHint[];
 }
 
 export interface TextLogPayload {

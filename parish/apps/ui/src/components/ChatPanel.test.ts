@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
-import { textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor } from '../stores/game';
+import { textLog, streamingActive, loadingPhrase, loadingColor } from '../stores/game';
 import ChatPanel from './ChatPanel.svelte';
 
 // Mock the IPC layer
@@ -12,7 +12,6 @@ describe('ChatPanel', () => {
 	beforeEach(() => {
 		textLog.set([]);
 		streamingActive.set(false);
-		loadingSpinner.set('');
 		loadingPhrase.set('');
 		loadingColor.set([72, 199, 142]);
 	});
@@ -33,7 +32,6 @@ describe('ChatPanel', () => {
 	});
 
 	it('shows loading phrase when streaming is active with no streaming entry', () => {
-		loadingSpinner.set('✛');
 		loadingPhrase.set('Consulting the sheep...');
 		streamingActive.set(true);
 		const { container, getByText } = render(ChatPanel);
@@ -43,7 +41,6 @@ describe('ChatPanel', () => {
 	});
 
 	it('applies spinner colour from loadingColor store', () => {
-		loadingSpinner.set('✜');
 		loadingPhrase.set('Pondering the craic...');
 		loadingColor.set([255, 200, 87]);
 		streamingActive.set(true);

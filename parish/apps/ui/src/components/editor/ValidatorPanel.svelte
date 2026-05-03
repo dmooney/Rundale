@@ -29,11 +29,11 @@
 		if (npcMatch && issue.context) {
 			editorTab.set('npcs');
 			// context usually has the id; try to use it
-			const id = parseInt(issue.context);
+			const id = parseInt(issue.context, 10);
 			if (!isNaN(id)) editorSelectedNpcId.set(id);
 		} else if (locMatch && issue.context) {
 			editorTab.set('locations');
-			const id = parseInt(issue.context);
+			const id = parseInt(issue.context, 10);
 			if (!isNaN(id)) editorSelectedLocationId.set(id);
 		}
 	}

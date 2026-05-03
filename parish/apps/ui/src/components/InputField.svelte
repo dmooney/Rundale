@@ -546,16 +546,6 @@
 		}
 	}
 
-	function toggleNpcSelection(realName: string) {
-		if ($streamingActive) return;
-		if (selectedNpcRealNames.includes(realName)) {
-			selectedNpcRealNames = selectedNpcRealNames.filter((name) => name !== realName);
-		} else {
-			selectedNpcRealNames = [...selectedNpcRealNames, realName];
-		}
-		editorEl?.focus();
-	}
-
 	function insertNpcMention(npcName: string) {
 		if ($streamingActive || !editorEl) return;
 

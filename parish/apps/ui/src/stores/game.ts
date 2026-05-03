@@ -20,9 +20,6 @@ export function trimTextLog(log: TextLogEntry[]): TextLogEntry[] {
 
 export const streamingActive = writable<boolean>(false);
 
-/// Current loading spinner character (e.g. "✛").
-export const loadingSpinner = writable<string>('');
-
 /// Current fun loading phrase (e.g. "Consulting the sheep...").
 export const loadingPhrase = writable<string>('');
 

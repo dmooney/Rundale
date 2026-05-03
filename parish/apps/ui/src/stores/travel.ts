@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store';
+import { writable } from 'svelte/store';
 import type { TravelStartPayload, TravelWaypoint } from '$lib/types';
 
 /** Current travel animation state (null when not traveling). */
@@ -24,9 +24,6 @@ const MAX_ANIMATION_MS = 3000;
 
 /** The active travel animation, or null if idle. */
 export const travelState = writable<TravelState | null>(null);
-
-/** Whether a travel animation is currently playing. */
-export const isTraveling = derived(travelState, ($t) => $t !== null);
 
 /** Outstanding auto-clear timer for the active travel animation.
  *
@@ -94,36 +91,3 @@ export function cancelTravel(): void {
 	travelState.set(null);
 }
 
-/**
- * Computes the current interpolated position along the travel path.
- *
- * Returns `{ lat, lon, progress, segmentIndex }` where progress is 0–1
- * and segmentIndex is which edge segment the dot is currently on.
- * Returns null if not traveling.
- */
-export function getTravelPosition(
-	state: TravelState,
-	now: number
-): { lat: number; lon: number; progress: number; segmentIndex: number } | null {
-	const elapsed = now - state.startedAt;
-	const progress = Math.min(1, Math.max(0, elapsed / state.animationMs));
-
-	const wps = state.waypoints;
-	const segCount = wps.length - 1;
-	if (segCount < 1) return null;
-
-	// Map progress to segment
-	const segFloat = progress * segCount;
-	const segIndex = Math.min(Math.floor(segFloat), segCount - 1);
-	const segProgress = segFloat - segIndex;
-
-	const from = wps[segIndex];
-	const to = wps[segIndex + 1];
-
-	return {
-		lat: from.lat + (to.lat - from.lat) * segProgress,
-		lon: from.lon + (to.lon - from.lon) * segProgress,
-		progress,
-		segmentIndex: segIndex
-	};
-}

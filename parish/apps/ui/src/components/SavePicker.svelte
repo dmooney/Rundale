@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
-	import { discoverSaveFiles, loadBranch, saveGame, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
+	import { discoverSaveFiles, loadBranch, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
 	import { worldState, mapData, npcsHere } from '../stores/game';
 	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
 	import { layoutTree, NODE_W, NODE_H, GAP_Y } from '$lib/save-picker/dag';
@@ -12,6 +12,7 @@
 	let forkName = $state('');
 	let forkError = $state('');
 	let showLedgers = $state(false);
+	let modalBodyEl: HTMLDivElement | undefined = $state();
 
 	// ── Handlers ────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@
 			forkingBranchId = null;
 			forkName = '';
 			// Save scroll position before refresh re-renders the tree
-			const body = document.querySelector('.modal-body');
+			const body = modalBodyEl;
 			const scrollTop = body?.scrollTop ?? 0;
 			const scrollLeft = body?.scrollLeft ?? 0;
 			await refreshSaves();
@@ -116,9 +117,9 @@
 					body.scrollLeft = scrollLeft;
 				}
 			});
-		} catch (e: any) {
+		} catch (e: unknown) {
 			console.error('Branch creation failed:', e);
-			forkError = String(e).substring(0, 60);
+			forkError = (e instanceof Error ? e.message : String(e)).substring(0, 60);
 		}
 		loadingCount--;
 	}
@@ -158,7 +159,7 @@
 		// Scroll the phantom node into view with extra room for scrollbar
 		requestAnimationFrame(() => {
 			const dagNode = node.closest('.dag-node') as HTMLElement | null;
-			const body = document.querySelector('.modal-body');
+			const body = modalBodyEl;
 			if (dagNode && body) {
 				const nodeRect = dagNode.getBoundingClientRect();
 				const bodyRect = body.getBoundingClientRect();
@@ -207,7 +208,7 @@
 
 	async function scrollToCurrentNode() {
 		await tick();
-		const current = document.querySelector('.dag-current');
+		const current = modalBodyEl?.querySelector('.dag-current');
 		if (current) {
 			current.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'center' });
 		}
@@ -266,7 +267,7 @@
 				</span>
 			</div>
 
-			<div class="modal-body">
+			<div class="modal-body" bind:this={modalBodyEl}>
 				{#if loading && files.length === 0}
 					<div class="loading-msg">Scanning save files...</div>
 				{/if}

@@ -100,7 +100,7 @@
 						class="field-input short"
 						type="number"
 						value={npc.age}
-						onchange={(e) => handleFieldChange('age', parseInt(e.currentTarget.value))}
+						onchange={(e) => { const v = parseInt(e.currentTarget.value, 10); if (!isNaN(v)) handleFieldChange('age', v); }}
 					/>
 				</div>
 				<div class="field-row">
@@ -157,7 +157,7 @@
 						id="npc-home"
 						class="field-select"
 						value={npc.home}
-						onchange={(e) => handleFieldChange('home', parseInt(e.currentTarget.value))}
+						onchange={(e) => { const v = parseInt(e.currentTarget.value, 10); if (!isNaN(v)) handleFieldChange('home', v); }}
 					>
 						{#each locations as loc}
 							<option value={loc.id}>{loc.name}</option>
@@ -171,8 +171,8 @@
 						class="field-select"
 						value={npc.workplace ?? -1}
 						onchange={(e) => {
-							const v = parseInt(e.currentTarget.value);
-							handleFieldChange('workplace', v === -1 ? null : v);
+							const v = parseInt(e.currentTarget.value, 10);
+							if (!isNaN(v)) handleFieldChange('workplace', v === -1 ? null : v);
 						}}
 					>
 						<option value={-1}>(none)</option>
@@ -199,11 +199,10 @@
 								value={npc.intelligence?.[dim.key] ?? 3}
 								onchange={(e) => {
 									if (!npc?.intelligence) return;
-									const updated = {
-										...npc.intelligence,
-										[dim.key]: parseInt(e.currentTarget.value)
-									};
-									handleFieldChange('intelligence', updated);
+									const v = parseInt(e.currentTarget.value, 10);
+									if (!isNaN(v)) {
+										handleFieldChange('intelligence', { ...npc.intelligence, [dim.key]: v });
+									}
 								}}
 							/>
 							<span class="range-value">{npc.intelligence?.[dim.key] ?? 3}</span>

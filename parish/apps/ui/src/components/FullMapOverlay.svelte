@@ -5,6 +5,7 @@
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
+	import type { MapTooltipInfo } from '$lib/types';
 
 	interface Props {
 		onclose: () => void;
@@ -16,14 +17,7 @@
 	let controller: MapController | null = null;
 	let mounted = $state(false);
 
-	interface TooltipInfo {
-		name: string;
-		indoor?: boolean;
-		travel_minutes?: number;
-		visited?: boolean;
-	}
-
-	let tooltip: TooltipInfo | null = $state(null);
+	let tooltip: MapTooltipInfo | null = $state(null);
 
 	onMount(() => {
 		if (!container) return;
@@ -203,30 +197,7 @@
 		width: 100%;
 	}
 
-	/* ── Travel animation dot (HTML marker) ──
-	   Animating `transform` would clobber the `translate(…)` MapLibre sets
-	   each frame to position the marker, collapsing it to the canvas
-	   top-left. Pulse via opacity + box-shadow only. */
-	:global(.travel-dot-marker) {
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		background: var(--color-accent);
-		border: 2px solid var(--color-fg);
-		animation: travel-pulse 0.6s ease-in-out infinite alternate;
-		pointer-events: none;
-	}
-
-	@keyframes travel-pulse {
-		from {
-			opacity: 0.85;
-			box-shadow: 0 0 4px var(--color-accent);
-		}
-		to {
-			opacity: 1;
-			box-shadow: 0 0 12px var(--color-accent);
-		}
-	}
+	/* .travel-dot-marker and @keyframes travel-pulse are defined once in app.css */
 
 	.tooltip {
 		position: absolute;
