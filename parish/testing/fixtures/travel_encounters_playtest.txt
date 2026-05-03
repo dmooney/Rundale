@@ -1,0 +1,39 @@
+# Travel encounters play-test
+# Walks the player around the parish at different times of day
+# to demonstrate encounter variety and the flag kill-switch.
+
+/time
+/status
+
+# Morning walk — should have high encounter probability
+go to crossroads
+go to the forge
+go to the pub
+
+# Advance to dusk and keep walking
+/wait 480
+/time
+go to village
+go to the chapel
+go to the well
+
+# Advance to night
+/wait 180
+/time
+go to crossroads
+go to the fairy fort
+
+# Advance to midnight for the atmospheric low-frequency encounters
+/wait 120
+/time
+go to the bog
+
+# Kill-switch demonstration
+/flag disable travel-encounters
+go to crossroads
+go to village
+
+# Re-enable
+/flag enable travel-encounters
+go to the crossroads
+go to the pub
