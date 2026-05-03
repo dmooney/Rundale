@@ -135,10 +135,10 @@ impl Provider {
             ],
             // OpenRouter: cross-provider IDs mirror the Anthropic preset.
             Provider::OpenRouter => [
-                Some("inclusionai/ling-2.6-1t:free"),
-                Some("inclusionai/ling-2.6-1t:free"),
-                Some("inclusionai/ling-2.6-1t:free"),
-                Some("inclusionai/ling-2.6-1t:free"),
+                Some("openai/gpt-oss-120b"),
+                Some("openai/gpt-oss-120b"),
+                Some("openai/gpt-oss-120b"),
+                Some("openai/gpt-oss-120b"),
             ],
             // Local providers (Ollama / LM Studio / vLLM): qwen3 32B is
             // the largest size that still fits modern consumer hardware;
