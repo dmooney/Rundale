@@ -338,7 +338,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
                 TextLogPayload {
                     id: String::new(),
                     stream_turn_id: None,
-                    source: "system".to_string(),
+                    source: "system".into(),
                     content: format!(
                         "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
                         base_url
@@ -640,7 +640,7 @@ async fn handle_game_input(
                 TextLogPayload {
                     id: String::new(),
                     stream_turn_id: None,
-                    source: "system".to_string(),
+                    source: "system".into(),
                     content: "And where would ye be off to?".to_string(),
                 },
             );
@@ -797,7 +797,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                     StreamTokenPayload {
                         token: batch.to_string(),
                         turn_id,
-                        source: source.to_string(),
+                        source: std::borrow::Cow::Owned(source.to_string()),
                     },
                 );
             },
@@ -864,7 +864,7 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
         TextLogPayload {
             id: String::new(),
             stream_turn_id: None,
-            source: "system".to_string(),
+            source: "system".into(),
             content: text,
         },
     );
@@ -957,7 +957,7 @@ async fn run_npc_turn(
                 TextLogPayload {
                     id: String::new(),
                     stream_turn_id: None,
-                    source: "system".to_string(),
+                    source: "system".into(),
                     content: "The parish storyteller has wandered off. Try again in a moment."
                         .to_string(),
                 },
@@ -977,7 +977,7 @@ async fn run_npc_turn(
                     StreamTokenPayload {
                         token: batch.to_string(),
                         turn_id: req_id,
-                        source: source.clone(),
+                        source: source.clone().into(),
                     },
                 );
             })
@@ -1016,7 +1016,7 @@ async fn run_npc_turn(
                 TextLogPayload {
                     id: String::new(),
                     stream_turn_id: None,
-                    source: "system".to_string(),
+                    source: "system".into(),
                     content: "The storyteller has wandered off mid-tale.".to_string(),
                 },
             );
@@ -1041,7 +1041,7 @@ async fn run_npc_turn(
                 TextLogPayload {
                     id: String::new(),
                     stream_turn_id: None,
-                    source: "system".to_string(),
+                    source: "system".into(),
                     content: "The storyteller is lost in thought. Try again.".to_string(),
                 },
             );
@@ -1068,7 +1068,7 @@ async fn run_npc_turn(
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
             },
         );
@@ -1157,7 +1157,7 @@ async fn handle_npc_conversation(
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content: IDLE_MESSAGES[idx].to_string(),
             },
         );
@@ -1170,7 +1170,7 @@ async fn handle_npc_conversation(
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content: "There are ears enough for ye here, but say something first.".to_string(),
             },
         );
@@ -1183,7 +1183,7 @@ async fn handle_npc_conversation(
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content:
                     "There's someone here, but the LLM is not configured — set a provider with /provider."
                         .to_string(),
@@ -1198,7 +1198,7 @@ async fn handle_npc_conversation(
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content: "No one here answers to that name just now.".to_string(),
             },
         );
@@ -1504,7 +1504,7 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
             TextLogPayload {
                 id: String::new(),
                 stream_turn_id: None,
-                source: "system".to_string(),
+                source: "system".into(),
                 content:
                     "The parish falls quiet after a full minute of silence. Time is now paused."
                         .to_string(),
@@ -1673,7 +1673,7 @@ pub async fn load_branch(
         TextLogPayload {
             id: String::new(),
             stream_turn_id: None,
-            source: "system".to_string(),
+            source: "system".into(),
             content: format!("Loaded {} (branch: {}).", filename, branch_name),
         },
     );
@@ -1877,7 +1877,7 @@ pub async fn new_game(
         TextLogPayload {
             id: String::new(),
             stream_turn_id: None,
-            source: "system".to_string(),
+            source: "system".into(),
             content: "A new chapter begins in the parish...".to_string(),
         },
     );
