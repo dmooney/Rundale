@@ -167,7 +167,10 @@ impl Provider {
     /// Whether this provider requires an explicit model name
     /// (no auto-detection available).
     pub fn requires_model(&self) -> bool {
-        !matches!(self, Provider::Ollama | Provider::WebGpu | Provider::Simulator)
+        !matches!(
+            self,
+            Provider::Ollama | Provider::WebGpu | Provider::Simulator
+        )
     }
 
     /// The well-known environment variable that carries this provider's API key.

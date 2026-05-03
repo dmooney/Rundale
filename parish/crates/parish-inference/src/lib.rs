@@ -10,8 +10,8 @@ pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
-pub mod webgpu_client;
 pub(crate) mod utf8_stream;
+pub mod webgpu_client;
 
 pub use anthropic_client::AnthropicClient;
 pub use parish_config::InferenceConfig;
