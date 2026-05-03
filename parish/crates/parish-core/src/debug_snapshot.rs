@@ -1044,7 +1044,6 @@ fn build_npc_debug_list(
             let reactions: Vec<ReactionDebug> = npc
                 .reaction_log
                 .entries()
-                .into_iter()
                 .rev()
                 .map(|r| ReactionDebug {
                     timestamp: r.timestamp.format("%H:%M %Y-%m-%d").to_string(),

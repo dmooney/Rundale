@@ -24,8 +24,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::Duration;
 
-use crate::{Npc, NpcId};
 use crate::familiarity::FamiliarityTier;
+use crate::{Npc, NpcId};
 use parish_config::ReactionConfig;
 use parish_inference::AnyClient;
 use parish_types::dice::DiceRoll;
@@ -1050,6 +1050,7 @@ fn default_familiar_greetings() -> FamiliarGreetings {
 /// unlocks warmer, more personal greetings as familiarity tiers increase.
 /// The outcome depends on whether the NPC is at their workplace,
 /// whether the player has been introduced, and the current familiarity tier.
+#[allow(clippy::too_many_arguments)]
 pub fn generate_arrival_reactions_with_familiarity(
     npcs: &[&Npc],
     introduced: &HashSet<NpcId>,
