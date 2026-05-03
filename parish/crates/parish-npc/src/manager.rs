@@ -266,6 +266,7 @@ impl NpcManager {
     /// automatically inside `assign_tiers`.
     pub fn invalidate_bfs_cache(&mut self) {
         self.bfs_distances_cache = None;
+    }
 
     /// Returns a reference to an NPC by id.
     pub fn get(&self, id: NpcId) -> Option<&Npc> {
@@ -1031,7 +1032,6 @@ impl NpcManager {
                     }
                 }
                 Tier4Event::Death { npc_id } => {
-<<<<<<< HEAD:parish/crates/parish-npc/src/manager.rs
                     if banshee_enabled {
                         // Schedule the doom a game-day ahead so the banshee tick
                         // has a chance to herald it before the NPC is removed.
@@ -1050,70 +1050,57 @@ impl NpcManager {
                         }
                     } else {
                         // Banshee disabled — immediate removal (pre-banshee behavior).
-                        if let Some(npc) = self.npcs.get(npc_id) {
-                            let desc = format!("{} has passed away.", npc.name);
-                            life_descriptions.push(desc.clone());
-                            game_events.push(GameEvent::LifeEvent {
-                                npc_id: *npc_id,
-                                description: desc,
-                                timestamp,
-                            });
+                        let name = self
+                            .npcs
+                            .get(npc_id)
+                            .map(|n| n.name.clone())
+                            .unwrap_or_default();
+                        let desc = format!("{name} has passed away.");
+                        life_descriptions.push(desc.clone());
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: desc,
+                            timestamp,
+                        });
+
+                        // Propagate grief to surviving bonded NPCs before
+                        // removing the dead one. Scale by `strength.max(0)`
+                        // so enemies (negative strength) aren't pushed into
+                        // fake sadness; only positive bonds grieve. The
+                        // delta is capped at 0.5 via apply_impulse's clamp.
+                        let grief_targets: Vec<(NpcId, f32)> = self
+                            .npcs
+                            .get(npc_id)
+                            .map(|n| {
+                                n.relationships
+                                    .iter()
+                                    .filter_map(|(tid, rel)| {
+                                        let s = rel.strength.max(0.0) as f32;
+                                        (s > 0.0).then_some((*tid, s))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for (target_id, strength) in grief_targets {
+                            if let Some(relative) = self.npcs.get_mut(&target_id) {
+                                apply_and_emit(
+                                    relative,
+                                    &parish_types::EmotionImpulse {
+                                        family: parish_types::EmotionFamily::Sadness,
+                                        delta: 0.5 * strength,
+                                        pad: None,
+                                        cause: Some(format!("{name} has passed away")),
+                                    },
+                                    timestamp,
+                                    &mut game_events,
+                                );
+                            }
                         }
+
                         // Scrub the dead id from introductions, name knowledge,
                         // and every surviving NPC's relationships map (#339).
                         self.remove_npc(*npc_id);
                     }
-=======
-                    let name = self
-                        .npcs
-                        .get(npc_id)
-                        .map(|n| n.name.clone())
-                        .unwrap_or_default();
-                    let desc = format!("{name} has passed away.");
-                    life_descriptions.push(desc.clone());
-                    game_events.push(GameEvent::LifeEvent {
-                        npc_id: *npc_id,
-                        description: desc,
-                        timestamp,
-                    });
-
-                    // Propagate grief to surviving bonded NPCs before
-                    // removing the dead one. Scale by `strength.max(0)`
-                    // so enemies (negative strength) aren't pushed into
-                    // fake sadness; only positive bonds grieve. The
-                    // delta is capped at 0.5 via apply_impulse's clamp.
-                    let grief_targets: Vec<(NpcId, f32)> = self
-                        .npcs
-                        .get(npc_id)
-                        .map(|n| {
-                            n.relationships
-                                .iter()
-                                .filter_map(|(tid, rel)| {
-                                    let s = rel.strength.max(0.0) as f32;
-                                    (s > 0.0).then_some((*tid, s))
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    for (target_id, strength) in grief_targets {
-                        if let Some(relative) = self.npcs.get_mut(&target_id) {
-                            apply_and_emit(
-                                relative,
-                                &parish_types::EmotionImpulse {
-                                    family: parish_types::EmotionFamily::Sadness,
-                                    delta: 0.5 * strength,
-                                    pad: None,
-                                    cause: Some(format!("{name} has passed away")),
-                                },
-                                timestamp,
-                                &mut game_events,
-                            );
-                        }
-                    }
-
-                    self.npcs.remove(npc_id);
-                    self.tier_assignments.remove(npc_id);
->>>>>>> 60a6279 (feat(emotion): grief propagation, Tier1 contagion, EmotionChanged event, temperament validation):crates/parish-npc/src/manager.rs
                 }
                 Tier4Event::Birth { parent_ids } => {
                     let parent_a_name = self

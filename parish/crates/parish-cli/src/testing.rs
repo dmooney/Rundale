@@ -209,7 +209,6 @@ impl GameTestHarness {
             return ActionResult::SystemCommand { response: msg };
         }
 
-<<<<<<< HEAD:parish/crates/parish-cli/src/testing.rs
         // Test-harness-only /doom command: /doom NpcName [hours_from_now]
         //
         // Marks the named NPC as fated to die `hours_from_now` game-hours out
@@ -252,19 +251,6 @@ impl GameTestHarness {
                 }
             } else {
                 format!("No NPC named '{}'.", name)
-=======
-        // Harness-only /stub-emotion: /stub-emotion NpcName family=value [family=value ...]
-        //
-        // Directly seeds structured emotion state on an NPC so
-        // gameplay-proof scripts can exercise gate thresholds
-        // without needing an LLM to cooperate. Family names match
-        // EmotionFamily's serde lowercase form
-        // (joy, sadness, fear, anger, disgust, surprise, shame, affection).
-        if let Some(rest) = trimmed.strip_prefix("/stub-emotion ") {
-            let msg = match stub_emotion(&mut self.app, rest) {
-                Ok(summary) => summary,
-                Err(e) => format!("/stub-emotion error: {e}"),
->>>>>>> a444906 (test(emotion): add /debug emotion + /stub-emotion harness commands and /prove script):crates/parish-cli/src/testing.rs
             };
             self.app.world.log(msg.clone());
             return ActionResult::SystemCommand { response: msg };

@@ -198,7 +198,6 @@ pub fn load_npcs_from_file(path: &Path) -> Result<Vec<Npc>, ParishError> {
 pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
     let file: NpcFile = serde_json::from_str(json).map_err(ParishError::Serialization)?;
 
-<<<<<<< HEAD:parish/crates/parish-npc/src/data.rs
     // Pre-pass: reject duplicate NPC IDs before doing any further work.
     // Mirrors the pattern in WorldGraph::load_from_str (parish-world/src/graph.rs).
     let mut seen_ids: std::collections::HashSet<u32> = std::collections::HashSet::new();
@@ -207,7 +206,10 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
             return Err(ParishError::Setup(format!(
                 "duplicate NPC id: {}",
                 entry.id
-=======
+            )));
+        }
+    }
+
     // Validate temperament ranges up-front so mod authors see a
     // specific error at load rather than silent clamping at runtime.
     for entry in &file.npcs {
@@ -217,7 +219,6 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
             return Err(ParishError::Setup(format!(
                 "NPC {} (id {}) has invalid temperament: {msg}",
                 entry.name, entry.id
->>>>>>> 60a6279 (feat(emotion): grief propagation, Tier1 contagion, EmotionChanged event, temperament validation):crates/parish-npc/src/data.rs
             )));
         }
     }
