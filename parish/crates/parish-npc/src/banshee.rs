@@ -18,10 +18,15 @@
 //! The whole system is gated behind the default-on `banshee` feature flag
 //! — disabling it reverts to the older behaviour of instant removal.
 
+use std::collections::{HashMap, VecDeque};
+
 use chrono::{DateTime, Duration, Timelike, Utc};
 
-use crate::NpcId;
+use crate::{Npc, NpcId};
 use parish_types::LocationId;
+use parish_world::events::{EventBus, GameEvent};
+use parish_world::graph::WorldGraph;
+use parish_world::time::GameClock;
 
 /// How long before the doom timestamp the banshee becomes eligible to cry.
 ///
@@ -143,6 +148,107 @@ pub fn epitaph_line(event: &BansheeEvent) -> Option<String> {
     ))
 }
 
+/// Ring-buffer capacity for recent Tier 4 life-event descriptions.
+///
+/// Defined in `tier4` (the canonical owner of life events) and re-exported
+/// here for use in this module.
+pub(crate) use crate::tier4::RING_BUFFER_CAPACITY;
+
+/// Runs one banshee tick: heralds imminent deaths and finalises doomed NPCs.
+///
+/// Scans `npcs` for any NPC with a [`crate::Npc::doom`] timestamp set:
+///
+/// - If `now >= doom`: removes the NPC, writes an epitaph to `world_text_log`,
+///   publishes a [`GameEvent::LifeEvent`], and pushes a description into
+///   `recent_events_ring`.
+/// - Otherwise, if `now` falls in the night herald window before `doom` and
+///   the NPC has not yet been heralded: emits the banshee wail, writes it to
+///   `world_text_log`, and sets [`crate::Npc::banshee_heralded`].
+///
+/// `player_loc` is used only to pick the near/far wail voicing.
+pub fn tick(
+    npcs: &mut HashMap<NpcId, Npc>,
+    recent_events_ring: &mut VecDeque<String>,
+    clock: &GameClock,
+    graph: &WorldGraph,
+    world_text_log: &mut Vec<String>,
+    event_bus: &EventBus,
+    player_loc: LocationId,
+) -> BansheeReport {
+    let now = clock.now();
+    let mut report = BansheeReport::default();
+
+    // Collect ids first to avoid simultaneous iteration + mutation.
+    let doomed_ids: Vec<NpcId> = npcs
+        .iter()
+        .filter_map(|(id, npc)| npc.doom.map(|_| *id))
+        .collect();
+
+    for id in doomed_ids {
+        // Extract all fields in one lookup so we avoid a second get() for the herald path.
+        let (doom, already_heralded, name, home, current_location) = {
+            let Some(npc) = npcs.get(&id) else { continue };
+            let Some(d) = npc.doom else { continue };
+            (
+                d,
+                npc.banshee_heralded,
+                npc.name.clone(),
+                npc.home,
+                npc.location,
+            )
+        };
+
+        if now >= doom {
+            npcs.remove(&id);
+            let desc = format!("{name} has passed away.");
+            world_text_log.push(format!(
+                "Word travels before the sun is fully up: {name} did not see the morning. \
+                 The banshee had the right of it."
+            ));
+            event_bus.publish(GameEvent::LifeEvent {
+                npc_id: id,
+                description: desc,
+                timestamp: now,
+            });
+            if recent_events_ring.len() >= RING_BUFFER_CAPACITY {
+                recent_events_ring.pop_front();
+            }
+            recent_events_ring.push_back(format!("{name} has passed away."));
+            report.deaths.push(BansheeEvent::Died {
+                target: id,
+                target_name: name,
+            });
+            continue;
+        }
+
+        if already_heralded || !is_herald_window(now, doom) {
+            continue;
+        }
+
+        // Wail rises from the NPC's home if set, otherwise from their current location.
+        let wail_loc = home.unwrap_or(current_location);
+        let home_name = graph.get(wail_loc).map(|d| d.name.clone());
+        let near_player = wail_loc == player_loc;
+
+        let event = BansheeEvent::Heard {
+            target: id,
+            target_name: name,
+            home,
+            home_name,
+            near_player,
+        };
+        if let Some(line) = herald_line(&event) {
+            world_text_log.push(line);
+        }
+        if let Some(npc) = npcs.get_mut(&id) {
+            npc.banshee_heralded = true;
+        }
+        report.wails.push(event);
+    }
+
+    report
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,5 +339,128 @@ mod tests {
     #[test]
     fn is_empty_is_true_on_default() {
         assert!(BansheeReport::default().is_empty());
+    }
+
+    // ── Integration tests (tick free fn) ─────────────────────────────────────
+
+    use crate::test_helpers::{make_mourning_world, make_test_npc};
+    use parish_types::NpcId;
+    use std::collections::{HashMap, VecDeque};
+
+    fn run_tick(
+        npcs: &mut HashMap<NpcId, crate::Npc>,
+        world: &mut parish_world::WorldState,
+    ) -> BansheeReport {
+        let mut ring = VecDeque::new();
+        tick(
+            npcs,
+            &mut ring,
+            &world.clock,
+            &world.graph,
+            &mut world.text_log,
+            &world.event_bus,
+            world.player_location,
+        )
+    }
+
+    #[test]
+    fn banshee_herald_fires_at_night_with_near_doom() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+        let report = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(report.wails.len(), 1, "one wail expected");
+        assert_eq!(report.deaths.len(), 0, "no death yet");
+        assert!(
+            world
+                .text_log
+                .iter()
+                .any(|l| l.contains("keening") || l.contains("banshee")),
+            "wail line should appear in text log"
+        );
+        assert!(npcs[&NpcId(42)].banshee_heralded, "herald flag must be set");
+    }
+
+    #[test]
+    fn banshee_wail_is_emitted_only_once_per_doom() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+        let r1 = run_tick(&mut npcs, &mut world);
+        let r2 = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(r1.wails.len(), 1);
+        assert_eq!(r2.wails.len(), 0, "second tick must not re-wail");
+    }
+
+    #[test]
+    fn banshee_finalises_death_once_doom_passes() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        // Doom 1 hour in the past.
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 15, 21, 0, 0).unwrap());
+        npc.banshee_heralded = true;
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+        let report = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(report.deaths.len(), 1);
+        assert_eq!(report.wails.len(), 0);
+        assert!(!npcs.contains_key(&NpcId(42)), "NPC must be removed");
+        assert!(
+            world
+                .text_log
+                .iter()
+                .any(|l| l.contains("did not see the morning")),
+            "epitaph line should appear"
+        );
+    }
+
+    #[test]
+    fn banshee_does_not_fire_during_daytime() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+        // Override clock to 14:00 — outside night window.
+        world.clock = parish_world::time::GameClock::new(
+            Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap(),
+        );
+
+        let report = run_tick(&mut npcs, &mut world);
+        assert!(
+            report.is_empty(),
+            "daytime should produce neither wail nor death"
+        );
+        assert!(world.text_log.is_empty());
+    }
+
+    #[test]
+    fn banshee_herald_near_player_uses_close_voicing() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 0); // NPC lives at player's location.
+        npc.home = Some(LocationId(0));
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+        let report = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(report.wails.len(), 1);
+        if let BansheeEvent::Heard { near_player, .. } = &report.wails[0] {
+            assert!(*near_player, "player shares location with the doomed NPC");
+        } else {
+            panic!("expected a Heard event");
+        }
     }
 }

@@ -113,8 +113,8 @@ validate_evidence_file() {
 
 scan_for_debt_markers() {
     local file="$1"
-    [[ -f "$file" ]] || return 0
-    grep -Iq . "$file" || return 0
+    [[ -f "$file" ]] || return 1   # file deleted/absent — no debt to find
+    grep -Iq . "$file" || return 1 # binary file — skip
 
     grep -En \
         -e '//[[:space:]]*unchanged' \

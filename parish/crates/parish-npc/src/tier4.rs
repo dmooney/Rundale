@@ -4,12 +4,15 @@
 //! using probabilistic rules — no LLM calls. Runs once per in-game
 //! season (~30-45 real minutes at Normal speed).
 
+use std::collections::VecDeque;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use rand::Rng;
 
 use crate::types::RelationshipKind;
 use crate::{Npc, NpcId};
 use parish_types::LocationId;
+use parish_world::events::GameEvent;
 use parish_world::time::{Festival, Season};
 
 /// A life event produced by the Tier 4 rules engine.
@@ -329,6 +332,195 @@ fn find_eligible_couples(npcs: &[&mut Npc]) -> Vec<(NpcId, NpcId)> {
     couples
 }
 
+/// Ring-buffer capacity for recent life-event descriptions.
+///
+/// Shared with `banshee::tick` which also pushes death descriptions into the
+/// same ring buffer managed by `NpcManager`.
+pub(crate) const RING_BUFFER_CAPACITY: usize = 5;
+
+/// Applies a slice of Tier 4 events to the NPC map.
+///
+/// Mutates NPC state (illness, doom, relationships) and pushes human-readable
+/// descriptions into `recent_events_ring`. Returns the [`GameEvent`]s to
+/// publish on the world event bus.
+///
+/// `banshee_enabled` gates whether a `Death` event schedules a doom timestamp
+/// (banshee path) or removes the NPC immediately (pre-banshee behaviour).
+pub fn apply_events(
+    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    recent_events_ring: &mut VecDeque<String>,
+    events: &[Tier4Event],
+    timestamp: DateTime<Utc>,
+    banshee_enabled: bool,
+) -> Vec<GameEvent> {
+    let mut game_events = Vec::new();
+    let mut life_descs: Vec<String> = Vec::new();
+
+    for event in events {
+        match event {
+            Tier4Event::Illness { npc_id } => {
+                if let Some(npc) = npcs.get_mut(npc_id) {
+                    npc.is_ill = true;
+                    npc.mood = "unwell".to_string();
+                    let desc = format!("{} has fallen ill.", npc.name);
+                    life_descs.push(desc.clone());
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: *npc_id,
+                        description: desc,
+                        timestamp,
+                    });
+                    game_events.push(GameEvent::MoodChanged {
+                        npc_id: *npc_id,
+                        new_mood: "unwell".to_string(),
+                        timestamp,
+                    });
+                }
+            }
+            Tier4Event::Recovery { npc_id } => {
+                if let Some(npc) = npcs.get_mut(npc_id) {
+                    npc.is_ill = false;
+                    npc.mood = "content".to_string();
+                    let desc = format!("{} has recovered from illness.", npc.name);
+                    life_descs.push(desc.clone());
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: *npc_id,
+                        description: desc,
+                        timestamp,
+                    });
+                    game_events.push(GameEvent::MoodChanged {
+                        npc_id: *npc_id,
+                        new_mood: "content".to_string(),
+                        timestamp,
+                    });
+                }
+            }
+            Tier4Event::Death { npc_id } => {
+                if banshee_enabled {
+                    if let Some(npc) = npcs.get_mut(npc_id) {
+                        let doom = timestamp
+                            + chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS);
+                        npc.doom = Some(doom);
+                        npc.banshee_heralded = false;
+                        let desc = format!("{} is fated to die.", npc.name);
+                        life_descs.push(desc.clone());
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: desc,
+                            timestamp,
+                        });
+                    }
+                } else {
+                    if let Some(npc) = npcs.get(npc_id) {
+                        let desc = format!("{} has passed away.", npc.name);
+                        life_descs.push(desc.clone());
+                        game_events.push(GameEvent::LifeEvent {
+                            npc_id: *npc_id,
+                            description: desc,
+                            timestamp,
+                        });
+                    }
+                    npcs.remove(npc_id);
+                }
+            }
+            Tier4Event::Birth { parent_ids } => {
+                let parent_a = npcs
+                    .get(&parent_ids.0)
+                    .map(|n| n.name.clone())
+                    .unwrap_or_default();
+                let parent_b = npcs
+                    .get(&parent_ids.1)
+                    .map(|n| n.name.clone())
+                    .unwrap_or_default();
+                let desc = format!("A child has been born to {parent_a} and {parent_b}.");
+                life_descs.push(desc.clone());
+                game_events.push(GameEvent::LifeEvent {
+                    npc_id: parent_ids.0,
+                    description: desc,
+                    timestamp,
+                });
+            }
+            Tier4Event::SeasonalShift {
+                npc_id,
+                new_schedule_desc,
+            } => {
+                if let Some(npc) = npcs.get(npc_id) {
+                    let desc = format!("{}: {}", npc.name, new_schedule_desc);
+                    life_descs.push(desc.clone());
+                    game_events.push(GameEvent::LifeEvent {
+                        npc_id: *npc_id,
+                        description: desc,
+                        timestamp,
+                    });
+                }
+            }
+            Tier4Event::TradeCompleted { buyer, seller } => {
+                let buyer_name = npcs.get(buyer).map(|n| n.name.clone()).unwrap_or_default();
+                let seller_name = npcs.get(seller).map(|n| n.name.clone()).unwrap_or_default();
+                if let Some(b) = npcs.get_mut(buyer)
+                    && let Some(rel) = b.relationships.get_mut(seller)
+                {
+                    rel.adjust_strength(0.1);
+                }
+                if let Some(s) = npcs.get_mut(seller)
+                    && let Some(rel) = s.relationships.get_mut(buyer)
+                {
+                    rel.adjust_strength(0.1);
+                }
+                let desc = format!("{buyer_name} completed a trade with {seller_name}.");
+                life_descs.push(desc.clone());
+                game_events.push(GameEvent::LifeEvent {
+                    npc_id: *buyer,
+                    description: desc,
+                    timestamp,
+                });
+                game_events.push(GameEvent::RelationshipChanged {
+                    npc_a: *buyer,
+                    npc_b: *seller,
+                    delta: 0.1,
+                    timestamp,
+                });
+            }
+            Tier4Event::FestivalDetected { festival } => {
+                game_events.push(GameEvent::FestivalStarted {
+                    name: festival.to_string(),
+                    timestamp,
+                });
+            }
+            Tier4Event::FestivalBond {
+                npc_a,
+                npc_b,
+                festival: _,
+            } => {
+                if let Some(npc) = npcs.get_mut(npc_a)
+                    && let Some(rel) = npc.relationships.get_mut(npc_b)
+                {
+                    rel.adjust_strength(0.05);
+                }
+                if let Some(npc) = npcs.get_mut(npc_b)
+                    && let Some(rel) = npc.relationships.get_mut(npc_a)
+                {
+                    rel.adjust_strength(0.05);
+                }
+                game_events.push(GameEvent::RelationshipChanged {
+                    npc_a: *npc_a,
+                    npc_b: *npc_b,
+                    delta: 0.05,
+                    timestamp,
+                });
+            }
+        }
+    }
+
+    for desc in life_descs {
+        if recent_events_ring.len() >= RING_BUFFER_CAPACITY {
+            recent_events_ring.pop_front();
+        }
+        recent_events_ring.push_back(desc);
+    }
+
+    game_events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -594,6 +786,51 @@ mod tests {
                 "tick_tier4 should run successfully on spawn_blocking"
             );
         });
+    }
+
+    // ── apply_events tests ───────────────────────────────────────────────────
+
+    use crate::test_helpers::make_test_npc;
+    use chrono::TimeZone;
+
+    #[test]
+    fn tier4_death_with_banshee_enabled_schedules_doom() {
+        let mut npcs = std::collections::HashMap::new();
+        npcs.insert(NpcId(42), make_test_npc(42, 2));
+
+        let now = chrono::Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
+        let mut ring = std::collections::VecDeque::new();
+        let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
+        let game_events = apply_events(&mut npcs, &mut ring, &events, now, true);
+
+        assert!(
+            npcs.contains_key(&NpcId(42)),
+            "NPC should NOT be removed yet"
+        );
+        let doom = npcs[&NpcId(42)].doom.expect("doom must be set");
+        assert!(doom > now, "doom must be in the future");
+        assert_eq!(
+            doom - now,
+            chrono::Duration::hours(crate::banshee::DOOM_LEAD_TIME_HOURS)
+        );
+        assert!(!game_events.is_empty(), "should still emit a life event");
+    }
+
+    #[test]
+    fn tier4_death_with_banshee_disabled_removes_npc_immediately() {
+        let mut npcs = std::collections::HashMap::new();
+        npcs.insert(NpcId(42), make_test_npc(42, 2));
+
+        let now = chrono::Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
+        let mut ring = std::collections::VecDeque::new();
+        let events = vec![Tier4Event::Death { npc_id: NpcId(42) }];
+        let game_events = apply_events(&mut npcs, &mut ring, &events, now, false);
+
+        assert!(
+            !npcs.contains_key(&NpcId(42)),
+            "NPC should be removed immediately"
+        );
+        assert!(!game_events.is_empty(), "should still emit a life event");
     }
 
     #[test]
