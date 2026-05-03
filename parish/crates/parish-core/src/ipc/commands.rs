@@ -319,7 +319,6 @@ pub fn handle_command(
                 CommandResult::text(format!("{} schedule event(s) processed.", count))
             }
         }
-
         // ── Sidebar & Improv ────────────────────────────────────────────
         Command::ToggleSidebar => {
             CommandResult::text("The Irish words panel is managed by the sidebar.")

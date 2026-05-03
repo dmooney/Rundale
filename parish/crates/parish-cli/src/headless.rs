@@ -1477,6 +1477,9 @@ fn print_location_description(app: &App) {
 
 /// Handles movement in headless mode.
 async fn handle_headless_movement(app: &mut App, target: &str) {
+    use parish_core::dice::DiceRoll;
+    use parish_core::world::weather_travel::{apply_multiplier, compute_weather_effect};
+
     let transport = default_transport(app);
     let result = movement::resolve_movement_with_weather(
         target,
@@ -1493,11 +1496,52 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
             minutes,
             narration,
         } => {
-            println!("{}", narration);
+            // Consult the weather before committing the journey. The feature
+            // flag is default-on via `is_disabled` semantics, same kill-switch
+            // pattern as `period-map-tiles`.
+            let apply_weather = !app.flags.is_disabled("weather-travel");
+            let weather_effect = if apply_weather {
+                compute_weather_effect(
+                    app.world.weather,
+                    app.world.clock.season(),
+                    DiceRoll::roll(),
+                    DiceRoll::roll(),
+                )
+            } else {
+                parish_core::world::weather_travel::WeatherTravelEffect::clear()
+            };
+
+            if let Some(flavour) = weather_effect.flavour {
+                println!("{}", flavour);
+            }
+
+            // A Storm can force the player back. They lose half the nominal
+            // travel time to the aborted attempt and stay at the origin.
+            if weather_effect.forced_back.is_some() {
+                let lost = (minutes / 2).max(1);
+                app.world.clock.advance(lost as i64);
+                println!(
+                    "You turn back. The storm has the better of it; you'll try again later. \
+                     ({} minutes lost to the attempt.)",
+                    lost
+                );
+                println!();
+                return;
+            }
+
+            let adjusted_minutes = apply_multiplier(minutes, weather_effect.multiplier);
+            if adjusted_minutes > minutes {
+                println!(
+                    "{} (slowed by the weather from {} to {} minutes)",
+                    narration, minutes, adjusted_minutes
+                );
+            } else {
+                println!("{}", narration);
+            }
             println!();
 
             app.world.record_path_traversal(&path);
-            app.world.clock.advance(minutes as i64);
+            app.world.clock.advance(adjusted_minutes as i64);
             app.world.player_location = destination;
             app.world.mark_visited(destination);
 
