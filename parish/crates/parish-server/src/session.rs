@@ -1485,6 +1485,7 @@ mod tests {
                 conversation_log: Default::default(),
                 player_name: None,
                 npcs_who_know_player_name: Default::default(),
+                letter_book: Default::default(),
             }
         }
 
