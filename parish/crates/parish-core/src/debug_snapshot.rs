@@ -564,17 +564,13 @@ pub fn build_inference_categories(
     config: &crate::ipc::config::GameConfig,
 ) -> Vec<InferenceCategoryDebug> {
     use crate::config::InferenceCategory;
-    use crate::ipc::config::GameConfig;
     InferenceCategory::ALL
         .iter()
-        .map(|cat| {
-            let idx = GameConfig::cat_idx(*cat);
-            InferenceCategoryDebug {
-                role: cat.name().to_string(),
-                provider: config.category_provider[idx].clone(),
-                model: config.category_model[idx].clone(),
-                base_url: config.category_base_url[idx].clone(),
-            }
+        .map(|cat| InferenceCategoryDebug {
+            role: cat.name().to_string(),
+            provider: config.category_provider.get(cat).cloned(),
+            model: config.category_model.get(cat).cloned(),
+            base_url: config.category_base_url.get(cat).cloned(),
         })
         .collect()
 }

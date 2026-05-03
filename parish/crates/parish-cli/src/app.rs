@@ -392,16 +392,19 @@ impl App {
 
         // Copy per-category overrides
         for cat in InferenceCategory::ALL {
-            let idx = GameConfig::cat_idx(cat);
-            cfg.category_provider[idx] = self.category_provider_name(cat).map(|s| s.to_string());
+            if let Some(p) = self.category_provider_name(cat) {
+                cfg.category_provider.insert(cat, p.to_string());
+            }
             let model = self.category_model(cat);
-            cfg.category_model[idx] = if model.is_empty() {
-                None
-            } else {
-                Some(model.to_string())
-            };
-            cfg.category_api_key[idx] = self.category_api_key(cat).map(|s| s.to_string());
-            cfg.category_base_url[idx] = self.category_base_url(cat).map(|s| s.to_string());
+            if !model.is_empty() {
+                cfg.category_model.insert(cat, model.to_string());
+            }
+            if let Some(k) = self.category_api_key(cat) {
+                cfg.category_api_key.insert(cat, k.to_string());
+            }
+            if let Some(u) = self.category_base_url(cat) {
+                cfg.category_base_url.insert(cat, u.to_string());
+            }
         }
 
         cfg
@@ -425,17 +428,16 @@ impl App {
 
         // Apply per-category overrides
         for cat in InferenceCategory::ALL {
-            let idx = parish_core::ipc::GameConfig::cat_idx(cat);
-            if let Some(ref p) = cfg.category_provider[idx] {
+            if let Some(p) = cfg.category_provider.get(&cat) {
                 self.set_category_provider_name(cat, p.clone());
             }
-            if let Some(ref m) = cfg.category_model[idx] {
+            if let Some(m) = cfg.category_model.get(&cat) {
                 self.set_category_model(cat, m.clone());
             }
-            if let Some(ref k) = cfg.category_api_key[idx] {
+            if let Some(k) = cfg.category_api_key.get(&cat) {
                 self.set_category_api_key(cat, k.clone());
             }
-            if let Some(ref u) = cfg.category_base_url[idx] {
+            if let Some(u) = cfg.category_base_url.get(&cat) {
                 self.set_category_base_url(cat, u.clone());
             }
         }

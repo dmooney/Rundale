@@ -5,6 +5,8 @@
 //! and the headless CLI — eliminating the duplicate `GameConfig` structs that
 //! previously lived in each backend.
 
+use std::collections::HashMap;
+
 use crate::config::{FeatureFlags, InferenceCategory, RateLimitConfig};
 
 const DEFAULT_AUTO_PAUSE_SECS: u64 = 300;
@@ -40,15 +42,14 @@ pub struct GameConfig {
     pub idle_banter_after_secs: u64,
     /// Real-time inactivity threshold before the game auto-pauses.
     pub auto_pause_after_secs: u64,
-    /// Per-category provider name overrides (None = inherits base).
-    /// Index: Dialogue=0, Simulation=1, Intent=2, Reaction=3.
-    pub category_provider: [Option<String>; 4],
-    /// Per-category model name overrides (None = inherits base).
-    pub category_model: [Option<String>; 4],
-    /// Per-category API key overrides (None = inherits base).
-    pub category_api_key: [Option<String>; 4],
-    /// Per-category base URL overrides (None = inherits base).
-    pub category_base_url: [Option<String>; 4],
+    /// Per-category provider name overrides (absent key = inherits base).
+    pub category_provider: HashMap<InferenceCategory, String>,
+    /// Per-category model name overrides (absent key = inherits base).
+    pub category_model: HashMap<InferenceCategory, String>,
+    /// Per-category API key overrides (absent key = inherits base).
+    pub category_api_key: HashMap<InferenceCategory, String>,
+    /// Per-category base URL overrides (absent key = inherits base).
+    pub category_base_url: HashMap<InferenceCategory, String>,
     /// Runtime feature flags for safe deployment of in-progress features.
     pub flags: FeatureFlags,
     /// Per-category outbound rate limiters, pre-built from the
@@ -58,7 +59,7 @@ pub struct GameConfig {
     /// constructing per-category override clients. Categories that fall
     /// back to the base client inherit whatever limiter the base client
     /// was constructed with (see [`crate::inference::openai_client::OpenAiClient::with_rate_limit`]).
-    pub category_rate_limit: [Option<InferenceRateLimiter>; 4],
+    pub category_rate_limit: HashMap<InferenceCategory, InferenceRateLimiter>,
     /// Id of the map tile source currently applied (matches a key in
     /// `[engine.map.tile_sources]`). Empty string means "use engine default".
     pub active_tile_source: String,
@@ -76,16 +77,6 @@ pub struct GameConfig {
 }
 
 impl GameConfig {
-    /// Returns the array index for a category.
-    pub fn cat_idx(cat: InferenceCategory) -> usize {
-        match cat {
-            InferenceCategory::Dialogue => 0,
-            InferenceCategory::Simulation => 1,
-            InferenceCategory::Intent => 2,
-            InferenceCategory::Reaction => 3,
-        }
-    }
-
     /// Resolves the client and model for a given inference category.
     ///
     /// If the category has per-category overrides (provider/key/URL), builds a
@@ -94,7 +85,7 @@ impl GameConfig {
     /// `base_client`, which already carries its own rate limiter from setup.
     /// The model falls back to `self.model_name` if no per-category model is set.
     ///
-    /// The per-category provider (from `category_provider[idx]`, falling back
+    /// The per-category provider (from `category_provider[cat]`, falling back
     /// to `provider_name`) determines which transport is built: OpenAI-compat
     /// for most providers, the native [`AnthropicClient`] for `anthropic`.
     ///
@@ -106,20 +97,23 @@ impl GameConfig {
         base_client: Option<&crate::inference::AnyClient>,
     ) -> (Option<crate::inference::AnyClient>, String) {
         use parish_config::Provider;
-        let idx = Self::cat_idx(cat);
-        let model = self.category_model[idx]
-            .clone()
+        let model = self
+            .category_model
+            .get(&cat)
+            .cloned()
             .unwrap_or_else(|| self.model_name.clone());
 
         // Build a per-category client if the provider, URL, or key is overridden.
-        let has_override = self.category_provider[idx].is_some()
-            || self.category_base_url[idx].is_some()
-            || self.category_api_key[idx].is_some();
+        let has_override = self.category_provider.contains_key(&cat)
+            || self.category_base_url.contains_key(&cat)
+            || self.category_api_key.contains_key(&cat);
 
         let client = if has_override {
             // Resolve the effective provider for this category.
-            let provider_str = self.category_provider[idx]
-                .as_deref()
+            let provider_str = self
+                .category_provider
+                .get(&cat)
+                .map(String::as_str)
                 .unwrap_or(&self.provider_name);
             let provider = Provider::from_str_loose(provider_str).unwrap_or_default();
 
@@ -127,20 +121,24 @@ impl GameConfig {
             // (the latter matters when a category switches to Anthropic
             // while the base stays on Ollama — the Anthropic default URL
             // is not empty, so build_client can still reach a real host).
-            let url: String = match self.category_base_url[idx].as_deref() {
-                Some(u) => u.to_string(),
-                None if !self.base_url.is_empty() => self.base_url.clone(),
-                None => provider.default_base_url().to_string(),
+            let url = if let Some(u) = self.category_base_url.get(&cat) {
+                u.clone()
+            } else if !self.base_url.is_empty() {
+                self.base_url.clone()
+            } else {
+                provider.default_base_url().to_string()
             };
-            let key = self.category_api_key[idx]
-                .as_deref()
+            let key = self
+                .category_api_key
+                .get(&cat)
+                .map(String::as_str)
                 .or(self.api_key.as_deref());
 
             let inference_cfg = parish_config::InferenceConfig::default();
             let built = crate::inference::build_client(&provider, &url, key, &inference_cfg);
             // Attach the per-category rate limiter to the inner variant
             // (rate-limiting is per-transport, not at the AnyClient layer).
-            let limiter = self.category_rate_limit[idx].clone();
+            let limiter = self.category_rate_limit.get(&cat).cloned();
             Some(attach_rate_limit(built, limiter))
         } else {
             base_client.cloned()
@@ -161,11 +159,13 @@ impl GameConfig {
     /// it must be applied at base-client construction time in `setup.rs`,
     /// because cloning a client preserves its limiter.
     pub fn install_rate_limits(&mut self, cfg: &RateLimitConfig) {
-        for cat in InferenceCategory::ALL {
-            let idx = Self::cat_idx(cat);
-            self.category_rate_limit[idx] =
-                InferenceRateLimiter::from_config(cfg.for_category(cat));
-        }
+        self.category_rate_limit = InferenceCategory::ALL
+            .iter()
+            .filter_map(|&cat| {
+                InferenceRateLimiter::from_config(cfg.for_category(cat))
+                    .map(|limiter| (cat, limiter))
+            })
+            .collect();
     }
 
     /// Fills in any unset model fields with the appropriate provider preset.
@@ -173,9 +173,9 @@ impl GameConfig {
     /// - The base [`Self::model_name`] is filled from
     ///   `provider.preset_model(InferenceCategory::Dialogue)` if the base
     ///   model name is empty.
-    /// - Each [`Self::category_model`] slot that is `None` is filled from
+    /// - Each [`Self::category_model`] entry that is absent is filled from
     ///   the *effective* provider's preset for that role — the effective
-    ///   provider is the per-category override (`category_provider[idx]`)
+    ///   provider is the per-category override (`category_provider[cat]`)
     ///   if set, otherwise the base [`Self::provider_name`].
     ///
     /// Already-configured models are never overwritten — this is the
@@ -202,17 +202,18 @@ impl GameConfig {
         // Per-category models: fall back to each effective provider's
         // preset for that specific role.
         for cat in InferenceCategory::ALL {
-            let idx = Self::cat_idx(cat);
-            if self.category_model[idx].is_some() {
+            if self.category_model.contains_key(&cat) {
                 continue;
             }
-            let provider_str = self.category_provider[idx]
-                .as_deref()
+            let provider_str = self
+                .category_provider
+                .get(&cat)
+                .map(String::as_str)
                 .unwrap_or(&self.provider_name);
             if let Ok(p) = Provider::from_str_loose(provider_str)
                 && let Some(m) = p.preset_model(cat)
             {
-                self.category_model[idx] = Some(m.to_string());
+                self.category_model.insert(cat, m.to_string());
                 changed = true;
             }
         }
@@ -255,12 +256,12 @@ impl Default for GameConfig {
             max_follow_up_turns: 2,
             idle_banter_after_secs: 25,
             auto_pause_after_secs: DEFAULT_AUTO_PAUSE_SECS,
-            category_provider: [None, None, None, None],
-            category_model: Default::default(),
-            category_api_key: Default::default(),
-            category_base_url: Default::default(),
+            category_provider: HashMap::new(),
+            category_model: HashMap::new(),
+            category_api_key: HashMap::new(),
+            category_base_url: HashMap::new(),
             flags: FeatureFlags::default(),
-            category_rate_limit: Default::default(),
+            category_rate_limit: HashMap::new(),
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
@@ -287,14 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn cat_idx_mapping() {
-        assert_eq!(GameConfig::cat_idx(InferenceCategory::Dialogue), 0);
-        assert_eq!(GameConfig::cat_idx(InferenceCategory::Simulation), 1);
-        assert_eq!(GameConfig::cat_idx(InferenceCategory::Intent), 2);
-        assert_eq!(GameConfig::cat_idx(InferenceCategory::Reaction), 3);
-    }
-
-    #[test]
     fn resolve_category_client_inherits_base() {
         use crate::inference::{AnyClient, openai_client::OpenAiClient};
         let cfg = GameConfig {
@@ -316,10 +309,14 @@ mod tests {
             base_url: "http://localhost:11434".to_string(),
             ..GameConfig::default()
         };
-        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
-        cfg.category_model[idx] = Some("reaction-model".to_string());
-        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
-        cfg.category_api_key[idx] = Some("sk-test".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Reaction, "reaction-model".to_string());
+        cfg.category_base_url.insert(
+            InferenceCategory::Reaction,
+            "https://openrouter.ai/api".to_string(),
+        );
+        cfg.category_api_key
+            .insert(InferenceCategory::Reaction, "sk-test".to_string());
 
         let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
         let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, Some(&base));
@@ -338,10 +335,12 @@ mod tests {
             base_url: "http://localhost:11434".to_string(),
             ..GameConfig::default()
         };
-        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
-        cfg.category_provider[idx] = Some("anthropic".to_string());
-        cfg.category_api_key[idx] = Some("sk-ant-test".to_string());
-        cfg.category_model[idx] = Some("claude-sonnet-4-5".to_string());
+        cfg.category_provider
+            .insert(InferenceCategory::Reaction, "anthropic".to_string());
+        cfg.category_api_key
+            .insert(InferenceCategory::Reaction, "sk-ant-test".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Reaction, "claude-sonnet-4-5".to_string());
 
         let (client, model) = cfg.resolve_category_client(InferenceCategory::Reaction, None);
         let client = client.expect("override client built");
@@ -371,19 +370,27 @@ mod tests {
         assert!(changed);
         assert_eq!(cfg.model_name, "claude-opus-4-7");
         assert_eq!(
-            cfg.category_model[InferenceCategory::Dialogue.idx()].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
             Some("claude-opus-4-7"),
         );
         assert_eq!(
-            cfg.category_model[InferenceCategory::Simulation.idx()].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Simulation)
+                .map(String::as_str),
             Some("claude-sonnet-4-6"),
         );
         assert_eq!(
-            cfg.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
             Some("claude-haiku-4-5"),
         );
         assert_eq!(
-            cfg.category_model[InferenceCategory::Reaction.idx()].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Reaction)
+                .map(String::as_str),
             Some("claude-sonnet-4-6"),
         );
     }
@@ -395,19 +402,29 @@ mod tests {
             model_name: "user-chosen-model".to_string(),
             ..GameConfig::default()
         };
-        let dialogue_idx = InferenceCategory::Dialogue.idx();
-        cfg.category_model[dialogue_idx] = Some("user-chosen-dialogue".to_string());
+        cfg.category_model.insert(
+            InferenceCategory::Dialogue,
+            "user-chosen-dialogue".to_string(),
+        );
 
         cfg.fill_missing_models_from_presets();
         assert_eq!(cfg.model_name, "user-chosen-model");
         assert_eq!(
-            cfg.category_model[dialogue_idx].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
             Some("user-chosen-dialogue"),
         );
         // The other three slots should still be filled from the preset.
-        assert!(cfg.category_model[InferenceCategory::Simulation.idx()].is_some());
-        assert!(cfg.category_model[InferenceCategory::Intent.idx()].is_some());
-        assert!(cfg.category_model[InferenceCategory::Reaction.idx()].is_some());
+        assert!(
+            cfg.category_model
+                .contains_key(&InferenceCategory::Simulation)
+        );
+        assert!(cfg.category_model.contains_key(&InferenceCategory::Intent));
+        assert!(
+            cfg.category_model
+                .contains_key(&InferenceCategory::Reaction)
+        );
     }
 
     #[test]
@@ -419,17 +436,21 @@ mod tests {
             provider_name: "ollama".to_string(),
             ..GameConfig::default()
         };
-        let intent_idx = InferenceCategory::Intent.idx();
-        cfg.category_provider[intent_idx] = Some("anthropic".to_string());
+        cfg.category_provider
+            .insert(InferenceCategory::Intent, "anthropic".to_string());
 
         cfg.fill_missing_models_from_presets();
         assert_eq!(
-            cfg.category_model[intent_idx].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
             Some("claude-haiku-4-5"),
         );
         // The other categories should pick up the ollama presets.
         assert_eq!(
-            cfg.category_model[InferenceCategory::Dialogue.idx()].as_deref(),
+            cfg.category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
             Some("qwen3:32b"),
         );
     }
@@ -443,7 +464,7 @@ mod tests {
         let changed = cfg.fill_missing_models_from_presets();
         assert!(!changed);
         assert_eq!(cfg.model_name, "");
-        assert!(cfg.category_model.iter().all(Option::is_none));
+        assert!(cfg.category_model.is_empty());
     }
 
     #[test]
@@ -451,14 +472,16 @@ mod tests {
         let mut cfg = GameConfig {
             provider_name: "anthropic".to_string(),
             model_name: "x".to_string(),
-            category_model: [
-                Some("a".to_string()),
-                Some("b".to_string()),
-                Some("c".to_string()),
-                Some("d".to_string()),
-            ],
             ..GameConfig::default()
         };
+        cfg.category_model
+            .insert(InferenceCategory::Dialogue, "a".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Simulation, "b".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Intent, "c".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Reaction, "d".to_string());
         assert!(!cfg.fill_missing_models_from_presets());
     }
 
@@ -480,15 +503,22 @@ mod tests {
         };
         cfg.install_rate_limits(&rl);
 
-        let dial_idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
-        let intent_idx = GameConfig::cat_idx(InferenceCategory::Intent);
-        let sim_idx = GameConfig::cat_idx(InferenceCategory::Simulation);
-        let react_idx = GameConfig::cat_idx(InferenceCategory::Reaction);
-
-        assert!(cfg.category_rate_limit[dial_idx].is_some());
-        assert!(cfg.category_rate_limit[intent_idx].is_some());
-        assert!(cfg.category_rate_limit[sim_idx].is_none());
-        assert!(cfg.category_rate_limit[react_idx].is_none());
+        assert!(
+            cfg.category_rate_limit
+                .contains_key(&InferenceCategory::Dialogue)
+        );
+        assert!(
+            cfg.category_rate_limit
+                .contains_key(&InferenceCategory::Intent)
+        );
+        assert!(
+            !cfg.category_rate_limit
+                .contains_key(&InferenceCategory::Simulation)
+        );
+        assert!(
+            !cfg.category_rate_limit
+                .contains_key(&InferenceCategory::Reaction)
+        );
     }
 
     #[test]
@@ -504,8 +534,10 @@ mod tests {
             ..RateLimitConfig::default()
         };
         cfg.install_rate_limits(&rl);
-        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
-        assert!(cfg.category_rate_limit[idx].is_none());
+        assert!(
+            !cfg.category_rate_limit
+                .contains_key(&InferenceCategory::Dialogue)
+        );
     }
 
     #[test]
@@ -517,9 +549,12 @@ mod tests {
             base_url: "http://localhost:11434".to_string(),
             ..GameConfig::default()
         };
-        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
-        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
-        cfg.category_api_key[idx] = Some("sk-test".to_string());
+        cfg.category_base_url.insert(
+            InferenceCategory::Reaction,
+            "https://openrouter.ai/api".to_string(),
+        );
+        cfg.category_api_key
+            .insert(InferenceCategory::Reaction, "sk-test".to_string());
 
         // Install a rate limit for the Reaction category.
         let rl_cfg = RateLimitConfig {
@@ -543,9 +578,12 @@ mod tests {
             base_url: "http://localhost:11434".to_string(),
             ..GameConfig::default()
         };
-        let idx = GameConfig::cat_idx(InferenceCategory::Reaction);
-        cfg.category_base_url[idx] = Some("https://openrouter.ai/api".to_string());
-        cfg.category_api_key[idx] = Some("sk-test".to_string());
+        cfg.category_base_url.insert(
+            InferenceCategory::Reaction,
+            "https://openrouter.ai/api".to_string(),
+        );
+        cfg.category_api_key
+            .insert(InferenceCategory::Reaction, "sk-test".to_string());
 
         let (client, _model) = cfg.resolve_category_client(InferenceCategory::Reaction, None);
         let client = client.expect("override client built");

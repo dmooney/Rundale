@@ -708,12 +708,12 @@ pub fn run() {
         max_follow_up_turns: 2,
         idle_banter_after_secs: engine_config.session.idle_banter_after_secs,
         auto_pause_after_secs: engine_config.session.auto_pause_after_secs,
-        category_provider: [None, None, None, None],
-        category_model: [None, None, None, None],
-        category_api_key: [None, None, None, None],
-        category_base_url: [None, None, None, None],
+        category_provider: Default::default(),
+        category_model: Default::default(),
+        category_api_key: Default::default(),
+        category_base_url: Default::default(),
         flags,
-        category_rate_limit: [None, None, None, None],
+        category_rate_limit: Default::default(),
         active_tile_source,
         tile_sources: engine_config.map.id_label_pairs(),
         reveal_unexplored_locations: false,
@@ -1349,11 +1349,10 @@ pub fn run() {
                                             let queue_guard =
                                                 state_t3.inference_queue.lock().await;
                                             let queue = queue_guard.clone();
-                                            let idx = parish_core::ipc::GameConfig::cat_idx(
-                                                parish_core::config::InferenceCategory::Simulation,
-                                            );
-                                            let model = cfg.category_model[idx]
-                                                .clone()
+                                            let model = cfg
+                                                .category_model
+                                                .get(&parish_core::config::InferenceCategory::Simulation)
+                                                .cloned()
                                                 .unwrap_or_else(|| cfg.model_name.clone());
                                             (queue, model)
                                         };
@@ -1495,12 +1494,10 @@ pub fn run() {
                                                 let queue_guard =
                                                     state_t2.inference_queue.lock().await;
                                                 let queue = queue_guard.clone();
-                                                let idx =
-                                                    parish_core::ipc::GameConfig::cat_idx(
-                                                        parish_core::config::InferenceCategory::Simulation,
-                                                    );
-                                                let model = cfg.category_model[idx]
-                                                    .clone()
+                                                let model = cfg
+                                                    .category_model
+                                                    .get(&parish_core::config::InferenceCategory::Simulation)
+                                                    .cloned()
                                                     .unwrap_or_else(|| {
                                                         cfg.model_name.clone()
                                                     });

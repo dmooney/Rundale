@@ -409,24 +409,22 @@ pub fn handle_command(
             CommandResult::with_effect("Cloud API key updated.", CommandEffect::RebuildCloudClient)
         }
 
-        // ── Per-category provider/model/key ──��──────────────────────────
-        Command::ShowCategoryProvider(cat) => {
-            let idx = GameConfig::cat_idx(cat);
-            match &config.category_provider[idx] {
-                Some(p) => CommandResult::text(format!("{} provider: {}", cat.name(), p)),
-                None => CommandResult::text(format!(
-                    "{} provider: (inherits base: {})",
-                    cat.name(),
-                    config.provider_name
-                )),
-            }
-        }
+        // ── Per-category provider/model/key ──────────────────────────────
+        Command::ShowCategoryProvider(cat) => match config.category_provider.get(&cat) {
+            Some(p) => CommandResult::text(format!("{} provider: {}", cat.name(), p)),
+            None => CommandResult::text(format!(
+                "{} provider: (inherits base: {})",
+                cat.name(),
+                config.provider_name
+            )),
+        },
         Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
-                let idx = GameConfig::cat_idx(cat);
                 let provider_name = format!("{:?}", provider).to_lowercase();
-                config.category_provider[idx] = Some(provider_name.clone());
-                config.category_base_url[idx] = Some(provider.default_base_url().to_string());
+                config.category_provider.insert(cat, provider_name.clone());
+                config
+                    .category_base_url
+                    .insert(cat, provider.default_base_url().to_string());
                 // Auto-fill the model for this category if unset, using the
                 // new provider's preset for this role.
                 config.fill_missing_models_from_presets();
@@ -437,35 +435,25 @@ pub fn handle_command(
             }
             Err(e) => CommandResult::text(format!("{}", e)),
         },
-        Command::ShowCategoryModel(cat) => {
-            let idx = GameConfig::cat_idx(cat);
-            match &config.category_model[idx] {
-                Some(m) => CommandResult::text(format!("{} model: {}", cat.name(), m)),
-                None => CommandResult::text(format!(
-                    "{} model: (inherits base: {})",
-                    cat.name(),
-                    config.model_name
-                )),
-            }
-        }
+        Command::ShowCategoryModel(cat) => match config.category_model.get(&cat) {
+            Some(m) => CommandResult::text(format!("{} model: {}", cat.name(), m)),
+            None => CommandResult::text(format!(
+                "{} model: (inherits base: {})",
+                cat.name(),
+                config.model_name
+            )),
+        },
         Command::SetCategoryModel(cat, name) => {
-            let idx = GameConfig::cat_idx(cat);
-            config.category_model[idx] = Some(name.clone());
+            config.category_model.insert(cat, name.clone());
             CommandResult::text(format!("{} model changed to {}.", cat.name(), name))
         }
-        Command::ShowCategoryKey(cat) => {
-            let idx = GameConfig::cat_idx(cat);
-            match &config.category_api_key[idx] {
-                Some(key) => {
-                    CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key)))
-                }
-                None => CommandResult::text(format!("{} API key: (not set)", cat.name())),
-            }
-        }
+        Command::ShowCategoryKey(cat) => match config.category_api_key.get(&cat) {
+            Some(key) => CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key))),
+            None => CommandResult::text(format!("{} API key: (not set)", cat.name())),
+        },
         Command::SetCategoryKey(cat, value) => {
             let cat_name = cat.name().to_string();
-            let idx = GameConfig::cat_idx(cat);
-            config.category_api_key[idx] = Some(value);
+            config.category_api_key.insert(cat, value);
             CommandResult::with_effect(
                 format!("{} API key updated.", cat_name),
                 CommandEffect::RebuildInference,
@@ -502,10 +490,13 @@ pub fn handle_command(
                     // explicit user action). API keys are intentionally left
                     // alone — see hint below.
                     for cat in InferenceCategory::ALL {
-                        let idx = cat.idx();
-                        config.category_provider[idx] = Some(provider_name.clone());
-                        config.category_base_url[idx] = Some(default_url.clone());
-                        config.category_model[idx] = presets[idx].map(str::to_string);
+                        config.category_provider.insert(cat, provider_name.clone());
+                        config.category_base_url.insert(cat, default_url.clone());
+                        if let Some(m) = presets[cat.idx()].map(str::to_string) {
+                            config.category_model.insert(cat, m);
+                        } else {
+                            config.category_model.remove(&cat);
+                        }
                     }
 
                     let hint = if provider.requires_api_key() && config.api_key.is_none() {
@@ -1292,8 +1283,13 @@ mod tests {
             &mut config,
         );
         assert!(result.effects.contains(&CommandEffect::RebuildInference));
-        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
-        assert_eq!(config.category_provider[idx].as_deref(), Some("openrouter"));
+        assert_eq!(
+            config
+                .category_provider
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("openrouter")
+        );
     }
 
     #[test]
@@ -1305,8 +1301,13 @@ mod tests {
             &mut npc,
             &mut config,
         );
-        let idx = GameConfig::cat_idx(InferenceCategory::Simulation);
-        assert_eq!(config.category_model[idx].as_deref(), Some("mini-model"));
+        assert_eq!(
+            config
+                .category_model
+                .get(&InferenceCategory::Simulation)
+                .map(String::as_str),
+            Some("mini-model")
+        );
         assert!(result.response.contains("mini-model"));
     }
 
@@ -1344,8 +1345,13 @@ mod tests {
             &mut config,
         );
         assert!(result.effects.contains(&CommandEffect::RebuildInference));
-        let idx = GameConfig::cat_idx(InferenceCategory::Dialogue);
-        assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat-key"));
+        assert_eq!(
+            config
+                .category_api_key
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("sk-cat-key")
+        );
     }
 
     // ── Provider presets ────────────────────────────────────────────────────
@@ -1364,31 +1370,41 @@ mod tests {
         assert_eq!(config.base_url, "https://api.anthropic.com");
         assert_eq!(config.model_name, "claude-opus-4-7");
 
-        let idx_d = InferenceCategory::Dialogue.idx();
-        let idx_s = InferenceCategory::Simulation.idx();
-        let idx_i = InferenceCategory::Intent.idx();
-        let idx_r = InferenceCategory::Reaction.idx();
         assert_eq!(
-            config.category_model[idx_d].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
             Some("claude-opus-4-7")
         );
         assert_eq!(
-            config.category_model[idx_s].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Simulation)
+                .map(String::as_str),
             Some("claude-sonnet-4-6")
         );
         assert_eq!(
-            config.category_model[idx_i].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
             Some("claude-haiku-4-5")
         );
         assert_eq!(
-            config.category_model[idx_r].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Reaction)
+                .map(String::as_str),
             Some("claude-sonnet-4-6")
         );
         for cat in InferenceCategory::ALL {
-            let i = cat.idx();
-            assert_eq!(config.category_provider[i].as_deref(), Some("anthropic"));
             assert_eq!(
-                config.category_base_url[i].as_deref(),
+                config.category_provider.get(&cat).map(String::as_str),
+                Some("anthropic")
+            );
+            assert_eq!(
+                config.category_base_url.get(&cat).map(String::as_str),
                 Some("https://api.anthropic.com")
             );
         }
@@ -1397,8 +1413,10 @@ mod tests {
     #[test]
     fn apply_preset_overwrites_existing_category_models() {
         let (mut world, mut npc, mut config) = default_state();
-        let idx = InferenceCategory::Dialogue.idx();
-        config.category_model[idx] = Some("old-dialogue-model".to_string());
+        config.category_model.insert(
+            InferenceCategory::Dialogue,
+            "old-dialogue-model".to_string(),
+        );
 
         handle_command(
             Command::ApplyPreset("ollama".to_string()),
@@ -1406,15 +1424,22 @@ mod tests {
             &mut npc,
             &mut config,
         );
-        assert_eq!(config.category_model[idx].as_deref(), Some("qwen3:32b"));
+        assert_eq!(
+            config
+                .category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("qwen3:32b")
+        );
     }
 
     #[test]
     fn apply_preset_does_not_touch_api_keys() {
         let (mut world, mut npc, mut config) = default_state();
-        let idx = InferenceCategory::Dialogue.idx();
         config.api_key = Some("sk-existing".to_string());
-        config.category_api_key[idx] = Some("sk-cat".to_string());
+        config
+            .category_api_key
+            .insert(InferenceCategory::Dialogue, "sk-cat".to_string());
 
         handle_command(
             Command::ApplyPreset("anthropic".to_string()),
@@ -1423,7 +1448,13 @@ mod tests {
             &mut config,
         );
         assert_eq!(config.api_key.as_deref(), Some("sk-existing"));
-        assert_eq!(config.category_api_key[idx].as_deref(), Some("sk-cat"));
+        assert_eq!(
+            config
+                .category_api_key
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("sk-cat")
+        );
     }
 
     #[test]
@@ -1495,11 +1526,17 @@ mod tests {
         assert_eq!(config.model_name, "claude-opus-4-7");
         // All four per-category slots should be filled from the Anthropic preset.
         assert_eq!(
-            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
             Some("claude-haiku-4-5"),
         );
         assert_eq!(
-            config.category_model[InferenceCategory::Simulation.idx()].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Simulation)
+                .map(String::as_str),
             Some("claude-sonnet-4-6"),
         );
     }
@@ -1531,7 +1568,10 @@ mod tests {
             &mut config,
         );
         assert_eq!(
-            config.category_model[InferenceCategory::Intent.idx()].as_deref(),
+            config
+                .category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
             Some("claude-haiku-4-5"),
         );
     }
