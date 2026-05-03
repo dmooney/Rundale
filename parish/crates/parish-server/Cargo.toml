@@ -7,33 +7,33 @@ publish = false
 description = "Axum web server for Parish — serves the Svelte UI in a browser for testing"
 
 [dependencies]
-parish-core = { path = "../parish-core" }
-parish-palette = { path = "../parish-palette" }
-axum = { version = "0.8", features = ["ws"] }
-tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["fs", "cors", "set-header"] }
-tower = "0.5"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tracing = "0.1"
-anyhow = "1"
-chrono = { version = "0.4", features = ["serde"] }
-dotenvy = "0.15"
-rand = "0.9"
-tokio-util = "0.7"
-uuid = { version = "1", features = ["v4"] }
-dashmap = "6"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-rusqlite = { version = "0.32", features = ["bundled"] }
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
-once_cell = "1"
-hmac = "0.12"
-sha2 = "0.10"
-hex = "0.4"
-base64 = "0.22"
-governor = "0.10"
+parish-core    = { workspace = true }
+parish-palette = { workspace = true }
+axum           = { version = "0.8", features = ["ws"] }
+tokio          = { workspace = true }
+tower-http     = { version = "0.6", features = ["fs", "cors", "set-header"] }
+tower          = "0.5"
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+tracing        = { workspace = true }
+anyhow         = { workspace = true }
+chrono         = { workspace = true }
+dotenvy        = { workspace = true }
+rand           = { workspace = true }
+tokio-util     = { workspace = true }
+uuid           = { version = "1", features = ["v4"] }
+dashmap        = "6"
+reqwest        = { workspace = true, features = ["json"] }
+rusqlite       = { workspace = true }
+jsonwebtoken   = { version = "10", features = ["rust_crypto"] }
+once_cell      = { workspace = true }
+hmac           = "0.12"
+sha2           = "0.10"
+hex            = "0.4"
+base64         = "0.22"
+governor       = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
-serial_test = "3"
-wiremock = "0.6"
+tempfile    = { workspace = true }
+serial_test = { workspace = true }
+wiremock    = { workspace = true }

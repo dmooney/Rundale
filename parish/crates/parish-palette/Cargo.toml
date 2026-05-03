@@ -7,4 +7,4 @@ publish = false
 description = "Backend-agnostic time-of-day color interpolation for Parish"
 
 [dependencies]
-parish-config = { path = "../parish-config" }
+parish-config = { workspace = true }

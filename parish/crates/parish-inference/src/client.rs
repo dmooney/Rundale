@@ -111,11 +111,15 @@ impl OllamaClient {
             .post(&url)
             .json(&body)
             .send()
-            .await?
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?
             .error_for_status()
-            .map_err(|e| ParishError::Inference(e.to_string()))?;
+            .map_err(|e| ParishError::Network(e.to_string()))?;
 
-        let gen_resp: GenerateResponse = resp.json().await?;
+        let gen_resp: GenerateResponse = resp
+            .json()
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?;
         Ok(gen_resp.response)
     }
 
@@ -146,9 +150,10 @@ impl OllamaClient {
             .post(&url)
             .json(&body)
             .send()
-            .await?
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?
             .error_for_status()
-            .map_err(|e| ParishError::Inference(e.to_string()))?;
+            .map_err(|e| ParishError::Network(e.to_string()))?;
 
         let mut accumulated = String::new();
         let mut line_buf = String::new();
@@ -156,7 +161,11 @@ impl OllamaClient {
 
         // Read chunks and split into NDJSON lines
         let mut response = resp;
-        while let Some(chunk) = response.chunk().await? {
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?
+        {
             // Decode incrementally so multi-byte characters split across
             // HTTP chunk boundaries aren't mangled into U+FFFD (#223).
             line_buf.push_str(&decoder.push(&chunk));
@@ -232,11 +241,15 @@ impl OllamaClient {
             .post(&url)
             .json(&body)
             .send()
-            .await?
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?
             .error_for_status()
-            .map_err(|e| ParishError::Inference(e.to_string()))?;
+            .map_err(|e| ParishError::Network(e.to_string()))?;
 
-        let gen_resp: GenerateResponse = resp.json().await?;
+        let gen_resp: GenerateResponse = resp
+            .json()
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?;
         let parsed: T = serde_json::from_str(&gen_resp.response)?;
         Ok(parsed)
     }

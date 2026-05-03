@@ -13,11 +13,18 @@ pub enum ParishError {
     #[error("model not available: {0}")]
     ModelNotAvailable(String),
 
+    /// Database error. Stored as a string so that `parish-types` does not
+    /// need to depend on `rusqlite`. Higher-level crates (e.g.
+    /// `parish-persistence`) convert `rusqlite::Error` via `.to_string()`
+    /// before wrapping here. (#699)
     #[error("database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    Database(String),
 
+    /// Network error. Stored as a string so that `parish-types` does not
+    /// need to depend on `reqwest`. Higher-level crates convert
+    /// `reqwest::Error` via `.to_string()` before wrapping here. (#699)
     #[error("network error: {0}")]
-    Network(#[from] reqwest::Error),
+    Network(String),
 
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),

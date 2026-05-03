@@ -3162,8 +3162,6 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "rand 0.9.4",
- "reqwest 0.12.28",
- "rusqlite",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

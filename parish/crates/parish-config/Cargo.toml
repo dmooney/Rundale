@@ -7,14 +7,14 @@ publish = false
 description = "Engine and LLM-provider configuration loader for the Parish engine"
 
 [dependencies]
-parish-types = { path = "../parish-types" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-toml = "0.8"
-dotenvy = "0.15"
-tracing = "0.1"
-thiserror = "2"
+parish-types = { workspace = true }
+serde        = { workspace = true }
+serde_json   = { workspace = true }
+toml         = { workspace = true }
+dotenvy      = { workspace = true }
+tracing      = { workspace = true }
+thiserror    = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
-serial_test = "3"
+tempfile    = { workspace = true }
+serial_test = { workspace = true }

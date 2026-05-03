@@ -7,14 +7,14 @@ publish = false
 description = "Player input parsing and command interpretation for the Parish engine"
 
 [dependencies]
-parish-types = { path = "../parish-types" }
-parish-config = { path = "../parish-config" }
-parish-inference = { path = "../parish-inference" }
-serde = { version = "1", features = ["derive"] }
-anyhow = "1"
+parish-types     = { workspace = true }
+parish-config    = { workspace = true }
+parish-inference = { workspace = true }
+serde            = { workspace = true }
+anyhow           = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1"
-wiremock = "0.6"
-tokio = { version = "1", features = ["full"] }
-parish-inference = { path = "../parish-inference" }
+serde_json = { workspace = true }
+wiremock   = { workspace = true }
+tokio      = { workspace = true }
+# parish-inference is already in [dependencies]; no need to repeat it in dev-deps

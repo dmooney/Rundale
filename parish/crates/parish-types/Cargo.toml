@@ -7,15 +7,13 @@ publish = false
 description = "Foundational shared types for the Parish engine (zero internal deps)"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2"
-rusqlite = { version = "0.32", features = ["bundled"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-tokio = { version = "1", features = ["sync"] }
-rand = "0.9"
-tracing = "0.1"
+serde      = { workspace = true }
+serde_json = { workspace = true }
+chrono     = { workspace = true }
+thiserror  = { workspace = true }
+tokio      = { workspace = true, features = ["sync"] }
+rand       = { workspace = true }
+tracing    = { workspace = true }
 
 [dev-dependencies]
-tokio-test = "0.4"
+tokio-test = { workspace = true }

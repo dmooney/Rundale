@@ -11,9 +11,9 @@ name = "parish-npc-tool"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
-rand = "0.9"
-rusqlite = { version = "0.32", features = ["bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+anyhow     = { workspace = true }
+clap       = { workspace = true }
+rand       = { workspace = true }
+rusqlite   = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
+use crate::IntoParishDbError as _;
 use crate::journal::WorldEvent;
 use crate::snapshot::GameSnapshot;
 use parish_types::ParishError;
@@ -72,12 +73,13 @@ impl Database {
     /// performance, enables foreign key enforcement, then runs migrations
     /// to ensure the schema is current.
     pub fn open(path: &Path) -> Result<Self, ParishError> {
-        let conn = Connection::open(path)?;
+        let conn = Connection::open(path).db_err()?;
         conn.execute_batch(
             "PRAGMA journal_mode=WAL;
              PRAGMA synchronous=NORMAL;
              PRAGMA foreign_keys=ON;",
-        )?;
+        )
+        .db_err()?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
@@ -85,9 +87,9 @@ impl Database {
 
     /// Opens an in-memory database (for testing).
     pub fn open_memory() -> Result<Self, ParishError> {
-        let conn = Connection::open_in_memory()?;
+        let conn = Connection::open_in_memory().db_err()?;
         // foreign_keys must be enabled per-connection, including in-memory ones
-        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+        conn.execute_batch("PRAGMA foreign_keys=ON;").db_err()?;
         let db = Self { conn };
         db.migrate()?;
         Ok(db)
@@ -95,8 +97,9 @@ impl Database {
 
     /// Creates tables if they don't exist and ensures the "main" branch exists.
     fn migrate(&self) -> Result<(), ParishError> {
-        self.conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS branches (
+        self.conn
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS branches (
                 id INTEGER PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 created_at TEXT NOT NULL,
@@ -124,19 +127,25 @@ impl Database {
             DROP INDEX IF EXISTS idx_journal_branch_snap_seq;
             CREATE UNIQUE INDEX idx_journal_branch_snap_seq
                 ON journal_events(branch_id, after_snapshot_id, sequence);",
-        )?;
+            )
+            .db_err()?;
 
         // Ensure the "main" branch exists
-        let exists: bool = self.conn.query_row(
-            "SELECT COUNT(*) > 0 FROM branches WHERE name = 'main'",
-            [],
-            |row| row.get(0),
-        )?;
+        let exists: bool = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM branches WHERE name = 'main'",
+                [],
+                |row| row.get(0),
+            )
+            .db_err()?;
         if !exists {
-            self.conn.execute(
-                "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, NULL)",
-                params!["main", chrono::Utc::now().to_rfc3339()],
-            )?;
+            self.conn
+                .execute(
+                    "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, NULL)",
+                    params!["main", chrono::Utc::now().to_rfc3339()],
+                )
+                .db_err()?;
         }
 
         Ok(())
@@ -154,11 +163,13 @@ impl Database {
         let game_time = snapshot.clock.game_time.to_rfc3339();
         let real_time = chrono::Utc::now().to_rfc3339();
 
-        self.conn.execute(
-            "INSERT INTO snapshots (branch_id, game_time, real_time, world_state)
+        self.conn
+            .execute(
+                "INSERT INTO snapshots (branch_id, game_time, real_time, world_state)
              VALUES (?1, ?2, ?3, ?4)",
-            params![branch_id, game_time, real_time, world_state],
-        )?;
+                params![branch_id, game_time, real_time, world_state],
+            )
+            .db_err()?;
         Ok(self.conn.last_insert_rowid())
     }
 
@@ -178,7 +189,8 @@ impl Database {
                 params![branch_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
-            .optional()?;
+            .optional()
+            .db_err()?;
 
         match result {
             Some((id, json)) => {
@@ -198,10 +210,12 @@ impl Database {
         parent_branch_id: Option<i64>,
     ) -> Result<i64, ParishError> {
         let created_at = chrono::Utc::now().to_rfc3339();
-        self.conn.execute(
-            "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, ?3)",
-            params![name, created_at, parent_branch_id],
-        )?;
+        self.conn
+            .execute(
+                "INSERT INTO branches (name, created_at, parent_branch_id) VALUES (?1, ?2, ?3)",
+                params![name, created_at, parent_branch_id],
+            )
+            .db_err()?;
         Ok(self.conn.last_insert_rowid())
     }
 
@@ -221,25 +235,28 @@ impl Database {
                 },
             )
             .optional()
-            .map_err(ParishError::from)
+            .db_err()
     }
 
     /// Lists all branches.
     pub fn list_branches(&self) -> Result<Vec<BranchInfo>, ParishError> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, created_at, parent_branch_id FROM branches ORDER BY id")?;
-        let rows = stmt.query_map([], |row| {
-            Ok(BranchInfo {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                created_at: row.get(2)?,
-                parent_branch_id: row.get(3)?,
+            .prepare("SELECT id, name, created_at, parent_branch_id FROM branches ORDER BY id")
+            .db_err()?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(BranchInfo {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    created_at: row.get(2)?,
+                    parent_branch_id: row.get(3)?,
+                })
             })
-        })?;
+            .db_err()?;
         let mut branches = Vec::new();
         for row in rows {
-            branches.push(row?);
+            branches.push(row.db_err()?);
         }
         Ok(branches)
     }
@@ -264,14 +281,16 @@ impl Database {
         // over existing rows for this (branch, snapshot). Even with an empty result
         // set the aggregate returns exactly one row, so the first event gets
         // sequence=1 correctly.
-        self.conn.execute(
-            "INSERT INTO journal_events
+        self.conn
+            .execute(
+                "INSERT INTO journal_events
              (branch_id, sequence, after_snapshot_id, event_type, event_data, game_time)
              SELECT ?1, COALESCE(MAX(sequence), 0) + 1, ?2, ?3, ?4, ?5
              FROM journal_events
              WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-            params![branch_id, snapshot_id, event_type, event_data, game_time],
-        )?;
+                params![branch_id, snapshot_id, event_type, event_data, game_time],
+            )
+            .db_err()?;
         Ok(())
     }
 
@@ -281,18 +300,23 @@ impl Database {
         branch_id: i64,
         snapshot_id: i64,
     ) -> Result<Vec<WorldEvent>, ParishError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT event_data FROM journal_events
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT event_data FROM journal_events
              WHERE branch_id = ?1 AND after_snapshot_id = ?2
              ORDER BY sequence ASC",
-        )?;
-        let rows = stmt.query_map(params![branch_id, snapshot_id], |row| {
-            let data: String = row.get(0)?;
-            Ok(data)
-        })?;
+            )
+            .db_err()?;
+        let rows = stmt
+            .query_map(params![branch_id, snapshot_id], |row| {
+                let data: String = row.get(0)?;
+                Ok(data)
+            })
+            .db_err()?;
         let mut events = Vec::new();
         for row in rows {
-            let json = row?;
+            let json = row.db_err()?;
             let event: WorldEvent = serde_json::from_str(&json)?;
             events.push(event);
         }
@@ -301,32 +325,40 @@ impl Database {
 
     /// Returns the number of journal events after a given snapshot.
     pub fn journal_count(&self, branch_id: i64, snapshot_id: i64) -> Result<usize, ParishError> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM journal_events
+        let count: i64 = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM journal_events
              WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-            params![branch_id, snapshot_id],
-            |row| row.get(0),
-        )?;
+                params![branch_id, snapshot_id],
+                |row| row.get(0),
+            )
+            .db_err()?;
         Ok(count as usize)
     }
 
     /// Returns snapshot history for a branch (most recent first).
     pub fn branch_log(&self, branch_id: i64) -> Result<Vec<SnapshotInfo>, ParishError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, game_time, real_time FROM snapshots
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, game_time, real_time FROM snapshots
              WHERE branch_id = ?1
              ORDER BY id DESC",
-        )?;
-        let rows = stmt.query_map(params![branch_id], |row| {
-            Ok(SnapshotInfo {
-                id: row.get(0)?,
-                game_time: row.get(1)?,
-                real_time: row.get(2)?,
+            )
+            .db_err()?;
+        let rows = stmt
+            .query_map(params![branch_id], |row| {
+                Ok(SnapshotInfo {
+                    id: row.get(0)?,
+                    game_time: row.get(1)?,
+                    real_time: row.get(2)?,
+                })
             })
-        })?;
+            .db_err()?;
         let mut infos = Vec::new();
         for row in rows {
-            infos.push(row?);
+            infos.push(row.db_err()?);
         }
         Ok(infos)
     }
@@ -335,11 +367,13 @@ impl Database {
     ///
     /// Used during compaction after a new snapshot is taken.
     pub fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), ParishError> {
-        self.conn.execute(
-            "DELETE FROM journal_events
+        self.conn
+            .execute(
+                "DELETE FROM journal_events
              WHERE branch_id = ?1 AND after_snapshot_id = ?2",
-            params![branch_id, snapshot_id],
-        )?;
+                params![branch_id, snapshot_id],
+            )
+            .db_err()?;
         Ok(())
     }
 }
@@ -380,7 +414,7 @@ impl AsyncDatabase {
             db.save_snapshot(branch_id, &snapshot)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Loads the most recent snapshot for a branch.
@@ -396,7 +430,7 @@ impl AsyncDatabase {
             },
         )
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Creates a new branch.
@@ -412,7 +446,7 @@ impl AsyncDatabase {
             db.create_branch(&name, parent_branch_id)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Finds a branch by name.
@@ -424,7 +458,7 @@ impl AsyncDatabase {
             db.find_branch(&name)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Lists all branches.
@@ -435,7 +469,7 @@ impl AsyncDatabase {
             db.list_branches()
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Appends a journal event.
@@ -454,7 +488,7 @@ impl AsyncDatabase {
             db.append_event(branch_id, snapshot_id, &event, &game_time)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Returns events since a snapshot.
@@ -469,7 +503,7 @@ impl AsyncDatabase {
             db.events_since_snapshot(branch_id, snapshot_id)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Returns the journal event count.
@@ -484,7 +518,7 @@ impl AsyncDatabase {
             db.journal_count(branch_id, snapshot_id)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Returns snapshot history for a branch.
@@ -495,7 +529,7 @@ impl AsyncDatabase {
             db.branch_log(branch_id)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 
     /// Clears journal events after a snapshot.
@@ -506,7 +540,7 @@ impl AsyncDatabase {
             db.clear_journal(branch_id, snapshot_id)
         })
         .await
-        .map_err(|e| ParishError::Database(rusqlite::Error::ToSqlConversionFailure(Box::new(e))))?
+        .map_err(|e| ParishError::Database(e.to_string()))?
     }
 }
 

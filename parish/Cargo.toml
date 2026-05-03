@@ -18,6 +18,76 @@ members = [
 ]
 default-members = ["crates/parish-cli"]
 
+# ---------------------------------------------------------------------------
+# Workspace-level version pins (#698)
+#
+# All shared external dependencies are declared here with a canonical version.
+# Individual crates reference them with `{ workspace = true }` and may add
+# extra features with `{ workspace = true, features = ["extra"] }`.
+#
+# Internal crate paths are also listed here so path references stay in sync.
+# ---------------------------------------------------------------------------
+[workspace.dependencies]
+
+# Internal crates
+parish-types      = { path = "crates/parish-types" }
+parish-config     = { path = "crates/parish-config" }
+parish-inference  = { path = "crates/parish-inference" }
+parish-world      = { path = "crates/parish-world" }
+parish-palette    = { path = "crates/parish-palette" }
+parish-npc        = { path = "crates/parish-npc" }
+parish-persistence = { path = "crates/parish-persistence" }
+parish-input      = { path = "crates/parish-input" }
+parish-core       = { path = "crates/parish-core" }
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yml  = "0.0.12"
+
+# Error handling
+thiserror = "2"
+anyhow    = "1"
+
+# Async runtime
+tokio      = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+
+# HTTP client — base features; crates needing json/stream add them locally
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Time and dates
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging / tracing
+tracing             = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
+tracing-appender    = "0.2"
+
+# CLI parsing
+clap = { version = "4", features = ["derive"] }
+
+# Configuration / environment
+toml    = "0.8"
+dotenvy = "0.15"
+
+# Miscellaneous shared utilities
+rand    = "0.9"
+strsim  = "0.11"
+regex   = "1"
+once_cell = "1"
+governor  = "0.10"
+
+# Dev / test utilities
+tempfile    = "3"
+wiremock    = "0.6"
+tokio-test  = "0.4"
+serial_test = "3"
+rand_chacha = "0.9"
+
 [profile.release]
 opt-level = 3
 lto = true

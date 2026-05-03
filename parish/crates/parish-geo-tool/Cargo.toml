@@ -11,16 +11,16 @@ name = "parish-geo-tool"
 path = "src/main.rs"
 
 [dependencies]
-parish-core = { path = "../parish-core" }
-tokio = { version = "1", features = ["full"] }
-clap = { version = "4", features = ["derive"] }
-anyhow = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-chrono = "0.4"
+parish-core        = { workspace = true }
+tokio              = { workspace = true }
+clap               = { workspace = true }
+anyhow             = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+reqwest            = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono             = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
