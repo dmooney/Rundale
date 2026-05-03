@@ -137,6 +137,8 @@ pub enum Command {
     /// `overcast`, `light rain`, `heavy rain`, `fog`, `storm`, and
     /// common aliases).
     Weather(Option<String>),
+    /// Check the mail at the Letter Office (idea #19, feature-flagged `letters`).
+    Mail,
 }
 
 /// Maximum allowed length for save branch names.
