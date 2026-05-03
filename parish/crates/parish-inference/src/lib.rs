@@ -584,12 +584,10 @@ impl AnyClient {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
             }
-            Self::WebGpu(_) => {
-                Err(ParishError::Inference(
-                    "streaming JSON not supported for WebGPU provider; use generate_json instead"
-                        .to_string(),
-                ))
-            }
+            Self::WebGpu(_) => Err(ParishError::Inference(
+                "streaming JSON not supported for WebGPU provider; use generate_json instead"
+                    .to_string(),
+            )),
             Self::Simulator(c) => {
                 c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
                     .await
