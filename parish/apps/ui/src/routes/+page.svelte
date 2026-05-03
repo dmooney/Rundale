@@ -12,6 +12,7 @@
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
 	import SavePicker from '../components/SavePicker.svelte';
+	import SetupOverlay from '../components/SetupOverlay.svelte';
 
 	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingSpinner, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
@@ -698,6 +699,7 @@
 	<DemoPanel />
 {/if}
 <SavePicker />
+<SetupOverlay />
 
 <style>
 	.app-shell {
