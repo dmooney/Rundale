@@ -65,6 +65,9 @@ pub enum Provider {
     /// the dedicated `AnthropicClient` (native `/v1/messages` with
     /// `x-api-key` + `anthropic-version` headers).
     Anthropic,
+    /// WebGPU inference running in the browser (Tauri UI only).
+    /// Falls back to Simulator for CLI/headless modes.
+    WebGpu,
     /// Any OpenAI-compatible endpoint (requires base_url).
     Custom,
     /// Built-in offline simulator — generates funny nonsense locally,
@@ -75,7 +78,7 @@ pub enum Provider {
 
 impl Provider {
     /// All available providers.
-    pub const ALL: [Provider; 15] = [
+    pub const ALL: [Provider; 16] = [
         Provider::Ollama,
         Provider::LmStudio,
         Provider::OpenRouter,
@@ -89,6 +92,7 @@ impl Provider {
         Provider::Together,
         Provider::NvidiaNim,
         Provider::Anthropic,
+        Provider::WebGpu,
         Provider::Custom,
         Provider::Simulator,
     ];
@@ -109,12 +113,13 @@ impl Provider {
             "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
             "nvidia-nim" | "nvidia_nim" | "nvidianim" | "nim" | "nvidia" => Ok(Provider::NvidiaNim),
             "anthropic" | "claude" => Ok(Provider::Anthropic),
+            "webgpu" => Ok(Provider::WebGpu),
             "custom" => Ok(Provider::Custom),
             "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
                 "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
-                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, \
-                 simulator",
+                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, webgpu, \
+                 custom, simulator",
                 other
             ))),
         }
@@ -136,6 +141,7 @@ impl Provider {
             Provider::Together => DEFAULT_TOGETHER_URL,
             Provider::NvidiaNim => DEFAULT_NVIDIA_NIM_URL,
             Provider::Anthropic => DEFAULT_ANTHROPIC_URL,
+            Provider::WebGpu => "",
             Provider::Custom => "",
             Provider::Simulator => "",
         }
@@ -161,7 +167,7 @@ impl Provider {
     /// Whether this provider requires an explicit model name
     /// (no auto-detection available).
     pub fn requires_model(&self) -> bool {
-        !matches!(self, Provider::Ollama | Provider::Simulator)
+        !matches!(self, Provider::Ollama | Provider::WebGpu | Provider::Simulator)
     }
 
     /// The well-known environment variable that carries this provider's API key.

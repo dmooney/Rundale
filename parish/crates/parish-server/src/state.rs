@@ -1,11 +1,11 @@
 //! Shared application state and event bus for the web server.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use tokio::sync::{Mutex, broadcast};
+use tokio::sync::{Mutex, broadcast, oneshot};
 // `tokio::sync::Mutex` used for `active_ws` so the guard can be held across
 // await points without blocking Tokio workers.
 use tokio::task::JoinHandle;
@@ -23,6 +23,18 @@ use parish_core::world::{LocationId, WorldState};
 
 /// Maximum number of debug/game events retained in the server's ring buffer.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
+
+/// Pending WebGPU inference request awaiting browser response.
+///
+/// Maps request IDs to completion channels. When the browser sends
+/// `inference-done` for this request, the completion handler sends the
+/// result (or error) through `done_tx`, unblocking the inference worker.
+pub struct WebGpuPending {
+    /// Email of the user who owns this request.
+    pub owner_email: String,
+    /// Oneshot channel to send the result/error to the inference worker.
+    pub done_tx: oneshot::Sender<Result<String, String>>,
+}
 
 /// UI configuration snapshot returned by the `/api/ui-config` endpoint.
 #[derive(serde::Serialize, Clone)]
@@ -237,6 +249,12 @@ pub struct AppState {
     /// email is rejected with 409 Conflict until the first socket closes.
     /// Uses a `tokio::sync::Mutex` so it can be held across await points.
     pub active_ws: tokio::sync::Mutex<HashSet<String>>,
+    /// Pending WebGPU inference requests awaiting browser response.
+    ///
+    /// Keyed by request ID; contains completion channels and the owning email.
+    /// Entries are added when WebGPU requests are forwarded to the browser,
+    /// and removed when the browser sends `inference-done` or on socket disconnect.
+    pub webgpu_pending: tokio::sync::Mutex<HashMap<u64, WebGpuPending>>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
     /// TOML-configured inference timeouts loaded from `parish.toml` at session
@@ -367,6 +385,7 @@ pub fn build_app_state(
         worker_handle: Mutex::new(None),
         editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         active_ws: tokio::sync::Mutex::new(HashSet::new()),
+        webgpu_pending: tokio::sync::Mutex::new(HashMap::new()),
         save_lock: Mutex::new(None),
         inference_config,
         save_db: tokio::sync::Mutex::new(None),

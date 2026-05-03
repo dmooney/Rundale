@@ -58,6 +58,21 @@ export interface TravelStartPayload {
 	destination: string;
 }
 
+/** Payload for inference requests from server to WebGPU browser. */
+export interface InferenceRequestPayload {
+	id: number;
+	prompt: string;
+	system?: string;
+	max_tokens?: number;
+	temperature?: number;
+}
+
+/** WebSocket message sent from browser to server (WebGPU inference responses). */
+export type WebSocketMessage =
+	| { type: 'inference-token'; id: number; token: string }
+	| { type: 'inference-done'; id: number; text: string }
+	| { type: 'inference-error'; id: number; error: string };
+
 export interface NpcInfo {
 	name: string;
 	/** Canonical real name, used as a stable id for chip dispatch. */
