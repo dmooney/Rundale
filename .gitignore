@@ -10,6 +10,7 @@ parish/node_modules/
 logs/
 .claude/worktrees
 parish/apps/ui/dist/
+test-results/
 claude/*
 .worktrees
 saves

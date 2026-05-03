@@ -312,21 +312,6 @@
 			}
 		} catch (_) {}
 
-		// Fetch demo config and auto-start if requested.
-		try {
-			const dc = await getDemoConfig();
-			demoConfig.set({
-				auto_start: dc.auto_start,
-				extra_prompt: dc.extra_prompt,
-				turn_pause_secs: dc.turn_pause_secs,
-				max_turns: dc.max_turns
-			});
-			if (dc.auto_start) {
-				startDemoLoop();
-			}
-		} catch (_) {}
-
-		// Subscribe to events
 		// Fetch initial debug snapshot
 		try {
 			const debugSnap = await getDebugSnapshot();
@@ -613,6 +598,24 @@
 		} catch (e) {
 			console.warn('Failed to set up some event listeners:', e);
 		}
+
+		// Fetch demo config after event listeners are registered so that
+		// WebSocket is open before any potentially-slow optional API calls.
+		// In web mode /api/demo-config returns 404 (not implemented), causing
+		// a network round-trip that previously delayed listener registration
+		// and caused the smoke test player-echo event to be dropped.
+		try {
+			const dc = await getDemoConfig();
+			demoConfig.set({
+				auto_start: dc.auto_start,
+				extra_prompt: dc.extra_prompt,
+				turn_pause_secs: dc.turn_pause_secs,
+				max_turns: dc.max_turns
+			});
+			if (dc.auto_start) {
+				startDemoLoop();
+			}
+		} catch (_) {}
 
 		return () => {
 			window.removeEventListener('keydown', onTrackerKey);
