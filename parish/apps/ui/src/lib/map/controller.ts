@@ -30,6 +30,7 @@ import { buildStyle, readThemeColors, type MapVariant } from './style';
 import {
 	locationsToGeoJSON,
 	edgesToGeoJSON,
+	curvedEdgeCoordinates,
 	computeOffMapCounts,
 	edgeKey,
 	type LocationFeatureProps,
@@ -248,6 +249,7 @@ export class MapController {
 	): void {
 		this.stopTravel();
 		if (waypoints.length < 2) return;
+		const sampledPath = expandCurvedTravelPath(waypoints);
 		this.activeTravelEdgeKeys = buildTravelEdgeKeys(waypoints);
 		if (this.lastMapData) {
 			this.updateMap(this.lastMapData, this.lastVisibleIds ?? undefined);
@@ -257,7 +259,7 @@ export class MapController {
 		el.className = 'travel-dot-marker';
 
 		const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-			.setLngLat([waypoints[0].lon, waypoints[0].lat])
+			.setLngLat([sampledPath[0].lon, sampledPath[0].lat])
 			.addTo(this.map);
 
 		if (targetBounds && targetBounds.length > 0) {
@@ -277,9 +279,9 @@ export class MapController {
 		// enough for a pulsing dot.
 		const segLengths: number[] = [];
 		let totalLength = 0;
-		for (let i = 1; i < waypoints.length; i += 1) {
-			const a = waypoints[i - 1];
-			const b = waypoints[i];
+		for (let i = 1; i < sampledPath.length; i += 1) {
+			const a = sampledPath[i - 1];
+			const b = sampledPath[i];
 			const d = Math.hypot(b.lon - a.lon, b.lat - a.lat);
 			segLengths.push(d);
 			totalLength += d;
@@ -290,7 +292,7 @@ export class MapController {
 			const t = durationMs > 0
 				? Math.min(1, (performance.now() - startTime) / durationMs)
 				: 1;
-			const [lon, lat] = positionAlongPath(waypoints, segLengths, totalLength, t);
+			const [lon, lat] = positionAlongPath(sampledPath, segLengths, totalLength, t);
 			marker.setLngLat([lon, lat]);
 			if (t < 1 && this.travelAnim) {
 				this.travelAnim.rafId = requestAnimationFrame(tick);
@@ -454,6 +456,24 @@ export class MapController {
 		this.layerMouseLeaveHandler = null;
 		this.layerEventsWired = false;
 	}
+}
+
+function expandCurvedTravelPath(waypoints: TravelWaypoint[]): TravelWaypoint[] {
+	if (waypoints.length < 2) return waypoints;
+	const expanded: TravelWaypoint[] = [{ ...waypoints[0] }];
+	for (let i = 1; i < waypoints.length; i += 1) {
+		const a = waypoints[i - 1];
+		const b = waypoints[i];
+		const curve = curvedEdgeCoordinates(a.lon, a.lat, b.lon, b.lat, {
+			startId: a.id,
+			endId: b.id
+		});
+		for (let j = 1; j < curve.length; j += 1) {
+			const [lon, lat] = curve[j];
+			expanded.push({ id: b.id, lat, lon });
+		}
+	}
+	return expanded;
 }
 
 /**

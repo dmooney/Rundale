@@ -92,6 +92,10 @@ pub struct Connection {
     /// from the JSON so existing mods remain unchanged.
     #[serde(default, skip_serializing_if = "Hazard::is_none")]
     pub hazard: Hazard,
+    /// Optional authored compass heading for this connection (e.g. "northwest").
+    /// If omitted, heading is derived from coordinates at runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compass_heading: Option<String>,
 }
 
 /// Extended location data for the world graph.
@@ -572,6 +576,19 @@ impl WorldGraph {
             .find(|c| c.target == to)
     }
 
+    /// Returns the compass heading from one location to another.
+    ///
+    /// If the connection has an authored `compass_heading`, returns that.
+    /// Otherwise, derives the heading from coordinates using the bearing formula.
+    pub fn heading_between(&self, from: LocationId, to: LocationId) -> Option<String> {
+        let conn = self.connection_between(from, to)?;
+        if let Some(h) = &conn.compass_heading {
+            return Some(h.clone());
+        }
+        let (a, b) = (self.get(from)?, self.get(to)?);
+        Some(compass_heading_from_coords(a.lat, a.lon, b.lat, b.lon).to_string())
+    }
+
     /// Returns the number of locations in the graph.
     pub fn location_count(&self) -> usize {
         self.locations.len()
@@ -581,6 +598,33 @@ impl WorldGraph {
     pub fn location_ids(&self) -> Vec<LocationId> {
         self.locations.keys().copied().collect()
     }
+}
+
+/// Computes the compass heading (N, NE, E, SE, S, SW, W, NW) from one point to another.
+///
+/// Uses the forward azimuth formula to compute bearing, then maps to the nearest octant.
+fn compass_heading_from_coords(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> &'static str {
+    let d_lon = (lon2 - lon1).to_radians();
+    let lat1r = lat1.to_radians();
+    let lat2r = lat2.to_radians();
+    let y = d_lon.sin() * lat2r.cos();
+    let x = lat1r.cos() * lat2r.sin() - lat1r.sin() * lat2r.cos() * d_lon.cos();
+    let mut bearing = y.atan2(x).to_degrees();
+    if bearing < 0.0 {
+        bearing += 360.0;
+    }
+    const LABELS: [&str; 8] = [
+        "north",
+        "northeast",
+        "east",
+        "southeast",
+        "south",
+        "southwest",
+        "west",
+        "northwest",
+    ];
+    let idx = (((bearing + 22.5) / 45.0).floor() as usize) % 8;
+    LABELS[idx]
 }
 
 impl Default for WorldGraph {

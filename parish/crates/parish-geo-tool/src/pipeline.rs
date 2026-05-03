@@ -208,6 +208,7 @@ fn build_locations(
             traversal_minutes: None,
             path_description: conn.path_description.clone(),
             hazard: Default::default(),
+            compass_heading: None,
         });
 
         // Reverse connection (bidirectional)
@@ -216,6 +217,7 @@ fn build_locations(
             traversal_minutes: None,
             path_description: conn.reverse_path_description.clone(),
             hazard: Default::default(),
+            compass_heading: None,
         });
     }
 

@@ -149,13 +149,13 @@ export function edgesToGeoJSON(
 
 		features.push({
 			type: 'Feature',
-			geometry: {
-				type: 'LineString',
-				coordinates: [
-					[srcLoc.lon, srcLoc.lat],
-					[dstLoc.lon, dstLoc.lat]
-				]
-			},
+				geometry: {
+					type: 'LineString',
+					coordinates: curvedEdgeCoordinates(srcLoc.lon, srcLoc.lat, dstLoc.lon, dstLoc.lat, {
+						startId: a,
+						endId: b
+					})
+				},
 			properties: {
 				src: a,
 				dst: b,
@@ -168,6 +168,57 @@ export function edgesToGeoJSON(
 	}
 
 	return { type: 'FeatureCollection', features };
+}
+
+export function curvedEdgeCoordinates(
+	startLon: number,
+	startLat: number,
+	endLon: number,
+	endLat: number,
+	options: {
+		startId?: string;
+		endId?: string;
+	} = {}
+): [number, number][] {
+	const dx = endLon - startLon;
+	const dy = endLat - startLat;
+	const length = Math.hypot(dx, dy);
+	if (length === 0) return [[startLon, startLat], [endLon, endLat]];
+
+	const key = edgeKey(options.startId ?? '', options.endId ?? '');
+	const hash = Array.from(key).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+	const canonicalSign = hash % 2 === 0 ? 1 : -1;
+	const orientedSign = options.startId && options.endId && options.startId > options.endId
+		? -canonicalSign
+		: canonicalSign;
+
+	// Perpendicular bend so edges don't look like rigid straight spokes while
+	// keeping endpoint tangents aligned with the source->target heading.
+	const nx = -dy / length;
+	const ny = dx / length;
+	const bend = Math.min(0.0025, length * 0.18) * orientedSign;
+	const ctrlLen = length * 0.35;
+	const c1x = startLon + (dx / length) * ctrlLen + nx * bend;
+	const c1y = startLat + (dy / length) * ctrlLen + ny * bend;
+	const c2x = endLon - (dx / length) * ctrlLen + nx * bend;
+	const c2y = endLat - (dy / length) * ctrlLen + ny * bend;
+
+	const points: [number, number][] = [];
+	const segments = 16;
+	for (let i = 0; i <= segments; i += 1) {
+		const t = i / segments;
+		const omt = 1 - t;
+		const lon = omt * omt * omt * startLon
+			+ 3 * omt * omt * t * c1x
+			+ 3 * omt * t * t * c2x
+			+ t * t * t * endLon;
+		const lat = omt * omt * omt * startLat
+			+ 3 * omt * omt * t * c1y
+			+ 3 * omt * t * t * c2y
+			+ t * t * t * endLat;
+		points.push([lon, lat]);
+	}
+	return points;
 }
 
 /** Canonical undirected edge key (sorted). */
