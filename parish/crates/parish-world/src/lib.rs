@@ -7,6 +7,7 @@ pub mod graph;
 pub mod movement;
 pub mod transport;
 pub mod weather;
+pub mod weather_travel;
 
 /// Re-export time types from parish-types for cross-crate convenience.
 pub mod time {
