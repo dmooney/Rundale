@@ -71,6 +71,13 @@ pub struct GlobalState {
     /// Held for the server's lifetime so dropping `GlobalState` stops the
     /// server. Wrapped in a `Mutex` so the struct stays `Sync`.
     pub ollama_process: tokio::sync::Mutex<parish_core::inference::client::OllamaProcess>,
+    /// Disk-backed HTTP cache for NLS historic map tiles.
+    ///
+    /// Shared across all sessions — tiles are content-addressable (z/x/y) and
+    /// session-agnostic, so a single process-wide cache is correct and avoids
+    /// duplicating downloads across sessions.  Cache dir resolved once at boot
+    /// from `PARISH_TILE_CACHE_DIR` or `<saves_dir>/tile-cache/`.
+    pub tile_cache: parish_core::tile_cache::TileCache,
 }
 
 /// A single visitor's isolated game session.

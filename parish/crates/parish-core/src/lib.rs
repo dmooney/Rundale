@@ -14,6 +14,7 @@ pub mod inference_guard;
 pub mod ipc;
 pub mod loading;
 pub mod prompts;
+pub mod tile_cache;
 
 /// How often autosave tasks should snapshot active sessions (seconds).
 /// Used by both the Axum web server and the Tauri desktop backend.

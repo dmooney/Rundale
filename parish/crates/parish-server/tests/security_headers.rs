@@ -196,9 +196,11 @@ async fn csp_connect_src_contains_allowed_external_origins() {
     //
     // Exceptions: fonts.gstatic.com is only in font-src (file downloads), not
     // connect-src, so we only check the subset that is actually fetched.
+    // NLS historic tiles are now proxied through `/tiles/…` (issue #360),
+    // so `mapseries-tilesets.s3.amazonaws.com` no longer needs to appear in
+    // connect-src — the browser only connects to 'self'.
     let connect_fetch_origins: &[&str] = &[
         "https://tile.openstreetmap.org",
-        "https://mapseries-tilesets.s3.amazonaws.com",
         "https://demotiles.maplibre.org",
         "https://fonts.googleapis.com",
     ];
@@ -226,10 +228,9 @@ async fn csp_img_src_no_bare_https_wildcard() {
 async fn csp_img_src_contains_tile_servers() {
     // MapLibre renders tiles as raster images, so the tile-server origins must
     // appear in img-src as well as connect-src.
-    let tile_origins: &[&str] = &[
-        "https://tile.openstreetmap.org",
-        "https://mapseries-tilesets.s3.amazonaws.com",
-    ];
+    // NLS historic tiles are now proxied through '/tiles/…' (issue #360),
+    // so only the OSM origin remains external.
+    let tile_origins: &[&str] = &["https://tile.openstreetmap.org"];
     let tokens = csp_directive_tokens(CSP_POLICY, "img-src");
     for origin in tile_origins {
         assert!(

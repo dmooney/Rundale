@@ -15,6 +15,7 @@ pub mod route_registry;
 pub mod routes;
 pub mod session;
 pub mod state;
+pub mod tile_routes;
 pub mod ws;
 
 use std::net::SocketAddr;
@@ -50,19 +51,20 @@ use state::{GameConfig, UiConfigSnapshot};
 ///
 /// - `https://tile.openstreetmap.org` — default OSM raster tile source
 ///   (`parish-config` `default_tile_sources`).
-/// - `https://mapseries-tilesets.s3.amazonaws.com` — historic Ordnance Survey
-///   tiles (the "historic" tile source baked into `default_tile_sources`).
 /// - `https://demotiles.maplibre.org` — MapLibre glyph PBFs used by the
 ///   map label layer (`style.ts` `GLYPHS_URL`).
 /// - `https://fonts.googleapis.com` — Google Fonts CSS `<link>` in `app.html`.
 /// - `https://fonts.gstatic.com` — Google Fonts glyph files (font-src).
+///
+/// NLS historic tiles (`mapseries-tilesets.s3.amazonaws.com`) are now proxied
+/// through `/tiles/{source_id}/{z}/{x}/{y}.png` (issue #360), so the S3
+/// origin no longer needs to appear in the CSP.
 ///
 /// Update this list whenever `apps/ui/src/` gains a new external dependency.
 /// Keeping it in a dedicated constant lets the security-headers test assert
 /// membership without repeating the origin strings.
 pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
     "https://tile.openstreetmap.org",
-    "https://mapseries-tilesets.s3.amazonaws.com",
     "https://demotiles.maplibre.org",
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
@@ -103,8 +105,8 @@ pub const CSP_POLICY: &str = "default-src 'self'; \
                               script-src 'self' 'unsafe-inline'; \
                               worker-src 'self' blob:; \
                               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
-                              img-src 'self' data: blob: https://tile.openstreetmap.org https://mapseries-tilesets.s3.amazonaws.com; \
-                              connect-src 'self' ws: wss: https://tile.openstreetmap.org https://mapseries-tilesets.s3.amazonaws.com https://demotiles.maplibre.org https://fonts.googleapis.com; \
+                              img-src 'self' data: blob: https://tile.openstreetmap.org; \
+                              connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
                               font-src 'self' https://fonts.gstatic.com; \
                               frame-ancestors 'none'; \
                               base-uri 'self'; \
@@ -425,6 +427,34 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         );
     }
 
+    // ── Tile cache dir ────────────────────────────────────────────────────────
+    // Resolved once at startup from env var or `<saves_dir>/tile-cache/`.
+    // Stored on GlobalState so request handlers never need to probe the
+    // filesystem for a path — CLAUDE.md rule #9.
+    let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| saves_dir.join("tile-cache"));
+    // Ensure the root cache directory exists at startup so the first request
+    // doesn't race on directory creation.
+    if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
+        tracing::warn!(
+            dir = %tile_cache_dir.display(),
+            error = %e,
+            "Could not create tile cache dir — tile proxy will fail on first miss"
+        );
+    }
+    let tile_url_templates: std::collections::HashMap<String, String> = engine_config
+        .map
+        .tile_sources
+        .iter()
+        .map(|(id, cfg)| (id.clone(), cfg.url.clone()))
+        .collect();
+    let tile_cache =
+        parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
+    tracing::info!(dir = %tile_cache_dir.display(), "Tile cache initialised");
+
     // ── Global state ──────────────────────────────────────────────────────────
     let global = Arc::new(GlobalState {
         sessions,
@@ -440,6 +470,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         template_config: config,
         inference_config: engine_config.inference, // (#417) persist TOML-configured timeouts
         ollama_process: tokio::sync::Mutex::new(ollama_process),
+        tile_cache,
     });
 
     // ── Session cleanup background task ───────────────────────────────────────
@@ -538,6 +569,15 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/api/new-game", post(routes::new_game))
         .route("/api/save-state", get(routes::get_save_state))
         .route("/api/ws", get(ws::ws_handler))
+        // ── Tile proxy (issue #360) ──────────────────────────────────────
+        // Requires a valid session (session_middleware already in the stack).
+        // `source_id` is validated against the registered tile sources.
+        //
+        // Route uses a wildcard (`*path`) because axum 0.8 does not allow a
+        // static suffix (`.png`) in the same path segment as a parameter
+        // (`{y}`).  The handler parses `source_id/z/x/y.png` from the
+        // captured wildcard string.
+        .route("/tiles/{*path}", get(tile_routes::get_tile))
         // ── Editor routes (Parish Designer) ─────────────────────────────
         // #376 — update endpoints carry a 256 KiB body limit.
         .route(

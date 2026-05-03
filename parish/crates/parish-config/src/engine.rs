@@ -757,9 +757,12 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             // style (see issue #360).
             //
             // Terms: CC-BY-SA 3.0 per https://maps.nls.uk/copyright.html.
-            // Free, public, CORS-open (S3).
-            url: "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
-                .to_string(),
+            //
+            // The URL template points at the parish-server tile proxy
+            // (`/tiles/{source_id}/{z}/{x}/{y}.png`) rather than NLS S3
+            // directly (issue #360).  The proxy caches tiles on disk and
+            // the browser never needs to reach `mapseries-tilesets.s3.amazonaws.com`.
+            url: "/tiles/roscommon1/{z}/{x}/{y}.png".to_string(),
             tile_size: 256,
             minzoom: 1,
             maxzoom: 17,
@@ -1007,9 +1010,13 @@ memory_capacity = 30
         assert!(!osm.tms);
         let historic = &cfg.tile_sources["historic"];
         assert!(!historic.tms, "NLS serves standard XYZ, not TMS");
+        // Since issue #360, tiles are proxied through the local server so the
+        // client never hits NLS S3 directly.  The URL is now a same-origin
+        // relative path rather than an absolute S3 URL.
         assert!(
-            historic.url.starts_with("https://"),
-            "Historic 6\" ships with a live NLS URL"
+            historic.url.starts_with("/tiles/"),
+            "Historic 6\" tiles are proxied through the local server (issue #360); got: {}",
+            historic.url
         );
         assert!(
             historic.url.contains("roscommon1"),

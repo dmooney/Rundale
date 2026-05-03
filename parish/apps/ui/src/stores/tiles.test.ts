@@ -21,7 +21,8 @@ function historic(): TileSource {
 	return {
 		id: 'historic',
 		label: 'Historic 6"',
-		url: 'https://mapseries-tilesets.s3.amazonaws.com/ireland_6inch/{z}/{x}/{y}.jpg',
+		// Tiles are now proxied through the local server (issue #360).
+		url: '/tiles/roscommon1/{z}/{x}/{y}.png',
 		tile_size: 256,
 		minzoom: 0,
 		maxzoom: 15,

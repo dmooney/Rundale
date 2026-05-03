@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { installTileRouteMock } from './fixtures';
 
 test.describe('Parish Web UI', () => {
+	test.beforeEach(async ({ page }) => {
+		await installTileRouteMock(page);
+	});
+
 	test('page loads with game state', async ({ page }) => {
 		await page.goto('/');
 

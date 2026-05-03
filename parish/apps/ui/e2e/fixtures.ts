@@ -19,6 +19,22 @@ import {
 } from './mock-data';
 import type { ThemePalette, WorldSnapshot, TextLogEntry } from '../src/lib/types';
 
+/** Minimal 1×1 transparent PNG — fulfills tile requests instantly. */
+const BLANK_PNG = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+	'base64'
+);
+
+/**
+ * Intercept MapLibre tile requests so the tile proxy never contacts S3.
+ * Must be called before `page.goto()`.
+ */
+export async function installTileRouteMock(page: Page): Promise<void> {
+	await page.route('**/tiles/**', (route) =>
+		route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG })
+	);
+}
+
 /**
  * Inject the Tauri IPC mock into a page before navigation.
  * Must be called before `page.goto()`.
@@ -27,6 +43,7 @@ export async function installTauriMock(
 	page: Page,
 	timeOfDay: string = 'morning'
 ): Promise<void> {
+	await installTileRouteMock(page);
 	const snapshot = SNAPSHOTS[timeOfDay];
 	const palette = PALETTES.default;
 	const mapData = MAP_DATA;
