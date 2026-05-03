@@ -1,0 +1,7 @@
+project: { name: ts-project, language: typescript }
+commands: { install: npm ci, lint: npm run lint, typecheck: npm run typecheck, test: npm test }
+tests: { directories: [tests, src], patterns: ['\\.test\\.ts$', '\\.spec\\.ts$'] }
+docs: { requirements: [README.md] }
+risk_areas: []
+audit: { minimum_result: warn, fail_on: [missing_tests_for_new_logic] }
+mutation: { enabled: true, mode: smoke, max_mutations: 5, include: [src/**], exclude: ['**/*.test.ts'], operators: [booleanFlip,comparisonFlip,returnDefault,removeThrow,bypassBranch] }

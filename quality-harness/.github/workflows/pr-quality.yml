@@ -1,0 +1,45 @@
+name: PR Quality Harness
+on:
+  workflow_call:
+    inputs:
+      config_path: { required: false, type: string, default: quality-harness.yml }
+  pull_request:
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Setup harness
+        working-directory: quality-harness
+        run: npm ci
+      - name: Build harness
+        working-directory: quality-harness
+        run: npm run build
+      - name: Project install
+        run: bash -lc "$(node -e \"const y=require('yaml');const f=require('fs').readFileSync('${{ inputs.config_path }}','utf8');console.log(y.parse(f).commands.install)\")"
+      - name: Lint
+        run: bash -lc "CMD=$(node -e \"const y=require('yaml');const f=require('fs').readFileSync('${{ inputs.config_path }}','utf8');console.log(y.parse(f).commands.lint||'')\"); if [ -n \"$CMD\" ]; then eval \"$CMD\"; fi"
+      - name: Typecheck
+        run: bash -lc "CMD=$(node -e \"const y=require('yaml');const f=require('fs').readFileSync('${{ inputs.config_path }}','utf8');console.log(y.parse(f).commands.typecheck||'')\"); if [ -n \"$CMD\" ]; then eval \"$CMD\"; fi"
+      - name: Tests
+        run: bash -lc "$(node -e \"const y=require('yaml');const f=require('fs').readFileSync('${{ inputs.config_path }}','utf8');console.log(y.parse(f).commands.test)\")"
+      - name: Collect context
+        run: node quality-harness/dist/scripts/collect-context.js
+      - name: Run audit
+        env: { OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}, OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}, PR_NUMBER: ${{ github.event.pull_request.number }}, PR_TITLE: ${{ github.event.pull_request.title }}, PR_BODY: ${{ github.event.pull_request.body }} }
+        run: node quality-harness/dist/scripts/run-audit.js
+      - name: Mutation smoke
+        run: node quality-harness/dist/scripts/mutation-smoke.js
+      - uses: actions/upload-artifact@v4
+        with: { name: pr-quality-report, path: .quality-harness }
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}, PR_NUMBER: ${{ github.event.pull_request.number }} }
+        run: node quality-harness/dist/scripts/post-comment.js
+      - name: Enforce
+        env: { MINIMUM_RESULT: warn }
+        run: node quality-harness/dist/scripts/enforce-result.js

@@ -1,0 +1,25 @@
+project:
+  name: Example
+  language: typescript
+commands:
+  install: npm ci
+  lint: npm run lint
+  typecheck: npm run typecheck
+  test: npm test
+  related_tests: npm test --
+tests:
+  directories: ["test", "tests", "__tests__", "src"]
+  patterns: ["\\.test\\.", "\\.spec\\."]
+docs:
+  requirements: ["README.md", "docs/requirements.md"]
+risk_areas: []
+audit:
+  minimum_result: warn
+  fail_on: [missing_tests_for_new_logic, weakened_or_deleted_tests, skipped_tests, weak_assertions, only_happy_path, mocks_hide_behavior]
+mutation:
+  enabled: true
+  mode: smoke
+  max_mutations: 5
+  include: ["src/**"]
+  exclude: ["**/*.test.*"]
+  operators: [booleanFlip, comparisonFlip, returnDefault, removeThrow, bypassBranch]

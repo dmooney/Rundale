@@ -1,0 +1,7 @@
+name: Consumer PR Quality
+on:
+  pull_request:
+jobs:
+  pr-quality:
+    uses: your-org/quality-harness-repo/.github/workflows/pr-quality.yml@main
+    secrets: inherit

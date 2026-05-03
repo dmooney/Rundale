@@ -1,0 +1,22 @@
+{
+  "name": "pr-quality-harness",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "collect-context": "node dist/scripts/collect-context.js",
+    "run-audit": "node dist/scripts/run-audit.js",
+    "mutation-smoke": "node dist/scripts/mutation-smoke.js",
+    "enforce-result": "node dist/scripts/enforce-result.js",
+    "post-comment": "node dist/scripts/post-comment.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.1.1",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "typescript": "^5.8.3"
+  }
+}
