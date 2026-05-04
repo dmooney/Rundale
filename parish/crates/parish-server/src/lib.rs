@@ -38,7 +38,8 @@ use axum::routing::{get, post};
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 
-use parish_core::game_mod::{GameMod, find_default_mod};
+use parish_core::game_mod::GameMod;
+use parish_core::mod_source::{LocalDiskModSource, ModSource};
 use parish_core::world::transport::TransportConfig;
 
 use parish_core::config::FeatureFlags;
@@ -338,7 +339,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.fill_missing_models_from_presets();
 
     // ── Game mod ──────────────────────────────────────────────────────────────
-    let game_mod = find_default_mod().and_then(|dir| GameMod::load(&dir).ok());
+    // Load through the ModSource trait so future S3/HTTP sources drop in
+    // without touching this call site.
+    let game_mod: Option<GameMod> = load_setting_mod_via_source().await;
     let game_title = game_mod
         .as_ref()
         .and_then(|gm| gm.manifest.meta.title.clone())
@@ -743,6 +746,33 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     .await?;
 
     Ok(())
+}
+
+/// Load the setting mod via [`LocalDiskModSource`], returning `None` on any
+/// error so the server starts with no mod rather than refusing to start.
+///
+/// Using the [`ModSource`] trait here means a future S3/HTTP source can
+/// replace [`LocalDiskModSource`] without changing the call site in
+/// [`run_server`].
+async fn load_setting_mod_via_source() -> Option<GameMod> {
+    let source = LocalDiskModSource::new().ok()?;
+    let summaries = source.list_mods().await.ok()?;
+    let setting = summaries
+        .into_iter()
+        .find(|s| s.kind == parish_core::game_mod::ModKind::Setting)?;
+    match source.load_mod(&setting.id).await {
+        Ok(gm) => {
+            tracing::info!(
+                "Loaded game mod '{}' via LocalDiskModSource",
+                gm.manifest.meta.name
+            );
+            Some(gm)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to load mod '{}': {}", setting.id, e);
+            None
+        }
+    }
 }
 
 /// Reads Google OAuth credentials from environment variables.

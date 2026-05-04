@@ -764,7 +764,7 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
 ///
 /// Per AGENTS.md rule #8, prefer the env-var path in production and packaged
 /// builds; the cwd-walk is the development fallback.
-fn find_mods_root() -> Option<PathBuf> {
+pub(crate) fn find_mods_root() -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("PARISH_MODS_DIR") {
         let p = PathBuf::from(explicit);
         if p.is_dir() {

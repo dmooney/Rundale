@@ -13,6 +13,7 @@ pub mod game_session;
 pub mod inference_guard;
 pub mod ipc;
 pub mod loading;
+pub mod mod_source;
 pub mod prompts;
 pub mod tile_cache;
 

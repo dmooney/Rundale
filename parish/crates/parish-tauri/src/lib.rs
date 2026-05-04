@@ -597,23 +597,10 @@ pub fn run() {
             })
     };
 
-    // Try to load game mod (auto-detect from workspace root)
-    let game_mod = parish_core::game_mod::find_default_mod().and_then(|dir| {
-        match parish_core::game_mod::GameMod::load(&dir) {
-            Ok(gm) => {
-                tracing::info!(
-                    "Loaded game mod: {} ({})",
-                    gm.manifest.meta.name,
-                    dir.display()
-                );
-                Some(gm)
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
-                None
-            }
-        }
-    });
+    // Try to load game mod (auto-detect from workspace root) via the
+    // ModSource abstraction.  load_setting_mod_sync is used here because
+    // Tauri's run() is synchronous and no tokio runtime exists yet.
+    let game_mod = parish_core::mod_source::load_setting_mod_sync();
 
     // Load world — prefer mod data, fall back to legacy data/ directory
     let world = if let Some(ref gm) = game_mod {

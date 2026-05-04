@@ -195,17 +195,16 @@ async fn main() -> Result<()> {
     }
 
     // Load game mod (from --game-mod flag, env var, or auto-detect)
+    // via the ModSource abstraction so future sources (S3, HTTP) drop in
+    // without touching this call site.
     let game_mod = {
-        let mod_dir = if let Some(ref path) = cli.game_mod {
-            Some(std::path::PathBuf::from(path))
-        } else {
-            parish_core::game_mod::find_default_mod()
-        };
-        match mod_dir {
-            Some(dir) => match parish_core::game_mod::GameMod::load(&dir) {
+        if let Some(ref path) = cli.game_mod {
+            // Explicit --game-mod path: bypass discovery and load directly.
+            let dir = std::path::PathBuf::from(path);
+            match parish_core::game_mod::GameMod::load(&dir) {
                 Ok(gm) => {
                     tracing::info!(
-                        "Loaded game mod: {} ({})",
+                        "Loaded game mod '{}' from explicit path ({})",
                         gm.manifest.meta.name,
                         dir.display()
                     );
@@ -215,11 +214,10 @@ async fn main() -> Result<()> {
                     tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
                     None
                 }
-            },
-            None => {
-                tracing::info!("No game mod found; using built-in defaults");
-                None
             }
+        } else {
+            // Auto-detect via ModSource trait.
+            parish_core::mod_source::load_setting_mod_sync()
         }
     };
 
