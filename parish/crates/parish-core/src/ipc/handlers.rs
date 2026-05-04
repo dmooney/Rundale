@@ -249,6 +249,20 @@ pub fn capitalize_first(s: &str) -> String {
     }
 }
 
+/// Maximum number of NPC LLM inference calls that may run concurrently within
+/// a single `emit_npc_reactions` batch (#406).
+///
+/// Shared by all three runtimes (Tauri, axum, headless CLI) so a change here
+/// applies everywhere without drift.
+pub const NPC_REACTION_CONCURRENCY: usize = 4;
+
+/// Monotonically increasing request ID counter for inference requests.
+///
+/// All three runtimes share this counter via `parish-core` so that request IDs
+/// are unique across the entire process. Uses `SeqCst` ordering (the safest
+/// choice) so callers need not reason about visibility guarantees.
+pub static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
 /// Monotonically increasing message ID counter for text-log entries.
 static MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
 

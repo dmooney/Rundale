@@ -13,7 +13,6 @@ use parish_core::AUTOSAVE_INTERVAL_SECS;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use std::time::Instant;
 
 use tauri::Emitter;
 use tokio::sync::Mutex;
@@ -26,73 +25,23 @@ use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::{
     AnyClient, InferenceLog, InferenceQueue, new_inference_log, spawn_inference_worker,
 };
-use parish_core::ipc::ConversationLine;
 use parish_core::npc::manager::NpcManager;
 use parish_core::npc::reactions::ReactionTemplates;
 use parish_core::world::transport::TransportConfig;
-use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
+use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 // ── IPC type definitions ─────────────────────────────────────────────────────
 
-/// A serializable snapshot of the world state sent to the frontend.
-#[derive(serde::Serialize, Clone)]
-pub struct WorldSnapshot {
-    /// Name of the player's current location.
-    pub location_name: String,
-    /// Short prose description of the current location.
-    pub location_description: String,
-    /// Human-readable time label (e.g. "Morning", "Dusk").
-    pub time_label: String,
-    /// Current game hour (0–23).
-    pub hour: u8,
-    /// Current game minute (0–59).
-    pub minute: u8,
-    /// Current weather description.
-    pub weather: String,
-    /// Current season name.
-    pub season: String,
-    /// Optional festival name if today is a festival day.
-    pub festival: Option<String>,
-    /// Whether the game clock is currently player-paused.
-    pub paused: bool,
-    /// Whether the game clock is frozen while waiting on inference.
-    pub inference_paused: bool,
-    /// Game time as milliseconds since Unix epoch (for client-side interpolation).
-    pub game_epoch_ms: f64,
-    /// Clock speed multiplier (1 real second = speed_factor game seconds).
-    pub speed_factor: f64,
-    /// Pronunciation hints for Irish names relevant to the current location.
-    pub name_hints: Vec<parish_core::npc::LanguageHint>,
-    /// Current day of week (e.g. "Monday", "Saturday").
-    pub day_of_week: String,
-}
-
-/// A location node in the map data.
-#[derive(serde::Serialize, Clone)]
-pub struct MapLocation {
-    /// Location ID as a string.
-    pub id: String,
-    /// Human-readable name.
-    pub name: String,
-    /// WGS-84 latitude (0.0 if not geocoded).
-    pub lat: f64,
-    /// WGS-84 longitude (0.0 if not geocoded).
-    pub lon: f64,
-    /// Whether this location is adjacent to (or is) the player's position.
-    pub adjacent: bool,
-    /// Number of graph hops from the player's current location.
-    pub hops: u32,
-    /// Whether this location is indoors (for tooltip display).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub indoor: Option<bool>,
-    /// Estimated walking time from the player's current location, in minutes.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub travel_minutes: Option<u16>,
-    /// Whether the player has visited this location (false = fog-of-war frontier).
-    pub visited: bool,
-}
+// WorldSnapshot, MapLocation, and NpcInfo are defined in parish-core and
+// re-exported here so all call sites remain stable.
+pub use parish_core::ipc::{MapLocation, WorldSnapshot};
 
 /// The full map graph sent to the frontend.
+///
+/// Tauri-specific extension of the core `MapData` type: adds `player_lat` and
+/// `player_lon` for minimap centering. The core type omits these because the
+/// axum web server derives them differently (the server builds the snapshot on
+/// behalf of the currently authenticated session rather than the local player).
 #[derive(serde::Serialize, Clone)]
 pub struct MapData {
     /// All locations in the graph.
@@ -114,19 +63,11 @@ pub struct MapData {
     pub transport_id: String,
 }
 
-// NpcInfo and ThemePalette are defined in parish-core and re-exported here.
-pub use parish_core::ipc::{GameConfig, NpcInfo, ThemePalette};
-
-/// Current save state for display in the StatusBar.
-#[derive(serde::Serialize, Clone)]
-pub struct SaveState {
-    /// Filename of the current save file (e.g. "parish_001.db"), or None.
-    pub filename: Option<String>,
-    /// Current branch database id, or None.
-    pub branch_id: Option<i64>,
-    /// Current branch name, or None.
-    pub branch_name: Option<String>,
-}
+// NpcInfo, ThemePalette, GameConfig, SaveState, UiConfigSnapshot, and
+// ConversationRuntimeState are defined in parish-core and re-exported here.
+pub use parish_core::ipc::{
+    ConversationRuntimeState, GameConfig, NpcInfo, SaveState, ThemePalette, UiConfigSnapshot,
+};
 
 /// Configuration for the LLM demo / auto-player mode.
 ///
@@ -155,76 +96,6 @@ impl Default for DemoConfig {
 
 /// Maximum number of debug events to retain.
 pub const DEBUG_EVENT_CAPACITY: usize = 100;
-
-/// UI configuration sent to the frontend via `get_ui_config`.
-///
-/// Sourced from the loaded [`GameMod`](parish_core::game_mod::GameMod)'s `ui.toml`
-/// or defaults if no mod is loaded.
-#[derive(serde::Serialize, Clone)]
-pub struct UiConfigSnapshot {
-    /// Label for the language-hints sidebar panel.
-    pub hints_label: String,
-    /// Default accent colour (CSS hex string).
-    pub default_accent: String,
-    /// Splash text displayed on game start (Zork-style).
-    pub splash_text: String,
-    /// Id of the currently-active tile source (matches a `tile_sources` key).
-    pub active_tile_source: String,
-    /// Registry of available map tile sources, alphabetical by id.
-    pub tile_sources: Vec<parish_core::ipc::TileSourceSnapshot>,
-    /// How many seconds of inactivity before auto-pausing the game.
-    pub auto_pause_timeout_seconds: u64,
-}
-
-/// Runtime conversation/session state used for continuity and inactivity timers.
-pub struct ConversationRuntimeState {
-    /// Player location associated with the current transcript.
-    pub location: Option<LocationId>,
-    /// Recent dialogue at the current location.
-    pub transcript: std::collections::VecDeque<ConversationLine>,
-    /// Last wall-clock moment when the player submitted input.
-    pub last_player_activity: Instant,
-    /// Last wall-clock moment when anyone spoke at this location.
-    pub last_spoken_at: Instant,
-    /// Whether an NPC conversation sequence is currently active.
-    pub conversation_in_progress: bool,
-}
-
-impl Default for ConversationRuntimeState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ConversationRuntimeState {
-    pub fn new() -> Self {
-        let now = Instant::now();
-        Self {
-            location: None,
-            transcript: std::collections::VecDeque::with_capacity(16),
-            last_player_activity: now,
-            last_spoken_at: now,
-            conversation_in_progress: false,
-        }
-    }
-
-    pub fn sync_location(&mut self, location: LocationId) {
-        if self.location != Some(location) {
-            self.location = Some(location);
-            self.transcript.clear();
-        }
-    }
-
-    pub fn push_line(&mut self, line: ConversationLine) {
-        if line.text.trim().is_empty() {
-            return;
-        }
-        if self.transcript.len() >= 12 {
-            self.transcript.pop_front();
-        }
-        self.transcript.push_back(line);
-    }
-}
 
 /// Shared mutable game state managed by Tauri.
 ///

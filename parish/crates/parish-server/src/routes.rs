@@ -4,11 +4,7 @@
 //! [`parish_core::ipc`] and returning JSON responses.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-
-/// Maximum number of NPC LLM inference calls that may run concurrently within
-/// a single `emit_npc_reactions` batch (#406).
-const NPC_REACTION_CONCURRENCY: usize = 4;
+use std::sync::atomic::Ordering;
 
 use axum::Json;
 use axum::extract::{Extension, State};
@@ -23,10 +19,10 @@ use parish_core::inference::{
 };
 use parish_core::input::{Command, InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
-    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData, NpcInfo,
-    NpcReactionPayload, ReactRequest, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
-    TextPresentation, ThemePalette, WorldSnapshot, capitalize_first, text_log,
-    text_log_for_stream_turn, text_log_typed,
+    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData,
+    NPC_REACTION_CONCURRENCY, NpcInfo, NpcReactionPayload, REQUEST_ID, ReactRequest,
+    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextPresentation, ThemePalette,
+    WorldSnapshot, capitalize_first, text_log, text_log_for_stream_turn, text_log_typed,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::manager::NpcManager;
@@ -45,9 +41,6 @@ use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 use crate::middleware::SessionId;
 use crate::session::GlobalState;
 use crate::state::{AppState, ConversationRuntimeState, SaveState};
-
-/// Monotonically increasing request ID counter for inference requests.
-static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 // ── Query endpoints ─────────────────────────────────────────────────────────
 

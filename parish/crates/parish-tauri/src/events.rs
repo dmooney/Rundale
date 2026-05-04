@@ -1,6 +1,5 @@
 //! IPC event names and streaming bridge between Rust inference and Svelte frontend.
 
-use parish_core::npc::LanguageHint;
 use tauri::Emitter;
 
 // ── Event name constants ─────────────────────────────────────────────────────
@@ -47,45 +46,13 @@ pub const BATCH_MS: u64 = 16;
 
 // ── Payload types ────────────────────────────────────────────────────────────
 
-/// Payload for `stream-token` events.
-#[derive(serde::Serialize, Clone)]
-pub struct StreamTokenPayload {
-    /// The batch of token text to append to the current chat entry.
-    pub token: String,
-    /// Stable ID for the NPC turn this token batch belongs to.
-    pub turn_id: u64,
-    /// Speaker label for this stream turn.
-    pub source: std::borrow::Cow<'static, str>,
-}
-
-/// Payload for `stream-turn-end` events.
-#[derive(serde::Serialize, Clone)]
-pub struct StreamTurnEndPayload {
-    /// Stable ID for the NPC turn that has finished streaming tokens.
-    pub turn_id: u64,
-}
-
-/// Payload for `stream-end` events.
-#[derive(serde::Serialize, Clone)]
-pub struct StreamEndPayload {
-    /// Language hints extracted from the completed NPC response.
-    pub hints: Vec<LanguageHint>,
-}
-
-/// Payload for `text-log` events.
-#[derive(serde::Serialize, Clone)]
-pub struct TextLogPayload {
-    /// Unique message ID for reaction targeting.
-    #[serde(default)]
-    pub id: String,
-    /// Stable ID for the NPC turn this placeholder belongs to.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stream_turn_id: Option<u64>,
-    /// Who produced this text: "player", "system", or the NPC's name.
-    pub source: std::borrow::Cow<'static, str>,
-    /// The log entry text.
-    pub content: String,
-}
+// StreamTokenPayload, StreamTurnEndPayload, StreamEndPayload, TextLogPayload,
+// NpcReactionPayload, and LoadingPayload are all defined in parish-core and
+// re-exported here (part of #696 — IPC struct deduplication).
+pub use parish_core::ipc::{
+    LoadingPayload, NpcReactionPayload, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
+    TextLogPayload,
+};
 
 /// Payload for `setup-status` and `setup-progress` / `setup-done` events.
 #[derive(serde::Serialize, Clone)]
@@ -111,20 +78,6 @@ pub struct SetupDonePayload {
     /// Error message if `success` is false; empty string otherwise.
     pub error: String,
 }
-
-/// Payload for `npc-reaction` events.
-#[derive(serde::Serialize, Clone)]
-pub struct NpcReactionPayload {
-    /// ID of the message being reacted to.
-    pub message_id: String,
-    /// The reaction emoji.
-    pub emoji: String,
-    /// Who reacted (NPC name).
-    pub source: String,
-}
-
-// LoadingPayload is now shared via parish_core::ipc::LoadingPayload
-pub use parish_core::ipc::LoadingPayload;
 
 // ── Loading animation bridge ─────────────────────────────────────────────
 
@@ -205,7 +158,7 @@ pub async fn stream_npc_response(
             StreamTokenPayload {
                 token: batch.to_string(),
                 turn_id,
-                source: std::borrow::Cow::Owned(source.clone()),
+                source: source.clone(),
             },
         );
     })

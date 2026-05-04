@@ -16,7 +16,7 @@ use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
-use parish_core::ipc::capitalize_first;
+use parish_core::ipc::{NPC_REACTION_CONCURRENCY, capitalize_first};
 use parish_core::world::transport::TransportMode;
 use std::collections::HashMap;
 use std::io::{BufRead, Write};
@@ -25,10 +25,6 @@ use tokio::sync::{Notify, Semaphore, mpsc};
 
 /// Interval between autosaves in seconds.
 const AUTOSAVE_INTERVAL_SECS: u64 = 45;
-
-/// Maximum number of NPC LLM inference calls that may run concurrently within
-/// a single `emit_headless_npc_reactions` batch (#406).
-const NPC_REACTION_CONCURRENCY: usize = 4;
 
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///

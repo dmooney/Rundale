@@ -4,14 +4,10 @@
 //! becomes callable from the Svelte frontend via `invoke("command_name", args)`.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 
 use tauri::Emitter;
 use tokio::sync::{Semaphore, mpsc};
-
-/// Maximum number of NPC LLM inference calls that may run concurrently within
-/// a single `emit_npc_reactions` batch (#406).
-const NPC_REACTION_CONCURRENCY: usize = 4;
 
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
@@ -21,8 +17,9 @@ use parish_core::inference::{
 };
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
-    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, capitalize_first,
-    compute_name_hints, text_log, text_log_for_stream_turn, text_log_typed,
+    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, NPC_REACTION_CONCURRENCY,
+    REQUEST_ID, capitalize_first, compute_name_hints, text_log, text_log_for_stream_turn,
+    text_log_typed,
 };
 use parish_core::npc::NpcId;
 use parish_core::npc::parse_npc_stream_response;
@@ -40,9 +37,6 @@ use crate::{
     AppState, ConversationRuntimeState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette,
     WorldSnapshot,
 };
-
-/// Monotonically increasing request ID counter for inference requests.
-static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Returns a formatted game-time string (`HH:MM YYYY-MM-DD`) snapshotted
 /// from the shared world clock. Used for debug event timestamps so the
@@ -343,6 +337,7 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
                         "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
                         base_url
                     ),
+                    subtype: None,
                 },
             );
         }
@@ -642,6 +637,7 @@ async fn handle_game_input(
                     stream_turn_id: None,
                     source: "system".into(),
                     content: "And where would ye be off to?".to_string(),
+                    subtype: None,
                 },
             );
         }
@@ -844,7 +840,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
                     StreamTokenPayload {
                         token: batch.to_string(),
                         turn_id,
-                        source: std::borrow::Cow::Owned(source.to_string()),
+                        source: source.to_string(),
                     },
                 );
             },
@@ -913,6 +909,7 @@ async fn handle_look(state: &Arc<AppState>, app: &tauri::AppHandle) {
             stream_turn_id: None,
             source: "system".into(),
             content: text,
+            subtype: None,
         },
     );
 }
@@ -1007,6 +1004,7 @@ async fn run_npc_turn(
                     source: "system".into(),
                     content: "The parish storyteller has wandered off. Try again in a moment."
                         .to_string(),
+                    subtype: None,
                 },
             );
             loading_cancel.cancel();
@@ -1024,7 +1022,7 @@ async fn run_npc_turn(
                     StreamTokenPayload {
                         token: batch.to_string(),
                         turn_id: req_id,
-                        source: source.clone().into(),
+                        source: source.clone(),
                     },
                 );
             })
@@ -1065,6 +1063,7 @@ async fn run_npc_turn(
                     stream_turn_id: None,
                     source: "system".into(),
                     content: "The storyteller has wandered off mid-tale.".to_string(),
+                    subtype: None,
                 },
             );
             loading_cancel.cancel();
@@ -1090,6 +1089,7 @@ async fn run_npc_turn(
                     stream_turn_id: None,
                     source: "system".into(),
                     content: "The storyteller is lost in thought. Try again.".to_string(),
+                    subtype: None,
                 },
             );
             loading_cancel.cancel();
@@ -1117,6 +1117,7 @@ async fn run_npc_turn(
                 stream_turn_id: None,
                 source: "system".into(),
                 content: INFERENCE_FAILURE_MESSAGES[idx].to_string(),
+                subtype: None,
             },
         );
         loading_cancel.cancel();
@@ -1206,6 +1207,7 @@ async fn handle_npc_conversation(
                 stream_turn_id: None,
                 source: "system".into(),
                 content: IDLE_MESSAGES[idx].to_string(),
+                subtype: None,
             },
         );
         return;
@@ -1219,6 +1221,7 @@ async fn handle_npc_conversation(
                 stream_turn_id: None,
                 source: "system".into(),
                 content: "There are ears enough for ye here, but say something first.".to_string(),
+                subtype: None,
             },
         );
         return;
@@ -1234,6 +1237,7 @@ async fn handle_npc_conversation(
                 content:
                     "There's someone here, but the LLM is not configured — set a provider with /provider."
                         .to_string(),
+                subtype: None,
             },
         );
         return;
@@ -1247,6 +1251,7 @@ async fn handle_npc_conversation(
                 stream_turn_id: None,
                 source: "system".into(),
                 content: "No one here answers to that name just now.".to_string(),
+                subtype: None,
             },
         );
         return;
@@ -1555,6 +1560,7 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
                 content:
                     "The parish falls quiet after a full minute of silence. Time is now paused."
                         .to_string(),
+                subtype: None,
             },
         );
         emit_world_update(state, app).await;
@@ -1722,6 +1728,7 @@ pub async fn load_branch(
             stream_turn_id: None,
             source: "system".into(),
             content: format!("Loaded {} (branch: {}).", filename, branch_name),
+            subtype: None,
         },
     );
 
@@ -1926,6 +1933,7 @@ pub async fn new_game(
             stream_turn_id: None,
             source: "system".into(),
             content: "A new chapter begins in the parish...".to_string(),
+            subtype: None,
         },
     );
     Ok(())
