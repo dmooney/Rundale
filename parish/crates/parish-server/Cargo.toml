@@ -15,8 +15,12 @@ tower-http     = { version = "0.6", features = ["fs", "cors", "set-header"] }
 tower          = "0.5"
 serde          = { workspace = true }
 serde_json     = { workspace = true }
-tracing        = { workspace = true }
-anyhow         = { workspace = true }
+tracing                 = { workspace = true }
+tracing-opentelemetry   = { workspace = true }
+opentelemetry           = { workspace = true }
+opentelemetry_sdk       = { workspace = true }
+opentelemetry-otlp      = { workspace = true }
+anyhow                  = { workspace = true }
 chrono         = { workspace = true }
 dotenvy        = { workspace = true }
 rand           = { workspace = true }

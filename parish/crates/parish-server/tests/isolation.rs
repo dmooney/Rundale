@@ -230,6 +230,7 @@ async fn second_ws_upgrade_same_email_is_409() {
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
 
     let state = Arc::new(build_app_state(
+        "test-session".to_string(),
         world,
         npc_manager,
         None,
@@ -345,6 +346,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
 
     let state = Arc::new(build_app_state(
+        "test-session".to_string(),
         world,
         npc_manager,
         None,

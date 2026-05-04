@@ -1,6 +1,6 @@
-//! Session cookie middleware.
+//! Session cookie middleware and per-request tracing middleware.
 //!
-//! Two implementations live in this module:
+//! Two session implementations live in this module:
 //!
 //! - [`session_middleware_tower`] — the default path (#364).  Uses the
 //!   `tower-sessions` crate to manage the `parish_sid` cookie, eliminating
@@ -17,17 +17,130 @@
 //! Either implementation reads (or creates) the per-visitor [`AppState`]
 //! via [`SessionRegistry`] and injects it as an Axum [`Extension`] so
 //! every downstream route handler can access it.
+//!
+//! ## Request-ID middleware (`#621`)
+//!
+//! [`request_id_layer`] runs at the outermost layer of the middleware stack
+//! (just inside the rate-limiter).  It:
+//! 1. Mints a UUID v4 per inbound HTTP request.
+//! 2. Injects a [`RequestId`] extension so route handlers can read it.
+//! 3. Opens a `tracing` span with standard fields (`request_id`, `route`,
+//!    `method`) and emits a structured `http.request` event with latency and
+//!    status on completion.
+//! 4. Echoes the id in the `X-Request-Id` response header so clients can
+//!    correlate logs.
+//!
+//! The middleware is gated by the `otel-tracing` feature flag (default-on).
+//! When the flag is disabled it is a simple pass-through.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::body::Body;
 use axum::extract::State;
-use axum::http::{HeaderValue, Request, header};
+use axum::http::{HeaderName, HeaderValue, Request, header};
 use axum::middleware::Next;
 use axum::response::Response;
 use tower_sessions::Session;
+use uuid::Uuid;
 
 use crate::session::{GlobalState, get_or_create_session};
+
+// ── Request-ID header name (stable, #621) ───────────────────────────────────
+
+/// HTTP response header that echoes the per-request UUID back to the client.
+pub static X_REQUEST_ID: std::sync::LazyLock<HeaderName> =
+    std::sync::LazyLock::new(|| HeaderName::from_static("x-request-id"));
+
+/// Per-request UUID injected into Axum extensions by [`request_id_layer`].
+///
+/// Route handlers that need to propagate the id downstream can extract it with:
+///
+/// ```ignore
+/// Extension(req_id): Extension<RequestId>
+/// ```
+#[derive(Clone, Debug)]
+pub struct RequestId(pub String);
+
+/// Axum middleware that mints a UUID per inbound HTTP request (#621).
+///
+/// Behaviour:
+/// - Generates a UUID v4 via `uuid::Uuid::new_v4()`.
+/// - Injects a [`RequestId`] into request extensions.
+/// - Opens a `tracing` span for the request lifetime with structured fields.
+/// - Records latency, HTTP method, route, and status on completion.
+/// - Echoes the id in `X-Request-Id` on the response.
+///
+/// Gated by the `otel-tracing` flag on [`GlobalState`].  When the flag is
+/// disabled the middleware is a zero-overhead pass-through.
+pub async fn request_id_layer(
+    State(global): State<Arc<GlobalState>>,
+    mut req: Request<Body>,
+    next: Next,
+) -> Response {
+    // Feature-flag gate: when `otel-tracing` is explicitly disabled, skip the
+    // entire middleware to avoid any overhead for operators who opted out.
+    if global.template_config.flags.is_disabled("otel-tracing") {
+        return next.run(req).await;
+    }
+
+    let request_id = Uuid::new_v4().to_string();
+    let route = req.uri().path().to_string();
+    let method = req.method().as_str().to_string();
+
+    // Inject the RequestId extension so downstream handlers can access it.
+    req.extensions_mut().insert(RequestId(request_id.clone()));
+
+    let start = Instant::now();
+
+    // Open a tracing span for this request lifetime.  The span carries the
+    // standard fields defined in docs/agent/tracing.md.
+    let span = tracing::info_span!(
+        "http.request",
+        request_id = %request_id,
+        route = %route,
+        method = %method,
+        // Placeholders recorded as empty strings; session middleware and route
+        // handlers update them via `Span::current().record(...)` once known.
+        session_id = tracing::field::Empty,
+        account_id = tracing::field::Empty,
+        model = tracing::field::Empty,
+        status = tracing::field::Empty,
+        latency_ms = tracing::field::Empty,
+    );
+
+    let mut response = {
+        use tracing::Instrument as _;
+        next.run(req).instrument(span.clone()).await
+    };
+
+    let latency_ms = start.elapsed().as_millis() as u64;
+    let status = response.status().as_u16();
+
+    // Record terminal fields on the span so they appear in OTel exporters.
+    span.record("status", status);
+    span.record("latency_ms", latency_ms);
+
+    // Structured event for per-request metrics (latency, status, route).
+    // Full Prometheus export is out of scope (#621); these events can be
+    // scraped by log-based metric tooling today.
+    tracing::info!(
+        target: "parish_server::metrics",
+        request_id = %request_id,
+        route = %route,
+        method = %method,
+        status = status,
+        latency_ms = latency_ms,
+        "http.request.complete"
+    );
+
+    // Echo the request id in the response header.
+    if let Ok(v) = HeaderValue::from_str(&request_id) {
+        response.headers_mut().insert(X_REQUEST_ID.clone(), v);
+    }
+
+    response
+}
 
 /// Cookie name used to identify a visitor's session.
 ///
@@ -142,7 +255,11 @@ pub async fn session_middleware_tower(
     // identical to the legacy middleware so route handlers don't need to
     // change.
     req.extensions_mut().insert(Arc::clone(&entry.app_state));
-    req.extensions_mut().insert(SessionId(session_id));
+    req.extensions_mut().insert(SessionId(session_id.clone()));
+
+    // #621 — Record session_id on the active request span so inference traces
+    // and other downstream spans carry it without extra extraction.
+    tracing::Span::current().record("session_id", &session_id as &str);
 
     next.run(req).await
 }
@@ -180,6 +297,9 @@ pub async fn session_middleware(
     // Inject the per-session AppState and session id as Axum extensions.
     req.extensions_mut().insert(Arc::clone(&entry.app_state));
     req.extensions_mut().insert(SessionId(session_id.clone()));
+
+    // #621 — Record session_id on the active request span.
+    tracing::Span::current().record("session_id", &session_id as &str);
 
     let mut response = next.run(req).await;
 

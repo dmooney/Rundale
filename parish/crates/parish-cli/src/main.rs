@@ -9,6 +9,7 @@ use parish::config::{
 use parish::headless;
 use parish::inference::InferenceClients;
 use parish::inference::setup::{self, StdoutProgress};
+use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -113,14 +114,33 @@ async fn main() -> Result<()> {
     let file_appender = tracing_appender::rolling::daily("logs", "parish.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    tracing_subscriber::registry()
+    // ── #621: Optional OTel OTLP exporter (web mode only; no-op in headless) ─
+    // The OTLP exporter only makes sense when the server is handling HTTP
+    // requests, but we initialise the provider here (before the subscriber) so
+    // the layer can be composed in unconditionally.  When
+    // `PARISH_OTEL_ENDPOINT` is unset the provider is `None` and
+    // `OpenTelemetryLayer::new` is simply omitted from the registry.
+    let otel_provider = parish_server::tracing_setup::try_build_otel_provider("parish-server");
+    let otel_tracer = otel_provider.as_ref().map(|p| {
+        use opentelemetry::trace::TracerProvider as _;
+        p.tracer("parish-server")
+    });
+
+    let registry = tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("parish=info")))
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(non_blocking)
                 .with_ansi(false),
-        )
-        .init();
+        );
+
+    if let Some(tracer) = otel_tracer {
+        registry.with(Some(OpenTelemetryLayer::new(tracer))).init();
+    } else {
+        registry
+            .with(Option::<OpenTelemetryLayer<_, opentelemetry::trace::noop::NoopTracer>>::None)
+            .init();
+    }
 
     tracing::info!("Starting Parish...");
 

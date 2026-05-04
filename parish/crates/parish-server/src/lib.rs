@@ -16,6 +16,7 @@ pub mod routes;
 pub mod session;
 pub mod state;
 pub mod tile_routes;
+pub mod tracing_setup;
 pub mod ws;
 
 use std::net::SocketAddr;
@@ -196,9 +197,10 @@ async fn cf_access_guard(
     if cfg!(debug_assertions) && addr.ip().is_loopback() {
         // In debug+loopback: inject a synthetic AuthContext so downstream
         // handlers that require it don't panic.
-        req.extensions_mut().insert(cf_auth::AuthContext {
-            email: "dev@localhost".to_string(),
-        });
+        let email = "dev@localhost".to_string();
+        // #621 — Record account_id on the request span.
+        tracing::Span::current().record("account_id", &email as &str);
+        req.extensions_mut().insert(cf_auth::AuthContext { email });
         return Ok(next.run(req).await);
     }
 
@@ -218,6 +220,8 @@ async fn cf_access_guard(
         match jwt_header {
             Some(token) => match verifier.validate(&token).await {
                 Ok(ctx) => {
+                    // #621 — Record the authenticated account email on the span.
+                    tracing::Span::current().record("account_id", &ctx.email as &str);
                     req.extensions_mut().insert(ctx);
                     return Ok(next.run(req).await);
                 }
@@ -726,6 +730,14 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         .route("/LICENSE", get(serve_license))
         .route("/NOTICE", get(serve_notice))
         .route("/THIRD_PARTY_NOTICES.md", get(serve_third_party_notices))
+        // ── #621: Per-request tracing (request id, latency, status) ─────────
+        // Runs inside the rate-limiter so only admitted requests are traced.
+        // Reads the `otel-tracing` flag from GlobalState and is a no-op when
+        // the flag is explicitly disabled.
+        .layer(axum_mw::from_fn_with_state(
+            Arc::clone(&global),
+            middleware::request_id_layer,
+        ))
         // ── #381: Global per-IP rate limiter (outside auth guard, throttles floods) ──
         .layer(axum_mw::from_fn_with_state(
             ip_limiter,

@@ -547,6 +547,7 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
 
     let flags_path = global.data_dir.join("parish-flags.json");
     let app_state = build_app_state(
+        session_id.to_string(),
         world,
         npc_manager,
         client.clone(),
@@ -645,6 +646,7 @@ async fn restore_session(
 
     let flags_path = global.data_dir.join("parish-flags.json");
     let app_state = build_app_state(
+        session_id.to_string(),
         world,
         npc_manager,
         client.clone(),
@@ -919,6 +921,16 @@ fn spawn_session_ticks(
                     // Advance the generation counter so handle_game_input can
                     // detect TOCTOU races (see issue #283).
                     world.increment_tick_generation();
+
+                    // #621 — Per-session tick metric. Emitted as a structured
+                    // tracing event so log-based metric tools can aggregate
+                    // tick counts per session without a Prometheus exporter.
+                    tracing::debug!(
+                        target: "parish_server::metrics",
+                        session_id = %s.session_id,
+                        tick = world.tick_generation,
+                        "session.tick"
+                    );
                 }
             }
         }));

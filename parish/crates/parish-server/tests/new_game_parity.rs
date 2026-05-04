@@ -84,6 +84,7 @@ async fn new_game_with_missing_world_file_returns_500() {
     // The initial world here is a default one (the AppState constructor needs
     // *something*); `do_new_game_inner` will attempt to reload from data_dir.
     let state = build_app_state(
+        "test-session".to_string(),
         WorldState::new(),
         NpcManager::new(),
         None,

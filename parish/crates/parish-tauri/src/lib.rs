@@ -189,6 +189,48 @@ pub struct AppState {
 
 // ── Data path resolution ─────────────────────────────────────────────────────
 
+// ── #621: Optional OTel provider for the Tauri runtime ──────────────────────
+
+/// Attempts to build an OTLP span exporter from environment variables.
+///
+/// Returns `Some(SdkTracerProvider)` when `PARISH_OTEL_ENDPOINT` is set and
+/// the exporter builds successfully.  Returns `None` otherwise (the default
+/// for local development — no network I/O, no background export threads).
+///
+/// This mirrors [`parish_server::tracing_setup::try_build_otel_provider`] so
+/// the Tauri and web runtimes use the same OTel initialisation path
+/// (CLAUDE.md rule #2 — mode parity).
+fn build_tauri_otel_provider() -> Option<opentelemetry_sdk::trace::SdkTracerProvider> {
+    let endpoint = std::env::var("PARISH_OTEL_ENDPOINT")
+        .ok()
+        .filter(|s| !s.is_empty())?;
+
+    use opentelemetry_otlp::WithExportConfig as _;
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .with_endpoint(endpoint.clone())
+        .build()
+        .map_err(|e| {
+            eprintln!(
+                "[parish-tauri] WARNING: Failed to build OTLP exporter for {} — \
+                 OTel tracing disabled: {}",
+                endpoint, e
+            );
+        })
+        .ok()?;
+
+    let resource = opentelemetry_sdk::Resource::builder()
+        .with_service_name("parish-tauri".to_string())
+        .build();
+
+    Some(
+        opentelemetry_sdk::trace::SdkTracerProvider::builder()
+            .with_resource(resource)
+            .with_batch_exporter(exporter)
+            .build(),
+    )
+}
+
 /// Resolves the `data/` directory once at app startup.
 ///
 /// Resolution order:
@@ -403,15 +445,50 @@ pub(crate) fn parse_demo_args(args: &[String]) -> DemoConfig {
 /// Called from `main.rs`. Initialises game state and launches the Tauri app.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialise tracing so RUST_LOG is respected (e.g. RUST_LOG=info,parish_tauri_lib=debug).
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
-
+    // ── #621: Tracing subscriber with optional OTel layer ────────────────────
+    // Uses the registry pattern (same as CLI) so the OTel OTLP exporter can be
+    // composed in when `PARISH_OTEL_ENDPOINT` is set.  The exporter is
+    // technically only useful in server mode, but supporting it here satisfies
+    // CLAUDE.md rule #2 (mode parity) and lets operators route desktop traces
+    // to a local collector during development.
+    //
+    // dotenvy is loaded before subscriber init so PARISH_OTEL_ENDPOINT from
+    // `.env` is visible when building the provider.
     dotenvy::dotenv().ok();
+
+    // Build the optional OTel provider before any tracing is emitted.
+    let otel_provider = build_tauri_otel_provider();
+    let otel_tracer = otel_provider.as_ref().map(|p| {
+        use opentelemetry::trace::TracerProvider as _;
+        p.tracer("parish-tauri")
+    });
+
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::util::SubscriberInitExt as _;
+
+    let registry = tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer().with_ansi(false));
+
+    if let Some(tracer) = otel_tracer {
+        registry
+            .with(Some(tracing_opentelemetry::OpenTelemetryLayer::new(tracer)))
+            .init();
+    } else {
+        registry
+            .with(
+                Option::<
+                    tracing_opentelemetry::OpenTelemetryLayer<
+                        _,
+                        opentelemetry::trace::noop::NoopTracer,
+                    >,
+                >::None,
+            )
+            .init();
+    }
 
     let data_dir = find_data_dir();
 

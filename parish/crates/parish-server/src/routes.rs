@@ -970,6 +970,12 @@ async fn run_npc_turn(
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+
+    // #621 — Record the model on the active HTTP request span so OTel traces
+    // carry the `model` field through the inference pipeline without
+    // introducing a formal request envelope (see #617).
+    tracing::Span::current().record("model", model);
+
     state.event_bus.emit_named(
         Topic::TextLog,
         "text-log",
@@ -2590,6 +2596,7 @@ pub(crate) mod tests {
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
         crate::state::build_app_state(
+            "test-session".to_string(),
             world,
             npc_manager,
             None,
