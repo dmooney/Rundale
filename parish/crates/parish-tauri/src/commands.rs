@@ -7,12 +7,14 @@ use std::sync::Arc;
 
 use parish_core::config::InferenceCategory;
 use parish_core::debug_snapshot::{self, AuthDebug, DebugEvent, DebugSnapshot, InferenceDebug};
-use parish_core::inference::{AnyClient, InferenceQueue, spawn_inference_worker};
+// AnyClient, InferenceQueue, spawn_inference_worker formerly imported here —
+// now handled by parish_core::game_loop::rebuild_inference_worker (#696).
 use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{compute_name_hints, text_log, text_log_typed};
 use parish_core::npc::reactions;
+use parish_core::world::LocationId;
 use parish_core::world::transport::TransportMode;
-use parish_core::world::{DEFAULT_START_LOCATION, LocationId};
+// DEFAULT_START_LOCATION — no longer used directly; handled by load_fresh_world_and_npcs (#696).
 use tauri::Emitter;
 
 use crate::events::{
@@ -310,64 +312,36 @@ async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
         )
     };
 
-    let any_client = if provider_name == "simulator" {
-        AnyClient::simulator()
-    } else {
-        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
-            let _ = app.emit(
-                EVENT_TEXT_LOG,
-                TextLogPayload {
-                    id: String::new(),
-                    stream_turn_id: None,
-                    source: "system".into(),
-                    content: format!(
-                        "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
-                        base_url
-                    ),
-                    subtype: None,
-                },
-            );
-        }
-        let provider_enum =
-            parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
-        let built = parish_core::inference::build_client(
-            &provider_enum,
-            &base_url,
-            api_key.as_deref(),
-            &state.inference_config, // (#417) use TOML-configured timeouts
-        );
-        let mut client_guard = state.client.lock().await;
-        *client_guard = Some(built.clone());
-        built
-    };
-
-    // Abort the old inference worker before spawning a replacement to prevent
-    // orphaned tasks from accumulating (each holds an HTTP client and channel).
-    {
-        let mut wh = state.worker_handle.lock().await;
-        if let Some(old) = wh.take() {
-            old.abort();
-        }
-    }
-
-    // Respawn inference worker with the new client and store the handle.
-    let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
-    let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
-    let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    let worker = spawn_inference_worker(
-        any_client,
-        interactive_rx,
-        background_rx,
-        batch_rx,
+    // Delegate to shared worker-lifecycle helper (#696).
+    let (_any_client, url_warning) = parish_core::game_loop::rebuild_inference_worker(
+        &provider_name,
+        &base_url,
+        api_key.as_deref(),
+        &state.inference_config,
         state.inference_log.clone(),
-        state.inference_config.clone(),
-    );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
-    let mut iq = state.inference_queue.lock().await;
-    *iq = Some(queue);
-    drop(iq);
-    let mut wh = state.worker_handle.lock().await;
-    *wh = Some(worker);
+        parish_core::game_loop::inference::InferenceSlots {
+            client: &state.client,
+            worker_handle: &state.worker_handle,
+            inference_queue: &state.inference_queue,
+        },
+    )
+    .await;
+
+    // Surface URL warning via Tauri emit (Tauri-specific side effect).
+    if let Some(warn) = url_warning {
+        let _ = app.emit(
+            EVENT_TEXT_LOG,
+            TextLogPayload {
+                id: String::new(),
+                stream_turn_id: None,
+                source: "system".into(),
+                content: warn,
+                subtype: None,
+            },
+        );
+    }
+    // Note: Tauri has no trait-erased inference_client slot (unlike the server),
+    // so no additional slot update is needed here.
 }
 
 async fn touch_player_activity(state: &Arc<AppState>) {
@@ -1320,25 +1294,9 @@ async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<()
     let game_mod = parish_core::game_mod::find_default_mod()
         .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
-    // Reload fresh world and NPCs from the active game mod when available,
-    // falling back to legacy data files for backward compatibility.
-    let (fresh_world, npcs_path) = if let Some(ref gm) = game_mod {
-        let world = parish_core::game_mod::world_state_from_mod(gm)
-            .map_err(|e| format!("Failed to load world from mod: {}", e))?;
-        (world, gm.npcs_path())
-    } else {
-        let data_dir = state.data_dir.clone();
-        let world = parish_core::world::WorldState::from_parish_file(
-            &data_dir.join("parish.json"),
-            DEFAULT_START_LOCATION,
-        )
-        .map_err(|e| format!("Failed to load parish.json: {}", e))?;
-        (world, data_dir.join("npcs.json"))
-    };
-
-    let mut fresh_npcs = parish_core::npc::manager::NpcManager::load_from_file(&npcs_path)
-        .unwrap_or_else(|_| parish_core::npc::manager::NpcManager::new());
-
+    // Load fresh world and NPCs using the shared helper (#696).
+    let (fresh_world, mut fresh_npcs) =
+        parish_core::game_loop::load_fresh_world_and_npcs(game_mod.as_ref(), &state.data_dir)?;
     fresh_npcs.assign_tiers(&fresh_world, &[]);
 
     // Replace live state

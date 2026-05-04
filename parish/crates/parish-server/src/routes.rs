@@ -13,23 +13,27 @@ use axum::response::IntoResponse;
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::{
-    AnyClient, InferenceQueue, build_inference_client_stack, cache_capacity_from_env,
-    spawn_inference_worker,
+    build_inference_client_stack,
+    cache_capacity_from_env,
+    // AnyClient, InferenceQueue, spawn_inference_worker — now handled by
+    // parish_core::game_loop::rebuild_inference_worker (#696); tests import
+    // these locally via their own `use` blocks.
 };
 use parish_core::input::{Command, InputResult, classify_input};
 use parish_core::ipc::{
     LoadingPayload, MapData, NpcInfo, ReactRequest, TextPresentation, ThemePalette, WorldSnapshot,
     text_log, text_log_typed,
 };
-use parish_core::npc::manager::NpcManager;
-// These are only used in test code; imported with #[cfg(test)] to avoid
-// unused-import warnings in production builds. Tests access them via `super::*`.
+// NpcManager — used in tests only (imported locally in the test module).
+// ConversationLine, NpcId, and mpsc are only used in the test module.
+// Imported here so tests can access them via `super::*`.
 #[cfg(test)]
 use parish_core::ipc::ConversationLine;
 #[cfg(test)]
 use parish_core::npc::NpcId;
 use parish_core::npc::reactions;
-use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
+use parish_core::world::LocationId;
+// DEFAULT_START_LOCATION, WorldState — now only used in tests (via local imports).
 #[cfg(test)]
 use tokio::sync::mpsc;
 
@@ -327,70 +331,36 @@ async fn rebuild_inference(state: &Arc<AppState>) {
         )
     };
 
-    let any_client =
-        if provider_name == "simulator" {
-            AnyClient::simulator()
-        } else {
-            if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
-                state.event_bus.emit_named(Topic::TextLog, "text-log",
-                &text_log(
-                    "system",
-                    format!(
-                        "Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.",
-                        base_url
-                    ),
-                ),
-            );
-            }
-            let provider_enum =
-                parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
-            let built = parish_core::inference::build_client(
-                &provider_enum,
-                &base_url,
-                api_key.as_deref(),
-                &state.inference_config, // (#417) use TOML-configured timeouts
-            );
-            let mut client_guard = state.client.lock().await;
-            *client_guard = Some(built.clone());
-            built
-        };
+    // Delegate to shared worker-lifecycle helper (#696).
+    let (any_client, url_warning) = parish_core::game_loop::rebuild_inference_worker(
+        &provider_name,
+        &base_url,
+        api_key.as_deref(),
+        &state.inference_config,
+        state.inference_log.clone(),
+        parish_core::game_loop::inference::InferenceSlots {
+            client: &state.client,
+            worker_handle: &state.worker_handle,
+            inference_queue: &state.inference_queue,
+        },
+    )
+    .await;
+
+    // Surface URL warning via the server event bus (server-specific side effect).
+    if let Some(warn) = url_warning {
+        state
+            .event_bus
+            .emit_named(Topic::TextLog, "text-log", &text_log("system", warn));
+    }
 
     // Update the trait-erased InferenceClient stack (#617) so it tracks the
-    // new provider.  Clone the client before moving it into the worker task.
+    // new provider.  This is server-specific; Tauri has no inference_client slot.
     {
         let cache_capacity = cache_capacity_from_env();
-        let trait_client = build_inference_client_stack(any_client.clone(), true, cache_capacity);
+        let trait_client = build_inference_client_stack(any_client, true, cache_capacity);
         let mut ic = state.inference_client.lock().await;
         *ic = Some(trait_client);
     }
-
-    // Abort the old inference worker before spawning a replacement to prevent
-    // orphaned tasks from accumulating (each holds an HTTP client and channel).
-    // Without this, repeated provider/key/model changes leak workers (bug #224).
-    {
-        let mut wh = state.worker_handle.lock().await;
-        if let Some(old) = wh.take() {
-            old.abort();
-        }
-    }
-
-    let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
-    let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
-    let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    let worker = spawn_inference_worker(
-        any_client,
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        state.inference_log.clone(),
-        state.inference_config.clone(),
-    );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
-    let mut iq = state.inference_queue.lock().await;
-    *iq = Some(queue);
-    drop(iq);
-    let mut wh = state.worker_handle.lock().await;
-    *wh = Some(worker);
 }
 
 async fn touch_player_activity(state: &Arc<AppState>) {
@@ -1158,38 +1128,13 @@ async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String> {
 
 /// Starts a new game (resets world and NPCs from data dir).
 async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
-    let data_dir = state.data_dir.clone();
     let saves_dir = state.saves_dir.clone();
 
-    // Load fresh world and NPCs — prefer the active game mod when available,
-    // matching the same logic used by the Tauri backend.
-    let (world, npcs_path) = if let Some(ref gm) = state.game_mod {
-        let world = parish_core::game_mod::world_state_from_mod(gm)
-            .map_err(|e| format!("Failed to load world from mod: {}", e))?;
-        (world, gm.npcs_path())
-    } else {
-        // Legacy fallback: try parish.json first, then world.json.
-        let world_path = {
-            let parish = data_dir.join("parish.json");
-            let world = data_dir.join("world.json");
-            if parish.exists() { parish } else { world }
-        };
-        let world =
-            WorldState::from_parish_file(&world_path, DEFAULT_START_LOCATION).map_err(|e| {
-                tracing::error!(
-                    "do_new_game: failed to load world from {:?}: {}",
-                    world_path,
-                    e
-                );
-                format!("Failed to load world data: {}", e)
-            })?;
-        (world, data_dir.join("npcs.json"))
-    };
-
-    let mut npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|e| {
-        tracing::warn!("do_new_game: failed to load npcs.json: {}. No NPCs.", e);
-        NpcManager::new()
-    });
+    // Load fresh world and NPCs using the shared helper (#696).
+    let (world, mut npc_manager) = parish_core::game_loop::load_fresh_world_and_npcs(
+        state.game_mod.as_ref(),
+        &state.data_dir,
+    )?;
     npc_manager.assign_tiers(&world, &[]);
 
     // Replace state atomically (both locks held together to prevent a window
@@ -1712,7 +1657,7 @@ pub(crate) mod tests {
     use parish_core::npc::Npc;
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
-    use parish_core::world::{LocationId, WorldState};
+    use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
 
     #[test]
     fn submit_input_request_deserialization() {
