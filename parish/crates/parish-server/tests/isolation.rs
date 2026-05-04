@@ -229,6 +229,10 @@ async fn second_ws_upgrade_same_email_is_409() {
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
 
+    let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+        std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
     let state = Arc::new(build_app_state(
         "test-session".to_string(),
         world,
@@ -266,6 +270,7 @@ async fn second_ws_upgrade_same_email_is_409() {
         None,
         data_dir.join("parish-flags.json"),
         parish_core::config::InferenceConfig::default(),
+        session_store,
     ));
 
     // Simulate first connection inserting the email.
@@ -345,6 +350,10 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
     let theme_palette = parish_core::game_mod::default_theme_palette();
     let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
 
+    let session_store2: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+        std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
     let state = Arc::new(build_app_state(
         "test-session".to_string(),
         world,
@@ -382,6 +391,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
         None,
         data_dir.join("parish-flags.json"),
         parish_core::config::InferenceConfig::default(),
+        session_store2,
     ));
 
     // Pre-populate debug_events so the snapshot has something to copy.

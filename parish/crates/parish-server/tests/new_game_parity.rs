@@ -83,6 +83,10 @@ async fn new_game_with_missing_world_file_returns_500() {
     // Build an AppState that has NO game_mod and a data_dir with no world file.
     // The initial world here is a default one (the AppState constructor needs
     // *something*); `do_new_game_inner` will attempt to reload from data_dir.
+    let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+        std::sync::Arc::new(parish_server::session_store_impl::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
     let state = build_app_state(
         "test-session".to_string(),
         WorldState::new(),
@@ -98,6 +102,7 @@ async fn new_game_with_missing_world_file_returns_500() {
         None, // no game_mod → legacy fallback path is taken
         data_dir.join("parish-flags.json"),
         InferenceConfig::default(),
+        session_store,
     );
 
     let req = Request::builder()

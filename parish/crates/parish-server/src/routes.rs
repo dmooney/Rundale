@@ -2595,6 +2595,10 @@ pub(crate) mod tests {
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+        let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+            std::sync::Arc::new(crate::session_store_impl::DbSessionStore::new(
+                saves_dir.clone(),
+            ));
         crate::state::build_app_state(
             "test-session".to_string(),
             world,
@@ -2632,6 +2636,7 @@ pub(crate) mod tests {
             None,
             data_dir.join("parish-flags.json"),
             parish_core::config::InferenceConfig::default(),
+            session_store,
         )
     }
 

@@ -15,6 +15,7 @@ use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::{AnyClient, InferenceLog, InferenceQueue};
 use parish_core::ipc::ThemePalette;
 use parish_core::npc::manager::NpcManager;
+use parish_core::session_store::SessionStore;
 use parish_core::world::WorldState;
 use parish_core::world::events::GameEvent;
 use parish_core::world::transport::TransportConfig;
@@ -191,6 +192,15 @@ pub struct AppState {
     /// Lock ordering: acquired after `save_lock`.
     pub save_db:
         tokio::sync::Mutex<Option<(std::path::PathBuf, parish_core::persistence::AsyncDatabase)>>,
+    /// Trait-erased per-session persistence.
+    ///
+    /// Route handlers and the autosave tick should prefer this over direct
+    /// `Database` / `AsyncDatabase` calls so that future remote or managed-auth
+    /// backends can be swapped in without touching handler code (#614).
+    ///
+    /// Not part of the lock-ordering chain: `Arc<dyn SessionStore>` is
+    /// never held across lock acquisition of any `Mutex` field.
+    pub session_store: Arc<dyn SessionStore>,
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -215,6 +225,7 @@ pub fn build_app_state(
     game_mod: Option<parish_core::game_mod::GameMod>,
     flags_path: PathBuf,
     inference_config: InferenceConfig,
+    session_store: Arc<dyn SessionStore>,
 ) -> Arc<AppState> {
     // Extract pronunciations from game mod before moving it.
     let pronunciations = game_mod
@@ -255,6 +266,7 @@ pub fn build_app_state(
         save_lock: Mutex::new(None),
         inference_config,
         save_db: tokio::sync::Mutex::new(None),
+        session_store,
     })
 }
 

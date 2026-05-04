@@ -23,6 +23,7 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 
+use crate::session_store_impl::DbSessionStore;
 use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -546,6 +547,7 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
     let game_mod = global.game_mod.clone();
 
     let flags_path = global.data_dir.join("parish-flags.json");
+    let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
     let app_state = build_app_state(
         session_id.to_string(),
         world,
@@ -561,6 +563,7 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         game_mod,
         flags_path,
         global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
+        session_store,
     );
 
     if let Some(ref c) = client {
@@ -645,6 +648,7 @@ async fn restore_session(
     let game_mod = global.game_mod.clone();
 
     let flags_path = global.data_dir.join("parish-flags.json");
+    let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
     let app_state = build_app_state(
         session_id.to_string(),
         world,
@@ -660,6 +664,7 @@ async fn restore_session(
         game_mod,
         flags_path,
         global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
+        session_store,
     );
 
     if let Some(ref c) = client {

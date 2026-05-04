@@ -14,6 +14,7 @@ pub mod middleware;
 pub mod route_registry;
 pub mod routes;
 pub mod session;
+pub mod session_store_impl;
 pub mod state;
 pub mod tile_routes;
 pub mod tracing_setup;
