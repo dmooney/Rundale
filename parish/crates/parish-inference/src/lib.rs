@@ -6,6 +6,7 @@
 
 pub mod anthropic_client;
 pub mod client;
+pub mod inference_client;
 pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
@@ -13,6 +14,11 @@ pub mod simulator;
 pub(crate) mod utf8_stream;
 
 pub use anthropic_client::AnthropicClient;
+pub use inference_client::{
+    AnyClientAdapter, CachingInferenceClient, ClientInferenceRequest, ClientInferenceResponse,
+    DEFAULT_CACHE_CAPACITY, InferenceClient, InferenceParams, Message, MeteredInferenceClient,
+    build_inference_client_stack, cache_capacity_from_env, hash_messages,
+};
 pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
 

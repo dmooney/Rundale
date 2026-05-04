@@ -83,6 +83,9 @@ rand    = "0.9"
 strsim  = "0.11"
 regex   = "1"
 governor  = "0.10"
+lru     = "0.12"
+uuid    = { version = "1", features = ["v4"] }
+async-trait = "0.1"
 
 # Dev / test utilities
 tempfile    = "3"
@@ -90,6 +93,7 @@ wiremock    = "0.6"
 tokio-test  = "0.4"
 serial_test = "3"
 rand_chacha = "0.9"
+tracing-test = "0.2"
 
 [profile.release]
 opt-level = 3

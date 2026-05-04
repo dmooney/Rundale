@@ -15,7 +15,8 @@ use tokio::sync::{Semaphore, mpsc};
 use parish_core::config::InferenceCategory;
 use parish_core::inference::{
     AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
-    await_inference_response, spawn_inference_worker,
+    await_inference_response, build_inference_client_stack, cache_capacity_from_env,
+    spawn_inference_worker,
 };
 use parish_core::input::{Command, InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
@@ -352,6 +353,15 @@ async fn rebuild_inference(state: &Arc<AppState>) {
             *client_guard = Some(built.clone());
             built
         };
+
+    // Update the trait-erased InferenceClient stack (#617) so it tracks the
+    // new provider.  Clone the client before moving it into the worker task.
+    {
+        let cache_capacity = cache_capacity_from_env();
+        let trait_client = build_inference_client_stack(any_client.clone(), true, cache_capacity);
+        let mut ic = state.inference_client.lock().await;
+        *ic = Some(trait_client);
+    }
 
     // Abort the old inference worker before spawning a replacement to prevent
     // orphaned tasks from accumulating (each holds an HTTP client and channel).
