@@ -1,19 +1,21 @@
 //! Shared orchestration layer — game-loop functions extracted from all three
-//! backends (#696).
+//! backends (#696 slices 2-5).
 //!
 //! # Design
 //!
 //! The three Parish runtimes (axum web server, Tauri desktop, headless CLI)
 //! previously duplicated long functions like `run_npc_turn`,
-//! `handle_npc_conversation`, and `run_idle_banter` verbatim, with only their
-//! event-emission calls differing.  This module resolves the duplication by:
+//! `handle_npc_conversation`, `run_idle_banter`, and `emit_npc_reactions`
+//! verbatim, with only their event-emission calls differing.  This module
+//! resolves the duplication by:
 //!
 //! 1. Defining a [`GameLoopContext`] borrow struct that carries references to
 //!    the shared Tokio-Mutex–wrapped game state that all runtimes need.
 //! 2. Exposing free async functions — [`run_npc_turn`], [`handle_npc_conversation`],
-//!    [`run_idle_banter`], [`reactions::emit_npc_reactions`] — that take a
-//!    [`GameLoopContext`] and/or a `&dyn EventEmitter` and operate identically
-//!    across all runtimes.
+//!    [`run_idle_banter`] — that take a [`GameLoopContext`] and a
+//!    `&dyn EventEmitter` and operate identically across all runtimes.
+//! 3. Exposing [`emit_npc_reactions`] which fires background NPC reaction tasks
+//!    accepting pre-resolved parameters (no `Arc<AppState>` dependency).
 //!
 //! Each backend constructs a `GameLoopContext` by borrowing its own `AppState`
 //! fields, then supplies its backend-specific [`EventEmitter`] implementation.
@@ -24,41 +26,45 @@
 //! `tauri`, or any crate in `FORBIDDEN_FOR_BACKEND_AGNOSTIC`.  The
 //! `architecture_fitness` test enforces this mechanically.
 //!
-//! # What is and is not extracted (third slice rationale)
+//! # What is extracted (slice 5 additions)
 //!
-//! Third slice (#696) aimed to extract `handle_movement`, `handle_game_input`,
-//! `handle_system_command`, `emit_npc_reactions`, `rebuild_inference`,
-//! `do_save_game`, and `do_new_game` from all three runtimes.  After reading
-//! the actual call signatures and `AppState` layouts, the following were
-//! confirmed non-extractable at this slice without restructuring `AppState`:
+//! - [`reactions::emit_npc_reactions`] — extracted from server and Tauri by
+//!   accepting individual `Arc<Mutex<NpcManager>>` + `Arc<dyn EventEmitter>`
+//!   parameters instead of the full `Arc<AppState>`.  Callers pre-resolve the
+//!   reaction client, model, and `npc-llm-reactions` feature flag from their
+//!   runtime config, then pass them.  This removes the `Arc<AppState>` coupling
+//!   that blocked extraction in slice 3.
+//!
+//! # What remains per-runtime (not extracted, with rationale)
 //!
 //! - **`handle_system_command`**: mode-specific side effects (`Quit` exits the
 //!   process/app, `ShowSpinner` drives a backend-specific animation, `ToggleMap`
-//!   dumps a text map in CLI vs. emitting a UI event in GUI modes).
-//! - **`rebuild_inference`**: depends on server's `BroadcastEventBus` /
-//!   `InferenceClient` trait stack vs. Tauri's `app.emit` path.
+//!   dumps a text map in CLI vs. emitting a UI event in GUI modes).  These
+//!   require runtime-specific handles (`app.exit(0)`, `event_bus`, `stdout`)
+//!   that cannot be represented through the `EventEmitter` trait without adding
+//!   a richer side-effect protocol.
+//! - **`rebuild_inference`**: depends on per-runtime `AppState` fields
+//!   (`worker_handle`, `inference_log`, `inference_client`).  A shared version
+//!   would require a new `InferenceManager` trait. Deferred.
 //! - **`do_save_game` / `do_new_game`**: server uses `spawn_blocking +
 //!   Database::open`; CLI uses `Arc<AsyncDatabase>` directly; Tauri uses a
-//!   third variant. No shared `SessionStore` trait is in use at these call sites.
-//! - **`emit_npc_reactions`**: spawns a background task that needs `Arc::clone`
-//!   of the full `AppState`. State fields are `Mutex<T>` inside `Arc<AppState>`,
-//!   not individually arc-wrapped, so there is no portable parameter form.
-//! - **`handle_movement` / `handle_game_input`**: use `state.transport`,
-//!   `state.game_mod`, `state.reaction_templates`, and backend-specific event
-//!   patterns; no cost-free extraction exists without extending `GameLoopContext`
-//!   significantly.
-//!
-//! What WAS extracted in slice 3:
-//! - [`reactions::is_snippet_injection_char`] — shared injection-validation
-//!   logic used by `react_to_message` on every runtime (#687 security parity).
+//!   third variant.  The `SessionStore` trait exists but is not yet wired to
+//!   CLI or Tauri's persistence paths.  Deferred.
+//! - **`handle_movement` / `handle_game_input`**: already delegate heavily to
+//!   `parish_core::game_session::apply_movement`.  The remaining per-runtime
+//!   code handles travel-encounter enrichment with different lock patterns and
+//!   emit patterns.  Could be extracted in a future slice with a richer
+//!   `MovementContext` struct.
 //!
 //! # Headless CLI
 //!
 //! The headless CLI (`parish-cli`) uses a flat `App` struct with bare (non-Mutex)
-//! fields, which cannot borrow directly into [`GameLoopContext`].  Migration of
-//! `parish-cli` to the shared context is deferred to a future refactor — it
-//! requires wrapping `App`'s fields in `Arc<Mutex<>>` which is a wider change.
-//! In the meantime, `parish-cli` continues to use its own inline implementations.
+//! fields, which cannot borrow directly into [`GameLoopContext`].  CLI wiring
+//! of [`emit_npc_reactions`] is done by pre-extracting the reaction client from
+//! `App` before calling the shared function — no `Arc<Mutex>` migration needed.
+//! Full migration of `parish-cli` to the shared `GameLoopContext` (requiring
+//! `Arc<Mutex<T>>` for each field) is deferred to a dedicated slice because
+//! it would touch hundreds of call sites throughout the CLI codebase.
 
 pub mod context;
 pub mod input;
@@ -70,4 +76,4 @@ pub use context::GameLoopContext;
 pub use input::{handle_game_input, handle_look};
 pub use movement::handle_movement;
 pub use npc_turn::{TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn};
-pub use reactions::{emit_npc_reactions, is_snippet_injection_char};
+pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
