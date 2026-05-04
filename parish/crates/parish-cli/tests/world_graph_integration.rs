@@ -35,8 +35,24 @@ fn test_parish_json_loads() {
 
 #[test]
 fn test_parish_json_location_count() {
+    // Derive the expected count directly from the world.json source so this
+    // test fails if the loader silently drops locations, not just if someone
+    // edits this hardcoded literal.
+    let json_text = std::fs::read_to_string("../../../mods/rundale/world.json")
+        .expect("mods/rundale/world.json must be readable");
+    let world: serde_json::Value =
+        serde_json::from_str(&json_text).expect("world.json must be valid JSON");
+    let json_count = world["locations"]
+        .as_array()
+        .expect("world.json must have a 'locations' array")
+        .len();
     let graph = load_parish_graph();
-    assert_eq!(graph.location_count(), 22);
+    assert_eq!(
+        graph.location_count(),
+        json_count,
+        "loader should parse every location in world.json: json={json_count}, loaded={}",
+        graph.location_count()
+    );
 }
 
 #[test]

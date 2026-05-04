@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { textLog, pushErrorLog, formatIpcError, loadingColor, focailOpen } from './game';
+import { textLog, pushErrorLog, formatIpcError, loadingColor, focailOpen, syncFocailOnViewportChange } from './game';
 
 describe('pushErrorLog', () => {
 	beforeEach(() => {
@@ -68,28 +68,44 @@ describe('formatIpcError', () => {
 // Regression test for #600: focailOpen must be reset to false when the
 // viewport transitions from mobile to desktop so the Language Hints button
 // doesn't stay in a permanently-pressed-but-invisible state.
-describe('focailOpen store (regression #600)', () => {
+//
+// These tests exercise syncFocailOnViewportChange — the function called by
+// the matchMedia onChange handler in +page.svelte — rather than the writable
+// store directly. A test that calls focailOpen.set(false) manually would pass
+// even if the handler were deleted; these tests fail if the handler logic is
+// removed or inverted.
+describe('syncFocailOnViewportChange (regression #600)', () => {
 	beforeEach(() => {
 		focailOpen.set(false);
 	});
 
-	it('starts as false', () => {
+	it('resets focailOpen to false when transitioning to desktop (matches=false)', () => {
+		// Simulate: user opened the Focail panel on mobile.
+		focailOpen.set(true);
+		expect(get(focailOpen)).toBe(true);
+
+		// Simulate: matchMedia onChange fires with e.matches=false (now desktop).
+		// syncFocailOnViewportChange must reset the store so the button is not
+		// left in a permanently-pressed-but-invisible state.
+		syncFocailOnViewportChange(false);
 		expect(get(focailOpen)).toBe(false);
 	});
 
-	it('can be toggled on (simulating mobile button press)', () => {
+	it('does NOT reset focailOpen when transitioning to mobile (matches=true)', () => {
+		// Simulate: user opened the panel on mobile, viewport shrinks further.
 		focailOpen.set(true);
+		expect(get(focailOpen)).toBe(true);
+
+		// matches=true means the narrow-viewport query still matches; the mobile
+		// branch is still active so focailOpen should be left unchanged.
+		syncFocailOnViewportChange(true);
 		expect(get(focailOpen)).toBe(true);
 	});
 
-	it('is reset to false on mobile→desktop transition (the #600 fix)', () => {
-		// Simulate mobile: user opens the Focail panel
-		focailOpen.set(true);
-		expect(get(focailOpen)).toBe(true);
-
-		// Simulate desktop: the media query onChange handler fires with matches=false
-		// and calls focailOpen.set(false) to avoid a permanently-broken button state.
-		focailOpen.set(false);
+	it('is a no-op when focailOpen is already false and viewport goes desktop', () => {
+		// Store is already false; going to desktop should leave it false.
+		expect(get(focailOpen)).toBe(false);
+		syncFocailOnViewportChange(false);
 		expect(get(focailOpen)).toBe(false);
 	});
 });

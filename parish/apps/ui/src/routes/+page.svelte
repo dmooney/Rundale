@@ -14,7 +14,7 @@
 	import SavePicker from '../components/SavePicker.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 
-	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError } from '../stores/game';
+	import { worldState, mapData, npcsHere, textLog, streamingActive, loadingPhrase, loadingColor, languageHints, nameHints, uiConfig, fullMapOpen, focailOpen, addReaction, trimTextLog, messageHints, pushErrorLog, formatIpcError, syncFocailOnViewportChange } from '../stores/game';
 	import { demoVisible, demoEnabled, demoConfig } from '../stores/demo';
 	import { startDemoLoop, stopDemo } from '../lib/demo-player';
 
@@ -200,9 +200,7 @@
 				// When transitioning from mobile→desktop, close the focail overlay so
 				// the store doesn't stay true while the mobile Sidebar branch is hidden
 				// (the desktop right-col always renders its own Sidebar unconditionally).
-				if (!e.matches) {
-					focailOpen.set(false);
-				}
+				syncFocailOnViewportChange(e.matches);
 			};
 			mq.addEventListener('change', onChange);
 			mobileMediaCleanup = () => mq.removeEventListener('change', onChange);

@@ -318,26 +318,25 @@ mod tests {
 
     #[test]
     fn test_weather_seasonal_bias() {
+        // Drive the engine through tick() over simulated time so the test
+        // exercises the same code path that production uses, rather than
+        // calling compute_transition() directly and manually patching
+        // internal state.
+        //
+        // tick() fires at most once per game-hour and only after the
+        // min_duration (2h) has elapsed in the current state, so running
+        // 600 simulated hours gives roughly 150–300 transition attempts —
+        // enough to observe the seasonal bias signal clearly.
         let start = Utc.with_ymd_and_hms(1820, 6, 15, 8, 0, 0).unwrap();
 
-        // Count rain-ish states after many transitions in winter vs summer
         let count_rain_states = |season: Season, seed: u64| -> usize {
             let mut engine = WeatherEngine::new(Weather::Overcast, start);
             let mut rng = StdRng::seed_from_u64(seed);
             let mut rain_count = 0;
 
-            for hour_offset in 0..100u32 {
-                let game_time = start + chrono::Duration::hours((3 + hour_offset) as i64);
-
-                // Reset last_check_hour so we can tick every iteration
-                engine.last_check_hour = None;
-                // Ensure min_duration is met by using compute_transition directly
-                if engine.duration_hours(game_time) >= engine.min_duration_hours
-                    && let Some(new) = engine.compute_transition(season, &mut rng)
-                {
-                    engine.current = new;
-                    engine.since = game_time;
-                }
+            for hour_offset in 1..=600u32 {
+                let game_time = start + chrono::Duration::hours(hour_offset as i64);
+                engine.tick(game_time, season, &mut rng);
 
                 if matches!(
                     engine.current(),

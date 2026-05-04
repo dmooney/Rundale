@@ -26,6 +26,11 @@ fn game_time() -> chrono::DateTime<chrono::Utc> {
 /// must:
 ///   1. Seed the gossip network with A as the source.
 ///   2. Propagate to NPC B when they are co-located during propagation.
+///
+/// This test verifies the structural invariants (source recorded, listener
+/// added to known_by) on a known-transmitting seed, and separately asserts
+/// that the overall transmission rate across 200 seeds is within the expected
+/// ~60% range — catching both wiring breaks and probability regressions.
 #[test]
 fn tier2_event_seeds_gossip_and_propagates_to_colocated_npc() {
     let mut network = GossipNetwork::new();
@@ -62,39 +67,57 @@ fn tier2_event_seeds_gossip_and_propagates_to_colocated_npc() {
         "listener must not know the gossip until propagation runs"
     );
 
-    // Step 2 — Alice and Bob are co-located during a Tier 2 interaction.
-    // Try enough RNG seeds to be overwhelmingly likely to propagate given the
-    // 60% transmission rate — we want a deterministic assertion that the
-    // cross-NPC path works, not a probabilistic one.
+    // Step 2 — verify transmission rate over 200 deterministic seeds.
+    //
+    // propagate_gossip_at_location with {alice, bob} and one alice-owned item
+    // calls gossip_network.propagate(alice, bob, rng) which makes one RNG draw
+    // per item (rng.random::<f64>() < TRANSMISSION_CHANCE = 0.60).
+    // Across 200 independent seeds the rate should fall between 50% and 70%.
+    // If the transmission probability is silently dropped to 0%, this catches it.
     let participants = [alice, bob];
-    let mut propagated_on_seed = None;
-    for seed in 0..50 {
-        let mut network = network.clone();
+    let mut transmitted_count = 0usize;
+    let trials = 200u64;
+
+    // Also check structural invariants on the first seed that does transmit.
+    let mut invariants_verified = false;
+
+    for seed in 0..trials {
+        let mut net = network.clone();
         let mut rng = StdRng::seed_from_u64(seed);
-        let transmitted = propagate_gossip_at_location(&participants, &mut network, &mut rng);
+        let transmitted = propagate_gossip_at_location(&participants, &mut net, &mut rng);
         if transmitted > 0 {
-            // Bob's known_by set must now include the gossip item.
-            let bob_gossip = network.known_by(bob);
-            assert_eq!(
-                bob_gossip.len(),
-                1,
-                "listener should know exactly the one gossip item after propagation"
-            );
-            assert!(
-                bob_gossip[0].known_by.contains(&alice),
-                "original source must still be in known_by"
-            );
-            assert!(
-                bob_gossip[0].known_by.contains(&bob),
-                "listener must now be in known_by"
-            );
-            propagated_on_seed = Some(seed);
-            break;
+            transmitted_count += 1;
+            if !invariants_verified {
+                // Bob's known_by set must now include the gossip item.
+                let bob_gossip = net.known_by(bob);
+                assert_eq!(
+                    bob_gossip.len(),
+                    1,
+                    "listener should know exactly the one gossip item after propagation (seed={seed})"
+                );
+                assert!(
+                    bob_gossip[0].known_by.contains(&alice),
+                    "original source must still be in known_by (seed={seed})"
+                );
+                assert!(
+                    bob_gossip[0].known_by.contains(&bob),
+                    "listener must now be in known_by (seed={seed})"
+                );
+                invariants_verified = true;
+            }
         }
     }
+
     assert!(
-        propagated_on_seed.is_some(),
-        "50 attempts at a 60% transmission rate should have produced at least one propagation"
+        invariants_verified,
+        "structural invariants must be verified on at least one transmission across {trials} seeds"
+    );
+
+    let rate = transmitted_count as f64 / trials as f64;
+    assert!(
+        (0.50..=0.70).contains(&rate),
+        "transmission rate over {trials} seeds should be ~60%, got {:.1}% ({transmitted_count}/{trials})",
+        rate * 100.0
     );
 }
 
@@ -123,8 +146,13 @@ fn trivial_tier2_event_does_not_seed_gossip() {
 }
 
 /// Transitive propagation: A → B → C across two separate Tier 2 rounds.
-/// If the wiring is correct, gossip Alice seeds should be reachable by
-/// Carol after Alice meets Bob and then Bob meets Carol.
+///
+/// Rate assertions on each round catch probability regressions; structural
+/// assertions on the first successful round verify the wiring is correct.
+///
+/// Round 1: alice seeds gossip, alice+bob are co-located.
+/// Round 2: bob (now a carrier) meets carol.
+/// Final check: carol knows alice's gossip (source preserved through carrier).
 #[test]
 fn gossip_propagates_transitively_across_two_rounds() {
     let mut network = GossipNetwork::new();
@@ -142,38 +170,78 @@ fn gossip_propagates_transitively_across_two_rounds() {
     create_gossip_from_tier2_event(&event, &mut network, game_time());
     assert_eq!(network.len(), 1);
 
-    // Round 1: Alice and Bob co-located. Retry with successive seeds until
-    // propagation sticks — this is deterministic for a given `(seed, state)`.
+    // Round 1: Alice and Bob co-located.
+    // Assert transmission rate across 200 seeds, and record the first
+    // successfully-propagated state for use in Round 2.
     let alice_bob = [alice, bob];
-    for seed in 0..50 {
+    let mut round1_count = 0usize;
+    let mut network_after_round1: Option<GossipNetwork> = None;
+
+    for seed in 0u64..200 {
         let mut net = network.clone();
         let mut rng = StdRng::seed_from_u64(seed);
         if propagate_gossip_at_location(&alice_bob, &mut net, &mut rng) > 0 {
-            network = net;
-            break;
+            round1_count += 1;
+            if network_after_round1.is_none() {
+                // Save the first state where Bob received the gossip.
+                network_after_round1 = Some(net);
+            }
         }
     }
+
+    let r1_rate = round1_count as f64 / 200.0;
     assert!(
-        network.known_by(bob).iter().any(|g| g.source == alice),
+        (0.50..=0.70).contains(&r1_rate),
+        "round-1 transmission rate should be ~60%, got {:.1}%",
+        r1_rate * 100.0
+    );
+
+    let network_after_round1 =
+        network_after_round1.expect("at least one round-1 transmission must succeed");
+
+    assert!(
+        network_after_round1
+            .known_by(bob)
+            .iter()
+            .any(|g| g.source == alice),
         "after A/B round, Bob should know Alice's gossip"
     );
     assert!(
-        network.known_by(carol).is_empty(),
+        network_after_round1.known_by(carol).is_empty(),
         "Carol should not yet know the gossip"
     );
 
     // Round 2: Bob and Carol co-located. Bob is now a carrier.
     let bob_carol = [bob, carol];
-    for seed in 0..50 {
-        let mut net = network.clone();
+    let mut round2_count = 0usize;
+    let mut network_after_round2: Option<GossipNetwork> = None;
+
+    for seed in 0u64..200 {
+        let mut net = network_after_round1.clone();
         let mut rng = StdRng::seed_from_u64(seed);
         if propagate_gossip_at_location(&bob_carol, &mut net, &mut rng) > 0 {
-            network = net;
-            break;
+            round2_count += 1;
+            if network_after_round2.is_none() {
+                network_after_round2 = Some(net);
+            }
         }
     }
+
+    let r2_rate = round2_count as f64 / 200.0;
     assert!(
-        network.known_by(carol).iter().any(|g| g.source == alice),
+        (0.50..=0.70).contains(&r2_rate),
+        "round-2 transmission rate should be ~60%, got {:.1}%",
+        r2_rate * 100.0
+    );
+
+    let network_after_round2 =
+        network_after_round2.expect("at least one round-2 transmission must succeed");
+
+    assert!(
+        network_after_round2
+            .known_by(carol)
+            .iter()
+            .any(|g| g.source == alice),
         "transitive propagation: Carol should now know Alice's gossip via Bob"
     );
 }

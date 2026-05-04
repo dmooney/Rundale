@@ -55,6 +55,23 @@ export const fullMapOpen = writable<boolean>(false);
 
 export const focailOpen = writable<boolean>(false);
 
+/**
+ * Resets focailOpen to false when the viewport transitions to desktop
+ * (i.e. when the narrow-viewport media query stops matching).
+ *
+ * Extracted from the inline matchMedia onChange handler in +page.svelte so
+ * that the logic can be unit-tested independently of the component lifecycle.
+ * The handler should call this with `e.matches` on every change event.
+ *
+ * See: fix for #600 — focailOpen must be false on desktop so the Language
+ * Hints button doesn't stay in a permanently-pressed-but-invisible state.
+ */
+export function syncFocailOnViewportChange(matches: boolean): void {
+	if (!matches) {
+		focailOpen.set(false);
+	}
+}
+
 /** Maps message ID → Irish word hints for that completed NPC response. */
 export const messageHints = writable<Map<string, LanguageHint[]>>(new Map());
 

@@ -6,6 +6,7 @@
 //! not just "no crash".
 
 use parish::testing::{ActionResult, GameTestHarness, ScriptResult};
+use parish::world::graph::WorldGraph;
 use parish::world::time::{Season, TimeOfDay};
 use std::path::Path;
 
@@ -14,6 +15,12 @@ fn fixture(name: &str) -> Vec<ScriptResult> {
     let path = Path::new("../../testing/fixtures").join(name);
     assert!(path.exists(), "Fixture {} must exist", name);
     parish::testing::run_script_captured(&path).expect("Script should execute without error")
+}
+
+/// Loads the world graph from the canonical fixture path.
+fn load_world_graph() -> WorldGraph {
+    let path = Path::new("../../../mods/rundale/world.json");
+    WorldGraph::load_from_file(path).expect("mods/rundale/world.json should load")
 }
 
 /// Helper: count results matching a predicate.
@@ -43,11 +50,22 @@ fn looked_results(results: &[ScriptResult]) -> Vec<&ScriptResult> {
 
 #[test]
 fn test_all_locations_reachable() {
+    // Assert that every destination the fixture script visits is a known
+    // location in the world graph (no phantom names), and that at least 14
+    // distinct locations were visited.  Using ">= 14" rather than "== 14"
+    // makes the test resilient to the graph growing without requiring a
+    // fixture update for each new location.
+    let graph = load_world_graph();
+    let all_graph_names: std::collections::HashSet<String> = graph
+        .location_ids()
+        .iter()
+        .filter_map(|id| graph.get(*id).map(|loc| loc.name.clone()))
+        .collect();
+
     let results = fixture("test_all_locations.txt");
     let moves = moved_results(&results);
 
-    // We visit all 14 non-starting locations (Kilteevan is start)
-    let destinations: Vec<&str> = moves
+    let destinations: std::collections::HashSet<&str> = moves
         .iter()
         .filter_map(|r| {
             if let ActionResult::Moved { to, .. } = &r.result {
@@ -58,31 +76,21 @@ fn test_all_locations_reachable() {
         })
         .collect();
 
-    let expected = [
-        "The Crossroads",
-        "Darcy's Pub",
-        "St. Brigid's Church",
-        "The Bog Road",
-        "The Fairy Fort",
-        "Lough Ree Shore",
-        "Hodson Bay",
-        "Murphy's Farm",
-        "O'Brien's Farm",
-        "The Lime Kiln",
-        "The Letter Office",
-        "Connolly's Shop",
-        "The Hedge School",
-        "The Hurling Green",
-    ];
-
-    for loc in &expected {
+    // Every resolved destination must be a real graph location.
+    for dest in &destinations {
         assert!(
-            destinations.contains(loc),
-            "Should have visited {}, destinations: {:?}",
-            loc,
-            destinations
+            all_graph_names.contains(*dest),
+            "Fixture visited '{}' which is not in the world graph",
+            dest
         );
     }
+
+    assert!(
+        destinations.len() >= 14,
+        "Fixture should visit at least 14 distinct locations, got {}: {:?}",
+        destinations.len(),
+        destinations
+    );
 }
 
 #[test]
