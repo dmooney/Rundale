@@ -65,7 +65,7 @@ impl PromptFile {
     /// parse failure indicates a development-time bug in the prompt file
     /// itself, not a recoverable runtime condition.
     pub fn parse(yaml: &str) -> Self {
-        serde_yml::from_str(yaml).expect("malformed .prompt.yml — fix the embedded file")
+        serde_yaml::from_str(yaml).expect("malformed .prompt.yml — fix the embedded file")
     }
 
     /// Returns all `system`-role messages joined with a blank line, after

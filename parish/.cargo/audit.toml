@@ -1,0 +1,14 @@
+# cargo-audit configuration — see https://github.com/rustsec/rustsec/tree/main/cargo-audit
+
+[advisories]
+# RUSTSEC-2023-0071: Marvin Attack timing sidechannel in the `rsa` crate.
+#
+# The attack requires an RSA *decryption* oracle (PKCS#1 v1.5 or OAEP) to
+# recover a private key through timing measurements.  We use `jsonwebtoken`
+# with RSA algorithms exclusively for Cloudflare Access JWT *verification*:
+# only the public key is used, and only for signature checking — no
+# decryption is performed.  The attack vector does not apply.
+#
+# Upstream fix status: none available as of 2026-05 (rsa crate; see advisory).
+# Revisit when jsonwebtoken ships an aws-lc-rs default or rsa publishes a fix.
+ignore = ["RUSTSEC-2023-0071"]
