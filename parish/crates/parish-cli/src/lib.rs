@@ -10,5 +10,6 @@ pub use parish_core::world;
 pub mod app;
 pub mod config;
 pub mod debug;
+pub mod emitter;
 pub mod headless;
 pub mod testing;

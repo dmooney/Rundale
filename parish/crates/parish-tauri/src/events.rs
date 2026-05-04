@@ -137,6 +137,36 @@ pub fn spawn_loading_animation(app: tauri::AppHandle, cancel: tokio_util::sync::
     });
 }
 
+// ── TauriEmitter ─────────────────────────────────────────────────────────────
+
+/// [`EventEmitter`] implementation for the Tauri desktop backend.
+///
+/// Wraps a [`tauri::AppHandle`] and delegates each `emit_event(name, payload)`
+/// call to `app.emit(name, payload)`.
+///
+/// Serialisation is already complete when `emit_event` is called (the payload
+/// is a `serde_json::Value`), so Tauri receives a pre-serialised JSON blob.
+/// Frontend listeners must parse it as the appropriate IPC type.
+#[derive(Clone)]
+pub struct TauriEmitter {
+    pub app: tauri::AppHandle,
+}
+
+impl TauriEmitter {
+    /// Creates a new emitter wrapping the given app handle.
+    pub fn new(app: tauri::AppHandle) -> Self {
+        Self { app }
+    }
+}
+
+impl parish_core::ipc::EventEmitter for TauriEmitter {
+    fn emit_event(&self, name: &str, payload: serde_json::Value) {
+        // Tauri's `emit` serialises the payload again; we pass a pre-serialised
+        // Value so the wire format is a JSON object (not a double-serialised string).
+        let _ = self.app.emit(name, payload);
+    }
+}
+
 // ── Streaming bridge ─────────────────────────────────────────────────────────
 
 /// Reads tokens from `token_rx`, applies the NPC separator holdback logic,

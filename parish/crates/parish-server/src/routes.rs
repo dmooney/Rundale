@@ -4,33 +4,35 @@
 //! [`parish_core::ipc`] and returning JSON responses.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::Semaphore;
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::{
-    AnyClient, INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferenceQueue,
-    await_inference_response, build_inference_client_stack, cache_capacity_from_env,
+    AnyClient, InferenceQueue, build_inference_client_stack, cache_capacity_from_env,
     spawn_inference_worker,
 };
 use parish_core::input::{Command, InputResult, classify_input, parse_intent};
 use parish_core::ipc::{
-    ConversationLine, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, LoadingPayload, MapData,
-    NPC_REACTION_CONCURRENCY, NpcInfo, NpcReactionPayload, REQUEST_ID, ReactRequest,
-    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextPresentation, ThemePalette,
-    WorldSnapshot, capitalize_first, text_log, text_log_for_stream_turn, text_log_typed,
+    LoadingPayload, MapData, NPC_REACTION_CONCURRENCY, NpcInfo, NpcReactionPayload, ReactRequest,
+    StreamEndPayload, StreamTokenPayload, TextPresentation, ThemePalette, WorldSnapshot,
+    capitalize_first, text_log, text_log_typed,
 };
-use parish_core::npc::NpcId;
 use parish_core::npc::manager::NpcManager;
-use parish_core::npc::parse_npc_stream_response;
+// ConversationLine, NpcId, and mpsc are only used in the test module.
+// Imported here so tests can access them via `super::*`.
+#[cfg(test)]
+use parish_core::ipc::ConversationLine;
+#[cfg(test)]
+use parish_core::npc::NpcId;
 use parish_core::npc::reactions;
-use parish_core::npc::ticks::apply_tier1_response_with_config;
 use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
+#[cfg(test)]
+use tokio::sync::mpsc;
 
 use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
 use parish_core::persistence::Database;
@@ -936,550 +938,73 @@ async fn handle_look(state: &Arc<AppState>) {
         .emit_named(Topic::TextLog, "text-log", &text_log("system", text));
 }
 
-struct TurnOutcome {
-    line: Option<ConversationLine>,
-    hints: Vec<parish_core::npc::IrishWordHint>,
-}
+// ── Shared orchestration helpers ─────────────────────────────────────────────
 
-#[allow(clippy::too_many_arguments)]
-async fn run_npc_turn(
-    state: &Arc<AppState>,
-    queue: &InferenceQueue,
-    model: &str,
-    speaker_id: NpcId,
-    prompt_input: &str,
-    transcript: &[ConversationLine],
-    player_initiated: bool,
-) -> Option<TurnOutcome> {
-    let setup = {
-        let mut world = state.world.lock().await;
-        let mut npc_manager = state.npc_manager.lock().await;
-        let config = state.config.lock().await;
-        // Detect player self-introduction before building NPC prompt
-        parish_core::ipc::detect_and_record_player_name(
-            &mut world,
-            &mut npc_manager,
-            prompt_input,
-            speaker_id,
-        );
-        parish_core::ipc::prepare_npc_conversation_turn(
-            &world,
-            &mut npc_manager,
-            prompt_input,
-            speaker_id,
-            transcript,
-            config.improv_enabled,
-        )
-    }?;
-
-    let loading_cancel = tokio_util::sync::CancellationToken::new();
-    if player_initiated {
-        spawn_loading_animation(Arc::clone(state), loading_cancel.clone());
+/// Creates a [`GameLoopContext`] borrowing the current session's `AppState`.
+///
+/// The emitter is an [`AppStateEmitter`] that routes events through
+/// `state.event_bus`.
+fn make_game_loop_ctx<'a>(
+    state: &'a Arc<AppState>,
+    emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter>,
+) -> parish_core::game_loop::GameLoopContext<'a> {
+    parish_core::game_loop::GameLoopContext {
+        world: &state.world,
+        npc_manager: &state.npc_manager,
+        config: &state.config,
+        conversation: &state.conversation,
+        inference_queue: &state.inference_queue,
+        emitter,
+        inference_config: &state.inference_config,
+        pronunciations: &state.pronunciations,
+        client: &state.client,
+        cloud_client: &state.cloud_client,
     }
-
-    let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
-    let display_label = capitalize_first(&setup.display_name);
-    let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
-
-    // #621 — Record the model on the active HTTP request span so OTel traces
-    // carry the `model` field through the inference pipeline without
-    // introducing a formal request envelope (see #617).
-    tracing::Span::current().record("model", model);
-
-    state.event_bus.emit_named(
-        Topic::TextLog,
-        "text-log",
-        &text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
-    );
-    let send_result = queue
-        .send(
-            req_id,
-            model.to_string(),
-            setup.context,
-            Some(setup.system_prompt),
-            Some(token_tx),
-            None,
-            Some(0.7),
-            parish_core::inference::InferencePriority::Interactive,
-            true,
-        )
-        .await;
-
-    let response_rx = match send_result {
-        Ok(rx) => rx,
-        Err(e) => {
-            tracing::error!("Failed to submit inference request: {}", e);
-            state.event_bus.emit_named(
-                Topic::InferenceToken,
-                "stream-turn-end",
-                &StreamTurnEndPayload { turn_id: req_id },
-            );
-            if player_initiated {
-                state.event_bus.emit_named(
-                    Topic::TextLog,
-                    "text-log",
-                    &text_log(
-                        "system",
-                        "The parish storyteller has wandered off. Try again.",
-                    ),
-                );
-            }
-            loading_cancel.cancel();
-            return None;
-        }
-    };
-
-    let stream_handle = tokio::spawn({
-        let state_clone = Arc::clone(state);
-        let cancel = loading_cancel.clone();
-        let source = display_label.clone();
-        async move {
-            parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
-                cancel.cancel();
-                state_clone.event_bus.emit_named(
-                    Topic::InferenceToken,
-                    "stream-token",
-                    &StreamTokenPayload {
-                        token: batch.to_string(),
-                        turn_id: req_id,
-                        source: source.clone(),
-                    },
-                );
-            })
-            .await
-        }
-    });
-
-    let timeout_secs = {
-        let config = state.config.lock().await;
-        if config.flags.is_disabled("inference-response-timeout") {
-            None
-        } else {
-            Some(INFERENCE_RESPONSE_TIMEOUT_SECS)
-        }
-    };
-    let outcome = await_inference_response(
-        response_rx,
-        timeout_secs.map(std::time::Duration::from_secs),
-    )
-    .await;
-    let _ = stream_handle.await;
-    state.event_bus.emit_named(
-        Topic::InferenceToken,
-        "stream-turn-end",
-        &StreamTurnEndPayload { turn_id: req_id },
-    );
-
-    let response = match outcome {
-        InferenceAwaitOutcome::Response(r) => r,
-        InferenceAwaitOutcome::Closed => {
-            tracing::warn!(
-                req_id,
-                "NPC inference response channel closed without a reply",
-            );
-            if player_initiated {
-                state.event_bus.emit_named(
-                    Topic::TextLog,
-                    "text-log",
-                    &text_log("system", "The storyteller has wandered off mid-tale."),
-                );
-            }
-            loading_cancel.cancel();
-            return None;
-        }
-        InferenceAwaitOutcome::TimedOut { secs } => {
-            tracing::warn!(req_id, secs, "NPC inference response timed out",);
-            if player_initiated {
-                state.event_bus.emit_named(
-                    Topic::TextLog,
-                    "text-log",
-                    &text_log("system", "The storyteller is lost in thought. Try again."),
-                );
-            }
-            loading_cancel.cancel();
-            return None;
-        }
-    };
-
-    if response.error.is_some() {
-        tracing::warn!("Inference error: {:?}", response.error);
-        if player_initiated {
-            let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-            state.event_bus.emit_named(
-                Topic::TextLog,
-                "text-log",
-                &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
-            );
-        }
-        loading_cancel.cancel();
-        return None;
-    }
-
-    loading_cancel.cancel();
-
-    let parsed = parse_npc_stream_response(&response.text);
-    let hints = parsed
-        .metadata
-        .as_ref()
-        .map(|meta| meta.language_hints.clone())
-        .unwrap_or_default();
-
-    {
-        let world = state.world.lock().await;
-        let game_time = world.clock.now();
-        let mut npc_manager = state.npc_manager.lock().await;
-        let player_name = if npc_manager.knows_player_name(speaker_id) {
-            world.player_name.clone()
-        } else {
-            None
-        };
-        if let Some(npc) = npc_manager.get_mut(speaker_id) {
-            let _ = apply_tier1_response_with_config(
-                npc,
-                &parsed,
-                prompt_input,
-                game_time,
-                &Default::default(),
-                player_name.as_deref(),
-            );
-        }
-    }
-
-    let line = if parsed.dialogue.trim().is_empty() {
-        None
-    } else {
-        Some(ConversationLine {
-            speaker: display_label,
-            text: parsed.dialogue,
-        })
-    };
-
-    Some(TurnOutcome { line, hints })
-}
-
-async fn set_conversation_running(state: &Arc<AppState>, running: bool) {
-    let mut conversation = state.conversation.lock().await;
-    conversation.conversation_in_progress = running;
 }
 
 /// Routes input to one or more NPCs at the player's location, or shows idle message.
+///
+/// Delegates to [`parish_core::game_loop::handle_npc_conversation`] for all
+/// shared logic (#696), then emits a world-update snapshot when inference
+/// finishes.
 async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: &Arc<AppState>) {
-    let trimmed = raw.trim().to_string();
-    let (npc_present, player_location, queue, model, max_follow_up_turns, targets) = {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        let queue = state.inference_queue.lock().await;
-        let config = state.config.lock().await;
-        let npc_present = !npc_manager.npcs_at(world.player_location).is_empty();
-        let targets = parish_core::ipc::resolve_npc_targets(&world, &npc_manager, &target_names);
-        (
-            npc_present,
-            world.player_location,
-            queue.clone(),
-            config.model_name.clone(),
-            config.max_follow_up_turns,
-            targets,
-        )
+    // Build a shared-orchestration context from this session's AppState.
+    let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
+        std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
+    let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
+
+    // The loading animation is spawned by run_npc_turn inside the shared
+    // handle_npc_conversation for each player-initiated turn.
+    let state_for_loading = Arc::clone(state);
+    let spawn_loading = move || {
+        let cancel = tokio_util::sync::CancellationToken::new();
+        spawn_loading_animation(Arc::clone(&state_for_loading), cancel.clone());
+        Some(cancel)
     };
 
-    if !npc_present {
-        let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
-        state.event_bus.emit_named(
-            Topic::TextLog,
-            "text-log",
-            &text_log("system", IDLE_MESSAGES[idx]),
-        );
-        return;
-    }
-
-    if trimmed.is_empty() {
-        state.event_bus.emit_named(
-            Topic::TextLog,
-            "text-log",
-            &text_log(
-                "system",
-                "There are ears enough for ye here, but say something first.",
-            ),
-        );
-        return;
-    }
-
-    let Some(queue) = queue else {
-        state.event_bus.emit_named(Topic::TextLog, "text-log",
-            &text_log(
-                "system",
-                "There's someone here, but the LLM is not configured — set a provider with /provider.",
-            ),
-        );
-        return;
-    };
-
-    if targets.is_empty() {
-        state.event_bus.emit_named(
-            Topic::TextLog,
-            "text-log",
-            &text_log("system", "No one here answers to that name just now."),
-        );
-        return;
-    }
-
-    let mut transcript = {
-        let mut conversation = state.conversation.lock().await;
-        conversation.sync_location(player_location);
-        conversation.push_line(ConversationLine {
-            speaker: "You".to_string(),
-            text: trimmed.clone(),
-        });
-        conversation.transcript.iter().cloned().collect::<Vec<_>>()
-    };
-
-    set_conversation_running(state, true).await;
-    {
-        let mut world = state.world.lock().await;
-        world.clock.inference_pause();
-    }
+    // Emit world-update before inference to surface the inference-pause flag.
     emit_world_update(state).await;
 
-    let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
-    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
-    let mut last_speaker: Option<NpcId> = None;
+    // Run the shared conversation pipeline.
+    parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
 
-    // Phase 1: each addressed NPC takes one turn in the order they were named.
-    for speaker_id in &targets {
-        let Some(outcome) = run_npc_turn(
-            state,
-            &queue,
-            &model,
-            *speaker_id,
-            trimmed.as_str(),
-            &transcript,
-            true,
-        )
-        .await
-        else {
-            break;
-        };
-
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = state.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(*speaker_id);
-        last_speaker = Some(*speaker_id);
-    }
-
-    // Phase 2: autonomous chain. Bystanders or already-addressed NPCs may
-    // chime in based on the heuristic in `npc::autonomous::pick_next_speaker`.
-    // Capped at `max_follow_up_turns` to prevent runaway chatter.
-    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
-    for _ in 0..chain_cap {
-        let next_speaker_id = {
-            let world = state.world.lock().await;
-            let npc_manager = state.npc_manager.lock().await;
-            let candidates: Vec<&parish_core::npc::Npc> =
-                npc_manager.npcs_at(world.player_location);
-            parish_core::npc::autonomous::pick_next_speaker(
-                &candidates,
-                last_speaker,
-                &spoken_this_chain,
-                &targets,
-            )
-            .map(|npc| npc.id)
-        };
-
-        let Some(speaker_id) = next_speaker_id else {
-            break;
-        };
-
-        let Some(outcome) = run_npc_turn(
-            state,
-            &queue,
-            &model,
-            speaker_id,
-            "listens while the nearby conversation continues",
-            &transcript,
-            false,
-        )
-        .await
-        else {
-            break;
-        };
-
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = state.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(speaker_id);
-        last_speaker = Some(speaker_id);
-    }
-
-    {
-        let mut world = state.world.lock().await;
-        world.clock.inference_resume();
-    }
-    set_conversation_running(state, false).await;
+    // Emit world-update after inference completes to clear the inference-pause flag.
     emit_world_update(state).await;
-
-    // Emit a single stream-end at the end of the entire turn so the input
-    // field stays disabled through every NPC's response. (PR #222 emitted
-    // one per turn, which let the input flicker open between NPCs — that
-    // contradicted the explicit user spec.)
-    state.event_bus.emit_named(
-        Topic::InferenceToken,
-        "stream-end",
-        &StreamEndPayload {
-            hints: combined_hints,
-        },
-    );
 }
 
+/// Generates spontaneous NPC banter when the player has been idle.
+///
+/// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
+/// logic (#696), then emits a world-update snapshot when the sequence ends.
 async fn run_idle_banter(state: &Arc<AppState>) {
-    let (queue, model, player_location, max_follow_up_turns, speakers) = {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        let queue = state.inference_queue.lock().await;
-        let config = state.config.lock().await;
+    let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
+        std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
+    let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
 
-        let mut speakers = npc_manager.npcs_at_ids(world.player_location);
-        speakers.sort_by_key(|id| id.0);
-        speakers.truncate(2);
-
-        (
-            queue.clone(),
-            config.model_name.clone(),
-            world.player_location,
-            config.max_follow_up_turns.min(2),
-            speakers,
-        )
-    };
-
-    let Some(queue) = queue else {
-        return;
-    };
-    if speakers.is_empty() {
-        return;
-    }
-
-    let mut transcript = {
-        let mut conversation = state.conversation.lock().await;
-        conversation.sync_location(player_location);
-        conversation.transcript.iter().cloned().collect::<Vec<_>>()
-    };
-
-    set_conversation_running(state, true).await;
-    {
-        let mut world = state.world.lock().await;
-        world.clock.inference_pause();
-    }
+    // Idle banter does not show loading animation (no player is waiting).
     emit_world_update(state).await;
-
-    let mut combined_hints: Vec<parish_core::npc::IrishWordHint> = Vec::new();
-    let mut spoken_this_chain: Vec<NpcId> = Vec::new();
-    let mut last_speaker: Option<NpcId> = None;
-
-    // First spontaneous remark: deterministic order (sorted by id) so quiet
-    // locations with calm NPCs still produce a line. Without this fallback the
-    // heuristic would refuse to fire on a peaceful location.
-    if let Some(first_speaker) = speakers.first().copied()
-        && let Some(outcome) = run_npc_turn(
-            state,
-            &queue,
-            &model,
-            first_speaker,
-            "breaks the silence with a natural nearby remark",
-            &transcript,
-            false,
-        )
-        .await
-    {
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = state.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(first_speaker);
-        last_speaker = Some(first_speaker);
-    }
-
-    // Follow-up turns: heuristic-based selection so a high-energy or
-    // closely-related bystander can chime in.
-    let chain_cap = max_follow_up_turns.min(parish_core::npc::autonomous::MAX_CHAIN_TURNS);
-    for _ in 0..chain_cap {
-        let next_speaker_id = {
-            let world = state.world.lock().await;
-            let npc_manager = state.npc_manager.lock().await;
-            let candidates: Vec<&parish_core::npc::Npc> =
-                npc_manager.npcs_at(world.player_location);
-            parish_core::npc::autonomous::pick_next_speaker(
-                &candidates,
-                last_speaker,
-                &spoken_this_chain,
-                &[],
-            )
-            .map(|npc| npc.id)
-        };
-
-        let Some(speaker_id) = next_speaker_id else {
-            break;
-        };
-
-        let Some(outcome) = run_npc_turn(
-            state,
-            &queue,
-            &model,
-            speaker_id,
-            "answers the nearby remark and keeps the local chatter going",
-            &transcript,
-            false,
-        )
-        .await
-        else {
-            break;
-        };
-
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = state.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(speaker_id);
-        last_speaker = Some(speaker_id);
-    }
-
-    {
-        let mut world = state.world.lock().await;
-        world.clock.inference_resume();
-    }
-    // Update last_spoken_at regardless of whether inference succeeded so a
-    // failed banter attempt creates a cooldown. Without this, the 1s
-    // tick_inactivity loop immediately re-fires run_idle_banter on every tick
-    // while inference is down, spamming failure messages until auto-pause.
-    {
-        let mut conversation = state.conversation.lock().await;
-        conversation.last_spoken_at = std::time::Instant::now();
-        conversation.conversation_in_progress = false;
-    }
+    parish_core::game_loop::run_idle_banter(&ctx, || None).await;
     emit_world_update(state).await;
-
-    // Single stream-end after the entire idle-banter sequence (see comment
-    // in handle_npc_conversation for the rationale).
-    state.event_bus.emit_named(
-        Topic::InferenceToken,
-        "stream-end",
-        &StreamEndPayload {
-            hints: combined_hints,
-        },
-    );
 }
 
 pub(crate) async fn tick_inactivity(state: &Arc<AppState>) {
