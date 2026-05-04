@@ -1,5 +1,5 @@
 //! Shared orchestration layer — game-loop functions extracted from all three
-//! backends (#696 slices 2 and 3).
+//! backends (#696).
 //!
 //! # Design
 //!
@@ -11,8 +11,9 @@
 //! 1. Defining a [`GameLoopContext`] borrow struct that carries references to
 //!    the shared Tokio-Mutex–wrapped game state that all runtimes need.
 //! 2. Exposing free async functions — [`run_npc_turn`], [`handle_npc_conversation`],
-//!    [`run_idle_banter`] — that take a [`GameLoopContext`] and a
-//!    `&dyn EventEmitter` and operate identically across all runtimes.
+//!    [`run_idle_banter`], [`reactions::emit_npc_reactions`] — that take a
+//!    [`GameLoopContext`] and/or a `&dyn EventEmitter` and operate identically
+//!    across all runtimes.
 //!
 //! Each backend constructs a `GameLoopContext` by borrowing its own `AppState`
 //! fields, then supplies its backend-specific [`EventEmitter`] implementation.
@@ -55,14 +56,18 @@
 //!
 //! The headless CLI (`parish-cli`) uses a flat `App` struct with bare (non-Mutex)
 //! fields, which cannot borrow directly into [`GameLoopContext`].  Migration of
-//! `parish-cli` to the shared context is deferred to a future slice — it
+//! `parish-cli` to the shared context is deferred to a future refactor — it
 //! requires wrapping `App`'s fields in `Arc<Mutex<>>` which is a wider change.
 //! In the meantime, `parish-cli` continues to use its own inline implementations.
 
 pub mod context;
+pub mod input;
+pub mod movement;
 pub mod npc_turn;
 pub mod reactions;
 
 pub use context::GameLoopContext;
+pub use input::{handle_game_input, handle_look};
+pub use movement::handle_movement;
 pub use npc_turn::{TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn};
-pub use reactions::is_snippet_injection_char;
+pub use reactions::{emit_npc_reactions, is_snippet_injection_char};
