@@ -23,6 +23,8 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 
+use parish_core::identity::IdentityStore;
+
 use crate::session_store_impl::DbSessionStore;
 use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 
@@ -45,6 +47,9 @@ pub struct OAuthConfig {
 pub struct GlobalState {
     /// All active sessions, backed by `saves/sessions.db`.
     pub sessions: SessionRegistry,
+    /// Identity store — maps OAuth provider identities to stable `account_id`
+    /// UUIDs and persists new accounts on first auth (#618).
+    pub identity_store: std::sync::Arc<dyn IdentityStore>,
     /// Google OAuth config; `None` disables the login flow.
     pub oauth_config: Option<OAuthConfig>,
     /// Directory containing game data files (`world.json`, `npcs.json`, …).

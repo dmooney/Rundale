@@ -37,12 +37,30 @@ use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 use crate::cf_auth::AuthContext;
 use crate::state::AppState;
 
-// ── Helper: extract auth email from request extensions ───────────────────────
+// ── Helper: extract auth context from request extensions ─────────────────────
 
-/// Extracts the CF-Access email from the request, returning 401 if absent.
-fn require_email(auth: Option<Extension<AuthContext>>) -> Result<String, (StatusCode, String)> {
-    auth.map(|Extension(ctx)| ctx.email)
+/// Extracts the [`AuthContext`] from the request, returning 401 if absent.
+///
+/// Use `ctx.account_id` as the stable map key into `editor_sessions` (#618).
+/// `ctx.email` is available for logging but must not be used as a key.
+fn require_auth(auth: Option<Extension<AuthContext>>) -> Result<AuthContext, (StatusCode, String)> {
+    auth.map(|Extension(ctx)| ctx)
         .ok_or_else(|| (StatusCode::UNAUTHORIZED, "missing auth context".to_string()))
+}
+
+/// Convenience alias for callers that only need to confirm auth is present.
+fn require_email(auth: Option<Extension<AuthContext>>) -> Result<String, (StatusCode, String)> {
+    require_auth(auth).map(|ctx| ctx.email)
+}
+
+/// Returns the canonical session key for `editor_sessions` (#618).
+///
+/// Key is `(account_id, "")` — the empty string is a placeholder for the
+/// `mod_id` component introduced to support multi-mod editor sessions in the
+/// future.  All existing handlers use the same mod slot (`""`), so this is a
+/// backward-compatible key shape.
+fn session_key(account_id: uuid::Uuid) -> (uuid::Uuid, String) {
+    (account_id, String::new())
 }
 
 // ── Helper: mods root ─────────────────────────────────────────────────────────
@@ -90,7 +108,7 @@ pub async fn editor_open_mod(
     auth: Option<Extension<AuthContext>>,
     Json(body): Json<EditorOpenModBody>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
     let path = PathBuf::from(&body.mod_path);
     let root = mods_root(&state);
 
@@ -107,13 +125,15 @@ pub async fn editor_open_mod(
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))??;
 
-    // Store into the per-user session (fix #372; tokio Mutex — fix #375).
+    // Store into the per-account session keyed by account_id (#618, fix #372;
+    // tokio Mutex — fix #375).
     // `generation` bumps because this is a snapshot-replacement event
     // (different mod; lineage change). In-flight update_* requests
     // captured a pre-open generation and must reject their writebacks
     // when they re-acquire the lock.
+    let key = session_key(ctx.account_id);
     let mut sessions = state.editor_sessions.lock().await;
-    let session = sessions.entry(email).or_insert_with(EditorSession::default);
+    let session = sessions.entry(key).or_insert_with(EditorSession::default);
     session.snapshot = Some(snapshot.clone());
     session.version = session.version.wrapping_add(1);
     session.generation = session.generation.wrapping_add(1);
@@ -132,10 +152,11 @@ pub async fn editor_get_snapshot(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
+    let key = session_key(ctx.account_id);
     let sessions = state.editor_sessions.lock().await;
     let snapshot = sessions
-        .get(&email)
+        .get(&key)
         .and_then(|s| s.snapshot.clone())
         .ok_or_else(|| {
             (
@@ -161,11 +182,12 @@ pub async fn editor_validate(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
+    let key = session_key(ctx.account_id);
 
     let (mut snapshot, captured_version) = {
         let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(&email).ok_or_else(|| {
+        let session = sessions.get(&key).ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
                 "no mod is open in the editor".to_string(),
@@ -196,7 +218,7 @@ pub async fn editor_validate(
     // session state.
     {
         let mut sessions = state.editor_sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&email)
+        if let Some(session) = sessions.get_mut(&key)
             && session.version == captured_version
         {
             session.snapshot = Some(snapshot);
@@ -232,7 +254,7 @@ pub async fn editor_validate(
 /// from the validated clone into the live snapshot and then re-validate.
 async fn update_editor_field<M, O>(
     state: &Arc<AppState>,
-    email: &str,
+    account_id: uuid::Uuid,
     mutate: M,
     overlay: O,
 ) -> Result<ValidationReport, (StatusCode, String)>
@@ -240,10 +262,12 @@ where
     M: FnOnce(EditorModSnapshot) -> EditorModSnapshot + Send + 'static,
     O: FnOnce(&mut EditorModSnapshot, EditorModSnapshot) + Send + 'static,
 {
+    let key = session_key(account_id);
+
     // Step 1: clone snapshot out of the lock and capture identity fields.
     let (snapshot_clone, captured_version, captured_generation, captured_mod_path) = {
         let sessions = state.editor_sessions.lock().await;
-        let s = sessions.get(email).ok_or_else(|| {
+        let s = sessions.get(&key).ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
                 "no mod is open in the editor".to_string(),
@@ -267,7 +291,7 @@ where
     // Step 3: write-back under the lock.
     let validation = {
         let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions.get_mut(email).ok_or_else(|| {
+        let session = sessions.get_mut(&key).ok_or_else(|| {
             (
                 StatusCode::BAD_REQUEST,
                 "no mod is open in the editor".to_string(),
@@ -326,7 +350,7 @@ pub async fn editor_update_npcs(
     auth: Option<Extension<AuthContext>>,
     Json(body): Json<EditorUpdateNpcsBody>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
     let npcs: parish_core::npc::NpcFile = serde_json::from_value(body.npcs)
         .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid NPC data: {e}")))?;
 
@@ -337,7 +361,7 @@ pub async fn editor_update_npcs(
 
     let validation = update_editor_field(
         &state,
-        &email,
+        ctx.account_id,
         |mut s| {
             s.npcs = npcs;
             parish_core::editor::validate::validate_snapshot(&mut s);
@@ -369,7 +393,7 @@ pub async fn editor_update_locations(
     auth: Option<Extension<AuthContext>>,
     Json(body): Json<EditorUpdateLocationsBody>,
 ) -> Result<Json<ValidationReport>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
     let locations: Vec<parish_core::world::graph::LocationData> =
         serde_json::from_value(body.locations).map_err(|e| {
             (
@@ -385,7 +409,7 @@ pub async fn editor_update_locations(
 
     let validation = update_editor_field(
         &state,
-        &email,
+        ctx.account_id,
         |mut s| {
             s.locations = locations;
             parish_core::editor::validate::validate_snapshot(&mut s);
@@ -412,7 +436,8 @@ pub async fn editor_save(
     auth: Option<Extension<AuthContext>>,
     Json(body): Json<EditorSaveBody>,
 ) -> Result<Json<EditorSaveResponse>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
+    let key = session_key(ctx.account_id);
     let docs = body.docs;
 
     // Clone snapshot out of session so we can do blocking I/O outside the lock.
@@ -420,7 +445,7 @@ pub async fn editor_save(
     // concurrent update that bumped the version in between (codex P2).
     let (snapshot_opt, captured_version) = {
         let sessions = state.editor_sessions.lock().await;
-        let s = sessions.get(&email);
+        let s = sessions.get(&key);
         (
             s.and_then(|s| s.snapshot.clone()),
             s.map(|s| s.version).unwrap_or(0),
@@ -451,7 +476,7 @@ pub async fn editor_save(
     // a concurrent editor_update_{npcs,locations} with the stale clone.
     {
         let mut sessions = state.editor_sessions.lock().await;
-        if let Some(session) = sessions.get_mut(&email) {
+        if let Some(session) = sessions.get_mut(&key) {
             if session.version != captured_version {
                 return Err((
                     StatusCode::CONFLICT,
@@ -553,13 +578,14 @@ pub async fn editor_reload(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> Result<Json<EditorModSnapshot>, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
+    let key = session_key(ctx.account_id);
 
     // Get the mod_path from the session.
     let mod_path = {
         let sessions = state.editor_sessions.lock().await;
         sessions
-            .get(&email)
+            .get(&key)
             .and_then(|s| s.snapshot.as_ref().map(|snap| snap.mod_path.clone()))
             .ok_or_else(|| {
                 (
@@ -582,7 +608,7 @@ pub async fn editor_reload(
     // lineage-changing event — bump generation so any in-flight
     // update_* reject their writebacks (codex P1 on #574).
     let mut sessions = state.editor_sessions.lock().await;
-    let session = sessions.entry(email).or_insert_with(EditorSession::default);
+    let session = sessions.entry(key).or_insert_with(EditorSession::default);
     session.snapshot = Some(snapshot.clone());
     session.version = session.version.wrapping_add(1);
     session.generation = session.generation.wrapping_add(1);
@@ -595,9 +621,10 @@ pub async fn editor_close(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let email = require_email(auth)?;
+    let ctx = require_auth(auth)?;
+    let key = session_key(ctx.account_id);
     let mut sessions = state.editor_sessions.lock().await;
-    if let Some(session) = sessions.get_mut(&email) {
+    if let Some(session) = sessions.get_mut(&key) {
         session.snapshot = None;
         session.version = session.version.wrapping_add(1);
         // Close clears the snapshot — in-flight update_* must reject.
@@ -695,8 +722,27 @@ mod tests {
     use axum::Extension;
     use parish_core::ipc::editor::NPC_NAME_MAX;
 
+    /// Deterministic `account_id` derived from an email for test reproducibility.
+    ///
+    /// Maps the email to a UUID by hashing its bytes into the UUID fields so that
+    /// the same email always yields the same UUID within a test binary.
+    fn account_id_for(email: &str) -> uuid::Uuid {
+        // XOR-fold the bytes into a 16-byte array and interpret as a UUID.
+        // This is not cryptographic — it just gives a stable, unique UUID per email string.
+        let bytes = email.as_bytes();
+        let mut buf = [0u8; 16];
+        for (i, &b) in bytes.iter().enumerate() {
+            buf[i % 16] ^= b;
+        }
+        // Set the version (4) and variant bits to make it a well-formed UUID.
+        buf[6] = (buf[6] & 0x0f) | 0x40;
+        buf[8] = (buf[8] & 0x3f) | 0x80;
+        uuid::Uuid::from_bytes(buf)
+    }
+
     fn make_auth(email: &str) -> Option<Extension<AuthContext>> {
         Some(Extension(AuthContext {
+            account_id: account_id_for(email),
             email: email.to_string(),
         }))
     }
@@ -978,9 +1024,10 @@ mod tests {
 
         // Open a session for alice with a bad path (we just want different sessions).
         {
+            let alice_key = session_key(account_id_for("alice@example.com"));
             let mut sessions = state.editor_sessions.lock().await;
             let alice_session = sessions
-                .entry("alice@example.com".to_string())
+                .entry(alice_key)
                 .or_insert_with(EditorSession::default);
             // Manually mark alice as having a snapshot so we can check bob doesn't see it.
             alice_session.snapshot = Some(EditorModSnapshot {
@@ -1072,10 +1119,9 @@ mod tests {
     /// Seeds a session for the given email and returns the version it was
     /// created with so callers can assert version bumps.
     async fn seed_session(state: &Arc<AppState>, email: &str) -> u64 {
+        let key = session_key(account_id_for(email));
         let mut sessions = state.editor_sessions.lock().await;
-        let session = sessions
-            .entry(email.to_string())
-            .or_insert_with(EditorSession::default);
+        let session = sessions.entry(key).or_insert_with(EditorSession::default);
         session.snapshot = Some(seed_snapshot());
         session.version
     }
@@ -1097,8 +1143,9 @@ mod tests {
         // editor_validate is read-only from the caller's perspective: it must
         // not bump the session version (concurrent reads still see the same
         // snapshot generation).
+        let key = session_key(account_id_for(email));
         let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(email).expect("session missing");
+        let session = sessions.get(&key).expect("session missing");
         assert_eq!(session.version, start_version);
         // The validated snapshot should have been written back with the same
         // report the caller received.
@@ -1144,8 +1191,9 @@ mod tests {
             editor_update_npcs(Extension(Arc::clone(&state)), make_auth(email), Json(body)).await;
         assert!(result.is_ok(), "update should succeed: {:?}", result.err());
 
+        let key = session_key(account_id_for(email));
         let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(email).expect("session missing");
+        let session = sessions.get(&key).expect("session missing");
         assert_eq!(session.version, start_version.wrapping_add(1));
         let snap = session.snapshot.as_ref().expect("snapshot missing");
         assert_eq!(snap.npcs.npcs.len(), 1);
@@ -1183,8 +1231,9 @@ mod tests {
                 .await;
         assert!(result.is_ok(), "update should succeed: {:?}", result.err());
 
+        let key = session_key(account_id_for(email));
         let sessions = state.editor_sessions.lock().await;
-        let session = sessions.get(email).expect("session missing");
+        let session = sessions.get(&key).expect("session missing");
         assert_eq!(session.version, start_version.wrapping_add(1));
         let snap = session.snapshot.as_ref().expect("snapshot missing");
         assert_eq!(snap.locations.len(), 2);

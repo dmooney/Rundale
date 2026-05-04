@@ -197,14 +197,17 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
     assert!(json["system_prompt"].is_null());
 }
 
-// ── #334 — Single WS per email ───────────────────────────────────────────────
+// ── #334 / #618 — Single WS per account_id ───────────────────────────────────
 
-/// A second WS upgrade for the same email must be blocked (409 Conflict).
+/// A second WS upgrade for the same `account_id` must be blocked (409 Conflict).
 ///
 /// We test the `active_ws` set logic directly against `AppState` rather than
 /// driving a real WebSocket upgrade (which requires a live TCP server).
+///
+/// #618: the key is now `uuid::Uuid` (account_id) rather than an email string,
+/// so multiple browser tabs from the same user get the same stable ID.
 #[tokio::test]
-async fn second_ws_upgrade_same_email_is_409() {
+async fn second_ws_upgrade_same_account_is_409() {
     use std::sync::Arc;
 
     // Build a minimal AppState using the public builder.
@@ -273,23 +276,16 @@ async fn second_ws_upgrade_same_email_is_409() {
         session_store,
     ));
 
-    // Simulate first connection inserting the email.
-    let first_insert: bool = state
-        .active_ws
-        .lock()
-        .await
-        .insert("ws-user@example.com".to_string());
+    // Simulate first connection inserting the account_id (#618).
+    let account_id: uuid::Uuid = uuid::Uuid::new_v4();
+    let first_insert: bool = state.active_ws.lock().await.insert(account_id);
     assert!(first_insert, "first insert must succeed");
 
-    // Second attempt: the email is already present — insert returns false.
-    let second_insert: bool = state
-        .active_ws
-        .lock()
-        .await
-        .insert("ws-user@example.com".to_string());
+    // Second attempt: the account_id is already present — insert returns false.
+    let second_insert: bool = state.active_ws.lock().await.insert(account_id);
     assert!(
         !second_insert,
-        "second insert must fail (email already active)"
+        "second insert must fail (account already active)"
     );
 
     // Map the HashSet result to the 409 the handler would return.

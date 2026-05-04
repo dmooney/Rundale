@@ -24,18 +24,18 @@ use axum::response::IntoResponse;
 
 use parish_core::event_bus::EventBus as EventBusTrait;
 
-use crate::cf_auth::SessionToken;
+use crate::cf_auth::{AuthContext, SessionToken};
 use crate::state::AppState;
 
 /// Maximum number of concurrent WebSocket connections across all users (#460).
 const MAX_WS_CONNECTIONS: usize = 100;
 
-/// RAII guard that removes an email from `AppState::active_ws` on drop.
+/// RAII guard that removes an `account_id` from `AppState::active_ws` on drop.
 ///
-/// This guarantees the slot is released even if `handle_socket` panics.
+/// This guarantees the slot is released even if `handle_socket` panics (#618).
 struct ActiveWsGuard {
     state: Arc<AppState>,
-    email: String,
+    account_id: uuid::Uuid,
 }
 
 impl Drop for ActiveWsGuard {
@@ -45,18 +45,18 @@ impl Drop for ActiveWsGuard {
         // If somehow it is contended, `blocking_lock` would work but risks
         // deadlock — `try_lock` is the safe choice in a sync Drop context.
         if let Ok(mut set) = self.state.active_ws.try_lock() {
-            set.remove(&self.email);
+            set.remove(&self.account_id);
         } else if let Ok(handle) = tokio::runtime::Handle::try_current() {
             // #499 — only spawn cleanup if the Tokio runtime is still alive.
             // #656 — drop the handle immediately (fire-and-forget); is_finished()
             // on a freshly-spawned task is always false and was dead code.
             let state = Arc::clone(&self.state);
-            let email = self.email.clone();
+            let account_id = self.account_id;
             let _handle = handle.spawn(async move {
-                state.active_ws.lock().await.remove(&email);
+                state.active_ws.lock().await.remove(&account_id);
             });
         } else {
-            tracing::warn!(user = %self.email, "ActiveWsGuard: no Tokio runtime — email slot leaked (benign at shutdown)");
+            tracing::warn!(account_id = %self.account_id, "ActiveWsGuard: no Tokio runtime — account_id slot leaked (benign at shutdown)");
         }
     }
 }
@@ -64,17 +64,22 @@ impl Drop for ActiveWsGuard {
 /// Upgrades the HTTP connection to a WebSocket.
 ///
 /// Requires a valid `?token=` query parameter (issued by `POST /api/session-init`).
-/// A second concurrent upgrade from the same email returns `409 Conflict` (#334).
+/// A second concurrent upgrade from the same `account_id` returns `409 Conflict`
+/// (#334, #618).
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
     Query(params): Query<HashMap<String, String>>,
     Extension(state): Extension<Arc<AppState>>,
+    auth: Option<Extension<AuthContext>>,
 ) -> impl IntoResponse {
     // #379 — debug-only loopback bypass matches `cf_access_guard`: e2e and local
     // dev open a WS without minting a session-init token first.
-    let email = if cfg!(debug_assertions) && addr.ip().is_loopback() {
-        "dev@localhost".to_string()
+    //
+    // #618 — In the loopback-bypass path we use a well-known nil UUID so the
+    // single-WS-per-account dedup still works correctly for local dev.
+    let account_id: uuid::Uuid = if cfg!(debug_assertions) && addr.ip().is_loopback() {
+        uuid::Uuid::nil()
     } else {
         // #377 — validate session token before accepting the WS upgrade.
         let token = match params.get("token") {
@@ -85,8 +90,15 @@ pub async fn ws_handler(
             }
         };
 
+        // Validate the HMAC token (the email it contains is used only to derive
+        // account_id via the AuthContext injected by cf_access_guard).
         match SessionToken::validate_full(&token) {
-            Ok(e) => e,
+            Ok(_email) => {
+                // Prefer the AuthContext account_id already resolved by the
+                // guard; fall back to nil (should not happen in normal flow).
+                auth.map(|Extension(ctx)| ctx.account_id)
+                    .unwrap_or(uuid::Uuid::nil())
+            }
             Err(err) => {
                 tracing::warn!(error = %err, "ws_handler: rejected — invalid session token");
                 return StatusCode::UNAUTHORIZED.into_response();
@@ -94,16 +106,16 @@ pub async fn ws_handler(
         }
     };
 
-    // #334 — enforce single WebSocket per email; #460 — enforce global cap.
+    // #334/#618 — enforce single WebSocket per account_id; #460 — enforce global cap.
     //
-    // Ordering matters (codex P2): check the duplicate-email condition BEFORE
+    // Ordering matters (codex P2): check the duplicate-account condition BEFORE
     // the global cap.  If we checked the cap first, a returning user whose
-    // email is already in the set would get 503 Service Unavailable instead of
-    // the correct 409 Conflict when the server is at capacity.
+    // account_id is already in the set would get 503 Service Unavailable instead
+    // of the correct 409 Conflict when the server is at capacity.
     {
         let mut active = state.active_ws.lock().await;
-        if active.contains(&email) {
-            tracing::warn!(user = %email, "ws_handler: rejected — duplicate WebSocket from same email");
+        if active.contains(&account_id) {
+            tracing::warn!(account_id = %account_id, "ws_handler: rejected — duplicate WebSocket from same account");
             return StatusCode::CONFLICT.into_response();
         }
         if active.len() >= MAX_WS_CONNECTIONS {
@@ -114,13 +126,13 @@ pub async fn ws_handler(
             );
             return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
-        active.insert(email.clone());
+        active.insert(account_id);
     }
 
-    // The guard removes the email from `active_ws` when the socket closes.
+    // The guard removes the account_id from `active_ws` when the socket closes.
     let guard = ActiveWsGuard {
         state: Arc::clone(&state),
-        email: email.clone(),
+        account_id,
     };
 
     ws.on_upgrade(|socket| handle_socket(socket, state, guard))
@@ -175,7 +187,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: Acti
     }
 
     tracing::info!("WebSocket client disconnected");
-    // `_guard` drops here, removing the email from `active_ws`.
+    // `_guard` drops here, removing the account_id from `active_ws`.
 }
 
 #[cfg(test)]
@@ -187,26 +199,23 @@ mod tests {
         // Placeholder — real WebSocket tests require a running server
     }
 
-    /// Verifies `ActiveWsGuard::drop` cleans up `active_ws` correctly.
+    /// Verifies `ActiveWsGuard::drop` cleans up `active_ws` correctly (#618).
     #[tokio::test]
-    async fn active_ws_guard_removes_email_on_drop() {
+    async fn active_ws_guard_removes_account_id_on_drop() {
         // Build a minimal AppState just to get an `active_ws` set.
         // We re-use the unit-test helper from the routes module.
         let state = crate::routes::tests::test_app_state();
+        let test_id = uuid::Uuid::new_v4();
 
-        // Simulate inserting an email then dropping the guard.
+        // Simulate inserting an account_id then dropping the guard.
         {
-            state
-                .active_ws
-                .lock()
-                .await
-                .insert("test@example.com".to_string());
+            state.active_ws.lock().await.insert(test_id);
         }
 
         {
             let _guard = ActiveWsGuard {
                 state: Arc::clone(&state),
-                email: "test@example.com".to_string(),
+                account_id: test_id,
             };
             // guard drops here
         }
@@ -215,8 +224,8 @@ mod tests {
         tokio::task::yield_now().await;
 
         assert!(
-            !state.active_ws.lock().await.contains("test@example.com"),
-            "ActiveWsGuard::drop must remove the email from active_ws"
+            !state.active_ws.lock().await.contains(&test_id),
+            "ActiveWsGuard::drop must remove the account_id from active_ws"
         );
     }
 
@@ -227,8 +236,8 @@ mod tests {
 
         {
             let mut active = state.active_ws.lock().await;
-            for i in 0..MAX_WS_CONNECTIONS {
-                active.insert(format!("user{i}@example.com"));
+            for _ in 0..MAX_WS_CONNECTIONS {
+                active.insert(uuid::Uuid::new_v4());
             }
             assert_eq!(active.len(), MAX_WS_CONNECTIONS);
         }
@@ -250,41 +259,39 @@ mod tests {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async { crate::routes::tests::test_app_state() })
         };
+        let orphan_id = uuid::Uuid::new_v4();
 
-        state
-            .active_ws
-            .try_lock()
-            .unwrap()
-            .insert("orphan@example.com".to_string());
+        state.active_ws.try_lock().unwrap().insert(orphan_id);
 
         // Drop guard outside any Tokio runtime — should not panic.
         let _guard = ActiveWsGuard {
             state: Arc::clone(&state),
-            email: "orphan@example.com".to_string(),
+            account_id: orphan_id,
         };
         drop(_guard);
     }
 
     /// Codex P2 regression: at-cap + duplicate must return 409 Conflict, not 503.
     ///
-    /// When active_ws has MAX_WS_CONNECTIONS entries and the *same* user tries to
-    /// open a second socket, the duplicate-email check must fire before the cap
-    /// check.  Previously the cap was tested first, returning 503 instead of 409.
+    /// When active_ws has MAX_WS_CONNECTIONS entries and the *same* account tries
+    /// to open a second socket, the duplicate-account check must fire before the
+    /// cap check (#618).  Previously the cap was tested first, returning 503
+    /// instead of 409.
     #[tokio::test]
     async fn duplicate_at_cap_returns_409_not_503() {
         let state = crate::routes::tests::test_app_state();
+        let returning_account = uuid::Uuid::new_v4();
 
-        // Fill active_ws to the cap with unique users, including the one we
+        // Fill active_ws to the cap with unique accounts, including the one we
         // will try to connect again.
-        let returning_user = "returning@example.com".to_string();
         {
             let mut active = state.active_ws.lock().await;
             // Fill all slots.
-            for i in 0..MAX_WS_CONNECTIONS - 1 {
-                active.insert(format!("user{i}@example.com"));
+            for _ in 0..MAX_WS_CONNECTIONS - 1 {
+                active.insert(uuid::Uuid::new_v4());
             }
-            // Insert the returning user so the set is at capacity.
-            active.insert(returning_user.clone());
+            // Insert the returning account so the set is at capacity.
+            active.insert(returning_account);
             assert_eq!(active.len(), MAX_WS_CONNECTIONS);
         }
 
@@ -292,10 +299,10 @@ mod tests {
         let active = state.active_ws.lock().await;
 
         // Duplicate check (must fire first).
-        let is_duplicate = active.contains(&returning_user);
+        let is_duplicate = active.contains(&returning_account);
         assert!(
             is_duplicate,
-            "returning user should already be in active_ws"
+            "returning account should already be in active_ws"
         );
 
         // If the code checked cap first it would see len >= MAX and return 503.

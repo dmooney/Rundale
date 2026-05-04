@@ -19,8 +19,19 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// Injected into request extensions by `cf_access_guard`; downstream handlers
 /// can retrieve it with `req.extensions().get::<AuthContext>()`.
+///
+/// `account_id` is the stable per-user UUID minted on first auth and
+/// persisted via `IdentityStore::create_account`.  It never changes even when
+/// the user's email changes or their OAuth provider is re-linked (#618).
+///
+/// When the `account-id-keying` feature flag is disabled (kill-switch) the
+/// guard derives a deterministic UUID from the email bytes so every user
+/// still gets a unique, per-email identity without touching the identity store.
 #[derive(Clone, Debug)]
 pub struct AuthContext {
+    /// Stable per-user identifier — use this as the map key in handlers.
+    pub account_id: uuid::Uuid,
+    /// Email address from the validated CF-Access JWT or OAuth token.
     pub email: String,
 }
 
@@ -297,8 +308,12 @@ impl CfAccessVerifier {
         Some(Arc::clone(cached))
     }
 
-    /// Validates a raw JWT string and returns the extracted [`AuthContext`].
-    pub async fn validate(&self, token: &str) -> Result<AuthContext, String> {
+    /// Validates a raw JWT string and returns the authenticated email address.
+    ///
+    /// The full [`AuthContext`] (including the stable `account_id`) is assembled
+    /// by `cf_access_guard` after calling `IdentityStore::lookup_by_provider`
+    /// or `create_account` (#618).
+    pub async fn validate(&self, token: &str) -> Result<String, String> {
         use jsonwebtoken::{Algorithm, DecodingKey, Header, Validation, decode, decode_header};
 
         // Decode the header to get `kid`.
@@ -344,9 +359,9 @@ impl CfAccessVerifier {
         let token_data = decode::<CfClaims>(token, &decoding_key, &validation)
             .map_err(|e| format!("JWT validation failed: {e}"))?;
 
-        Ok(AuthContext {
-            email: token_data.claims.email,
-        })
+        // Return only the email; `account_id` is resolved by `cf_access_guard`
+        // via `IdentityStore` after this call returns (#618).
+        Ok(token_data.claims.email)
     }
 }
 

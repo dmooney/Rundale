@@ -177,19 +177,28 @@ pub struct AppState {
     /// or shutdown so orphaned workers (each holding an HTTP client and channel)
     /// don't accumulate.  See bugs #224 and #231.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
-    /// Per-user editor sessions — keyed by CF-Access email.
+    /// Per-account editor sessions — keyed by `(account_id, mod_id)`.
+    ///
+    /// Keyed by `account_id` (stable UUID) so that multiple browser tabs from
+    /// the same authenticated user share one editor session rather than creating
+    /// per-cookie duplicates (#618).  The `String` component is the mod path /
+    /// id, kept for future multi-mod support (currently always `""` until a mod
+    /// is opened, at which point the session is re-keyed).
+    ///
+    /// When the `account-id-keying` feature flag is disabled the key is
+    /// `(Uuid::nil(), email)` for backward compatibility.
     ///
     /// Uses a `tokio::sync::Mutex` so handlers can hold the guard across
     /// `.await` points without blocking Tokio workers.
     pub editor_sessions: tokio::sync::Mutex<
-        std::collections::HashMap<String, parish_core::ipc::editor::EditorSession>,
+        std::collections::HashMap<(uuid::Uuid, String), parish_core::ipc::editor::EditorSession>,
     >,
-    /// Set of emails that currently have an active WebSocket connection.
+    /// Set of `account_id`s that currently have an active WebSocket connection.
     ///
-    /// Enforces single-WS-per-email (#334): a second upgrade from the same
-    /// email is rejected with 409 Conflict until the first socket closes.
+    /// Enforces single-WS-per-account (#334/#618): a second upgrade from the
+    /// same account is rejected with 409 Conflict until the first socket closes.
     /// Uses a `tokio::sync::Mutex` so it can be held across await points.
-    pub active_ws: tokio::sync::Mutex<HashSet<String>>,
+    pub active_ws: tokio::sync::Mutex<HashSet<uuid::Uuid>>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
     /// TOML-configured inference timeouts loaded from `parish.toml` at session
@@ -288,7 +297,7 @@ pub fn build_app_state(
         flags_path,
         worker_handle: Mutex::new(None),
         editor_sessions: tokio::sync::Mutex::new(std::collections::HashMap::new()),
-        active_ws: tokio::sync::Mutex::new(HashSet::new()),
+        active_ws: tokio::sync::Mutex::new(HashSet::<uuid::Uuid>::new()),
         save_lock: Mutex::new(None),
         inference_config,
         save_db: tokio::sync::Mutex::new(None),

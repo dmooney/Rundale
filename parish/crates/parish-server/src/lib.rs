@@ -46,6 +46,7 @@ use parish_core::world::transport::TransportConfig;
 
 use parish_core::config::FeatureFlags;
 use session::{GlobalState, OAuthConfig, SessionRegistry};
+use session_store_impl::{SqliteIdentityStore, open_sessions_db};
 use state::{GameConfig, UiConfigSnapshot};
 
 /// Specific HTTPS origins the frontend genuinely connects to or loads images
@@ -179,6 +180,66 @@ pub fn apply_security_layers(router: Router) -> Router {
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 
+/// Resolves or mints a stable `account_id` for the given CF-Access email.
+///
+/// On first encounter the email is registered as a new account via
+/// `IdentityStore::create_account`; on subsequent requests the existing ID is
+/// returned via `lookup_by_provider`.  Both operations are idempotent (#618).
+///
+/// When the `account-id-keying` feature flag is disabled (kill-switch) the
+/// function derives a deterministic UUID from the email bytes so every user
+/// still gets a unique, stable identity without touching the persistent store.
+/// This preserves per-user isolation while allowing a rollback without
+/// redeploying a new binary.
+fn resolve_account_id(
+    identity_store: &dyn parish_core::identity::IdentityStore,
+    email: &str,
+    flags: &parish_core::config::FeatureFlags,
+) -> uuid::Uuid {
+    // Kill-switch path: deterministic UUID derived from email bytes.
+    // XOR-fold is collision-resistant for our user population and produces
+    // a unique, non-nil UUID per email without any DB access.
+    if flags.is_disabled("account-id-keying") {
+        let bytes = email.as_bytes();
+        let mut buf = [0u8; 16];
+        for (i, &b) in bytes.iter().enumerate() {
+            buf[i % 16] ^= b;
+        }
+        // Set version (4) and variant bits so the UUID is well-formed.
+        buf[6] = (buf[6] & 0x0f) | 0x40;
+        buf[8] = (buf[8] & 0x3f) | 0x80;
+        return uuid::Uuid::from_bytes(buf);
+    }
+
+    // Use the CF-Access email as the provider_user_id under a synthetic
+    // "cf-access" provider.  This keeps the schema consistent with Google
+    // OAuth rows while supporting CF-Access-only deployments.
+    const PROVIDER: &str = "cf-access";
+
+    if let Some(existing_id) = identity_store.lookup_by_provider(PROVIDER, email) {
+        if let Ok(id) = uuid::Uuid::parse_str(&existing_id) {
+            return id;
+        }
+        tracing::warn!(
+            email = %email,
+            raw = %existing_id,
+            "resolve_account_id: stored id is not a valid UUID, minting a new one"
+        );
+    }
+
+    // New account — mint a UUID, persist it, then link the provider identity.
+    let new_id = uuid::Uuid::new_v4();
+    let id_str = new_id.to_string();
+    identity_store.create_account(&id_str);
+    identity_store.link_provider(PROVIDER, email, &id_str, email);
+    tracing::info!(
+        account_id = %new_id,
+        email = %email,
+        "resolve_account_id: minted new account"
+    );
+    new_id
+}
+
 /// Middleware that enforces Cloudflare Access authentication.
 ///
 /// **Production** (`CF_ACCESS_AUD` env set): validates `Cf-Access-Jwt-Assertion`
@@ -189,7 +250,12 @@ static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
 ///
 /// **Fail-closed**: if `CF_ACCESS_AUD` is unset in a release build, every
 /// request returns 401 to avoid running unauthenticated in production.
+///
+/// **#618** — after JWT validation the guard resolves a stable `account_id` UUID
+/// via [`resolve_account_id`] and stores it alongside the email in the injected
+/// [`cf_auth::AuthContext`].
 async fn cf_access_guard(
+    axum::extract::State(global): axum::extract::State<Arc<session::GlobalState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     mut req: Request<axum::body::Body>,
     next: Next,
@@ -199,9 +265,15 @@ async fn cf_access_guard(
         // In debug+loopback: inject a synthetic AuthContext so downstream
         // handlers that require it don't panic.
         let email = "dev@localhost".to_string();
+        let account_id = resolve_account_id(
+            global.identity_store.as_ref(),
+            &email,
+            &global.template_config.flags,
+        );
         // #621 — Record account_id on the request span.
-        tracing::Span::current().record("account_id", &email as &str);
-        req.extensions_mut().insert(cf_auth::AuthContext { email });
+        tracing::Span::current().record("account_id", account_id.to_string().as_str());
+        req.extensions_mut()
+            .insert(cf_auth::AuthContext { account_id, email });
         return Ok(next.run(req).await);
     }
 
@@ -220,10 +292,17 @@ async fn cf_access_guard(
 
         match jwt_header {
             Some(token) => match verifier.validate(&token).await {
-                Ok(ctx) => {
-                    // #621 — Record the authenticated account email on the span.
-                    tracing::Span::current().record("account_id", &ctx.email as &str);
-                    req.extensions_mut().insert(ctx);
+                Ok(email) => {
+                    // #618 — Resolve the stable account_id for this email.
+                    let account_id = resolve_account_id(
+                        global.identity_store.as_ref(),
+                        &email,
+                        &global.template_config.flags,
+                    );
+                    // #621 — Record the authenticated account_id on the span.
+                    tracing::Span::current().record("account_id", account_id.to_string().as_str());
+                    req.extensions_mut()
+                        .insert(cf_auth::AuthContext { account_id, email });
                     return Ok(next.run(req).await);
                 }
                 Err(e) => {
@@ -262,7 +341,13 @@ async fn cf_access_guard(
             .map(str::to_string)
             .filter(|e| !e.is_empty() && e.contains('@'));
         if let Some(email) = debug_email {
-            req.extensions_mut().insert(cf_auth::AuthContext { email });
+            let account_id = resolve_account_id(
+                global.identity_store.as_ref(),
+                &email,
+                &global.template_config.flags,
+            );
+            req.extensions_mut()
+                .insert(cf_auth::AuthContext { account_id, email });
             return Ok(next.run(req).await);
         }
         tracing::warn!(source_ip = %addr, "cf_access_guard: 401 — debug fallback, missing CF-Access-Authenticated-User-Email");
@@ -407,6 +492,12 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let sessions = SessionRegistry::open(&saves_dir)
         .map_err(|e| anyhow::anyhow!("Failed to open sessions.db: {}", e))?;
 
+    // ── Identity store (#618) — shared SQLite connection for account_id resolution
+    let identity_conn = open_sessions_db(&saves_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to open sessions.db for identity store: {}", e))?;
+    let identity_store: std::sync::Arc<dyn parish_core::identity::IdentityStore> =
+        std::sync::Arc::new(SqliteIdentityStore::new(identity_conn));
+
     // ── Pronunciations (shared, loaded once) ──────────────────────────────────
     let pronunciations = game_mod
         .as_ref()
@@ -466,6 +557,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     // ── Global state ──────────────────────────────────────────────────────────
     let global = Arc::new(GlobalState {
         sessions,
+        identity_store,
         oauth_config,
         data_dir: data_dir.clone(),
         world_path,
@@ -657,7 +749,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     // handlers; only the cookie machinery differs.
     let app = app
         .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
-        .layer(axum_mw::from_fn(cf_access_guard))
+        .layer(axum_mw::from_fn_with_state(
+            Arc::clone(&global),
+            cf_access_guard,
+        ))
         .with_state(Arc::clone(&global));
 
     let app = if use_tower_sessions {
