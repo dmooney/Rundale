@@ -1129,20 +1129,10 @@ fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::Cance
 
 // ── Reaction endpoint ──────────────────────────────────────────────────────
 
-/// Returns `true` if `c` should be rejected from a reaction's
-/// `message_snippet` because it could break out of the NPC system prompt
-/// (#498).
-///
-/// Rejects:
-/// - `"` and `\\` — escape out of surrounding JSON/string literals.
-/// - Any Unicode control character (`is_control()`), which covers ASCII
-///   C0 controls (`\n`, `\r`, `\t`, `\0`, etc.) and C1 controls including
-///   U+0085 NEXT LINE.
-/// - U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR — not `control`
-///   under Rust's definition but treated as line breaks by many LLMs.
-fn is_snippet_injection_char(c: char) -> bool {
-    c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
-}
+// Snippet injection validation is shared via parish_core::game_loop::is_snippet_injection_char
+// (#687 security parity). Both the server and Tauri backends delegate here so
+// the rejection logic is guaranteed to be identical.
+use parish_core::game_loop::is_snippet_injection_char;
 
 /// `POST /api/react-to-message` — player reacts to an NPC message with an emoji.
 pub async fn react_to_message(

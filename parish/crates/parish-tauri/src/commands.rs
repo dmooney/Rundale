@@ -1499,14 +1499,9 @@ async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
 
 // ── Reaction commands ──────────────────────────────────────────────────────
 
-/// Returns `true` for characters that are banned from reaction message snippets
-/// to prevent NPC system-prompt injection (#687).
-///
-/// Banned: double-quote, backslash, Unicode line/paragraph separators, and
-/// all ASCII control characters (including newline, carriage return, tab).
-pub fn is_snippet_injection_char(c: char) -> bool {
-    c == '"' || c == '\\' || c == '\u{2028}' || c == '\u{2029}' || c.is_control()
-}
+// Snippet injection validation is shared via parish_core::game_loop::is_snippet_injection_char
+// (#687 security parity). Delegating here guarantees server and Tauri use identical logic.
+pub use parish_core::game_loop::is_snippet_injection_char;
 
 /// Player reacts to an NPC message with an emoji.
 #[tauri::command]
