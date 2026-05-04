@@ -42,6 +42,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 8. **Investigate with Five Whys.** When diagnosing a bug, regression, or unexpected behavior, run the `/five-whys` skill (or apply the method) to reach the root cause before patching.
 9. **Resolve runtime paths from explicit config, not the cwd.** Saves dir, mods dir, data dir, and similar runtime paths must be resolved once at startup (env var, CLI flag, or project-marker probe) and stored on `AppState` / `GlobalState`. Never call `current_dir()`, parent-walks, or marker-file searches from request handlers or per-call helpers — packaged builds, daemonised servers, and `/tmp` working directories all break that assumption (#771). Use `parish_persistence::picker::resolve_project_saves_dir` rather than re-rolling the walk.
 10. **Proof evidence for proof-relevant PRs (enforced):** Runtime, UI, gameplay, CI, harness, and agent-instruction changes must include a changed proof bundle under `docs/proofs/` with a gameplay transcript, screenshot, or gif plus an independent judge verdict in `judge.md`. `just agent-check` and CI reject missing proof or recorded debt.
+11. **Scaling guardrails:** Any PR that touches `AppState`, session persistence, real-time push, inference calls, identity lookups, mod loading, or request-ID tracing must be reviewed against the seam checklist in [docs/agent/scaling-rules.md](docs/agent/scaling-rules.md). Each rule names the seam file it protects.
 
 ## Standard commands
 
