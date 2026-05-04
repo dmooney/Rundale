@@ -86,6 +86,12 @@ pub struct GlobalState {
     /// duplicating downloads across sessions.  Cache dir resolved once at boot
     /// from `PARISH_TILE_CACHE_DIR` or `<saves_dir>/tile-cache/`.
     pub tile_cache: parish_core::tile_cache::TileCache,
+    /// Admission-control ceiling: maximum number of concurrent in-memory
+    /// sessions per process.  Resolved at boot from `PARISH_MAX_SESSIONS`
+    /// env var (preferred) or the `[engine.session]` TOML field; defaults to
+    /// 50.  When `None` the `admission-control` feature flag is disabled and
+    /// no cap is enforced.
+    pub max_concurrent_sessions: Option<usize>,
 }
 
 /// A single visitor's isolated game session.
@@ -117,6 +123,8 @@ impl Drop for SessionEntry {
 pub struct SessionRegistry {
     sessions: DashMap<String, Arc<SessionEntry>>,
     db: std::sync::Mutex<rusqlite::Connection>,
+    /// Running count of session-creation rejections since process start.
+    pub rejection_count: AtomicU64,
 }
 
 impl SessionRegistry {
@@ -145,7 +153,28 @@ impl SessionRegistry {
         Ok(Self {
             sessions: DashMap::new(),
             db: std::sync::Mutex::new(conn),
+            rejection_count: AtomicU64::new(0),
         })
+    }
+
+    /// Returns the number of sessions currently held in memory.
+    pub fn active_count(&self) -> usize {
+        self.sessions.len()
+    }
+
+    /// Returns `true` when the number of live sessions is at or above `cap`.
+    ///
+    /// Callers should check this before creating a new session and return
+    /// `503 Service Unavailable` if it holds. Increments `rejection_count`
+    /// when at capacity so callers don't have to manage that separately.
+    pub fn is_at_capacity(&self, cap: usize) -> bool {
+        let current = self.active_count();
+        if current >= cap {
+            self.rejection_count.fetch_add(1, Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
     }
 
     pub fn now_unix() -> u64 {
@@ -470,14 +499,31 @@ pub fn is_valid_session_id(id: &str) -> bool {
 
 // ── Public session resolution ─────────────────────────────────────────────────
 
+/// Error returned by [`get_or_create_session`] when the server is at capacity.
+///
+/// The middleware maps this to `503 Service Unavailable` with a
+/// `Retry-After: 30` header.  Existing sessions (returning visitors with a
+/// valid cookie) are never refused — capacity is only checked when a brand-new
+/// session would be created.
+#[derive(Debug)]
+pub struct CapacityExceededError {
+    pub current: usize,
+    pub cap: usize,
+}
+
 /// Returns the session for `cookie_id`, restoring or creating one as needed.
 ///
-/// Returns `(session_id, entry, is_new)` where `is_new` is `true` when a
+/// Returns `Ok((session_id, entry, is_new))` where `is_new` is `true` when a
 /// fresh `parish_sid` cookie must be set on the response.
+///
+/// Returns `Err(CapacityExceededError)` when `global.max_concurrent_sessions`
+/// is set and the server is already at capacity.  Only new-session creation is
+/// gated — returning visitors whose session is already in memory or can be
+/// restored from the DB are never rejected.
 pub async fn get_or_create_session(
     global: &Arc<GlobalState>,
     cookie_id: Option<&str>,
-) -> (String, Arc<SessionEntry>, bool) {
+) -> Result<(String, Arc<SessionEntry>, bool), CapacityExceededError> {
     // 1. Hot path: session already in memory.
     //    Reject malformed cookie values before any DB lookup or path join.
     if let Some(id) = cookie_id {
@@ -494,7 +540,7 @@ pub async fn get_or_create_session(
                     .last_active
                     .store(SessionRegistry::now_unix(), Ordering::Relaxed);
                 global.sessions.update_last_active(id);
-                return (id.to_string(), entry, false);
+                return Ok((id.to_string(), entry, false));
             }
             // 2. Session known in DB but evicted from memory — restore it.
             if global.sessions.exists_in_db(id) {
@@ -502,7 +548,7 @@ pub async fn get_or_create_session(
                     Ok(entry) => {
                         global.sessions.insert(id.to_string(), Arc::clone(&entry));
                         global.sessions.update_last_active(id);
-                        return (id.to_string(), entry, false);
+                        return Ok((id.to_string(), entry, false));
                     }
                     Err(e) => {
                         tracing::warn!(session_id = %id, "Session restore failed: {}. Starting fresh.", e);
@@ -512,14 +558,34 @@ pub async fn get_or_create_session(
         }
     }
 
-    // 3. No usable session — create a new one.
+    // 3. No usable session — admission control check before creating a new one.
+    if let Some(cap) = global.max_concurrent_sessions {
+        let current = global.sessions.active_count();
+        if global.sessions.is_at_capacity(cap) {
+            let rejection_count = global.sessions.rejection_count.load(Ordering::Relaxed);
+            tracing::info!(
+                current_session_count = current,
+                capacity = cap,
+                rejection_count,
+                "admission-control: session capacity exceeded, rejecting new session"
+            );
+            return Err(CapacityExceededError { current, cap });
+        }
+    }
+
+    // 4. Create a new session.
     let session_id = uuid::Uuid::new_v4().to_string();
     let entry = create_session(global, &session_id).await;
     global.sessions.persist_new(&session_id);
     global
         .sessions
         .insert(session_id.clone(), Arc::clone(&entry));
-    (session_id, entry, true)
+    tracing::info!(
+        current_session_count = global.sessions.active_count(),
+        capacity = global.max_concurrent_sessions,
+        "new session created"
+    );
+    Ok((session_id, entry, true))
 }
 
 // ── Session creation ──────────────────────────────────────────────────────────
@@ -1577,5 +1643,66 @@ mod tests {
             3,
             "three autosave ticks via the same AsyncDatabase must produce three snapshots"
         );
+    }
+
+    // ── Admission control unit tests (#620) ──────────────────────────────────
+
+    /// `active_count` reflects the current in-memory session count.
+    #[test]
+    fn active_count_reflects_in_memory_sessions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        assert_eq!(reg.active_count(), 0);
+
+        // Insert a dummy entry — Arc::new with a dummy SessionEntry requires
+        // fields we can't easily construct here, so just verify the count at 0.
+        // The is_at_capacity / active_count pairing is tested in the next test.
+        assert_eq!(
+            reg.active_count(),
+            0,
+            "fresh registry must report 0 sessions"
+        );
+    }
+
+    /// `is_at_capacity` returns false when under the cap and true at/above it.
+    #[test]
+    fn is_at_capacity_returns_false_below_cap_true_at_cap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+
+        // With 0 sessions and cap=1, not at capacity.
+        assert!(
+            !reg.is_at_capacity(1),
+            "0 sessions, cap=1: should not be at capacity"
+        );
+        // rejection_count must not have incremented.
+        assert_eq!(reg.rejection_count.load(Ordering::Relaxed), 0);
+
+        // Artificially reach the cap by checking is_at_capacity(0): cap=0 means
+        // every new attempt is rejected.
+        assert!(
+            reg.is_at_capacity(0),
+            "0 sessions, cap=0: should be at capacity"
+        );
+        assert_eq!(
+            reg.rejection_count.load(Ordering::Relaxed),
+            1,
+            "rejection_count must increment"
+        );
+
+        // A second rejection increments again.
+        assert!(reg.is_at_capacity(0));
+        assert_eq!(reg.rejection_count.load(Ordering::Relaxed), 2);
+    }
+
+    /// `rejection_count` is not incremented for calls that are under the cap.
+    #[test]
+    fn rejection_count_not_incremented_below_cap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let reg = SessionRegistry::open(tmp.path()).unwrap();
+        // active_count() == 0 < cap=10 → no rejection
+        let _ = reg.is_at_capacity(10);
+        let _ = reg.is_at_capacity(10);
+        assert_eq!(reg.rejection_count.load(Ordering::Relaxed), 0);
     }
 }

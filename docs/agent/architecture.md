@@ -97,6 +97,32 @@ All **shared game logic** lives in the workspace's leaf crates (`parish-config`,
 
 All modes (Tauri, CLI/headless, Axum web server, future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in a leaf crate + re-export from `parish-core`, then wire it from every entry point (`parish/crates/parish-tauri/src/commands.rs`, `parish/crates/parish-server/src/routes.rs`, `parish/crates/parish-cli/src/headless.rs`, `parish/crates/parish-cli/src/testing.rs`).
 
+## Session capacity
+
+The web server (`parish-server`) keeps one `SessionEntry` in memory per active visitor. Each entry holds a full copy of the game state: world graph, NPC manager, inference queue, and associated tick tasks. Memory usage is approximately:
+
+```
+sessions * ~50 MB = total per-process memory footprint
+```
+
+### Admission-control ceiling (#620)
+
+`GlobalState.max_concurrent_sessions` caps the number of live in-memory sessions per process. When the ceiling is reached, new session creation is refused with `503 Service Unavailable` and a `Retry-After: 30` header. Returning visitors (whose session is already in memory or can be restored from the DB) are never refused.
+
+**Configuration** (resolution order, highest wins):
+
+1. `PARISH_MAX_SESSIONS` environment variable (`usize`).
+2. `[engine.session] max_concurrent_sessions` in `parish.toml`.
+3. Compiled-in default: **50**.
+
+**Feature flag**: `admission-control` — default-on (use `is_disabled` to kill-switch). Set via `parish-flags.json` in the data directory.
+
+**Mode parity**: admission control is server-only by nature — the CLI and Tauri desktop modes have a single session per process and do not enforce a cap. `SessionRegistry::is_at_capacity` is only called from the server middleware.
+
+### Stale-session eviction
+
+Sessions inactive for more than 1 day are evicted from the in-memory `DashMap` (the cookie remains valid; the next visit restores from `saves/sessions.db`). Sessions inactive for more than 30 days are purged from disk (DB row + `saves/<id>/` directory) by a background task that runs hourly.
+
 ## Documentation Map
 
 Start at [docs/index.md](../index.md) for the full hub. Key paths:

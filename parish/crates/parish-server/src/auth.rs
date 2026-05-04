@@ -150,46 +150,67 @@ pub async fn callback_google(
         "OAuth callback: resolving target session"
     );
 
-    let target_session_id =
-        if let Some(existing) = global.sessions.find_by_oauth("google", &provider_user_id) {
-            // Try to actually resolve the linked session.  If it comes back
-            // as `is_new` the session's save data is gone (e.g. different
-            // worktree, wiped saves/) and the middleware will overwrite
-            // whatever cookie we set.  Re-link to the caller's current
-            // session instead so the user isn't stuck in a login loop.
-            let (resolved_id, _, is_new) = get_or_create_session(&global, Some(&existing)).await;
-            if !is_new {
-                resolved_id
-            } else {
-                tracing::info!(
-                    stale_session = %existing,
-                    replacement = %resolved_id,
-                    "OAuth: linked session unrestorable, re-linking"
-                );
-                let sid = match current_session_id.as_deref() {
-                    Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                    _ => resolved_id,
-                };
-                global
-                    .sessions
-                    .link_oauth("google", &provider_user_id, &sid, &display_name);
-                sid
+    let target_session_id = if let Some(existing) =
+        global.sessions.find_by_oauth("google", &provider_user_id)
+    {
+        // Try to actually resolve the linked session.  If it comes back
+        // as `is_new` the session's save data is gone (e.g. different
+        // worktree, wiped saves/) and the middleware will overwrite
+        // whatever cookie we set.  Re-link to the caller's current
+        // session instead so the user isn't stuck in a login loop.
+        let (resolved_id, _, is_new) = match get_or_create_session(&global, Some(&existing)).await {
+            Ok(t) => t,
+            Err(_) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::RETRY_AFTER, "30")],
+                    "Server at capacity",
+                )
+                    .into_response();
             }
+        };
+        if !is_new {
+            resolved_id
         } else {
-            // Link the current anonymous session to this Google account.
+            tracing::info!(
+                stale_session = %existing,
+                replacement = %resolved_id,
+                "OAuth: linked session unrestorable, re-linking"
+            );
             let sid = match current_session_id.as_deref() {
                 Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                _ => {
-                    let (new_id, _, _) = get_or_create_session(&global, None).await;
-                    global.sessions.persist_new(&new_id);
-                    new_id
-                }
+                _ => resolved_id,
             };
             global
                 .sessions
                 .link_oauth("google", &provider_user_id, &sid, &display_name);
             sid
+        }
+    } else {
+        // Link the current anonymous session to this Google account.
+        let sid = match current_session_id.as_deref() {
+            Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+            _ => {
+                let (new_id, _, _) = match get_or_create_session(&global, None).await {
+                    Ok(t) => t,
+                    Err(_) => {
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            [(header::RETRY_AFTER, "30")],
+                            "Server at capacity",
+                        )
+                            .into_response();
+                    }
+                };
+                global.sessions.persist_new(&new_id);
+                new_id
+            }
         };
+        global
+            .sessions
+            .link_oauth("google", &provider_user_id, &sid, &display_name);
+        sid
+    };
 
     tracing::info!(
         target_session_id = %target_session_id,
@@ -223,7 +244,17 @@ pub async fn callback_google(
 /// starts clean.  The old session (and its saves) remain intact: the user can
 /// recover it by logging in again with the same Google account.
 pub async fn logout(State(global): State<Arc<GlobalState>>) -> Response {
-    let (new_session_id, _, _) = get_or_create_session(&global, None).await;
+    let (new_session_id, _, _) = match get_or_create_session(&global, None).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(header::RETRY_AFTER, "30")],
+                "Server at capacity",
+            )
+                .into_response();
+        }
+    };
     global.sessions.persist_new(&new_session_id);
 
     let cookie = format!(
@@ -373,40 +404,61 @@ pub async fn callback_google_tower(
         "OAuth callback (tower): resolving target session"
     );
 
-    let target_session_id =
-        if let Some(existing) = global.sessions.find_by_oauth("google", &provider_user_id) {
-            let (resolved_id, _, is_new) = get_or_create_session(&global, Some(&existing)).await;
-            if !is_new {
-                resolved_id
-            } else {
-                tracing::info!(
-                    stale_session = %existing,
-                    replacement = %resolved_id,
-                    "OAuth (tower): linked session unrestorable, re-linking"
-                );
-                let sid = match current_session_id.as_deref() {
-                    Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                    _ => resolved_id,
-                };
-                global
-                    .sessions
-                    .link_oauth("google", &provider_user_id, &sid, &display_name);
-                sid
+    let target_session_id = if let Some(existing) =
+        global.sessions.find_by_oauth("google", &provider_user_id)
+    {
+        let (resolved_id, _, is_new) = match get_or_create_session(&global, Some(&existing)).await {
+            Ok(t) => t,
+            Err(_) => {
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::RETRY_AFTER, "30")],
+                    "Server at capacity",
+                )
+                    .into_response();
             }
+        };
+        if !is_new {
+            resolved_id
         } else {
+            tracing::info!(
+                stale_session = %existing,
+                replacement = %resolved_id,
+                "OAuth (tower): linked session unrestorable, re-linking"
+            );
             let sid = match current_session_id.as_deref() {
                 Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                _ => {
-                    let (new_id, _, _) = get_or_create_session(&global, None).await;
-                    global.sessions.persist_new(&new_id);
-                    new_id
-                }
+                _ => resolved_id,
             };
             global
                 .sessions
                 .link_oauth("google", &provider_user_id, &sid, &display_name);
             sid
+        }
+    } else {
+        let sid = match current_session_id.as_deref() {
+            Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+            _ => {
+                let (new_id, _, _) = match get_or_create_session(&global, None).await {
+                    Ok(t) => t,
+                    Err(_) => {
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            [(header::RETRY_AFTER, "30")],
+                            "Server at capacity",
+                        )
+                            .into_response();
+                    }
+                };
+                global.sessions.persist_new(&new_id);
+                new_id
+            }
         };
+        global
+            .sessions
+            .link_oauth("google", &provider_user_id, &sid, &display_name);
+        sid
+    };
 
     // Fix: cycle the session ID to prevent session fixation attacks (#364).
     // An attacker who obtained the pre-auth session ID cannot use it after
@@ -438,7 +490,17 @@ pub async fn callback_google_tower(
 /// tower-session and creates a fresh anonymous session, so the next
 /// request behaves as if a new visitor arrived.
 pub async fn logout_tower(State(global): State<Arc<GlobalState>>, session: Session) -> Response {
-    let (new_session_id, _, _) = get_or_create_session(&global, None).await;
+    let (new_session_id, _, _) = match get_or_create_session(&global, None).await {
+        Ok(t) => t,
+        Err(_) => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(header::RETRY_AFTER, "30")],
+                "Server at capacity",
+            )
+                .into_response();
+        }
+    };
     global.sessions.persist_new(&new_session_id);
 
     if let Err(e) = session
