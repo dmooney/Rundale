@@ -40,6 +40,8 @@ use parish_core::persistence::Database;
 use parish_core::persistence::picker::{SaveFileInfo, discover_saves, new_save_path};
 use parish_core::persistence::snapshot::GameSnapshot;
 
+use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
+
 use crate::middleware::SessionId;
 use crate::session::GlobalState;
 use crate::state::{AppState, ConversationRuntimeState, SaveState};
@@ -293,7 +295,9 @@ pub async fn submit_input(
             // Emit the player's own text as a dialogue bubble only for actual dialogue
             let player_msg = text_log("player", format!("> {}", raw));
             let player_msg_id = player_msg.id.clone();
-            state.event_bus.emit("text-log", &player_msg);
+            state
+                .event_bus
+                .emit_named(Topic::TextLog, "text-log", &player_msg);
             let raw_for_reactions = raw.clone();
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
@@ -328,12 +332,12 @@ async fn rebuild_inference(state: &Arc<AppState>) {
         )
     };
 
-    let any_client = if provider_name == "simulator" {
-        AnyClient::simulator()
-    } else {
-        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
-            state.event_bus.emit(
-                "text-log",
+    let any_client =
+        if provider_name == "simulator" {
+            AnyClient::simulator()
+        } else {
+            if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
+                state.event_bus.emit_named(Topic::TextLog, "text-log",
                 &text_log(
                     "system",
                     format!(
@@ -342,19 +346,19 @@ async fn rebuild_inference(state: &Arc<AppState>) {
                     ),
                 ),
             );
-        }
-        let provider_enum =
-            parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
-        let built = parish_core::inference::build_client(
-            &provider_enum,
-            &base_url,
-            api_key.as_deref(),
-            &state.inference_config, // (#417) use TOML-configured timeouts
-        );
-        let mut client_guard = state.client.lock().await;
-        *client_guard = Some(built.clone());
-        built
-    };
+            }
+            let provider_enum =
+                parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
+            let built = parish_core::inference::build_client(
+                &provider_enum,
+                &base_url,
+                api_key.as_deref(),
+                &state.inference_config, // (#417) use TOML-configured timeouts
+            );
+            let mut client_guard = state.client.lock().await;
+            *client_guard = Some(built.clone());
+            built
+        };
 
     // Abort the old inference worker before spawning a replacement to prevent
     // orphaned tasks from accumulating (each holds an HTTP client and channel).
@@ -399,7 +403,9 @@ async fn emit_world_update(state: &Arc<AppState>) {
     let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
     ws.name_hints =
         parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-    state.event_bus.emit("world-update", &ws);
+    state
+        .event_bus
+        .emit_named(Topic::WorldUpdate, "world-update", &ws);
 }
 
 /// Handles `/command` system inputs using the shared command handler.
@@ -442,7 +448,8 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
             }
             CommandEffect::Quit => {
                 // Web server cannot be quit from the game.
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log(
                         "system",
@@ -451,17 +458,23 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                 );
             }
             CommandEffect::ToggleMap => {
-                state.event_bus.emit("toggle-full-map", &());
+                state
+                    .event_bus
+                    .emit_named(Topic::UiControl, "toggle-full-map", &());
             }
             CommandEffect::OpenDesigner => {
-                state.event_bus.emit("open-designer", &());
+                state
+                    .event_bus
+                    .emit_named(Topic::UiControl, "open-designer", &());
             }
             CommandEffect::SaveGame => {
                 let msg = match do_save_game_inner(state).await {
                     Ok(msg) => msg,
                     Err(e) => format!("Save failed: {}", e),
                 };
-                state.event_bus.emit("text-log", &text_log("system", msg));
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
             }
             CommandEffect::ForkBranch(name) => {
                 let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
@@ -469,28 +482,37 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                     Ok(msg) => msg,
                     Err(e) => format!("Fork failed: {}", e),
                 };
-                state.event_bus.emit("text-log", &text_log("system", msg));
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
             }
             CommandEffect::LoadBranch(_) => {
                 // Open the save picker in the frontend
-                state.event_bus.emit("save-picker", &());
+                state
+                    .event_bus
+                    .emit_named(Topic::UiControl, "save-picker", &());
             }
             CommandEffect::ListBranches => {
                 let msg = match do_list_branches_inner(state).await {
                     Ok(text) => text,
                     Err(e) => format!("Failed to list branches: {}", e),
                 };
-                state.event_bus.emit("text-log", &text_log("system", msg));
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
             }
             CommandEffect::ShowLog => {
                 let msg = match do_branch_log_inner(state).await {
                     Ok(text) => text,
                     Err(e) => format!("Failed to show log: {}", e),
                 };
-                state.event_bus.emit("text-log", &text_log("system", msg));
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
             }
             CommandEffect::Debug(_) => {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log("system", "Debug commands are not available in web mode."),
                 );
@@ -500,7 +522,9 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                 let cancel = tokio_util::sync::CancellationToken::new();
                 spawn_loading_animation(Arc::clone(state), cancel.clone());
                 let msg = format!("Showing spinner for {} seconds...", secs);
-                state.event_bus.emit("text-log", &text_log("system", msg));
+                state
+                    .event_bus
+                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
                 tokio::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
                     cancel.cancel();
@@ -508,13 +532,15 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
             }
             CommandEffect::NewGame => match do_new_game_inner(state).await {
                 Ok(()) => {
-                    state.event_bus.emit(
+                    state.event_bus.emit_named(
+                        Topic::TextLog,
                         "text-log",
                         &text_log("system", "A new chapter begins in the parish..."),
                     );
                 }
                 Err(e) => {
-                    state.event_bus.emit(
+                    state.event_bus.emit_named(
+                        Topic::TextLog,
                         "text-log",
                         &text_log("system", format!("New game failed: {}", e)),
                     );
@@ -530,15 +556,18 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
                 });
             }
             CommandEffect::ApplyTheme(name, mode) => {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::UiControl,
                     "theme-switch",
                     &serde_json::json!({ "name": name, "mode": mode }),
                 );
             }
             CommandEffect::ApplyTiles(id) => {
-                state
-                    .event_bus
-                    .emit("tiles-switch", &serde_json::json!({ "id": id }));
+                state.event_bus.emit_named(
+                    Topic::UiControl,
+                    "tiles-switch",
+                    &serde_json::json!({ "id": id }),
+                );
             }
         }
     }
@@ -550,7 +579,9 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
             TextPresentation::Tabular => text_log_typed("system", result.response, "tabular"),
             TextPresentation::Prose => text_log("system", result.response),
         };
-        state.event_bus.emit("text-log", &payload);
+        state
+            .event_bus
+            .emit_named(Topic::TextLog, "text-log", &payload);
     }
 
     // Emit updated world snapshot.
@@ -560,7 +591,9 @@ async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<App
     let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
     ws.name_hints =
         parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-    state.event_bus.emit("world-update", &ws);
+    state
+        .event_bus
+        .emit_named(Topic::WorldUpdate, "world-update", &ws);
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
@@ -594,7 +627,8 @@ async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<A
                      {} tick(s) elapsed; proceeding with parsed intent",
                     gen_after.wrapping_sub(gen_before),
                 );
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log(
                         "system",
@@ -634,7 +668,8 @@ async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<A
         if let Some(target) = move_target {
             handle_movement(&target, state).await;
         } else {
-            state.event_bus.emit(
+            state.event_bus.emit_named(
+                Topic::TextLog,
                 "text-log",
                 &text_log("system", "And where would ye be off to?"),
             );
@@ -765,19 +800,23 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
 
     // Emit travel-start animation payload before text messages
     if let Some(travel_payload) = &effects.travel_start {
-        state.event_bus.emit("travel-start", travel_payload);
+        state
+            .event_bus
+            .emit_named(Topic::TravelStart, "travel-start", travel_payload);
     }
 
     // Emit each player-visible message
     for msg in &effects.messages {
         state
             .event_bus
-            .emit("text-log", &text_log(msg.source, &msg.text));
+            .emit_named(Topic::TextLog, "text-log", &text_log(msg.source, &msg.text));
     }
 
     // Emit travel encounter line if one fired
     if let Some(line) = encounter_line {
-        state.event_bus.emit("text-log", &text_log("system", &line));
+        state
+            .event_bus
+            .emit_named(Topic::TextLog, "text-log", &text_log("system", &line));
     }
 
     // Emit NPC arrival reactions — stream gradually like normal NPC dialogue
@@ -827,12 +866,15 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
             &reaction_model,
             None,
             |_turn_id, npc_name| {
-                state
-                    .event_bus
-                    .emit("text-log", &text_log(npc_name, String::new()));
+                state.event_bus.emit_named(
+                    Topic::TextLog,
+                    "text-log",
+                    &text_log(npc_name, String::new()),
+                );
             },
             |turn_id, source, batch| {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::InferenceToken,
                     "stream-token",
                     &StreamTokenPayload {
                         token: batch.to_string(),
@@ -845,9 +887,11 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         .await;
 
         // Finalise the streaming state so the frontend marks the last entry done.
-        state
-            .event_bus
-            .emit("stream-end", &StreamEndPayload { hints: vec![] });
+        state.event_bus.emit_named(
+            Topic::InferenceToken,
+            "stream-end",
+            &StreamEndPayload { hints: vec![] },
+        );
     }
 
     // Emit updated world snapshot after a successful move
@@ -866,7 +910,9 @@ async fn handle_movement(target: &str, state: &Arc<AppState>) {
         let mut ws = parish_core::ipc::snapshot_from_world(&world, &transport);
         ws.name_hints =
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-        state.event_bus.emit("world-update", &ws);
+        state
+            .event_bus
+            .emit_named(Topic::WorldUpdate, "world-update", &ws);
     }
 }
 
@@ -882,7 +928,9 @@ async fn handle_look(state: &Arc<AppState>) {
         &transport.label,
         false,
     );
-    state.event_bus.emit("text-log", &text_log("system", text));
+    state
+        .event_bus
+        .emit_named(Topic::TextLog, "text-log", &text_log("system", text));
 }
 
 struct TurnOutcome {
@@ -929,7 +977,8 @@ async fn run_npc_turn(
     let (token_tx, token_rx) = mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
-    state.event_bus.emit(
+    state.event_bus.emit_named(
+        Topic::TextLog,
         "text-log",
         &text_log_for_stream_turn(display_label.clone(), String::new(), req_id),
     );
@@ -951,11 +1000,14 @@ async fn run_npc_turn(
         Ok(rx) => rx,
         Err(e) => {
             tracing::error!("Failed to submit inference request: {}", e);
-            state
-                .event_bus
-                .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
+            state.event_bus.emit_named(
+                Topic::InferenceToken,
+                "stream-turn-end",
+                &StreamTurnEndPayload { turn_id: req_id },
+            );
             if player_initiated {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log(
                         "system",
@@ -975,7 +1027,8 @@ async fn run_npc_turn(
         async move {
             parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
                 cancel.cancel();
-                state_clone.event_bus.emit(
+                state_clone.event_bus.emit_named(
+                    Topic::InferenceToken,
                     "stream-token",
                     &StreamTokenPayload {
                         token: batch.to_string(),
@@ -1002,9 +1055,11 @@ async fn run_npc_turn(
     )
     .await;
     let _ = stream_handle.await;
-    state
-        .event_bus
-        .emit("stream-turn-end", &StreamTurnEndPayload { turn_id: req_id });
+    state.event_bus.emit_named(
+        Topic::InferenceToken,
+        "stream-turn-end",
+        &StreamTurnEndPayload { turn_id: req_id },
+    );
 
     let response = match outcome {
         InferenceAwaitOutcome::Response(r) => r,
@@ -1014,7 +1069,8 @@ async fn run_npc_turn(
                 "NPC inference response channel closed without a reply",
             );
             if player_initiated {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log("system", "The storyteller has wandered off mid-tale."),
                 );
@@ -1025,7 +1081,8 @@ async fn run_npc_turn(
         InferenceAwaitOutcome::TimedOut { secs } => {
             tracing::warn!(req_id, secs, "NPC inference response timed out",);
             if player_initiated {
-                state.event_bus.emit(
+                state.event_bus.emit_named(
+                    Topic::TextLog,
                     "text-log",
                     &text_log("system", "The storyteller is lost in thought. Try again."),
                 );
@@ -1039,7 +1096,8 @@ async fn run_npc_turn(
         tracing::warn!("Inference error: {:?}", response.error);
         if player_initiated {
             let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-            state.event_bus.emit(
+            state.event_bus.emit_named(
+                Topic::TextLog,
                 "text-log",
                 &text_log("system", INFERENCE_FAILURE_MESSAGES[idx]),
             );
@@ -1117,14 +1175,17 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
 
     if !npc_present {
         let idx = REQUEST_ID.fetch_add(1, Ordering::SeqCst) as usize % IDLE_MESSAGES.len();
-        state
-            .event_bus
-            .emit("text-log", &text_log("system", IDLE_MESSAGES[idx]));
+        state.event_bus.emit_named(
+            Topic::TextLog,
+            "text-log",
+            &text_log("system", IDLE_MESSAGES[idx]),
+        );
         return;
     }
 
     if trimmed.is_empty() {
-        state.event_bus.emit(
+        state.event_bus.emit_named(
+            Topic::TextLog,
             "text-log",
             &text_log(
                 "system",
@@ -1135,8 +1196,7 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
     }
 
     let Some(queue) = queue else {
-        state.event_bus.emit(
-            "text-log",
+        state.event_bus.emit_named(Topic::TextLog, "text-log",
             &text_log(
                 "system",
                 "There's someone here, but the LLM is not configured — set a provider with /provider.",
@@ -1146,7 +1206,8 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
     };
 
     if targets.is_empty() {
-        state.event_bus.emit(
+        state.event_bus.emit_named(
+            Topic::TextLog,
             "text-log",
             &text_log("system", "No one here answers to that name just now."),
         );
@@ -1260,7 +1321,8 @@ async fn handle_npc_conversation(raw: String, target_names: Vec<String>, state: 
     // field stays disabled through every NPC's response. (PR #222 emitted
     // one per turn, which let the input flicker open between NPCs — that
     // contradicted the explicit user spec.)
-    state.event_bus.emit(
+    state.event_bus.emit_named(
+        Topic::InferenceToken,
         "stream-end",
         &StreamEndPayload {
             hints: combined_hints,
@@ -1402,7 +1464,8 @@ async fn run_idle_banter(state: &Arc<AppState>) {
 
     // Single stream-end after the entire idle-banter sequence (see comment
     // in handle_npc_conversation for the rationale).
-    state.event_bus.emit(
+    state.event_bus.emit_named(
+        Topic::InferenceToken,
         "stream-end",
         &StreamEndPayload {
             hints: combined_hints,
@@ -1457,7 +1520,8 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>) {
             }
             world.clock.pause();
         }
-        state.event_bus.emit(
+        state.event_bus.emit_named(
+            Topic::TextLog,
             "text-log",
             &text_log(
                 "system",
@@ -1486,7 +1550,8 @@ fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::Cance
         // Emit an initial frame immediately
         anim.tick();
         let (r, g, b) = anim.current_color_rgb();
-        state.event_bus.emit(
+        state.event_bus.emit_named(
+            Topic::Loading,
             "loading",
             &LoadingPayload {
                 active: true,
@@ -1502,8 +1567,7 @@ fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::Cance
                 _ = tokio::time::sleep(std::time::Duration::from_millis(300)) => {
                     anim.tick();
                     let (r, g, b) = anim.current_color_rgb();
-                    state.event_bus.emit(
-                        "loading",
+                    state.event_bus.emit_named(Topic::Loading, "loading",
                         &LoadingPayload {
                             active: true,
                             spinner: Some(anim.spinner_char().to_string()),
@@ -1516,7 +1580,8 @@ fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::Cance
         }
 
         // Final "off" event
-        state.event_bus.emit(
+        state.event_bus.emit_named(
+            Topic::Loading,
             "loading",
             &LoadingPayload {
                 active: false,
@@ -1695,7 +1760,8 @@ fn emit_npc_reactions(
                 }
             }
 
-            state.event_bus.emit(
+            state.event_bus.emit_named(
+                Topic::NpcReaction,
                 "npc-reaction",
                 &NpcReactionPayload {
                     message_id: player_msg_id.clone(),
@@ -2000,7 +2066,9 @@ async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
         ws.name_hints =
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-        state.event_bus.emit("world-update", &ws);
+        state
+            .event_bus
+            .emit_named(Topic::WorldUpdate, "world-update", &ws);
     }
 
     Ok(())
@@ -2122,7 +2190,9 @@ pub async fn load_branch(
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         drop(npc_manager);
         drop(world);
-        state.event_bus.emit("world-update", &ws);
+        state
+            .event_bus
+            .emit_named(Topic::WorldUpdate, "world-update", &ws);
     }
 
     let filename = path
@@ -2130,7 +2200,8 @@ pub async fn load_branch(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    state.event_bus.emit(
+    state.event_bus.emit_named(
+        Topic::TextLog,
         "text-log",
         &text_log(
             "system",
@@ -2222,7 +2293,8 @@ pub async fn new_game(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    state.event_bus.emit(
+    state.event_bus.emit_named(
+        Topic::TextLog,
         "text-log",
         &text_log("system", "A new chapter begins in the parish..."),
     );
@@ -2612,19 +2684,15 @@ pub(crate) mod tests {
         (prompts, handle)
     }
 
-    fn drain_text_logs(
-        rx: &mut tokio::sync::broadcast::Receiver<crate::state::ServerEvent>,
-    ) -> Vec<TextLogPayload> {
+    fn drain_text_logs(stream: &mut parish_core::event_bus::EventStream) -> Vec<TextLogPayload> {
         let mut logs = Vec::new();
         loop {
-            match rx.try_recv() {
-                Ok(event) if event.event == "text-log" => {
+            match stream.try_recv() {
+                Some(event) if event.event == "text-log" => {
                     logs.push(serde_json::from_value(event.payload).unwrap());
                 }
-                Ok(_) => {}
-                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
-                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                Some(_) => {}
+                None => break,
             }
         }
         logs
@@ -2748,7 +2816,7 @@ pub(crate) mod tests {
         }
 
         // Subscribe BEFORE the dispatch so we can count stream-end events.
-        let mut rx = state.event_bus.subscribe();
+        let mut rx = state.event_bus.subscribe(&[]);
 
         let (prompts, worker) = install_scripted_inference_queue(
             &state,
@@ -2806,11 +2874,9 @@ pub(crate) mod tests {
         let mut stream_end_count = 0;
         loop {
             match rx.try_recv() {
-                Ok(event) if event.event == "stream-end" => stream_end_count += 1,
-                Ok(_) => {}
-                Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
-                Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
-                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                Some(event) if event.event == "stream-end" => stream_end_count += 1,
+                Some(_) => {}
+                None => break,
             }
         }
         assert_eq!(
@@ -2969,7 +3035,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn tick_inactivity_auto_pauses_after_full_minute_of_silence() {
         let state = test_app_state();
-        let mut rx = state.event_bus.subscribe();
+        let mut rx = state.event_bus.subscribe(&[]);
         let player_location = {
             let world = state.world.lock().await;
             world.player_location
@@ -3310,7 +3376,7 @@ pub(crate) mod tests {
         use parish_core::npc::Npc;
 
         let state = test_app_state();
-        let mut rx = state.event_bus.subscribe();
+        let mut rx = state.event_bus.subscribe(&[]);
 
         let start_loc = {
             let world = state.world.lock().await;
@@ -3359,6 +3425,8 @@ pub(crate) mod tests {
                         reacting_npcs.insert(payload.source);
                     }
                 }
+                // EventStream::recv() returns Ok(event) or Err(Closed).
+                // On timeout or channel close, break.
                 _ => break,
             }
         }
@@ -3399,7 +3467,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn toctou_race_detection_emits_warning_on_generation_change() {
         let state = test_app_state();
-        let mut rx = state.event_bus.subscribe();
+        let mut rx = state.event_bus.subscribe(&[]);
 
         // Step 1: record the generation before "inference".
         let gen_before = {
@@ -3431,7 +3499,8 @@ pub(crate) mod tests {
         // Step 4: verify the warning path fires and emits the stale-world
         // text-log event (replicate the guard logic from handle_game_input).
         if gen_after != gen_before {
-            state.event_bus.emit(
+            state.event_bus.emit_named(
+                Topic::TextLog,
                 "text-log",
                 &text_log(
                     "system",

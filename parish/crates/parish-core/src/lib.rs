@@ -8,6 +8,7 @@
 // Retained modules — IPC, orchestration glue, and mod loading
 pub mod debug_snapshot;
 pub mod editor;
+pub mod event_bus;
 pub mod game_mod;
 pub mod game_session;
 pub mod inference_guard;

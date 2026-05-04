@@ -32,6 +32,8 @@ use parish_core::ipc::editor::{self, EditorSaveResponse, EditorSession};
 // Shared validation caps and helpers (fix #750 — mode parity).
 use parish_core::ipc::editor::{validate_location_payload, validate_npc_payload};
 
+use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
+
 use crate::cf_auth::AuthContext;
 use crate::state::AppState;
 
@@ -540,7 +542,9 @@ async fn reload_live_world_from_disk(state: &Arc<AppState>) -> Result<(), String
         ws
     };
 
-    state.event_bus.emit("world-update", &snapshot);
+    state
+        .event_bus
+        .emit_named(Topic::WorldUpdate, "world-update", &snapshot);
     Ok(())
 }
 

@@ -22,6 +22,8 @@ use axum::extract::{Extension, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 
+use parish_core::event_bus::EventBus as EventBusTrait;
+
 use crate::cf_auth::SessionToken;
 use crate::state::AppState;
 
@@ -127,18 +129,23 @@ pub async fn ws_handler(
 
 /// Handles a single WebSocket connection.
 ///
-/// Subscribes to the per-session [`EventBus`] and forwards each event as a
-/// JSON text frame until the client disconnects or the bus is dropped.
-/// The `_guard` is kept alive for the duration of the connection and removes
-/// the email from `active_ws` when it is dropped.
+/// Subscribes to the per-session [`BroadcastEventBus`] and forwards each
+/// event as a JSON text frame until the client disconnects or the bus is
+/// dropped.  The `_guard` is kept alive for the duration of the connection
+/// and removes the email from `active_ws` when it is dropped.
+///
+/// The subscription is a firehose (empty topic filter) so all events are
+/// delivered — matching the previous behavior.  A `?topics=` query param
+/// could be wired here in the future for per-client filtering.
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: ActiveWsGuard) {
-    let mut rx = state.event_bus.subscribe();
+    // Empty filter = firehose (all topics).
+    let mut stream = state.event_bus.subscribe(&[]);
     tracing::info!("WebSocket client connected");
 
     loop {
         tokio::select! {
-            event = rx.recv() => {
-                match event {
+            result = stream.recv() => {
+                match result {
                     Ok(server_event) => {
                         match serde_json::to_string(&server_event) {
                             Ok(json) => {
@@ -151,10 +158,7 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>, _guard: Acti
                             }
                         }
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                        tracing::warn!("WebSocket client lagged, dropped {} events", n);
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(parish_core::event_bus::RecvError::Closed) => {
                         break;
                     }
                 }
