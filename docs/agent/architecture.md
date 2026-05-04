@@ -97,6 +97,27 @@ All **shared game logic** lives in the workspace's leaf crates (`parish-config`,
 
 All modes (Tauri, CLI/headless, Axum web server, future modes) must have feature parity. Never add a feature to one mode that should apply to all. Implement shared logic in a leaf crate + re-export from `parish-core`, then wire it from every entry point (`parish/crates/parish-tauri/src/commands.rs`, `parish/crates/parish-server/src/routes.rs`, `parish/crates/parish-cli/src/headless.rs`, `parish/crates/parish-cli/src/testing.rs`).
 
+## Idempotency
+
+See [docs/agent/idempotency.md](idempotency.md) for the full spec.
+
+The HTTP server implements `Idempotency-Key` replay (#619) for mutating routes via
+`middleware::idempotency_middleware` in `parish/crates/parish-server/src/middleware.rs`.
+
+**Supported routes** (POST):
+
+| Route | Handler |
+|---|---|
+| `POST /api/save-game` | `routes::save_game` |
+| `POST /api/create-branch` | `routes::create_branch` |
+| `POST /api/new-save-file` | `routes::new_save_file` |
+| `POST /api/new-game` | `routes::new_game` |
+| `POST /api/editor-save` | `editor_routes::editor_save` |
+
+**Cache:** process-wide LRU, capacity 1 000 entries, TTL 24 h. Stored on `GlobalState::idempotency_cache`.
+
+**Feature flag:** `idempotency-key` — default-on; disable via `parish-flags.json`.
+
 ## Session capacity
 
 The web server (`parish-server`) keeps one `SessionEntry` in memory per active visitor. Each entry holds a full copy of the game state: world graph, NPC manager, inference queue, and associated tick tasks. Memory usage is approximately:

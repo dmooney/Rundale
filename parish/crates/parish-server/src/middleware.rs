@@ -1,4 +1,4 @@
-//! Session cookie middleware and per-request tracing middleware.
+//! Session cookie middleware, idempotency middleware, and per-request tracing middleware.
 //!
 //! Two session implementations live in this module:
 //!
@@ -18,6 +18,9 @@
 //! via [`SessionRegistry`] and injects it as an Axum [`Extension`] so
 //! every downstream route handler can access it.
 //!
+//! The [`idempotency_middleware`] handles the `Idempotency-Key` header for
+//! mutating routes (#619).
+//!
 //! ## Request-ID middleware (`#621`)
 //!
 //! [`request_id_layer`] runs at the outermost layer of the middleware stack
@@ -36,15 +39,17 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use axum::body::Body;
+use axum::body::{Body, to_bytes};
 use axum::extract::State;
-use axum::http::{HeaderName, HeaderValue, Request, StatusCode, header};
+use axum::http::{HeaderName, HeaderValue, Method, Request, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use tower_sessions::Session;
 use uuid::Uuid;
 
-use crate::session::{GlobalState, get_or_create_session};
+use crate::session::{
+    CachedResponse, GlobalState, IDEMPOTENCY_TTL, IdempotencyKey, get_or_create_session,
+};
 
 // ── Request-ID header name (stable, #621) ───────────────────────────────────
 
@@ -346,6 +351,178 @@ pub async fn session_middleware(
     response
 }
 
+// ── Idempotency-Key middleware (#619) ────────────────────────────────────────
+
+/// Header name for the idempotency key sent by clients.
+pub static IDEMPOTENCY_KEY_HEADER: HeaderName = HeaderName::from_static("idempotency-key");
+
+/// Extension injected into the request so downstream handlers can read the
+/// parsed idempotency key value if needed.
+#[derive(Clone, Debug)]
+pub struct IdempotencyKeyExt(pub String);
+
+/// Axum middleware implementing `Idempotency-Key` replay for mutating routes.
+///
+/// # Behaviour
+///
+/// 1. Only runs on `POST`, `PUT`, `PATCH`, and `DELETE` requests.
+/// 2. Reads the `Idempotency-Key` header.  If absent, the request passes
+///    through unchanged.
+/// 3. Checks the process-wide LRU cache (on [`GlobalState`]) for a prior
+///    response keyed by `(session_id, idempotency_key)`.
+/// 4. If a non-expired entry is found the cached response is returned
+///    immediately — the handler body is **not** executed.  The
+///    `Idempotency-Key` header is echoed back in the response.
+/// 5. If no entry is found the request is forwarded to the handler.  On a
+///    successful (2xx) response the response body is buffered and stored in
+///    the cache for future replay.
+///
+/// # Feature flag
+///
+/// The middleware is disabled when the `idempotency-key` feature flag is
+/// explicitly turned off (`config.flags.is_disabled("idempotency-key")`).
+/// The flag is default-on per CLAUDE.md rule #6.
+///
+/// # TTL-controlled capacity
+///
+/// `IDEMPOTENCY_TTL` controls replay eligibility; the underlying LRU cache
+/// evicts the least-recently-used entry when capacity is exceeded.
+pub async fn idempotency_middleware(
+    State(global): State<Arc<GlobalState>>,
+    mut req: Request<Body>,
+    next: Next,
+) -> Response {
+    // Only intercept mutating methods.
+    let is_mutating = matches!(
+        *req.method(),
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    );
+    if !is_mutating {
+        return next.run(req).await;
+    }
+
+    // Feature-flag guard: default-on; bail out if explicitly disabled.
+    if global.template_config.flags.is_disabled("idempotency-key") {
+        return next.run(req).await;
+    }
+
+    // Extract the Idempotency-Key header.
+    let idem_key = match req.headers().get(&IDEMPOTENCY_KEY_HEADER) {
+        Some(v) => match v.to_str() {
+            Ok(s) => s.to_string(),
+            Err(_) => {
+                // Non-UTF-8 key — treat as absent.
+                return next.run(req).await;
+            }
+        },
+        None => return next.run(req).await,
+    };
+
+    // Derive a scope key from the session id injected by the session middleware.
+    // The session middleware runs before idempotency middleware in the stack, so
+    // the extension is always present for authenticated routes.
+    let scope = match req.extensions().get::<crate::middleware::SessionId>() {
+        Some(sid) => sid.0.clone(),
+        None => {
+            // No session (shouldn't happen on authenticated routes) — skip.
+            return next.run(req).await;
+        }
+    };
+
+    let cache_key: IdempotencyKey = (scope, idem_key.clone());
+
+    // Inject the key as an extension so handlers can inspect it if needed.
+    req.extensions_mut()
+        .insert(IdempotencyKeyExt(idem_key.clone()));
+
+    // Check for a cached response.
+    {
+        let mut cache = global.idempotency_cache.lock().await;
+        if let Some(cached) = cache.get(&cache_key) {
+            let age = Instant::now().duration_since(cached.inserted_at);
+            if age <= IDEMPOTENCY_TTL {
+                // Replay the cached response.
+                let status = StatusCode::from_u16(cached.status)
+                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+                let body_bytes = cached.body.clone();
+                let content_type = cached.content_type.clone();
+
+                tracing::debug!(
+                    idempotency_key = %idem_key,
+                    status = %status,
+                    age_secs = age.as_secs(),
+                    "idempotency_middleware: replaying cached response"
+                );
+
+                let mut builder = axum::http::Response::builder().status(status);
+                if let Some(ref ct) = content_type
+                    && let Ok(hv) = HeaderValue::from_str(ct)
+                {
+                    builder = builder.header(header::CONTENT_TYPE, hv);
+                }
+                if let Ok(hv) = HeaderValue::from_str(&idem_key) {
+                    builder = builder.header(&IDEMPOTENCY_KEY_HEADER, hv);
+                }
+                return builder
+                    .body(Body::from(body_bytes))
+                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+            }
+            // Entry expired — remove it so a fresh execution is cached below.
+            cache.pop(&cache_key);
+        }
+    }
+
+    // Forward to the handler and capture the response.
+    let response = next.run(req).await;
+    let status = response.status();
+
+    // Only cache successful responses.
+    if status.is_success() {
+        let (mut parts, body) = response.into_parts();
+
+        // Buffer the body (cap at 1 MiB to guard against unexpectedly large
+        // responses slipping into the cache).
+        match to_bytes(body, 1024 * 1024).await {
+            Ok(bytes) => {
+                let content_type = parts
+                    .headers
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string);
+
+                let entry = CachedResponse {
+                    status: status.as_u16(),
+                    body: bytes.to_vec(),
+                    content_type,
+                    inserted_at: Instant::now(),
+                };
+                global
+                    .idempotency_cache
+                    .lock()
+                    .await
+                    .put(cache_key, entry.clone());
+
+                // Echo the key back in the response header.
+                if let Ok(hv) = HeaderValue::from_str(&idem_key) {
+                    parts.headers.insert(&IDEMPOTENCY_KEY_HEADER, hv);
+                }
+
+                axum::http::Response::from_parts(parts, Body::from(entry.body))
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "idempotency_middleware: failed to buffer response body — skipping cache"
+                );
+                // Return an error; we can't reconstruct the original body.
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        }
+    } else {
+        response
+    }
+}
+
 /// Extracts the value of a named cookie from a raw `Cookie:` header string.
 pub(crate) fn extract_cookie_value(cookies: &str, name: &str) -> Option<String> {
     for pair in cookies.split(';') {
@@ -361,7 +538,200 @@ pub(crate) fn extract_cookie_value(cookies: &str, name: &str) -> Option<String> 
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+    use std::time::Duration;
+
+    use axum::Router;
+    use axum::body::to_bytes;
+    use axum::http::StatusCode;
+    use axum::middleware as axum_mw;
+    use axum::routing::post;
+    use lru::LruCache;
+    use tempfile::tempdir;
+    use tower::ServiceExt;
+
     use super::*;
+    use crate::session::{
+        CachedResponse, IDEMPOTENCY_CACHE_CAPACITY, IDEMPOTENCY_TTL, IdempotencyKey,
+        SessionRegistry,
+    };
+    use crate::session_store_impl::{SqliteIdentityStore, open_sessions_db};
+
+    // ── Helper: minimal GlobalState for idempotency tests ───────────────────
+
+    /// Builds a `GlobalState` with only the fields the idempotency middleware
+    /// actually touches: `idempotency_cache` and `template_config.flags`.
+    ///
+    /// All other fields are stubs — the state is NOT suitable for any route
+    /// handler that touches the game world, NPCs, or inference.
+    fn test_global_state() -> Arc<crate::session::GlobalState> {
+        let dir = tempdir().unwrap();
+        let sessions = SessionRegistry::open(dir.path()).unwrap();
+        // Keep tempdir alive for the lifetime of the returned Arc by leaking
+        // it into a Box. This is intentional test-only simplification.
+        Box::leak(Box::new(dir));
+
+        let data_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        // Use a temp path for saves; leak the TempDir handle so it lives for
+        // the duration of this test binary.
+        let saves_tmp = Box::new(tempdir().unwrap());
+        let saves_dir = saves_tmp.path().to_path_buf();
+        Box::leak(saves_tmp);
+
+        let world = parish_core::world::WorldState::from_parish_file(
+            &data_dir.join("world.json"),
+            parish_core::world::DEFAULT_START_LOCATION,
+        )
+        .unwrap();
+        let npc_manager = parish_core::npc::manager::NpcManager::new();
+        let transport = parish_core::world::transport::TransportConfig::default();
+        let ui_config = crate::state::UiConfigSnapshot {
+            hints_label: String::new(),
+            default_accent: String::new(),
+            splash_text: String::new(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            auto_pause_timeout_seconds: 60,
+        };
+        let theme_palette = parish_core::game_mod::default_theme_palette();
+        let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+            std::sync::Arc::new(crate::session_store_impl::DbSessionStore::new(
+                saves_dir.clone(),
+            ));
+        let identity_conn = open_sessions_db(&saves_dir).unwrap();
+        let identity_store: std::sync::Arc<dyn parish_core::identity::IdentityStore> =
+            std::sync::Arc::new(SqliteIdentityStore::new(identity_conn));
+        let app_state = crate::state::build_app_state(
+            "test-session".to_string(),
+            world,
+            npc_manager,
+            None,
+            crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                max_follow_up_turns: 2,
+                idle_banter_after_secs: 25,
+                auto_pause_after_secs: 60,
+                category_provider: Default::default(),
+                category_model: Default::default(),
+                category_api_key: Default::default(),
+                category_base_url: Default::default(),
+                flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: Default::default(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
+            },
+            None,
+            transport,
+            ui_config,
+            theme_palette,
+            saves_dir.clone(),
+            data_dir.clone(),
+            None,
+            data_dir.join("parish-flags.json"),
+            parish_core::config::InferenceConfig::default(),
+            session_store,
+        );
+
+        let tile_cache = parish_core::tile_cache::TileCache::new(
+            saves_dir.join("tile-cache"),
+            Default::default(),
+        );
+
+        Arc::new(crate::session::GlobalState {
+            sessions,
+            identity_store,
+            oauth_config: None,
+            data_dir,
+            world_path: std::path::PathBuf::from("/dev/null"),
+            saves_dir,
+            game_mod: None,
+            pronunciations: Vec::new(),
+            ui_config: app_state.ui_config.clone(),
+            theme_palette: app_state.theme_palette.clone(),
+            transport: parish_core::world::transport::TransportConfig::default(),
+            template_config: crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                max_follow_up_turns: 2,
+                idle_banter_after_secs: 25,
+                auto_pause_after_secs: 60,
+                category_provider: Default::default(),
+                category_model: Default::default(),
+                category_api_key: Default::default(),
+                category_base_url: Default::default(),
+                flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: Default::default(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
+            },
+            inference_config: parish_core::config::InferenceConfig::default(),
+            ollama_process: tokio::sync::Mutex::new(
+                parish_core::inference::client::OllamaProcess::none(),
+            ),
+            tile_cache,
+            idempotency_cache: tokio::sync::Mutex::new(LruCache::new(
+                NonZeroUsize::new(IDEMPOTENCY_CACHE_CAPACITY).unwrap(),
+            )),
+            max_concurrent_sessions: None,
+        })
+    }
+
+    /// Builds a minimal test router: session_id is injected as a fixed
+    /// extension so the idempotency middleware can scope cache keys.
+    ///
+    /// Layer ordering (outermost → innermost → handler):
+    ///   session_id_injector → idempotency_middleware → handler
+    ///
+    /// In Axum, the LAST `.layer()` call applied is outermost (runs first).
+    /// So to have session run before idempotency, we apply idempotency first
+    /// (inner) and session_id_injector second (outer).
+    fn test_router_with_handler(
+        global: Arc<crate::session::GlobalState>,
+        call_count: Arc<std::sync::atomic::AtomicUsize>,
+    ) -> Router {
+        let cc = call_count.clone();
+        Router::new()
+            .route(
+                "/test",
+                post(move || {
+                    let cc = cc.clone();
+                    async move {
+                        cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        axum::Json(serde_json::json!({"ok": true}))
+                    }
+                }),
+            )
+            // Inner: idempotency reads SessionId (injected by outer layer).
+            .layer(axum_mw::from_fn_with_state(global, idempotency_middleware))
+            // Outer: inject a synthetic SessionId before idempotency runs.
+            .layer(axum_mw::from_fn(
+                |mut req: Request<Body>, next: Next| async move {
+                    req.extensions_mut()
+                        .insert(SessionId("test-session".to_string()));
+                    next.run(req).await
+                },
+            ))
+    }
+
+    // ── Unit tests ──────────────────────────────────────────────────────────
 
     #[test]
     fn extract_cookie_value_single() {
@@ -398,5 +768,198 @@ mod tests {
         // state under this key, and the callback reads it back.  A drift
         // here breaks every in-flight Google login.
         assert_eq!(TOWER_OAUTH_STATE_KEY, "parish_oauth_state");
+    }
+
+    #[test]
+    fn idempotency_key_header_name_is_stable() {
+        // The header name must remain `idempotency-key` (lowercase) to be
+        // consistent with the IETF draft and clients that send it.
+        assert_eq!(IDEMPOTENCY_KEY_HEADER.as_str(), "idempotency-key");
+    }
+
+    #[test]
+    fn idempotency_defaults() {
+        // Capacity and TTL should remain stable across refactors — they
+        // are documented in architecture.md and callers depend on them.
+        assert_eq!(IDEMPOTENCY_CACHE_CAPACITY, 1000);
+        assert_eq!(IDEMPOTENCY_TTL, Duration::from_secs(24 * 60 * 60));
+    }
+
+    // ── Integration tests — same key returns identical response ─────────────
+
+    /// Same `Idempotency-Key` on two successive POST requests:
+    /// - both return the same body
+    /// - the handler body only executes once (call_count == 1)
+    /// - the response echoes the key header
+    #[tokio::test]
+    async fn same_idempotency_key_returns_cached_response_and_does_not_re_execute() {
+        let global = test_global_state();
+        let call_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let app = test_router_with_handler(Arc::clone(&global), Arc::clone(&call_count));
+
+        let make_req = || {
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/test")
+                .header("idempotency-key", "key-abc")
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap()
+        };
+
+        let resp1 = app.clone().oneshot(make_req()).await.unwrap();
+        assert_eq!(resp1.status(), StatusCode::OK);
+        let body1 = to_bytes(resp1.into_body(), 1024).await.unwrap();
+
+        let resp2 = app.oneshot(make_req()).await.unwrap();
+        assert_eq!(resp2.status(), StatusCode::OK);
+        // Response header echoed back.
+        assert_eq!(
+            resp2
+                .headers()
+                .get("idempotency-key")
+                .and_then(|v| v.to_str().ok()),
+            Some("key-abc")
+        );
+        let body2 = to_bytes(resp2.into_body(), 1024).await.unwrap();
+
+        // Bodies are byte-identical.
+        assert_eq!(body1, body2);
+        // Handler executed exactly once.
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// Different `Idempotency-Key` values each execute the handler body.
+    #[tokio::test]
+    async fn different_idempotency_keys_each_execute_handler() {
+        let global = test_global_state();
+        let call_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let app = test_router_with_handler(Arc::clone(&global), Arc::clone(&call_count));
+
+        let make_req = |key: &'static str| {
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/test")
+                .header("idempotency-key", key)
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap()
+        };
+
+        let _ = app.clone().oneshot(make_req("key-1")).await.unwrap();
+        let _ = app.oneshot(make_req("key-2")).await.unwrap();
+
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    /// Request without the `Idempotency-Key` header always executes the handler.
+    #[tokio::test]
+    async fn no_idempotency_key_always_executes() {
+        let global = test_global_state();
+        let call_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let app = test_router_with_handler(Arc::clone(&global), Arc::clone(&call_count));
+
+        let make_req = || {
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/test")
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap()
+        };
+
+        let _ = app.clone().oneshot(make_req()).await.unwrap();
+        let _ = app.oneshot(make_req()).await.unwrap();
+
+        // Both calls executed because there was no idempotency key.
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    /// After TTL expiry a second request re-executes the handler.
+    ///
+    /// We simulate expiry by directly inserting a cache entry with a past
+    /// `inserted_at` rather than sleeping for 24 h.
+    #[tokio::test]
+    async fn expired_entry_re_executes_handler() {
+        let global = test_global_state();
+        let call_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        // Pre-populate the cache with an expired entry (inserted 25 h ago).
+        {
+            let mut cache = global.idempotency_cache.lock().await;
+            let key: IdempotencyKey = ("test-session".to_string(), "key-expired".to_string());
+            cache.put(
+                key,
+                CachedResponse {
+                    status: 200,
+                    body: br#"{"cached":true}"#.to_vec(),
+                    content_type: Some("application/json".to_string()),
+                    inserted_at: Instant::now()
+                        .checked_sub(IDEMPOTENCY_TTL + Duration::from_secs(3600))
+                        .unwrap(),
+                },
+            );
+        }
+
+        let app = test_router_with_handler(Arc::clone(&global), Arc::clone(&call_count));
+        let req = axum::http::Request::builder()
+            .method("POST")
+            .uri("/test")
+            .header("idempotency-key", "key-expired")
+            .header("content-type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = to_bytes(resp.into_body(), 1024).await.unwrap();
+        // The live handler executed (not the stale cached body).
+        assert!(body.starts_with(b"{\"ok\""));
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    /// GET requests are never intercepted by the idempotency middleware.
+    #[tokio::test]
+    async fn get_requests_bypass_idempotency() {
+        let global = test_global_state();
+        let call_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        // Use a GET handler for this test.
+        let cc = Arc::clone(&call_count);
+        let app = Router::new()
+            .route(
+                "/test",
+                axum::routing::get(move || {
+                    let cc = cc.clone();
+                    async move {
+                        cc.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        axum::Json(serde_json::json!({"ok": true}))
+                    }
+                }),
+            )
+            // Inner layer first (idempotency), then outer (session injector).
+            .layer(axum_mw::from_fn_with_state(global, idempotency_middleware))
+            .layer(axum_mw::from_fn(
+                |mut req: Request<Body>, next: Next| async move {
+                    req.extensions_mut()
+                        .insert(SessionId("test-session".to_string()));
+                    next.run(req).await
+                },
+            ));
+
+        let make_get = || {
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/test")
+                .header("idempotency-key", "key-get")
+                .body(Body::empty())
+                .unwrap()
+        };
+
+        let _ = app.clone().oneshot(make_get()).await.unwrap();
+        let _ = app.oneshot(make_get()).await.unwrap();
+
+        // Both GETs executed — middleware did not cache.
+        assert_eq!(call_count.load(std::sync::atomic::Ordering::SeqCst), 2);
     }
 }

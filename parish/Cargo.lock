@@ -3231,6 +3231,7 @@ dependencies = [
  "hex",
  "hmac",
  "jsonwebtoken",
+ "lru",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",

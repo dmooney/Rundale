@@ -35,6 +35,7 @@ sha2           = "0.10"
 hex            = "0.4"
 base64         = "0.22"
 governor       = { workspace = true }
+lru            = { workspace = true }
 tower-sessions = "0.15"
 
 [dev-dependencies]

@@ -8,9 +8,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use dashmap::DashMap;
+use lru::LruCache;
+use tokio::sync::Mutex as TokioMutex;
 use tokio::task::JoinHandle;
 
 use parish_core::config::InferenceConfig;
@@ -33,6 +35,45 @@ use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 /// Re-export so the test in this module can reference the canonical constant
 /// without importing from parish_core directly.
 pub use parish_core::AUTOSAVE_INTERVAL_SECS;
+
+// ── Idempotency cache ─────────────────────────────────────────────────────────
+
+/// Default capacity of the idempotency LRU cache (process-wide).
+pub const IDEMPOTENCY_CACHE_CAPACITY: usize = 1000;
+
+/// Default TTL for idempotency cache entries (24 hours).
+pub const IDEMPOTENCY_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
+/// A cached response from a mutating route, stored for idempotency replay.
+///
+/// The entire serialised body is kept so the replay is byte-identical.  The
+/// [`Instant`] records when the entry was inserted so expired entries can be
+/// rejected on read without a background sweep.
+#[derive(Clone)]
+pub struct CachedResponse {
+    /// HTTP status code of the original response.
+    pub status: u16,
+    /// Serialised JSON body of the original response (or empty vec for
+    /// status-only responses such as `204 No Content`).
+    pub body: Vec<u8>,
+    /// Content-Type header value of the original response.
+    pub content_type: Option<String>,
+    /// Wall-clock instant when this entry was inserted.
+    pub inserted_at: Instant,
+}
+
+/// Key type for the idempotency cache: `(session_id, idempotency_key)`.
+///
+/// `session_id` scopes keys to a single visitor so one user's idempotency
+/// keys cannot collide with another's.
+pub type IdempotencyKey = (String, String);
+
+/// Process-wide LRU cache for idempotent responses.
+///
+/// Wrapped in a `TokioMutex` so async handlers can hold the guard across
+/// `await` points without parking a Tokio worker thread.  Capacity is bounded
+/// by [`IDEMPOTENCY_CACHE_CAPACITY`]; the oldest entry is evicted on overflow.
+pub type IdempotencyCache = TokioMutex<LruCache<IdempotencyKey, CachedResponse>>;
 
 /// Google OAuth credentials (optional — feature disabled when absent).
 pub struct OAuthConfig {
@@ -86,6 +127,13 @@ pub struct GlobalState {
     /// duplicating downloads across sessions.  Cache dir resolved once at boot
     /// from `PARISH_TILE_CACHE_DIR` or `<saves_dir>/tile-cache/`.
     pub tile_cache: parish_core::tile_cache::TileCache,
+    /// Process-wide idempotency cache for mutating HTTP routes (#619).
+    ///
+    /// Keyed by `(session_id, Idempotency-Key header value)`.  The LRU
+    /// capacity is [`IDEMPOTENCY_CACHE_CAPACITY`]; entries expire after
+    /// [`IDEMPOTENCY_TTL`] (24 h).  When the `idempotency-key` feature flag
+    /// is disabled this cache is still initialised but never consulted.
+    pub idempotency_cache: IdempotencyCache,
     /// Admission-control ceiling: maximum number of concurrent in-memory
     /// sessions per process.  Resolved at boot from `PARISH_MAX_SESSIONS`
     /// env var (preferred) or the `[engine.session]` TOML field; defaults to

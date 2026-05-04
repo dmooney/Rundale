@@ -600,6 +600,12 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         inference_config: engine_config.inference, // (#417) persist TOML-configured timeouts
         ollama_process: tokio::sync::Mutex::new(ollama_process),
         tile_cache,
+        idempotency_cache: {
+            use std::num::NonZeroUsize;
+            tokio::sync::Mutex::new(lru::LruCache::new(
+                NonZeroUsize::new(session::IDEMPOTENCY_CACHE_CAPACITY).unwrap(),
+            ))
+        },
         max_concurrent_sessions,
     });
 
@@ -836,13 +842,26 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             .with_path("/".to_string())
             .with_expiry(Expiry::OnInactivity(CookieDuration::days(365)));
 
-        app.layer(axum_mw::from_fn_with_state(
-            Arc::clone(&global),
-            middleware::session_middleware_tower,
-        ))
-        .layer(session_layer)
+        app
+            // Idempotency middleware runs after session (session injects SessionId
+            // extension; idempotency reads it).  In Tower/Axum the last `.layer()`
+            // is outermost — so idempotency is applied first here (inner), then
+            // the session layers wrap it.
+            .layer(axum_mw::from_fn_with_state(
+                Arc::clone(&global),
+                middleware::idempotency_middleware,
+            ))
+            .layer(axum_mw::from_fn_with_state(
+                Arc::clone(&global),
+                middleware::session_middleware_tower,
+            ))
+            .layer(session_layer)
     } else {
         app.layer(axum_mw::from_fn_with_state(
+            Arc::clone(&global),
+            middleware::idempotency_middleware,
+        ))
+        .layer(axum_mw::from_fn_with_state(
             Arc::clone(&global),
             middleware::session_middleware,
         ))
