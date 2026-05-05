@@ -15,6 +15,7 @@
 pub const EXPECTED_HTTP_ROUTES: &[&str] = &[
     // ── core game routes ──────────────────────────────────────────────────
     "/api/world-snapshot",
+    "/api/setup-snapshot",
     "/api/map",
     "/api/npcs-here",
     "/api/theme",

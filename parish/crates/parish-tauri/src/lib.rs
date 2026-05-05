@@ -31,11 +31,78 @@ use parish_core::npc::reactions::ReactionTemplates;
 use parish_core::world::transport::TransportConfig;
 use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
+const INITIAL_SETUP_MESSAGE: &str = "Preparing the storyteller...";
+const SETUP_HISTORY_LIMIT: usize = 50;
+
 // ── IPC type definitions ─────────────────────────────────────────────────────
 
 // WorldSnapshot, MapLocation, and NpcInfo are defined in parish-core and
 // re-exported here so all call sites remain stable.
 pub use parish_core::ipc::{MapLocation, WorldSnapshot};
+
+/// Latest setup progress state for the startup overlay.
+#[derive(serde::Serialize, Clone)]
+pub struct SetupStatusSnapshot {
+    /// Current human-readable setup step.
+    pub current_message: String,
+    /// Recent setup messages shown as the overlay activity trail.
+    pub messages: Vec<String>,
+    /// Bytes downloaded so far across discovered Ollama pull artifacts.
+    pub completed: u64,
+    /// Total bytes expected across discovered Ollama pull artifacts, or 0 when unknown.
+    pub total: u64,
+    /// Whether setup has completed.
+    pub done: bool,
+    /// Success state once setup is complete; `None` while setup is running.
+    pub success: Option<bool>,
+    /// Error message when setup failed.
+    pub error: String,
+}
+
+impl Default for SetupStatusSnapshot {
+    fn default() -> Self {
+        Self {
+            current_message: INITIAL_SETUP_MESSAGE.to_string(),
+            messages: vec![INITIAL_SETUP_MESSAGE.to_string()],
+            completed: 0,
+            total: 0,
+            done: false,
+            success: None,
+            error: String::new(),
+        }
+    }
+}
+
+impl SetupStatusSnapshot {
+    fn record_status(&mut self, msg: &str) {
+        self.current_message = msg.to_string();
+        if self.messages.last().is_some_and(|last| last == msg) {
+            return;
+        }
+        if self.messages.len() >= SETUP_HISTORY_LIMIT {
+            self.messages.remove(0);
+        }
+        self.messages.push(msg.to_string());
+    }
+
+    fn record_progress(&mut self, completed: u64, total: u64) {
+        self.completed = completed;
+        self.total = total;
+    }
+
+    fn record_done(&mut self, success: bool, error: String) {
+        self.done = true;
+        self.success = Some(success);
+        self.error = error.clone();
+        if success {
+            self.record_status("The storyteller is ready.");
+        } else if error.is_empty() {
+            self.record_status("Setup failed.");
+        } else {
+            self.record_status(&format!("Setup failed: {}", error));
+        }
+    }
+}
 
 /// The full map graph sent to the frontend.
 ///
@@ -181,6 +248,9 @@ pub struct AppState {
     /// Used by rebuild paths so `/provider` switches honour the configured
     /// values instead of falling back to compiled-in defaults. (#417)
     pub inference_config: parish_core::config::InferenceConfig,
+    /// Latest provider-bootstrap status for the startup overlay. Uses a
+    /// standard mutex because setup progress callbacks are synchronous.
+    pub setup_status: std::sync::Mutex<SetupStatusSnapshot>,
     /// Demo / auto-player configuration. Read-only after startup.
     pub demo_config: DemoConfig,
     /// Cancellation token — cancelled during app shutdown to stop background ticks
@@ -379,10 +449,23 @@ async fn dispatch_screenshot(_path: std::path::PathBuf) -> anyhow::Result<()> {
 /// Used inside the async `.setup()` spawn so the window exists before we call it.
 struct TauriProgress {
     app: tauri::AppHandle,
+    state: Arc<AppState>,
+}
+
+impl TauriProgress {
+    fn with_setup_status(&self, update: impl FnOnce(&mut SetupStatusSnapshot)) {
+        let mut status = self
+            .state
+            .setup_status
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        update(&mut status);
+    }
 }
 
 impl parish_core::inference::setup::SetupProgress for TauriProgress {
     fn on_status(&self, msg: &str) {
+        self.with_setup_status(|status| status.record_status(msg));
         tracing::info!("{}", msg);
         let _ = self.app.emit(
             events::EVENT_SETUP_STATUS,
@@ -393,6 +476,7 @@ impl parish_core::inference::setup::SetupProgress for TauriProgress {
     }
 
     fn on_pull_progress(&self, completed: u64, total: u64) {
+        self.with_setup_status(|status| status.record_progress(completed, total));
         let _ = self.app.emit(
             events::EVENT_SETUP_PROGRESS,
             events::SetupProgressPayload { completed, total },
@@ -400,6 +484,7 @@ impl parish_core::inference::setup::SetupProgress for TauriProgress {
     }
 
     fn on_error(&self, msg: &str) {
+        self.with_setup_status(|status| status.record_status(&format!("Error: {}", msg)));
         tracing::error!("{}", msg);
         let _ = self.app.emit(
             events::EVENT_SETUP_STATUS,
@@ -408,6 +493,14 @@ impl parish_core::inference::setup::SetupProgress for TauriProgress {
             },
         );
     }
+}
+
+fn record_setup_done(state: &Arc<AppState>, success: bool, error: String) {
+    let mut status = state
+        .setup_status
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    status.record_done(success, error);
 }
 
 // ── Tauri entry point ─────────────────────────────────────────────────────────
@@ -725,6 +818,7 @@ pub fn run() {
         save_lock: Mutex::new(None),
         ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
+        setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         config: Mutex::new(game_config),
         demo_config,
         shutdown_token: shutdown_token.clone(),
@@ -739,6 +833,7 @@ pub fn run() {
             commands::get_theme,
             commands::get_ui_config,
             commands::get_debug_snapshot,
+            commands::get_setup_snapshot,
             commands::submit_input,
             commands::discover_save_files,
             commands::save_game,
@@ -834,7 +929,18 @@ pub fn run() {
                 // run() so the Tauri window is open and can receive setup-status /
                 // setup-progress events while Ollama is being installed/started.
                 {
-                    let progress = TauriProgress { app: handle.clone() };
+                    let progress = TauriProgress {
+                        app: handle.clone(),
+                        state: Arc::clone(&state_setup),
+                    };
+                    progress.with_setup_status(|status| status.record_status("Starting inference provider setup..."));
+                    tracing::info!("Starting inference provider setup...");
+                    let _ = handle.emit(
+                        events::EVENT_SETUP_STATUS,
+                        events::SetupStatusPayload {
+                            message: "Starting inference provider setup...".to_string(),
+                        },
+                    );
                     match bootstrap_provider(
                         &provider_config,
                         &inference_config_for_spawn,
@@ -850,6 +956,7 @@ pub fn run() {
                                 config.model_name = model_name;
                                 config.fill_missing_models_from_presets();
                             }
+                            record_setup_done(&state_setup, true, String::new());
                             let _ = handle.emit(
                                 events::EVENT_SETUP_DONE,
                                 events::SetupDonePayload {
@@ -859,12 +966,14 @@ pub fn run() {
                             );
                         }
                         Err(e) => {
-                            tracing::error!("Failed to initialise inference provider: {}", e);
+                            let error = e.to_string();
+                            record_setup_done(&state_setup, false, error.clone());
+                            tracing::error!("Failed to initialise inference provider: {}", error);
                             let _ = handle.emit(
                                 events::EVENT_SETUP_DONE,
                                 events::SetupDonePayload {
                                     success: false,
-                                    error: e.to_string(),
+                                    error,
                                 },
                             );
                             // Do not call process::exit — leave the window open so

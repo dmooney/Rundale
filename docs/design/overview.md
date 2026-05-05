@@ -277,7 +277,7 @@ When using the Ollama provider (the default), the Parish engine runs a self-cont
    - ≥17 GB → `gemma4:26b` (Tier 2, MoE — 4B active)
    - ≥11 GB → `gemma4:e4b` (Tier 3, edge 4.5B)
    - <11 GB or CPU-only → `gemma4:e2b` (Tier 4, edge 2.3B)
-6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local
+6. **Auto-pull** — downloads the model via Ollama's `/api/pull` if not already local. For setup-screen testing, set `PARISH_OLLAMA_FORCE_REDOWNLOAD=1` or `[engine.inference] force_model_redownload = true` to delete the selected local model before pulling it again.
 
 The `PARISH_MODEL` env var or `--model` CLI flag overrides auto-selection.
 

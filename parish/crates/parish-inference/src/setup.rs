@@ -9,6 +9,7 @@ use crate::client::OllamaProcess;
 use crate::openai_client::OpenAiClient;
 use parish_config::{InferenceConfig, Provider, ProviderConfig};
 use parish_types::ParishError;
+use reqwest::StatusCode;
 use serde::Deserialize;
 use std::process::Command;
 use std::time::Duration;
@@ -106,7 +107,7 @@ pub struct OllamaSetup {
 pub trait SetupProgress: Send + Sync {
     /// Reports a status message during setup.
     fn on_status(&self, msg: &str);
-    /// Reports model pull progress (bytes downloaded vs total).
+    /// Reports aggregate model pull progress (bytes downloaded vs total).
     fn on_pull_progress(&self, completed: u64, total: u64);
     /// Reports an error during setup.
     fn on_error(&self, msg: &str);
@@ -622,9 +623,65 @@ struct PullProgressLine {
     #[serde(default)]
     status: String,
     #[serde(default)]
+    digest: String,
+    #[serde(default)]
     total: u64,
     #[serde(default)]
     completed: u64,
+}
+
+#[derive(Default)]
+struct PullArtifactProgress {
+    completed: u64,
+    total: u64,
+}
+
+#[derive(Default)]
+struct PullProgressTracker {
+    /// Ollama reports each manifest/layer separately; the UI needs the aggregate model pull.
+    artifacts: std::collections::BTreeMap<String, PullArtifactProgress>,
+}
+
+impl PullProgressTracker {
+    fn record(&mut self, line: &PullProgressLine) -> Option<(u64, u64)> {
+        if line.total == 0 {
+            return None;
+        }
+
+        let key = line.download_key();
+        let artifact = self.artifacts.entry(key).or_default();
+        artifact.total = artifact.total.max(line.total);
+        artifact.completed = artifact.completed.max(line.completed.min(artifact.total));
+
+        Some(self.aggregate())
+    }
+
+    fn aggregate(&self) -> (u64, u64) {
+        self.artifacts
+            .values()
+            .fold((0_u64, 0_u64), |(completed, total), artifact| {
+                (
+                    completed.saturating_add(artifact.completed.min(artifact.total)),
+                    total.saturating_add(artifact.total),
+                )
+            })
+    }
+}
+
+impl PullProgressLine {
+    fn download_key(&self) -> String {
+        let digest = self.digest.trim();
+        if !digest.is_empty() {
+            return format!("digest:{digest}");
+        }
+
+        let status = self.status.trim();
+        if !status.is_empty() {
+            return format!("status:{status}");
+        }
+
+        "download".to_string()
+    }
 }
 
 /// Checks whether a model is available locally in Ollama.
@@ -714,7 +771,7 @@ pub async fn pull_model_with_config(
 
     let resp = http
         .post(&url)
-        .json(&serde_json::json!({ "name": model_name }))
+        .json(&serde_json::json!({ "model": model_name }))
         .send()
         .await
         .map_err(|e| {
@@ -732,27 +789,118 @@ pub async fn pull_model_with_config(
         )));
     }
 
-    // Stream the response line by line (NDJSON)
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| ParishError::ModelNotAvailable(format!("pull stream error: {}", e)))?;
-
-    for line in body.lines() {
-        if let Ok(progress_line) = serde_json::from_str::<PullProgressLine>(line) {
-            if progress_line.total > 0 {
-                progress.on_pull_progress(progress_line.completed, progress_line.total);
-            } else if !progress_line.status.is_empty() {
-                progress.on_status(&format!("  {}", progress_line.status));
-            }
-        }
-    }
+    stream_pull_progress(resp, progress).await?;
 
     progress.on_status(&format!(
         "The storyteller has '{}' in hand. Grand so.",
         model_name
     ));
     Ok(())
+}
+
+/// Deletes a locally available Ollama model so the next pull fetches it anew.
+async fn delete_model_with_config(
+    base_url: &str,
+    model_name: &str,
+    progress: &dyn SetupProgress,
+    config: &InferenceConfig,
+) -> Result<(), ParishError> {
+    progress.on_status(&format!(
+        "Clearing the local copy of '{}' before fetching it again...",
+        model_name
+    ));
+
+    let url = format!("{}/api/delete", base_url);
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(config.model_download_timeout_secs))
+        .build()
+        .map_err(|e| ParishError::Setup(format!("failed to build HTTP client: {}", e)))?;
+
+    let resp = http
+        .delete(&url)
+        .json(&serde_json::json!({ "model": model_name }))
+        .send()
+        .await
+        .map_err(|e| {
+            ParishError::Setup(format!(
+                "failed to delete local Ollama model '{}': {}",
+                model_name, e
+            ))
+        })?;
+
+    if resp.status() == StatusCode::NOT_FOUND {
+        progress.on_status(&format!(
+            "No local copy of '{}' was present. Fetching it now...",
+            model_name
+        ));
+        return Ok(());
+    }
+
+    if !resp.status().is_success() {
+        return Err(ParishError::Setup(format!(
+            "Ollama returned {} when deleting local model '{}'",
+            resp.status(),
+            model_name
+        )));
+    }
+
+    progress.on_status(&format!(
+        "Local copy of '{}' removed. Fetching a fresh copy...",
+        model_name
+    ));
+    Ok(())
+}
+
+async fn stream_pull_progress(
+    mut resp: reqwest::Response,
+    progress: &dyn SetupProgress,
+) -> Result<(), ParishError> {
+    let mut pending = Vec::new();
+    let mut tracker = PullProgressTracker::default();
+
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| ParishError::ModelNotAvailable(format!("pull stream error: {}", e)))?
+    {
+        pending.extend_from_slice(&chunk);
+
+        while let Some(newline_index) = pending.iter().position(|b| *b == b'\n') {
+            let line: Vec<u8> = pending.drain(..=newline_index).collect();
+            report_pull_progress_line(&line, progress, &mut tracker);
+        }
+    }
+
+    if !pending.is_empty() {
+        report_pull_progress_line(&pending, progress, &mut tracker);
+    }
+
+    Ok(())
+}
+
+fn report_pull_progress_line(
+    line: &[u8],
+    progress: &dyn SetupProgress,
+    tracker: &mut PullProgressTracker,
+) {
+    let line = line.strip_suffix(b"\n").unwrap_or(line);
+    let line = line.strip_suffix(b"\r").unwrap_or(line);
+
+    if line.is_empty() {
+        return;
+    }
+
+    let Ok(line) = std::str::from_utf8(line) else {
+        return;
+    };
+
+    if let Ok(progress_line) = serde_json::from_str::<PullProgressLine>(line) {
+        if let Some((completed, total)) = tracker.record(&progress_line) {
+            progress.on_pull_progress(completed, total);
+        } else if !progress_line.status.is_empty() {
+            progress.on_status(&format!("  {}", progress_line.status));
+        }
+    }
 }
 
 /// Ensures a model is available locally, pulling it if necessary.
@@ -778,7 +926,21 @@ pub async fn ensure_model_available_with_config(
     progress: &dyn SetupProgress,
     config: &InferenceConfig,
 ) -> Result<(), ParishError> {
-    if is_model_available_with_config(base_url, model_name, config).await? {
+    let available = is_model_available_with_config(base_url, model_name, config).await?;
+    if force_model_redownload_enabled(config) {
+        progress.on_status(&format!("Forcing a fresh download of '{}'.", model_name));
+        if available {
+            delete_model_with_config(base_url, model_name, progress, config).await?;
+        } else {
+            progress.on_status(&format!(
+                "No local copy of '{}' was present. Fetching it now...",
+                model_name
+            ));
+        }
+        return pull_model_with_config(base_url, model_name, progress, config).await;
+    }
+
+    if available {
         progress.on_status(&format!(
             "The storyteller already has '{}' in hand.",
             model_name
@@ -787,6 +949,23 @@ pub async fn ensure_model_available_with_config(
     }
 
     pull_model_with_config(base_url, model_name, progress, config).await
+}
+
+fn force_model_redownload_enabled(config: &InferenceConfig) -> bool {
+    config.force_model_redownload || env_flag_enabled("PARISH_OLLAMA_FORCE_REDOWNLOAD")
+}
+
+fn env_flag_enabled(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .is_some_and(|value| parse_env_flag(&value))
+}
+
+fn parse_env_flag(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 /// Builds GPU-specific environment variables for the Ollama process.
@@ -1291,9 +1470,10 @@ mod tests {
 
     #[test]
     fn test_pull_progress_line_deserialize() {
-        let json = r#"{"status": "downloading", "total": 1000000, "completed": 500000}"#;
+        let json = r#"{"status": "downloading", "digest": "sha256:abc", "total": 1000000, "completed": 500000}"#;
         let line: PullProgressLine = serde_json::from_str(json).unwrap();
         assert_eq!(line.status, "downloading");
+        assert_eq!(line.digest, "sha256:abc");
         assert_eq!(line.total, 1_000_000);
         assert_eq!(line.completed, 500_000);
     }
@@ -1371,6 +1551,57 @@ mod tests {
         assert_eq!(msgs[1], "world");
         assert_eq!(msgs[2], "progress: 50/100");
         assert_eq!(msgs[3], "ERROR: oops");
+    }
+
+    #[test]
+    fn test_pull_progress_aggregates_multiple_ollama_artifacts() {
+        let progress = TestProgress::new();
+        let mut tracker = PullProgressTracker::default();
+
+        report_pull_progress_line(br#"{"status":"pulling manifest"}"#, &progress, &mut tracker);
+        report_pull_progress_line(
+            br#"{"status":"pulling blob","digest":"sha256:large","total":1000,"completed":400}"#,
+            &progress,
+            &mut tracker,
+        );
+        report_pull_progress_line(
+            br#"{"status":"pulling blob","digest":"sha256:large","total":1000,"completed":1000}"#,
+            &progress,
+            &mut tracker,
+        );
+        report_pull_progress_line(
+            br#"{"status":"pulling blob","digest":"sha256:tiny","total":488,"completed":488}"#,
+            &progress,
+            &mut tracker,
+        );
+
+        let msgs = progress.messages();
+        assert!(msgs.iter().any(|m| m == "  pulling manifest"));
+        assert!(msgs.iter().any(|m| m == "progress: 400/1000"));
+        assert!(msgs.iter().any(|m| m == "progress: 1000/1000"));
+        assert!(msgs.iter().any(|m| m == "progress: 1488/1488"));
+        assert!(!msgs.iter().any(|m| m == "progress: 488/488"));
+    }
+
+    #[test]
+    fn test_parse_env_flag_truthy_values() {
+        for value in ["1", "true", "TRUE", " yes ", "on"] {
+            assert!(parse_env_flag(value), "{value:?} should be truthy");
+        }
+
+        for value in ["", "0", "false", "no", "off", "maybe"] {
+            assert!(!parse_env_flag(value), "{value:?} should be falsey");
+        }
+    }
+
+    #[test]
+    fn test_force_model_redownload_enabled_from_config() {
+        let cfg = InferenceConfig {
+            force_model_redownload: true,
+            ..Default::default()
+        };
+
+        assert!(force_model_redownload_enabled(&cfg));
     }
 
     #[test]
@@ -1723,6 +1954,9 @@ GPU[0]  : VRAM Total Used Memory (B): 2097152000
 ";
         wiremock::Mock::given(wiremock::matchers::method("POST"))
             .and(wiremock::matchers::path("/api/pull"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "model": "qwen3:14b"
+            })))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
             .mount(&server)
             .await;
@@ -1738,6 +1972,91 @@ GPU[0]  : VRAM Total Used Memory (B): 2097152000
         assert!(msgs.iter().any(|m| m.contains("250000/1000000")));
         assert!(msgs.iter().any(|m| m.contains("1000000/1000000")));
         assert!(msgs.iter().any(|m| m.contains("hand")));
+    }
+
+    #[tokio::test]
+    async fn test_pull_model_reports_streamed_progress_before_response_finishes() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        struct ChannelProgress {
+            tx: tokio::sync::mpsc::UnboundedSender<String>,
+        }
+
+        impl SetupProgress for ChannelProgress {
+            fn on_status(&self, msg: &str) {
+                let _ = self.tx.send(format!("status: {}", msg));
+            }
+
+            fn on_pull_progress(&self, completed: u64, total: u64) {
+                let _ = self.tx.send(format!("progress: {}/{}", completed, total));
+            }
+
+            fn on_error(&self, msg: &str) {
+                let _ = self.tx.send(format!("error: {}", msg));
+            }
+        }
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let (continue_tx, continue_rx) = tokio::sync::oneshot::channel::<()>();
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buf = [0_u8; 1024];
+            loop {
+                let n = socket.read(&mut buf).await.unwrap();
+                if n == 0 {
+                    return;
+                }
+                request.extend_from_slice(&buf[..n]);
+                if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nConnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            socket
+                .write_all(br#"{"status":"downloading","total":1000000,"completed":250000}"#)
+                .await
+                .unwrap();
+            socket.write_all(b"\n").await.unwrap();
+            socket.flush().await.unwrap();
+
+            let _ = continue_rx.await;
+
+            socket
+                .write_all(br#"{"status":"downloading","total":1000000,"completed":1000000}"#)
+                .await
+                .unwrap();
+            socket.write_all(b"\n").await.unwrap();
+            socket.flush().await.unwrap();
+        });
+
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel();
+        let progress = ChannelProgress { tx: event_tx };
+        let pull = tokio::spawn(async move { pull_model(&base_url, "qwen3:14b", &progress).await });
+
+        let first_progress = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let event = event_rx.recv().await.expect("progress channel closed");
+                if event == "progress: 250000/1000000" {
+                    break event;
+                }
+            }
+        })
+        .await
+        .expect("first pull progress should arrive before response finishes");
+
+        assert_eq!(first_progress, "progress: 250000/1000000");
+        continue_tx.send(()).unwrap();
+        pull.await.unwrap().expect("pull should finish");
+        server.await.unwrap();
     }
 
     #[tokio::test]
@@ -1772,6 +2091,9 @@ GPU[0]  : VRAM Total Used Memory (B): 2097152000
 ";
         wiremock::Mock::given(wiremock::matchers::method("POST"))
             .and(wiremock::matchers::path("/api/pull"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "model": "qwen3:14b"
+            })))
             .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(body))
             .mount(&server)
             .await;
@@ -1810,5 +2132,99 @@ GPU[0]  : VRAM Total Used Memory (B): 2097152000
 
         let msgs = progress.messages();
         assert!(msgs.iter().any(|m| m.contains("already has")));
+    }
+
+    #[tokio::test]
+    async fn test_ensure_model_available_force_redownload_deletes_then_pulls_when_present() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "models": [ {"name": "qwen3:14b"} ] })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/api/delete"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "model": "qwen3:14b"
+            })))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/api/pull"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "model": "qwen3:14b"
+            })))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(
+                "{\"status\":\"downloading\",\"total\":1000000,\"completed\":500000}\n\
+                 {\"status\":\"downloading\",\"total\":1000000,\"completed\":1000000}\n",
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let config = InferenceConfig {
+            force_model_redownload: true,
+            ..Default::default()
+        };
+        let progress = TestProgress::new();
+        ensure_model_available_with_config(&server.uri(), "qwen3:14b", &progress, &config)
+            .await
+            .expect("force redownload should delete then pull");
+
+        let msgs = progress.messages();
+        assert!(msgs.iter().any(|m| m.contains("Forcing a fresh download")));
+        assert!(msgs.iter().any(|m| m.contains("Clearing the local copy")));
+        assert!(msgs.iter().any(|m| m.contains("Local copy")));
+        assert!(msgs.iter().any(|m| m.contains("500000/1000000")));
+        assert!(msgs.iter().any(|m| m.contains("1000000/1000000")));
+    }
+
+    #[tokio::test]
+    async fn test_ensure_model_available_force_redownload_tolerates_missing_delete() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/api/tags"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "models": [ {"name": "qwen3:14b"} ] })),
+            )
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("DELETE"))
+            .and(wiremock::matchers::path("/api/delete"))
+            .and(wiremock::matchers::body_json(serde_json::json!({
+                "model": "qwen3:14b"
+            })))
+            .respond_with(wiremock::ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/api/pull"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(
+                "{\"status\":\"downloading\",\"total\":1000000,\"completed\":1000000}\n",
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let config = InferenceConfig {
+            force_model_redownload: true,
+            ..Default::default()
+        };
+        let progress = TestProgress::new();
+        ensure_model_available_with_config(&server.uri(), "qwen3:14b", &progress, &config)
+            .await
+            .expect("force redownload should tolerate a missing local model");
+
+        let msgs = progress.messages();
+        assert!(msgs.iter().any(|m| m.contains("No local copy")));
+        assert!(msgs.iter().any(|m| m.contains("1000000/1000000")));
     }
 }

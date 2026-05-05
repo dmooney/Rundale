@@ -212,6 +212,18 @@ pub async fn get_ui_config(
     Ok(state.ui_config.clone())
 }
 
+/// Returns the latest provider-bootstrap status for the startup overlay.
+#[tauri::command]
+pub async fn get_setup_snapshot(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<crate::SetupStatusSnapshot, String> {
+    Ok(state
+        .setup_status
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .clone())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
@@ -1989,6 +2001,7 @@ mod cmd_tests {
             save_lock: Mutex::new(None),
             ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
             inference_config: parish_core::config::InferenceConfig::default(),
+            setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),
             shutdown_token,

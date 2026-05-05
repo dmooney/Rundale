@@ -27,8 +27,8 @@ use parish_tauri_lib::command_registry::EXPECTED_COMMANDS;
 #[allow(unused_imports)]
 use parish_tauri_lib::commands::{
     create_branch, discover_save_files, get_debug_snapshot, get_map, get_npcs_here, get_save_state,
-    get_theme, get_ui_config, get_world_snapshot, load_branch, new_game, new_save_file,
-    react_to_message, save_game, submit_input,
+    get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot, load_branch, new_game,
+    new_save_file, react_to_message, save_game, submit_input,
 };
 #[allow(unused_imports)]
 use parish_tauri_lib::editor_commands::{
@@ -40,7 +40,7 @@ use parish_tauri_lib::editor_commands::{
 /// All 29 expected commands are listed in EXPECTED_COMMANDS.
 #[test]
 fn command_count_matches_registry() {
-    const EXPECTED_COUNT: usize = 28;
+    const EXPECTED_COUNT: usize = 29;
     assert_eq!(
         EXPECTED_COMMANDS.len(),
         EXPECTED_COUNT,

@@ -117,16 +117,7 @@ impl Provider {
                 Some("meta-llama/Llama-3.1-8B-Instruct-Turbo"),
                 Some("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
             ],
-            // NVIDIA NIM: Nemotron 3 family — NVIDIA's own Mamba-Transformer
-            // hybrid MoE models, purpose-tuned for this endpoint with 1M
-            // context and first-class tool calling. Per NVIDIA's docs, the
-            // Super 120B-A12B variant meets or beats DeepSeek-R1 on
-            // reasoning at much higher throughput. The Nano 30B-A3B (3B
-            // active params) is the balanced MoE for JSON simulation, and
-            // Nemotron Nano 9B v2 is the dedicated low-latency model.
-            // Users wanting alternatives (deepseek-ai/deepseek-v4-pro,
-            // meta/llama-3.1-405b-instruct, etc.) can override per
-            // category via PARISH_DIALOGUE_MODEL etc.
+            // NVIDIA NIM: Nemotron 3 family
             Provider::NvidiaNim => [
                 Some("nvidia/nemotron-3-super-120b-a12b"),
                 Some("nvidia/nemotron-3-nano-30b-a3b"),

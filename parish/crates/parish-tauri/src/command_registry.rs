@@ -16,6 +16,7 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     "get_theme",
     "get_ui_config",
     "get_debug_snapshot",
+    "get_setup_snapshot",
     "submit_input",
     "discover_save_files",
     "save_game",

@@ -57,6 +57,7 @@ timeout_secs = 30               # Non-streaming request timeout
 streaming_timeout_secs = 300    # Streaming request timeout
 reachability_timeout_secs = 10  # Ollama reachability check timeout
 model_download_timeout_secs = 3600  # Model download timeout (1 hour)
+force_model_redownload = false      # Delete local Ollama model before pulling (debug/testing)
 model_loading_timeout_secs = 300    # Model loading/warmup timeout
 log_capacity = 50               # Max entries in debug inference log ring buffer
 

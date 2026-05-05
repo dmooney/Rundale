@@ -144,6 +144,9 @@ pub struct InferenceConfig {
     /// Model download timeout in seconds.
     #[serde(default = "default_model_download_timeout_secs")]
     pub model_download_timeout_secs: u64,
+    /// Force Ollama setup to delete the selected local model before pulling.
+    #[serde(default)]
+    pub force_model_redownload: bool,
     /// Model loading/warmup timeout in seconds.
     #[serde(default = "default_model_loading_timeout_secs")]
     pub model_loading_timeout_secs: u64,
@@ -166,6 +169,7 @@ impl Default for InferenceConfig {
             streaming_timeout_secs: 300,
             reachability_timeout_secs: 10,
             model_download_timeout_secs: 3600,
+            force_model_redownload: false,
             model_loading_timeout_secs: 300,
             log_capacity: 50,
             rate_limits: RateLimitConfig::default(),
@@ -1185,5 +1189,13 @@ attribution = "custom attribution"
         // Unspecified categories remain None
         assert!(cfg.rate_limits.intent.is_none());
         assert!(cfg.rate_limits.reaction.is_none());
+    }
+
+    #[test]
+    fn test_inference_config_parses_force_model_redownload_from_toml() {
+        let cfg: InferenceConfig = toml::from_str("force_model_redownload = true").unwrap();
+
+        assert!(cfg.force_model_redownload);
+        assert_eq!(cfg.model_download_timeout_secs, 3600);
     }
 }

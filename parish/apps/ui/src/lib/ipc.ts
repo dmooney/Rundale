@@ -319,13 +319,26 @@ export interface SetupStatusPayload {
 	message: string;
 }
 export interface SetupProgressPayload {
+	/** Bytes downloaded so far across discovered Ollama pull artifacts. */
 	completed: number;
+	/** Total bytes expected across discovered Ollama pull artifacts. */
 	total: number;
 }
 export interface SetupDonePayload {
 	success: boolean;
 	error: string;
 }
+export interface SetupSnapshot {
+	current_message: string;
+	messages: string[];
+	completed: number;
+	total: number;
+	done: boolean;
+	success: boolean | null;
+	error: string;
+}
+
+export const getSetupSnapshot = () => command<SetupSnapshot>('get_setup_snapshot');
 
 export const onSetupStatus = (cb: (payload: SetupStatusPayload) => void) =>
 	onEvent<SetupStatusPayload>('setup-status', cb);

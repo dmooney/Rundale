@@ -224,6 +224,39 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: `Arc<dyn SessionStore>` is
     /// never held across lock acquisition of any `Mutex` field.
     pub session_store: Arc<dyn SessionStore>,
+    /// Setup status snapshot (always `done: true` for the web server since
+    /// there is no Ollama bootstrap process).  Present for IPC wiring parity
+    /// with the Tauri backend (#732).
+    pub setup_status: std::sync::Mutex<SetupStatusSnapshot>,
+}
+
+/// Server-side counterpart of the Tauri `SetupStatusSnapshot`.
+///
+/// Always initialised as `done: true` because the web server has no Ollama
+/// bootstrap flow — this exists purely for IPC command parity (#732).
+#[derive(serde::Serialize, Clone)]
+pub struct SetupStatusSnapshot {
+    pub current_message: String,
+    pub messages: Vec<String>,
+    pub completed: u64,
+    pub total: u64,
+    pub done: bool,
+    pub success: Option<bool>,
+    pub error: String,
+}
+
+impl Default for SetupStatusSnapshot {
+    fn default() -> Self {
+        Self {
+            current_message: String::new(),
+            messages: vec![],
+            completed: 0,
+            total: 0,
+            done: true,
+            success: Some(true),
+            error: String::new(),
+        }
+    }
 }
 
 // GameConfig is now shared across all backends via parish-core.
@@ -302,6 +335,7 @@ pub fn build_app_state(
         inference_config,
         save_db: tokio::sync::Mutex::new(None),
         session_store,
+        setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
     })
 }
 

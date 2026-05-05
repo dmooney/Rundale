@@ -45,7 +45,7 @@ use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 
 use crate::middleware::SessionId;
 use crate::session::GlobalState;
-use crate::state::{AppState, ConversationRuntimeState, SaveState};
+use crate::state::{AppState, ConversationRuntimeState, SaveState, SetupStatusSnapshot};
 
 // ── Query endpoints ─────────────────────────────────────────────────────────
 
@@ -58,6 +58,18 @@ pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> J
     snapshot.name_hints =
         parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
     Json(snapshot)
+}
+
+/// `GET /api/setup-snapshot` — returns the current setup status.
+/// Always returns `done: true` for the web server (no Ollama bootstrap).
+pub async fn get_setup_snapshot(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Json<SetupStatusSnapshot> {
+    let status = state
+        .setup_status
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    Json(status.clone())
 }
 
 /// `GET /api/map` — returns visited locations, edges, and player position.
