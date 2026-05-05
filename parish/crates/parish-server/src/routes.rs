@@ -21,8 +21,7 @@ use parish_core::inference::{
 };
 use parish_core::input::{Command, InputResult, classify_input};
 use parish_core::ipc::{
-    LoadingPayload, MapData, NpcInfo, ReactRequest, TextPresentation, ThemePalette, WorldSnapshot,
-    text_log, text_log_typed,
+    LoadingPayload, MapData, NpcInfo, ReactRequest, ThemePalette, WorldSnapshot, text_log,
 };
 // NpcManager — used in tests only (imported locally in the test module).
 // ConversationLine, NpcId, and mpsc are only used in the test module.
@@ -320,7 +319,7 @@ pub async fn submit_input(
 ///
 /// Config is read in a scoped block so the lock is dropped before any other
 /// lock is acquired, minimising the race window between concurrent rebuilds.
-async fn rebuild_inference(state: &Arc<AppState>) {
+pub async fn rebuild_inference_inner(state: &Arc<AppState>) {
     // Read config first, then drop the lock before acquiring any other lock.
     let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
@@ -382,192 +381,16 @@ async fn emit_world_update(state: &Arc<AppState>) {
         .emit_named(Topic::WorldUpdate, "world-update", &ws);
 }
 
-/// Handles `/command` system inputs using the shared command handler.
+/// Handles `/command` system inputs.
+///
+/// Delegates to [`parish_core::game_loop::handle_system_command`] via the
+/// [`AppStateCommandHost`] adapter (#696 slice 7).
 async fn handle_system_command(cmd: parish_core::input::Command, state: &Arc<AppState>) {
-    use parish_core::ipc::{CommandEffect, handle_command};
+    use crate::command_host::AppStateCommandHost;
+    use parish_core::game_loop::handle_system_command as shared_handle;
 
-    // Acquire all locks, run the shared handler, then release.
-    let result = {
-        let mut world = state.world.lock().await;
-        let mut npc_manager = state.npc_manager.lock().await;
-        let mut config = state.config.lock().await;
-        handle_command(cmd, &mut world, &mut npc_manager, &mut config)
-    };
-
-    // Handle mode-specific side effects.
-    for effect in &result.effects {
-        match effect {
-            CommandEffect::RebuildInference => rebuild_inference(state).await,
-            CommandEffect::RebuildCloudClient => {
-                let config = state.config.lock().await;
-                let base_url = config
-                    .cloud_base_url
-                    .as_deref()
-                    .unwrap_or("https://openrouter.ai/api")
-                    .to_string();
-                let api_key = config.cloud_api_key.clone();
-                let provider_enum = config
-                    .cloud_provider_name
-                    .as_deref()
-                    .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                    .unwrap_or(parish_core::config::Provider::OpenRouter);
-                drop(config);
-                let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(parish_core::inference::build_client(
-                    &provider_enum,
-                    &base_url,
-                    api_key.as_deref(),
-                    &state.inference_config, // (#417) use TOML-configured timeouts
-                ));
-            }
-            CommandEffect::Quit => {
-                // Web server cannot be quit from the game.
-                state.event_bus.emit_named(
-                    Topic::TextLog,
-                    "text-log",
-                    &text_log(
-                        "system",
-                        "The web server cannot be quit from the game. Close your browser tab.",
-                    ),
-                );
-            }
-            CommandEffect::ToggleMap => {
-                state
-                    .event_bus
-                    .emit_named(Topic::UiControl, "toggle-full-map", &());
-            }
-            CommandEffect::OpenDesigner => {
-                state
-                    .event_bus
-                    .emit_named(Topic::UiControl, "open-designer", &());
-            }
-            CommandEffect::SaveGame => {
-                let msg = match do_save_game_inner(state).await {
-                    Ok(msg) => msg,
-                    Err(e) => format!("Save failed: {}", e),
-                };
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
-            }
-            CommandEffect::ForkBranch(name) => {
-                let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
-                let msg = match do_fork_branch_inner(state, name, parent_id).await {
-                    Ok(msg) => msg,
-                    Err(e) => format!("Fork failed: {}", e),
-                };
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
-            }
-            CommandEffect::LoadBranch(_) => {
-                // Open the save picker in the frontend
-                state
-                    .event_bus
-                    .emit_named(Topic::UiControl, "save-picker", &());
-            }
-            CommandEffect::ListBranches => {
-                let msg = match do_list_branches_inner(state).await {
-                    Ok(text) => text,
-                    Err(e) => format!("Failed to list branches: {}", e),
-                };
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
-            }
-            CommandEffect::ShowLog => {
-                let msg = match do_branch_log_inner(state).await {
-                    Ok(text) => text,
-                    Err(e) => format!("Failed to show log: {}", e),
-                };
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
-            }
-            CommandEffect::Debug(_) => {
-                state.event_bus.emit_named(
-                    Topic::TextLog,
-                    "text-log",
-                    &text_log("system", "Debug commands are not available in web mode."),
-                );
-            }
-            CommandEffect::ShowSpinner(secs) => {
-                let secs = *secs;
-                let cancel = tokio_util::sync::CancellationToken::new();
-                spawn_loading_animation(Arc::clone(state), cancel.clone());
-                let msg = format!("Showing spinner for {} seconds...", secs);
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &text_log("system", msg));
-                tokio::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
-                    cancel.cancel();
-                });
-            }
-            CommandEffect::NewGame => match do_new_game_inner(state).await {
-                Ok(()) => {
-                    state.event_bus.emit_named(
-                        Topic::TextLog,
-                        "text-log",
-                        &text_log("system", "A new chapter begins in the parish..."),
-                    );
-                }
-                Err(e) => {
-                    state.event_bus.emit_named(
-                        Topic::TextLog,
-                        "text-log",
-                        &text_log("system", format!("New game failed: {}", e)),
-                    );
-                }
-            },
-            CommandEffect::SaveFlags => {
-                let flags = state.config.lock().await.flags.clone();
-                let path = state.flags_path.clone();
-                tokio::task::spawn_blocking(move || {
-                    if let Err(e) = flags.save_to_file(&path) {
-                        tracing::warn!("Failed to save feature flags: {}", e);
-                    }
-                });
-            }
-            CommandEffect::ApplyTheme(name, mode) => {
-                state.event_bus.emit_named(
-                    Topic::UiControl,
-                    "theme-switch",
-                    &serde_json::json!({ "name": name, "mode": mode }),
-                );
-            }
-            CommandEffect::ApplyTiles(id) => {
-                state.event_bus.emit_named(
-                    Topic::UiControl,
-                    "tiles-switch",
-                    &serde_json::json!({ "id": id }),
-                );
-            }
-        }
-    }
-
-    // Emit the command response text. Tabular responses (e.g. `/help`) carry
-    // a `subtype: "tabular"` hint so the chat UI can render them in monospace.
-    if !result.response.is_empty() {
-        let payload = match result.presentation {
-            TextPresentation::Tabular => text_log_typed("system", result.response, "tabular"),
-            TextPresentation::Prose => text_log("system", result.response),
-        };
-        state
-            .event_bus
-            .emit_named(Topic::TextLog, "text-log", &payload);
-    }
-
-    // Emit updated world snapshot.
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let transport = state.transport.default_mode();
-    let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
-    ws.name_hints =
-        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-    state
-        .event_bus
-        .emit_named(Topic::WorldUpdate, "world-update", &ws);
+    let host = AppStateCommandHost::new(Arc::clone(state));
+    shared_handle(&host, cmd).await;
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
@@ -772,7 +595,7 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>) {
 
 /// Spawns a background task that emits rich [`LoadingPayload`] events with
 /// cycling Irish phrases while the player waits for NPC inference.
-fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::CancellationToken) {
+pub fn spawn_loading_animation(state: Arc<AppState>, cancel: tokio_util::sync::CancellationToken) {
     tokio::spawn(async move {
         use parish_core::loading::LoadingAnimation;
 
@@ -940,7 +763,7 @@ fn emit_npc_reactions(
 // ── Persistence helpers (called by both REST handlers and CommandEffect) ─────
 
 /// Saves the current game state. Returns a human-readable success message.
-async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
+pub async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
     let snapshot = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
@@ -1002,7 +825,7 @@ async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
 }
 
 /// Creates a new branch forked from a parent. Returns a human-readable message.
-async fn do_fork_branch_inner(
+pub async fn do_fork_branch_inner(
     state: &Arc<AppState>,
     name: &str,
     parent_branch_id: i64,
@@ -1055,7 +878,7 @@ async fn do_fork_branch_inner(
 }
 
 /// Lists all branches in the current save file.
-async fn do_list_branches_inner(state: &Arc<AppState>) -> Result<String, String> {
+pub async fn do_list_branches_inner(state: &Arc<AppState>) -> Result<String, String> {
     let save_path_guard = state.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
@@ -1092,7 +915,7 @@ async fn do_list_branches_inner(state: &Arc<AppState>) -> Result<String, String>
 }
 
 /// Shows the save log for the current branch.
-async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String> {
+pub async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String> {
     let save_path_guard = state.save_path.lock().await;
     let db_path = save_path_guard
         .as_ref()
@@ -1127,7 +950,7 @@ async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String> {
 }
 
 /// Starts a new game (resets world and NPCs from data dir).
-async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
+pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
     let saves_dir = state.saves_dir.clone();
 
     // Load fresh world and NPCs using the shared helper (#696).
@@ -2231,7 +2054,7 @@ pub(crate) mod tests {
             "sentinel should be running before rebuild"
         );
 
-        rebuild_inference(&state).await;
+        rebuild_inference_inner(&state).await;
 
         // Yield + brief sleep so the runtime processes the abort.
         for _ in 0..10 {
@@ -2265,7 +2088,7 @@ pub(crate) mod tests {
         }
         assert!(state.worker_handle.lock().await.is_none());
 
-        rebuild_inference(&state).await;
+        rebuild_inference_inner(&state).await;
 
         assert!(
             state.worker_handle.lock().await.is_some(),

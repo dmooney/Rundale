@@ -77,6 +77,7 @@ pub mod movement;
 pub mod npc_turn;
 pub mod reactions;
 pub mod save;
+pub mod system_command;
 
 pub use context::GameLoopContext;
 pub use inference::{InferenceSlots, rebuild_inference_worker};
@@ -85,3 +86,4 @@ pub use movement::handle_movement;
 pub use npc_turn::{TurnOutcome, handle_npc_conversation, run_idle_banter, run_npc_turn};
 pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
 pub use save::load_fresh_world_and_npcs;
+pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};

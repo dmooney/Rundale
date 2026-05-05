@@ -18,9 +18,8 @@ use parish_core::world::transport::TransportMode;
 use tauri::Emitter;
 
 use crate::events::{
-    EVENT_SAVE_PICKER, EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_TEXT_LOG, EVENT_TRAVEL_START,
-    EVENT_WORLD_UPDATE, StreamEndPayload, StreamTokenPayload, TextLogPayload,
-    spawn_loading_animation,
+    EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
+    StreamEndPayload, StreamTokenPayload, TextLogPayload,
 };
 use crate::{
     AppState, ConversationRuntimeState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette,
@@ -302,7 +301,7 @@ pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
 ///
 /// Replaces the client and respawns the inference worker so subsequent
 /// NPC conversations use the new configuration.
-async fn rebuild_inference(state: &Arc<AppState>, app: &tauri::AppHandle) {
+pub async fn rebuild_inference_inner(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let (provider_name, base_url, api_key) = {
         let config = state.config.lock().await;
         (
@@ -360,159 +359,20 @@ async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
 }
 
-/// Handles `/command` inputs using the shared command handler.
+/// Handles `/command` inputs.
+///
+/// Delegates to [`parish_core::game_loop::handle_system_command`] via the
+/// [`TauriCommandHost`] adapter (#696 slice 7).
 async fn handle_system_command(
     cmd: parish_core::input::Command,
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) {
-    use parish_core::ipc::{CommandEffect, handle_command};
+    use crate::command_host::TauriCommandHost;
+    use parish_core::game_loop::handle_system_command as shared_handle;
 
-    // Run shared handler with all locks held.
-    let result = {
-        let mut world = state.world.lock().await;
-        let mut npc_manager = state.npc_manager.lock().await;
-        let mut config = state.config.lock().await;
-        handle_command(cmd, &mut world, &mut npc_manager, &mut config)
-    };
-
-    // Handle mode-specific side effects.
-    let mut extra_response: Option<String> = None;
-    for effect in &result.effects {
-        match effect {
-            CommandEffect::RebuildInference => rebuild_inference(state, app).await,
-            CommandEffect::RebuildCloudClient => {
-                let config = state.config.lock().await;
-                let base_url = config
-                    .cloud_base_url
-                    .as_deref()
-                    .unwrap_or("https://openrouter.ai/api")
-                    .to_string();
-                let api_key = config.cloud_api_key.clone();
-                let provider_enum = config
-                    .cloud_provider_name
-                    .as_deref()
-                    .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                    .unwrap_or(parish_core::config::Provider::OpenRouter);
-                drop(config);
-                let mut cloud_guard = state.cloud_client.lock().await;
-                *cloud_guard = Some(parish_core::inference::build_client(
-                    &provider_enum,
-                    &base_url,
-                    api_key.as_deref(),
-                    &state.inference_config, // (#417) use TOML-configured timeouts
-                ));
-            }
-            CommandEffect::Quit => {
-                app.exit(0);
-                return;
-            }
-            CommandEffect::ToggleMap => {
-                let _ = app.emit(crate::events::EVENT_TOGGLE_MAP, ());
-                return; // No text log for map toggle
-            }
-            CommandEffect::OpenDesigner => {
-                let _ = app.emit(crate::events::EVENT_OPEN_DESIGNER, ());
-                return; // No text log — navigation handled by frontend
-            }
-            CommandEffect::SaveGame => {
-                extra_response = Some(match do_save_game(state).await {
-                    Ok(msg) => msg,
-                    Err(e) => format!("Save failed: {}", e),
-                });
-            }
-            CommandEffect::ForkBranch(name) => {
-                let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
-                extra_response = Some(match do_create_branch(state, name, parent_id).await {
-                    Ok(msg) => msg,
-                    Err(e) => format!("Fork failed: {}", e),
-                });
-            }
-            CommandEffect::LoadBranch(_) => {
-                let _ = app.emit(EVENT_SAVE_PICKER, ());
-                extra_response = Some("Opening save picker...".to_string());
-            }
-            CommandEffect::ListBranches => {
-                extra_response = Some(match do_list_branches_text(state).await {
-                    Ok(text) => text,
-                    Err(e) => format!("Failed to list branches: {}", e),
-                });
-            }
-            CommandEffect::ShowLog => {
-                extra_response = Some(match do_branch_log_text(state).await {
-                    Ok(text) => text,
-                    Err(e) => format!("Failed to show log: {}", e),
-                });
-            }
-            CommandEffect::Debug(_) => {
-                extra_response = Some("Debug commands are not available in the GUI.".to_string());
-            }
-            CommandEffect::ShowSpinner(secs) => {
-                let app_handle = app.clone();
-                let cancel = tokio_util::sync::CancellationToken::new();
-                spawn_loading_animation(app_handle, cancel.clone());
-                let secs = *secs;
-                tokio::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
-                    cancel.cancel();
-                });
-                extra_response = Some(format!("Showing spinner for {} seconds…", secs));
-            }
-            CommandEffect::NewGame => match do_new_game(state, app).await {
-                Ok(()) => {
-                    extra_response = Some("A new chapter begins in the parish...".to_string());
-                }
-                Err(e) => {
-                    extra_response = Some(format!("New game failed: {}", e));
-                }
-            },
-            CommandEffect::SaveFlags => {
-                let flags = state.config.lock().await.flags.clone();
-                let path = state.data_dir.join("parish-flags.json");
-                tokio::task::spawn_blocking(move || {
-                    if let Err(e) = flags.save_to_file(&path) {
-                        tracing::warn!("Failed to save feature flags: {}", e);
-                    }
-                });
-            }
-            CommandEffect::ApplyTheme(name, mode) => {
-                let _ = app.emit(
-                    crate::events::EVENT_THEME_SWITCH,
-                    serde_json::json!({ "name": name, "mode": mode }),
-                );
-            }
-            CommandEffect::ApplyTiles(id) => {
-                let _ = app.emit(
-                    crate::events::EVENT_TILES_SWITCH,
-                    serde_json::json!({ "id": id }),
-                );
-            }
-        }
-    }
-
-    // Emit the command response text (shared response or mode-specific override).
-    let response = extra_response.unwrap_or(result.response);
-    if !response.is_empty() {
-        // Route through the core helpers so tabular responses (e.g. `/help`)
-        // carry `subtype: "tabular"` for the chat UI to render in monospace.
-        let payload = match result.presentation {
-            parish_core::ipc::TextPresentation::Tabular => {
-                text_log_typed("system", response, "tabular")
-            }
-            parish_core::ipc::TextPresentation::Prose => text_log("system", response),
-        };
-        let _ = app.emit(EVENT_TEXT_LOG, payload);
-    }
-
-    // Emit updated world state for status bar.
-    {
-        let world = state.world.lock().await;
-        let transport = state.transport.default_mode();
-        let npc_manager = state.npc_manager.lock().await;
-        let mut snapshot = snapshot_from_world(&world, transport);
-        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
-        let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
-    }
+    let host = TauriCommandHost::new(Arc::clone(state), app.clone());
+    shared_handle(&host, cmd).await;
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
@@ -1196,7 +1056,7 @@ pub async fn create_branch(
 }
 
 /// Internal fork implementation shared by the command and /fork handler.
-async fn do_create_branch(
+pub async fn do_create_branch(
     state: &Arc<AppState>,
     name: &str,
     parent_branch_id: i64,
@@ -1290,7 +1150,7 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
 /// Internal helper that reloads world/NPCs and creates a fresh save file.
 ///
 /// Called both by the `new_game` Tauri command and the `CommandEffect::NewGame` handler.
-async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<(), String> {
+pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<(), String> {
     let game_mod = parish_core::game_mod::find_default_mod()
         .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
@@ -1384,7 +1244,7 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
 }
 
 /// Formats branch list as text for the /branches command.
-async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
+pub async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = {
         let guard = state.save_path.lock().await;
         guard
@@ -1415,7 +1275,7 @@ async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> 
 }
 
 /// Formats branch log as text for the /log command.
-async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
+pub async fn do_branch_log_text(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = {
         let guard = state.save_path.lock().await;
         guard

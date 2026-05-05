@@ -9,6 +9,7 @@
 
 pub mod auth;
 pub mod cf_auth;
+pub mod command_host;
 pub mod editor_routes;
 pub mod emitter;
 pub mod middleware;

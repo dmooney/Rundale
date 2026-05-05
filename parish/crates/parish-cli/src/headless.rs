@@ -602,262 +602,30 @@ static HEADLESS_IDLE_COUNTER: std::sync::atomic::AtomicUsize =
 /// Handles a system command in headless mode.
 ///
 /// Returns `(should_quit, rebuild_inference)`.
+///
+/// Delegates to [`parish_core::game_loop::handle_system_command`] via the
+/// [`CliCommandHost`] adapter (#696 slice 7).  The `App` is temporarily moved
+/// into an `Arc<Mutex<App>>` for the duration of the call, then moved back.
 async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
-    use parish_core::ipc::{CommandEffect, handle_command};
+    use crate::command_host::CliCommandHost;
+    use parish_core::game_loop::handle_system_command as shared_handle;
+    use std::sync::Arc;
 
-    // Snapshot config, run shared handler, apply changes back.
-    let mut config = app.snapshot_config();
-    let result = handle_command(cmd, &mut app.world, &mut app.npc_manager, &mut config);
-    app.apply_config(&config);
-
-    let mut rebuild = false;
-    let mut should_quit = false;
-
-    // Handle mode-specific side effects.
-    for effect in &result.effects {
-        match effect {
-            CommandEffect::RebuildInference => {
-                if app.provider_name != "simulator" {
-                    if !(app.base_url.starts_with("http://")
-                        || app.base_url.starts_with("https://"))
-                    {
-                        println!(
-                            "[Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.]",
-                            app.base_url
-                        );
-                    }
-                    let provider =
-                        parish_core::config::Provider::from_str_loose(&app.provider_name)
-                            .unwrap_or_default();
-                    app.client = Some(inference::build_client(
-                        &provider,
-                        &app.base_url,
-                        app.api_key.as_deref(),
-                        &app.inference_config, // (#417) use TOML-configured timeouts
-                    ));
-                }
-                rebuild = true;
-            }
-            CommandEffect::RebuildCloudClient => {
-                let base_url = app
-                    .cloud_base_url
-                    .as_deref()
-                    .unwrap_or("https://openrouter.ai/api");
-                let provider = app
-                    .cloud_provider_name
-                    .as_deref()
-                    .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                    .unwrap_or(parish_core::config::Provider::OpenRouter);
-                app.cloud_client = Some(inference::build_client(
-                    &provider,
-                    base_url,
-                    app.cloud_api_key.as_deref(),
-                    &app.inference_config, // (#417) use TOML-configured timeouts
-                ));
-                rebuild = true;
-            }
-            CommandEffect::Quit => {
-                // Autosave before quitting
-                if let Some(ref db) = app.db {
-                    let snapshot =
-                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                    match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                        Ok(snap_id) => {
-                            app.latest_snapshot_id = snap_id;
-                            println!("Saved and farewell.");
-                        }
-                        Err(e) => eprintln!("Warning: Failed to save on quit: {}", e),
-                    }
-                }
-                app.should_quit = true;
-                should_quit = true;
-            }
-            CommandEffect::ToggleMap => {
-                println!("=== Parish Map ===");
-                let player_loc = app.world.player_location;
-                for node_id in app.world.graph.location_ids() {
-                    if let Some(data) = app.world.graph.get(node_id) {
-                        let marker = if node_id == player_loc { " * " } else { "   " };
-                        println!("{}{}", marker, data.name);
-                    }
-                }
-                println!();
-                println!("Connections:");
-                for node_id in app.world.graph.location_ids() {
-                    if let Some(data) = app.world.graph.get(node_id) {
-                        for (neighbor_id, _) in app.world.graph.neighbors(node_id) {
-                            if node_id.0 < neighbor_id.0 {
-                                let neighbor_name = app
-                                    .world
-                                    .graph
-                                    .get(neighbor_id)
-                                    .map(|d| d.name.as_str())
-                                    .unwrap_or("???");
-                                println!("  {} — {}", data.name, neighbor_name);
-                            }
-                        }
-                    }
-                }
-            }
-            CommandEffect::OpenDesigner => {
-                println!("The Parish Designer is only available in the GUI.");
-            }
-            CommandEffect::SaveGame => {
-                if let Some(ref db) = app.db {
-                    let snapshot =
-                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                    match db.save_snapshot(app.active_branch_id, &snapshot).await {
-                        Ok(snap_id) => {
-                            let _ = db
-                                .clear_journal(app.active_branch_id, app.latest_snapshot_id)
-                                .await;
-                            app.latest_snapshot_id = snap_id;
-                            app.last_autosave = Some(std::time::Instant::now());
-                            println!("Game saved.");
-                        }
-                        Err(e) => eprintln!("Failed to save: {}", e),
-                    }
-                } else {
-                    println!("Persistence not available.");
-                }
-            }
-            CommandEffect::ForkBranch(name) => {
-                if let Some(ref db) = app.db {
-                    let snapshot =
-                        crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                    let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
-                    match db.create_branch(name, Some(app.active_branch_id)).await {
-                        Ok(new_branch_id) => {
-                            match db.save_snapshot(new_branch_id, &snapshot).await {
-                                Ok(snap_id) => {
-                                    app.active_branch_id = new_branch_id;
-                                    app.latest_snapshot_id = snap_id;
-                                    app.last_autosave = Some(std::time::Instant::now());
-                                    println!("Forked to branch '{}'.", name);
-                                }
-                                Err(e) => eprintln!("Failed to save fork snapshot: {}", e),
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to create branch '{}': {}", name, e),
-                    }
-                } else {
-                    println!("Persistence not available.");
-                }
-            }
-            CommandEffect::LoadBranch(name) => {
-                if let Err(e) = handle_headless_load(app, name).await {
-                    eprintln!("{e}");
-                    should_quit = true;
-                }
-            }
-            CommandEffect::ListBranches => {
-                if let Some(ref db) = app.db {
-                    match db.list_branches().await {
-                        Ok(branches) => {
-                            println!("Save branches:");
-                            for b in &branches {
-                                let marker = if b.id == app.active_branch_id {
-                                    " *"
-                                } else {
-                                    ""
-                                };
-                                println!(
-                                    "  {}{} (created {})",
-                                    b.name,
-                                    marker,
-                                    crate::persistence::format_timestamp(&b.created_at)
-                                );
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to list branches: {}", e),
-                    }
-                } else {
-                    println!("Persistence not available.");
-                }
-            }
-            CommandEffect::ShowLog => {
-                if let Some(ref db) = app.db {
-                    match db.branch_log(app.active_branch_id).await {
-                        Ok(snapshots) => {
-                            if snapshots.is_empty() {
-                                println!("No snapshots on this branch yet.");
-                            } else {
-                                println!("Snapshot history (most recent first):");
-                                for s in &snapshots {
-                                    println!(
-                                        "  #{} — game: {} | saved: {}",
-                                        s.id,
-                                        s.game_time,
-                                        crate::persistence::format_timestamp(&s.real_time)
-                                    );
-                                }
-                            }
-                        }
-                        Err(e) => eprintln!("Failed to get branch log: {}", e),
-                    }
-                } else {
-                    println!("Persistence not available.");
-                }
-            }
-            CommandEffect::Debug(sub) => {
-                let lines = crate::debug::handle_debug(sub.as_deref(), app);
-                for line in lines {
-                    println!("{}", line);
-                }
-            }
-            CommandEffect::ShowSpinner(secs) => {
-                let secs = *secs;
-                println!("Showing spinner for {} seconds...", secs);
-                let mut anim = LoadingAnimation::new();
-                let end = std::time::Instant::now() + std::time::Duration::from_secs(secs);
-                while std::time::Instant::now() < end {
-                    anim.tick();
-                    let (r, g, b) = anim.current_color_rgb();
-                    print!(
-                        "\r  \x1b[38;2;{};{};{}m{} {}\x1b[0m\x1b[K",
-                        r,
-                        g,
-                        b,
-                        anim.spinner_char(),
-                        anim.phrase()
-                    );
-                    std::io::stdout().flush().ok();
-                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                }
-                println!("\r\x1b[K");
-            }
-            CommandEffect::NewGame => {
-                handle_headless_new_game(app).await;
-            }
-            CommandEffect::SaveFlags => {
-                if let Some(ref p) = app.flags_path
-                    && let Err(e) = app.flags.save_to_file(p)
-                {
-                    eprintln!("Warning: failed to save feature flags: {}", e);
-                }
-            }
-            CommandEffect::ApplyTheme(..) => {
-                // No visual theme in headless mode; response text is printed below.
-            }
-            CommandEffect::ApplyTiles(..) => {
-                // No map in headless mode; response text is printed below.
-            }
-        }
-    }
-
-    // Print the shared handler's response text.
-    if !result.response.is_empty() {
-        // The shared handler returns Help as a fallback; override with headless-specific help.
-        if result.effects.is_empty()
-            || !result
-                .effects
-                .iter()
-                .any(|e| matches!(e, CommandEffect::Quit))
-        {
-            println!("{}", result.response);
-        }
-    }
-
+    // Temporarily move App into Arc<Mutex<App>> so CliCommandHost satisfies Send+Sync.
+    let app_val = std::mem::take(app);
+    let app_arc = Arc::new(tokio::sync::Mutex::new(app_val));
+    let (should_quit, rebuild) = {
+        let host = CliCommandHost::new(Arc::clone(&app_arc));
+        shared_handle(&host, cmd).await;
+        let q = host.did_quit();
+        let r = host.did_rebuild_inference();
+        // `host` is dropped here, releasing its Arc clone so app_arc has exactly 1 ref.
+        (q, r)
+    };
+    // Move App back — exactly 1 strong reference remains at this point.
+    *app = Arc::into_inner(app_arc)
+        .expect("CliCommandHost dropped: Arc should have exactly 1 reference")
+        .into_inner();
     (should_quit, rebuild)
 }
 
@@ -865,7 +633,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command) -> (bool, bool) {
 ///
 /// Returns `Err` if the new save file's lock cannot be acquired while running
 /// in script mode — the same fail-closed policy applied at startup (#608).
-async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::Result<()> {
+pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
         // Bare /load — show save picker for switching save files
         let saves_dir = std::path::PathBuf::from(crate::persistence::picker::SAVES_DIR);
@@ -969,7 +737,7 @@ async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::Result<()> {
 }
 
 /// Handles /new in headless mode — resets world and NPCs.
-async fn handle_headless_new_game(app: &mut App) {
+pub(crate) async fn handle_headless_new_game(app: &mut App) {
     if let Some(ref gm) = app.game_mod {
         match parish_core::game_mod::world_state_from_mod(gm) {
             Ok(world) => app.world = world,

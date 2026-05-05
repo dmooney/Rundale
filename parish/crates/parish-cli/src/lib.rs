@@ -8,6 +8,7 @@ pub use parish_core::persistence;
 pub use parish_core::world;
 
 pub mod app;
+pub mod command_host;
 pub mod config;
 pub mod debug;
 pub mod emitter;
