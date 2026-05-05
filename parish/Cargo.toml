@@ -83,7 +83,7 @@ rand    = "0.9"
 strsim  = "0.11"
 regex   = "1"
 governor  = "0.10"
-lru       = "0.12"
+lru       = "0.16"
 uuid    = { version = "1", features = ["v4"] }
 async-trait = "0.1"
 
