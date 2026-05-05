@@ -184,6 +184,10 @@ pub async fn run_headless(
 
     // Initialize persistence — Papers Please-style save picker
     let saves_dir = crate::persistence::picker::ensure_saves_dir();
+    // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).
+    app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
+        saves_dir.clone(),
+    ));
     let db_path = crate::persistence::picker::run_picker(&saves_dir, &app.world.graph);
     app.save_file_path = Some(db_path.clone());
 

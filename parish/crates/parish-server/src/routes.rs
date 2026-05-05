@@ -45,7 +45,7 @@ use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 
 use crate::middleware::SessionId;
 use crate::session::GlobalState;
-use crate::state::{AppState, ConversationRuntimeState, SaveState, SetupStatusSnapshot};
+use crate::state::{AppState, SaveState, SetupStatusSnapshot};
 
 // ── Query endpoints ─────────────────────────────────────────────────────────
 
@@ -774,66 +774,17 @@ fn emit_npc_reactions(
 
 // ── Persistence helpers (called by both REST handlers and CommandEffect) ─────
 
-/// Saves the current game state. Returns a human-readable success message.
+/// Saves the current game state — delegates to the shared canonical impl (#696).
 pub async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
-    let snapshot = {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        GameSnapshot::capture(&world, &npc_manager)
-    };
-
-    let mut save_path_guard = state.save_path.lock().await;
-    let mut branch_id_guard = state.current_branch_id.lock().await;
-    let mut branch_name_guard = state.current_branch_name.lock().await;
-    let saves_dir = state.saves_dir.clone();
-
-    let db_path = if let Some(ref path) = *save_path_guard {
-        path.clone()
-    } else {
-        let path = new_save_path(&saves_dir);
-        *save_path_guard = Some(path.clone());
-        path
-    };
-
-    let branch_id = if let Some(id) = *branch_id_guard {
-        id
-    } else {
-        let db_path_clone = db_path.clone();
-        let id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
-            let db = Database::open(&db_path_clone).map_err(|e| e.to_string())?;
-            let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-            Ok(branch.map(|b| b.id).unwrap_or(1))
-        })
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
-
-        *branch_id_guard = Some(id);
-        *branch_name_guard = Some("main".to_string());
-        id
-    };
-
-    let db_path_clone = db_path.clone();
-    tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let db = Database::open(&db_path_clone).map_err(|e| e.to_string())?;
-        db.save_snapshot(branch_id, &snapshot)
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    })
+    parish_core::game_loop::do_save_game(
+        &state.world,
+        &state.npc_manager,
+        &state.save_path,
+        &state.current_branch_id,
+        &state.current_branch_name,
+        &state.saves_dir,
+    )
     .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-
-    let filename = db_path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "save".to_string());
-    let branch_name = branch_name_guard.as_deref().unwrap_or("main");
-
-    Ok(format!(
-        "Game saved to {} (branch: {}).",
-        filename, branch_name
-    ))
 }
 
 /// Creates a new branch forked from a parent. Returns a human-readable message.
@@ -963,72 +914,25 @@ pub async fn do_branch_log_inner(state: &Arc<AppState>) -> Result<String, String
 
 /// Starts a new game (resets world and NPCs from data dir).
 pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
-    let saves_dir = state.saves_dir.clone();
+    use crate::emitter::AppStateEmitter;
+    use parish_core::game_loop::{NewGameParams, do_new_game};
 
-    // Load fresh world and NPCs using the shared helper (#696).
-    let (world, mut npc_manager) = parish_core::game_loop::load_fresh_world_and_npcs(
-        state.game_mod.as_ref(),
-        &state.data_dir,
-    )?;
-    npc_manager.assign_tiers(&world, &[]);
-
-    // Replace state atomically (both locks held together to prevent a window
-    // where a command handler sees the new world with the old NPC manager).
-    {
-        let mut w = state.world.lock().await;
-        let mut nm = state.npc_manager.lock().await;
-        *w = world;
-        *nm = npc_manager;
-    }
-
-    // Reset conversation transcript so stale dialogue from the previous game
-    // does not bleed into NPC conversations in the new game (#281).
-    {
-        let mut conv = state.conversation.lock().await;
-        *conv = ConversationRuntimeState::new();
-    }
-
-    // Create a new save file
-    let path = new_save_path(&saves_dir);
-    let snapshot = {
-        let w = state.world.lock().await;
-        let nm = state.npc_manager.lock().await;
-        GameSnapshot::capture(&w, &nm)
-    };
-
-    let path_clone = path.clone();
-    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
-        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
-        let branch = db
-            .find_branch("main")
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "Failed to create main branch".to_string())?;
-        db.save_snapshot(branch.id, &snapshot)
-            .map_err(|e| e.to_string())?;
-        Ok(branch.id)
+    let emitter = AppStateEmitter::new(Arc::clone(state));
+    do_new_game(NewGameParams {
+        world: &state.world,
+        npc_manager: &state.npc_manager,
+        conversation: &state.conversation,
+        save_path: &state.save_path,
+        current_branch_id: &state.current_branch_id,
+        current_branch_name: &state.current_branch_name,
+        saves_dir: &state.saves_dir,
+        game_mod: state.game_mod.as_ref(),
+        data_dir: &state.data_dir,
+        pronunciations: &state.pronunciations,
+        default_transport: state.transport.default_mode(),
+        emitter: &emitter,
     })
     .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-
-    *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some("main".to_string());
-
-    // Emit updated world snapshot
-    {
-        let world = state.world.lock().await;
-        let npc_manager = state.npc_manager.lock().await;
-        let transport = state.transport.default_mode();
-        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
-        ws.name_hints =
-            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
-        state
-            .event_bus
-            .emit_named(Topic::WorldUpdate, "world-update", &ws);
-    }
-
-    Ok(())
 }
 
 // ── Persistence endpoints ────────────────────────────────────────────────────

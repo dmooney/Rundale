@@ -4,20 +4,37 @@
 //! advisory locking, and journal append/read so that future remote or
 //! managed-auth backends can drop in without touching route handlers.
 //!
-//! The default implementation (`DbSessionStore` in `parish-server`) wraps
-//! the existing [`parish_persistence::AsyncDatabase`] and filesystem helpers.
+//! The default implementation [`DbSessionStore`] is defined in this module
+//! and wraps the existing [`parish_persistence::AsyncDatabase`] and
+//! filesystem helpers.  It is available to all three runtimes (server, Tauri,
+//! CLI) via `parish_core::session_store::DbSessionStore`.
+//!
+//! `SqliteIdentityStore` and `SqliteSessionRegistry` remain in
+//! `parish-server` because they use server-only types (`is_valid_session_id`,
+//! rusqlite direct access for the sessions/oauth tables).
 //!
 //! # Dyn safety
 //!
 //! All methods return `std::pin::Pin<Box<dyn Future<...> + Send + '_>>` so
 //! the trait is object-safe and `Arc<dyn SessionStore>` works without the
 //! `async-trait` crate.
+//!
+//! # Session ID convention — single-user runtimes
+//!
+//! Tauri and headless CLI are single-user: they use `""` as the session ID.
+//! `DbSessionStore::ensure_db("")` resolves to `saves_dir` directly (joining
+//! an empty string is a no-op on all platforms) and scans for `.db` files
+//! there, matching the flat `saves/parish_NNN.db` layout used by both runtimes.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::{Arc, RwLock};
 
-use parish_persistence::{BranchInfo, GameSnapshot, SaveFileLock, SnapshotInfo, WorldEvent};
-use parish_types::ParishError;
+use crate::error::ParishError;
+use crate::persistence::{
+    AsyncDatabase, BranchInfo, Database, GameSnapshot, SaveFileLock, SnapshotInfo, WorldEvent,
+};
 
 /// Opaque snapshot row identifier returned by [`SessionStore::save_snapshot`].
 pub type SnapshotId = i64;
@@ -150,4 +167,222 @@ pub trait SessionStore: Send + Sync + 'static {
         branch_id: i64,
         snapshot_id: SnapshotId,
     ) -> BoxFuture<'_, Result<Vec<WorldEvent>, ParishError>>;
+}
+
+// ── DbSessionStore ────────────────────────────────────────────────────────────
+
+/// Per-session saves directory mapped to an `AsyncDatabase` instance.
+struct SessionDb {
+    /// Path to the `.db` file (e.g. `saves/<sid>/parish_001.db`).
+    db_path: std::path::PathBuf,
+    /// Cached open handle.
+    async_db: AsyncDatabase,
+}
+
+/// Default implementation of [`SessionStore`] backed by `AsyncDatabase`.
+///
+/// Each session's save file is looked up by finding the first
+/// alphabetically-sorted `.db` file in `saves_dir/<session_id>/`.
+///
+/// # Single-user runtimes (Tauri, CLI)
+///
+/// Pass `session_id = ""` — `saves_dir.join("")` is `saves_dir` itself, so
+/// the store scans the flat `saves/parish_NNN.db` layout directly.
+///
+/// # Multi-user runtime (server)
+///
+/// Pass the UUID session cookie — `saves_dir.join(session_id)` gives the
+/// per-session subdirectory.
+pub struct DbSessionStore {
+    saves_dir: std::path::PathBuf,
+    /// Cache: session_id → open database handle.
+    open_dbs: RwLock<HashMap<String, Arc<SessionDb>>>,
+}
+
+impl DbSessionStore {
+    /// Creates a new store rooted at `saves_dir`.
+    pub fn new(saves_dir: std::path::PathBuf) -> Self {
+        Self {
+            saves_dir,
+            open_dbs: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Returns the path to the first `.db` file in `saves_dir/<session_id>/`.
+    ///
+    /// Returns `None` when no `.db` file exists yet (new session).
+    fn first_db_path(&self, session_id: &str) -> Option<std::path::PathBuf> {
+        let session_dir = self.saves_dir.join(session_id);
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&session_dir)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|ext| ext == "db"))
+            .collect();
+        files.sort();
+        files.into_iter().next()
+    }
+
+    /// Returns (or lazily opens) a cached [`AsyncDatabase`] for the given
+    /// session.  If the session has no save file yet, one is created via
+    /// `picker::new_save_path`.
+    fn ensure_db(&self, session_id: &str) -> Result<Arc<SessionDb>, ParishError> {
+        // Fast path: already open.
+        {
+            let guard = self.open_dbs.read().unwrap_or_else(|p| p.into_inner());
+            if let Some(entry) = guard.get(session_id) {
+                return Ok(Arc::clone(entry));
+            }
+        }
+
+        let db_path = match self.first_db_path(session_id) {
+            Some(p) => p,
+            None => {
+                // New session — create save directory + first save file.
+                let session_dir = self.saves_dir.join(session_id);
+                std::fs::create_dir_all(&session_dir)?;
+                crate::persistence::picker::new_save_path(&session_dir)
+            }
+        };
+
+        let db = Database::open(&db_path)?;
+        let session_db = Arc::new(SessionDb {
+            db_path,
+            async_db: AsyncDatabase::new(db),
+        });
+        let mut guard = self.open_dbs.write().unwrap_or_else(|p| p.into_inner());
+        guard.insert(session_id.to_string(), Arc::clone(&session_db));
+        Ok(session_db)
+    }
+}
+
+impl SessionStore for DbSessionStore {
+    fn load_latest_snapshot(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+    ) -> BoxFuture<'_, Result<Option<(SnapshotId, GameSnapshot)>, ParishError>> {
+        let session_id = session_id.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.load_latest_snapshot(branch_id).await
+        })
+    }
+
+    fn save_snapshot(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot: &GameSnapshot,
+    ) -> BoxFuture<'_, Result<SnapshotId, ParishError>> {
+        let session_id = session_id.to_string();
+        let snapshot = snapshot.clone();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.save_snapshot(branch_id, &snapshot).await
+        })
+    }
+
+    fn list_branches(
+        &self,
+        session_id: &str,
+    ) -> BoxFuture<'_, Result<Vec<BranchInfo>, ParishError>> {
+        let session_id = session_id.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.list_branches().await
+        })
+    }
+
+    fn create_branch(
+        &self,
+        session_id: &str,
+        name: &str,
+        parent_branch_id: Option<i64>,
+    ) -> BoxFuture<'_, Result<i64, ParishError>> {
+        let session_id = session_id.to_string();
+        let name = name.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.create_branch(&name, parent_branch_id).await
+        })
+    }
+
+    fn load_branch(
+        &self,
+        session_id: &str,
+        name: &str,
+    ) -> BoxFuture<'_, Result<Option<BranchInfo>, ParishError>> {
+        let session_id = session_id.to_string();
+        let name = name.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.find_branch(&name).await
+        })
+    }
+
+    fn branch_log(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<SnapshotInfo>, ParishError>> {
+        let session_id = session_id.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db.branch_log(branch_id).await
+        })
+    }
+
+    fn acquire_save_lock(&self, session_id: &str) -> BoxFuture<'_, Option<SaveFileLock>> {
+        let session_id = session_id.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id).ok()?;
+            SaveFileLock::try_acquire(&sdb.db_path)
+        })
+    }
+
+    fn save_path(&self, session_id: &str) -> Option<PathBuf> {
+        // Fast path from cache.
+        {
+            let guard = self.open_dbs.read().unwrap_or_else(|p| p.into_inner());
+            if let Some(entry) = guard.get(session_id) {
+                return Some(entry.db_path.clone());
+            }
+        }
+        self.first_db_path(session_id)
+    }
+
+    fn append_journal_event(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot_id: SnapshotId,
+        event: &WorldEvent,
+        game_time: &str,
+    ) -> BoxFuture<'_, Result<(), ParishError>> {
+        let session_id = session_id.to_string();
+        let event = event.clone();
+        let game_time = game_time.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db
+                .append_event(branch_id, snapshot_id, &event, &game_time)
+                .await
+        })
+    }
+
+    fn read_journal(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot_id: SnapshotId,
+    ) -> BoxFuture<'_, Result<Vec<WorldEvent>, ParishError>> {
+        let session_id = session_id.to_string();
+        Box::pin(async move {
+            let sdb = self.ensure_db(&session_id)?;
+            sdb.async_db
+                .events_since_snapshot(branch_id, snapshot_id)
+                .await
+        })
+    }
 }

@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use parish_core::session_store::DbSessionStore;
+
 use crate::config::{InferenceCategory, InferenceConfig};
 use crate::inference::AnyClient;
 use crate::inference::InferenceQueue;
@@ -191,6 +193,11 @@ pub struct App {
     pub inference_config: InferenceConfig,
     /// True when stdin is not a terminal — lock failures are hard errors.
     pub script_mode: bool,
+    /// Trait-erased per-session persistence (#696, slice 8).
+    ///
+    /// CLI is single-user; handlers pass session_id = "" so the store
+    /// resolves to the flat `saves/parish_NNN.db` layout.
+    pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
 }
 
 impl App {
@@ -251,6 +258,9 @@ impl App {
             save_lock: None,
             inference_config: InferenceConfig::default(),
             script_mode: false,
+            // Placeholder — overwritten by run_headless after ensure_saves_dir() resolves
+            // the real saves directory (#696 slice 8).
+            session_store: Arc::new(DbSessionStore::new(PathBuf::from("saves"))),
         }
     }
 

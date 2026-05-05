@@ -21,10 +21,7 @@ use crate::events::{
     EVENT_STREAM_END, EVENT_STREAM_TOKEN, EVENT_TEXT_LOG, EVENT_TRAVEL_START, EVENT_WORLD_UPDATE,
     StreamEndPayload, StreamTokenPayload, TextLogPayload,
 };
-use crate::{
-    AppState, ConversationRuntimeState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette,
-    WorldSnapshot,
-};
+use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, ThemePalette, WorldSnapshot};
 
 /// Returns a formatted game-time string (`HH:MM YYYY-MM-DD`) snapshotted
 /// from the shared world clock. Used for debug event timestamps so the
@@ -921,59 +918,17 @@ pub async fn save_game(state: tauri::State<'_, Arc<AppState>>) -> Result<String,
     do_save_game(&state).await
 }
 
-/// Internal save implementation shared by the command and /save handler.
+/// Internal save implementation — delegates to the shared canonical impl (#696).
 async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let snapshot = GameSnapshot::capture(&world, &npc_manager);
-    drop(npc_manager);
-    drop(world);
-
-    let mut save_path_guard = state.save_path.lock().await;
-    let mut branch_id_guard = state.current_branch_id.lock().await;
-    let mut branch_name_guard = state.current_branch_name.lock().await;
-
-    let db_path = if let Some(ref path) = *save_path_guard {
-        path.clone()
-    } else {
-        // Create a new save file in the resolved saves directory.
-        let path = new_save_path(&state.saves_dir);
-        *save_path_guard = Some(path.clone());
-        path
-    };
-
-    let existing_branch_id = *branch_id_guard;
-    let (resolved_branch_id, resolved_branch_name) =
-        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
-            let db = Database::open(&db_path).map_err(|e| e.to_string())?;
-            let branch_id = if let Some(id) = existing_branch_id {
-                id
-            } else {
-                let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-                branch.map(|b| b.id).unwrap_or(1)
-            };
-            db.save_snapshot(branch_id, &snapshot)
-                .map_err(|e| e.to_string())?;
-            Ok((branch_id, "main".to_string()))
-        })
-        .await
-        .map_err(|e| e.to_string())??;
-
-    if branch_id_guard.is_none() {
-        *branch_id_guard = Some(resolved_branch_id);
-        *branch_name_guard = Some(resolved_branch_name.clone());
-    }
-
-    let filename = save_path_guard
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "save".to_string());
-    let branch_name = branch_name_guard.as_deref().unwrap_or("main");
-    Ok(format!(
-        "Game saved to {} (branch: {}).",
-        filename, branch_name
-    ))
+    parish_core::game_loop::do_save_game(
+        &state.world,
+        &state.npc_manager,
+        &state.save_path,
+        &state.current_branch_id,
+        &state.current_branch_name,
+        &state.saves_dir,
+    )
+    .await
 }
 
 /// Loads a branch from a save file, restoring world and NPC state.
@@ -1161,60 +1116,31 @@ pub async fn new_save_file(state: tauri::State<'_, Arc<AppState>>) -> Result<(),
 
 /// Internal helper that reloads world/NPCs and creates a fresh save file.
 ///
-/// Called both by the `new_game` Tauri command and the `CommandEffect::NewGame` handler.
+/// Called both by the `new_game` Tauri command and the `CommandEffect::NewGame`
+/// handler.  Delegates to the shared `parish_core::game_loop::do_new_game` (#696).
 pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Result<(), String> {
+    use parish_core::game_loop::{NewGameParams, do_new_game as core_do_new_game};
+
+    // Rediscover the active game mod (Tauri AppState does not cache it).
     let game_mod = parish_core::game_mod::find_default_mod()
         .and_then(|dir| parish_core::game_mod::GameMod::load(&dir).ok());
 
-    // Load fresh world and NPCs using the shared helper (#696).
-    let (fresh_world, mut fresh_npcs) =
-        parish_core::game_loop::load_fresh_world_and_npcs(game_mod.as_ref(), &state.data_dir)?;
-    fresh_npcs.assign_tiers(&fresh_world, &[]);
-
-    // Replace live state
-    let mut world = state.world.lock().await;
-    let mut npc_manager = state.npc_manager.lock().await;
-    *world = fresh_world;
-    *npc_manager = fresh_npcs;
-
-    // Reset conversation transcript so stale dialogue from the previous game
-    // does not bleed into NPC conversations in the new game (#281).
-    {
-        let mut conv = state.conversation.lock().await;
-        *conv = ConversationRuntimeState::new();
-    }
-
-    // Capture snapshot and emit world update before spawn_blocking.
-    let snapshot = GameSnapshot::capture(&world, &npc_manager);
-    let transport = state.transport.default_mode();
-    let mut ws = snapshot_from_world(&world, transport);
-    ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
-    let _ = app.emit(EVENT_WORLD_UPDATE, ws);
-
-    drop(npc_manager);
-    drop(world);
-
-    // Create a new save file with the fresh state
-    let path = new_save_path(&state.saves_dir);
-    let path_clone = path.clone();
-    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
-        let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
-        let branch = db
-            .find_branch("main")
-            .map_err(|e| e.to_string())?
-            .ok_or("Failed to create main branch")?;
-        db.save_snapshot(branch.id, &snapshot)
-            .map_err(|e| e.to_string())?;
-        Ok(branch.id)
+    let emitter = crate::events::TauriEmitter::new(app.clone());
+    core_do_new_game(NewGameParams {
+        world: &state.world,
+        npc_manager: &state.npc_manager,
+        conversation: &state.conversation,
+        save_path: &state.save_path,
+        current_branch_id: &state.current_branch_id,
+        current_branch_name: &state.current_branch_name,
+        saves_dir: &state.saves_dir,
+        game_mod: game_mod.as_ref(),
+        data_dir: &state.data_dir,
+        pronunciations: &state.pronunciations,
+        default_transport: state.transport.default_mode(),
+        emitter: &emitter,
     })
     .await
-    .map_err(|e| e.to_string())??;
-
-    *state.save_path.lock().await = Some(path);
-    *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some("main".to_string());
-
-    Ok(())
 }
 
 /// Starts a brand new game: reloads world and NPCs from data files,
@@ -1971,6 +1897,10 @@ mod cmd_tests {
         };
         let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
         let shutdown_token = CancellationToken::new();
+        let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+            std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
+                saves_dir.clone(),
+            ));
 
         Arc::new(AppState {
             world: Mutex::new(world),
@@ -2005,6 +1935,7 @@ mod cmd_tests {
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),
             shutdown_token,
+            session_store,
         })
     }
 

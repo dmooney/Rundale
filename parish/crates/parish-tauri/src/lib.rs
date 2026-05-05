@@ -256,6 +256,14 @@ pub struct AppState {
     /// Cancellation token — cancelled during app shutdown to stop background ticks
     /// gracefully. Clones are passed into each spawned tick task (#104).
     pub shutdown_token: CancellationToken,
+    /// Trait-erased per-session persistence (#696, slice 8).
+    ///
+    /// Single-user Tauri runtime uses `session_id = ""` with a flat
+    /// `saves/parish_NNN.db` layout.
+    ///
+    /// Not part of the lock-ordering chain: never held across acquisition
+    /// of any `Mutex` field.
+    pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -786,6 +794,14 @@ pub fn run() {
     // commands read `state.saves_dir` instead of re-probing the cwd.
     let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir_from_cwd();
 
+    // Construct the shared SessionStore using the saves directory (#696 slice 8).
+    // Tauri is single-user; handlers pass session_id = "" so the store resolves
+    // to the flat `saves/parish_NNN.db` layout.
+    let session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore> =
+        std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
+            saves_dir.clone(),
+        ));
+
     // Cancellation token for graceful background-task shutdown (#104).
     let shutdown_token = CancellationToken::new();
 
@@ -822,6 +838,7 @@ pub fn run() {
         config: Mutex::new(game_config),
         demo_config,
         shutdown_token: shutdown_token.clone(),
+        session_store,
     });
 
     tauri::Builder::default()
