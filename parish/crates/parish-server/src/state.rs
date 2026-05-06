@@ -228,6 +228,11 @@ pub struct AppState {
     /// there is no Ollama bootstrap process).  Present for IPC wiring parity
     /// with the Tauri backend (#732).
     pub setup_status: std::sync::Mutex<SetupStatusSnapshot>,
+    /// Language settings derived from the active mod manifest.
+    ///
+    /// Resolved once at startup and injected into all dialogue prompt builders
+    /// to enforce locale-correct spelling and code-switching behaviour.
+    pub language_settings: parish_core::npc::LanguageSettings,
 }
 
 /// Server-side counterpart of the Tauri `SetupStatusSnapshot`.
@@ -289,6 +294,17 @@ pub fn build_app_state(
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
 
+    // Extract language settings from game mod
+    let language_settings = game_mod
+        .as_ref()
+        .map(|gm| {
+            parish_core::npc::LanguageSettings::new(
+                gm.player_language().to_string(),
+                gm.native_language().map(str::to_string),
+            )
+        })
+        .unwrap_or_else(parish_core::npc::LanguageSettings::english_only);
+
     // Build the trait-erased inference client stack (#617).
     // Feature flags are not yet loaded at this point (flags_path not read),
     // so we default both inference-client-trait and inference-response-cache
@@ -336,6 +352,7 @@ pub fn build_app_state(
         save_db: tokio::sync::Mutex::new(None),
         session_store,
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
+        language_settings,
     })
 }
 

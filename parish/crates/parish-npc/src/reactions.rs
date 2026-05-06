@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 
-use crate::{Npc, NpcId};
+use crate::{LanguageSettings, Npc, NpcId};
 use parish_config::ReactionConfig;
 use parish_inference::AnyClient;
 use parish_types::dice::DiceRoll;
@@ -268,8 +268,13 @@ pub struct LlmReactionDecision {
 /// The system prompt enumerates the full [`REACTION_PALETTE`] and the legacy
 /// keyword cues as weak few-shot examples. The user prompt contains the NPC's
 /// name, occupation, mood, and personality snippet followed by the player
-/// message.
-pub fn build_player_message_reaction_prompt(npc: &Npc, player_input: &str) -> (String, String) {
+/// message. The `language` parameter is accepted for API uniformity but the
+/// reaction prompt is locale-neutral (single emoji output only).
+pub fn build_player_message_reaction_prompt(
+    npc: &Npc,
+    player_input: &str,
+    _language: &LanguageSettings,
+) -> (String, String) {
     let palette_lines: Vec<String> = REACTION_PALETTE
         .iter()
         .map(|(emoji, desc)| format!("- {emoji}: {desc}"))
@@ -325,7 +330,8 @@ pub async fn infer_player_message_reaction(
     player_input: &str,
     timeout: Duration,
 ) -> Option<String> {
-    let (system, prompt) = build_player_message_reaction_prompt(npc, player_input);
+    let lang = LanguageSettings::english_only();
+    let (system, prompt) = build_player_message_reaction_prompt(npc, player_input, &lang);
     let call =
         client.generate_json::<LlmReactionDecision>(model, &prompt, Some(&system), Some(40), None);
 
@@ -973,7 +979,10 @@ pub fn build_reaction_prompt(
     weather: &str,
     is_introduced: bool,
     at_workplace: bool,
+    language: &LanguageSettings,
 ) -> (String, String) {
+    use crate::language_directive;
+
     let time_str = match time_of_day {
         TimeOfDay::Dawn => "dawn",
         TimeOfDay::Morning => "morning",
@@ -1004,7 +1013,7 @@ pub fn build_reaction_prompt(
         "You have met this person before.".to_string()
     };
 
-    let system = format!(
+    let mut system = format!(
         "You are {name}, a {age}-year-old {occupation} in rural Ireland, 1820.\n\
          {personality}\n\
          Current mood: {mood}\n\n\
@@ -1017,6 +1026,9 @@ pub fn build_reaction_prompt(
         personality = personality_snippet,
         mood = npc.mood,
     );
+
+    system.push_str("\n\n");
+    system.push_str(&language_directive(language));
 
     let context = format!(
         "A newcomer has just arrived at {location}. It is {time}, {weather}.\n{intro}",
@@ -1061,6 +1073,7 @@ pub async fn resolve_llm_greeting(
     npc: &Npc,
     params: &LlmGreetingParams<'_>,
 ) -> String {
+    let lang = LanguageSettings::english_only();
     let (system, context) = build_reaction_prompt(
         npc,
         params.location_name,
@@ -1068,6 +1081,7 @@ pub async fn resolve_llm_greeting(
         params.weather,
         params.is_introduced,
         params.at_workplace,
+        &lang,
     );
     let client = params.client;
     let model = params.model;
@@ -1363,7 +1377,9 @@ mod tests {
     #[test]
     fn build_player_message_reaction_prompt_contains_palette_and_npc_name() {
         let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
-        let (system, user) = build_player_message_reaction_prompt(&npc, "The landlord is coming.");
+        let lang = LanguageSettings::english_only();
+        let (system, user) =
+            build_player_message_reaction_prompt(&npc, "The landlord is coming.", &lang);
 
         assert!(
             system.contains("Available palette"),
@@ -1765,6 +1781,7 @@ mod tests {
     #[test]
     fn test_build_reaction_prompt_not_introduced() {
         let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
+        let lang = LanguageSettings::english_only();
         let (system, context) = build_reaction_prompt(
             &npc,
             "Darcy's Pub",
@@ -1772,6 +1789,7 @@ mod tests {
             "overcast",
             false,
             true,
+            &lang,
         );
         assert!(system.contains("Padraig Darcy"));
         assert!(system.contains("Publican"));
@@ -1783,6 +1801,7 @@ mod tests {
     #[test]
     fn test_build_reaction_prompt_introduced() {
         let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
+        let lang = LanguageSettings::english_only();
         let (_, context) = build_reaction_prompt(
             &npc,
             "Darcy's Pub",
@@ -1790,6 +1809,7 @@ mod tests {
             "clear",
             true,
             true,
+            &lang,
         );
         assert!(context.contains("You know this person"));
     }
@@ -1799,8 +1819,12 @@ mod tests {
     #[test]
     fn build_player_message_reaction_prompt_contains_palette_and_npc() {
         let npc = test_npc(1, "Padraig Darcy", "Publican", Some(LocationId(2)));
-        let (system, user) =
-            build_player_message_reaction_prompt(&npc, "Your landlord's agent is at the door.");
+        let lang = LanguageSettings::english_only();
+        let (system, user) = build_player_message_reaction_prompt(
+            &npc,
+            "Your landlord's agent is at the door.",
+            &lang,
+        );
 
         // System prompt must enumerate the palette and keyword cues.
         assert!(system.contains("Available palette"));
@@ -1821,7 +1845,8 @@ mod tests {
     fn build_player_message_reaction_prompt_truncates_long_personality() {
         let mut npc = test_npc(2, "Brigid", "Healer", None);
         npc.personality = "A".repeat(500);
-        let (_system, user) = build_player_message_reaction_prompt(&npc, "Hello");
+        let lang = LanguageSettings::english_only();
+        let (_system, user) = build_player_message_reaction_prompt(&npc, "Hello", &lang);
         // Personality snippet is capped at 300 chars.
         let after_personality = user
             .split("- Personality: ")

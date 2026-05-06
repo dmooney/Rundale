@@ -184,6 +184,7 @@ pub async fn handle_movement(
             reaction_client.as_ref(),
             &reaction_model,
             None, // inference_log: None — shared code doesn't hold runtime-specific logs
+            &ctx.language,
             move |_turn_id, npc_name| {
                 emitter_clone.emit_event(
                     "text-log",
@@ -285,6 +286,7 @@ mod tests {
             pronunciations: &[],
             client: &client,
             cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
         };
 
         let transport = make_transport();

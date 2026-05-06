@@ -241,6 +241,7 @@ mod tests {
             pronunciations: &[],
             client: &client,
             cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
         };
 
         let transport = make_transport();
@@ -278,6 +279,7 @@ mod tests {
             pronunciations: &[],
             client: &client,
             cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
         };
 
         let transport = make_transport();

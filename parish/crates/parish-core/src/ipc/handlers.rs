@@ -13,7 +13,7 @@ use crate::npc::anachronism;
 use crate::npc::manager::NpcManager;
 use crate::npc::mood::mood_emoji;
 use crate::npc::ticks;
-use crate::npc::{LanguageHint, Npc, NpcId};
+use crate::npc::{LanguageHint, LanguageSettings, Npc, NpcId};
 use crate::world::description::render_description;
 use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
@@ -556,6 +556,7 @@ pub fn prepare_npc_conversation_turn(
     speaker_id: NpcId,
     transcript: &[ConversationLine],
     improv_enabled: bool,
+    language: &LanguageSettings,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
     // Mark NPC as introduced before computing display_name so first conversation
@@ -595,6 +596,7 @@ pub fn prepare_npc_conversation_turn(
     let system_prompt = ticks::build_enhanced_system_prompt_with_config(
         &npc,
         improv_enabled,
+        language,
         &crate::config::NpcConfig::default(),
         &npc_names,
         Some(&roster),
@@ -605,6 +607,7 @@ pub fn prepare_npc_conversation_turn(
         world,
         player_input,
         &other_npcs,
+        language,
         &crate::config::NpcConfig::default(),
         &npc_names,
         player_name_for_npc,
@@ -645,6 +648,7 @@ pub fn prepare_npc_conversation(
     raw: &str,
     target_name: Option<&str>,
     improv_enabled: bool,
+    language: &LanguageSettings,
 ) -> Option<NpcConversationSetup> {
     let target_names = target_name
         .map(|name| vec![name.to_string()])
@@ -652,7 +656,15 @@ pub fn prepare_npc_conversation(
     let speaker_id = resolve_npc_targets(world, npc_manager, &target_names)
         .into_iter()
         .next()?;
-    prepare_npc_conversation_turn(world, npc_manager, raw, speaker_id, &[], improv_enabled)
+    prepare_npc_conversation_turn(
+        world,
+        npc_manager,
+        raw,
+        speaker_id,
+        &[],
+        improv_enabled,
+        language,
+    )
 }
 
 /// Detects if the player is introducing themselves and records the name.

@@ -32,6 +32,7 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "memory" => debug_memory(app, arg),
                 "relationships" | "rels" => debug_relationships(app, arg),
                 "gossip" => debug_gossip(app, arg),
+                "language" | "lang" => debug_language(app),
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -387,7 +388,28 @@ fn debug_help() -> Vec<String> {
         "  /debug memory <name>    — NPC's recent memories".to_string(),
         "  /debug rels <name>      — NPC's relationships".to_string(),
         "  /debug gossip [name]    — Gossip network (or NPC's known gossip)".to_string(),
+        "  /debug language         — Active language settings from the loaded mod".to_string(),
     ]
+}
+
+/// Active language settings derived from the loaded mod's `[setting]` block.
+fn debug_language(app: &App) -> Vec<String> {
+    let lang = app.language_settings();
+    let directive = crate::npc::language_directive(&lang);
+    let mut lines = vec![
+        "[DEBUG LANGUAGE]".to_string(),
+        format!("  player_language: {}", lang.player),
+        format!(
+            "  native_language: {}",
+            lang.native.as_deref().unwrap_or("(none)")
+        ),
+        "".to_string(),
+        "  Rendered LANGUAGE directive injected into every dialogue prompt:".to_string(),
+    ];
+    for line in directive.lines() {
+        lines.push(format!("    {line}"));
+    }
+    lines
 }
 
 /// Gossip network overview, or a specific NPC's known gossip.

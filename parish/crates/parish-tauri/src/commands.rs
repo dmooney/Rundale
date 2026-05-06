@@ -658,6 +658,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
             reaction_client.as_ref(),
             &reaction_model,
             Some(&state.inference_log),
+            &state.language_settings,
             |_turn_id, npc_name| {
                 let _ = app.emit(
                     EVENT_TEXT_LOG,
@@ -778,6 +779,7 @@ async fn handle_npc_conversation(
         pronunciations: &state.pronunciations,
         client: &state.client,
         cloud_client: &state.cloud_client,
+        language: state.language_settings.clone(),
     };
 
     let app_for_loading = app.clone();
@@ -808,6 +810,7 @@ async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
         pronunciations: &state.pronunciations,
         client: &state.client,
         cloud_client: &state.cloud_client,
+        language: state.language_settings.clone(),
     };
 
     emit_world_update(state, app).await;
@@ -1932,6 +1935,7 @@ mod cmd_tests {
             ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
             inference_config: parish_core::config::InferenceConfig::default(),
             setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
+            language_settings: parish_core::npc::LanguageSettings::english_only(),
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),
             shutdown_token,

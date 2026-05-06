@@ -103,6 +103,7 @@ pub async fn run_npc_turn(
             speaker_id,
             transcript,
             config.improv_enabled,
+            &ctx.language,
         )
     }?;
 
@@ -707,6 +708,7 @@ pub mod tests {
                 pronunciations: &[],
                 client: $client,
                 cloud_client: $cloud_client,
+                language: crate::npc::LanguageSettings::english_only(),
             }
         };
     }
@@ -865,6 +867,7 @@ pub mod tests {
                 pronunciations: &[],
                 client: &client,
                 cloud_client: &cloud_client,
+                language: crate::npc::LanguageSettings::english_only(),
             };
 
             super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;

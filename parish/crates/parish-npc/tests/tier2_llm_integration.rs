@@ -11,6 +11,7 @@ use parish_inference::openai_client::OpenAiClient;
 use parish_inference::{
     AnyClient, InferenceQueue, InferenceRequest, new_inference_log, spawn_inference_worker,
 };
+use parish_npc::LanguageSettings;
 use parish_npc::ticks::{NpcSnapshot, Tier2Group, run_tier2_for_group};
 use parish_types::{LocationId, NpcId};
 use tokio::sync::mpsc;
@@ -90,7 +91,9 @@ async fn tier2_multi_npc_success_returns_event() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Afternoon", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event =
+        run_tier2_for_group(&queue, "test-model", &group, "Afternoon", "Clear", &lang).await;
 
     let event = event.expect("multi-NPC group should return Some on successful LLM response");
     assert_eq!(event.location, LocationId(2));
@@ -111,7 +114,8 @@ async fn tier2_multi_npc_with_mood_and_relationship_changes() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear", &lang).await;
 
     let event = event.unwrap();
     assert_eq!(event.mood_changes.len(), 1);
@@ -130,7 +134,8 @@ async fn tier2_http_error_returns_none() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear", &lang).await;
 
     assert!(event.is_none(), "HTTP error must return None, not panic");
 }
@@ -142,7 +147,8 @@ async fn tier2_malformed_json_returns_none() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear", &lang).await;
 
     assert!(
         event.is_none(),
@@ -161,7 +167,8 @@ async fn tier2_empty_choices_returns_none() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear", &lang).await;
 
     assert!(
         event.is_none(),
@@ -176,7 +183,8 @@ async fn tier2_missing_optional_fields_defaults_to_empty() {
 
     let queue = spawn_mock_worker(&server.uri());
     let group = two_npc_group();
-    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear").await;
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(&queue, "test-model", &group, "Morning", "Clear", &lang).await;
 
     let event = event.expect("missing optional fields should still parse via serde defaults");
     assert_eq!(event.summary, "They nod at each other.");

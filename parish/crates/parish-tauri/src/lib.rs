@@ -264,6 +264,11 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: never held across acquisition
     /// of any `Mutex` field.
     pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
+    /// Language settings derived from the active mod manifest.
+    ///
+    /// Resolved once at startup and injected into all dialogue prompt builders
+    /// to enforce locale-correct spelling and code-switching behaviour.
+    pub language_settings: parish_core::npc::LanguageSettings,
 }
 
 // ── Data path resolution ─────────────────────────────────────────────────────
@@ -755,6 +760,17 @@ pub fn run() {
         .map(|gm| gm.reactions.clone())
         .unwrap_or_default();
 
+    // Extract language settings from the game mod (defaults to plain "en" if no mod)
+    let language_settings = game_mod
+        .as_ref()
+        .map(|gm| {
+            parish_core::npc::LanguageSettings::new(
+                gm.player_language().to_string(),
+                gm.native_language().map(str::to_string),
+            )
+        })
+        .unwrap_or_else(parish_core::npc::LanguageSettings::english_only);
+
     // Load feature flags from disk
     let flags = FeatureFlags::load_from_file(&data_dir.join("parish-flags.json"));
 
@@ -835,6 +851,7 @@ pub fn run() {
         ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
+        language_settings,
         config: Mutex::new(game_config),
         demo_config,
         shutdown_token: shutdown_token.clone(),
@@ -1508,6 +1525,7 @@ pub fn run() {
                                             season: &season_str,
                                             hours,
                                             batch_size: 0,
+                                            language: &state_t3.language_settings,
                                         };
 
                                         let result =
@@ -1657,6 +1675,7 @@ pub fn run() {
                                                         group,
                                                         &time_desc,
                                                         &weather_str,
+                                                        &state_t2.language_settings,
                                                     )
                                                     .await
                                                 {

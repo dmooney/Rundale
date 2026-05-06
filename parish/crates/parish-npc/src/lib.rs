@@ -300,6 +300,76 @@ fn strip_json_fence(raw: &str) -> &str {
     t
 }
 
+/// Language settings derived from the active mod manifest.
+///
+/// Carries the BCP 47 locale codes that are injected into every dialogue
+/// prompt builder via [`language_directive`].
+#[derive(Debug, Clone)]
+pub struct LanguageSettings {
+    /// BCP 47 tag for the primary dialogue language (e.g. `"en-IE"`).
+    pub player: String,
+    /// BCP 47 tag for the secondary code-switch language, if any (e.g. `"ga-IE"`).
+    pub native: Option<String>,
+}
+
+impl LanguageSettings {
+    /// Constructs a new `LanguageSettings` from a player language and an
+    /// optional native language.
+    pub fn new(player: impl Into<String>, native: Option<String>) -> Self {
+        Self {
+            player: player.into(),
+            native,
+        }
+    }
+
+    /// Convenience constructor for tests or monolingual fallbacks.
+    pub fn english_only() -> Self {
+        Self {
+            player: "en".to_string(),
+            native: None,
+        }
+    }
+}
+
+/// Renders the locale directive injected into every dialogue system prompt.
+///
+/// Always emits a leading `LANGUAGE: Speak in {player}.` clause, plus
+/// spelling-discipline guidance. When the player language is an English
+/// variant other than `en-US`, the directive forbids en-US spellings.
+/// When a `native` language is set, the directive instructs the model to
+/// code-switch naturally and record secondary-language words in the
+/// `language_hints` metadata array.
+pub fn language_directive(lang: &LanguageSettings) -> String {
+    let player = &lang.player;
+    let mut directive = format!(
+        "LANGUAGE: Speak in {player}. \
+        Use spelling, idioms, and conventions appropriate to that BCP 47 locale."
+    );
+
+    let player_lower = player.to_lowercase();
+    if player_lower.starts_with("en") && player_lower != "en-us" {
+        directive.push_str(&format!(
+            " Never use en-US spellings such as \"color\", \"realize\", \
+            \"favor\", \"neighbor\", or \"-ize\" verb endings \
+            — use the spelling appropriate to {player}."
+        ));
+    }
+
+    if let Some(native) = &lang.native {
+        directive.push_str(&format!(
+            " Where a native speaker would naturally code-switch, sprinkle words \
+            and short phrases from {native} into your dialogue and record them \
+            in the `language_hints` metadata array."
+        ));
+    } else {
+        directive.push_str(&format!(
+            " Stay in {player} — do not invent or import other languages."
+        ));
+    }
+
+    directive
+}
+
 /// The improv craft guidelines injected into the system prompt when improv mode is enabled.
 ///
 /// Distilled from professional long-form improv principles: Yes-And, specificity,
@@ -326,12 +396,13 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 ///
 /// The prompt instructs the model to return a JSON object containing
 /// both the dialogue (streamed to the player) and metadata fields
-/// (parsed for simulation state).
-pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
+/// (parsed for simulation state). The `language` parameter controls
+/// the locale directive appended at the end of the prompt.
+pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSettings) -> String {
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
     let intel_guidance = npc.intelligence.prompt_guidance();
 
-    format!(
+    let mut prompt = format!(
         "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
         Ireland, in the year 1820.\n\
         \n\
@@ -355,8 +426,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         \n\
         Respond in character as {name}. You MUST respond with a JSON object. \
         Put the \"dialogue\" field FIRST. The dialogue should contain only what you say aloud — \
-        pure dialogue, no narration or action descriptions. \
-        Pepper your speech naturally with the occasional Irish word or phrase.\n\
+        pure dialogue, no narration or action descriptions.\n\
         \n\
         LENGTH: 2-4 sentences. Be conversational, not a monologue.\n\
         \n\
@@ -365,18 +435,17 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         - \"action\": what you physically do (e.g. \"speaks warmly\", \"nods\", \"sighs\")\n\
         - \"mood\": your mood after this interaction\n\
         - \"internal_thought\": what you're thinking but not saying (optional)\n\
-        - \"irish_words\": array of any Irish words you used, each with:\n\
-          - \"word\": the Irish word as written\n\
-          - \"pronunciation\": phonetic guide in English (e.g. \"SLAWN-cha\" for \"sláinte\")\n\
+        - \"language_hints\": array of any secondary-language words you used, each with:\n\
+          - \"word\": the word as written\n\
+          - \"pronunciation\": phonetic guide in English\n\
           - \"meaning\": English translation\n\
         \n\
         Example response:\n\
-        {{\"dialogue\": \"Ah, good morning to ye! Dia dhuit — fine day for it, so it is. \
+        {{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
         Will ye have a drop of something to warm the bones?\", \
         \"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
         \"internal_thought\": \"New face around here\", \
-        \"irish_words\": [{{\"word\": \"Dia dhuit\", \"pronunciation\": \"DEE-ah gwit\", \
-        \"meaning\": \"Hello (lit. God to you)\"}}]}}",
+        \"language_hints\": []}}",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -388,7 +457,11 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool) -> String {
         },
         mood = npc.mood,
         improv_section = improv_section,
-    )
+    );
+
+    prompt.push_str("\n\n");
+    prompt.push_str(&language_directive(language));
+    prompt
 }
 
 /// Builds the action line for an NPC prompt from raw player input.
@@ -662,7 +735,8 @@ mod tests {
     #[test]
     fn test_build_system_prompt() {
         let npc = Npc::new_test_npc();
-        let prompt = build_tier1_system_prompt(&npc, false);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
         assert!(prompt.contains("Padraig O'Brien"));
         assert!(prompt.contains("58-year-old"));
         assert!(prompt.contains("Publican"));
@@ -688,8 +762,8 @@ mod tests {
             "prompt should include cultural guidelines"
         );
         assert!(
-            prompt.contains("irish_words"),
-            "prompt should instruct about irish_words metadata"
+            prompt.contains("language_hints"),
+            "prompt should instruct about language_hints metadata"
         );
     }
 
@@ -955,7 +1029,8 @@ mod tests {
     fn test_tier1_system_no_unsubstituted_placeholders() {
         let re = regex::Regex::new(r"\{[a-z_]+\}").unwrap();
         let npc = Npc::new_test_npc();
-        let prompt = build_tier1_system_prompt(&npc, false);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
 
         // No word-placeholder should survive substitution.
         assert!(
@@ -1088,7 +1163,8 @@ mod tests {
             ],
         };
 
-        let prompt = build_tier2_prompt(&group, "Evening", "Overcast");
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier2_prompt(&group, "Evening", "Overcast", &lang);
 
         // No word-placeholder should survive substitution.
         assert!(
@@ -1105,6 +1181,92 @@ mod tests {
         assert!(prompt.contains("Seamus Fahey"), "NPC name 2 missing");
         assert!(prompt.contains("Weaver"), "occupation missing");
         assert!(prompt.contains("thoughtful"), "mood missing");
+    }
+
+    // ── language_directive tests ───────────────────────────────────────────────
+
+    #[test]
+    fn language_directive_en_ie_with_native_ga_ie() {
+        let lang = LanguageSettings::new("en-IE".to_string(), Some("ga-IE".to_string()));
+        let directive = language_directive(&lang);
+        assert!(
+            directive.contains("en-IE"),
+            "directive should name the player locale"
+        );
+        assert!(
+            directive.contains("en-US"),
+            "directive should warn against en-US spellings for non-en-US English"
+        );
+        assert!(
+            directive.contains("ga-IE"),
+            "directive should name the native language"
+        );
+        assert!(
+            directive.contains("language_hints"),
+            "directive should mention the language_hints metadata field"
+        );
+        // Should NOT tell the NPC to stay in one language when a native is given
+        assert!(
+            !directive.contains("do not invent or import other languages"),
+            "mono-language restriction must not appear when native language is set"
+        );
+    }
+
+    #[test]
+    fn language_directive_en_us_no_native() {
+        let lang = LanguageSettings::new("en-US".to_string(), None);
+        let directive = language_directive(&lang);
+        assert!(
+            directive.contains("en-US"),
+            "directive should name the locale"
+        );
+        // en-US should NOT get the anti-en-US-spelling warning
+        assert!(
+            !directive.contains("Never use en-US spellings"),
+            "en-US locale must not warn against itself"
+        );
+        assert!(
+            directive.contains("do not invent or import other languages"),
+            "mono-language restriction should appear when no native language is set"
+        );
+    }
+
+    #[test]
+    fn language_directive_fr_fr_no_native() {
+        let lang = LanguageSettings::new("fr-FR".to_string(), None);
+        let directive = language_directive(&lang);
+        assert!(
+            directive.contains("fr-FR"),
+            "directive should name the locale"
+        );
+        // Non-English locale should NOT get the en-US spelling warning
+        assert!(
+            !directive.contains("en-US spellings"),
+            "en-US spelling warning must not appear for non-English locale"
+        );
+        assert!(
+            directive.contains("do not invent or import other languages"),
+            "mono-language restriction should appear when no native language is set"
+        );
+    }
+
+    #[test]
+    fn tier1_prompt_contains_language_directive() {
+        let npc = Npc::new_test_npc();
+        let lang = LanguageSettings::new("en-IE".to_string(), Some("ga-IE".to_string()));
+        let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        assert!(
+            prompt.contains("LANGUAGE:"),
+            "tier1 system prompt should embed the language directive"
+        );
+        assert!(
+            prompt.contains("en-IE"),
+            "tier1 system prompt should name the player locale"
+        );
+        assert!(
+            prompt.contains("ga-IE"),
+            "tier1 system prompt should name the native language"
+        );
     }
 }
 

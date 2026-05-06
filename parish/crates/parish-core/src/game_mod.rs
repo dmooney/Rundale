@@ -95,6 +95,17 @@ pub struct SettingConfig {
     pub start_location: u32,
     /// Year used as cutoff for anachronism detection.
     pub period_year: u16,
+    /// BCP 47 tag for the language the player and NPCs primarily speak in dialogue.
+    /// Defaults to "en" for backward compatibility with mods that omit it.
+    #[serde(default = "default_player_language")]
+    pub player_language: String,
+    /// BCP 47 tag for the secondary language NPCs code-switch into. None means monolingual.
+    #[serde(default)]
+    pub native_language: Option<String>,
+}
+
+fn default_player_language() -> String {
+    "en".to_string()
 }
 
 /// Relative paths to structured data files inside the mod directory.
@@ -603,6 +614,16 @@ impl GameMod {
     /// Period year used for anachronism detection.
     pub fn period_year(&self) -> u16 {
         self.manifest.setting.period_year
+    }
+
+    /// BCP 47 tag for the primary dialogue language.
+    pub fn player_language(&self) -> &str {
+        &self.manifest.setting.player_language
+    }
+
+    /// BCP 47 tag for the secondary code-switch language, if any.
+    pub fn native_language(&self) -> Option<&str> {
+        self.manifest.setting.native_language.as_deref()
     }
 
     /// Look up encounter flavour text for a given time of day.
@@ -1350,5 +1371,96 @@ tier2_system = "prompts/tier2_system.txt"
         let err = discover_mods_in(&mods).expect_err("no setting mod is fatal");
         let msg = format!("{err:?}");
         assert!(msg.contains("No setting mod"));
+    }
+
+    // ── SettingConfig language field deserialization tests ─────────────────────
+
+    #[test]
+    fn setting_config_with_both_languages() {
+        let toml_src = r#"
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+player_language = "en-IE"
+native_language = "ga-IE"
+"#;
+        let cfg: SettingConfig = toml::from_str(toml_src).expect("should deserialize");
+        assert_eq!(cfg.player_language, "en-IE");
+        assert_eq!(cfg.native_language.as_deref(), Some("ga-IE"));
+    }
+
+    #[test]
+    fn setting_config_defaults_player_language_to_en_when_omitted() {
+        let toml_src = r#"
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+"#;
+        let cfg: SettingConfig = toml::from_str(toml_src).expect("should deserialize");
+        assert_eq!(
+            cfg.player_language, "en",
+            "player_language should default to \"en\" for backward-compat mods"
+        );
+        assert!(
+            cfg.native_language.is_none(),
+            "native_language should default to None"
+        );
+    }
+
+    #[test]
+    fn setting_config_with_only_player_language() {
+        let toml_src = r#"
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+player_language = "fr-FR"
+"#;
+        let cfg: SettingConfig = toml::from_str(toml_src).expect("should deserialize");
+        assert_eq!(cfg.player_language, "fr-FR");
+        assert!(
+            cfg.native_language.is_none(),
+            "native_language should be None when omitted"
+        );
+    }
+
+    #[test]
+    fn game_mod_accessors_expose_language_settings() {
+        let tmp = create_test_mod();
+        // Rewrite mod.toml to include language fields
+        fs::write(
+            tmp.path().join("mod.toml"),
+            r#"
+[mod]
+name = "Lang Test Mod"
+id = "lang-test"
+version = "0.1.0"
+description = "Language settings test."
+
+[setting]
+start_date = "1820-03-20T08:00:00Z"
+start_location = 15
+period_year = 1820
+player_language = "en-IE"
+native_language = "ga-IE"
+
+[files]
+world = "world.json"
+npcs = "npcs.json"
+anachronisms = "anachronisms.json"
+festivals = "festivals.json"
+encounters = "encounters.json"
+loading = "loading.toml"
+ui = "ui.toml"
+
+[prompts]
+tier1_system = "prompts/tier1_system.txt"
+tier1_context = "prompts/tier1_context.txt"
+tier2_system = "prompts/tier2_system.txt"
+"#,
+        )
+        .unwrap();
+        let gm = GameMod::load(tmp.path()).expect("should load mod with language settings");
+        assert_eq!(gm.player_language(), "en-IE");
+        assert_eq!(gm.native_language(), Some("ga-IE"));
     }
 }

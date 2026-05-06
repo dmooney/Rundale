@@ -418,6 +418,7 @@ pub async fn run_headless(
 
                     app.npc_manager.set_tier3_in_flight(true);
 
+                    let lang = app.language_settings();
                     let ctx = parish_core::npc::ticks::Tier3Context {
                         snapshots: &snapshots,
                         queue,
@@ -427,6 +428,7 @@ pub async fn run_headless(
                         season: &season_str,
                         hours,
                         batch_size: 0,
+                        language: &lang,
                     };
 
                     match parish_core::npc::ticks::tick_tier3(&ctx).await {
@@ -496,6 +498,7 @@ pub async fn run_headless(
 
                         app.npc_manager.set_tier2_in_flight(true);
 
+                        let lang = app.language_settings();
                         let mut events = Vec::new();
                         for group in &groups {
                             if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
@@ -504,6 +507,7 @@ pub async fn run_headless(
                                 group,
                                 &app.world.clock.time_of_day().to_string(),
                                 &app.world.weather.to_string(),
+                                &lang,
                             )
                             .await
                             {
@@ -827,12 +831,14 @@ async fn handle_headless_game_input(
             }
 
             // Route to NPC conversation if one is present
+            let lang = app.language_settings();
             if let Some(setup) = parish_core::ipc::prepare_npc_conversation(
                 &app.world,
                 &mut app.npc_manager,
                 &dialogue,
                 target_name.as_deref(),
                 app.improv_enabled,
+                &lang,
             ) {
                 // Teach this NPC the player's name if introduced
                 if app.world.player_name.is_some()

@@ -24,7 +24,7 @@ use crate::npc::manager::{NpcManager, TierTransition};
 use crate::npc::reactions::{
     ArrivalContext, NpcReaction, ReactionTemplates, generate_arrival_reactions,
 };
-use crate::npc::{Npc, NpcId};
+use crate::npc::{LanguageSettings, Npc, NpcId};
 use crate::world::description::{format_exits, render_description};
 use crate::world::encounter::check_encounter;
 use crate::world::movement::{MovementResult, resolve_movement_with_weather};
@@ -545,6 +545,7 @@ pub async fn stream_reaction_texts(
     client: Option<&AnyClient>,
     model: &str,
     inference_log: Option<&InferenceLog>,
+    language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
 ) {
@@ -571,8 +572,15 @@ pub async fn stream_reaction_texts(
             if let (Some(c), Some(npc)) = (client, npc) {
                 let at_workplace = npc.workplace.is_some_and(|wp| wp == current_location_id);
                 let is_introduced = introduced.contains(&reaction.npc_id);
-                let (system, context) =
-                    build_reaction_prompt(npc, loc_name, tod, weather, is_introduced, at_workplace);
+                let (system, context) = build_reaction_prompt(
+                    npc,
+                    loc_name,
+                    tod,
+                    weather,
+                    is_introduced,
+                    at_workplace,
+                    language,
+                );
                 llm_log_info = Some((context.len(), system.clone(), context.clone()));
 
                 let c_clone = c.clone();
@@ -748,6 +756,7 @@ mod tests {
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
 
+        let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
             &[reaction],
             &[],
@@ -759,6 +768,7 @@ mod tests {
             None,
             "",
             None,
+            &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
         )
@@ -1028,6 +1038,7 @@ mod tests {
         let mut log_sources: Vec<String> = Vec::new();
         let mut token_chunks: Vec<String> = Vec::new();
 
+        let lang = crate::npc::LanguageSettings::english_only();
         stream_reaction_texts(
             &[],
             &[],
@@ -1039,6 +1050,7 @@ mod tests {
             None,
             "",
             None,
+            &lang,
             |_turn_id, name| log_sources.push(name.to_string()),
             |_turn_id, _source, tok| token_chunks.push(tok.to_string()),
         )

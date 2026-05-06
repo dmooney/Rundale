@@ -8,6 +8,7 @@ use crate::config::InferenceConfig;
 use crate::game_mod::PronunciationEntry;
 use crate::inference::{AnyClient, InferenceQueue};
 use crate::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
+use crate::npc::LanguageSettings;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
@@ -51,4 +52,9 @@ pub struct GameLoopContext<'a> {
     pub client: &'a Mutex<Option<AnyClient>>,
     /// Cloud LLM client for dialogue (None if not configured).
     pub cloud_client: &'a Mutex<Option<AnyClient>>,
+    /// Language settings derived from the active mod manifest.
+    ///
+    /// Injected into every dialogue prompt builder so NPCs use locale-correct
+    /// spelling and code-switch naturally when `native` is set.
+    pub language: LanguageSettings,
 }

@@ -15,6 +15,7 @@ use crate::inference::AnyClient;
 use crate::inference::InferenceQueue;
 use crate::loading::LoadingAnimation;
 use crate::npc::LanguageHint;
+use crate::npc::LanguageSettings;
 use crate::npc::manager::NpcManager;
 use crate::persistence::AsyncDatabase;
 use crate::world::WorldState;
@@ -262,6 +263,21 @@ impl App {
             // the real saves directory (#696 slice 8).
             session_store: Arc::new(DbSessionStore::new(PathBuf::from("saves"))),
         }
+    }
+
+    /// Returns the language settings derived from the active game mod.
+    ///
+    /// Falls back to plain `"en"` / no native language when no mod is loaded.
+    pub fn language_settings(&self) -> LanguageSettings {
+        self.game_mod
+            .as_ref()
+            .map(|gm| {
+                LanguageSettings::new(
+                    gm.player_language().to_string(),
+                    gm.native_language().map(str::to_string),
+                )
+            })
+            .unwrap_or_else(LanguageSettings::english_only)
     }
 
     /// Returns the provider name for a given inference category (or None if inheriting base).

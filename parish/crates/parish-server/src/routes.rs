@@ -488,6 +488,7 @@ fn make_game_loop_ctx<'a>(
         pronunciations: &state.pronunciations,
         client: &state.client,
         cloud_client: &state.cloud_client,
+        language: state.language_settings.clone(),
     }
 }
 

@@ -11,6 +11,8 @@ kind = "setting"
 start_date = "1820-03-20T08:00:00Z"
 start_location = 15
 period_year = 1820
+player_language = "en-IE"
+native_language = "ga-IE"
 
 [files]
 world = "world.json"

@@ -9,7 +9,7 @@ use chrono::Utc;
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::{
-    Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
+    LanguageSettings, Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
     build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
@@ -80,11 +80,12 @@ pub fn relationship_label(strength: f64) -> &'static str {
 pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
+    language: &LanguageSettings,
     config: &NpcConfig,
     npc_names: &std::collections::HashMap<NpcId, String>,
     known_roster: Option<&[(NpcId, String, String)]>,
 ) -> String {
-    let mut prompt = build_tier1_system_prompt(npc, improv);
+    let mut prompt = build_tier1_system_prompt(npc, improv, language);
 
     // Add known NPC roster (relationships + memory + co-located NPCs)
     // NpcId(0) is the player — shown first with a special "currently speaking with" note.
@@ -146,20 +147,32 @@ pub fn build_enhanced_system_prompt_with_config(
 pub fn build_enhanced_system_prompt(
     npc: &Npc,
     improv: bool,
+    language: &LanguageSettings,
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
-    build_enhanced_system_prompt_with_config(npc, improv, &NpcConfig::default(), npc_names, None)
+    build_enhanced_system_prompt_with_config(
+        npc,
+        improv,
+        language,
+        &NpcConfig::default(),
+        npc_names,
+        None,
+    )
 }
 
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base context with the NPC's recent memories and
 /// information about other NPCs present at the same location.
+/// The `_language` parameter is accepted for API uniformity with the system-prompt
+/// builders but is not used — the language directive belongs in the system prompt.
+#[allow(clippy::too_many_arguments)]
 pub fn build_enhanced_context_with_config(
     npc: &Npc,
     world: &WorldState,
     player_input: &str,
     other_npcs: &[&Npc],
+    _language: &LanguageSettings,
     config: &NpcConfig,
     _npc_names: &std::collections::HashMap<NpcId, String>,
     player_name_for_npc: Option<&str>,
@@ -273,6 +286,7 @@ pub fn build_enhanced_context(
     world: &WorldState,
     player_input: &str,
     other_npcs: &[&Npc],
+    language: &LanguageSettings,
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> String {
     let mut context = build_enhanced_context_with_config(
@@ -280,6 +294,7 @@ pub fn build_enhanced_context(
         world,
         player_input,
         other_npcs,
+        language,
         &NpcConfig::default(),
         npc_names,
         None,
@@ -424,7 +439,14 @@ pub fn record_witness_memories(
 }
 
 /// Builds the system prompt for a Tier 2 interaction between NPCs at a location.
-pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) -> String {
+pub fn build_tier2_prompt(
+    group: &Tier2Group,
+    time_desc: &str,
+    weather: &str,
+    language: &LanguageSettings,
+) -> String {
+    use crate::language_directive;
+
     let npc_descriptions: Vec<String> = group
         .npcs
         .iter()
@@ -441,7 +463,7 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
         _ => "",
     };
 
-    format!(
+    let mut prompt = format!(
         "You are simulating background interactions between characters in a small \
         Irish parish in 1820.\n\n\
         Location: {location}\n\
@@ -460,7 +482,11 @@ pub fn build_tier2_prompt(group: &Tier2Group, time_desc: &str, weather: &str) ->
         time = time_desc,
         weather = weather,
         characters = npc_descriptions.join("\n"),
-    )
+    );
+
+    prompt.push_str("\n\n");
+    prompt.push_str(&language_directive(language));
+    prompt
 }
 
 /// Creates an `NpcSnapshot` from a live NPC for Tier 2 background inference.
@@ -507,6 +533,7 @@ pub async fn run_tier2_for_group(
     group: &Tier2Group,
     time_desc: &str,
     weather: &str,
+    language: &LanguageSettings,
 ) -> Option<Tier2Event> {
     if group.npcs.len() < 2 {
         // Solo NPC: generate a simple template event, no inference needed
@@ -525,7 +552,7 @@ pub async fn run_tier2_for_group(
         return None;
     }
 
-    let prompt = build_tier2_prompt(group, time_desc, weather);
+    let prompt = build_tier2_prompt(group, time_desc, weather, language);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
     match parish_inference::submit_json::<Tier2Response>(
@@ -732,7 +759,10 @@ pub fn build_tier3_prompt(
     weather: &str,
     season: &str,
     hours: u32,
+    language: &LanguageSettings,
 ) -> String {
+    use crate::language_directive;
+
     let npc_summaries: Vec<String> = snapshots
         .iter()
         .map(|snap| {
@@ -760,7 +790,7 @@ pub fn build_tier3_prompt(
         })
         .collect();
 
-    format!(
+    let mut prompt = format!(
         "You are simulating background NPC activity in a rural Irish parish in 1820.\n\
         Given the following NPCs and their current states, simulate {hours} hours of activity.\n\
         The weather is {weather}. The season is {season}. The time is {time}.\n\n\
@@ -776,7 +806,11 @@ pub fn build_tier3_prompt(
         season = season,
         time = time_desc,
         npcs = npc_summaries.join("\n\n"),
-    )
+    );
+
+    prompt.push_str("\n\n");
+    prompt.push_str(&language_directive(language));
+    prompt
 }
 
 /// Creates a Tier 3 snapshot from an NPC, resolving location names from the graph.
@@ -836,6 +870,8 @@ pub struct Tier3Context<'a> {
     pub hours: u32,
     /// Maximum NPCs per batch LLM call.
     pub batch_size: usize,
+    /// Language settings for locale-aware dialogue directives.
+    pub language: &'a LanguageSettings,
 }
 
 /// Runs a Tier 3 batch simulation for distant NPCs.
@@ -854,7 +890,14 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
     let mut all_updates = Vec::new();
 
     for batch in ctx.snapshots.chunks(batch_size) {
-        let prompt = build_tier3_prompt(batch, ctx.time_desc, ctx.weather, ctx.season, ctx.hours);
+        let prompt = build_tier3_prompt(
+            batch,
+            ctx.time_desc,
+            ctx.weather,
+            ctx.season,
+            ctx.hours,
+            ctx.language,
+        );
 
         match parish_inference::submit_json::<Tier3Response>(
             ctx.queue,
@@ -1024,7 +1067,8 @@ mod tests {
 
         let npc_names: HashMap<NpcId, String> =
             [(NpcId(2), "Brigid".to_string())].into_iter().collect();
-        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(prompt.contains("PEOPLE IN YOUR LIFE:"));
         assert!(prompt.contains("very close"));
         assert!(prompt.contains("WHAT'S ON YOUR MIND:"));
@@ -1035,7 +1079,8 @@ mod tests {
     fn test_enhanced_system_prompt_without_relationships() {
         let npc = make_test_npc(1, "Padraig", 2);
         let npc_names: HashMap<NpcId, String> = HashMap::new();
-        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(!prompt.contains("PEOPLE IN YOUR LIFE:"));
         assert!(!prompt.contains("WHAT'S ON YOUR MIND:"));
     }
@@ -1047,8 +1092,15 @@ mod tests {
         let world = WorldState::new();
 
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
-        let context =
-            build_enhanced_context(&npc, &world, "greets everyone", &[&other], &npc_names);
+        let lang = LanguageSettings::english_only();
+        let context = build_enhanced_context(
+            &npc,
+            &world,
+            "greets everyone",
+            &[&other],
+            &lang,
+            &npc_names,
+        );
         assert!(context.contains("Also present:"));
         assert!(context.contains("Tommy, the Test"));
     }
@@ -1068,7 +1120,8 @@ mod tests {
         let world = WorldState::new();
 
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
-        let context = build_enhanced_context(&npc, &world, "says hello", &[], &npc_names);
+        let lang = LanguageSettings::english_only();
+        let context = build_enhanced_context(&npc, &world, "says hello", &[], &lang, &npc_names);
         assert!(context.contains("Recent events you remember:"));
         assert!(context.contains("Saw a stranger at the crossroads"));
     }
@@ -1136,7 +1189,8 @@ mod tests {
             ],
         };
 
-        let prompt = build_tier2_prompt(&group, "Evening", "Overcast");
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier2_prompt(&group, "Evening", "Overcast", &lang);
         assert!(prompt.contains("Darcy's Pub"));
         assert!(prompt.contains("Padraig (Publican)"));
         assert!(prompt.contains("Tommy (Retired Farmer)"));
@@ -1214,7 +1268,8 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        let prompt = build_enhanced_system_prompt(&npc, false, &npc_names);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_enhanced_system_prompt(&npc, false, &lang, &npc_names);
         assert!(prompt.contains("very close") || prompt.contains("hostile"));
     }
 
@@ -1265,8 +1320,9 @@ mod tests {
         };
         let npc_names: HashMap<NpcId, String> =
             [(NpcId(2), "Brigid".to_string())].into_iter().collect();
+        let lang = LanguageSettings::english_only();
         let prompt =
-            build_enhanced_system_prompt_with_config(&npc, false, &config, &npc_names, None);
+            build_enhanced_system_prompt_with_config(&npc, false, &lang, &config, &npc_names, None);
         // 0.8 is below 0.9 threshold, so should be "friendly" not "very close"
         assert!(prompt.contains("friendly"));
         assert!(!prompt.contains("very close"));
@@ -1277,7 +1333,8 @@ mod tests {
         let npc = make_test_npc(1, "Padraig", 1);
         let world = WorldState::new();
         let npc_names: std::collections::HashMap<NpcId, String> = std::collections::HashMap::new();
-        let context = build_enhanced_context(&npc, &world, "hello there", &[], &npc_names);
+        let lang = LanguageSettings::english_only();
+        let context = build_enhanced_context(&npc, &world, "hello there", &[], &lang, &npc_names);
         // The newcomer's current input must be the last meaningful content
         let action_line = "The newcomer says: \"hello there\"";
         assert!(context.contains(action_line));
@@ -1520,7 +1577,8 @@ mod tests {
         let (btx, _brx) = tokio::sync::mpsc::channel(1);
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
+        let lang = LanguageSettings::english_only();
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang).await;
         assert!(event.is_some());
         let event = event.unwrap();
         assert!(event.summary.contains("Padraig"));
@@ -1543,7 +1601,8 @@ mod tests {
         let (btx, _brx) = tokio::sync::mpsc::channel(1);
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear").await;
+        let lang = LanguageSettings::english_only();
+        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang).await;
         assert!(event.is_none());
     }
 
@@ -1576,10 +1635,11 @@ mod tests {
             ],
         };
 
-        let prompt = build_tier2_prompt(&group, "Afternoon", "Heavy Rain");
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Heavy Rain", &lang);
         assert!(prompt.contains("commenting on the weather"));
 
-        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear");
+        let prompt = build_tier2_prompt(&group, "Afternoon", "Clear", &lang);
         assert!(!prompt.contains("commenting on the weather"));
     }
 
@@ -1710,7 +1770,8 @@ mod tests {
             },
         ];
 
-        let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24);
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24, &lang);
         assert!(prompt.contains("simulate 24 hours"));
         assert!(prompt.contains("Overcast"));
         assert!(prompt.contains("Spring"));
