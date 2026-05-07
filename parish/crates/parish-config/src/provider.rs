@@ -512,11 +512,20 @@ pub fn resolve_config(
     let model = raw.model.filter(|s| !s.is_empty());
 
     // Fall back to the provider's Dialogue preset if no model is configured.
-    let model = model.or_else(|| {
-        provider
-            .preset_model(InferenceCategory::Dialogue)
-            .map(String::from)
-    });
+    //
+    // Skipped for Ollama: leaving `model` as `None` lets `setup_ollama_with_config`
+    // pick a hardware-matched gemma4 tier (gemma4:31b/26b/e4b/e2b) instead of
+    // pulling whatever the static qwen3 preset names — which is rarely the
+    // right size for the host's VRAM.
+    let model = if provider == Provider::Ollama {
+        model
+    } else {
+        model.or_else(|| {
+            provider
+                .preset_model(InferenceCategory::Dialogue)
+                .map(String::from)
+        })
+    };
 
     if provider.requires_api_key() && api_key.is_none() {
         let hint = provider
@@ -1245,6 +1254,25 @@ model = "toml-model"
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
         assert_eq!(config.provider, Provider::Anthropic);
         assert_eq!(config.model.as_deref(), Some("claude-opus-4-7"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_ollama_leaves_model_none_for_setup_to_pick() {
+        clear_parish_env();
+        let cli = CliOverrides {
+            provider: Some("ollama".to_string()),
+            base_url: None,
+            model: None,
+        };
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Ollama);
+        assert!(
+            config.model.is_none(),
+            "Ollama must leave model as None so setup_ollama_with_config \
+             can pick a hardware-matched gemma4 tier; got {:?}",
+            config.model
+        );
     }
 
     #[test]
