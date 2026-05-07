@@ -11,11 +11,11 @@ parish-types  = { workspace = true }
 parish-config = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
-anyhow        = { workspace = true }
-thiserror     = { workspace = true }
 tracing       = { workspace = true }
 chrono        = { workspace = true }
 strsim        = { workspace = true }
 rand          = { workspace = true }
 tokio         = { workspace = true, features = ["sync"] }
-toml          = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }

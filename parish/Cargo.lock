@@ -3286,7 +3286,6 @@ dependencies = [
 name = "parish-world"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "parish-config",
  "parish-types",
@@ -3294,7 +3293,6 @@ dependencies = [
  "serde",
  "serde_json",
  "strsim",
- "thiserror 2.0.18",
  "tokio",
  "toml 0.8.2",
  "tracing",
