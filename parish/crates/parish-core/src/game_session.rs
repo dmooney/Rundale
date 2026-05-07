@@ -175,8 +175,12 @@ pub fn apply_movement(
             // Generate arrival reactions; canned text is logged to world.log.
             // Raw reactions are returned so backends with an LLM client can
             // upgrade use_llm entries via resolve_llm_greeting.
-            let arrival_reactions =
-                apply_arrival_reactions_inner(world, npc_manager, reaction_templates);
+            let arrival_reactions = apply_arrival_reactions(
+                world,
+                npc_manager,
+                reaction_templates,
+                &ReactionConfig::default(),
+            );
 
             // Build system message list (narration + look only — NOT reactions)
             let mut messages: Vec<GameMessage> = Vec::new();
@@ -460,49 +464,6 @@ fn build_look_text(
     format!("{}\n{}", desc, exits)
 }
 
-/// Inner helper: generate reactions and apply side-effects, returning texts.
-/// Generates reactions, marks introductions, logs canned text to world.log,
-/// and returns the raw [`NpcReaction`] structs so backends can optionally
-/// upgrade `use_llm` entries via an LLM call.
-fn apply_arrival_reactions_inner(
-    world: &mut WorldState,
-    npc_manager: &mut NpcManager,
-    templates: &ReactionTemplates,
-) -> Vec<NpcReaction> {
-    let npcs = npc_manager.npcs_at(world.player_location);
-    if npcs.is_empty() {
-        return Vec::new();
-    }
-    let loc_data = match world.current_location_data() {
-        Some(d) => d.clone(),
-        None => return Vec::new(),
-    };
-    let tod = world.clock.time_of_day();
-    let weather = world.weather.to_string();
-    let introduced = npc_manager.introduced_set();
-    let config = ReactionConfig::default();
-    let roll_dice = dice::roll_n(npcs.len() * 2);
-
-    let arrival_ctx = ArrivalContext {
-        location: &loc_data,
-        time_of_day: tod,
-        weather: &weather,
-        templates,
-        config: &config,
-    };
-    let reactions = generate_arrival_reactions(&npcs, &introduced, &arrival_ctx, &roll_dice);
-
-    for reaction in &reactions {
-        if reaction.introduces {
-            npc_manager.mark_introduced(reaction.npc_id);
-        }
-        // Log canned text as the persistent record; backends may emit LLM
-        // text to the frontend instead but the world log always has canned.
-        world.log(reaction.canned_text.clone());
-    }
-    reactions
-}
-
 /// Streams NPC arrival reaction texts to the frontend gradually, upgrading
 /// `use_llm` entries via the provided LLM client when available.
 ///
@@ -670,16 +631,8 @@ mod tests {
             return;
         };
         let loc = world.current_location().name.clone();
-        // Find first word of location name and use it as target
-        let target = loc.split_whitespace().next().unwrap_or("here");
-        // Deliberately move to a place we know — just test AlreadyHere edge
-        let start = world.player_location;
         let effects = apply_movement(&mut world, &mut mgr, &templates, &loc, &transport);
-        // Should be AlreadyHere or Moved (depending on fuzzy match)
-        // Either way: world_changed only if we moved
         assert!(!effects.messages.is_empty());
-        let _ = target; // suppress unused
-        let _ = start;
     }
 
     #[test]
@@ -725,16 +678,12 @@ mod tests {
     }
 
     #[test]
-    fn apply_arrival_reactions_empty_location() {
+    fn apply_arrival_reactions_does_not_panic() {
         let Some((mut world, mut mgr, templates, _)) = setup() else {
             return;
         };
         let config = ReactionConfig::default();
-        // No NPCs at start by default — should return empty
-        mgr.npcs_at(world.player_location); // just for the call
-        let texts = apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
-        // May or may not be empty depending on game data — just verify it doesn't panic
-        let _ = texts;
+        apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
     }
 
     /// Verifies that stream_reaction_texts calls emit_text_log once per reaction

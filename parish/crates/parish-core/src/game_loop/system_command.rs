@@ -214,3 +214,150 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command) {
     // Emit updated world snapshot.
     host.emit_world_update().await;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ipc::commands::CommandResult;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// Mock host that records which methods were called.
+    struct MockHost {
+        quit_called: AtomicBool,
+        save_called: AtomicBool,
+        world_update_called: AtomicBool,
+        text_log: std::sync::Mutex<Vec<(String, TextPresentation)>>,
+    }
+
+    impl MockHost {
+        fn new() -> Self {
+            Self {
+                quit_called: AtomicBool::new(false),
+                save_called: AtomicBool::new(false),
+                world_update_called: AtomicBool::new(false),
+                text_log: std::sync::Mutex::new(Vec::new()),
+            }
+        }
+
+        fn assert_quit_called(&self) {
+            assert!(self.quit_called.load(Ordering::SeqCst));
+        }
+
+        fn assert_save_called(&self) {
+            assert!(self.save_called.load(Ordering::SeqCst));
+        }
+
+        fn assert_world_update_called(&self) {
+            assert!(self.world_update_called.load(Ordering::SeqCst));
+        }
+
+        fn assert_text_emitted(&self, expected: &str) {
+            let log = self.text_log.lock().unwrap();
+            assert!(log.iter().any(|(msg, _)| msg == expected));
+        }
+    }
+
+    impl SystemCommandHost for MockHost {
+        fn run_command(&self, cmd: Command) -> BoxFuture<'_, CommandResult> {
+            let effect = match &cmd {
+                Command::Save => CommandEffect::SaveGame,
+                Command::Quit => CommandEffect::Quit,
+                _ => {
+                    return Box::pin(async {
+                        CommandResult {
+                            response: String::new(),
+                            effects: vec![],
+                            presentation: TextPresentation::Prose,
+                        }
+                    });
+                }
+            };
+            let result = CommandResult {
+                response: "done".to_string(),
+                effects: vec![effect],
+                presentation: TextPresentation::Prose,
+            };
+            Box::pin(async { result })
+        }
+
+        fn quit(&self) -> BoxFuture<'_, ()> {
+            self.quit_called.store(true, Ordering::SeqCst);
+            Box::pin(async {})
+        }
+
+        fn save_game(&self) -> BoxFuture<'_, String> {
+            self.save_called.store(true, Ordering::SeqCst);
+            Box::pin(async { "Game saved.".to_string() })
+        }
+
+        fn emit_text_log(&self, msg: String, presentation: TextPresentation) {
+            self.text_log.lock().unwrap().push((msg, presentation));
+        }
+
+        fn emit_world_update(&self) -> BoxFuture<'_, ()> {
+            self.world_update_called.store(true, Ordering::SeqCst);
+            Box::pin(async {})
+        }
+
+        fn rebuild_inference(&self) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn toggle_map(&self) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn open_designer(&self) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn fork_branch(&self, _: String) -> BoxFuture<'_, String> {
+            Box::pin(async { String::new() })
+        }
+        fn load_branch(&self, _: String) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn list_branches(&self) -> BoxFuture<'_, String> {
+            Box::pin(async { String::new() })
+        }
+        fn show_log(&self) -> BoxFuture<'_, String> {
+            Box::pin(async { String::new() })
+        }
+        fn show_spinner(&self, _: u64) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn new_game(&self) -> BoxFuture<'_, Result<(), String>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn save_flags(&self) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn apply_theme(&self, _: String, _: String) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn apply_tiles(&self, _: String) -> BoxFuture<'_, ()> {
+            Box::pin(async {})
+        }
+        fn handle_debug(&self, _: Option<String>) -> BoxFuture<'_, String> {
+            Box::pin(async { String::new() })
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatches_save_effect_and_emits_world_update() {
+        let host = MockHost::new();
+        handle_system_command(&host, Command::Save).await;
+        host.assert_save_called();
+        host.assert_text_emitted("Game saved.");
+        host.assert_world_update_called();
+    }
+
+    #[tokio::test]
+    async fn quit_effect_returns_early() {
+        let host = MockHost::new();
+        handle_system_command(&host, Command::Quit).await;
+        host.assert_quit_called();
+        // world update should NOT be called after quit (early return)
+        assert!(!host.world_update_called.load(Ordering::SeqCst));
+    }
+}
