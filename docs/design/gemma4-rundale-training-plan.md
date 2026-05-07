@@ -17,11 +17,17 @@ This plan QLoRA-fine-tunes `google/gemma-4-9b-it` on Joyce, Griffin, Carleton, C
 | Training host | RunPod A100-80GB primary; local ROCm RX 9070 demoted to "alternative for AMD-equipped contributors"; no MLX/Apple-Silicon retarget | Cloud + axolotl already supported; user chose RunPod over local M5 |
 | Base model | `google/gemma-4-9b-it` (unchanged) | Best general instruction-following; period prior added via SFT/DPO |
 | Hand-written anchor | **Removed** | Author cannot author authentic 1820s Hiberno-English |
-| Data mix | **65 % literary core (13 authors) / 18 % Joyce 1910 dialect↔standard pairs / 6 % travel-observer reported / 4 % folklore-oral / 4 % reference-work pairs / 3 % held-out eval pool (excluded from train)** | 13-author corpus + 2 new register subcorpora; cottier signal stays dominant while gentry-narrator code-switching and oral-register substrate idiom get explicit slices |
+| Data mix | **48 % literary core (13 authors) / 16 % trial/commission testimony / 12 % Joyce dialect↔standard pairs (extended with formal-contrast set) / 6 % first-person Irish memoir / 5 % travel-observer reported / 4 % folklore-oral / 3 % religious/clerical / 4 % reference-work pairs / 2 % periodicals** | Literary core dominance reduced to 48 % to make room for the highest-authenticity slice (testimony 16 %); first-person Irish, religious/clerical, periodicals add register breadth; sums to 100 %. Stage-Irish caricature is **0 %** of training mix — it's a DPO `rejected` class (see "Stage Irish" row) |
 | Reference-work mining | **Added**: period etiquette manuals, letter-writing manuals, almanacs, period dictionaries (all Internet Archive). Concrete extraction recipe in §Data curation | Talkie-pattern programmatic supervision; primarily gentry/middling-farmer register |
 | Literary corpus expansion | **13-author core** = original 5 (Joyce 1910, Griffin, Carleton, Croker, Kickham) + Lover, Maxwell, Lever + Maria Edgeworth (*Castle Rackrent* 1800), John & Michael Banim (*Tales by the O'Hara Family* 1st series 1825 + 2nd 1826), Anna Maria Hall (*Sketches of Irish Character* 1829, *Lights and Shadows of Irish Life* 1838) | 8-author corpus too narrow; 13 authors all rated HIGH cottier-dialogue density supports a 6/6 fully disjoint dialect-oracle / SFT split with 1 author reserved eval-only |
 | Travel-observer subcorpus (NEW slice) | Arthur Young (1780), John Carr (1806), Henry David Inglis (1834), Johann Georg Kohl (1843), Asenath Nicholson (1847), Mr & Mrs S.C. Hall (1841–43) — gentry-narrator-mediated peasant speech | Provides code-switching examples (gentry observer + reported peasant dialogue) and contrast register; tagged `register: observer-reported` so it doesn't pollute the cottier mix |
-| Folklore / oral-register subcorpus (NEW slice) | Lady Wilde (*Ancient Legends* 1888), William Wilde (*Irish Popular Superstitions* 1852), Jeremiah Curtin (*Myths and Folk-lore of Ireland* 1890), Douglas Hyde (*Beside the Fire* 1890), P.W. Joyce (*Old Celtic Romances* 1879), James Hardiman (*Irish Minstrelsy* 1831) | Substrate grammar + oral idiom + supernatural register; tagged `register: oral-tale`; supplies metaphor systems and ballad meter the literary core under-represents |
+| Folklore / oral-register subcorpus | Lady Wilde (*Ancient Legends* 1888), William Wilde (*Irish Popular Superstitions* 1852), Jeremiah Curtin (*Myths and Folk-lore of Ireland* 1890), Douglas Hyde (*Beside the Fire* 1890), P.W. Joyce (*Old Celtic Romances* 1879), James Hardiman (*Irish Minstrelsy* 1831) | Substrate grammar + oral idiom + supernatural register; tagged `register: oral-tale`; supplies metaphor systems and ballad meter the literary core under-represents |
+| **Trial / commission / verbatim-testimony subcorpus** (HIGHEST-density addition) | Devon Commission *Digest of Evidence* 1843–45 (1125+ peasant witnesses, ~4500 pp), Whately/Poor Inquiry 1833–36 (793 pp verbatim oral testimony), Cobbett *State Trials* vols 27–33 (1798–1820 trials, esp. Captain Rock prosecutions), Society of Friends *Famine Transactions* 1852, Leadbeater *Cottage Dialogues among the Irish Peasantry* 1811, Boston Pilot "Information Wanted" emigrant ads 1831–1921 (41 185 records via Harvard Dataverse), Whyte *Famine Ship Diary* 1847 + *Ocean Plague* 1848, Bennett *Narrative of a Recent Journey* 1847, Tuke *Visit to Connaught* 1848, Nicholson *Annals of the Famine* 1851 (distinct from her 1847 travelogue already in the travel-observer slice) | Court records + parliamentary inquiries are the **single highest-authenticity** peasant-voice source — court reporters transcribed peasants in real time, not novelistic stylization. Tuke's Connaught journey brackets Roscommon directly. Tagged `register: testimony` |
+| **First-person Irish-voice subcorpus** | Carleton *Autobiography* 1896 (peasant-raised novelist's own voice — distinct from his *Traits and Stories* novelistic dialect already in literary core), Joseph Holt *Memoirs* 1838 (rebel/convict autobiography), O'Connell *Correspondence* (Fitzpatrick 1888), Wolfe Tone *Memoirs* 1826, Miles Byrne *Memoirs* 1863, Mitchel *Jail Journal* 1854 + *Last Conquest of Ireland (Perhaps)* 1861 | First-person Irish writers (vs gentry-narrator novelists). Tagged `register: first-person-irish`; balances literary-core's third-person framing |
+| **Religious / clerical / temperance subcorpus** | Bishop Doyle (J.K.L.) *Life & Correspondence* (1829–34 era, MacDonagh 1905 biography is the public-domain compilation), Cobbett *History of the Protestant Reformation* 1824–27 (peasants' polemical reading), 1859 Ulster Revival eyewitness accounts (Weir, witness correspondence — high direct-testimony density, Presbyterian/Ulster), Butler's Catechism (1775+, Irish editions), *Garden of the Soul* (1740 original, Dublin 1872 reprint) | Clerical pastoral register + revival witness testimony. Tagged `register: clerical` |
+| **Stage Irish — REJECTED CLASS for DPO** (NOT training data) | Boucicault (*Colleen Bawn* 1860, *Arrah-na-Pogue* 1864, *Shaughraun* 1874), O'Keeffe (*The Poor Soldier* 1783, *The Wicklow Mountains* 1796), Sheridan (*St Patrick's Day* 1775, *The Rivals* — Sir Lucius O'Trigger 1775), Macklin (*The True-Born Irishman* 1762, *Love à la Mode* 1759), Tyrone Power (*Born to Good Luck* 1832), Bernard (*His Last Legs* 1839, *The Irish Attorney* 1839), Colman (*John Bull* 1803), Farquhar (*The Recruiting Officer* 1706, *Love and a Bottle* 1698) | Stage-Irish caricature ("begorrah"-flavored) is what we want the model to **avoid**. Tagged `class: stage_irish_caricature`, **excluded from SFT**. Synthesised stage-Irish responses are inserted as `rejected` examples in the DPO pair pool; the policy learns to push *away* from caricature and toward authentic substrate |
+| **Formal-register contrast set** (paired contrast, not standalone training) | Lindley Murray *English Grammar* 1795 (ubiquitous prescriptive), Cobbett *Grammar of the English Language* 1818 (working-class targeted), Walker *Critical Pronouncing Dictionary* 1791 (explicit "avoid Irish peculiarities" rules), Neilson *Introduction to the Irish Language* 1808 (English↔Irish bilingual primer), Dilworth *Spelling-Book*, NE Commissioners *Books of Lessons* 1831+ | Formal English peasants were *taught-against*. Used by `build/joyce_pairs.py` to **extend** Joyce's dialect↔standard paraphrase set with prescriptive-grammar paired examples — provides a bidirectional code-switching anchor without pulling cottier output toward Standard English |
+| **Periodicals (single-volume sample)** | *The Irish Penny Journal* Vol 1 (Gutenberg #55518, 1840–41) | Mixed-register weekly; period idiom; bulk-extractable in a single Gutenberg file (sidesteps the multi-issue OCR cost that deferred the *Dublin Penny Journal* / *Dublin University Magazine* / *Nation* expansion) |
 | Anachronism wordlist source | **Three-source union** as the positive-attestation list — every token must appear in (a) Webster 1828, (b) Joyce 1910's vocabulary, OR (c) **Wright's English Dialect Dictionary 1898–1905** (public domain, comprehensive on regional/Hiberno-English usage); failures hit the wordlist. Plus a hand-curated blocklist for 20th–21st-century anachronisms (telephone, computer, okay, awesome, …) | Webster 1828 alone false-anachronisms British/Irish vocabulary; Joyce + Wright together patch the American-English gap; OED is paywalled and ruled out |
 | `feature_tagger.py` role | Promoted from labeller to **mandatory floor gate** for cottier class (≥N substrate features per 100 tokens, drop on miss) | Transparent, fast, ungameable by general period prose |
 | `class_assigner.py` role | **Evidence-based**: verb-of-saying speaker → known-class lookup OR substrate-density threshold | Curation pipeline now load-bearing without hand anchor |
@@ -90,6 +96,48 @@ training/
       gutenberg_hyde.py             #   Douglas Hyde, Beside the Fire 1890 (Gutenberg #60782)
       gutenberg_joyce_celtic.py     #   P.W. Joyce, Old Celtic Romances 1879 (Gutenberg #38041)
       ia_hardiman.py                #   James Hardiman, Irish Minstrelsy 1831 (2 vols)
+      # --- Trial / commission / verbatim-testimony subcorpus (HIGHEST peasant-voice density) ---
+      ht_devon_commission.py        #   Devon Commission Digest of Evidence 1843–45 (HathiTrust 001893729; ~4500pp)
+      ia_poor_inquiry.py            #   Whately/Poor Inquiry Commission 1833–36 (IA op1245191-1001)
+      ht_state_trials.py            #   Cobbett's Complete Collection of State Trials vols 27–33 (1798–1820)
+      ht_friends_famine.py          #   Society of Friends Central Relief Cttee Famine Transactions 1852
+      ia_leadbeater.py              #   Mary Leadbeater, Cottage Dialogues among the Irish Peasantry 1811
+      dataverse_boston_pilot.py     #   Boston Pilot Information Wanted ads 1831–1921 (Harvard Dataverse DVN/UNJU3N)
+      ia_whyte_diary.py             #   Robert Whyte, Famine Ship Diary 1847 + Ocean Plague 1848
+      ia_bennett.py                 #   William Bennett, Narrative of a Recent Journey 1847
+      ia_tuke.py                    #   James Hack Tuke, Visit to Connaught 1848 (Roscommon-adjacent)
+      ia_nicholson_annals.py        #   Asenath Nicholson, Annals of the Famine 1851
+      # --- First-person Irish-voice subcorpus ---
+      ia_carleton_autobio.py        #   William Carleton, Autobiography 1896
+      ia_holt.py                    #   Joseph Holt, Memoirs 1838
+      ia_oconnell_corr.py           #   Daniel O'Connell, Correspondence (Fitzpatrick 1888)
+      ia_tone.py                    #   Wolfe Tone, Memoirs 1826
+      ia_byrne.py                   #   Miles Byrne, Memoirs 1863
+      ia_mitchel.py                 #   John Mitchel, Jail Journal 1854 + Last Conquest of Ireland 1861
+      # --- Religious / clerical / temperance subcorpus ---
+      ia_doyle_jkl.py               #   Bishop Doyle (J.K.L.) Life and Correspondence (MacDonagh 1905)
+      ia_cobbett_reformation.py     #   Cobbett, History of the Protestant Reformation 1824–27
+      ia_ulster_revival_1859.py     #   1859 Ulster Revival eyewitness accounts (Weir et al.)
+      ia_butler_catechism.py        #   James Butler II Catechism (Irish editions, 1775+)
+      ia_garden_of_soul.py          #   Garden of the Soul (Challoner 1740, Dublin reprint 1872)
+      # --- Periodicals (sample) ---
+      gutenberg_irish_penny_journal.py  # Irish Penny Journal Vol 1 (Gutenberg #55518, 1840–41)
+      # --- Stage-Irish caricature (REJECTED CLASS — fed to DPO rejected pool, not SFT) ---
+      gutenberg_boucicault.py       #   Boucicault: Colleen Bawn 1860 (Gutenberg #52924), Arrah-na-Pogue, Shaughraun
+      gutenberg_okeeffe.py          #   O'Keeffe: Poor Soldier 1783, Wicklow Mountains 1796
+      gutenberg_sheridan.py         #   Sheridan: St Patrick's Day 1775 (Gutenberg #6707), The Rivals (#24761)
+      ia_macklin.py                 #   Macklin: True-Born Irishman 1762, Love à la Mode 1759
+      ia_tyrone_power_actor.py      #   Tyrone Power (the actor), Born to Good Luck 1832
+      ia_bayle_bernard.py           #   William Bayle Bernard, His Last Legs / Irish Attorney 1839
+      gutenberg_colman_younger.py   #   George Colman Younger, John Bull 1803 (Gutenberg #20177)
+      gutenberg_farquhar.py         #   Farquhar: Recruiting Officer 1706 (#37012), Love and a Bottle 1698
+      # --- Formal-register contrast set (paired contrast for joyce_pairs.py extension; NOT standalone training) ---
+      ia_murray_grammar.py          #   Lindley Murray, English Grammar 1795
+      ia_cobbett_grammar.py         #   Cobbett, Grammar of the English Language 1818
+      ia_walker_dictionary.py       #   John Walker, Critical Pronouncing Dictionary 1791
+      ia_neilson_irish.py           #   William Neilson, Introduction to the Irish Language 1808
+      ia_dilworth_speller.py        #   Dilworth, Spelling-Book (1780s+ editions)
+      ia_ne_commissioners_lessons.py  # NE Commissioners Books of Lessons 1831+ (Trinity Digital + IA)
       # --- Reference works (gentry/middling instructional) ---
       ia_etiquette.py               #   period etiquette manuals
       ia_letter_writing.py          #   period letter-writing manuals
@@ -101,22 +149,32 @@ training/
       # --- Deferred (mentioned in README, not auto-ingested) ---
       # Dublin Penny Journal 1832–36, Dublin University Magazine 1833+, The Nation 1842+:
       # bulk-text extraction is per-issue OCR-heavy; tracked as a future source after baseline ships.
-      common.py                     #   SHA-256 cache, fetcher harness
+      # Outrage Reports / workhouse minute books: per-county digitisation status varies; deferred until
+      # county heritage portals stabilise.
+      common.py                     #   SHA-256 cache, fetcher harness; manifest-driven (`manifest.toml`) so each module is a thin
+                                    #   wrapper around `common.fetch(source_id)` rather than per-source bespoke logic
+      _MIGRATION_NOTE.md            #   With ~50 sources the per-module pattern is creaking; migration to
+                                    #   `category_<name>.py` aggregator modules iterating `manifest.toml` is queued
+                                    #   for the implementation PR. Naming above reserved either way.
     curate/                         # dialogue extraction, feature tagging, dedup
     build/
       instruction_pairs.py          #   literary-extracted pairs + system prompt template
       reference_pairs.py            #   reference-work-mined instruction pairs (Talkie-pattern; concrete recipe in §Data curation)
+      formal_contrast_pairs.py      #   prescriptive-grammar pairs from Murray/Cobbett/Walker → extends joyce_pairs.py for code-switching anchor
+      stage_irish_synth.py          #   synthesise stage-Irish caricature responses from Boucicault/Sheridan/Macklin/etc; tagged class:stage_irish_caricature for DPO rejected pool
+      testimony_pairs.py            #   convert verbatim Devon/Whately/State-Trials Q&A into instruction pairs (witness Q → cottier A)
       anachronism_wordlist.py       #   union(Webster 1828, Joyce 1910 vocab, Wright EDD 1898–1905) + curated 20th–21st-c. blocklist → JSON
       split.py                      #   stratified train/val/test
     train/
       train_dialect_oracle.py       #   ~250M decoder-only LM pretrain; reads disjoint author split from configs/dialect_oracle_250m.yaml
     eval/
-      judge_anachronism.py          #   deterministic Webster-1828 + blocklist judge
+      judge_anachronism.py          #   deterministic three-source-union (Webster 1828 ∪ Joyce 1910 ∪ Wright EDD) + blocklist judge
       judge_talkie.py               #   Talkie-1930-13B-IT loglik judge (fixed Roscommon-1820s system prompt)
       judge_dialect_oracle.py       #   tiny-oracle loglik judge
       judge_deepseek.py             #   DeepSeek V4-pro coherence rubric (Promptfoo case) — DPO + nightly only, NOT serve-time
       judge_combined.py             #   Borda rank-aggregate; --mode {dpo|serve} selects 4-axis (DPO) or 3-axis local-only (serve)
-      build_dpo_dataset.py          #   N=8 candidates per scenario → feature_tagger floor → 4-axis judge stack → (chosen, rejected) pairs
+      build_dpo_dataset.py          #   N=8 candidates per scenario → feature_tagger floor → 4-axis judge stack → (chosen, rejected) pairs;
+                                    #   additionally injects stage_irish_synth.py outputs as `rejected` examples (cottier-prompt + caricature-response)
       calibrate_judges.py           #   ≥80 % direction-correct gate over synthetic pairs; halt + page on failure
       rubric.py                     #   per-feature substrate density (regression sensor)
       held_out_scenarios.py         #   60 situations × 5 classes
@@ -214,7 +272,7 @@ CORIECOR and the RIA Corpas Stairiúil are **not** automated — they require re
   3. **Almanacs** — extract dated entries (saint's days, fairs, weather lore, agricultural notes) → `{user: "What does a <region> farmer say about <month> weather/fair?", assistant: "<almanac entry, attribution-stripped>"}`.
   4. **Period dictionaries** — only entries on the game-domain word-list (kinship, agriculture, religion, trade) become pairs: `{user: "Define '<word>' as a <region> farmer in 1820 would use it.", assistant: "<dictionary gloss>"}`. The remainder feeds `build/anachronism_wordlist.py` as positive attestations only.
   Each pair carries `source: reference-<manual_slug>` and `class: gentry` (etiquette, letter-writing) or `class: middling_farmer` (almanacs, dictionaries) so they don't pollute the cottier mix.
-- **Volume target (13-author core + travel + folklore subcorpora):** 220–300k dialogue spans (~1.7–2.4M tokens) post-dedup. **Escalation floor: <80k spans** triggers CORIECOR outreach before training. (Original 5-author target 80–120k; 8-author 130–180k; 13-author + 12 subcorpus titles roughly doubles again.)
+- **Volume target (13-author core + ~38 subcorpus titles):** 350–500k dialogue spans / Q&A pairs (~3–4 M tokens) post-dedup. **Escalation floor: <120k spans** triggers CORIECOR outreach before training. The bump comes mostly from the trial/commission slice — Devon Commission alone is ~4500 pp of structured Q&A, much of which converts cleanly to instruction pairs via `build/testimony_pairs.py`.
 
 ## Instruction-pair construction
 
@@ -251,7 +309,12 @@ Train a ~250M-parameter decoder-only LM (small Pythia or fresh Llama-style archi
 | **SFT training** (Stage 1 + Stage 2) | Griffin, Kickham, Maxwell, Lever, Banim 1826, Hall *Lights* 1838 | actor SFT + DPO scenarios |
 | **Eval-only** (held out from both) | one rotating author per run (default: Banim 1826 swapped with held-out slot — see `dialect_oracle_250m.yaml`) | `eval/held_out_scenarios.py` exclusively |
 
-Travel-observer and folklore/oral-register subcorpora are **shared by both sides** (they're not the cottier-prior signal the oracle is meant to encode; they supply gentry-narrator code-switching and oral idiom). Reference-work pairs likewise shared. Webster 1828 + Wright EDD are consumed only by `build/anachronism_wordlist.py` and are on neither side.
+**Subcorpus assignment to oracle/SFT split:**
+
+- **Literary core only** is split disjointly (the table above) — these 13 novelistic-prose authors are what the dialect-oracle prior is meant to encode.
+- **Shared by both sides** (don't drive oracle prior, supply complementary register): travel-observer, folklore/oral, trial/commission testimony, first-person Irish memoir, religious/clerical, periodicals, reference-work pairs.
+- **SFT-only, never seen by oracle**: stage-Irish caricature subcorpus (only used as DPO `rejected` examples) and the formal-contrast set (only used to extend `joyce_pairs.py` with paired examples).
+- **Consumed by neither**: Webster 1828 + Wright EDD — they only feed `build/anachronism_wordlist.py`.
 
 The split is encoded in `configs/dialect_oracle_250m.yaml` and consumed by both `train/train_dialect_oracle.py` and `build/instruction_pairs.py`.
 
@@ -456,9 +519,9 @@ The dialect oracle is **not** Ollama-served — it is a judge-only artifact and 
 - `training/configs/dialect_oracle_250m.yaml`
 - `training/configs/rundale_dialect_e2e.yaml`
 - `training/configs/modelfile.gemma4-rundale`
-- `training/src/parish_train/ingest/{gutenberg_joyce,ia_griffin,gutenberg_carleton,ia_croker,gutenberg_kickham,gutenberg_lover,ia_maxwell,gutenberg_lever,gutenberg_edgeworth,ia_banim_1825,ia_banim_1826,ia_hall_sketches,ia_hall_lights,gutenberg_young,ia_carr,ia_inglis,ia_kohl,ia_nicholson,ia_hall_scenery,gutenberg_lady_wilde,ia_william_wilde,gutenberg_curtin,gutenberg_hyde,gutenberg_joyce_celtic,ia_hardiman,ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict,ia_webster_1828,ia_wright_edd,common}.py`
+- `training/src/parish_train/ingest/{` literary core: `gutenberg_joyce,ia_griffin,gutenberg_carleton,ia_croker,gutenberg_kickham,gutenberg_lover,ia_maxwell,gutenberg_lever,gutenberg_edgeworth,ia_banim_1825,ia_banim_1826,ia_hall_sketches,ia_hall_lights`; travel-observer: `gutenberg_young,ia_carr,ia_inglis,ia_kohl,ia_nicholson,ia_hall_scenery`; folklore: `gutenberg_lady_wilde,ia_william_wilde,gutenberg_curtin,gutenberg_hyde,gutenberg_joyce_celtic,ia_hardiman`; trial/commission/testimony: `ht_devon_commission,ia_poor_inquiry,ht_state_trials,ht_friends_famine,ia_leadbeater,dataverse_boston_pilot,ia_whyte_diary,ia_bennett,ia_tuke,ia_nicholson_annals`; first-person Irish: `ia_carleton_autobio,ia_holt,ia_oconnell_corr,ia_tone,ia_byrne,ia_mitchel`; religious/clerical: `ia_doyle_jkl,ia_cobbett_reformation,ia_ulster_revival_1859,ia_butler_catechism,ia_garden_of_soul`; periodicals: `gutenberg_irish_penny_journal`; stage-Irish (rejected class): `gutenberg_boucicault,gutenberg_okeeffe,gutenberg_sheridan,ia_macklin,ia_tyrone_power_actor,ia_bayle_bernard,gutenberg_colman_younger,gutenberg_farquhar`; formal-contrast: `ia_murray_grammar,ia_cobbett_grammar,ia_walker_dictionary,ia_neilson_irish,ia_dilworth_speller,ia_ne_commissioners_lessons`; reference works: `ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict`; wordlist seeds: `ia_webster_1828,ia_wright_edd`; harness: `common}.py` (~50 modules; manifest-driven aggregation queued for impl PR — see `_MIGRATION_NOTE.md` in §Repo layout)
 - `training/src/parish_train/curate/{dialogue_extractor,feature_tagger,joyce_pairs,class_assigner,dedupe}.py`
-- `training/src/parish_train/build/{instruction_pairs,reference_pairs,anachronism_wordlist,split}.py`
+- `training/src/parish_train/build/{instruction_pairs,reference_pairs,formal_contrast_pairs,stage_irish_synth,testimony_pairs,anachronism_wordlist,split}.py`
 - `training/src/parish_train/train/train_dialect_oracle.py`
 - `training/src/parish_train/eval/{judge_anachronism,judge_talkie,judge_dialect_oracle,judge_deepseek,judge_combined,build_dpo_dataset,calibrate_judges,rubric,held_out_scenarios,ab_compare}.py`
 - `training/src/parish_train/package/{merge_lora,build_modelfile}.py` + `to_gguf.sh`
@@ -502,49 +565,44 @@ When iterating on a single stage, the orchestrator's per-stage targets can be in
 # 0. one-time pod-side setup
 cd /workspace/training && uv sync
 
-# 1. ingest + curate + build (13-author core + travel + folklore + reference + wordlist seeds)
-# Literary core
-uv run python -m parish_train.ingest.gutenberg_edgeworth
-uv run python -m parish_train.ingest.gutenberg_joyce
-uv run python -m parish_train.ingest.ia_griffin
-uv run python -m parish_train.ingest.ia_banim_1825
-uv run python -m parish_train.ingest.ia_banim_1826
-uv run python -m parish_train.ingest.ia_hall_sketches
-uv run python -m parish_train.ingest.gutenberg_carleton
-uv run python -m parish_train.ingest.ia_croker
-uv run python -m parish_train.ingest.ia_maxwell
-uv run python -m parish_train.ingest.ia_hall_lights
-uv run python -m parish_train.ingest.gutenberg_lever
-uv run python -m parish_train.ingest.gutenberg_lover
-uv run python -m parish_train.ingest.gutenberg_kickham
-# Travel-observer
-uv run python -m parish_train.ingest.gutenberg_young
-uv run python -m parish_train.ingest.ia_carr
-uv run python -m parish_train.ingest.ia_inglis
-uv run python -m parish_train.ingest.ia_hall_scenery
-uv run python -m parish_train.ingest.ia_kohl
-uv run python -m parish_train.ingest.ia_nicholson
-# Folklore / oral-register
-uv run python -m parish_train.ingest.ia_hardiman
-uv run python -m parish_train.ingest.ia_william_wilde
-uv run python -m parish_train.ingest.gutenberg_joyce_celtic
-uv run python -m parish_train.ingest.gutenberg_lady_wilde
-uv run python -m parish_train.ingest.gutenberg_curtin
-uv run python -m parish_train.ingest.gutenberg_hyde
-# Reference works
-uv run python -m parish_train.ingest.ia_etiquette
-uv run python -m parish_train.ingest.ia_letter_writing
-uv run python -m parish_train.ingest.ia_almanac
-uv run python -m parish_train.ingest.ia_period_dict
-# Anachronism wordlist seeds (not training data)
-uv run python -m parish_train.ingest.ia_webster_1828
-uv run python -m parish_train.ingest.ia_wright_edd
+# 1. ingest — ~50 sources across 9 register-tagged subcorpora.
+#    Once the per-source modules are migrated to manifest-driven category fetchers
+#    (see _MIGRATION_NOTE.md in src/parish_train/ingest/), this collapses to a single command:
+#
+#      uv run python -m parish_train.ingest                  # iterates manifest.toml
+#
+#    Until then, fetchers are invoked per-module within each category. Category groupings:
+#      Literary core (13):     gutenberg_edgeworth, gutenberg_joyce, ia_griffin, ia_banim_1825,
+#                              ia_banim_1826, ia_hall_sketches, gutenberg_carleton, ia_croker,
+#                              ia_maxwell, ia_hall_lights, gutenberg_lever, gutenberg_lover, gutenberg_kickham
+#      Travel-observer (6):    gutenberg_young, ia_carr, ia_inglis, ia_hall_scenery, ia_kohl, ia_nicholson
+#      Folklore / oral (6):    ia_hardiman, ia_william_wilde, gutenberg_joyce_celtic,
+#                              gutenberg_lady_wilde, gutenberg_curtin, gutenberg_hyde
+#      Trial / commission (10):ht_devon_commission, ia_poor_inquiry, ht_state_trials, ht_friends_famine,
+#                              ia_leadbeater, dataverse_boston_pilot, ia_whyte_diary, ia_bennett, ia_tuke,
+#                              ia_nicholson_annals
+#      First-person Irish (6): ia_carleton_autobio, ia_holt, ia_oconnell_corr, ia_tone, ia_byrne, ia_mitchel
+#      Religious / clerical (5): ia_doyle_jkl, ia_cobbett_reformation, ia_ulster_revival_1859,
+#                                ia_butler_catechism, ia_garden_of_soul
+#      Periodicals (1):        gutenberg_irish_penny_journal
+#      Stage-Irish rejected (8):gutenberg_boucicault, gutenberg_okeeffe, gutenberg_sheridan,
+#                               ia_macklin, ia_tyrone_power_actor, ia_bayle_bernard,
+#                               gutenberg_colman_younger, gutenberg_farquhar
+#      Formal-contrast (6):    ia_murray_grammar, ia_cobbett_grammar, ia_walker_dictionary,
+#                              ia_neilson_irish, ia_dilworth_speller, ia_ne_commissioners_lessons
+#      Reference works (4):    ia_etiquette, ia_letter_writing, ia_almanac, ia_period_dict
+#      Wordlist seeds (2):     ia_webster_1828, ia_wright_edd
+
+# Curate + build (independent of which fetcher path was used):
 uv run python -m parish_train.curate.dialogue_extractor
 uv run python -m parish_train.curate.feature_tagger
 uv run python -m parish_train.curate.dedupe
 uv run python -m parish_train.build.instruction_pairs
-uv run python -m parish_train.build.reference_pairs
-uv run python -m parish_train.build.anachronism_wordlist    # builds data/processed/anachronism_wordlist.json from Webster 1828 + Joyce 1910 + Wright EDD
+uv run python -m parish_train.build.testimony_pairs           # Devon/Whately/State-Trials Q&A → instruction pairs
+uv run python -m parish_train.build.reference_pairs           # etiquette/letter/almanac/dict → instruction pairs
+uv run python -m parish_train.build.formal_contrast_pairs     # Murray/Cobbett/Walker → extends joyce_pairs.py
+uv run python -m parish_train.build.stage_irish_synth         # synthesises stage-Irish caricature responses for DPO rejected pool
+uv run python -m parish_train.build.anachronism_wordlist      # union(Webster 1828, Joyce 1910, Wright EDD) + blocklist → JSON
 uv run python -m parish_train.build.split
 
 # 2a. dialect oracle (parallel with 2b)
