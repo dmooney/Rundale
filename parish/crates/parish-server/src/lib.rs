@@ -738,7 +738,17 @@ async fn run_llm_bootstrap(
         )
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
-    config.model_name = resolved_model;
+    if matches!(provider_cfg.provider, parish_core::config::Provider::Ollama) {
+        // Auto-setup pulled exactly one model. Pin it across all four
+        // per-category slots so every role uses the model that is on
+        // disk, instead of the static qwen3 preset list (which assumes
+        // models the user has not pulled).
+        config.pin_setup_model(resolved_model);
+    } else {
+        config.model_name = resolved_model;
+    }
+    // No-op for Ollama after `pin_setup_model` filled every slot; for
+    // cloud providers fills per-role tier mapping (Opus/Sonnet/Haiku).
     config.fill_missing_models_from_presets();
     Ok((config, ollama_process))
 }
@@ -1093,6 +1103,7 @@ fn build_client_and_config() -> (parish_core::config::ProviderConfig, GameConfig
         active_tile_source: String::new(),
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
+        auto_setup_model: None,
     };
 
     (provider_cfg, config)

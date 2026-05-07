@@ -336,14 +336,21 @@ fn build_inference_clients(
     // Fill in per-role presets for categories without explicit overrides.
     // The override reuses the base client (same provider/url/key) but
     // points the category at the per-role preset model.
-    for category in InferenceCategory::ALL {
-        if overrides.contains_key(&category) {
-            continue;
-        }
-        if let Some(preset) = base_provider_config.provider.preset_model(category)
-            && preset != base_model
-        {
-            overrides.insert(category, (base_client.clone(), preset.to_string()));
+    //
+    // Skipped for Ollama: auto-setup pulls a single hardware-matched model
+    // and the static qwen3 preset would route every role away from it.
+    // Letting these categories fall through to `base_model` keeps every
+    // request on the model that is actually on disk.
+    if base_provider_config.provider != parish::config::Provider::Ollama {
+        for category in InferenceCategory::ALL {
+            if overrides.contains_key(&category) {
+                continue;
+            }
+            if let Some(preset) = base_provider_config.provider.preset_model(category)
+                && preset != base_model
+            {
+                overrides.insert(category, (base_client.clone(), preset.to_string()));
+            }
         }
     }
 

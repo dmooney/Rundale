@@ -301,7 +301,14 @@ fn resolve_single_category(
 
     let cat_api_key = cat_api_key.filter(|s| !s.is_empty());
     let cat_model = cat_model.filter(|s| !s.is_empty());
-    let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
+    // Skipped for Ollama: auto-setup pulls one hardware-matched model.
+    // Leaving `cat_model` as `None` lets `build_inference_clients` fall
+    // through to the auto-setup-resolved `base_model`.
+    let cat_model = if provider == Provider::Ollama {
+        cat_model
+    } else {
+        cat_model.or_else(|| provider.preset_model(category).map(String::from))
+    };
 
     if provider.requires_api_key() && cat_api_key.is_none() {
         let hint = provider
@@ -655,5 +662,110 @@ model = "qwen3:8b"
         // Should inherit the base URL since provider wasn't overridden
         assert_eq!(sim.base_url, "http://remote-ollama:11434");
         assert_eq!(sim.model.as_deref(), Some("qwen3:8b"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn resolve_category_configs_ollama_override_without_model_skips_preset_fill() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[provider]
+name = "ollama"
+
+[provider.dialogue]
+base_url = "http://localhost:11434"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+        let base = ProviderConfig {
+            provider: Provider::Ollama,
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            model: None,
+        };
+        let cli_cat = CliCategoryOverrides::default();
+        let cli_cloud = CliCloudOverrides::default();
+        let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
+
+        let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
+        assert_eq!(dialogue.provider, Provider::Ollama);
+        assert!(
+            dialogue.model.is_none(),
+            "Ollama category without explicit model must not be filled \
+             from the static qwen3 preset; it should fall through to the \
+             base model resolved by setup. Got: {:?}",
+            dialogue.model
+        );
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn resolve_category_configs_ollama_respects_env_model_override() {
+        clear_parish_env();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe {
+            std::env::set_var("PARISH_DIALOGUE_MODEL", "gemma4:31b");
+        }
+        let base = ProviderConfig {
+            provider: Provider::Ollama,
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            model: Some("gemma4:e2b".to_string()),
+        };
+        let cli_cat = CliCategoryOverrides::default();
+        let cli_cloud = CliCloudOverrides::default();
+        let configs =
+            resolve_category_configs(Some(Path::new("/nonexistent")), &base, &cli_cat, &cli_cloud)
+                .unwrap();
+
+        let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
+        assert_eq!(dialogue.model.as_deref(), Some("gemma4:31b"));
+        // Other categories were not overridden, so they should not appear.
+        assert!(!configs.contains_key(&InferenceCategory::Simulation));
+        assert!(!configs.contains_key(&InferenceCategory::Intent));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn resolve_category_configs_anthropic_still_fills_presets() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[provider]
+name = "anthropic"
+
+[provider.intent]
+name = "anthropic"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe {
+            std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
+        }
+        let base = ProviderConfig {
+            provider: Provider::Anthropic,
+            base_url: "https://api.anthropic.com".to_string(),
+            api_key: Some("sk-ant-test".to_string()),
+            model: None,
+        };
+        let cli_cat = CliCategoryOverrides::default();
+        let cli_cloud = CliCloudOverrides::default();
+        let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
+
+        let intent = configs.get(&InferenceCategory::Intent).unwrap();
+        assert_eq!(intent.provider, Provider::Anthropic);
+        assert_eq!(intent.model.as_deref(), Some("claude-haiku-4-5"));
     }
 }
