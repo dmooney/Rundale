@@ -42,10 +42,8 @@ const AUTOSAVE_INTERVAL_SECS: u64 = 45;
 /// they are distinct concerns (inference clients, provider metadata, category
 /// config, feature flags, mod content, data location, interactivity mode,
 /// and TOML-configured inference timeouts) that cannot be collapsed into a
-/// struct without creating a spurious coupling layer.  The count will decrease
-/// when the save-picker and provider initialization are extracted into a shared
-/// setup struct (#future).
-#[allow(clippy::too_many_arguments)] // all params are semantically distinct startup settings (#417)
+/// struct without creating a spurious coupling layer.
+#[allow(clippy::too_many_arguments)] // known debt: tracked in parish-cli/TODO.md (TD-019)
 pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,

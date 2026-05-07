@@ -1,7 +1,7 @@
 //! Core application state shared across all UI modes.
 //!
-//! Contains the [`App`] struct (game state container) and [`ScrollState`],
-//! used by headless, script, and Tauri modes.
+//! Contains the [`App`] struct (game state container), used by headless,
+//! script, and Tauri modes.
 
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -24,64 +24,9 @@ use parish_core::game_mod::GameMod;
 /// Maximum number of entries in the debug activity log.
 pub const DEBUG_LOG_CAPACITY: usize = 50;
 
-/// Scroll state for the main text panel.
-///
-/// Tracks the scroll offset and whether auto-scroll (follow new output)
-/// is active. When the user scrolls up, auto-scroll is disabled until
-/// they press End or scroll back to the bottom.
-#[derive(Debug, Clone)]
-pub struct ScrollState {
-    /// Current scroll offset in lines from the top.
-    pub offset: u16,
-    /// Whether to auto-scroll to the bottom on new content.
-    pub auto_scroll: bool,
-}
-
-impl ScrollState {
-    /// Creates a new scroll state with auto-scroll enabled.
-    pub fn new() -> Self {
-        Self {
-            offset: 0,
-            auto_scroll: true,
-        }
-    }
-
-    /// Scrolls up by the given number of lines.
-    pub fn scroll_up(&mut self, lines: u16) {
-        self.offset = self.offset.saturating_add(lines);
-        self.auto_scroll = false;
-    }
-
-    /// Scrolls down by the given number of lines.
-    pub fn scroll_down(&mut self, lines: u16) {
-        self.offset = self.offset.saturating_sub(lines);
-        if self.offset == 0 {
-            self.auto_scroll = true;
-        }
-    }
-
-    /// Scrolls to the top of the text log.
-    pub fn scroll_to_top(&mut self, max_offset: u16) {
-        self.offset = max_offset;
-        self.auto_scroll = false;
-    }
-
-    /// Scrolls to the bottom and re-enables auto-scroll.
-    pub fn scroll_to_bottom(&mut self) {
-        self.offset = 0;
-        self.auto_scroll = true;
-    }
-}
-
-impl Default for ScrollState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Main application state.
 ///
-/// Holds the game world state, input buffer, scroll state, and control flags.
+/// Holds the game world state, input buffer, and control flags.
 /// Shared across headless, script, and Tauri modes.
 pub struct App {
     /// The game world state.
@@ -94,8 +39,6 @@ pub struct App {
     pub inference_queue: Option<InferenceQueue>,
     /// Central NPC manager — owns all NPCs and handles tier assignment.
     pub npc_manager: NpcManager,
-    /// Scroll state for the main text panel.
-    pub scroll: ScrollState,
     /// Whether the Irish pronunciation sidebar is visible.
     pub sidebar_visible: bool,
     /// Pronunciation hints for secondary-language words from NPC responses.
@@ -210,7 +153,6 @@ impl App {
             should_quit: false,
             inference_queue: None,
             npc_manager: NpcManager::new(),
-            scroll: ScrollState::new(),
             sidebar_visible: false,
             pronunciation_hints: Vec::new(),
             improv_enabled: false,
@@ -487,8 +429,6 @@ mod tests {
         assert!(app.input_buffer.is_empty());
         assert!(app.inference_queue.is_none());
         assert_eq!(app.npc_manager.npc_count(), 0);
-        assert!(app.scroll.auto_scroll);
-        assert_eq!(app.scroll.offset, 0);
         assert!(!app.sidebar_visible);
         assert!(!app.improv_enabled);
         assert!(!app.reveal_unexplored_locations);
@@ -550,67 +490,6 @@ mod tests {
         }
         app.pronunciation_hints.truncate(20);
         assert_eq!(app.pronunciation_hints.len(), 20);
-    }
-
-    #[test]
-    fn test_scroll_state_new() {
-        let scroll = ScrollState::new();
-        assert_eq!(scroll.offset, 0);
-        assert!(scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_up_disables_auto() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_up(5);
-        assert_eq!(scroll.offset, 5);
-        assert!(!scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_down_reenables_auto_at_bottom() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_up(3);
-        assert!(!scroll.auto_scroll);
-
-        scroll.scroll_down(3);
-        assert_eq!(scroll.offset, 0);
-        assert!(scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_down_partial() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_up(10);
-        scroll.scroll_down(3);
-        assert_eq!(scroll.offset, 7);
-        assert!(!scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_down_clamps_at_zero() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_up(2);
-        scroll.scroll_down(10);
-        assert_eq!(scroll.offset, 0);
-        assert!(scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_to_top() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_to_top(50);
-        assert_eq!(scroll.offset, 50);
-        assert!(!scroll.auto_scroll);
-    }
-
-    #[test]
-    fn test_scroll_to_bottom() {
-        let mut scroll = ScrollState::new();
-        scroll.scroll_up(20);
-        scroll.scroll_to_bottom();
-        assert_eq!(scroll.offset, 0);
-        assert!(scroll.auto_scroll);
     }
 
     #[test]

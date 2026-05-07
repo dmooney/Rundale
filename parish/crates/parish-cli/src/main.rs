@@ -153,7 +153,9 @@ async fn main() -> Result<()> {
 
     // Web server mode — serves UI in browser for testing
     if let Some(port) = cli.web {
+        #[allow(deprecated)]
         let data_dir = find_data_dir();
+        #[allow(deprecated)]
         let static_dir = find_ui_dist_dir();
         tracing::info!(
             "Starting web server on port {} (data={}, static={})",
@@ -251,6 +253,7 @@ async fn main() -> Result<()> {
     // (#608).  `IsTerminal` is stable since Rust 1.70 — no extra dep needed.
     use std::io::IsTerminal as _;
     let script_mode = !std::io::stdin().is_terminal();
+    #[allow(deprecated)]
     let headless_data_dir = find_data_dir();
     let result = headless::run_headless(
         clients.clone(),
@@ -348,6 +351,15 @@ fn build_inference_clients(
 /// 2. Walks up to 4 ancestors of the cwd looking for `mods/rundale/world.json`.
 /// 3. Falls back to `./mods/rundale` and lets the load functions fail with a
 ///    clear error.
+///
+/// # Deprecated
+///
+/// Uses `std::env::current_dir()` which breaks in daemonised or `/tmp`
+/// working-directory deployments. Replace callers with path resolution from
+/// explicit `AppState` config per AGENTS.md rule #9.
+#[deprecated(
+    note = "cwd-relative path resolution breaks in non-CWD deployments; use explicit config"
+)]
 fn find_data_dir() -> PathBuf {
     const MOD_REL: &str = "mods/rundale";
     if let Some(explicit) = std::env::var_os("PARISH_DATA_DIR") {
@@ -367,6 +379,15 @@ fn find_data_dir() -> PathBuf {
 }
 
 /// Finds the Svelte frontend build directory (`apps/ui/dist/`).
+///
+/// # Deprecated
+///
+/// Uses `std::env::current_dir()` which breaks in daemonised or `/tmp`
+/// working-directory deployments. Replace callers with path resolution from
+/// explicit `AppState` config per AGENTS.md rule #9.
+#[deprecated(
+    note = "cwd-relative path resolution breaks in non-CWD deployments; use explicit config"
+)]
 fn find_ui_dist_dir() -> PathBuf {
     let candidates = ["apps/ui/dist", "parish/apps/ui/dist", "ui/dist"];
     let mut p = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

@@ -3037,7 +3037,6 @@ dependencies = [
  "serde_json",
  "serial_test",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "tokio-test",
  "toml 0.8.2",
