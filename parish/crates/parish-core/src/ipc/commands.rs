@@ -578,23 +578,46 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
                         name
                     ))
                 } else {
-                    let presets = provider.preset_models();
                     let provider_name = format!("{:?}", provider).to_lowercase();
                     let default_url = provider.default_base_url().to_string();
 
+                    // Provider/url writes are identical for both branches.
                     config.provider_name = provider_name.clone();
                     config.base_url = default_url.clone();
-                    if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
-                        config.model_name = m.to_string();
-                    }
-
                     for cat in InferenceCategory::ALL {
                         config.category_provider.insert(cat, provider_name.clone());
                         config.category_base_url.insert(cat, default_url.clone());
-                        if let Some(m) = presets[cat.idx()].map(str::to_string) {
-                            config.category_model.insert(cat, m);
-                        } else {
-                            config.category_model.remove(&cat);
+                    }
+
+                    // For Ollama with a recorded auto-setup model: re-pin
+                    // that model across every slot instead of writing the
+                    // static qwen3 preset list. Auto-setup pulled exactly
+                    // one model matched to the user's hardware; the static
+                    // preset would route every category to qwen3 tags the
+                    // user has not downloaded.
+                    if provider == Provider::Ollama
+                        && let Some(auto) = config.auto_setup_model.clone()
+                    {
+                        config.pin_setup_model(auto);
+                    } else {
+                        let presets = provider.preset_models();
+
+                        // Base model: use Dialogue's pick so any code path
+                        // that still falls through to `model_name` gets a
+                        // sensible value.
+                        if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
+                            config.model_name = m.to_string();
+                        }
+
+                        // Per-category models: always overwrite (applying
+                        // a preset is an explicit user action). API keys
+                        // are intentionally left alone — see hint below.
+                        for cat in InferenceCategory::ALL {
+                            if let Some(m) = presets[cat.idx()].map(str::to_string) {
+                                config.category_model.insert(cat, m);
+                            } else {
+                                config.category_model.remove(&cat);
+                            }
                         }
                     }
 
@@ -1662,6 +1685,57 @@ mod tests {
                 .get(&InferenceCategory::Intent)
                 .map(String::as_str),
             Some("claude-haiku-4-5"),
+        );
+    }
+
+    #[test]
+    fn apply_preset_ollama_uses_auto_setup_model_when_present() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.auto_setup_model = Some("gemma4:e4b".to_string());
+        let result = handle_command(
+            Command::ApplyPreset("ollama".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert!(result.effects.contains(&CommandEffect::RebuildInference));
+        assert_eq!(config.provider_name, "ollama");
+        assert_eq!(config.model_name, "gemma4:e4b");
+        for cat in InferenceCategory::ALL {
+            assert_eq!(
+                config.category_model.get(&cat).map(String::as_str),
+                Some("gemma4:e4b"),
+                "category {:?} should match auto-setup model",
+                cat
+            );
+        }
+        assert_eq!(config.auto_setup_model.as_deref(), Some("gemma4:e4b"));
+    }
+
+    #[test]
+    fn apply_preset_ollama_falls_back_to_static_when_no_auto_setup() {
+        let (mut world, mut npc, mut config) = default_state();
+        config.auto_setup_model = None;
+        handle_command(
+            Command::ApplyPreset("ollama".to_string()),
+            &mut world,
+            &mut npc,
+            &mut config,
+        );
+        assert_eq!(config.provider_name, "ollama");
+        assert_eq!(
+            config
+                .category_model
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("qwen3:32b"),
+        );
+        assert_eq!(
+            config
+                .category_model
+                .get(&InferenceCategory::Intent)
+                .map(String::as_str),
+            Some("qwen3:4b"),
         );
     }
 

@@ -74,6 +74,13 @@ pub struct GameConfig {
     /// immediate frontier. When `true`, all graph nodes are shown with
     /// unvisited locations still marked `visited: false`.
     pub reveal_unexplored_locations: bool,
+    /// Model chosen and pulled by Ollama auto-setup.
+    ///
+    /// `None` for non-Ollama providers, or before auto-setup has run.
+    /// Used by `Command::ApplyPreset` to keep `/preset ollama` aligned
+    /// with the model that was actually downloaded — the static qwen3
+    /// preset list assumes models the user has not pulled.
+    pub auto_setup_model: Option<String>,
 }
 
 impl GameConfig {
@@ -186,6 +193,27 @@ impl GameConfig {
     /// `Command::SetProvider`/`SetCategoryProvider`, and from each
     /// frontend's bootstrap so env-var / TOML / CLI configurations that
     /// only specify a provider still get sensible per-role models.
+    /// Pins a single model into the base slot and all four per-category slots.
+    ///
+    /// Called from two paths:
+    /// - Tauri / web bootstrap, after Ollama auto-setup pulls a hardware-
+    ///   matched model. The single downloaded model is the model every
+    ///   category requests, regardless of the static `Provider::Ollama`
+    ///   preset (which lists qwen3 models the user has not downloaded).
+    /// - `Command::ApplyPreset(Ollama)`, when `auto_setup_model` is `Some`,
+    ///   to re-pin the auto-setup model after a manual `/preset ollama`.
+    ///
+    /// Records the model in `auto_setup_model` so a later `/preset ollama`
+    /// can re-pin the same value instead of writing the static preset.
+    /// Overwrites any existing entries in `category_model`.
+    pub fn pin_setup_model(&mut self, model: String) {
+        self.model_name = model.clone();
+        for cat in InferenceCategory::ALL {
+            self.category_model.insert(cat, model.clone());
+        }
+        self.auto_setup_model = Some(model);
+    }
+
     pub fn fill_missing_models_from_presets(&mut self) -> bool {
         use parish_config::Provider;
         let mut changed = false;
@@ -265,6 +293,7 @@ impl Default for GameConfig {
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
+            auto_setup_model: None,
         }
     }
 }
@@ -285,6 +314,73 @@ mod tests {
         assert!(c.active_tile_source.is_empty());
         assert!(c.tile_sources.is_empty());
         assert!(!c.reveal_unexplored_locations);
+        assert!(c.auto_setup_model.is_none());
+    }
+
+    #[test]
+    fn pin_setup_model_writes_all_four_category_slots() {
+        let mut cfg = GameConfig::default();
+        cfg.pin_setup_model("gemma4:e2b".to_string());
+        assert_eq!(cfg.model_name, "gemma4:e2b");
+        for cat in InferenceCategory::ALL {
+            assert_eq!(
+                cfg.category_model.get(&cat).map(String::as_str),
+                Some("gemma4:e2b"),
+                "category {:?} should be pinned",
+                cat
+            );
+        }
+        assert_eq!(cfg.auto_setup_model.as_deref(), Some("gemma4:e2b"));
+    }
+
+    #[test]
+    fn pin_setup_model_overwrites_existing_slots() {
+        let mut cfg = GameConfig::default();
+        cfg.category_model
+            .insert(InferenceCategory::Dialogue, "qwen3:32b".to_string());
+        cfg.category_model
+            .insert(InferenceCategory::Intent, "qwen3:4b".to_string());
+        cfg.pin_setup_model("gemma4:e4b".to_string());
+        for cat in InferenceCategory::ALL {
+            assert_eq!(
+                cfg.category_model.get(&cat).map(String::as_str),
+                Some("gemma4:e4b")
+            );
+        }
+    }
+
+    #[test]
+    fn fill_missing_models_from_presets_after_pin_is_noop() {
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.pin_setup_model("gemma4:e2b".to_string());
+        let snapshot: Vec<_> = InferenceCategory::ALL
+            .iter()
+            .map(|c| cfg.category_model.get(c).cloned())
+            .collect();
+        let changed = cfg.fill_missing_models_from_presets();
+        assert!(!changed, "fill should be a no-op after pin_setup_model");
+        for (cat, before) in InferenceCategory::ALL.iter().zip(snapshot.iter()) {
+            assert_eq!(cfg.category_model.get(cat).cloned(), before.clone());
+        }
+        assert_eq!(cfg.model_name, "gemma4:e2b");
+    }
+
+    #[test]
+    fn resolve_category_client_returns_pinned_model() {
+        use crate::inference::{AnyClient, openai_client::OpenAiClient};
+        let mut cfg = GameConfig {
+            base_url: "http://localhost:11434".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.pin_setup_model("gemma4:e2b".to_string());
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        for cat in InferenceCategory::ALL {
+            let (_, model) = cfg.resolve_category_client(cat, Some(&base));
+            assert_eq!(model, "gemma4:e2b", "category {:?}", cat);
+        }
     }
 
     #[test]
