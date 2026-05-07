@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { get } from 'svelte/store';
-import { textLog, pushErrorLog, formatIpcError, loadingColor, focailOpen, syncFocailOnViewportChange } from './game';
+import {
+	textLog,
+	pushErrorLog,
+	formatIpcError,
+	loadingColor,
+	focailOpen,
+	syncFocailOnViewportChange,
+} from './game';
 
 describe('pushErrorLog', () => {
 	beforeEach(() => {
@@ -14,7 +21,7 @@ describe('pushErrorLog', () => {
 		expect(log[0]).toMatchObject({
 			source: 'system',
 			subtype: 'error',
-			content: 'Something went wrong'
+			content: 'Something went wrong',
 		});
 	});
 

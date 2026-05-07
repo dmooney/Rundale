@@ -1,18 +1,27 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { get } from 'svelte/store';
-import { streamingActive, npcsHere, mapData, textLog, worldState } from '../stores/game';
+import {
+	streamingActive,
+	npcsHere,
+	mapData,
+	textLog,
+	worldState,
+} from '../stores/game';
 import { findMatches, type KnownNoun } from '../stores/nouns';
 import InputField from './InputField.svelte';
 
 // Mock ipc submitInput
 const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
 vi.mock('$lib/ipc', () => ({
-	submitInput: (...args: unknown[]) => mockSubmitInput(...args)
+	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
 }));
 
 const localStore: Record<string, string> = {};
-if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+if (
+	typeof localStorage === 'undefined' ||
+	typeof localStorage.getItem !== 'function'
+) {
 	Object.defineProperty(globalThis, 'localStorage', {
 		configurable: true,
 		value: {
@@ -22,13 +31,16 @@ if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'func
 			},
 			clear: () => {
 				for (const key of Object.keys(localStore)) delete localStore[key];
-			}
-		}
+			},
+		},
 	});
 }
 
 const sessionStore: Record<string, string> = {};
-if (typeof sessionStorage === 'undefined' || typeof sessionStorage.getItem !== 'function') {
+if (
+	typeof sessionStorage === 'undefined' ||
+	typeof sessionStorage.getItem !== 'function'
+) {
 	Object.defineProperty(globalThis, 'sessionStorage', {
 		configurable: true,
 		value: {
@@ -38,9 +50,23 @@ if (typeof sessionStorage === 'undefined' || typeof sessionStorage.getItem !== '
 			},
 			clear: () => {
 				for (const key of Object.keys(sessionStore)) delete sessionStore[key];
-			}
-		}
+			},
+		},
 	});
+}
+
+function typeIntoEditor(editor: HTMLElement, text: string) {
+	editor.textContent = text;
+	const range = document.createRange();
+	const sel = window.getSelection();
+	if (editor.firstChild) {
+		range.setStart(editor.firstChild, text.length);
+	} else {
+		range.setStart(editor, 0);
+	}
+	range.collapse(true);
+	sel?.removeAllRanges();
+	sel?.addRange(range);
 }
 
 describe('InputField', () => {
@@ -65,7 +91,9 @@ describe('InputField', () => {
 	it('shows placeholder when empty', () => {
 		const { getByRole } = render(InputField);
 		const editor = getByRole('combobox');
-		expect(editor.dataset.placeholder).toBe('What do you do? (@ to mention NPC)');
+		expect(editor.dataset.placeholder).toBe(
+			'What do you do? (@ to mention NPC)',
+		);
 	});
 
 	it('is not editable when streaming', () => {
@@ -99,28 +127,35 @@ describe('InputField', () => {
 
 	describe('NPC mention autocomplete', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
-			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' },
-			{ name: 'Father Callahan', real_name: 'Father Callahan', occupation: 'Priest', mood: 'serene', introduced: false, mood_emoji: '😌' }
+			{
+				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
+				occupation: 'Publican',
+				mood: 'content',
+				introduced: true,
+				mood_emoji: '😌',
+			},
+			{
+				name: 'Siobhan Murphy',
+				real_name: 'Siobhan Murphy',
+				occupation: 'Farmer',
+				mood: 'determined',
+				introduced: true,
+				mood_emoji: '😤',
+			},
+			{
+				name: 'Father Callahan',
+				real_name: 'Father Callahan',
+				occupation: 'Priest',
+				mood: 'serene',
+				introduced: false,
+				mood_emoji: '😌',
+			},
 		];
 
 		beforeEach(() => {
 			npcsHere.set(testNpcs);
 		});
-
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
 
 		it('shows mention dropdown when @ is typed with a letter', async () => {
 			const { getByRole, queryByRole } = render(InputField);
@@ -208,20 +243,6 @@ describe('InputField', () => {
 	// ── Slash command autocomplete ──────────────────────────────────────
 
 	describe('slash command autocomplete', () => {
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
-
 		it('shows slash dropdown when / is typed', async () => {
 			const { getByRole, queryByRole } = render(InputField);
 			const editor = getByRole('combobox');
@@ -304,20 +325,6 @@ describe('InputField', () => {
 	// ── Model autocomplete (`/model …`) ─────────────────────────────────
 
 	describe('model autocomplete', () => {
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
-
 		it('shows model dropdown after `/model ` is typed', async () => {
 			const { getByRole, queryByRole } = render(InputField);
 			const editor = getByRole('combobox');
@@ -337,7 +344,9 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			const options = queryAllByRole('option');
 			expect(options.length).toBeGreaterThan(0);
-			expect(options.every((o) => o.textContent?.toLowerCase().includes('claude'))).toBe(true);
+			expect(
+				options.every((o) => o.textContent?.toLowerCase().includes('claude')),
+			).toBe(true);
 		});
 
 		it('Enter submits the typed text verbatim, not the highlighted suggestion', async () => {
@@ -393,7 +402,9 @@ describe('InputField', () => {
 			await fireEvent.keyDown(editor, { key: 'Tab' });
 
 			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
-			expect(mockSubmitInput.mock.calls[0][0]).toMatch(/^\/model\.dialogue claude-/);
+			expect(mockSubmitInput.mock.calls[0][0]).toMatch(
+				/^\/model\.dialogue claude-/,
+			);
 		});
 
 		it('clears the editor after picking a model with Tab', async () => {
@@ -445,20 +456,6 @@ describe('InputField', () => {
 	// ── Input history ───────────────────────────────────────────────────
 
 	describe('input history', () => {
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
-
 		it('ArrowUp on empty editor with no history does nothing', async () => {
 			const { getByRole } = render(InputField);
 			const editor = getByRole('combobox');
@@ -514,7 +511,9 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			const stored = JSON.parse(sessionStorage.getItem('parish-input-history') ?? '[]');
+			const stored = JSON.parse(
+				sessionStorage.getItem('parish-input-history') ?? '[]',
+			);
 			expect(stored).toContain('persist me');
 		});
 
@@ -530,7 +529,9 @@ describe('InputField', () => {
 			await fireEvent.input(editor);
 			await fireEvent.keyDown(editor, { key: 'Enter' });
 
-			const stored = JSON.parse(sessionStorage.getItem('parish-input-history') ?? '[]');
+			const stored = JSON.parse(
+				sessionStorage.getItem('parish-input-history') ?? '[]',
+			);
 			expect(stored.filter((s: string) => s === 'same').length).toBe(1);
 		});
 	});
@@ -567,24 +568,31 @@ describe('InputField', () => {
 
 	describe('npc selection buttons', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' },
-			{ name: 'an older man behind the bar', real_name: 'Tomas Brennan', occupation: 'Publican', mood: 'wary', introduced: false, mood_emoji: '😐' },
-			{ name: 'Siobhan Murphy', real_name: 'Siobhan Murphy', occupation: 'Farmer', mood: 'determined', introduced: true, mood_emoji: '😤' }
+			{
+				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
+				occupation: 'Publican',
+				mood: 'content',
+				introduced: true,
+				mood_emoji: '😌',
+			},
+			{
+				name: 'an older man behind the bar',
+				real_name: 'Tomas Brennan',
+				occupation: 'Publican',
+				mood: 'wary',
+				introduced: false,
+				mood_emoji: '😐',
+			},
+			{
+				name: 'Siobhan Murphy',
+				real_name: 'Siobhan Murphy',
+				occupation: 'Farmer',
+				mood: 'determined',
+				introduced: true,
+				mood_emoji: '😤',
+			},
 		];
-
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
 
 		beforeEach(() => {
 			npcsHere.set(testNpcs);
@@ -595,7 +603,9 @@ describe('InputField', () => {
 			expect(container.querySelectorAll('.npc-chip').length).toBe(3);
 			expect(getByText('Padraig Darcy')).toBeTruthy();
 			expect(getByText('Publican')).toBeTruthy();
-			expect((container.querySelectorAll('.npc-chip')[1] as HTMLElement).textContent).not.toContain('Publican');
+			expect(
+				(container.querySelectorAll('.npc-chip')[1] as HTMLElement).textContent,
+			).not.toContain('Publican');
 		});
 
 		it('clicking an npc chip inserts an @name mention chip into the editor', async () => {
@@ -613,7 +623,9 @@ describe('InputField', () => {
 		it('syncs editorText after npc chip click so send button is enabled (#684)', async () => {
 			const { container, getByRole } = render(InputField);
 			const editor = getByRole('combobox');
-			const sendBtn = getByRole('button', { name: /send/i }) as HTMLButtonElement;
+			const sendBtn = getByRole('button', {
+				name: /send/i,
+			}) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
 			const chip = container.querySelector('.npc-chip') as HTMLButtonElement;
@@ -637,14 +649,38 @@ describe('InputField', () => {
 	describe('quick-travel chips', () => {
 		const testMapData = {
 			locations: [
-				{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: false, hops: 0 },
-				{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1 },
-				{ id: 'church', name: 'The Church', lat: 0.2, lon: 0.2, adjacent: true, hops: 1 }
+				{
+					id: 'crossroads',
+					name: 'The Crossroads',
+					lat: 0,
+					lon: 0,
+					adjacent: false,
+					hops: 0,
+				},
+				{
+					id: 'pub',
+					name: "Darcy's Pub",
+					lat: 0.1,
+					lon: 0.1,
+					adjacent: true,
+					hops: 1,
+				},
+				{
+					id: 'church',
+					name: 'The Church',
+					lat: 0.2,
+					lon: 0.2,
+					adjacent: true,
+					hops: 1,
+				},
 			],
-			edges: [['crossroads', 'pub'], ['crossroads', 'church']] as [string, string][],
+			edges: [
+				['crossroads', 'pub'],
+				['crossroads', 'church'],
+			] as [string, string][],
 			player_location: 'crossroads',
 			player_lat: 0,
-			player_lon: 0
+			player_lon: 0,
 		};
 
 		it('renders chips for adjacent locations', () => {
@@ -665,7 +701,9 @@ describe('InputField', () => {
 		it('does not show current location as a chip', () => {
 			mapData.set(testMapData);
 			const { container } = render(InputField);
-			const chipTexts = Array.from(container.querySelectorAll('.travel-chip')).map(el => el.textContent);
+			const chipTexts = Array.from(
+				container.querySelectorAll('.travel-chip'),
+			).map((el) => el.textContent);
 			expect(chipTexts).not.toContain('The Crossroads');
 		});
 
@@ -705,12 +743,12 @@ describe('InputField', () => {
 			// handler makes, and attach it via a non-enumerable property.
 			const evt = new Event('paste', {
 				bubbles: true,
-				cancelable: true
+				cancelable: true,
 			}) as ClipboardEvent;
 			Object.defineProperty(evt, 'clipboardData', {
 				value: {
-					getData: (type: string) => (type === 'text/plain' ? text : '')
-				}
+					getData: (type: string) => (type === 'text/plain' ? text : ''),
+				},
 			});
 			return evt;
 		}
@@ -731,7 +769,9 @@ describe('InputField', () => {
 		it('inserts pasted text at the cursor and keeps editorText state in sync (send enabled)', async () => {
 			const { getByRole } = render(InputField);
 			const editor = getByRole('combobox') as HTMLElement;
-			const sendBtn = getByRole('button', { name: /send/i }) as HTMLButtonElement;
+			const sendBtn = getByRole('button', {
+				name: /send/i,
+			}) as HTMLButtonElement;
 			expect(sendBtn.disabled).toBe(true);
 
 			editor.focus();
@@ -766,7 +806,7 @@ describe('InputField', () => {
 			{ text: 'The Crossroads', category: 'location', priority: 0 },
 			{ text: 'The Church', category: 'location', priority: 2 },
 			{ text: 'Padraig Darcy', category: 'npc', priority: 1 },
-			{ text: 'Siobhan Murphy', category: 'npc', priority: 1 }
+			{ text: 'Siobhan Murphy', category: 'npc', priority: 1 },
 		];
 
 		it('matches start of any word in the noun', () => {
@@ -815,18 +855,50 @@ describe('InputField', () => {
 	describe('tab-completion', () => {
 		const testMapData = {
 			locations: [
-				{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: true, hops: 1, visited: true },
-				{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1, visited: true },
-				{ id: 'church', name: 'The Church', lat: 0.2, lon: 0.2, adjacent: false, hops: 2, visited: true },
-				{ id: 'mill', name: 'The Mill', lat: 0.3, lon: 0.3, adjacent: false, hops: 3, visited: false }
+				{
+					id: 'crossroads',
+					name: 'The Crossroads',
+					lat: 0,
+					lon: 0,
+					adjacent: true,
+					hops: 1,
+					visited: true,
+				},
+				{
+					id: 'pub',
+					name: "Darcy's Pub",
+					lat: 0.1,
+					lon: 0.1,
+					adjacent: true,
+					hops: 1,
+					visited: true,
+				},
+				{
+					id: 'church',
+					name: 'The Church',
+					lat: 0.2,
+					lon: 0.2,
+					adjacent: false,
+					hops: 2,
+					visited: true,
+				},
+				{
+					id: 'mill',
+					name: 'The Mill',
+					lat: 0.3,
+					lon: 0.3,
+					adjacent: false,
+					hops: 3,
+					visited: false,
+				},
 			],
 			edges: [
 				['crossroads', 'pub'],
-				['crossroads', 'church']
+				['crossroads', 'church'],
 			] as [string, string][],
 			player_location: 'crossroads',
 			player_lat: 0,
-			player_lon: 0
+			player_lon: 0,
 		};
 
 		const testNpcs = [
@@ -836,23 +908,9 @@ describe('InputField', () => {
 				occupation: 'Publican',
 				mood: 'content',
 				introduced: true,
-				mood_emoji: '😌'
-			}
+				mood_emoji: '😌',
+			},
 		];
-
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
 
 		beforeEach(() => {
 			mapData.set(testMapData);
@@ -916,12 +974,16 @@ describe('InputField', () => {
 			await fireEvent.keyDown(editor, { key: 'Tab' });
 
 			const firstMatch = editor.textContent;
-			expect(firstMatch === 'The Crossroads' || firstMatch === 'The Church').toBe(true);
+			expect(
+				firstMatch === 'The Crossroads' || firstMatch === 'The Church',
+			).toBe(true);
 
 			await fireEvent.keyDown(editor, { key: 'Tab' });
 			const secondMatch = editor.textContent;
 			expect(secondMatch).not.toBe(firstMatch);
-			expect(secondMatch === 'The Crossroads' || secondMatch === 'The Church').toBe(true);
+			expect(
+				secondMatch === 'The Crossroads' || secondMatch === 'The Church',
+			).toBe(true);
 		});
 
 		it('typing resets completion state', async () => {
@@ -951,8 +1013,8 @@ describe('InputField', () => {
 					occupation: 'Publican',
 					mood: 'content',
 					introduced: true,
-					mood_emoji: '😌'
-				}
+					mood_emoji: '😌',
+				},
 			]);
 			const { getByRole, queryByRole } = render(InputField);
 			const editor = getByRole('combobox');
@@ -997,13 +1059,29 @@ describe('InputField', () => {
 		it('appends an error entry when a quick-travel chip click fails', async () => {
 			const testMap = {
 				locations: [
-					{ id: 'crossroads', name: 'The Crossroads', lat: 0, lon: 0, adjacent: true, hops: 0, visited: true },
-					{ id: 'pub', name: "Darcy's Pub", lat: 0.1, lon: 0.1, adjacent: true, hops: 1, visited: true }
+					{
+						id: 'crossroads',
+						name: 'The Crossroads',
+						lat: 0,
+						lon: 0,
+						adjacent: true,
+						hops: 0,
+						visited: true,
+					},
+					{
+						id: 'pub',
+						name: "Darcy's Pub",
+						lat: 0.1,
+						lon: 0.1,
+						adjacent: true,
+						hops: 1,
+						visited: true,
+					},
 				],
 				edges: [['crossroads', 'pub']] as [string, string][],
 				player_location: 'crossroads',
 				player_lat: 0,
-				player_lon: 0
+				player_lon: 0,
 			};
 			mapData.set(testMap);
 			mockSubmitInput.mockImplementationOnce(async () => {
@@ -1033,7 +1111,7 @@ describe('InputField', () => {
 				inference_paused: false,
 				paused_game_time: '12:00',
 				location_id: 'crossroads',
-				location_name: 'The Crossroads'
+				location_name: 'The Crossroads',
 			} as any);
 		});
 
@@ -1088,22 +1166,15 @@ describe('InputField', () => {
 	// ── ARIA: combobox + listbox attributes (#683) ──────────────────────────
 	describe('ARIA combobox attributes (#683)', () => {
 		const testNpcs = [
-			{ name: 'Padraig Darcy', real_name: 'Padraig Darcy', occupation: 'Publican', mood: 'content', introduced: true, mood_emoji: '😌' }
+			{
+				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
+				occupation: 'Publican',
+				mood: 'content',
+				introduced: true,
+				mood_emoji: '😌',
+			},
 		];
-
-		function typeIntoEditor(editor: HTMLElement, text: string) {
-			editor.textContent = text;
-			const range = document.createRange();
-			const sel = window.getSelection();
-			if (editor.firstChild) {
-				range.setStart(editor.firstChild, text.length);
-			} else {
-				range.setStart(editor, 0);
-			}
-			range.collapse(true);
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
 
 		it('editor has aria-haspopup="listbox" and aria-expanded=false when closed', () => {
 			const { getByRole } = render(InputField);

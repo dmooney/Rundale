@@ -18,7 +18,7 @@
 import type {
 	StyleSpecification,
 	LayerSpecification,
-	RasterSourceSpecification
+	RasterSourceSpecification,
 } from 'maplibre-gl';
 import type { TileSource } from '$lib/types';
 
@@ -39,7 +39,9 @@ export interface ThemeColors {
 }
 
 /** Reads the live theme colors from CSS custom properties on `:root`. */
-export function readThemeColors(root: HTMLElement = document.documentElement): ThemeColors {
+export function readThemeColors(
+	root: HTMLElement = document.documentElement,
+): ThemeColors {
 	const styles = getComputedStyle(root);
 	const get = (name: string, fallback: string) =>
 		styles.getPropertyValue(name).trim() || fallback;
@@ -53,7 +55,7 @@ export function readThemeColors(root: HTMLElement = document.documentElement): T
 		mapEdge: get('--color-map-edge', '#8f7e56'),
 		mapSelected: get('--color-map-selected', '#f4cf75'),
 		mapRelative: get('--color-map-relative', '#7dd7ff'),
-		mapStroke: get('--color-map-stroke', '#1a140a')
+		mapStroke: get('--color-map-stroke', '#1a140a'),
 	};
 }
 
@@ -61,7 +63,9 @@ export function readThemeColors(root: HTMLElement = document.documentElement): T
  * MapLibre glyphs endpoint default — the MapLibre demo CDN, which has no SLA.
  * Override via `buildStyle`'s `glyphsUrl` parameter to point at self-hosted
  * PBFs (e.g. `/fonts/{fontstack}/{range}.pbf`) once bundled as static assets.
- * TODO: bundle Open Sans glyph PBFs as static assets to work fully offline.
+ * Known limitation: depends on the MapLibre demo CDN glyphs endpoint, which
+ * has no SLA. For fully offline use, bundle Open Sans glyph PBFs as static
+ * assets and override via `buildStyle`'s `glyphsUrl` parameter.
  */
 export const DEFAULT_GLYPHS_URL =
 	'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf';
@@ -84,7 +88,7 @@ export function buildStyle(
 	variant: MapVariant,
 	theme: ThemeColors,
 	tileSource?: TileSource,
-	glyphsUrl: string = DEFAULT_GLYPHS_URL
+	glyphsUrl: string = DEFAULT_GLYPHS_URL,
 ): StyleSpecification {
 	const layers: LayerSpecification[] = [];
 	const rasterSourceId = 'map-tiles';
@@ -98,8 +102,8 @@ export function buildStyle(
 			source: rasterSourceId,
 			paint: {
 				'raster-saturation': tileSource!.raster_saturation,
-				'raster-opacity': tileSource!.raster_opacity
-			}
+				'raster-opacity': tileSource!.raster_opacity,
+			},
 		});
 	} else {
 		if (tileSource && tileSource.url.length === 0) {
@@ -110,7 +114,7 @@ export function buildStyle(
 		layers.push({
 			id: 'background',
 			type: 'background',
-			paint: { 'background-color': theme.panelBg }
+			paint: { 'background-color': theme.panelBg },
 		});
 	}
 
@@ -140,17 +144,17 @@ export function buildStyle(
 					'case',
 					['get', 'traversing'],
 					4,
-					['+', 1, ['*', ['get', 'traversalWeight'], 2]]
+					['+', 1, ['*', ['get', 'traversalWeight'], 2]],
 				],
 				18,
 				[
 					'case',
 					['get', 'traversing'],
 					7,
-					['+', 2, ['*', ['get', 'traversalWeight'], 4]]
-				]
-			]
-		}
+					['+', 2, ['*', ['get', 'traversalWeight'], 4]],
+				],
+			],
+		},
 	});
 
 	// 2b. Dashed frontier edges (fog-of-war).
@@ -164,12 +168,16 @@ export function buildStyle(
 			'line-color': theme.muted,
 			'line-opacity': 0.4,
 			'line-width': [
-				'interpolate', ['linear'], ['zoom'],
-				10, ['+', 1, ['*', ['get', 'traversalWeight'], 2]],
-				18, ['+', 2, ['*', ['get', 'traversalWeight'], 4]]
+				'interpolate',
+				['linear'],
+				['zoom'],
+				10,
+				['+', 1, ['*', ['get', 'traversalWeight'], 2]],
+				18,
+				['+', 2, ['*', ['get', 'traversalWeight'], 4]],
 			],
-			'line-dasharray': [2, 1.5]
-		}
+			'line-dasharray': [2, 1.5],
+		},
 	});
 
 	// 3. Glow underlay for lit and player locations.
@@ -184,7 +192,7 @@ export function buildStyle(
 				variant === 'minimap' ? 12 : 16,
 				['get', 'lit'],
 				variant === 'minimap' ? 8 : 10,
-				0.01
+				0.01,
 			],
 			'circle-blur': [
 				'case',
@@ -192,7 +200,7 @@ export function buildStyle(
 				0.9,
 				['get', 'lit'],
 				0.75,
-				0
+				0,
 			],
 			'circle-color': theme.accent,
 			'circle-stroke-color': [
@@ -201,7 +209,7 @@ export function buildStyle(
 				theme.accent,
 				['get', 'lit'],
 				theme.accent,
-				theme.panelBg
+				theme.panelBg,
 			],
 			'circle-stroke-width': [
 				'case',
@@ -209,21 +217,16 @@ export function buildStyle(
 				2.5,
 				['get', 'lit'],
 				1.5,
-				0
+				0,
 			],
 			'circle-opacity': [
 				'case',
 				['any', ['get', 'isPlayer'], ['get', 'lit']],
 				1,
-				0
+				0,
 			],
-			'circle-stroke-opacity': [
-				'case',
-				['get', 'visited'],
-				1,
-				0.5
-			]
-		}
+			'circle-stroke-opacity': ['case', ['get', 'visited'], 1, 0.5],
+		},
 	});
 
 	// 4. Location icons (custom Phosphor glyphs registered at runtime).
@@ -251,10 +254,10 @@ export function buildStyle(
 				18,
 				variant === 'minimap'
 					? ['case', ['get', 'isPlayer'], 0.96, 0.78]
-					: ['case', ['get', 'isPlayer'], 0.9, 0.66]
+					: ['case', ['get', 'isPlayer'], 0.9, 0.66],
 			],
 			'icon-allow-overlap': true,
-			'icon-ignore-placement': true
+			'icon-ignore-placement': true,
 		},
 		paint: {
 			'icon-color': [
@@ -265,14 +268,9 @@ export function buildStyle(
 				theme.accent,
 				['get', 'adjacent'],
 				theme.accent,
-				theme.muted
+				theme.muted,
 			],
-			'icon-opacity': [
-				'case',
-				['get', 'visited'],
-				1,
-				0.55
-			],
+			'icon-opacity': ['case', ['get', 'visited'], 1, 0.55],
 			// Halo matches the label halo so icons read against the
 			// desaturated historic map tiles — the pre-fix 0.8 px width was
 			// invisible once the icon color sat near the parchment tones.
@@ -280,8 +278,8 @@ export function buildStyle(
 			// fog-of-war hints rather than equal-weight siblings.
 			'icon-halo-color': theme.bg,
 			'icon-halo-width': ['case', ['get', 'visited'], 1.5, 0.6],
-			'icon-halo-blur': 0.2
-		}
+			'icon-halo-blur': 0.2,
+		},
 	});
 
 	// 5. Location labels — the whole point of this migration.
@@ -306,7 +304,7 @@ export function buildStyle(
 				14,
 				12,
 				18,
-				14
+				14,
 			],
 			'text-variable-anchor': [
 				'top',
@@ -316,7 +314,7 @@ export function buildStyle(
 				'top-left',
 				'top-right',
 				'bottom-left',
-				'bottom-right'
+				'bottom-right',
 			],
 			'text-radial-offset': 1.2,
 			'text-justify': 'auto',
@@ -335,8 +333,8 @@ export function buildStyle(
 				1,
 				['get', 'visited'],
 				2,
-				3
-			]
+				3,
+			],
 		},
 		paint: {
 			'text-color': [
@@ -345,29 +343,24 @@ export function buildStyle(
 				theme.fg,
 				['get', 'lit'],
 				theme.accent,
-				theme.muted
+				theme.muted,
 			],
 			'text-halo-color': theme.bg,
 			'text-halo-width': 1.4,
 			'text-halo-blur': 0.2,
-			'text-opacity': [
-				'case',
-				['get', 'visited'],
-				1,
-				0.55
-			]
-		}
+			'text-opacity': ['case', ['get', 'visited'], 1, 0.55],
+		},
 	});
 
 	const sources: StyleSpecification['sources'] = {
 		locations: {
 			type: 'geojson',
-			data: { type: 'FeatureCollection', features: [] }
+			data: { type: 'FeatureCollection', features: [] },
 		},
 		edges: {
 			type: 'geojson',
-			data: { type: 'FeatureCollection', features: [] }
-		}
+			data: { type: 'FeatureCollection', features: [] },
+		},
 	};
 	if (hasUsableTiles) {
 		const rasterSource: RasterSourceSpecification = {
@@ -376,7 +369,7 @@ export function buildStyle(
 			tileSize: tileSource!.tile_size,
 			minzoom: tileSource!.minzoom,
 			maxzoom: tileSource!.maxzoom,
-			attribution: tileSource!.attribution
+			attribution: tileSource!.attribution,
 		};
 		if (tileSource!.tms) rasterSource.scheme = 'tms';
 		sources[rasterSourceId] = rasterSource;
@@ -386,7 +379,7 @@ export function buildStyle(
 		version: 8,
 		glyphs: glyphsUrl,
 		sources,
-		layers
+		layers,
 	};
 }
 
@@ -400,6 +393,6 @@ function warnMissingTileUrl(id: string) {
 	console.warn(
 		`[tiles] source '${id}' has no URL; falling back to flat background. ` +
 			`Set [engine.map.tile_sources.${id}] url = "..." in parish.toml ` +
-			'or see docs/design/map-evolution.md.'
+			'or see docs/design/map-evolution.md.',
 	);
 }

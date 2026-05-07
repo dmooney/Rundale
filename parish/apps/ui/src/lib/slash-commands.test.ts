@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { SLASH_COMMANDS, filterCommands, type SlashCommand } from './slash-commands';
+import {
+	SLASH_COMMANDS,
+	filterCommands,
+	type SlashCommand,
+} from './slash-commands';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,45 +36,49 @@ function registryMap(): Map<string, SlashCommand> {
 // ---------------------------------------------------------------------------
 
 /** Commands that are documented in the features.md "Slash Commands" section. */
-const FEATURES_MD_COMMANDS: ReadonlyArray<{ command: string; hasArgs: boolean }> = [
+const FEATURES_MD_COMMANDS: ReadonlyArray<{
+	command: string;
+	hasArgs: boolean;
+}> = [
 	// Game Control
-	{ command: '/pause',   hasArgs: false },
-	{ command: '/resume',  hasArgs: false },
-	{ command: '/quit',    hasArgs: false },
-	{ command: '/new',     hasArgs: false },
-	{ command: '/status',  hasArgs: false },
-	{ command: '/time',    hasArgs: false },
-	{ command: '/where',   hasArgs: false },
-	{ command: '/npcs',    hasArgs: false },
-	{ command: '/wait',    hasArgs: true  },
-	{ command: '/tick',    hasArgs: false },
-	{ command: '/help',    hasArgs: false },
-	{ command: '/about',   hasArgs: false },
+	{ command: '/pause', hasArgs: false },
+	{ command: '/resume', hasArgs: false },
+	{ command: '/quit', hasArgs: false },
+	{ command: '/new', hasArgs: false },
+	{ command: '/status', hasArgs: false },
+	{ command: '/time', hasArgs: false },
+	{ command: '/where', hasArgs: false },
+	{ command: '/npcs', hasArgs: false },
+	{ command: '/wait', hasArgs: true },
+	{ command: '/tick', hasArgs: false },
+	{ command: '/help', hasArgs: false },
+	{ command: '/about', hasArgs: false },
 	// Save/Load
-	{ command: '/save',     hasArgs: false },
-	{ command: '/fork',     hasArgs: true  },
-	{ command: '/load',     hasArgs: true  },
+	{ command: '/save', hasArgs: false },
+	{ command: '/fork', hasArgs: true },
+	{ command: '/load', hasArgs: true },
 	{ command: '/branches', hasArgs: false },
-	{ command: '/log',      hasArgs: false },
+	{ command: '/log', hasArgs: false },
 	// Display
-	{ command: '/map',      hasArgs: true  },
+	{ command: '/map', hasArgs: true },
 	{ command: '/designer', hasArgs: false },
-	{ command: '/theme',    hasArgs: true  },
-	{ command: '/irish',    hasArgs: false },
-	{ command: '/improv',   hasArgs: false },
-	{ command: '/speed',    hasArgs: true  },
+	{ command: '/theme', hasArgs: true },
+	{ command: '/irish', hasArgs: false },
+	{ command: '/improv', hasArgs: false },
+	{ command: '/speed', hasArgs: true },
 	// Feature Flags
-	{ command: '/flags',    hasArgs: false },
-	{ command: '/flag',     hasArgs: true  },
+	{ command: '/flags', hasArgs: false },
+	{ command: '/flag', hasArgs: true },
 	// Provider Configuration (base)
 	{ command: '/provider', hasArgs: true },
-	{ command: '/model',    hasArgs: true },
-	{ command: '/key',      hasArgs: true },
+	{ command: '/model', hasArgs: true },
+	{ command: '/key', hasArgs: true },
 	// Provider Configuration (cloud)
-	{ command: '/cloud',    hasArgs: true },
+	{ command: '/cloud', hasArgs: true },
 	// Debug
-	{ command: '/debug',    hasArgs: true },
-	{ command: '/spinner',  hasArgs: true },
+	{ command: '/debug', hasArgs: true },
+	{ command: '/spinner', hasArgs: true },
+	{ command: '/unexplored', hasArgs: true },
 ];
 
 /**
@@ -78,8 +86,7 @@ const FEATURES_MD_COMMANDS: ReadonlyArray<{ command: string; hasArgs: boolean }>
  * section.  These are known discrepancies to be resolved separately.
  */
 const REGISTRY_ONLY_COMMANDS = new Set<string>([
-	'/preset',   // in registry; missing from features.md slash commands list
-	'/unexplored', // in registry and features.md but not in FEATURES_MD_COMMANDS (it is actually documented)
+	'/preset', // in registry; missing from features.md slash commands list
 ]);
 
 // ---------------------------------------------------------------------------
@@ -95,7 +102,7 @@ describe('slash command registry', () => {
 		expect(SLASH_COMMANDS).toContainEqual({
 			command: '/unexplored',
 			description: 'Reveal or hide all unexplored locations',
-			hasArgs: true
+			hasArgs: true,
 		});
 	});
 
@@ -104,8 +111,8 @@ describe('slash command registry', () => {
 			{
 				command: '/unexplored',
 				description: 'Reveal or hide all unexplored locations',
-				hasArgs: true
-			}
+				hasArgs: true,
+			},
 		]);
 	});
 
@@ -113,7 +120,7 @@ describe('slash command registry', () => {
 		expect(SLASH_COMMANDS).toContainEqual({
 			command: '/preset',
 			description: 'Apply a recommended model set for a provider',
-			hasArgs: true
+			hasArgs: true,
 		});
 	});
 
@@ -137,7 +144,11 @@ describe('slash command registry', () => {
 
 	it('every features.md-documented command has correct hasArgs value', () => {
 		const map = registryMap();
-		const wrong: Array<{ command: string; expected: boolean; actual: boolean }> = [];
+		const wrong: Array<{
+			command: string;
+			expected: boolean;
+			actual: boolean;
+		}> = [];
 
 		for (const expected of FEATURES_MD_COMMANDS) {
 			const entry = map.get(expected.command);
@@ -145,7 +156,7 @@ describe('slash command registry', () => {
 				wrong.push({
 					command: expected.command,
 					expected: expected.hasArgs,
-					actual: entry.hasArgs
+					actual: entry.hasArgs,
 				});
 			}
 		}
@@ -156,16 +167,16 @@ describe('slash command registry', () => {
 	// ------------------------------------------------------------------
 	// 3. No registry entries undocumented in features.md (drift guard)
 	//
-	//    /preset and /unexplored are currently known discrepancies.
+	//    /preset is currently the only known discrepancy.
 	//    If the set of discrepancies grows, the PR body should explain why.
 	// ------------------------------------------------------------------
 
 	it('registry contains no undocumented commands beyond known discrepancies', () => {
 		const documentedSet = new Set(FEATURES_MD_COMMANDS.map((c) => c.command));
 
-		const undocumented = SLASH_COMMANDS
-			.map((c) => c.command)
-			.filter((cmd) => !documentedSet.has(cmd) && !REGISTRY_ONLY_COMMANDS.has(cmd));
+		const undocumented = SLASH_COMMANDS.map((c) => c.command).filter(
+			(cmd) => !documentedSet.has(cmd) && !REGISTRY_ONLY_COMMANDS.has(cmd),
+		);
 
 		expect(undocumented).toEqual([]);
 	});
@@ -175,7 +186,9 @@ describe('slash command registry', () => {
 	// ------------------------------------------------------------------
 
 	it('typing /p returns provider, preset but not pause/pause', () => {
-		const results = filterCommands('p').map((c) => c.command).sort();
+		const results = filterCommands('p')
+			.map((c) => c.command)
+			.sort();
 		// Must include all /p* commands currently in registry
 		expect(results).toContain('/provider');
 		expect(results).toContain('/preset');
@@ -185,14 +198,18 @@ describe('slash command registry', () => {
 	});
 
 	it('typing /fl returns flag and flags', () => {
-		const results = filterCommands('fl').map((c) => c.command).sort();
+		const results = filterCommands('fl')
+			.map((c) => c.command)
+			.sort();
 		expect(results).toContain('/flag');
 		expect(results).toContain('/flags');
 		expect(results.every((cmd) => cmd.startsWith('/fl'))).toBe(true);
 	});
 
 	it('typing /s returns save, status, speed, spinner', () => {
-		const results = filterCommands('s').map((c) => c.command).sort();
+		const results = filterCommands('s')
+			.map((c) => c.command)
+			.sort();
 		expect(results).toContain('/save');
 		expect(results).toContain('/status');
 		expect(results).toContain('/speed');
