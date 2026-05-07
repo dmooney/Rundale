@@ -3188,7 +3188,6 @@ dependencies = [
 name = "parish-persistence"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "libc",
  "parish-npc",
@@ -3198,7 +3197,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror 2.0.18",
  "tokio",
  "tracing",
 ]
