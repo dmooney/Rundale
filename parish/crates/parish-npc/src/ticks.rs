@@ -4,7 +4,7 @@
 //! Tier 2 ticks run every 5 game-minutes for nearby NPCs (lighter inference).
 //! Tier 3 ticks run every 1 game-day for distant NPCs (batch inference).
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
@@ -160,6 +160,118 @@ pub fn build_enhanced_system_prompt(
     )
 }
 
+/// Interlocutor label — who the NPC is speaking with.
+fn interlocutor_block(player_name_for_npc: Option<&str>) -> String {
+    let label = player_name_for_npc.unwrap_or("A newcomer to the parish");
+    format!("\n\nPERSON YOU ARE SPEAKING WITH:\n{label}.")
+}
+
+/// Describes other NPCs present at the location with relationship context.
+fn other_npcs_block(npc: &Npc, other_npcs: &[&Npc], config: &NpcConfig) -> Option<String> {
+    if other_npcs.is_empty() {
+        return None;
+    }
+    let mut block = String::from("\n\nAlso present:");
+    for other in other_npcs {
+        let relationship_note = npc
+            .relationships
+            .get(&other.id)
+            .map(|rel| {
+                let label =
+                    relationship_label_with_config(rel.strength, &config.relationship_labels);
+                format!(" \u{2014} {} to you, {}", rel.kind, label)
+            })
+            .unwrap_or_default();
+        block.push_str(&format!(
+            "\n- {}, the {}{}",
+            other.name, other.occupation, relationship_note
+        ));
+    }
+    Some(block)
+}
+
+/// Recent conversation history at this location.
+fn conversation_block(
+    world: &WorldState,
+    npc: &Npc,
+    player_name_for_npc: Option<&str>,
+) -> Option<String> {
+    let player_label = player_name_for_npc.unwrap_or("The newcomer");
+    let ctx = world
+        .conversation_log
+        .context_string(world.player_location, npc.id, player_label, 3);
+    if ctx.is_empty() {
+        return None;
+    }
+    Some(format!("\n\nWhat's been said here:\n{ctx}"))
+}
+
+/// Continuity cue when the NPC is already in conversation.
+fn continuity_block(
+    world: &WorldState,
+    npc: &Npc,
+    player_name_for_npc: Option<&str>,
+) -> Option<String> {
+    if !world
+        .conversation_log
+        .has_recent_exchange_with(world.player_location, npc.id, 2)
+    {
+        return None;
+    }
+    let name = player_name_for_npc.unwrap_or("this newcomer");
+    Some(format!(
+        "\n\nYou are already in conversation with {name}. \
+         Do not re-introduce yourself or greet them again."
+    ))
+}
+
+/// Recent player reactions (emoji feedback).
+fn reactions_block(npc: &Npc, config: &NpcConfig) -> Option<String> {
+    let ctx = npc
+        .reaction_log
+        .context_string(config.reaction_context_count);
+    if ctx.is_empty() {
+        return None;
+    }
+    Some(format!("\n\n{ctx}"))
+}
+
+/// Recent short-term memories.
+fn stm_block(npc: &Npc, now: DateTime<Utc>) -> Option<String> {
+    let ctx = npc.memory.context_string_with_now(5, now);
+    if ctx.is_empty() {
+        return None;
+    }
+    Some(format!("\n\nRecent events you remember:\n{ctx}"))
+}
+
+/// Long-term memory recall (keyword-based).
+fn ltm_block(npc: &Npc, player_input: &str, world: &WorldState) -> Option<String> {
+    let location = world.current_location();
+    let mut kw: Vec<&str> = Vec::new();
+    for word in player_input.split_whitespace() {
+        let trimmed = word.trim_matches(|c: char| !c.is_alphanumeric());
+        if trimmed.len() > 4 {
+            kw.push(trimmed);
+        }
+    }
+    kw.push(&location.name);
+    let ctx = npc.long_term_memory.recall_context_string(&kw, 5);
+    if ctx.is_empty() {
+        return None;
+    }
+    Some(format!("\n\n{ctx}"))
+}
+
+/// Gossip context from the gossip network.
+fn gossip_block(world: &WorldState, npc: &Npc) -> Option<String> {
+    let ctx = world.gossip_network.gossip_context_string(npc.id, 2);
+    if ctx.is_empty() {
+        return None;
+    }
+    Some(format!("\n\n{ctx}"))
+}
+
 /// Builds an enhanced context prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base context with the NPC's recent memories and
@@ -179,99 +291,34 @@ pub fn build_enhanced_context_with_config(
 ) -> String {
     let mut context = build_tier1_context(world);
 
-    // Clearly identify who the NPC is talking to
-    let interlocutor_label = player_name_for_npc.unwrap_or("A newcomer to the parish");
-    context.push_str(&format!(
-        "\n\nPERSON YOU ARE SPEAKING WITH:\n{interlocutor_label}.",
-    ));
+    context.push_str(&interlocutor_block(player_name_for_npc));
 
-    // Add other NPCs present with relationship context
-    if !other_npcs.is_empty() {
-        context.push_str("\n\nAlso present:");
-        for other in other_npcs {
-            let relationship_note = npc
-                .relationships
-                .get(&other.id)
-                .map(|rel| {
-                    let label =
-                        relationship_label_with_config(rel.strength, &config.relationship_labels);
-                    format!(" \u{2014} {} to you, {}", rel.kind, label)
-                })
-                .unwrap_or_default();
-            context.push_str(&format!(
-                "\n- {}, the {}{}",
-                other.name, other.occupation, relationship_note
-            ));
-        }
+    if let Some(block) = other_npcs_block(npc, other_npcs, config) {
+        context.push_str(&block);
     }
 
-    // Add recent conversation history at this location
-    let player_label = player_name_for_npc.unwrap_or("The newcomer");
-    let conv_ctx =
-        world
-            .conversation_log
-            .context_string(world.player_location, npc.id, player_label, 3);
-    if !conv_ctx.is_empty() {
-        context.push_str("\n\nWhat's been said here:\n");
-        context.push_str(&conv_ctx);
+    if let Some(block) = conversation_block(world, npc, player_name_for_npc) {
+        context.push_str(&block);
     }
 
-    // Add scene continuity cue
-    if world
-        .conversation_log
-        .has_recent_exchange_with(world.player_location, npc.id, 2)
-    {
-        let name = player_name_for_npc.unwrap_or("this newcomer");
-        context.push_str(&format!(
-            "\n\nYou are already in conversation with {name}. \
-            Do not re-introduce yourself or greet them again."
-        ));
+    if let Some(block) = continuity_block(world, npc, player_name_for_npc) {
+        context.push_str(&block);
     }
 
-    // Add recent player reactions (emoji feedback)
-    let reaction_ctx = npc
-        .reaction_log
-        .context_string(config.reaction_context_count);
-    if !reaction_ctx.is_empty() {
-        context.push_str("\n\n");
-        context.push_str(&reaction_ctx);
+    if let Some(block) = reactions_block(npc, config) {
+        context.push_str(&block);
     }
 
-    // Add recent short-term memories unconditionally (ensures NPC doesn't
-    // forget what just happened, even if keyword matching would miss it)
-    let stm_ctx = npc.memory.context_string_with_now(5, world.clock.now());
-    if !stm_ctx.is_empty() {
-        context.push_str("\n\nRecent events you remember:\n");
-        context.push_str(&stm_ctx);
+    if let Some(block) = stm_block(npc, world.clock.now()) {
+        context.push_str(&block);
     }
 
-    // Add long-term memory recall (keyword-based)
-    let location = world.current_location();
-    let query_keywords: Vec<&str> = {
-        let mut kw: Vec<&str> = Vec::new();
-        // Extract keywords from player input (words > 4 chars)
-        for word in player_input.split_whitespace() {
-            let trimmed = word.trim_matches(|c: char| !c.is_alphanumeric());
-            if trimmed.len() > 4 {
-                kw.push(trimmed);
-            }
-        }
-        kw.push(&location.name);
-        kw
-    };
-    let ltm_ctx = npc
-        .long_term_memory
-        .recall_context_string(&query_keywords, 5);
-    if !ltm_ctx.is_empty() {
-        context.push_str("\n\n");
-        context.push_str(&ltm_ctx);
+    if let Some(block) = ltm_block(npc, player_input, world) {
+        context.push_str(&block);
     }
 
-    // Add gossip context
-    let gossip_ctx = world.gossip_network.gossip_context_string(npc.id, 2);
-    if !gossip_ctx.is_empty() {
-        context.push_str("\n\n");
-        context.push_str(&gossip_ctx);
+    if let Some(block) = gossip_block(world, npc) {
+        context.push_str(&block);
     }
 
     context

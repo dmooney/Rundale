@@ -650,24 +650,6 @@ pub fn format_reference_hint(validated_names: &[String]) -> String {
     }
 }
 
-/// Returns the full name of a calendar month (1–12).
-fn month_name(month: u32) -> &'static str {
-    match month {
-        1 => "January",
-        2 => "February",
-        3 => "March",
-        4 => "April",
-        5 => "May",
-        6 => "June",
-        7 => "July",
-        8 => "August",
-        9 => "September",
-        10 => "October",
-        11 => "November",
-        _ => "December",
-    }
-}
-
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
 /// Renders the location description template (substituting `{time}`,
@@ -691,7 +673,7 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         "{day_of_week} {day} {month} {year} | {hour:02}:{minute:02} | {season}",
         day_of_week = now.format("%A"),
         day = now.day(),
-        month = month_name(now.month()),
+        month = now.format("%B"),
         year = now.year(),
         hour = now.hour(),
         minute = now.minute(),

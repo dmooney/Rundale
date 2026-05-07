@@ -549,6 +549,50 @@ pub struct ArrivalContext<'a> {
     pub config: &'a ReactionConfig,
 }
 
+fn is_priest_occupation(occupation: &str) -> bool {
+    occupation.contains("priest") || occupation.contains("clergy") || occupation.contains("curate")
+}
+
+/// Selects the reaction kind for an NPC based on context and a type roll.
+///
+/// Returns `(kind, introduces, use_llm)`.
+fn select_reaction_kind(
+    at_workplace: bool,
+    is_introduced: bool,
+    is_priest: bool,
+    type_roll: &DiceRoll,
+) -> (ReactionKind, bool, bool) {
+    if at_workplace && !is_introduced {
+        (ReactionKind::Introduction, true, true)
+    } else if at_workplace && is_introduced {
+        (ReactionKind::Welcome, false, true)
+    } else if !is_introduced && type_roll.check(0.25) {
+        (ReactionKind::Introduction, true, true)
+    } else if !is_introduced {
+        (ReactionKind::Gesture, false, false)
+    } else if is_priest {
+        (ReactionKind::Greeting, false, type_roll.check(0.5))
+    } else if type_roll.check(0.5) {
+        (ReactionKind::Greeting, false, false)
+    } else {
+        (ReactionKind::Gesture, false, false)
+    }
+}
+
+/// Caps reaction count, prioritising socially significant kinds.
+fn cap_reactions_by_priority(reactions: &mut Vec<NpcReaction>, max_reactions: usize) {
+    if max_reactions == 0 || reactions.len() <= max_reactions {
+        return;
+    }
+    reactions.sort_by_key(|r| match r.kind {
+        ReactionKind::Introduction => 0u8,
+        ReactionKind::Welcome => 1,
+        ReactionKind::Greeting => 2,
+        ReactionKind::Gesture => 3,
+    });
+    reactions.truncate(max_reactions);
+}
+
 /// Generates arrival reactions for NPCs at the player's current location.
 ///
 /// Each NPC needs **two** dice rolls in `dice` (one for reaction chance,
@@ -578,28 +622,16 @@ pub fn generate_arrival_reactions(
 
         let threshold = reaction_threshold(npc, location, time_of_day, config);
         if !chance_roll.check(threshold) {
-            continue; // NPC stays silent
+            continue;
         }
 
         let is_introduced = introduced.contains(&npc.id);
         let at_workplace = is_at_workplace(npc, location);
         let occupation = npc.occupation.to_lowercase();
+        let is_priest = is_priest_occupation(&occupation);
 
-        let (kind, introduces, use_llm) = if at_workplace && !is_introduced {
-            (ReactionKind::Introduction, true, true)
-        } else if at_workplace && is_introduced {
-            (ReactionKind::Welcome, false, true)
-        } else if !is_introduced && type_roll.check(0.25) {
-            (ReactionKind::Introduction, true, true)
-        } else if !is_introduced {
-            (ReactionKind::Gesture, false, false)
-        } else if is_priest_occupation(&occupation) {
-            (ReactionKind::Greeting, false, type_roll.check(0.5))
-        } else if type_roll.check(0.5) {
-            (ReactionKind::Greeting, false, false)
-        } else {
-            (ReactionKind::Gesture, false, false)
-        };
+        let (kind, introduces, use_llm) =
+            select_reaction_kind(at_workplace, is_introduced, is_priest, type_roll);
 
         let display_name = if is_introduced || introduces {
             npc.name.clone()
@@ -626,24 +658,8 @@ pub fn generate_arrival_reactions(
         });
     }
 
-    // Cap the number of simultaneous reactions, prioritising the most
-    // socially significant kinds first so the publican always greets you
-    // before a random patron does.
-    if config.max_reactions > 0 && reactions.len() > config.max_reactions {
-        reactions.sort_by_key(|r| match r.kind {
-            ReactionKind::Introduction => 0u8,
-            ReactionKind::Welcome => 1,
-            ReactionKind::Greeting => 2,
-            ReactionKind::Gesture => 3,
-        });
-        reactions.truncate(config.max_reactions);
-    }
-
+    cap_reactions_by_priority(&mut reactions, config.max_reactions);
     reactions
-}
-
-fn is_priest_occupation(occupation: &str) -> bool {
-    occupation.contains("priest") || occupation.contains("clergy") || occupation.contains("curate")
 }
 
 /// Per-NPC context used inside [`pick_canned_text`].
