@@ -340,27 +340,14 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::osm_model::{GeoFeature, LocationType};
-
-    fn make_feature(name: &str, lat: f64, lon: f64) -> GeoFeature {
-        GeoFeature {
-            osm_id: 0,
-            osm_type: "node".to_string(),
-            lat,
-            lon,
-            name: name.to_string(),
-            name_ga: None,
-            location_type: LocationType::Pub,
-            tags: HashMap::new(),
-            curated: false,
-        }
-    }
+    use crate::osm_model::LocationType;
+    use crate::test_utils::make_feature;
 
     #[test]
     fn test_generate_connections_nearby() {
         let features = vec![
-            make_feature("A", 53.5000, -8.0000),
-            make_feature("B", 53.5010, -8.0000), // ~111m away
+            make_feature("A", LocationType::Pub, 53.5000, -8.0000),
+            make_feature("B", LocationType::Pub, 53.5010, -8.0000), // ~111m away
         ];
         let road_response = OverpassResponse {
             version: Some(0.6),
@@ -376,8 +363,8 @@ mod tests {
     #[test]
     fn test_generate_connections_too_far() {
         let features = vec![
-            make_feature("A", 53.5, -8.0),
-            make_feature("B", 54.0, -8.0), // ~55km away
+            make_feature("A", LocationType::Pub, 53.5, -8.0),
+            make_feature("B", LocationType::Pub, 54.0, -8.0), // ~55km away
         ];
         let road_response = OverpassResponse {
             version: Some(0.6),
@@ -392,7 +379,10 @@ mod tests {
 
     #[test]
     fn test_ensure_connectivity_single_component() {
-        let features = vec![make_feature("A", 53.5, -8.0), make_feature("B", 53.5, -8.0)];
+        let features = vec![
+            make_feature("A", LocationType::Pub, 53.5, -8.0),
+            make_feature("B", LocationType::Pub, 53.5, -8.0),
+        ];
         let mut connections = vec![GeneratedConnection {
             from_idx: 0,
             to_idx: 1,
@@ -409,9 +399,9 @@ mod tests {
     #[test]
     fn test_ensure_connectivity_bridges_components() {
         let features = vec![
-            make_feature("A", 53.5000, -8.0000),
-            make_feature("B", 53.5001, -8.0000),
-            make_feature("C", 53.6000, -8.0000), // far away, disconnected
+            make_feature("A", LocationType::Pub, 53.5000, -8.0000),
+            make_feature("B", LocationType::Pub, 53.5001, -8.0000),
+            make_feature("C", LocationType::Pub, 53.6000, -8.0000), // far away, disconnected
         ];
         // Only A-B connected
         let mut connections = vec![GeneratedConnection {
@@ -455,8 +445,8 @@ mod tests {
             highway_type: "track".to_string(),
             name: None,
         };
-        let from = make_feature("Church", 53.5, -8.0);
-        let to = make_feature("Pub", 53.5, -8.0);
+        let from = make_feature("Church", LocationType::Pub, 53.5, -8.0);
+        let to = make_feature("Pub", LocationType::Pub, 53.5, -8.0);
 
         let desc = generate_path_description(&segment, &from, &to);
         assert!(desc.contains("rough track"));
@@ -470,8 +460,8 @@ mod tests {
             highway_type: "tertiary".to_string(),
             name: Some("Bog Road".to_string()),
         };
-        let from = make_feature("A", 53.5, -8.0);
-        let to = make_feature("B", 53.5, -8.0);
+        let from = make_feature("A", LocationType::Pub, 53.5, -8.0);
+        let to = make_feature("B", LocationType::Pub, 53.5, -8.0);
 
         let desc = generate_path_description(&segment, &from, &to);
         assert!(desc.contains("Bog Road"));

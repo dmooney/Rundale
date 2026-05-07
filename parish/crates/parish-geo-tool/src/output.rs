@@ -44,11 +44,7 @@ pub struct ParishMetadata {
     pub locations: Vec<LocationMetadata>,
 }
 
-/// The standard parish.json file format (game-loadable).
-#[derive(Debug, Serialize, Deserialize)]
-struct ParishFile {
-    locations: Vec<LocationData>,
-}
+include!("world_file_shared.inc");
 
 /// Writes the final parish.json and metadata files.
 ///
@@ -60,7 +56,7 @@ pub fn write_output(output_path: &Path, locations: &[TrackedLocation]) -> Result
     // Extract game-format location data
     let location_data: Vec<LocationData> = locations.iter().map(|loc| loc.data.clone()).collect();
 
-    let parish_file = ParishFile {
+    let parish_file = WorldFile {
         locations: location_data,
     };
 
@@ -149,18 +145,6 @@ pub fn print_summary(locations: &[TrackedLocation]) {
         "Total connections: {total_connections} (bidirectional pairs: {})",
         total_connections / 2
     );
-
-    // Count by location type (from metadata)
-    let mut type_counts: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
-    for loc in locations {
-        let type_name = if loc.description_source == DescriptionSource::Curated {
-            "curated".to_string()
-        } else {
-            "generated".to_string()
-        };
-        *type_counts.entry(type_name).or_insert(0) += 1;
-    }
 
     println!("================================\n");
 }

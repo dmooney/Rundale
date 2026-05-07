@@ -30,6 +30,8 @@ mod osm_model;
 mod output;
 mod overpass;
 mod pipeline;
+#[cfg(test)]
+mod test_utils;
 
 use std::path::PathBuf;
 

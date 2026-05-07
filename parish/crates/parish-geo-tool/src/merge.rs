@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use parish_core::world::LocationId;
-use parish_core::world::graph::{Connection, LocationData, WorldGraph};
+use parish_core::world::graph::{LocationData, WorldGraph};
 
 use super::descriptions::DescriptionSource;
 use super::osm_model::haversine_distance;
@@ -142,84 +142,6 @@ pub fn determine_id_offset(merge_path: Option<&Path>, explicit_offset: Option<u3
     }
 
     Ok(1)
-}
-
-/// Creates connections between curated and nearby generated locations.
-///
-/// Adds bidirectional connections between curated locations and the closest
-/// generated locations within `max_distance_m`.
-#[allow(dead_code)] // Public API for curated-to-generated linking (future use)
-pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_distance_m: f64) {
-    // Collect indices and coordinates for generated locations with valid coords
-    let gen_indices: Vec<(usize, f64, f64)> = locations
-        .iter()
-        .enumerate()
-        .filter(|(_, loc)| loc.description_source != DescriptionSource::Curated && loc.lat != 0.0)
-        .map(|(i, loc)| (i, loc.lat, loc.lon))
-        .collect();
-
-    if gen_indices.is_empty() {
-        return;
-    }
-
-    // For each curated location, find closest generated locations
-    let curated_indices: Vec<usize> = locations
-        .iter()
-        .enumerate()
-        .filter(|(_, loc)| loc.description_source == DescriptionSource::Curated)
-        .map(|(i, _)| i)
-        .collect();
-
-    let mut new_connections: Vec<(usize, usize, String, String)> = Vec::new();
-
-    for &ci in &curated_indices {
-        let cur = &locations[ci];
-        // Find closest generated location (even if curated lacks coords, skip)
-        if cur.lat == 0.0 && cur.lon == 0.0 {
-            continue;
-        }
-
-        for &(gi, glat, glon) in &gen_indices {
-            let dist = haversine_distance(cur.lat, cur.lon, glat, glon);
-            if dist <= max_distance_m {
-                let to_name = locations[gi].data.name.clone();
-                let from_name = locations[ci].data.name.clone();
-
-                // Check if connection already exists
-                let already_connected = locations[ci]
-                    .data
-                    .connections
-                    .iter()
-                    .any(|c| c.target == locations[gi].data.id);
-
-                if !already_connected {
-                    new_connections.push((
-                        ci,
-                        gi,
-                        format!("toward {to_name}"),
-                        format!("toward {from_name}"),
-                    ));
-                }
-            }
-        }
-    }
-
-    // Apply connections (bidirectional)
-    for (ci, gi, fwd_desc, rev_desc) in new_connections {
-        let gen_id = locations[gi].data.id;
-        let cur_id = locations[ci].data.id;
-
-        locations[ci].data.connections.push(Connection {
-            target: gen_id,
-            path_description: fwd_desc,
-            hazard: Default::default(),
-        });
-        locations[gi].data.connections.push(Connection {
-            target: cur_id,
-            path_description: rev_desc,
-            hazard: Default::default(),
-        });
-    }
 }
 
 #[cfg(test)]

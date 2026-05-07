@@ -39,10 +39,7 @@ struct Cli {
     set_source: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorldFile {
-    locations: Vec<LocationData>,
-}
+include!("../world_file_shared.inc");
 
 #[derive(Debug, Deserialize)]
 struct NominatimHit {

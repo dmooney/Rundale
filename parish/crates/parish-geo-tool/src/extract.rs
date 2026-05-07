@@ -77,133 +77,141 @@ pub fn extract_features(response: &OverpassResponse) -> Vec<GeoFeature> {
     features
 }
 
+fn classify_historic(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let historic = tags.get("historic")?;
+    match historic.as_str() {
+        "ring_fort" | "rath" | "cashel" | "crannog" => Some(LocationType::RingFort),
+        "standing_stone" | "ogham_stone" | "stone_circle" | "megalith" => {
+            Some(LocationType::StandingStone)
+        }
+        "holy_well" => Some(LocationType::Well),
+        "castle" | "ruins" | "monument" => Some(LocationType::Ruin),
+        _ => Some(LocationType::Other),
+    }
+}
+
+fn classify_amenity(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let amenity = tags.get("amenity")?;
+    match amenity.as_str() {
+        "pub" | "bar" | "restaurant" => Some(LocationType::Pub),
+        "place_of_worship" => Some(LocationType::Church),
+        "school" => Some(LocationType::School),
+        "post_office" => Some(LocationType::PostOffice),
+        "grave_yard" => Some(LocationType::Graveyard),
+        _ => None,
+    }
+}
+
+fn classify_building(
+    tags: &std::collections::HashMap<String, String>,
+    element: &OsmElement,
+) -> Option<LocationType> {
+    let building = tags.get("building")?;
+    match building.as_str() {
+        "church" | "chapel" | "cathedral" => Some(LocationType::Church),
+        "farm" | "farmhouse" | "barn" => Some(LocationType::Farm),
+        _ => {
+            if element.name().is_some() {
+                Some(LocationType::Other)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn classify_natural(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let natural = tags.get("natural")?;
+    match natural.as_str() {
+        "water" => Some(LocationType::Waterside),
+        "wetland" => Some(LocationType::Bog),
+        "wood" => Some(LocationType::Woodland),
+        "peak" | "hill" => Some(LocationType::Hill),
+        "spring" => Some(LocationType::Well),
+        _ => None,
+    }
+}
+
+fn classify_waterway(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let waterway = tags.get("waterway")?;
+    match waterway.as_str() {
+        "river" | "stream" | "canal" => Some(LocationType::Waterside),
+        _ => None,
+    }
+}
+
+fn classify_landuse(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let landuse = tags.get("landuse")?;
+    match landuse.as_str() {
+        "farmyard" | "farmland" => Some(LocationType::Farm),
+        "cemetery" => Some(LocationType::Graveyard),
+        _ => None,
+    }
+}
+
+fn classify_man_made(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let man_made = tags.get("man_made")?;
+    match man_made.as_str() {
+        "bridge" => Some(LocationType::Bridge),
+        "kiln" => Some(LocationType::LimeKiln),
+        "watermill" | "windmill" => Some(LocationType::Mill),
+        "pier" | "quay" => Some(LocationType::Harbour),
+        _ => None,
+    }
+}
+
+fn classify_place(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let place = tags.get("place")?;
+    match place.as_str() {
+        "hamlet" | "village" | "isolated_dwelling" | "locality" | "townland" | "town" => {
+            Some(LocationType::NamedPlace)
+        }
+        _ => None,
+    }
+}
+
 /// Classifies an OSM element into a game-relevant location type.
 ///
 /// Returns `None` if the element doesn't map to any game-relevant type.
 pub fn classify_element(element: &OsmElement) -> Option<LocationType> {
     let tags = &element.tags;
 
-    // Historic features (highest priority — most game-relevant)
-    if let Some(historic) = tags.get("historic") {
-        return match historic.as_str() {
-            "ring_fort" | "rath" | "cashel" | "crannog" => Some(LocationType::RingFort),
-            "standing_stone" | "ogham_stone" | "stone_circle" | "megalith" => {
-                Some(LocationType::StandingStone)
+    classify_historic(tags)
+        .or_else(|| classify_amenity(tags))
+        .or_else(|| classify_building(tags, element))
+        .or_else(|| {
+            if tags.contains_key("shop") {
+                Some(LocationType::Shop)
+            } else {
+                None
             }
-            "holy_well" => Some(LocationType::Well),
-            "castle" | "ruins" | "monument" => Some(LocationType::Ruin),
-            _ => Some(LocationType::Other),
-        };
-    }
-
-    // Amenities
-    if let Some(amenity) = tags.get("amenity") {
-        return match amenity.as_str() {
-            "pub" | "bar" | "restaurant" => Some(LocationType::Pub),
-            "place_of_worship" => Some(LocationType::Church),
-            "school" => Some(LocationType::School),
-            "post_office" => Some(LocationType::PostOffice),
-            "grave_yard" => Some(LocationType::Graveyard),
-            _ => None,
-        };
-    }
-
-    // Buildings
-    if let Some(building) = tags.get("building") {
-        return match building.as_str() {
-            "church" | "chapel" | "cathedral" => Some(LocationType::Church),
-            "farm" | "farmhouse" | "barn" => Some(LocationType::Farm),
-            _ => {
-                // Named buildings are worth keeping
-                if element.name().is_some() {
-                    Some(LocationType::Other)
-                } else {
-                    None
-                }
+        })
+        .or_else(|| classify_natural(tags))
+        .or_else(|| classify_waterway(tags))
+        .or_else(|| classify_landuse(tags))
+        .or_else(|| classify_man_made(tags))
+        .or_else(|| {
+            if tags.get("craft").is_some_and(|v| v == "blacksmith") {
+                return Some(LocationType::Forge);
             }
-        };
-    }
-
-    // Shops
-    if tags.contains_key("shop") {
-        return Some(LocationType::Shop);
-    }
-
-    // Natural features
-    if let Some(natural) = tags.get("natural") {
-        return match natural.as_str() {
-            "water" => Some(LocationType::Waterside),
-            "wetland" => Some(LocationType::Bog),
-            "wood" => Some(LocationType::Woodland),
-            "peak" | "hill" => Some(LocationType::Hill),
-            "spring" => Some(LocationType::Well),
-            _ => None,
-        };
-    }
-
-    // Waterways
-    if let Some(waterway) = tags.get("waterway") {
-        return match waterway.as_str() {
-            "river" | "stream" | "canal" => Some(LocationType::Waterside),
-            _ => None,
-        };
-    }
-
-    // Land use
-    if let Some(landuse) = tags.get("landuse") {
-        return match landuse.as_str() {
-            "farmyard" | "farmland" => Some(LocationType::Farm),
-            "cemetery" => Some(LocationType::Graveyard),
-            _ => None,
-        };
-    }
-
-    // Man-made features
-    if let Some(man_made) = tags.get("man_made") {
-        return match man_made.as_str() {
-            "bridge" => Some(LocationType::Bridge),
-            "kiln" => Some(LocationType::LimeKiln),
-            "watermill" | "windmill" => Some(LocationType::Mill),
-            "pier" | "quay" => Some(LocationType::Harbour),
-            _ => None,
-        };
-    }
-
-    // Craft
-    if let Some(craft) = tags.get("craft")
-        && craft == "blacksmith"
-    {
-        return Some(LocationType::Forge);
-    }
-
-    // Ford
-    if tags.get("ford").is_some_and(|v| v == "yes") {
-        return Some(LocationType::Bridge); // Fords serve similar role as bridges
-    }
-
-    // Places
-    if let Some(place) = tags.get("place") {
-        return match place.as_str() {
-            "hamlet" | "village" | "isolated_dwelling" | "locality" | "townland" | "town" => {
-                Some(LocationType::NamedPlace)
+            if tags.get("ford").is_some_and(|v| v == "yes") {
+                return Some(LocationType::Bridge);
             }
-            _ => None,
-        };
-    }
-
-    // Leisure / tourism
-    if tags
-        .get("leisure")
-        .is_some_and(|v| v == "harbour" || v == "marina")
-    {
-        return Some(LocationType::Harbour);
-    }
-
-    if tags.get("tourism").is_some_and(|v| v == "hotel") {
-        return Some(LocationType::Pub); // Inns in 1820
-    }
-
-    None
+            None
+        })
+        .or_else(|| classify_place(tags))
+        .or_else(|| {
+            if tags
+                .get("leisure")
+                .is_some_and(|v| v == "harbour" || v == "marina")
+            {
+                return Some(LocationType::Harbour);
+            }
+            if tags.get("tourism").is_some_and(|v| v == "hotel") {
+                return Some(LocationType::Pub);
+            }
+            None
+        })
 }
 
 /// Generates a name for a feature from OSM tags or its location type.
@@ -533,5 +541,108 @@ mod tests {
         // Second element is a named pub → kept
         assert_eq!(features.len(), 1);
         assert_eq!(features[0].name, "The Local");
+    }
+
+    #[test]
+    fn test_extract_features_filters_no_coords() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![OsmElement {
+                element_type: "node".to_string(),
+                id: 1,
+                lat: None,
+                lon: None,
+                center: None,
+                tags: {
+                    let mut t = HashMap::new();
+                    t.insert("amenity".to_string(), "pub".to_string());
+                    t.insert("name".to_string(), "Nowhere Pub".to_string());
+                    t
+                },
+                nodes: None,
+                geometry: None,
+                members: None,
+            }],
+        };
+
+        let features = extract_features(&response);
+        assert!(
+            features.is_empty(),
+            "element with no coords should be filtered"
+        );
+    }
+
+    #[test]
+    fn test_extract_features_filters_unclassifiable() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![OsmElement {
+                element_type: "node".to_string(),
+                id: 1,
+                lat: Some(53.5),
+                lon: Some(-8.0),
+                center: None,
+                tags: {
+                    let mut t = HashMap::new();
+                    t.insert("highway".to_string(), "secondary".to_string());
+                    t.insert("name".to_string(), "Main Road".to_string());
+                    t
+                },
+                nodes: None,
+                geometry: None,
+                members: None,
+            }],
+        };
+
+        let features = extract_features(&response);
+        // highway=secondary → classify_element returns None → filtered
+        assert!(
+            features.is_empty(),
+            "unclassifiable element should be filtered"
+        );
+    }
+
+    #[test]
+    fn test_extract_features_deduplicates_osm_ids() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "node".to_string(),
+                    id: 1,
+                    lat: Some(53.5),
+                    lon: Some(-8.0),
+                    center: None,
+                    tags: {
+                        let mut t = HashMap::new();
+                        t.insert("amenity".to_string(), "pub".to_string());
+                        t.insert("name".to_string(), "The Local".to_string());
+                        t
+                    },
+                    nodes: None,
+                    geometry: None,
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "node".to_string(),
+                    id: 1, // Duplicate OSM id
+                    lat: Some(53.5),
+                    lon: Some(-8.0),
+                    center: None,
+                    tags: {
+                        let mut t = HashMap::new();
+                        t.insert("amenity".to_string(), "pub".to_string());
+                        t.insert("name".to_string(), "The Local".to_string());
+                        t
+                    },
+                    nodes: None,
+                    geometry: None,
+                    members: None,
+                },
+            ],
+        };
+
+        let features = extract_features(&response);
+        assert_eq!(features.len(), 1);
     }
 }
