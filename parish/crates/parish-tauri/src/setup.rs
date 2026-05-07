@@ -176,7 +176,19 @@ pub(crate) async fn bootstrap_inference_provider(
             *state.ollama_process.lock().await = ollama_process;
             {
                 let mut config = state.config.lock().await;
-                config.model_name = model_name;
+                if matches!(provider_config.provider, parish_core::config::Provider::Ollama) {
+                    // Auto-setup pulled exactly one model. Pin it across
+                    // all four per-category slots so every role uses the
+                    // model that is on disk, instead of the static qwen3
+                    // preset list (which assumes models the user has not
+                    // pulled).
+                    config.pin_setup_model(model_name);
+                } else {
+                    config.model_name = model_name;
+                }
+                // No-op for Ollama after `pin_setup_model` filled every slot;
+                // for cloud providers fills per-role tier mapping
+                // (Opus/Sonnet/Haiku).
                 config.fill_missing_models_from_presets();
             }
             record_setup_done(state, true, String::new());

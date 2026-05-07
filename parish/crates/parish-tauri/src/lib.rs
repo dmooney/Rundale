@@ -841,6 +841,7 @@ pub fn run() {
         active_tile_source,
         tile_sources: engine_config.map.id_label_pairs(),
         reveal_unexplored_locations: false,
+        auto_setup_model: None,
     };
     // Enable demo-mode flag when --demo was passed so the demo commands work.
     if demo_config.auto_start {
