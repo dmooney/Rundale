@@ -21,7 +21,7 @@ pub use parser::{classify_input, parse_system_command};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::validate_branch_name;
+    use crate::commands::{validate_branch_name, validate_flag_name};
     use crate::intent_llm::IntentResponse;
     use parish_config::InferenceCategory;
     use parish_types::GameSpeed;
@@ -201,6 +201,17 @@ mod tests {
         let intent = parse_intent_local("go pub").unwrap();
         assert_eq!(intent.intent, IntentKind::Move);
         assert_eq!(intent.target, Some("pub".to_string()));
+    }
+
+    #[test]
+    fn test_local_parse_move_bare() {
+        let intent = parse_intent_local("move pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+
+        let intent = parse_intent_local("move to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
     }
 
     #[test]
@@ -1271,6 +1282,180 @@ mod tests {
             parse_system_command("/cloud key  "),
             Some(Command::ShowCloudKey)
         );
+    }
+
+    // --- /session and music alias tests ---
+
+    #[test]
+    fn test_parse_session_aliases() {
+        assert_eq!(parse_system_command("/session"), Some(Command::Session));
+        assert_eq!(parse_system_command("/tune"), Some(Command::Session));
+        assert_eq!(parse_system_command("/music"), Some(Command::Session));
+        assert_eq!(parse_system_command("/fiddle"), Some(Command::Session));
+        assert_eq!(parse_system_command("/seisiun"), Some(Command::Session));
+    }
+
+    #[test]
+    fn test_parse_session_case_insensitive() {
+        assert_eq!(parse_system_command("/SESSION"), Some(Command::Session));
+        assert_eq!(parse_system_command("/TUNE"), Some(Command::Session));
+        assert_eq!(parse_system_command("/SEISIUN"), Some(Command::Session));
+    }
+
+    // --- /weather command tests ---
+
+    #[test]
+    fn test_parse_weather_bare() {
+        assert_eq!(
+            parse_system_command("/weather"),
+            Some(Command::Weather(None))
+        );
+        assert_eq!(
+            parse_system_command("/weather  "),
+            Some(Command::Weather(None))
+        );
+    }
+
+    #[test]
+    fn test_parse_weather_set() {
+        assert_eq!(
+            parse_system_command("/weather clear"),
+            Some(Command::Weather(Some("clear".to_string())))
+        );
+        assert_eq!(
+            parse_system_command("/weather light rain"),
+            Some(Command::Weather(Some("light rain".to_string())))
+        );
+    }
+
+    #[test]
+    fn test_parse_weather_case_insensitive() {
+        assert_eq!(
+            parse_system_command("/WEATHER"),
+            Some(Command::Weather(None))
+        );
+        assert_eq!(
+            parse_system_command("/WEATHER FOG"),
+            Some(Command::Weather(Some("FOG".to_string())))
+        );
+    }
+
+    // --- /flag command tests ---
+
+    #[test]
+    fn test_parse_flag_bare_shows_list() {
+        assert_eq!(
+            parse_system_command("/flag"),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+        assert_eq!(
+            parse_system_command("/flag  "),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+    }
+
+    #[test]
+    fn test_parse_flag_list() {
+        assert_eq!(
+            parse_system_command("/flag list"),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+        assert_eq!(
+            parse_system_command("/flag LIST"),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+    }
+
+    #[test]
+    fn test_parse_flag_enable() {
+        assert_eq!(
+            parse_system_command("/flag enable experimental"),
+            Some(Command::Flag(FlagSubcommand::Enable(
+                "experimental".to_string()
+            )))
+        );
+        assert_eq!(
+            parse_system_command("/flag disable experimental"),
+            Some(Command::Flag(FlagSubcommand::Disable(
+                "experimental".to_string()
+            )))
+        );
+    }
+
+    #[test]
+    fn test_parse_flag_enable_bare_shows_list() {
+        assert_eq!(
+            parse_system_command("/flag enable"),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+        assert_eq!(
+            parse_system_command("/flag disable"),
+            Some(Command::Flag(FlagSubcommand::List))
+        );
+    }
+
+    #[test]
+    fn test_parse_flag_invalid_subcommand() {
+        assert_eq!(
+            parse_system_command("/flag bogus"),
+            Some(Command::InvalidFlagName(
+                "Unknown flag sub-command 'bogus'. Use: /flag enable <name>, /flag disable <name>, /flag list".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_flags_alias() {
+        assert_eq!(parse_system_command("/flags"), Some(Command::Flags));
+    }
+
+    #[test]
+    fn test_parse_flag_invalid_name() {
+        assert_eq!(
+            parse_system_command("/flag enable bad/name"),
+            Some(Command::InvalidFlagName(
+                "Flag names may only contain letters, digits, hyphens, and underscores."
+                    .to_string()
+            ))
+        );
+    }
+
+    // --- validate_flag_name tests ---
+
+    #[test]
+    fn test_validate_flag_name_valid() {
+        assert!(validate_flag_name("experimental").is_ok());
+        assert!(validate_flag_name("my-flag").is_ok());
+        assert!(validate_flag_name("test_flag").is_ok());
+        assert!(validate_flag_name("a1b2c3").is_ok());
+    }
+
+    #[test]
+    fn test_validate_flag_name_empty() {
+        let err = validate_flag_name("").unwrap_err();
+        assert!(err.contains("cannot be empty"));
+    }
+
+    #[test]
+    fn test_validate_flag_name_too_long() {
+        let long_name = "a".repeat(65);
+        let err = validate_flag_name(&long_name).unwrap_err();
+        assert!(err.contains("max 64"));
+    }
+
+    #[test]
+    fn test_validate_flag_name_at_max_length() {
+        let name = "a".repeat(64);
+        assert!(validate_flag_name(&name).is_ok());
+    }
+
+    #[test]
+    fn test_validate_flag_name_invalid_chars() {
+        assert!(validate_flag_name("bad name").is_err());
+        assert!(validate_flag_name("bad/name").is_err());
+        assert!(validate_flag_name("bad.name").is_err());
+        assert!(validate_flag_name("bad!flag").is_err());
+        assert!(validate_flag_name("bad@flag").is_err());
     }
 
     // --- validate_branch_name edge cases ---

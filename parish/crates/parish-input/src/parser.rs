@@ -28,29 +28,14 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
         None => (lower.as_str(), ""),
     };
 
-    match (keyword, rest_trimmed) {
-        // Zero-argument commands
-        ("/pause", "") => Some(Command::Pause),
-        ("/resume", "") => Some(Command::Resume),
-        ("/quit", "") => Some(Command::Quit),
-        ("/save", "") => Some(Command::Save),
-        ("/branches", "") => Some(Command::Branches),
-        ("/log", "") => Some(Command::Log),
-        ("/status", "") | ("/where", "") => Some(Command::Status),
-        ("/help", "") => Some(Command::Help),
-        ("/irish", "") => Some(Command::ToggleSidebar),
-        ("/improv", "") => Some(Command::ToggleImprov),
-        ("/about", "") => Some(Command::About),
-        ("/designer", "") => Some(Command::Designer),
-        ("/npcs", "") => Some(Command::NpcsHere),
-        ("/time", "") => Some(Command::Time),
-        ("/new", "") => Some(Command::NewGame),
-        ("/tick", "") => Some(Command::Tick),
-        ("/flags", "") => Some(Command::Flags),
-        ("/session", "") | ("/tune", "") | ("/music", "") | ("/fiddle", "") | ("/seisiun", "") => {
-            Some(Command::Session)
-        }
+    // Try zero-argument commands first
+    if rest_trimmed.is_empty()
+        && let Some(cmd) = parse_zero_arg_command(keyword)
+    {
+        return Some(cmd);
+    }
 
+    match (keyword, rest_trimmed) {
         // Commands with arguments
         ("/fork", "") => Some(Command::Help), // bare /fork → show help
         ("/fork", rest) => match validate_branch_name(rest) {
@@ -137,6 +122,31 @@ pub fn parse_system_command(input: &str) -> Option<Command> {
             parse_category_command(trimmed, &lower)
         }
 
+        _ => None,
+    }
+}
+
+/// Returns `Some(Command)` if `keyword` is a recognised zero-argument command.
+fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
+    match keyword {
+        "/pause" => Some(Command::Pause),
+        "/resume" => Some(Command::Resume),
+        "/quit" => Some(Command::Quit),
+        "/save" => Some(Command::Save),
+        "/branches" => Some(Command::Branches),
+        "/log" => Some(Command::Log),
+        "/status" | "/where" => Some(Command::Status),
+        "/help" => Some(Command::Help),
+        "/irish" => Some(Command::ToggleSidebar),
+        "/improv" => Some(Command::ToggleImprov),
+        "/about" => Some(Command::About),
+        "/designer" => Some(Command::Designer),
+        "/npcs" => Some(Command::NpcsHere),
+        "/time" => Some(Command::Time),
+        "/new" => Some(Command::NewGame),
+        "/tick" => Some(Command::Tick),
+        "/flags" => Some(Command::Flags),
+        "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun" => Some(Command::Session),
         _ => None,
     }
 }
