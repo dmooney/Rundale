@@ -9,7 +9,6 @@ use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-// Semaphore is used by parish_core::game_loop::emit_npc_reactions (shared).
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::{
@@ -1430,6 +1429,7 @@ pub(crate) mod tests {
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
     use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
+    use tower::ServiceExt;
 
     #[test]
     fn submit_input_request_deserialization() {
@@ -2435,6 +2435,51 @@ pub(crate) mod tests {
         assert_eq!(
             world.tick_generation, 0,
             "generation should wrap to 0 on overflow"
+        );
+    }
+
+    // ── TD-013: session-init ────────────────────────────────────────────────
+
+    /// `POST /api/session-init` must return 200 with a valid HMAC token when
+    /// an `AuthContext` is present.
+    #[tokio::test]
+    async fn session_init_returns_token() {
+        let auth = crate::cf_auth::AuthContext {
+            account_id: uuid::Uuid::new_v4(),
+            email: "test@example.com".to_string(),
+        };
+
+        let auth = Arc::new(auth);
+        let app = axum::Router::new()
+            .route("/api/session-init", axum::routing::post(session_init))
+            .layer(axum::middleware::from_fn({
+                let auth = Arc::clone(&auth);
+                move |mut req: axum::http::Request<axum::body::Body>,
+                      next: axum::middleware::Next| {
+                    let auth = Arc::clone(&auth);
+                    async move {
+                        req.extensions_mut().insert((*auth).clone());
+                        next.run(req).await
+                    }
+                }
+            }));
+
+        let req = axum::http::Request::builder()
+            .method("POST")
+            .uri("/api/session-init")
+            .header("content-type", "application/json")
+            .body(axum::body::Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&axum::body::to_bytes(resp.into_body(), 4096).await.unwrap())
+                .unwrap();
+        assert!(
+            body["token"].as_str().unwrap_or("").len() > 20,
+            "session-init must return a non-trivial HMAC token"
         );
     }
 }

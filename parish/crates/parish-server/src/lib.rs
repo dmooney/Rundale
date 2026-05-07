@@ -102,10 +102,9 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 /// Until that build-time integration exists, `'unsafe-inline'` is retained here
 /// so the app keeps working.
 ///
-/// TODO: replace `'unsafe-inline'` with `'sha256-...'` computed from
+/// To replace `'unsafe-inline'` with `'sha256-...'`, compute the SHA-256 of
 /// `apps/ui/dist/index.html` at build time.  SvelteKit exposes a `kit.csp`
-/// config option that emits hashes automatically — that is the recommended
-/// path forward.
+/// config option that emits hashes automatically.
 /// See: <https://github.com/dmooney/Rundale/issues/543>
 pub const CSP_POLICY: &str = "default-src 'self'; \
                               script-src 'self' 'unsafe-inline'; \
@@ -181,6 +180,21 @@ pub fn apply_security_layers(router: Router) -> Router {
 
 /// Global auth-failure counter — exposed via `GET /metrics`.
 static AUTH_FAILURES: AtomicU64 = AtomicU64::new(0);
+
+/// Injects an `AuthContext` into request extensions after resolving the
+/// stable `account_id` for the given email.  Shared by the three auth paths
+/// in [`cf_access_guard`] (loopback bypass, JWT success, debug fallback).
+fn inject_auth_context(
+    req: &mut Request<axum::body::Body>,
+    identity_store: &dyn parish_core::identity::IdentityStore,
+    email: String,
+    flags: &parish_core::config::FeatureFlags,
+) {
+    let account_id = resolve_account_id(identity_store, &email, flags);
+    tracing::Span::current().record("account_id", account_id.to_string().as_str());
+    req.extensions_mut()
+        .insert(cf_auth::AuthContext { account_id, email });
+}
 
 /// Resolves or mints a stable `account_id` for the given CF-Access email.
 ///
@@ -264,18 +278,12 @@ async fn cf_access_guard(
 ) -> Result<Response, StatusCode> {
     // #379 — loopback bypass is debug-only.
     if cfg!(debug_assertions) && addr.ip().is_loopback() {
-        // In debug+loopback: inject a synthetic AuthContext so downstream
-        // handlers that require it don't panic.
-        let email = "dev@localhost".to_string();
-        let account_id = resolve_account_id(
+        inject_auth_context(
+            &mut req,
             global.identity_store.as_ref(),
-            &email,
+            "dev@localhost".to_string(),
             &global.template_config.flags,
         );
-        // #621 — Record account_id on the request span.
-        tracing::Span::current().record("account_id", account_id.to_string().as_str());
-        req.extensions_mut()
-            .insert(cf_auth::AuthContext { account_id, email });
         return Ok(next.run(req).await);
     }
 
@@ -295,16 +303,12 @@ async fn cf_access_guard(
         match jwt_header {
             Some(token) => match verifier.validate(&token).await {
                 Ok(email) => {
-                    // #618 — Resolve the stable account_id for this email.
-                    let account_id = resolve_account_id(
+                    inject_auth_context(
+                        &mut req,
                         global.identity_store.as_ref(),
-                        &email,
+                        email,
                         &global.template_config.flags,
                     );
-                    // #621 — Record the authenticated account_id on the span.
-                    tracing::Span::current().record("account_id", account_id.to_string().as_str());
-                    req.extensions_mut()
-                        .insert(cf_auth::AuthContext { account_id, email });
                     return Ok(next.run(req).await);
                 }
                 Err(e) => {
@@ -343,13 +347,12 @@ async fn cf_access_guard(
             .map(str::to_string)
             .filter(|e| !e.is_empty() && e.contains('@'));
         if let Some(email) = debug_email {
-            let account_id = resolve_account_id(
+            inject_auth_context(
+                &mut req,
                 global.identity_store.as_ref(),
-                &email,
+                email,
                 &global.template_config.flags,
             );
-            req.extensions_mut()
-                .insert(cf_auth::AuthContext { account_id, email });
             return Ok(next.run(req).await);
         }
         tracing::warn!(source_ip = %addr, "cf_access_guard: 401 — debug fallback, missing CF-Access-Authenticated-User-Email");
@@ -1506,7 +1509,6 @@ mod tests {
 
     #[test]
     fn extract_real_ip_invalid_ip_in_forwarded_falls_back_to_xff() {
-        // `for=` present but its value is not a valid IP — fall back to XFF.
         let headers = make_headers(&[
             ("forwarded", "for=not-an-ip"),
             ("x-forwarded-for", "198.51.100.7"),
@@ -1514,5 +1516,93 @@ mod tests {
         let ip = extract_real_ip(&headers)
             .expect("should fall back to X-Forwarded-For when Forwarded for= is invalid");
         assert_eq!(ip, "198.51.100.7".parse::<std::net::IpAddr>().unwrap());
+    }
+
+    // ── TD-014: /metrics ────────────────────────────────────────────────────
+
+    /// `GET /metrics` must return a plain-text Prometheus-formatted response
+    /// containing the `parish_auth_failures_total` counter.
+    #[tokio::test]
+    async fn metrics_returns_counter_in_plain_text() {
+        let resp = get_metrics().await;
+        assert!(
+            resp.contains("parish_auth_failures_total"),
+            "metrics must contain the auth-failure counter"
+        );
+        assert!(
+            resp.contains("# TYPE parish_auth_failures_total counter"),
+            "metrics must have proper Prometheus type annotation"
+        );
+    }
+
+    // ── TD-016: ip_rate_limit_middleware ─────────────────────────────────────
+
+    /// The rate-limiter middleware must pass through the first request and
+    /// return 429 when the per-IP quota is exceeded for a non-loopback address.
+    #[tokio::test]
+    async fn ip_rate_limit_middleware_blocks_at_capacity() {
+        use governor::{Quota, RateLimiter as GovRateLimiter};
+        use std::num::NonZeroU32;
+        use std::sync::atomic::AtomicUsize;
+        use tower::ServiceExt;
+
+        let rate_state = Arc::new(IpRateLimiterState {
+            limiter: GovRateLimiter::keyed(Quota::per_minute(NonZeroU32::new(1).unwrap())),
+            trust_proxy: false,
+        });
+
+        let handler_count = Arc::new(AtomicUsize::new(0));
+
+        // Inner: rate-limiter middleware.
+        // Outer: injects ConnectInfo with a non-loopback IP so the debug bypass
+        // does not apply.
+        let app = {
+            let rate_state = Arc::clone(&rate_state);
+            let handler_count = Arc::clone(&handler_count);
+            Router::new()
+                .route(
+                    "/test",
+                    axum::routing::get(move || {
+                        let c = Arc::clone(&handler_count);
+                        async move {
+                            c.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            StatusCode::OK
+                        }
+                    }),
+                )
+                .layer(axum::middleware::from_fn_with_state(
+                    rate_state,
+                    ip_rate_limit_middleware,
+                ))
+                .layer(axum::middleware::from_fn(
+                    |mut req: Request<axum::body::Body>, next: Next| async move {
+                        let addr: SocketAddr = "10.0.0.1:12345".parse().unwrap();
+                        req.extensions_mut().insert(ConnectInfo(addr));
+                        next.run(req).await
+                    },
+                ))
+        };
+
+        // First request — within the 1 req/min limit.
+        let req = Request::builder()
+            .uri("/test")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(handler_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        // Second request — exceeds rate limit → 429.
+        let req = Request::builder()
+            .uri("/test")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            handler_count.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "handler must not execute when rate-limited"
+        );
     }
 }
