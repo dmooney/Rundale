@@ -11,6 +11,7 @@ runtime (CLI, server, Tauri) resolves settings the same way.
 
 - `engine` — engine-level settings (runtime, simulation, speed, persistence).
 - `provider` — inference provider definitions and category overrides.
+- `presets` — recommended model presets per provider per inference category.
 - `flags` — runtime feature-flag parsing and querying.
 
 ## Notes

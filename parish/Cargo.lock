@@ -3051,7 +3051,6 @@ dependencies = [
 name = "parish-config"
 version = "0.1.0"
 dependencies = [
- "dotenvy",
  "parish-types",
  "serde",
  "serde_json",

@@ -108,9 +108,9 @@ pub struct SessionConfig {
 impl Default for SessionConfig {
     fn default() -> Self {
         Self {
-            idle_banter_after_secs: 25,
-            auto_pause_after_secs: 300,
-            max_concurrent_sessions: 50,
+            idle_banter_after_secs: default_idle_banter_after_secs(),
+            auto_pause_after_secs: default_auto_pause_after_secs(),
+            max_concurrent_sessions: default_max_concurrent_sessions(),
         }
     }
 }
@@ -165,13 +165,13 @@ pub struct InferenceConfig {
 impl Default for InferenceConfig {
     fn default() -> Self {
         Self {
-            timeout_secs: 30,
-            streaming_timeout_secs: 300,
-            reachability_timeout_secs: 10,
-            model_download_timeout_secs: 3600,
+            timeout_secs: default_timeout_secs(),
+            streaming_timeout_secs: default_streaming_timeout_secs(),
+            reachability_timeout_secs: default_reachability_timeout_secs(),
+            model_download_timeout_secs: default_model_download_timeout_secs(),
             force_model_redownload: false,
-            model_loading_timeout_secs: 300,
-            log_capacity: 50,
+            model_loading_timeout_secs: default_model_loading_timeout_secs(),
+            log_capacity: default_log_capacity(),
             rate_limits: RateLimitConfig::default(),
         }
     }
@@ -273,7 +273,7 @@ fn default_burst() -> u32 {
 }
 
 // ---------------------------------------------------------------------------
-// Game Speed — SpeedConfig is defined in parish-types::time
+// Game Speed — SpeedConfig is defined in parish-types
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -311,13 +311,13 @@ pub struct EncounterConfig {
 impl Default for EncounterConfig {
     fn default() -> Self {
         Self {
-            dawn: 0.25,
-            morning: 0.25,
-            midday: 0.20,
-            afternoon: 0.20,
-            dusk: 0.15,
-            night: 0.10,
-            midnight: 0.05,
+            dawn: default_encounter_dawn(),
+            morning: default_encounter_morning(),
+            midday: default_encounter_midday(),
+            afternoon: default_encounter_afternoon(),
+            dusk: default_encounter_dusk(),
+            night: default_encounter_night(),
+            midnight: default_encounter_midnight(),
         }
     }
 }
@@ -393,16 +393,16 @@ pub struct NpcConfig {
 impl Default for NpcConfig {
     fn default() -> Self {
         Self {
-            memory_capacity: 20,
-            separator_holdback: 24,
-            memory_context_count: 5,
-            memory_truncation_dialogue: 250,
-            memory_truncation_event_log: 150,
-            event_summary_truncation: 100,
-            event_summary_debug_truncation: 50,
+            memory_capacity: default_memory_capacity(),
+            separator_holdback: default_separator_holdback(),
+            memory_context_count: default_memory_context_count(),
+            memory_truncation_dialogue: default_memory_truncation_dialogue(),
+            memory_truncation_event_log: default_memory_truncation_event_log(),
+            event_summary_truncation: default_event_summary_truncation(),
+            event_summary_debug_truncation: default_event_summary_debug_truncation(),
             cognitive_tiers: CognitiveTierConfig::default(),
             relationship_labels: RelationshipLabelConfig::default(),
-            reaction_context_count: 5,
+            reaction_context_count: default_reaction_context_count(),
             reactions: ReactionConfig::default(),
             two_pass_dialogue: false,
         }
@@ -464,13 +464,13 @@ pub struct CognitiveTierConfig {
 impl Default for CognitiveTierConfig {
     fn default() -> Self {
         Self {
-            tier1_max_distance: 0,
-            tier2_max_distance: 2,
-            tier3_max_distance: 5,
-            tier2_tick_interval_minutes: 5,
-            tier3_tick_interval_hours: 24,
-            tier3_batch_size: 10,
-            tier4_tick_interval_days: 90,
+            tier1_max_distance: default_tier1_max_distance(),
+            tier2_max_distance: default_tier2_max_distance(),
+            tier3_max_distance: default_tier3_max_distance(),
+            tier2_tick_interval_minutes: default_tier2_tick_interval_minutes(),
+            tier3_tick_interval_hours: default_tier3_tick_interval_hours(),
+            tier3_batch_size: default_tier3_batch_size(),
+            tier4_tick_interval_days: default_tier4_tick_interval_days(),
         }
     }
 }
@@ -520,11 +520,11 @@ pub struct RelationshipLabelConfig {
 impl Default for RelationshipLabelConfig {
     fn default() -> Self {
         Self {
-            very_close: 0.7,
-            friendly: 0.3,
-            acquainted: 0.0,
-            cool: -0.3,
-            strained: -0.7,
+            very_close: default_very_close(),
+            friendly: default_friendly(),
+            acquainted: default_acquainted(),
+            cool: default_cool(),
+            strained: default_strained(),
         }
     }
 }
@@ -581,14 +581,14 @@ pub struct ReactionConfig {
 impl Default for ReactionConfig {
     fn default() -> Self {
         Self {
-            base_chance: 0.55,
-            workplace_bonus: 0.35,
-            indoor_bonus: 0.10,
-            empathy_bonus: 0.05,
-            negative_mood_penalty: 0.20,
-            night_penalty: 0.15,
-            llm_timeout_secs: 5,
-            max_reactions: 2,
+            base_chance: default_reaction_base_chance(),
+            workplace_bonus: default_reaction_workplace_bonus(),
+            indoor_bonus: default_reaction_indoor_bonus(),
+            empathy_bonus: default_reaction_empathy_bonus(),
+            negative_mood_penalty: default_reaction_negative_mood_penalty(),
+            night_penalty: default_reaction_night_penalty(),
+            llm_timeout_secs: default_reaction_llm_timeout_secs(),
+            max_reactions: default_reaction_max_reactions(),
         }
     }
 }
@@ -636,8 +636,8 @@ pub struct PaletteConfig {
 impl Default for PaletteConfig {
     fn default() -> Self {
         Self {
-            min_fg_bg_contrast: 80.0,
-            min_muted_bg_contrast: 45.0,
+            min_fg_bg_contrast: default_min_fg_bg_contrast(),
+            min_muted_bg_contrast: default_min_muted_bg_contrast(),
         }
     }
 }
@@ -666,7 +666,7 @@ pub struct WorldConfig {
 impl Default for WorldConfig {
     fn default() -> Self {
         Self {
-            fuzzy_threshold: 0.82,
+            fuzzy_threshold: default_fuzzy_threshold(),
         }
     }
 }
@@ -692,7 +692,7 @@ pub struct PersistenceConfig {
 impl Default for PersistenceConfig {
     fn default() -> Self {
         Self {
-            journal_compaction_threshold: 1000,
+            journal_compaction_threshold: default_journal_compaction_threshold(),
         }
     }
 }
@@ -1197,5 +1197,117 @@ attribution = "custom attribution"
 
         assert!(cfg.force_model_redownload);
         assert_eq!(cfg.model_download_timeout_secs, 3600);
+    }
+
+    #[test]
+    fn test_session_config_deserialize_from_toml() {
+        let toml_str = r#"
+idle_banter_after_secs = 60
+auto_pause_after_secs = 600
+max_concurrent_sessions = 10
+"#;
+        let cfg: SessionConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.idle_banter_after_secs, 60);
+        assert_eq!(cfg.auto_pause_after_secs, 600);
+        assert_eq!(cfg.max_concurrent_sessions, 10);
+    }
+
+    #[test]
+    fn test_session_config_deserialize_partial() {
+        let toml_str = "idle_banter_after_secs = 60";
+        let cfg: SessionConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.idle_banter_after_secs, 60);
+        assert_eq!(cfg.auto_pause_after_secs, 300);
+        assert_eq!(cfg.max_concurrent_sessions, 50);
+    }
+
+    #[test]
+    fn test_cognitive_tier_config_deserialize_from_toml() {
+        let toml_str = r#"
+tier1_max_distance = 1
+tier2_max_distance = 3
+tier3_max_distance = 10
+tier2_tick_interval_minutes = 10
+tier3_tick_interval_hours = 12
+tier3_batch_size = 20
+tier4_tick_interval_days = 30
+"#;
+        let cfg: CognitiveTierConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.tier1_max_distance, 1);
+        assert_eq!(cfg.tier2_max_distance, 3);
+        assert_eq!(cfg.tier3_max_distance, 10);
+        assert_eq!(cfg.tier2_tick_interval_minutes, 10);
+        assert_eq!(cfg.tier3_tick_interval_hours, 12);
+        assert_eq!(cfg.tier3_batch_size, 20);
+        assert_eq!(cfg.tier4_tick_interval_days, 30);
+    }
+
+    #[test]
+    fn test_cognitive_tier_config_deserialize_partial() {
+        let toml_str = "tier1_max_distance = 1";
+        let cfg: CognitiveTierConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.tier1_max_distance, 1);
+        assert_eq!(cfg.tier2_max_distance, 2);
+    }
+
+    #[test]
+    fn test_relationship_label_config_deserialize_from_toml() {
+        let toml_str = r#"
+very_close = 0.8
+friendly = 0.4
+acquainted = 0.1
+cool = -0.2
+strained = -0.6
+"#;
+        let cfg: RelationshipLabelConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.very_close - 0.8).abs() < f64::EPSILON);
+        assert!((cfg.friendly - 0.4).abs() < f64::EPSILON);
+        assert!((cfg.acquainted - 0.1).abs() < f64::EPSILON);
+        assert!((cfg.cool - (-0.2)).abs() < f64::EPSILON);
+        assert!((cfg.strained - (-0.6)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_reaction_config_deserialize_from_toml() {
+        let toml_str = r#"
+base_chance = 0.8
+workplace_bonus = 0.2
+indoor_bonus = 0.05
+empathy_bonus = 0.1
+negative_mood_penalty = 0.1
+night_penalty = 0.05
+llm_timeout_secs = 10
+max_reactions = 5
+"#;
+        let cfg: ReactionConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.base_chance - 0.8).abs() < f64::EPSILON);
+        assert!((cfg.workplace_bonus - 0.2).abs() < f64::EPSILON);
+        assert!((cfg.indoor_bonus - 0.05).abs() < f64::EPSILON);
+        assert!((cfg.empathy_bonus - 0.1).abs() < f64::EPSILON);
+        assert!((cfg.negative_mood_penalty - 0.10).abs() < f64::EPSILON);
+        assert!((cfg.night_penalty - 0.05).abs() < f64::EPSILON);
+        assert_eq!(cfg.llm_timeout_secs, 10);
+        assert_eq!(cfg.max_reactions, 5);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_load_engine_config_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let parish_toml = dir.path().join("parish.toml");
+        std::fs::write(
+            &parish_toml,
+            r#"
+[engine.map]
+default_tile_source = "osm"
+"#,
+        )
+        .unwrap();
+        let orig = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        let cfg = load_engine_config(None);
+        assert_eq!(cfg.map.default_tile_source, "osm");
+        assert_eq!(cfg.map.tile_sources.len(), 2);
+        std::env::set_current_dir(orig).unwrap();
     }
 }

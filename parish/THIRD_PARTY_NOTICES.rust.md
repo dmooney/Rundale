@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 510 crates
+- [MIT License](#MIT) — 511 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [Apache License 2.0](#Apache-2.0) — 16 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 7 crates
@@ -5462,6 +5462,35 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [lru 0.16.4](https://github.com/jeromefroe/lru-rs.git)
+
+```
+MIT License
+
+Copyright (c) 2016 Jerome Froelich
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+
+**Used by:**
+
 - [field-offset 0.3.6](https://github.com/Diggsey/rust-field-offset)
 
 ```
@@ -6717,7 +6746,6 @@ DEALINGS IN THE SOFTWARE.
 - [fastrand 2.4.1](https://github.com/smol-rs/fastrand)
 - [group 0.13.0](https://github.com/zkcrypto/group)
 - [itoa 1.0.18](https://github.com/dtolnay/itoa)
-- [libyml 0.0.5](https://github.com/sebastienrousseau/libyml)
 - [num_enum 0.7.6](https://github.com/illicitonion/num_enum)
 - [num_enum_derive 0.7.6](https://github.com/illicitonion/num_enum)
 - [once_cell 1.21.4](https://github.com/matklad/once_cell)
@@ -6740,7 +6768,7 @@ DEALINGS IN THE SOFTWARE.
 - [serde_json 1.0.149](https://github.com/serde-rs/json)
 - [serde_path_to_error 0.1.20](https://github.com/dtolnay/path-to-error)
 - [serde_repr 0.1.20](https://github.com/dtolnay/serde-repr)
-- [serde_yml 0.0.12](https://github.com/sebastienrousseau/serde_yml)
+- [serde_yaml 0.9.34+deprecated](https://github.com/dtolnay/serde-yaml)
 - [servo_arc 0.4.3](https://github.com/servo/stylo)
 - [syn 1.0.109](https://github.com/dtolnay/syn)
 - [syn 2.0.117](https://github.com/dtolnay/syn)
@@ -6752,6 +6780,7 @@ DEALINGS IN THE SOFTWARE.
 - [thiserror 2.0.18](https://github.com/dtolnay/thiserror)
 - [typeid 1.0.3](https://github.com/dtolnay/typeid)
 - [unicode-ident 1.0.24](https://github.com/dtolnay/unicode-ident)
+- [unsafe-libyaml 0.2.11](https://github.com/dtolnay/unsafe-libyaml)
 - [utf-8 0.7.6](https://github.com/SimonSapin/rust-utf8)
 - [wasi 0.11.1+wasi-snapshot-preview1](https://github.com/bytecodealliance/wasi)
 - [wasip2 1.0.3+wasi-0.2.9](https://github.com/bytecodealliance/wasi-rs)
