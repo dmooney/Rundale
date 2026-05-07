@@ -57,7 +57,15 @@ testing/evals/
 
 ### Rubric judge
 
-Use a frontier model (e.g. Claude Sonnet 4.6) as the judge by default. Rubrics live in YAML next to the prompts; each rubric is a single-line judge prompt plus a numeric threshold. Failures emit a one-line summary plus the offending sample in the run artifact.
+Default to the four-judge harness defined in the [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md#evaluation): deterministic anachronism wordlist (`judge_anachronism`) + Talkie-1930-13B-IT loglik (`judge_talkie`) + tiny ~250M Rundale dialect oracle loglik (`judge_dialect_oracle`) + DeepSeek V4-pro 1–10 coherence/mood/in-character rubric (`judge_deepseek`), aggregated by Borda rank. Rubrics live in YAML next to the prompts; each rubric is a single-line judge prompt plus a numeric threshold. Failures emit a one-line summary plus the offending sample in the run artifact.
+
+The same four-judge harness triple-purposes as (a) DPO training signal during fine-tuning, (b) regression sensor for `/prove` and this plan, (c) inference-time best-of-K selector behind the `inference-rejection-sampler` flag — so a quality drop here is the *same number* used to gate a model swap or a serving change.
+
+A frontier API model (Claude Sonnet 4.6 batch + cache; previously the default) is now the **optional fallback** for the coherence axis when DeepSeek V4-pro fails calibration or post-2026-05-31 pricing makes it unattractive. Cost note: the same workload at ~95 % of the quality runs ~$12 on DeepSeek (current discount) vs ~$38 on Sonnet 4.6.
+
+### Calibration
+
+Per-axis judge calibration uses **synthetically generated pairs** — not hand-authored. The training plan's `generate_synthetic_calibration.py` is the canonical implementation: 200 spans/axis, period axis = `(original, modernized-by-Sonnet-4.6)`, coherence axis = `(original-from-fixtures, corrupted-by-Sonnet-4.6)`. **Distractor and judge models must come from different providers** to avoid same-model self-fulfilling calibration — Sonnet generates distractors; DeepSeek V4-pro and the local period-axis judges (anachronism wordlist + Talkie + dialect-oracle) score them. Pass criterion: ≥80 % direction-correct on each axis. Calibration runs **per pipeline invocation** (not pre-cached) so it always reflects the current judge state. Halt + page on failure; coherence-axis fallback re-pairs DeepSeek→Sonnet (judge) with Sonnet→Gemini 2.5 Flash (distractor) so the distinct-provider invariant holds.
 
 ### Determinism + reproducibility
 
