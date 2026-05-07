@@ -1,4 +1,4 @@
-//! HTTP client for the Ollama REST API at localhost:11434.
+//! HTTP client for the Ollama REST API and OllamaProcess server lifecycle.
 
 use crate::TOKEN_CHANNEL_CAPACITY;
 use parish_config::InferenceConfig;

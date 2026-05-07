@@ -4,8 +4,10 @@
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
 
+use crate::SseResult;
 use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::rate_limit::InferenceRateLimiter;
+use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
@@ -253,8 +255,9 @@ impl OpenAiClient {
     /// Posts to `/v1/chat/completions` with `stream: true`. Parses SSE
     /// (Server-Sent Events) data lines, extracts delta content, and sends
     /// each token through `token_tx`. Returns the full accumulated text
-    /// after the stream completes. Uses a 5-minute timeout. An optional
-    /// `max_tokens` cap prevents excessively long responses.
+    /// after the stream completes. Uses `InferenceConfig::streaming_timeout_secs`
+    /// as the timeout. An optional `max_tokens` cap prevents excessively long
+    /// responses.
     pub async fn generate_stream(
         &self,
         model: &str,
@@ -297,6 +300,7 @@ impl OpenAiClient {
                 match process_sse_line(&line, &token_tx, &mut accumulated) {
                     SseResult::Continue => {}
                     SseResult::Done => return Ok(accumulated),
+                    SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
                 }
             }
         }
@@ -356,6 +360,7 @@ impl OpenAiClient {
                 match process_sse_line(&line, &token_tx, &mut accumulated) {
                     SseResult::Continue => {}
                     SseResult::Done => return Ok(accumulated),
+                    SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
                 }
             }
         }
@@ -390,8 +395,9 @@ impl OpenAiClient {
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
-        let content = extract_content(&completion);
-        let parsed: T = serde_json::from_str(&content)?;
+        let trimmed = extract_content(&completion);
+        let content = strip_json_fence(&trimmed);
+        let parsed: T = serde_json::from_str(content)?;
         Ok(parsed)
     }
 
@@ -470,14 +476,6 @@ impl OpenAiClient {
             req
         }
     }
-}
-
-/// Result of processing a single SSE line.
-enum SseResult {
-    /// Continue reading more lines.
-    Continue,
-    /// Stream is complete.
-    Done,
 }
 
 /// Processes a single SSE line: extracts content, sends tokens, detects completion.

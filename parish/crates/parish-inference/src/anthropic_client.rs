@@ -15,9 +15,11 @@
 //! mirrors [`crate::openai_client::OpenAiClient`] so callers can dispatch
 //! through [`crate::AnyClient`] without branching.
 
+use crate::SseResult;
 use crate::TOKEN_CHANNEL_CAPACITY;
 use crate::openai_client::build_client_or_fallback;
 use crate::rate_limit::InferenceRateLimiter;
+use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
@@ -404,27 +406,6 @@ fn skip_ascii_ws(bytes: &[u8], mut i: usize) -> usize {
     i
 }
 
-/// Strips Markdown code-fence wrappers that some models emit around JSON.
-///
-/// Anthropic's JSON-only instruction is usually respected, but handling
-/// the common ` ```json\n…\n``` ` escape hatch keeps the parse robust.
-fn strip_json_fence(raw: &str) -> &str {
-    let t = raw.trim();
-    if let Some(inner) = t.strip_prefix("```json") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    if let Some(inner) = t.strip_prefix("```") {
-        return inner
-            .trim_start_matches('\n')
-            .trim_end_matches("```")
-            .trim();
-    }
-    t
-}
-
 // --- Streaming ----------------------------------------------------------
 
 impl AnthropicClient {
@@ -532,16 +513,6 @@ impl AnthropicClient {
     }
 }
 
-/// Result of processing a single SSE line.
-enum SseResult {
-    /// Continue reading more lines.
-    Continue,
-    /// Stream is complete (saw `message_stop`).
-    Done,
-    /// An error event was received mid-stream.
-    Error(String),
-}
-
 /// Processes a single SSE line: dispatches by event `type` field.
 ///
 /// Anthropic SSE streams interleave `event: <name>` lines with
@@ -638,6 +609,7 @@ enum StreamDelta {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::strip_json_fence;
 
     #[test]
     fn test_client_construction_does_not_panic() {

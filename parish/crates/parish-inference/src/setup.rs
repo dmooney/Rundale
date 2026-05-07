@@ -6,7 +6,7 @@
 
 use crate::AnyClient;
 use crate::client::OllamaProcess;
-use crate::openai_client::OpenAiClient;
+use crate::openai_client::{OpenAiClient, build_client_or_fallback};
 use parish_config::{InferenceConfig, Provider, ProviderConfig};
 use parish_types::ParishError;
 use reqwest::StatusCode;
@@ -570,36 +570,58 @@ pub fn select_model(gpu_info: &GpuInfo) -> ModelConfig {
     select_model_for_vram(effective_vram)
 }
 
-/// Selects a gemma4 model given a specific VRAM budget in MB.
+/// A model tier with its VRAM threshold (minimum MB) and config.
+struct ModelTier {
+    threshold_mb: u64,
+    model_name: &'static str,
+    tier_label: &'static str,
+    vram_required_mb: u64,
+}
+
+/// Model tiers ordered highest-threshold first.
 ///
 /// Ollama disk sizes (which closely track runtime memory for gemma4 quants):
 ///   e2b=7.2GB, e4b=9.6GB, 26b=18GB (MoE, 4B active), 31b=20GB (dense).
 /// Thresholds sit a few GB above each model's size to leave context headroom.
+static MODEL_TIERS: &[ModelTier] = &[
+    ModelTier {
+        threshold_mb: 25_000,
+        model_name: "gemma4:31b",
+        tier_label: "Tier 1 — Full quality (dense 31B)",
+        vram_required_mb: 22_000,
+    },
+    ModelTier {
+        threshold_mb: 17_000,
+        model_name: "gemma4:26b",
+        tier_label: "Tier 2 — MoE (26B / 4B active)",
+        vram_required_mb: 19_000,
+    },
+    ModelTier {
+        threshold_mb: 11_000,
+        model_name: "gemma4:e4b",
+        tier_label: "Tier 3 — Edge (4.5B effective)",
+        vram_required_mb: 10_500,
+    },
+];
+
+/// Fallback tier when VRAM is below all thresholds.
+static MODEL_TIER_FALLBACK: ModelTier = ModelTier {
+    threshold_mb: 0,
+    model_name: "gemma4:e2b",
+    tier_label: "Tier 4 — Edge minimal (2.3B effective)",
+    vram_required_mb: 8_000,
+};
+
+/// Selects a gemma4 model given a specific VRAM budget in MB using a table-driven lookup.
 fn select_model_for_vram(vram_mb: u64) -> ModelConfig {
-    if vram_mb >= 25_000 {
-        ModelConfig {
-            model_name: "gemma4:31b".to_string(),
-            tier_label: "Tier 1 — Full quality (dense 31B)".to_string(),
-            vram_required_mb: 22_000,
-        }
-    } else if vram_mb >= 17_000 {
-        ModelConfig {
-            model_name: "gemma4:26b".to_string(),
-            tier_label: "Tier 2 — MoE (26B / 4B active)".to_string(),
-            vram_required_mb: 19_000,
-        }
-    } else if vram_mb >= 11_000 {
-        ModelConfig {
-            model_name: "gemma4:e4b".to_string(),
-            tier_label: "Tier 3 — Edge (4.5B effective)".to_string(),
-            vram_required_mb: 10_500,
-        }
-    } else {
-        ModelConfig {
-            model_name: "gemma4:e2b".to_string(),
-            tier_label: "Tier 4 — Edge minimal (2.3B effective)".to_string(),
-            vram_required_mb: 8_000,
-        }
+    let tier = MODEL_TIERS
+        .iter()
+        .find(|t| vram_mb >= t.threshold_mb)
+        .unwrap_or(&MODEL_TIER_FALLBACK);
+    ModelConfig {
+        model_name: tier.model_name.to_string(),
+        tier_label: tier.tier_label.to_string(),
+        vram_required_mb: tier.vram_required_mb,
     }
 }
 
@@ -1122,11 +1144,11 @@ async fn warmup_model_with_config(
 ) -> Result<(), ParishError> {
     progress.on_status("The storyteller is gathering their thoughts...");
 
-    // Build a one-off client with a generous timeout for model loading
-    let warmup_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(config.model_loading_timeout_secs))
-        .build()
-        .map_err(|e| ParishError::Setup(format!("failed to build warmup client: {}", e)))?;
+    // Build a client with a generous timeout for model loading
+    let warmup_client = build_client_or_fallback(
+        Duration::from_secs(config.model_loading_timeout_secs),
+        "warmup",
+    );
 
     let url = format!("{}/api/generate", base_url);
     let body = serde_json::json!({
