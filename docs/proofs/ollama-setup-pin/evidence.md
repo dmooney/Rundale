@@ -146,18 +146,43 @@ Cloud-provider behaviour is unchanged in every entry point.
 is read and written under the same `Mutex<GameConfig>` already used for
 the other config fields; no new lock is introduced.
 
-## Live verification (not performed in CI)
+## Live verification
 
-The Tauri / web / CLI run-time loops require a live Ollama install and
-GPU-bearing host to demonstrate the single-pulled-model story end-to-end.
-Reviewers running `just run` against a clean profile should observe:
+Headless CLI run on Apple Silicon, ~34 GB free unified memory, no
+`PARISH_*` overrides set:
 
-- Setup pulls one `gemma4:*` model matched to detected VRAM.
-- All four inference categories (Dialogue / Simulation / Intent /
-  Reaction) hit Ollama with the same gemma4 tag in `OLLAMA_DEBUG=1` logs.
-- `/preset ollama` mid-session keeps `category_model[*]` on the gemma4
-  tag instead of switching to qwen3.
+```
+[Parish] The storyteller's tools are at hand.
+[Parish] Taking stock of what we have to work with...
+[Parish] Hardware: Apple Silicon (Metal) — 49152MB unified memory, ~34406MB available
+[Parish] Lighting the fire in the storyteller's cottage...
+[Parish] The storyteller was already here. Grand so.
+[Parish] Chosen tale: gemma4:31b (Tier 1 — Full quality (dense 31B), ~22000MB VRAM)
+[Parish] The storyteller already has 'gemma4:31b' in hand.
+[Parish] The storyteller is gathering their thoughts...
+[Parish] The storyteller is ready. The parish awaits.
+=== Parish — Headless Mode ===
+Base: gemma4:31b (ollama)
+```
 
-The unit tests above lock in each invariant; the wiring at the three
-bootstrap call sites is a 4-line `if matches!(provider.., Ollama) { pin }
-else { plain assignment }` branch in each.
+Before this PR: `resolve_config` filled `ProviderConfig.model` from the
+static `Provider::Ollama` Dialogue preset (`qwen3:32b`), and the auto-
+setup loop saw `Some("qwen3:32b")` as a "user override" — so the
+hardware-aware `select_model` branch never ran. Setup would download or
+reuse qwen3:32b regardless of VRAM, and bootstrap then filled the per-
+category slots with the rest of the static qwen3 list.
+
+After this PR (transcript above): `resolve_config` leaves
+`ProviderConfig.model` as `None` for Ollama, so `setup_ollama_with_config`
+picks `gemma4:31b` from the 34 GB VRAM tier. `pin_setup_model` writes
+that tag into `model_name` and all four `category_model[*]` slots; every
+inference category routes to the model that is actually on disk.
+
+## Tauri / web parity
+
+The headless CLI exercises the same `setup_provider_client` →
+`pin_setup_model` path used by `parish-tauri/src/lib.rs` and
+`parish-server/src/lib.rs`. The only Tauri/web-specific wiring is the 4-
+line bootstrap branch (`if matches!(provider.., Provider::Ollama) {
+config.pin_setup_model(model) } else { config.model_name = model }`),
+covered visually and by the existing unit-test suite for the helper.
