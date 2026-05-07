@@ -17,7 +17,7 @@ This plan QLoRA-fine-tunes `google/gemma-4-9b-it` on Joyce, Griffin, Carleton, C
 | Training host | RunPod A100-80GB primary; local ROCm RX 9070 demoted to "alternative for AMD-equipped contributors"; no MLX/Apple-Silicon retarget | Cloud + axolotl already supported; user chose RunPod over local M5 |
 | Base model | `google/gemma-4-9b-it` (unchanged) | Best general instruction-following; period prior added via SFT/DPO |
 | Hand-written anchor | **Removed** | Author cannot author authentic 1820s Hiberno-English |
-| Data mix | **48 % literary core (13 authors) / 16 % trial/commission testimony / 12 % Joyce dialect↔standard pairs (extended with formal-contrast set) / 6 % first-person Irish memoir / 5 % travel-observer reported / 4 % folklore-oral / 3 % religious/clerical / 4 % reference-work pairs / 2 % periodicals** | Literary core dominance reduced to 48 % to make room for the highest-authenticity slice (testimony 16 %); first-person Irish, religious/clerical, periodicals add register breadth; sums to 100 %. Stage-Irish caricature is **0 %** of training mix — it's a DPO `rejected` class (see "Stage Irish" row) |
+| Data mix | **44 % literary core (13 authors) / 16 % trial/commission testimony / 10 % Joyce dialect↔standard pairs (extended with formal-contrast set) / 6 % folklore + ballad/song / 5 % first-person Irish memoir / 4 % travel-observer reported / 4 % reference-work pairs / 3 % statistical/topographical surveys / 3 % Irish→English translation / 3 % religious/clerical / 2 % periodicals** | 11-slice mix; literary core demoted to 44 % to absorb three new slices (statistical surveys, translation, ballad expansion of folklore). Sums to 100 %. Stage-Irish caricature stays **0 %** of training (DPO `rejected` only). dúchas.ie excluded — see "Excluded sources" row |
 | Reference-work mining | **Added**: period etiquette manuals, letter-writing manuals, almanacs, period dictionaries (all Internet Archive). Concrete extraction recipe in §Data curation | Talkie-pattern programmatic supervision; primarily gentry/middling-farmer register |
 | Literary corpus expansion | **13-author core** = original 5 (Joyce 1910, Griffin, Carleton, Croker, Kickham) + Lover, Maxwell, Lever + Maria Edgeworth (*Castle Rackrent* 1800), John & Michael Banim (*Tales by the O'Hara Family* 1st series 1825 + 2nd 1826), Anna Maria Hall (*Sketches of Irish Character* 1829, *Lights and Shadows of Irish Life* 1838) | 8-author corpus too narrow; 13 authors all rated HIGH cottier-dialogue density supports a 6/6 fully disjoint dialect-oracle / SFT split with 1 author reserved eval-only |
 | Travel-observer subcorpus (NEW slice) | Arthur Young (1780), John Carr (1806), Henry David Inglis (1834), Johann Georg Kohl (1843), Asenath Nicholson (1847), Mr & Mrs S.C. Hall (1841–43) — gentry-narrator-mediated peasant speech | Provides code-switching examples (gentry observer + reported peasant dialogue) and contrast register; tagged `register: observer-reported` so it doesn't pollute the cottier mix |
@@ -27,7 +27,12 @@ This plan QLoRA-fine-tunes `google/gemma-4-9b-it` on Joyce, Griffin, Carleton, C
 | **Religious / clerical / temperance subcorpus** | Bishop Doyle (J.K.L.) *Life & Correspondence* (1829–34 era, MacDonagh 1905 biography is the public-domain compilation), Cobbett *History of the Protestant Reformation* 1824–27 (peasants' polemical reading), 1859 Ulster Revival eyewitness accounts (Weir, witness correspondence — high direct-testimony density, Presbyterian/Ulster), Butler's Catechism (1775+, Irish editions), *Garden of the Soul* (1740 original, Dublin 1872 reprint) | Clerical pastoral register + revival witness testimony. Tagged `register: clerical` |
 | **Stage Irish — REJECTED CLASS for DPO** (NOT training data) | Boucicault (*Colleen Bawn* 1860, *Arrah-na-Pogue* 1864, *Shaughraun* 1874), O'Keeffe (*The Poor Soldier* 1783, *The Wicklow Mountains* 1796), Sheridan (*St Patrick's Day* 1775, *The Rivals* — Sir Lucius O'Trigger 1775), Macklin (*The True-Born Irishman* 1762, *Love à la Mode* 1759), Tyrone Power (*Born to Good Luck* 1832), Bernard (*His Last Legs* 1839, *The Irish Attorney* 1839), Colman (*John Bull* 1803), Farquhar (*The Recruiting Officer* 1706, *Love and a Bottle* 1698) | Stage-Irish caricature ("begorrah"-flavored) is what we want the model to **avoid**. Tagged `class: stage_irish_caricature`, **excluded from SFT**. Synthesised stage-Irish responses are inserted as `rejected` examples in the DPO pair pool; the policy learns to push *away* from caricature and toward authentic substrate |
 | **Formal-register contrast set** (paired contrast, not standalone training) | Lindley Murray *English Grammar* 1795 (ubiquitous prescriptive), Cobbett *Grammar of the English Language* 1818 (working-class targeted), Walker *Critical Pronouncing Dictionary* 1791 (explicit "avoid Irish peculiarities" rules), Neilson *Introduction to the Irish Language* 1808 (English↔Irish bilingual primer), Dilworth *Spelling-Book*, NE Commissioners *Books of Lessons* 1831+ | Formal English peasants were *taught-against*. Used by `build/joyce_pairs.py` to **extend** Joyce's dialect↔standard paraphrase set with prescriptive-grammar paired examples — provides a bidirectional code-switching anchor without pulling cottier output toward Standard English |
-| **Periodicals (single-volume sample)** | *The Irish Penny Journal* Vol 1 (Gutenberg #55518, 1840–41) | Mixed-register weekly; period idiom; bulk-extractable in a single Gutenberg file (sidesteps the multi-issue OCR cost that deferred the *Dublin Penny Journal* / *Dublin University Magazine* / *Nation* expansion) |
+| **Periodicals (single-volume sample)** | *The Irish Penny Journal* Vol 1 (Gutenberg #55518, 1840–41); *Dublin Penny Journal* full run 1832–36 (IA `dublinpennyjourn1190unse`); selected *Dublin University Magazine* volumes (IA, where Lever and Carleton ran serials) | Mixed-register weekly; period idiom |
+| **Statistical / topographical / parochial-survey subcorpus (NEW slice)** | Samuel Lewis *Topographical Dictionary of Ireland* 1837 (every Roscommon townland documented), **Isaac Weld *Statistical Survey of the County of Roscommon* 1832** (county-specific!), Edward Wakefield *Account of Ireland* 1812 (2 vols), Coote RDS surveys (Cavan 1802, Armagh 1802–03, Monaghan 1801, others), Dutton Galway 1824 + Clare 1808, McEvoy Tyrone 1801–02, **William Shaw Mason *Parochial Survey of Ireland* 1814–19 (3 vols)** — clergy-written, HIGH peasant-voice density, Frazer *Hand-book for Travellers in Ireland* 1844, McCulloch *Statistical Account of the British Empire* 1837 (Ireland sections), **Gustave de Beaumont *Ireland: Social, Political and Religious* 1839** (French observer, peer of Tocqueville), Tocqueville *Journeys to England and Ireland* 1835, **Ordnance Survey Memoirs of Ireland 1830s** (Royal Irish Academy free PDFs) | Pre-Famine economic, demographic, parochial-level texture in actual 1820s educated-Irish prose. Weld is the single most Roscommon-specific source in the entire corpus. Mason's clergy-written Parochial Survey + Beaumont's pre-Famine ethnography rank highest for peasant testimony. Tagged `register: survey` |
+| **Irish→English translation subcorpus (NEW slice)** | **Charlotte Brooke *Reliques of Irish Poetry* 1789** (foundational), Edward Walsh *Reliques of Irish Jacobite Poetry* 1844, Mangan *Poets and Poetry of Munster* 1849, Samuel Ferguson *Lays of the Western Gael* 1865, Standish Hayes O'Grady *Silva Gadelica* 1892 (2 vols, parallel Irish-English), George Sigerson *Bards of the Gael and Gall* 1897/1907, **Douglas Hyde *Love Songs of Connacht* 1893** (Connacht-specific!) + *Religious Songs of Connacht* 1906, Patrick Kennedy *Legendary Fictions of the Irish Celts* 1866 | Translations of Irish-language poetry, prayers, and tales into period English — **directly documents the Gaelic→English substrate transfer** that defines Rundale's cottier register. Hyde's *Love Songs of Connacht* is the closest single English-rendered Connacht-Irish corpus available. Tagged `register: translation` |
+| **Ballad / broadside / chapbook expansion (folded into folklore slice)** | Edward Bunting *Ancient Music of Ireland* 1840 ed., George Petrie *Ancient Music of Ireland* 1855, P.W. Joyce *Ancient Irish Music* 1873 + ***Old Irish Folk Music and Songs* 1909 (842 airs)**, Thomas Moore *Irish Melodies* 1808–34, Crofton Croker *Popular Songs of Ireland* 1837 (distinct from his *Fairy Legends* already in plan), Charles Gavan Duffy *Ballad Poetry of Ireland* 1845, Sam Henry *Songs of the People* (collected 1923–39 from Ulster, songs back to 1800s), John Ashton *Chap-books of the Eighteenth Century* 1882 + *Modern Street Ballads* 1888, P.W. Joyce *Origin and History of Irish Names of Places* 1869–1913 | Songs + broadsides + chapbooks were peasant-circulated in their own register; Joyce 1909 alone is 842 airs with lyric content. Folklore slice 4 % → 6 % to accommodate |
+| **Roscommon-specific tenant-voice (small but unique)** | **Strokestown Park / Great Famine Voices** — Pakenham Mahon estate tenant petitions + emigrant correspondence (`greatfaminevoices.ie`); confirm bulk-text licence/availability per source before training. Encumbered Estates Court Rentals 1849–1877 (paywalled until 2026, **now becoming free** — verify per-volume status) | Game is set in 1820s Roscommon; Strokestown is the same county. Tenant petition language is unmediated peasant voice. Quantity is small but quality exceptional. Folded into the **trial/commission/testimony** slice, not its own |
+| **Excluded sources** (license / scope blockers) | *dúchas.ie Schools' Folklore Collection* (~250–400M tokens potential): CC BY-NC license **prohibits commercial use** + `robots.txt` explicitly blocks AI training bots (ClaudeBot, GPTBot, etc.). **Excluded from default corpus.** Opt-in requires explicit written permission from UCD's National Folklore Collection custodians (eolas@duchas.ie / bealoideas@ucd.ie). Connacht provincial newspapers (*Connaught Telegraph*, *Roscommon Messenger*, *Galway Vindicator*, etc.) — Irish Newspaper Archive paywall (€169/yr); no free bulk access. Most Irish estate-papers archives — on-site at NLI / NAI / Trinity / UCD; not bulk-downloadable. | License compliance is non-negotiable. Even where corpus value is high (dúchas.ie), inclusion blocks commercial Rundale distribution. Documented here so future contributors don't accidentally re-introduce them |
 | Anachronism wordlist source | **Three-source union** as the positive-attestation list — every token must appear in (a) Webster 1828, (b) Joyce 1910's vocabulary, OR (c) **Wright's English Dialect Dictionary 1898–1905** (public domain, comprehensive on regional/Hiberno-English usage); failures hit the wordlist. Plus a hand-curated blocklist for 20th–21st-century anachronisms (telephone, computer, okay, awesome, …) | Webster 1828 alone false-anachronisms British/Irish vocabulary; Joyce + Wright together patch the American-English gap; OED is paywalled and ruled out |
 | `feature_tagger.py` role | Promoted from labeller to **mandatory floor gate** for cottier class (≥N substrate features per 100 tokens, drop on miss) | Transparent, fast, ungameable by general period prose |
 | `class_assigner.py` role | **Evidence-based**: verb-of-saying speaker → known-class lookup OR substrate-density threshold | Curation pipeline now load-bearing without hand anchor |
@@ -122,6 +127,49 @@ training/
       ia_garden_of_soul.py          #   Garden of the Soul (Challoner 1740, Dublin reprint 1872)
       # --- Periodicals (sample) ---
       gutenberg_irish_penny_journal.py  # Irish Penny Journal Vol 1 (Gutenberg #55518, 1840–41)
+      ia_dublin_penny_journal.py        # Dublin Penny Journal full run 1832–36 (IA dublinpennyjourn1190unse)
+      ia_dublin_university_magazine.py  # DUM volumes 1833+ (IA; Lever/Carleton serials)
+      # --- Statistical / topographical / parochial-survey subcorpus ---
+      ia_lewis_topographical.py     #   Samuel Lewis, Topographical Dictionary of Ireland 1837
+      ia_weld_roscommon.py          #   Isaac Weld, Statistical Survey of the County of Roscommon 1832 (county-specific)
+      ia_wakefield.py               #   Edward Wakefield, Account of Ireland 1812 (2 vols)
+      ia_coote_cavan.py             #   Coote, Statistical Survey of Cavan 1802
+      ia_coote_armagh.py            #   Coote, Statistical Survey of Armagh 1802–03
+      ia_coote_monaghan.py           #  Coote, Statistical Survey of Monaghan 1801
+      ia_dutton_galway.py           #   Dutton, Statistical Survey of Galway 1824
+      ia_dutton_clare.py            #   Dutton, Statistical Survey of Clare 1808
+      ia_mcevoy_tyrone.py           #   McEvoy, Statistical Survey of Tyrone 1801–02
+      ia_mason_parochial.py         #   William Shaw Mason, Parochial Survey of Ireland 1814–19 (3 vols)
+      ia_frazer_handbook.py         #   James Frazer, Hand-book for Travellers in Ireland 1844
+      ia_mcculloch_empire.py        #   J.R. McCulloch, Statistical Account of the British Empire 1837
+      ia_beaumont.py                #   Gustave de Beaumont, Ireland: Social, Political and Religious 1839
+      ia_tocqueville_ireland.py     #   Alexis de Tocqueville, Journeys to England and Ireland 1835
+      ria_os_memoirs.py             #   Ordnance Survey Memoirs of Ireland 1830s (Royal Irish Academy)
+      # --- Irish→English translation subcorpus ---
+      ia_brooke_reliques.py         #   Charlotte Brooke, Reliques of Irish Poetry 1789
+      ht_walsh_jacobite.py          #   Edward Walsh, Reliques of Irish Jacobite Poetry 1844
+      ia_mangan_munster.py          #   Mangan, Poets and Poetry of Munster 1849
+      ia_ferguson_lays.py           #   Samuel Ferguson, Lays of the Western Gael 1865
+      ia_ograde_silva.py            #   Standish Hayes O'Grady, Silva Gadelica 1892 (2 vols)
+      ia_sigerson_bards.py          #   George Sigerson, Bards of the Gael and Gall 1897/1907
+      ia_hyde_love_songs.py         #   Douglas Hyde, Love Songs of Connacht 1893 (Connacht-specific)
+      ia_hyde_religious_songs.py    #   Douglas Hyde, Religious Songs of Connacht 1906
+      ia_kennedy_legendary.py       #   Patrick Kennedy, Legendary Fictions of the Irish Celts 1866
+      # --- Ballad / broadside / chapbook expansion (folded into folklore slice) ---
+      ia_bunting_1840.py            #   Edward Bunting, Ancient Music of Ireland 1840 ed.
+      ia_petrie_music.py            #   George Petrie, Ancient Music of Ireland 1855
+      ia_joyce_ancient_music.py     #   P.W. Joyce, Ancient Irish Music 1873
+      ia_joyce_old_irish_folk.py    #   P.W. Joyce, Old Irish Folk Music and Songs 1909 (842 airs)
+      ia_moore_melodies.py          #   Thomas Moore, Irish Melodies 1808–34
+      ia_croker_popular_songs.py    #   Crofton Croker, Popular Songs of Ireland 1837
+      ia_duffy_ballad_poetry.py     #   Charles Gavan Duffy, Ballad Poetry of Ireland 1845
+      ia_sam_henry_songs.py         #   Sam Henry, Songs of the People (collected 1923–39)
+      gutenberg_ashton_chapbooks.py #   John Ashton, Chap-books of the Eighteenth Century 1882
+      gutenberg_ashton_ballads.py   #   John Ashton, Modern Street Ballads 1888
+      ia_joyce_placenames.py        #   P.W. Joyce, Origin and History of Irish Names of Places 1869–1913
+      # --- Roscommon-specific tenant-voice (folded into testimony slice) ---
+      gfv_strokestown_petitions.py  #   Strokestown Park / Great Famine Voices — Pakenham Mahon tenant petitions
+      ia_madden_lit_remains.py      #   R.R. Madden, Literary Remains of the United Irishmen of 1798 (1844)
       # --- Stage-Irish caricature (REJECTED CLASS — fed to DPO rejected pool, not SFT) ---
       gutenberg_boucicault.py       #   Boucicault: Colleen Bawn 1860 (Gutenberg #52924), Arrah-na-Pogue, Shaughraun
       gutenberg_okeeffe.py          #   O'Keeffe: Poor Soldier 1783, Wicklow Mountains 1796
@@ -272,7 +320,7 @@ CORIECOR and the RIA Corpas Stairiúil are **not** automated — they require re
   3. **Almanacs** — extract dated entries (saint's days, fairs, weather lore, agricultural notes) → `{user: "What does a <region> farmer say about <month> weather/fair?", assistant: "<almanac entry, attribution-stripped>"}`.
   4. **Period dictionaries** — only entries on the game-domain word-list (kinship, agriculture, religion, trade) become pairs: `{user: "Define '<word>' as a <region> farmer in 1820 would use it.", assistant: "<dictionary gloss>"}`. The remainder feeds `build/anachronism_wordlist.py` as positive attestations only.
   Each pair carries `source: reference-<manual_slug>` and `class: gentry` (etiquette, letter-writing) or `class: middling_farmer` (almanacs, dictionaries) so they don't pollute the cottier mix.
-- **Volume target (13-author core + ~38 subcorpus titles):** 350–500k dialogue spans / Q&A pairs (~3–4 M tokens) post-dedup. **Escalation floor: <120k spans** triggers CORIECOR outreach before training. The bump comes mostly from the trial/commission slice — Devon Commission alone is ~4500 pp of structured Q&A, much of which converts cleanly to instruction pairs via `build/testimony_pairs.py`.
+- **Volume target (13-author core + ~75 subcorpus titles, post round-2 expansion):** 500–750k dialogue spans / Q&A pairs (~4.5–6 M tokens) post-dedup. **Escalation floor: <180k spans** triggers CORIECOR outreach before training. Round-2 additions (statistical surveys, ballad/song expansion, Irish→English translation, Strokestown petitions) supply ~150–250k extra spans on top of the round-1 estimate.
 
 ## Instruction-pair construction
 
@@ -312,9 +360,10 @@ Train a ~250M-parameter decoder-only LM (small Pythia or fresh Llama-style archi
 **Subcorpus assignment to oracle/SFT split:**
 
 - **Literary core only** is split disjointly (the table above) — these 13 novelistic-prose authors are what the dialect-oracle prior is meant to encode.
-- **Shared by both sides** (don't drive oracle prior, supply complementary register): travel-observer, folklore/oral, trial/commission testimony, first-person Irish memoir, religious/clerical, periodicals, reference-work pairs.
-- **SFT-only, never seen by oracle**: stage-Irish caricature subcorpus (only used as DPO `rejected` examples) and the formal-contrast set (only used to extend `joyce_pairs.py` with paired examples).
+- **Shared by both sides** (don't drive oracle prior, supply complementary register): travel-observer, folklore/oral + ballad expansion, trial/commission/testimony, first-person Irish memoir, religious/clerical, periodicals, reference-work pairs, Strokestown petitions, Irish→English translation, statistical/topographical surveys.
+- **SFT-only, never seen by oracle**: stage-Irish caricature subcorpus (DPO `rejected` only) and the formal-contrast set (paired-only via `joyce_pairs.py`).
 - **Consumed by neither**: Webster 1828 + Wright EDD — they only feed `build/anachronism_wordlist.py`.
+- **Excluded entirely**: dúchas.ie Schools' Folklore (CC BY-NC + AI-bot blocked); Connacht provincial newspapers (paywall); on-site-only estate papers.
 
 The split is encoded in `configs/dialect_oracle_250m.yaml` and consumed by both `train/train_dialect_oracle.py` and `build/instruction_pairs.py`.
 
@@ -519,7 +568,7 @@ The dialect oracle is **not** Ollama-served — it is a judge-only artifact and 
 - `training/configs/dialect_oracle_250m.yaml`
 - `training/configs/rundale_dialect_e2e.yaml`
 - `training/configs/modelfile.gemma4-rundale`
-- `training/src/parish_train/ingest/{` literary core: `gutenberg_joyce,ia_griffin,gutenberg_carleton,ia_croker,gutenberg_kickham,gutenberg_lover,ia_maxwell,gutenberg_lever,gutenberg_edgeworth,ia_banim_1825,ia_banim_1826,ia_hall_sketches,ia_hall_lights`; travel-observer: `gutenberg_young,ia_carr,ia_inglis,ia_kohl,ia_nicholson,ia_hall_scenery`; folklore: `gutenberg_lady_wilde,ia_william_wilde,gutenberg_curtin,gutenberg_hyde,gutenberg_joyce_celtic,ia_hardiman`; trial/commission/testimony: `ht_devon_commission,ia_poor_inquiry,ht_state_trials,ht_friends_famine,ia_leadbeater,dataverse_boston_pilot,ia_whyte_diary,ia_bennett,ia_tuke,ia_nicholson_annals`; first-person Irish: `ia_carleton_autobio,ia_holt,ia_oconnell_corr,ia_tone,ia_byrne,ia_mitchel`; religious/clerical: `ia_doyle_jkl,ia_cobbett_reformation,ia_ulster_revival_1859,ia_butler_catechism,ia_garden_of_soul`; periodicals: `gutenberg_irish_penny_journal`; stage-Irish (rejected class): `gutenberg_boucicault,gutenberg_okeeffe,gutenberg_sheridan,ia_macklin,ia_tyrone_power_actor,ia_bayle_bernard,gutenberg_colman_younger,gutenberg_farquhar`; formal-contrast: `ia_murray_grammar,ia_cobbett_grammar,ia_walker_dictionary,ia_neilson_irish,ia_dilworth_speller,ia_ne_commissioners_lessons`; reference works: `ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict`; wordlist seeds: `ia_webster_1828,ia_wright_edd`; harness: `common}.py` (~50 modules; manifest-driven aggregation queued for impl PR — see `_MIGRATION_NOTE.md` in §Repo layout)
+- `training/src/parish_train/ingest/{` literary core (13): `gutenberg_joyce,ia_griffin,gutenberg_carleton,ia_croker,gutenberg_kickham,gutenberg_lover,ia_maxwell,gutenberg_lever,gutenberg_edgeworth,ia_banim_1825,ia_banim_1826,ia_hall_sketches,ia_hall_lights`; travel-observer (6): `gutenberg_young,ia_carr,ia_inglis,ia_kohl,ia_nicholson,ia_hall_scenery`; folklore + ballad/song (17): `gutenberg_lady_wilde,ia_william_wilde,gutenberg_curtin,gutenberg_hyde,gutenberg_joyce_celtic,ia_hardiman,ia_bunting_1840,ia_petrie_music,ia_joyce_ancient_music,ia_joyce_old_irish_folk,ia_moore_melodies,ia_croker_popular_songs,ia_duffy_ballad_poetry,ia_sam_henry_songs,gutenberg_ashton_chapbooks,gutenberg_ashton_ballads,ia_joyce_placenames`; trial/commission/testimony (12): `ht_devon_commission,ia_poor_inquiry,ht_state_trials,ht_friends_famine,ia_leadbeater,dataverse_boston_pilot,ia_whyte_diary,ia_bennett,ia_tuke,ia_nicholson_annals,gfv_strokestown_petitions,ia_madden_lit_remains`; first-person Irish (6): `ia_carleton_autobio,ia_holt,ia_oconnell_corr,ia_tone,ia_byrne,ia_mitchel`; religious/clerical (5): `ia_doyle_jkl,ia_cobbett_reformation,ia_ulster_revival_1859,ia_butler_catechism,ia_garden_of_soul`; statistical/topographical (15): `ia_lewis_topographical,ia_weld_roscommon,ia_wakefield,ia_coote_cavan,ia_coote_armagh,ia_coote_monaghan,ia_dutton_galway,ia_dutton_clare,ia_mcevoy_tyrone,ia_mason_parochial,ia_frazer_handbook,ia_mcculloch_empire,ia_beaumont,ia_tocqueville_ireland,ria_os_memoirs`; Irish→English translation (9): `ia_brooke_reliques,ht_walsh_jacobite,ia_mangan_munster,ia_ferguson_lays,ia_ograde_silva,ia_sigerson_bards,ia_hyde_love_songs,ia_hyde_religious_songs,ia_kennedy_legendary`; periodicals (3): `gutenberg_irish_penny_journal,ia_dublin_penny_journal,ia_dublin_university_magazine`; stage-Irish (rejected class, 8): `gutenberg_boucicault,gutenberg_okeeffe,gutenberg_sheridan,ia_macklin,ia_tyrone_power_actor,ia_bayle_bernard,gutenberg_colman_younger,gutenberg_farquhar`; formal-contrast (6): `ia_murray_grammar,ia_cobbett_grammar,ia_walker_dictionary,ia_neilson_irish,ia_dilworth_speller,ia_ne_commissioners_lessons`; reference works (4): `ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict`; wordlist seeds (2): `ia_webster_1828,ia_wright_edd`; harness: `common}.py` (~106 modules — **manifest-driven category-fetcher refactor mandatory before impl PR ships** per `_MIGRATION_NOTE.md`; per-module pattern is unsustainable at this scale)
 - `training/src/parish_train/curate/{dialogue_extractor,feature_tagger,joyce_pairs,class_assigner,dedupe}.py`
 - `training/src/parish_train/build/{instruction_pairs,reference_pairs,formal_contrast_pairs,stage_irish_synth,testimony_pairs,anachronism_wordlist,split}.py`
 - `training/src/parish_train/train/train_dialect_oracle.py`
@@ -584,7 +633,19 @@ cd /workspace/training && uv sync
 #      First-person Irish (6): ia_carleton_autobio, ia_holt, ia_oconnell_corr, ia_tone, ia_byrne, ia_mitchel
 #      Religious / clerical (5): ia_doyle_jkl, ia_cobbett_reformation, ia_ulster_revival_1859,
 #                                ia_butler_catechism, ia_garden_of_soul
-#      Periodicals (1):        gutenberg_irish_penny_journal
+#      Periodicals (3):        gutenberg_irish_penny_journal, ia_dublin_penny_journal, ia_dublin_university_magazine
+#      Statistical / topographical (15): ia_lewis_topographical, ia_weld_roscommon, ia_wakefield,
+#                              ia_coote_cavan, ia_coote_armagh, ia_coote_monaghan, ia_dutton_galway,
+#                              ia_dutton_clare, ia_mcevoy_tyrone, ia_mason_parochial, ia_frazer_handbook,
+#                              ia_mcculloch_empire, ia_beaumont, ia_tocqueville_ireland, ria_os_memoirs
+#      Irish→English translation (9): ia_brooke_reliques, ht_walsh_jacobite, ia_mangan_munster,
+#                              ia_ferguson_lays, ia_ograde_silva, ia_sigerson_bards, ia_hyde_love_songs,
+#                              ia_hyde_religious_songs, ia_kennedy_legendary
+#      Ballad / broadside / chapbook (folded into folklore, 11): ia_bunting_1840, ia_petrie_music,
+#                              ia_joyce_ancient_music, ia_joyce_old_irish_folk, ia_moore_melodies,
+#                              ia_croker_popular_songs, ia_duffy_ballad_poetry, ia_sam_henry_songs,
+#                              gutenberg_ashton_chapbooks, gutenberg_ashton_ballads, ia_joyce_placenames
+#      Roscommon-specific tenant (folded into testimony, 2): gfv_strokestown_petitions, ia_madden_lit_remains
 #      Stage-Irish rejected (8):gutenberg_boucicault, gutenberg_okeeffe, gutenberg_sheridan,
 #                               ia_macklin, ia_tyrone_power_actor, ia_bayle_bernard,
 #                               gutenberg_colman_younger, gutenberg_farquhar
@@ -592,6 +653,8 @@ cd /workspace/training && uv sync
 #                              ia_neilson_irish, ia_dilworth_speller, ia_ne_commissioners_lessons
 #      Reference works (4):    ia_etiquette, ia_letter_writing, ia_almanac, ia_period_dict
 #      Wordlist seeds (2):     ia_webster_1828, ia_wright_edd
+#      EXCLUDED:               dúchas.ie (CC BY-NC + robots-bot-blocked); Connacht provincial papers
+#                              (paywall); most estate papers (on-site only). Documented for compliance.
 
 # Curate + build (independent of which fetcher path was used):
 uv run python -m parish_train.curate.dialogue_extractor
