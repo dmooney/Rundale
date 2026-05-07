@@ -88,8 +88,8 @@ pub async fn get_world_snapshot(
     let world = state.world.lock().await;
     let transport = state.transport.default_mode();
     let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = snapshot_from_world(&world, transport);
-    snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let snapshot =
+        get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
     Ok(snapshot)
 }
 
@@ -363,8 +363,8 @@ async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let world = state.world.lock().await;
     let transport = state.transport.default_mode();
     let npc_manager = state.npc_manager.lock().await;
-    let mut snapshot = snapshot_from_world(&world, transport);
-    snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let snapshot =
+        get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
     let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
 }
 
@@ -715,8 +715,12 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
-        let mut snapshot = snapshot_from_world(&world, &transport);
-        snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        let snapshot = get_world_snapshot_inner(
+            &world,
+            &transport,
+            Some(&npc_manager),
+            &state.pronunciations,
+        );
         let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
     }
 }
@@ -922,7 +926,7 @@ pub async fn save_game(state: tauri::State<'_, Arc<AppState>>) -> Result<String,
 }
 
 /// Internal save implementation — delegates to the shared canonical impl (#696).
-async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
+pub(crate) async fn do_save_game(state: &Arc<AppState>) -> Result<String, String> {
     parish_core::game_loop::do_save_game(
         &state.world,
         &state.npc_manager,
@@ -990,8 +994,7 @@ pub async fn load_branch(
 
     // Emit updated state to frontend (compute name hints before dropping locks)
     let transport = state.transport.default_mode();
-    let mut ws = snapshot_from_world(&world, transport);
-    ws.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    let ws = get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
     drop(npc_manager);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
     let _ = app.emit(
@@ -2155,5 +2158,20 @@ mod cmd_tests {
             saves.is_empty(),
             "discover_saves should return empty vec for missing directory"
         );
+    }
+
+    #[tokio::test]
+    async fn get_world_snapshot_inner_returns_start_location() {
+        let state = test_app_state();
+        let world = state.world.lock().await;
+        let transport = state.transport.default_mode();
+        let npc_manager = state.npc_manager.lock().await;
+        let snapshot =
+            get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
+        assert!(
+            !snapshot.location_name.is_empty(),
+            "location name should be populated"
+        );
+        assert_eq!(snapshot.location_name, "Kilteevan Village");
     }
 }

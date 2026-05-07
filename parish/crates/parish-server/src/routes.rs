@@ -1187,6 +1187,38 @@ pub async fn get_health() -> StatusCode {
     StatusCode::OK
 }
 
+// ── Demo mode stubs (desktop-only feature) ──────────────────────────────────
+
+/// `GET /api/demo-config` — demo mode is a Tauri-only desktop feature.
+pub async fn get_demo_config() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
+/// `GET /api/demo-context` — demo mode is a Tauri-only desktop feature.
+pub async fn get_demo_context() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
+/// `POST /api/llm-player-action` — demo mode is a Tauri-only desktop feature.
+pub async fn get_llm_player_action() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
 // ── #335 — Branch name validation ───────────────────────────────────────────
 
 /// Validates a branch name: non-empty, ≤ 64 chars, ASCII alphanumerics/`_`/`-`/` ` only.

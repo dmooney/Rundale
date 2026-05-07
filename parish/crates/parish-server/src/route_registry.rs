@@ -30,6 +30,10 @@ pub const EXPECTED_HTTP_ROUTES: &[&str] = &[
     "/api/new-game",
     "/api/save-state",
     "/api/react-to-message",
+    // ── demo routes (Tauri-only desktop feature, server returns 501) ───────
+    "/api/demo-config",
+    "/api/demo-context",
+    "/api/llm-player-action",
     // ── editor routes ─────────────────────────────────────────────────────
     "/api/editor-list-mods",
     "/api/editor-open-mod",

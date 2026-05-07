@@ -26,6 +26,10 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     "new_game",
     "get_save_state",
     "react_to_message",
+    // ── demo commands ──────────────────────────────────────────────────────
+    "get_demo_config",
+    "get_demo_context",
+    "get_llm_player_action",
     // ── editor commands ───────────────────────────────────────────────────
     "editor_list_mods",
     "editor_open_mod",

@@ -13,13 +13,7 @@ use tauri::Emitter;
 
 use parish_core::game_loop::system_command::{BoxFuture, SystemCommandHost};
 use parish_core::input::Command;
-use parish_core::ipc::{
-    CommandResult, TextPresentation, compute_name_hints, handle_command, snapshot_from_world,
-    text_log, text_log_typed,
-};
-use parish_core::persistence::Database;
-use parish_core::persistence::picker::new_save_path;
-use parish_core::persistence::snapshot::GameSnapshot;
+use parish_core::ipc::{CommandResult, TextPresentation, handle_command, text_log, text_log_typed};
 
 use crate::AppState;
 use crate::events::{
@@ -106,7 +100,7 @@ impl SystemCommandHost for TauriCommandHost {
     fn save_game(&self) -> BoxFuture<'_, String> {
         let state = Arc::clone(&self.state);
         Box::pin(async move {
-            match do_save_game_inner(&state).await {
+            match crate::commands::do_save_game(&state).await {
                 Ok(msg) => msg,
                 Err(e) => format!("Save failed: {}", e),
             }
@@ -217,65 +211,13 @@ impl SystemCommandHost for TauriCommandHost {
             let world = state.world.lock().await;
             let transport = state.transport.default_mode();
             let npc_manager = state.npc_manager.lock().await;
-            let mut snapshot = snapshot_from_world(&world, transport);
-            snapshot.name_hints = compute_name_hints(&world, &npc_manager, &state.pronunciations);
+            let snapshot = crate::commands::get_world_snapshot_inner(
+                &world,
+                transport,
+                Some(&npc_manager),
+                &state.pronunciations,
+            );
             let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
         })
     }
-}
-
-// ── Persistence helpers ─────────────────────────────────────────────────────
-
-/// Saves the current game state to the active save file. Returns a status message.
-async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
-    let world = state.world.lock().await;
-    let npc_manager = state.npc_manager.lock().await;
-    let snapshot = GameSnapshot::capture(&world, &npc_manager);
-    drop(npc_manager);
-    drop(world);
-
-    let mut save_path_guard = state.save_path.lock().await;
-    let mut branch_id_guard = state.current_branch_id.lock().await;
-    let mut branch_name_guard = state.current_branch_name.lock().await;
-
-    let db_path = if let Some(ref path) = *save_path_guard {
-        path.clone()
-    } else {
-        let path = new_save_path(&state.saves_dir);
-        *save_path_guard = Some(path.clone());
-        path
-    };
-
-    let existing_branch_id = *branch_id_guard;
-    let (resolved_branch_id, resolved_branch_name) =
-        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
-            let db = Database::open(&db_path).map_err(|e| e.to_string())?;
-            let branch_id = if let Some(id) = existing_branch_id {
-                id
-            } else {
-                let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-                branch.map(|b| b.id).unwrap_or(1)
-            };
-            db.save_snapshot(branch_id, &snapshot)
-                .map_err(|e| e.to_string())?;
-            Ok((branch_id, "main".to_string()))
-        })
-        .await
-        .map_err(|e| e.to_string())??;
-
-    if branch_id_guard.is_none() {
-        *branch_id_guard = Some(resolved_branch_id);
-        *branch_name_guard = Some(resolved_branch_name.clone());
-    }
-
-    let filename = save_path_guard
-        .as_ref()
-        .and_then(|p| p.file_name())
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "save".to_string());
-    let branch_name = branch_name_guard.as_deref().unwrap_or("main");
-    Ok(format!(
-        "Game saved to {} (branch: {}).",
-        filename, branch_name
-    ))
 }
