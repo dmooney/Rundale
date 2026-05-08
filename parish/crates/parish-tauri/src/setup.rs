@@ -182,8 +182,8 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
 // ── Persistence: auto-load or create save file ──────────────────────────────
 
 /// Either loads the most-recent unlocked save (and acquires its lock), creates
-/// a brand-new save file if none exist, or emits `EVENT_SAVE_PICKER` when all
-/// existing saves are locked by other instances.
+/// a brand-new save file if none are present, or emits `EVENT_SAVE_PICKER` when
+/// every save on disk is locked by another instance.
 pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) {
     use parish_core::persistence::Database;
     use parish_core::persistence::SaveFileLock;
