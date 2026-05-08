@@ -272,6 +272,13 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: never held across acquisition
     /// of any `Mutex` field.
     pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
+    /// Per-user, per-machine config dir resolved once at startup (Rule 9).
+    /// Hosts `parish.toml` (non-secret BYOK choices) and the `.onboarded`
+    /// marker. API keys live in the OS keychain via `secret_store`.
+    pub user_config_dir: PathBuf,
+    /// OS keychain (Tauri only). Backed by `keyring` on real builds; tests
+    /// can swap in `InMemorySecretStore` via the trait.
+    pub secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore>,
     /// Language settings derived from the active mod manifest.
     ///
     /// Resolved once at startup and injected into all dialogue prompt builders
@@ -842,6 +849,29 @@ pub fn run() {
     // Cancellation token for graceful background-task shutdown (#104).
     let shutdown_token = CancellationToken::new();
 
+    // Resolve the per-user config dir once at startup (Rule 9). Hydrate
+    // GameConfig.api_key from the keychain if the standard provider env var
+    // wasn't already set — keychain ranks below env vars but above defaults.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    let secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore> =
+        std::sync::Arc::new(keychain::KeyringSecretStore::new());
+    if game_config.api_key.is_none()
+        && let Ok(provider_enum) =
+            parish_core::config::Provider::from_str_loose(&game_config.provider_name)
+    {
+        let env_key_set = provider_enum
+            .api_key_env_var()
+            .and_then(|v| std::env::var(v).ok())
+            .filter(|v| !v.trim().is_empty())
+            .is_some();
+        if !env_key_set {
+            let account = parish_core::secret_store::provider_account(&game_config.provider_name);
+            if let Ok(Some(k)) = secret_store.get(&account) {
+                game_config.api_key = Some(k);
+            }
+        }
+    }
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -878,6 +908,8 @@ pub fn run() {
         demo_config,
         shutdown_token: shutdown_token.clone(),
         session_store,
+        user_config_dir,
+        secret_store,
     });
 
     tauri::Builder::default()
@@ -890,6 +922,10 @@ pub fn run() {
             commands::get_ui_config,
             commands::get_debug_snapshot,
             commands::get_setup_snapshot,
+            commands::set_provider_config,
+            commands::validate_provider_config,
+            commands::get_provider_config,
+            commands::clear_provider_config,
             commands::submit_input,
             commands::discover_save_files,
             commands::save_game,
