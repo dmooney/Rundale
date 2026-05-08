@@ -9,6 +9,7 @@ pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
+pub mod validate;
 pub(crate) mod utf8_stream;
 
 /// Result of processing a single SSE line.
