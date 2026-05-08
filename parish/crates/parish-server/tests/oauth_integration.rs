@@ -65,10 +65,8 @@ fn make_global_state(tmp: &tempfile::TempDir, with_oauth: bool) -> Arc<GlobalSta
             HashMap::new(),
         ),
         idempotency_cache: tokio::sync::Mutex::new(lru::LruCache::new(
-            std::num::NonZeroUsize::new(
-                parish_server::session::IDEMPOTENCY_CACHE_CAPACITY,
-            )
-            .unwrap(),
+            std::num::NonZeroUsize::new(parish_server::session::IDEMPOTENCY_CACHE_CAPACITY)
+                .unwrap(),
         )),
         max_concurrent_sessions: None,
     })
@@ -102,9 +100,9 @@ fn default_game_config() -> parish_server::state::GameConfig {
 }
 
 fn tower_session_router(global: Arc<GlobalState>) -> Router {
-    use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
     use tower_sessions::cookie::SameSite;
     use tower_sessions::cookie::time::Duration;
+    use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
     let store = Arc::new(MemoryStore::default());
     let session_layer = SessionManagerLayer::new((*store).clone())

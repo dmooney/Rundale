@@ -941,7 +941,13 @@ fn build_npc_debug_list(
                 }
             };
 
-            let schedule = build_npc_schedule_debug(npc, graph, current_hour, current_season, current_day_type);
+            let schedule = build_npc_schedule_debug(
+                npc,
+                graph,
+                current_hour,
+                current_season,
+                current_day_type,
+            );
             let relationships = build_npc_relationship_debug(npc, npc_manager);
             let memories = build_npc_memory_debug(npc, graph);
             let long_term_memories = build_npc_long_term_memory_debug(npc);

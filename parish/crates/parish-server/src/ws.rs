@@ -27,6 +27,54 @@ use parish_core::event_bus::EventBus as EventBusTrait;
 use crate::cf_auth::{AuthContext, SessionToken};
 use crate::state::AppState;
 
+/// Result of WebSocket upgrade validation.
+///
+/// Returned by [`validate_ws_upgrade`] so that callers (both the handler
+/// and the integration tests) can branch on the outcome without touching
+/// axum response types directly.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WsValidation {
+    /// Upgrade rejected with the given HTTP status code.
+    Rejected(StatusCode),
+    /// Upgrade accepted for the given `account_id`.
+    Accepted(uuid::Uuid),
+}
+
+/// Validates a WebSocket upgrade request.
+///
+/// In debug builds, loopback (`127.0.0.1`) connections bypass token
+/// validation entirely and are accepted with a nil UUID.  In all other
+/// cases (and always in release builds), the caller must supply a valid
+/// session token via `token`.  If the token is missing or invalid, the
+/// upgrade is rejected with `401 Unauthorized`.
+///
+/// When an [`AuthContext`] is supplied (typically injected by the
+/// `cf_access_guard` middleware), its `account_id` is returned inside
+/// `Accepted`.  Otherwise the well-known nil UUID is used as a fallback.
+pub fn validate_ws_upgrade(
+    addr: std::net::SocketAddr,
+    token: Option<&str>,
+    auth: Option<&AuthContext>,
+) -> WsValidation {
+    // Debug-only loopback bypass: no token required for local development.
+    if cfg!(debug_assertions) && addr.ip().is_loopback() {
+        return WsValidation::Accepted(uuid::Uuid::nil());
+    }
+
+    let token = match token.filter(|t| !t.is_empty()) {
+        Some(t) => t,
+        None => return WsValidation::Rejected(StatusCode::UNAUTHORIZED),
+    };
+
+    match SessionToken::validate_full(token) {
+        Ok(_email) => {
+            let account_id = auth.map(|ctx| ctx.account_id).unwrap_or(uuid::Uuid::nil());
+            WsValidation::Accepted(account_id)
+        }
+        Err(_err) => WsValidation::Rejected(StatusCode::UNAUTHORIZED),
+    }
+}
+
 /// Maximum number of concurrent WebSocket connections across all users (#460).
 const MAX_WS_CONNECTIONS: usize = 100;
 
@@ -73,37 +121,15 @@ pub async fn ws_handler(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> impl IntoResponse {
-    // #379 — debug-only loopback bypass matches `cf_access_guard`: e2e and local
-    // dev open a WS without minting a session-init token first.
-    //
-    // #618 — In the loopback-bypass path we use a well-known nil UUID so the
-    // single-WS-per-account dedup still works correctly for local dev.
-    let account_id: uuid::Uuid = if cfg!(debug_assertions) && addr.ip().is_loopback() {
-        uuid::Uuid::nil()
-    } else {
-        // #377 — validate session token before accepting the WS upgrade.
-        let token = match params.get("token") {
-            Some(t) => t.clone(),
-            None => {
-                tracing::warn!("ws_handler: rejected — missing ?token query param");
-                return StatusCode::UNAUTHORIZED.into_response();
-            }
-        };
+    let auth_ctx = auth.as_ref().map(|Extension(ctx)| ctx);
 
-        // Validate the HMAC token (the email it contains is used only to derive
-        // account_id via the AuthContext injected by cf_access_guard).
-        match SessionToken::validate_full(&token) {
-            Ok(_email) => {
-                // Prefer the AuthContext account_id already resolved by the
-                // guard; fall back to nil (should not happen in normal flow).
-                auth.map(|Extension(ctx)| ctx.account_id)
-                    .unwrap_or(uuid::Uuid::nil())
-            }
-            Err(err) => {
-                tracing::warn!(error = %err, "ws_handler: rejected — invalid session token");
-                return StatusCode::UNAUTHORIZED.into_response();
-            }
+    let validation = validate_ws_upgrade(addr, params.get("token").map(String::as_str), auth_ctx);
+    let account_id = match validation {
+        WsValidation::Rejected(status) => {
+            tracing::warn!(?status, "ws_handler: rejected");
+            return status.into_response();
         }
+        WsValidation::Accepted(id) => id,
     };
 
     // #334/#618 — enforce single WebSocket per account_id; #460 — enforce global cap.

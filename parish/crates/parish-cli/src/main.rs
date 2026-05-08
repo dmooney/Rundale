@@ -142,7 +142,9 @@ struct ResolvedConfigs {
     engine_inference: parish::config::InferenceConfig,
 }
 
-async fn resolve_configs(cli: &Cli) -> Result<(ResolvedConfigs, parish::inference::client::OllamaProcess)> {
+async fn resolve_configs(
+    cli: &Cli,
+) -> Result<(ResolvedConfigs, parish::inference::client::OllamaProcess)> {
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
@@ -171,11 +173,18 @@ async fn resolve_configs(cli: &Cli) -> Result<(ResolvedConfigs, parish::inferenc
     let clients = build_inference_clients(&provider_config, &client, &model, &category_configs);
 
     for (cat, cfg) in &category_configs {
-        let key_status = if cfg.api_key.is_some() { "(set)" } else { "(not set)" };
+        let key_status = if cfg.api_key.is_some() {
+            "(set)"
+        } else {
+            "(not set)"
+        };
         tracing::info!(
             "{:?} category: {:?} provider at {} with model {} (API key: {})",
-            cat, cfg.provider, cfg.base_url,
-            cfg.model.as_deref().unwrap_or("(auto)"), key_status
+            cat,
+            cfg.provider,
+            cfg.base_url,
+            cfg.model.as_deref().unwrap_or("(auto)"),
+            key_status
         );
     }
 
@@ -206,8 +215,11 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
         let dir = std::path::PathBuf::from(path);
         match parish_core::game_mod::GameMod::load(&dir) {
             Ok(gm) => {
-                tracing::info!("Loaded game mod '{}' from explicit path ({})",
-                    gm.manifest.meta.name, dir.display());
+                tracing::info!(
+                    "Loaded game mod '{}' from explicit path ({})",
+                    gm.manifest.meta.name,
+                    dir.display()
+                );
                 Some(gm)
             }
             Err(e) => {
@@ -234,8 +246,12 @@ async fn main() -> Result<()> {
     if let Some(port) = cli.web {
         #[allow(deprecated)]
         let (data_dir, static_dir) = (find_data_dir(), find_ui_dist_dir());
-        tracing::info!("Starting web server on port {} (data={}, static={})",
-            port, data_dir.display(), static_dir.display());
+        tracing::info!(
+            "Starting web server on port {} (data={}, static={})",
+            port,
+            data_dir.display(),
+            static_dir.display()
+        );
         return parish_server::run_server(port, data_dir, static_dir).await;
     }
 
@@ -401,16 +417,34 @@ fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
     let mut categories = std::collections::HashMap::new();
 
     for (name, provider, base_url, model) in [
-        ("dialogue", &cli.dialogue_provider, &cli.dialogue_base_url, &cli.dialogue_model),
-        ("simulation", &cli.simulation_provider, &cli.simulation_base_url, &cli.simulation_model),
-        ("intent", &cli.intent_provider, &cli.intent_base_url, &cli.intent_model),
+        (
+            "dialogue",
+            &cli.dialogue_provider,
+            &cli.dialogue_base_url,
+            &cli.dialogue_model,
+        ),
+        (
+            "simulation",
+            &cli.simulation_provider,
+            &cli.simulation_base_url,
+            &cli.simulation_model,
+        ),
+        (
+            "intent",
+            &cli.intent_provider,
+            &cli.intent_base_url,
+            &cli.intent_model,
+        ),
     ] {
         if provider.is_some() || base_url.is_some() || model.is_some() {
-            categories.insert(name.to_string(), CliOverrides {
-                provider: provider.clone(),
-                base_url: base_url.clone(),
-                model: model.clone(),
-            });
+            categories.insert(
+                name.to_string(),
+                CliOverrides {
+                    provider: provider.clone(),
+                    base_url: base_url.clone(),
+                    model: model.clone(),
+                },
+            );
         }
     }
 
