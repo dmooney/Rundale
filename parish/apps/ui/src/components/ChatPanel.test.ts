@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { textLog, streamingActive, loadingPhrase, loadingColor } from '../stores/game';
 import ChatPanel from './ChatPanel.svelte';

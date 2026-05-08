@@ -41,18 +41,14 @@ impl IdentityStore for MockIdentityStore {
             (provider.to_string(), provider_user_id.to_string()),
             account_id.to_string(),
         );
-        self.accounts
-            .lock()
-            .unwrap()
-            .insert(account_id.to_string(), (provider_user_id.to_string(), display_name.to_string()));
+        self.accounts.lock().unwrap().insert(
+            account_id.to_string(),
+            (provider_user_id.to_string(), display_name.to_string()),
+        );
     }
 
     fn get_account(&self, account_id: &str) -> Option<(String, String)> {
-        self.accounts
-            .lock()
-            .unwrap()
-            .get(account_id)
-            .cloned()
+        self.accounts.lock().unwrap().get(account_id).cloned()
     }
 
     fn create_account(&self, account_id: &str) {
@@ -105,11 +101,7 @@ impl SessionRegistry for MockSessionRegistry {
         // In-memory: no-op.
     }
 
-    fn evict_idle(
-        &self,
-        _saves_root: &std::path::Path,
-        _max_age: std::time::Duration,
-    ) -> usize {
+    fn evict_idle(&self, _saves_root: &std::path::Path, _max_age: std::time::Duration) -> usize {
         // In-memory: no-op, always returns 0.
         0
     }
@@ -191,8 +183,14 @@ fn identity_different_accounts_have_independent_provider_mappings() {
     let store = MockIdentityStore::new();
     store.link_provider("google", "sub_x", "sess_x", "Xavier");
     store.link_provider("google", "sub_y", "sess_y", "Yvonne");
-    assert_eq!(store.lookup_by_provider("google", "sub_x"), Some("sess_x".to_string()));
-    assert_eq!(store.lookup_by_provider("google", "sub_y"), Some("sess_y".to_string()));
+    assert_eq!(
+        store.lookup_by_provider("google", "sub_x"),
+        Some("sess_x".to_string())
+    );
+    assert_eq!(
+        store.lookup_by_provider("google", "sub_y"),
+        Some("sess_y".to_string())
+    );
 }
 
 // ── SessionRegistry contract tests ─────────────────────────────────────────
@@ -258,5 +256,8 @@ fn session_evict_idle_returns_zero_for_in_memory() {
 fn session_unregistered_session_not_found() {
     let registry = MockSessionRegistry::new();
     registry.register("sess_001");
-    assert!(!registry.lookup("sess_002"), "different session must not be found");
+    assert!(
+        !registry.lookup("sess_002"),
+        "different session must not be found"
+    );
 }
