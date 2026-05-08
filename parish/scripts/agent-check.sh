@@ -47,14 +47,25 @@ judges="$tmpdir/judges"
 is_proof_relevant() {
     local file="$1"
     case "$file" in
+        # Proof bundles themselves are never the trigger.
         docs/proofs/*)
             return 1
             ;;
-        AGENTS.md|CLAUDE.md|justfile|parish/justfile|docs/agent/*|\
-        .agents/*|.claude/*|\
-        .github/workflows/*|.github/pull_request_template.md|\
+        # Documentation, agent instructions, build config, CI workflows,
+        # and check tooling require proof only when paired with a runtime
+        # code change. On their own, they have no gameplay behavior to
+        # prove. Per rule 10 in AGENTS.md.
+        *.md|*.txt|\
+        AGENTS.md|CLAUDE.md|README.md|\
+        justfile|parish/justfile|\
+        docs/*|.agents/*|.claude/*|\
+        .github/*|\
+        parish/scripts/*)
+            return 1
+            ;;
+        # Source / runtime paths.
         parish/Cargo.toml|parish/Cargo.lock|\
-        parish/scripts/*|parish/crates/*|parish/apps/*|parish/testing/*|\
+        parish/crates/*|parish/apps/*|parish/testing/*|\
         mods/*|deploy/*)
             return 0
             ;;
