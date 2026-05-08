@@ -125,14 +125,15 @@ pub async fn ws_handler(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> impl IntoResponse {
-    // #377/#379/#618 — token validation, debug-only loopback bypass, and
-    // auth-context lookup are all pure functions of the request, so they live
-    // in `validate_ws_upgrade` and are unit-tested directly.
-    let token = params.get("token").map(String::as_str);
     let auth_ctx = auth.as_ref().map(|Extension(ctx)| ctx);
-    let account_id: uuid::Uuid = match validate_ws_upgrade(addr, token, auth_ctx) {
+
+    let validation = validate_ws_upgrade(addr, params.get("token").map(String::as_str), auth_ctx);
+    let account_id = match validation {
+        WsValidation::Rejected(status) => {
+            tracing::warn!(?status, "ws_handler: rejected");
+            return status.into_response();
+        }
         WsValidation::Accepted(id) => id,
-        WsValidation::Rejected(status) => return status.into_response(),
     };
 
     // #334/#618 — enforce single WebSocket per account_id; #460 — enforce global cap.
