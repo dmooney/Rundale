@@ -1011,7 +1011,7 @@ mod tests {
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
                 reveal_unexplored_locations: false,
-            auto_setup_model: None,
+                auto_setup_model: None,
             },
             inference_config: parish_core::config::InferenceConfig::default(),
             ollama_process: tokio::sync::Mutex::new(
@@ -1102,7 +1102,7 @@ mod tests {
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
                 reveal_unexplored_locations: false,
-            auto_setup_model: None,
+                auto_setup_model: None,
             },
             inference_config: parish_core::config::InferenceConfig::default(),
             ollama_process: tokio::sync::Mutex::new(
