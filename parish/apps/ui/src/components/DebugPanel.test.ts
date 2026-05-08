@@ -334,6 +334,7 @@ describe('DebugPanel', () => {
 						speaker_id: 1,
 						location_name: 'Village Green',
 						player_input: 'Good day to you.',
+						speaker_id: 1,
 						speaker_name: 'Brigid',
 						npc_dialogue: 'And a good day to yourself, stranger.'
 					}]
