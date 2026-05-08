@@ -396,6 +396,48 @@ describe('SetupOverlay', () => {
 		}
 	});
 
+	describe('error state rendering', () => {
+		it('shows error box with message when setup fails', async () => {
+			const { container, getByText } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: 'Ollama not found' });
+			await tick();
+
+			expect(getByText('Something went wrong.')).toBeTruthy();
+			expect(container.querySelector('.error-box')).toBeTruthy();
+			expect(container.querySelector('.error-msg')?.textContent).toContain('Ollama not found');
+			expect(getByText(/Close the app/)).toBeTruthy();
+		});
+
+		it('shows generic error message when error string is empty', async () => {
+			const { container, getByText } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: '' });
+			await tick();
+
+			expect(getByText('Something went wrong.')).toBeTruthy();
+			// errorMsg is '' so the error-msg is rendered empty; "Setup failed."
+			// is appended to the activity messages instead
+			expect(container.querySelector('.error-box')).toBeTruthy();
+		});
+
+		it('keeps overlay visible after error', async () => {
+			const { container } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: 'Ollama not found' });
+			await tick();
+
+			expect(container.querySelector('.setup-overlay')).toBeTruthy();
+			expect(container.querySelector('.error-box')).toBeTruthy();
+		});
+	});
+
 	it('registers all setup listeners on mount', async () => {
 		render(SetupOverlay);
 

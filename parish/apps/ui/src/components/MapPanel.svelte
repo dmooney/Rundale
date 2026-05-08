@@ -4,7 +4,9 @@
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
+	import { subscribeTileSource } from '$lib/map/tileSync';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
+	import MapTooltip from './MapTooltip.svelte';
 	import type { MapLocation, MapTooltipInfo } from '$lib/types';
 
 	/** Only show locations within this many hops on the minimap. */
@@ -164,9 +166,13 @@
 		recomputeStubs();
 		const unsubscribeMove = controller.addMoveListener(recomputeStubs);
 
+		// Keep base tiles in sync with `/tiles` selection.
+		const unsubscribeTiles = subscribeTileSource(() => controller);
+
 		mounted = true;
 
 		return () => {
+			unsubscribeTiles();
 			unsubscribeMove();
 			controller?.destroy();
 			controller = null;
@@ -241,12 +247,6 @@
 		return computePlayerCenteredBounds(dest, neighbors);
 	}
 
-	// Keep minimap base tiles in sync with `/tiles` selection.
-	$effect(() => {
-		if (!mounted || !controller) return;
-		controller.setTileSource(currentTileSource($tiles));
-	});
-
 	function toggleFullMap() {
 		fullMapOpen.update((v) => !v);
 	}
@@ -319,21 +319,7 @@
 		{#if !$mapData}
 			<div class="empty">Loading map&hellip;</div>
 		{/if}
-		{#if tooltip}
-			<div class="tooltip">
-				<div class="tooltip-name">{tooltip.name}</div>
-				{#if tooltip.visited === false}
-					<div class="tooltip-detail tooltip-unexplored">Unexplored</div>
-				{:else}
-					{#if tooltip.indoor !== undefined}
-						<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
-					{/if}
-					{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
-						<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
-					{/if}
-				{/if}
-			</div>
-		{/if}
+		<MapTooltip info={tooltip} />
 	</div>
 </div>
 
@@ -404,34 +390,6 @@
 	}
 
 	/* .travel-dot-marker and @keyframes travel-pulse are defined once in app.css */
-
-	.tooltip-unexplored {
-		font-style: italic;
-	}
-
-	.tooltip {
-		position: absolute;
-		bottom: 0.5rem;
-		right: 0.5rem;
-		background: var(--color-input-bg);
-		border: 1px solid var(--color-border);
-		color: var(--color-fg);
-		padding: 0.25rem 0.5rem;
-		font-size: 0.75rem;
-		border-radius: 3px;
-		pointer-events: none;
-		line-height: 1.3;
-		z-index: 10;
-	}
-
-	.tooltip-name {
-		font-weight: 600;
-	}
-
-	.tooltip-detail {
-		color: var(--color-muted);
-		font-size: 0.65rem;
-	}
 
 	.empty {
 		position: absolute;

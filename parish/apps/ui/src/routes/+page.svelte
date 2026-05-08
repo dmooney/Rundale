@@ -57,22 +57,9 @@
 		disposeTransport
 	} from '$lib/ipc';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
-	import { getStreamChunkDelayMs, takeNextStreamChunk } from '$lib/stream-pacing';
-	import type { LanguageHint } from '$lib/types';
+	import { createStreamManager } from '$lib/setup/stream-manager';
 
-	const AUTO_PAUSE_MS = 300_000;
 	const MOUSEMOVE_THROTTLE_MS = 1000;
-	const STREAM_WAIT_FOR_WORD_MS = 70;
-
-	type PendingNpcTurn = {
-		turnId: number;
-		source: string;
-		messageId?: string;
-		buffer: string;
-		placeholderInserted: boolean;
-		complete: boolean;
-		pumpHandle: ReturnType<typeof setTimeout> | null;
-	};
 
 	// F5 toggle for save picker, F11 toggle for demo panel, F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
@@ -131,42 +118,6 @@
 			};
 		}
 	});
-
-	function appendStreamToken(turnId: number, source: string, token: string, messageId?: string) {
-		textLog.update((log) => {
-			const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-			if (entryIndex >= 0) {
-				const current = log[entryIndex];
-				const nextEntry = {
-					...current,
-					id: current.id ?? messageId,
-					source,
-					content: current.content + token,
-					stream_turn_id: turnId,
-					streaming: true,
-					latest_chunk: token,
-					stream_chunk_id: (current.stream_chunk_id ?? 0) + 1
-				};
-				return [
-					...log.slice(0, entryIndex),
-					nextEntry,
-					...log.slice(entryIndex + 1)
-				];
-			}
-			return trimTextLog([
-				...log,
-				{
-					id: messageId,
-					source,
-					content: token,
-					stream_turn_id: turnId,
-					streaming: true,
-					latest_chunk: token,
-					stream_chunk_id: 1
-				}
-			]);
-		});
-	}
 
 	let mountCleanup: (() => void) | null = null;
 	let mobileMediaCleanup: (() => void) | null = null;
@@ -316,166 +267,7 @@
 			debugSnapshot.set(debugSnap);
 		} catch (_) {}
 
-		let pendingNpcTurns = new Map<number, PendingNpcTurn>();
-		let pendingStreamEndHints: LanguageHint[] | null = null;
-
-		function findPendingTurn(turnId: number) {
-			return pendingNpcTurns.get(turnId);
-		}
-
-		function queuePendingTurn(turnId: number, source: string, messageId?: string) {
-			const existing = findPendingTurn(turnId);
-			if (existing) {
-				existing.source = source;
-				existing.messageId = existing.messageId ?? messageId;
-				if (messageId && existing.placeholderInserted) {
-					textLog.update((log) => {
-						const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-						if (entryIndex < 0) return log;
-						return [
-							...log.slice(0, entryIndex),
-							{ ...log[entryIndex], id: log[entryIndex].id ?? messageId, source },
-							...log.slice(entryIndex + 1)
-						];
-					});
-				}
-				return existing;
-			}
-
-			const turn: PendingNpcTurn = {
-				turnId,
-				source,
-				messageId,
-				buffer: '',
-				placeholderInserted: false,
-				complete: false,
-				pumpHandle: null
-			};
-			pendingNpcTurns.set(turnId, turn);
-			return turn;
-		}
-
-		function ensureTurnEntry(turn: PendingNpcTurn) {
-			if (turn.placeholderInserted) return;
-
-			textLog.update((log) =>
-				trimTextLog([
-					...log,
-					{
-						id: turn.messageId,
-						source: turn.source,
-						content: '',
-						stream_turn_id: turn.turnId
-					}
-				])
-			);
-			turn.placeholderInserted = true;
-		}
-
-		function finalizeStreamingEntry(turnId: number) {
-			textLog.update((log) => {
-				const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-				if (entryIndex < 0) {
-					return log;
-				}
-
-				const entry = log[entryIndex];
-				if (entry.content === '') {
-					return [...log.slice(0, entryIndex), ...log.slice(entryIndex + 1)];
-				}
-
-				return [
-					...log.slice(0, entryIndex),
-					{
-						...entry,
-						streaming: false,
-						latest_chunk: undefined,
-						stream_chunk_id: undefined
-					},
-					...log.slice(entryIndex + 1)
-				];
-			});
-		}
-
-		function finishNpcStream(hints: LanguageHint[] = []) {
-			// Associate Irish hints with the last NPC message for inline highlighting
-			if (hints.length > 0) {
-				const log = get(textLog);
-				for (let i = log.length - 1; i >= 0; i--) {
-					if (log[i].id && log[i].source !== 'player' && log[i].source !== 'system') {
-						messageHints.update((m) => { m.set(log[i].id!, hints); return m; });
-						break;
-					}
-				}
-			}
-			languageHints.set(hints);
-			streamingActive.set(false);
-		}
-
-		function maybeFinishNpcStream() {
-			if (pendingStreamEndHints === null || pendingNpcTurns.size > 0) return;
-			finishNpcStream(pendingStreamEndHints);
-			pendingStreamEndHints = null;
-		}
-
-		function stopTurnPump(turn: PendingNpcTurn) {
-			if (turn.pumpHandle !== null) {
-				clearTimeout(turn.pumpHandle);
-				turn.pumpHandle = null;
-			}
-		}
-
-		function scheduleTurnPump(turn: PendingNpcTurn, delayMs: number) {
-			turn.pumpHandle = setTimeout(() => {
-				turn.pumpHandle = null;
-				pumpTurn(turn.turnId);
-			}, delayMs);
-		}
-
-		function finalizePendingTurn(turnId: number) {
-			const turn = findPendingTurn(turnId);
-			if (!turn) return;
-			stopTurnPump(turn);
-			finalizeStreamingEntry(turnId);
-			pendingNpcTurns.delete(turnId);
-			maybeFinishNpcStream();
-		}
-
-		function startTurnPumpIfNeeded(turn: PendingNpcTurn) {
-			if (turn.pumpHandle !== null) return;
-			pumpTurn(turn.turnId);
-		}
-
-		function pumpTurn(turnId: number) {
-			const turn = findPendingTurn(turnId);
-			if (!turn) return;
-
-			if (turn.buffer.length === 0) {
-				stopTurnPump(turn);
-				if (turn.complete) {
-					finalizePendingTurn(turnId);
-				}
-				return;
-			}
-
-			ensureTurnEntry(turn);
-
-			const { chunk, rest } = takeNextStreamChunk(turn.buffer, turn.complete);
-
-			if (chunk === null) {
-				scheduleTurnPump(turn, STREAM_WAIT_FOR_WORD_MS);
-				return;
-			}
-
-			turn.buffer = rest;
-			appendStreamToken(
-				turn.turnId,
-				turn.source,
-				chunk,
-				turn.messageId
-			);
-			scheduleTurnPump(turn, getStreamChunkDelayMs(chunk));
-		}
+		const sm = createStreamManager();
 
 		const listeners: Array<() => void> = [];
 		try {
@@ -498,7 +290,7 @@
 					payload.source !== 'system' &&
 					payload.stream_turn_id != null
 				) {
-					queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
+					sm.queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
 					return;
 				}
 
@@ -526,21 +318,21 @@
 			}));
 
 			listeners.push(await onStreamToken((payload) => {
-				const turn = queuePendingTurn(payload.turn_id, payload.source);
+				const turn = sm.queuePendingTurn(payload.turn_id, payload.source);
 				turn.buffer += payload.token;
-				startTurnPumpIfNeeded(turn);
+				sm.startTurnPumpIfNeeded(turn);
 			}));
 
 			listeners.push(await onStreamTurnEnd((payload) => {
-				const turn = findPendingTurn(payload.turn_id);
+				const turn = sm.findPendingTurn(payload.turn_id);
 				if (!turn) return;
 				turn.complete = true;
-				startTurnPumpIfNeeded(turn);
+				sm.startTurnPumpIfNeeded(turn);
 			}));
 
 			listeners.push(await onStreamEnd((payload) => {
-				pendingStreamEndHints = payload.hints;
-				maybeFinishNpcStream();
+				sm.setPendingEndHints(payload.hints);
+				sm.maybeFinishNpcStream();
 			}));
 
 			listeners.push(await onLoading((payload) => {
@@ -549,7 +341,7 @@
 					streamingActive.set(true);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
-				} else if (pendingNpcTurns.size === 0 && pendingStreamEndHints === null) {
+				} else if (sm.pendingTurnCount() === 0 && !sm.hasPendingEndHints()) {
 					// Loading ended with no NPC stream in flight — clear immediately.
 					// When a stream IS in flight, the text pump is still dripping
 					// characters; finishNpcStream() clears streamingActive after the
@@ -622,7 +414,7 @@
 			window.removeEventListener('mousemove', onTrackerMousemove);
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			tracker.dispose();
-			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
+			sm.dispose();
 			listeners.forEach((fn) => fn());
 		};
 	}

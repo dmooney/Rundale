@@ -104,22 +104,12 @@ struct Cli {
     web: Option<u16>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Load .env file if present (before anything reads env vars)
-    dotenvy::dotenv().ok();
-
-    // Set up logging: file appender (always)
+/// Sets up tracing and optional OpenTelemetry.
+fn setup_tracing_and_otel() {
     std::fs::create_dir_all("logs").ok();
     let file_appender = tracing_appender::rolling::daily("logs", "parish.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    // ── #621: Optional OTel OTLP exporter (web mode only; no-op in headless) ─
-    // The OTLP exporter only makes sense when the server is handling HTTP
-    // requests, but we initialise the provider here (before the subscriber) so
-    // the layer can be composed in unconditionally.  When
-    // `PARISH_OTEL_ENDPOINT` is unset the provider is `None` and
-    // `OpenTelemetryLayer::new` is simply omitted from the registry.
     let otel_provider = parish_server::tracing_setup::try_build_otel_provider("parish-server");
     let otel_tracer = otel_provider.as_ref().map(|p| {
         use opentelemetry::trace::TracerProvider as _;
@@ -141,32 +131,18 @@ async fn main() -> Result<()> {
             .with(Option::<OpenTelemetryLayer<_, opentelemetry::trace::noop::NoopTracer>>::None)
             .init();
     }
+}
 
-    tracing::info!("Starting Parish...");
+/// Resolves provider config, cloud config, and per-category configs from CLI.
+struct ResolvedConfigs {
+    provider_config: ProviderConfig,
+    cloud_config: Option<parish::config::CloudConfig>,
+    category_configs: std::collections::HashMap<InferenceCategory, parish::config::CategoryConfig>,
+    clients: InferenceClients,
+    engine_inference: parish::config::InferenceConfig,
+}
 
-    let cli = Cli::parse();
-
-    // Script mode — no LLM needed, synchronous execution
-    if let Some(script_path) = &cli.script {
-        return parish::testing::run_script_mode(Path::new(script_path));
-    }
-
-    // Web server mode — serves UI in browser for testing
-    if let Some(port) = cli.web {
-        #[allow(deprecated)]
-        let data_dir = find_data_dir();
-        #[allow(deprecated)]
-        let static_dir = find_ui_dist_dir();
-        tracing::info!(
-            "Starting web server on port {} (data={}, static={})",
-            port,
-            data_dir.display(),
-            static_dir.display()
-        );
-        return parish_server::run_server(port, data_dir, static_dir).await;
-    }
-
-    // Resolve provider configuration from file + env + CLI
+async fn resolve_configs(cli: &Cli) -> Result<(ResolvedConfigs, parish::inference::client::OllamaProcess)> {
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
@@ -175,18 +151,14 @@ async fn main() -> Result<()> {
     };
     let provider_config = resolve_config(config_path, &overrides)?;
 
-    // Resolve cloud provider configuration (legacy, for backward compat)
     let cloud_overrides = CliCloudOverrides {
         provider: cli.cloud_provider.clone(),
         base_url: cli.cloud_base_url.clone(),
         model: cli.cloud_model.clone(),
     };
-    let cloud_config = resolve_cloud_config(config_path, &cloud_overrides)?;
+    let cloud_config_opt = resolve_cloud_config(config_path, &cloud_overrides)?;
 
-    // Build per-category CLI overrides
-    let cli_category_overrides = build_cli_category_overrides(&cli);
-
-    // Resolve per-category provider configs
+    let cli_category_overrides = build_cli_category_overrides(cli);
     let category_configs = resolve_category_configs(
         config_path,
         &provider_config,
@@ -194,76 +166,95 @@ async fn main() -> Result<()> {
         &cloud_overrides,
     )?;
 
-    // Set up local inference client based on provider
-    let (client, model, mut ollama_process) = setup_provider(&cli, &provider_config).await?;
+    let (client, model, ollama_process) = setup_provider(cli, &provider_config).await?;
 
-    // Build per-category client routing struct
     let clients = build_inference_clients(&provider_config, &client, &model, &category_configs);
 
     for (cat, cfg) in &category_configs {
-        let key_status = if cfg.api_key.is_some() {
-            "(set)"
-        } else {
-            "(not set)"
-        };
+        let key_status = if cfg.api_key.is_some() { "(set)" } else { "(not set)" };
         tracing::info!(
             "{:?} category: {:?} provider at {} with model {} (API key: {})",
-            cat,
-            cfg.provider,
-            cfg.base_url,
-            cfg.model.as_deref().unwrap_or("(auto)"),
-            key_status
+            cat, cfg.provider, cfg.base_url,
+            cfg.model.as_deref().unwrap_or("(auto)"), key_status
         );
     }
 
-    // Load game mod (from --game-mod flag, env var, or auto-detect)
-    // via the ModSource abstraction so future sources (S3, HTTP) drop in
-    // without touching this call site.
-    let game_mod = {
-        if let Some(ref path) = cli.game_mod {
-            // Explicit --game-mod path: bypass discovery and load directly.
-            let dir = std::path::PathBuf::from(path);
-            match parish_core::game_mod::GameMod::load(&dir) {
-                Ok(gm) => {
-                    tracing::info!(
-                        "Loaded game mod '{}' from explicit path ({})",
-                        gm.manifest.meta.name,
-                        dir.display()
-                    );
-                    Some(gm)
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
-                    None
-                }
-            }
-        } else {
-            // Auto-detect via ModSource trait.
-            parish_core::mod_source::load_setting_mod_sync()
+    let engine_config_path = match &cli.config {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            parish_core::config::resolve_config_path(&cwd)
         }
     };
+    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
 
-    // Load engine config (parish.toml) for TOML-configured inference timeouts.
-    // Missing file falls back to compiled-in defaults. (#417)
-    let engine_config = parish_core::config::load_engine_config(None);
+    Ok((
+        ResolvedConfigs {
+            provider_config,
+            cloud_config: cloud_config_opt,
+            category_configs,
+            clients,
+            engine_inference: engine_config.inference,
+        },
+        ollama_process,
+    ))
+}
 
-    // Headless REPL mode (default).
-    // Detect non-interactive (piped / redirected) stdin so `run_headless` can
-    // fail closed on a save-file lock conflict instead of silently proceeding
-    // (#608).  `IsTerminal` is stable since Rust 1.70 — no extra dep needed.
+/// Loads the game mod from CLI path or auto-detect.
+fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
+    if let Some(ref path) = cli.game_mod {
+        let dir = std::path::PathBuf::from(path);
+        match parish_core::game_mod::GameMod::load(&dir) {
+            Ok(gm) => {
+                tracing::info!("Loaded game mod '{}' from explicit path ({})",
+                    gm.manifest.meta.name, dir.display());
+                Some(gm)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to load mod from {}: {}", dir.display(), e);
+                None
+            }
+        }
+    } else {
+        parish_core::mod_source::load_setting_mod_sync()
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+    setup_tracing_and_otel();
+    tracing::info!("Starting Parish...");
+    let cli = Cli::parse();
+
+    if let Some(script_path) = &cli.script {
+        return parish::testing::run_script_mode(Path::new(script_path));
+    }
+
+    if let Some(port) = cli.web {
+        #[allow(deprecated)]
+        let (data_dir, static_dir) = (find_data_dir(), find_ui_dist_dir());
+        tracing::info!("Starting web server on port {} (data={}, static={})",
+            port, data_dir.display(), static_dir.display());
+        return parish_server::run_server(port, data_dir, static_dir).await;
+    }
+
+    let (cfg, mut ollama_process) = resolve_configs(&cli).await?;
+    let game_mod = load_game_mod(&cli);
+
     use std::io::IsTerminal as _;
     let script_mode = !std::io::stdin().is_terminal();
     #[allow(deprecated)]
     let headless_data_dir = find_data_dir();
     let result = headless::run_headless(
-        clients.clone(),
-        &provider_config,
-        cloud_config.as_ref(),
-        &category_configs,
+        cfg.clients.clone(),
+        &cfg.provider_config,
+        cfg.cloud_config.as_ref(),
+        &cfg.category_configs,
         cli.improv,
         game_mod,
         Some(headless_data_dir),
-        engine_config.inference,
+        cfg.engine_inference,
         script_mode,
     )
     .await;
@@ -409,32 +400,18 @@ fn find_ui_dist_dir() -> PathBuf {
 fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
     let mut categories = std::collections::HashMap::new();
 
-    let dialogue = CliOverrides {
-        provider: cli.dialogue_provider.clone(),
-        base_url: cli.dialogue_base_url.clone(),
-        model: cli.dialogue_model.clone(),
-    };
-    if dialogue.provider.is_some() || dialogue.base_url.is_some() || dialogue.model.is_some() {
-        categories.insert("dialogue".to_string(), dialogue);
-    }
-
-    let simulation = CliOverrides {
-        provider: cli.simulation_provider.clone(),
-        base_url: cli.simulation_base_url.clone(),
-        model: cli.simulation_model.clone(),
-    };
-    if simulation.provider.is_some() || simulation.base_url.is_some() || simulation.model.is_some()
-    {
-        categories.insert("simulation".to_string(), simulation);
-    }
-
-    let intent = CliOverrides {
-        provider: cli.intent_provider.clone(),
-        base_url: cli.intent_base_url.clone(),
-        model: cli.intent_model.clone(),
-    };
-    if intent.provider.is_some() || intent.base_url.is_some() || intent.model.is_some() {
-        categories.insert("intent".to_string(), intent);
+    for (name, provider, base_url, model) in [
+        ("dialogue", &cli.dialogue_provider, &cli.dialogue_base_url, &cli.dialogue_model),
+        ("simulation", &cli.simulation_provider, &cli.simulation_base_url, &cli.simulation_model),
+        ("intent", &cli.intent_provider, &cli.intent_base_url, &cli.intent_model),
+    ] {
+        if provider.is_some() || base_url.is_some() || model.is_some() {
+            categories.insert(name.to_string(), CliOverrides {
+                provider: provider.clone(),
+                base_url: base_url.clone(),
+                model: model.clone(),
+            });
+        }
     }
 
     CliCategoryOverrides { categories }

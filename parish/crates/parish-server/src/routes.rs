@@ -3,6 +3,7 @@
 //! Each route maps to a Tauri command, calling the shared handlers in
 //! [`parish_core::ipc`] and returning JSON responses.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Json;
@@ -980,10 +981,29 @@ pub async fn load_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let (path, branch_id) = validate_and_acquire_lock(&state, &body).await?;
+
+    let path_clone = path.clone();
+    let (snapshot, branch_name) =
+        tokio::task::spawn_blocking(move || load_branch_snapshot(&path_clone, branch_id))
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    restore_snapshot_and_emit(&state, snapshot, &branch_name, branch_id, &path).await;
+
+    Ok(StatusCode::OK)
+}
+
+/// Validates the save-file path, checks containment, and acquires an advisory
+/// file lock when switching to a different save file.
+async fn validate_and_acquire_lock(
+    state: &Arc<AppState>,
+    body: &LoadBranchRequest,
+) -> Result<(PathBuf, i64), (StatusCode, String)> {
     use parish_core::persistence::SaveFileLock;
 
     let path = std::path::PathBuf::from(&body.file_path);
-    // Validate the path is within the saves directory to prevent path traversal.
     let canonical = path.canonicalize().map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -1005,7 +1025,6 @@ pub async fn load_branch(
     let path = canonical;
     let branch_id = body.branch_id;
 
-    // If switching to a different save file, acquire a new lock first.
     let current_path = state.save_path.lock().await.clone();
     let switching_files = current_path.as_ref() != Some(&path);
     if switching_files {
@@ -1018,27 +1037,40 @@ pub async fn load_branch(
         *state.save_lock.lock().await = Some(lock);
     }
 
-    let path_clone = path.clone();
+    Ok((path, branch_id))
+}
 
-    let (snapshot, branch_name) =
-        tokio::task::spawn_blocking(move || -> Result<(GameSnapshot, String), String> {
-            let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
-            let (_, snapshot) = db
-                .load_latest_snapshot(branch_id)
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
-            let branches = db.list_branches().map_err(|e| e.to_string())?;
-            let branch_name = branches
-                .iter()
-                .find(|b| b.id == branch_id)
-                .map(|b| b.name.clone())
-                .unwrap_or_else(|| "unknown".to_string());
-            Ok((snapshot, branch_name))
-        })
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+/// Opens the database file, loads the latest snapshot for the given branch,
+/// and resolves the branch display name.
+fn load_branch_snapshot(
+    path: &std::path::Path,
+    branch_id: i64,
+) -> Result<(GameSnapshot, String), String> {
+    use parish_core::persistence::Database;
 
+    let db = Database::open(path).map_err(|e| e.to_string())?;
+    let (_, snapshot) = db
+        .load_latest_snapshot(branch_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
+    let branches = db.list_branches().map_err(|e| e.to_string())?;
+    let branch_name = branches
+        .iter()
+        .find(|b| b.id == branch_id)
+        .map(|b| b.name.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+    Ok((snapshot, branch_name))
+}
+
+/// Restores the snapshot into the world/NPC manager, emits a world-update
+/// event, updates session state, and logs the load.
+async fn restore_snapshot_and_emit(
+    state: &Arc<AppState>,
+    snapshot: GameSnapshot,
+    branch_name: &str,
+    branch_id: i64,
+    path: &std::path::Path,
+) {
     {
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
@@ -1070,11 +1102,9 @@ pub async fn load_branch(
         ),
     );
 
-    *state.save_path.lock().await = Some(path);
+    *state.save_path.lock().await = Some(path.to_path_buf());
     *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some(branch_name);
-
-    Ok(StatusCode::OK)
+    *state.current_branch_name.lock().await = Some(branch_name.to_string());
 }
 
 /// Request body for `POST /api/create-branch`.
@@ -1415,7 +1445,7 @@ pub async fn session_init(
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use super::*;
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex as StdMutex};
@@ -1474,7 +1504,7 @@ pub(crate) mod tests {
     }
 
     /// Helper to build a minimal AppState from the real game data.
-    pub(crate) fn test_app_state() -> Arc<AppState> {
+    pub fn test_app_state() -> Arc<AppState> {
         let data_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let world =
