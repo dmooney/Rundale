@@ -19,6 +19,7 @@ chrono        = { workspace = true }
 governor      = { workspace = true }
 lru           = { workspace = true }
 uuid          = { workspace = true }
+regex         = { workspace = true }
 async-trait   = { workspace = true }
 
 [features]

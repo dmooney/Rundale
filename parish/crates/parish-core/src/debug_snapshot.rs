@@ -941,120 +941,12 @@ fn build_npc_debug_list(
                 }
             };
 
-            let schedule: Vec<ScheduleVariantDebug> = npc
-                .schedule
-                .as_ref()
-                .map(|s| {
-                    // Determine which variant is currently active
-                    let active_entries = s.resolve(current_season, current_day_type);
-                    s.variants
-                        .iter()
-                        .map(|v| {
-                            let is_active =
-                                active_entries.is_some_and(|ae| std::ptr::eq(ae, &v.entries[..]));
-                            let entries = v
-                                .entries
-                                .iter()
-                                .map(|e| {
-                                    let is_current = is_active
-                                        && current_hour >= e.start_hour
-                                        && current_hour <= e.end_hour;
-                                    ScheduleEntryDebug {
-                                        start_hour: e.start_hour,
-                                        end_hour: e.end_hour,
-                                        location_name: loc_name(e.location, graph),
-                                        activity: e.activity.clone(),
-                                        is_current,
-                                    }
-                                })
-                                .collect();
-                            ScheduleVariantDebug {
-                                season: v.season.map(|s| s.to_string()),
-                                day_type: v.day_type.map(|d| d.to_string()),
-                                is_active,
-                                entries,
-                            }
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            let mut relationships: Vec<RelationshipDebug> = npc
-                .relationships
-                .iter()
-                .map(|(target_id, rel)| {
-                    let target_name = npc_manager
-                        .get(*target_id)
-                        .map(|n| n.name.clone())
-                        .unwrap_or_else(|| format!("NPC({})", target_id.0));
-                    // Newest-first, cap at 10 entries
-                    let mut history: Vec<RelationshipEventDebug> = rel
-                        .history
-                        .iter()
-                        .rev()
-                        .take(10)
-                        .map(|e| RelationshipEventDebug {
-                            timestamp: e.timestamp.format("%H:%M %Y-%m-%d").to_string(),
-                            description: e.description.clone(),
-                        })
-                        .collect();
-                    history.reverse(); // Back to oldest-first for display stability
-                    RelationshipDebug {
-                        target_name,
-                        kind: rel.kind.to_string(),
-                        strength: rel.strength,
-                        history_count: rel.history.len(),
-                        history,
-                    }
-                })
-                .collect();
-            relationships.sort_by(|a, b| {
-                b.strength
-                    .partial_cmp(&a.strength)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-
-            let memories: Vec<MemoryDebug> = npc
-                .memory
-                .recent(10)
-                .iter()
-                .map(|m| MemoryDebug {
-                    timestamp: m.timestamp.format("%H:%M %Y-%m-%d").to_string(),
-                    content: m.content.clone(),
-                    location_name: loc_name(m.location, graph),
-                })
-                .collect();
-
-            let long_term_memories: Vec<LongTermMemoryDebug> = npc
-                .long_term_memory
-                .all_entries()
-                .iter()
-                .map(|e| LongTermMemoryDebug {
-                    timestamp: e.timestamp.format("%H:%M %Y-%m-%d").to_string(),
-                    content: e.content.clone(),
-                    importance: e.importance,
-                    keywords: e.keywords.clone(),
-                })
-                .collect();
-
-            let reactions: Vec<ReactionDebug> = npc
-                .reaction_log
-                .entries()
-                .rev()
-                .map(|r| ReactionDebug {
-                    timestamp: r.timestamp.format("%H:%M %Y-%m-%d").to_string(),
-                    emoji: r.emoji.clone(),
-                    description: r.description.clone(),
-                    context: r.context.clone(),
-                })
-                .collect();
-
-            let deflated_summary = npc.deflated_summary.as_ref().map(|s| DeflatedSummaryDebug {
-                location_name: loc_name(s.location, graph),
-                mood: s.mood.clone(),
-                recent_activity: s.recent_activity.clone(),
-                key_relationship_changes: s.key_relationship_changes.clone(),
-            });
+            let schedule = build_npc_schedule_debug(npc, graph, current_hour, current_season, current_day_type);
+            let relationships = build_npc_relationship_debug(npc, npc_manager);
+            let memories = build_npc_memory_debug(npc, graph);
+            let long_term_memories = build_npc_long_term_memory_debug(npc);
+            let reactions = build_npc_reaction_debug(npc);
+            let deflated_summary = build_npc_deflated_summary_debug(npc, graph);
 
             NpcDebug {
                 id: npc.id.0,
@@ -1093,9 +985,148 @@ fn build_npc_debug_list(
         })
         .collect();
 
-    // Sort by tier (Tier1 first), then by name
     npcs.sort_by(|a, b| a.tier.cmp(&b.tier).then(a.name.cmp(&b.name)));
     npcs
+}
+
+/// Builds schedule debug info for a single NPC.
+fn build_npc_schedule_debug(
+    npc: &crate::npc::Npc,
+    graph: &WorldGraph,
+    current_hour: u8,
+    current_season: Season,
+    current_day_type: DayType,
+) -> Vec<ScheduleVariantDebug> {
+    npc.schedule
+        .as_ref()
+        .map(|s| {
+            let active_entries = s.resolve(current_season, current_day_type);
+            s.variants
+                .iter()
+                .map(|v| {
+                    let is_active =
+                        active_entries.is_some_and(|ae| std::ptr::eq(ae, &v.entries[..]));
+                    let entries = v
+                        .entries
+                        .iter()
+                        .map(|e| {
+                            let is_current = is_active
+                                && current_hour >= e.start_hour
+                                && current_hour <= e.end_hour;
+                            ScheduleEntryDebug {
+                                start_hour: e.start_hour,
+                                end_hour: e.end_hour,
+                                location_name: loc_name(e.location, graph),
+                                activity: e.activity.clone(),
+                                is_current,
+                            }
+                        })
+                        .collect();
+                    ScheduleVariantDebug {
+                        season: v.season.map(|s| s.to_string()),
+                        day_type: v.day_type.map(|d| d.to_string()),
+                        is_active,
+                        entries,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Builds relationship debug info for a single NPC, sorted by strength descending.
+fn build_npc_relationship_debug(
+    npc: &crate::npc::Npc,
+    npc_manager: &NpcManager,
+) -> Vec<RelationshipDebug> {
+    let mut relationships: Vec<RelationshipDebug> = npc
+        .relationships
+        .iter()
+        .map(|(target_id, rel)| {
+            let target_name = npc_manager
+                .get(*target_id)
+                .map(|n| n.name.clone())
+                .unwrap_or_else(|| format!("NPC({})", target_id.0));
+            let mut history: Vec<RelationshipEventDebug> = rel
+                .history
+                .iter()
+                .rev()
+                .take(10)
+                .map(|e| RelationshipEventDebug {
+                    timestamp: e.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+                    description: e.description.clone(),
+                })
+                .collect();
+            history.reverse();
+            RelationshipDebug {
+                target_name,
+                kind: rel.kind.to_string(),
+                strength: rel.strength,
+                history_count: rel.history.len(),
+                history,
+            }
+        })
+        .collect();
+    relationships.sort_by(|a, b| {
+        b.strength
+            .partial_cmp(&a.strength)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    relationships
+}
+
+/// Builds recent short-term memory debug entries for a single NPC.
+fn build_npc_memory_debug(npc: &crate::npc::Npc, graph: &WorldGraph) -> Vec<MemoryDebug> {
+    npc.memory
+        .recent(10)
+        .iter()
+        .map(|m| MemoryDebug {
+            timestamp: m.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+            content: m.content.clone(),
+            location_name: loc_name(m.location, graph),
+        })
+        .collect()
+}
+
+/// Builds long-term memory debug entries for a single NPC.
+fn build_npc_long_term_memory_debug(npc: &crate::npc::Npc) -> Vec<LongTermMemoryDebug> {
+    npc.long_term_memory
+        .all_entries()
+        .iter()
+        .map(|e| LongTermMemoryDebug {
+            timestamp: e.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+            content: e.content.clone(),
+            importance: e.importance,
+            keywords: e.keywords.clone(),
+        })
+        .collect()
+}
+
+/// Builds reaction log debug entries for a single NPC.
+fn build_npc_reaction_debug(npc: &crate::npc::Npc) -> Vec<ReactionDebug> {
+    npc.reaction_log
+        .entries()
+        .rev()
+        .map(|r| ReactionDebug {
+            timestamp: r.timestamp.format("%H:%M %Y-%m-%d").to_string(),
+            emoji: r.emoji.clone(),
+            description: r.description.clone(),
+            context: r.context.clone(),
+        })
+        .collect()
+}
+
+/// Builds the deflated summary debug entry for a single NPC, if present.
+fn build_npc_deflated_summary_debug(
+    npc: &crate::npc::Npc,
+    graph: &WorldGraph,
+) -> Option<DeflatedSummaryDebug> {
+    npc.deflated_summary.as_ref().map(|s| DeflatedSummaryDebug {
+        location_name: loc_name(s.location, graph),
+        mood: s.mood.clone(),
+        recent_activity: s.recent_activity.clone(),
+        key_relationship_changes: s.key_relationship_changes.clone(),
+    })
 }
 
 /// Builds tier summary counts and name lists.

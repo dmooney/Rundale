@@ -1072,37 +1072,17 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
 mod tests {
     use super::*;
     use crate::NpcMetadata;
-    use crate::memory::{LongTermMemory, ShortTermMemory};
-    use crate::types::{MoodChange, NpcState, Relationship, RelationshipChange, RelationshipKind};
+    use crate::types::{MoodChange, Relationship, RelationshipChange, RelationshipKind};
     use chrono::TimeZone;
     use std::collections::HashMap;
 
     fn make_test_npc(id: u32, name: &str, location: u32) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: name.to_string(),
-            brief_description: format!("a test NPC named {}", name),
-            age: 40,
-            occupation: "Test".to_string(),
-            personality: "Friendly".to_string(),
-            intelligence: crate::types::Intelligence::default(),
-            location: LocationId(location),
-            mood: "calm".to_string(),
-            home: Some(LocationId(location)),
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::default(),
-            deflated_summary: None,
-            reaction_log: crate::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        let mut npc = crate::test_helpers::make_test_npc(id, location);
+        npc.name = name.to_string();
+        npc.brief_description = format!("a test NPC named {}", name);
+        npc.age = 40;
+        npc.personality = "Friendly".to_string();
+        npc
     }
 
     #[test]

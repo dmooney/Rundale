@@ -24,6 +24,20 @@ use parish_core::game_mod::GameMod;
 /// Maximum number of entries in the debug activity log.
 pub const DEBUG_LOG_CAPACITY: usize = 50;
 
+/// Per-category overrides for inference clients.
+///
+/// Replaces the repeated 5-field pattern (client, model, provider_name,
+/// api_key, base_url) that used to appear 3 times for intent, simulation,
+/// and reaction categories.
+#[derive(Clone, Default)]
+pub struct CategoryOverride {
+    pub client: Option<AnyClient>,
+    pub model: String,
+    pub provider_name: Option<String>,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+}
+
 /// Main application state.
 ///
 /// Holds the game world state, input buffer, and control flags.
@@ -93,36 +107,12 @@ pub struct App {
     pub latest_snapshot_id: i64,
     /// Wall-clock time of the last autosave.
     pub last_autosave: Option<Instant>,
-    /// The LLM client for intent parsing (may differ from base client).
-    pub intent_client: Option<AnyClient>,
-    /// The model name for intent parsing.
-    pub intent_model: String,
-    /// Provider name for intent category (None = inherits base).
-    pub intent_provider_name: Option<String>,
-    /// API key for intent category.
-    pub intent_api_key: Option<String>,
-    /// Base URL for intent category.
-    pub intent_base_url: Option<String>,
-    /// The LLM client for simulation (may differ from base client).
-    pub simulation_client: Option<AnyClient>,
-    /// The model name for simulation.
-    pub simulation_model: String,
-    /// Provider name for simulation category (None = inherits base).
-    pub simulation_provider_name: Option<String>,
-    /// API key for simulation category.
-    pub simulation_api_key: Option<String>,
-    /// Base URL for simulation category.
-    pub simulation_base_url: Option<String>,
-    /// The LLM client for NPC arrival reactions (may differ from base client).
-    pub reaction_client: Option<AnyClient>,
-    /// The model name for reactions.
-    pub reaction_model: String,
-    /// Provider name for reaction category (None = inherits base).
-    pub reaction_provider_name: Option<String>,
-    /// API key for reaction category.
-    pub reaction_api_key: Option<String>,
-    /// Base URL for reaction category.
-    pub reaction_base_url: Option<String>,
+    /// Intent category override.
+    pub intent: CategoryOverride,
+    /// Simulation category override.
+    pub simulation: CategoryOverride,
+    /// Reaction category override.
+    pub reaction: CategoryOverride,
     /// Loaded game mod data (None if no mod directory was found or specified).
     pub game_mod: Option<GameMod>,
     /// Runtime feature flags (loaded from parish-flags.json at startup).
@@ -180,21 +170,9 @@ impl App {
             active_branch_id: 1,
             latest_snapshot_id: 0,
             last_autosave: None,
-            intent_client: None,
-            intent_model: String::new(),
-            intent_provider_name: None,
-            intent_api_key: None,
-            intent_base_url: None,
-            simulation_client: None,
-            simulation_model: String::new(),
-            simulation_provider_name: None,
-            simulation_api_key: None,
-            simulation_base_url: None,
-            reaction_client: None,
-            reaction_model: String::new(),
-            reaction_provider_name: None,
-            reaction_api_key: None,
-            reaction_base_url: None,
+            intent: CategoryOverride::default(),
+            simulation: CategoryOverride::default(),
+            reaction: CategoryOverride::default(),
             game_mod: None,
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
@@ -222,106 +200,96 @@ impl App {
             .unwrap_or_else(LanguageSettings::english_only)
     }
 
-    /// Returns the provider name for a given inference category (or None if inheriting base).
+    /// Returns the [`CategoryOverride`] for categories that have one (not Dialogue).
+    fn category_override(&self, cat: InferenceCategory) -> &CategoryOverride {
+        match cat {
+            InferenceCategory::Intent => &self.intent,
+            InferenceCategory::Simulation => &self.simulation,
+            InferenceCategory::Reaction => &self.reaction,
+            InferenceCategory::Dialogue => panic!("Dialogue has no CategoryOverride"),
+        }
+    }
+
+    /// Returns the mutable [`CategoryOverride`] for categories that have one (not Dialogue).
+    fn category_override_mut(&mut self, cat: InferenceCategory) -> &mut CategoryOverride {
+        match cat {
+            InferenceCategory::Intent => &mut self.intent,
+            InferenceCategory::Simulation => &mut self.simulation,
+            InferenceCategory::Reaction => &mut self.reaction,
+            InferenceCategory::Dialogue => panic!("Dialogue has no CategoryOverride"),
+        }
+    }
+
     pub fn category_provider_name(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name.as_deref(),
-            InferenceCategory::Simulation => self.simulation_provider_name.as_deref(),
-            InferenceCategory::Intent => self.intent_provider_name.as_deref(),
-            InferenceCategory::Reaction => self.reaction_provider_name.as_deref(),
+            cat => self.category_override(cat).provider_name.as_deref(),
         }
     }
 
-    /// Returns the model name for a given inference category (empty string if inheriting base).
     pub fn category_model(&self, cat: InferenceCategory) -> &str {
         match cat {
             InferenceCategory::Dialogue => self.cloud_model_name.as_deref().unwrap_or(""),
-            InferenceCategory::Simulation => &self.simulation_model,
-            InferenceCategory::Intent => &self.intent_model,
-            InferenceCategory::Reaction => &self.reaction_model,
+            cat => &self.category_override(cat).model,
         }
     }
 
-    /// Returns the API key for a given inference category.
     pub fn category_api_key(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key.as_deref(),
-            InferenceCategory::Simulation => self.simulation_api_key.as_deref(),
-            InferenceCategory::Intent => self.intent_api_key.as_deref(),
-            InferenceCategory::Reaction => self.reaction_api_key.as_deref(),
+            cat => self.category_override(cat).api_key.as_deref(),
         }
     }
 
-    /// Returns the base URL for a given inference category.
     pub fn category_base_url(&self, cat: InferenceCategory) -> Option<&str> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url.as_deref(),
-            InferenceCategory::Simulation => self.simulation_base_url.as_deref(),
-            InferenceCategory::Intent => self.intent_base_url.as_deref(),
-            InferenceCategory::Reaction => self.reaction_base_url.as_deref(),
+            cat => self.category_override(cat).base_url.as_deref(),
         }
     }
 
-    /// Returns the client for a given inference category.
     pub fn category_client(&self, cat: InferenceCategory) -> Option<&AnyClient> {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client.as_ref(),
-            InferenceCategory::Simulation => self.simulation_client.as_ref(),
-            InferenceCategory::Intent => self.intent_client.as_ref(),
-            InferenceCategory::Reaction => self.reaction_client.as_ref(),
+            cat => self.category_override(cat).client.as_ref(),
         }
     }
 
-    /// Sets the provider name for a given inference category.
     pub fn set_category_provider_name(&mut self, cat: InferenceCategory, name: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_provider_name = Some(name),
-            InferenceCategory::Simulation => self.simulation_provider_name = Some(name),
-            InferenceCategory::Intent => self.intent_provider_name = Some(name),
-            InferenceCategory::Reaction => self.reaction_provider_name = Some(name),
+            cat => self.category_override_mut(cat).provider_name = Some(name),
         }
     }
 
-    /// Sets the model name for a given inference category.
     pub fn set_category_model(&mut self, cat: InferenceCategory, model: String) {
         match cat {
             InferenceCategory::Dialogue => {
                 self.cloud_model_name = Some(model.clone());
                 self.dialogue_model = model;
             }
-            InferenceCategory::Simulation => self.simulation_model = model,
-            InferenceCategory::Intent => self.intent_model = model,
-            InferenceCategory::Reaction => self.reaction_model = model,
+            cat => self.category_override_mut(cat).model = model,
         }
     }
 
-    /// Sets the API key for a given inference category.
     pub fn set_category_api_key(&mut self, cat: InferenceCategory, key: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_api_key = Some(key),
-            InferenceCategory::Simulation => self.simulation_api_key = Some(key),
-            InferenceCategory::Intent => self.intent_api_key = Some(key),
-            InferenceCategory::Reaction => self.reaction_api_key = Some(key),
+            cat => self.category_override_mut(cat).api_key = Some(key),
         }
     }
 
-    /// Sets the base URL for a given inference category.
     pub fn set_category_base_url(&mut self, cat: InferenceCategory, url: String) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_base_url = Some(url),
-            InferenceCategory::Simulation => self.simulation_base_url = Some(url),
-            InferenceCategory::Intent => self.intent_base_url = Some(url),
-            InferenceCategory::Reaction => self.reaction_base_url = Some(url),
+            cat => self.category_override_mut(cat).base_url = Some(url),
         }
     }
 
-    /// Sets the client for a given inference category.
     pub fn set_category_client(&mut self, cat: InferenceCategory, client: AnyClient) {
         match cat {
             InferenceCategory::Dialogue => self.cloud_client = Some(client),
-            InferenceCategory::Simulation => self.simulation_client = Some(client),
-            InferenceCategory::Intent => self.intent_client = Some(client),
-            InferenceCategory::Reaction => self.reaction_client = Some(client),
+            cat => self.category_override_mut(cat).client = Some(client),
         }
     }
 

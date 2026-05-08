@@ -23,7 +23,7 @@ pub mod tracing_setup;
 pub mod ws;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -43,6 +43,7 @@ use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use parish_core::game_mod::GameMod;
+use parish_core::ipc::ThemePalette;
 use parish_core::mod_source::{LocalDiskModSource, ModSource};
 use parish_core::world::transport::TransportConfig;
 
@@ -363,231 +364,38 @@ async fn cf_access_guard(
 
 /// Starts the Parish web server on the given port.
 pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> anyhow::Result<()> {
-    // Load .env in debug builds only. In release, a stale .env in the
-    // deployment directory could silently override critical security variables
-    // (CF_ACCESS_AUD, PARISH_WS_SIGNING_KEY, etc.), so we skip it and emit a
-    // warning if one is present (#786).
-    #[cfg(debug_assertions)]
-    dotenvy::dotenv().ok();
-    #[cfg(not(debug_assertions))]
-    {
-        fn find_dotenv() -> Option<std::path::PathBuf> {
-            let mut dir = std::env::current_dir().ok()?;
-            loop {
-                let path = dir.join(".env");
-                if path.is_file() {
-                    return Some(path);
-                }
-                if !dir.pop() {
-                    return None;
-                }
-            }
-        }
-        if let Some(path) = find_dotenv() {
-            tracing::warn!(
-                ".env file found at '{}' but will NOT be loaded in \
-                 release builds — set environment variables explicitly to avoid \
-                 accidentally overriding security-critical config (#786)",
-                path.display()
-            );
-        }
-    }
-
-    // ── World path ────────────────────────────────────────────────────────────
-    let world_path = {
-        let parish = data_dir.join("parish.json");
-        let world = data_dir.join("world.json");
-        if parish.exists() { parish } else { world }
-    };
+    handle_dotenv();
+    let world_path = resolve_world_path(&data_dir);
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (provider_cfg, mut config) = build_client_and_config();
-    let cloud_env = build_cloud_client_from_env();
-    config.cloud_provider_name = cloud_env.provider_name;
-    config.cloud_model_name = cloud_env.model_name;
-    config.cloud_api_key = cloud_env.api_key;
-    config.cloud_base_url = cloud_env.base_url;
+    let (provider_cfg, config) = build_client_and_config();
+    let (config, ollama_process) = run_llm_bootstrap(provider_cfg, config).await?;
 
-    // Run the shared provider bootstrap (Ollama install / auto-start / GPU
-    // detect / model pull / warmup) — CLAUDE.md rule #2 (mode parity).
-    // Per-session clients are built from the template config, which at this
-    // point has the auto-selected model tag resolved. The returned client
-    // is discarded — sessions build their own. The `OllamaProcess` is kept
-    // in `GlobalState` so the child server dies with this process.
-    let progress = parish_core::inference::setup::StdoutProgress;
-    let (_setup_client, resolved_model, ollama_process) =
-        parish_core::inference::setup::setup_provider_client(
-            &provider_cfg,
-            &parish_core::config::InferenceConfig::default(),
-            &progress,
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
-    config.model_name = resolved_model;
-
-    // Populate per-category model slots from the base provider's presets.
-    // The server doesn't run `resolve_category_configs` (no per-category
-    // env vars yet), so without this step every role would inherit the
-    // base model. With this, an `anthropic` provider gets Opus/Sonnet/
-    // Haiku/Sonnet routed per-role even when the user set only
-    // `PARISH_PROVIDER`.
-    config.fill_missing_models_from_presets();
-
-    // ── Game mod ──────────────────────────────────────────────────────────────
-    // Load through the ModSource trait so future S3/HTTP sources drop in
-    // without touching this call site.
+    // ── Game mod / engine config / UI config ──────────────────────────────────
     let game_mod: Option<GameMod> = load_setting_mod_via_source().await;
-    let game_title = game_mod
-        .as_ref()
-        .and_then(|gm| gm.manifest.meta.title.clone())
-        .unwrap_or_else(|| "Parish".to_string());
+    let (splash_text, theme_palette) = resolve_splash_and_theme(&game_mod);
 
-    // #373 — omit commit SHA from splash text to avoid leaking RAILWAY_GIT_COMMIT_SHA.
-    let splash_text = format!(
-        "{}\nCopyright \u{00A9} 2026 David Mooney. Licensed under GPL-3.0 \u{2014} see LICENSE.\nweb-server - {}",
-        game_title,
-        chrono::Local::now().format("%Y-%m-%d"),
-    );
+    let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
+    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
+    let (mut config, _tile_sources_snapshot, _active_tile_source, ui_config) =
+        resolve_engine_and_ui_config(config, &engine_config, &game_mod, &splash_text, &theme_palette);
 
-    let theme_palette = game_mod
-        .as_ref()
-        .map(|gm| gm.ui.theme.resolved_palette())
-        .unwrap_or_else(parish_core::game_mod::default_theme_palette);
-
-    // Load engine config (parish.toml) for the tile-source registry. Missing
-    // file or parse errors fall back to baked defaults
-    // (OSM + Ireland Historic 6").
-    let engine_config = parish_core::config::load_engine_config(None);
-    let tile_sources_snapshot =
-        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
-    let active_tile_source = engine_config.map.default_tile_source.clone();
-    config.active_tile_source = active_tile_source.clone();
-    config.tile_sources = engine_config.map.id_label_pairs();
-    config.idle_banter_after_secs = engine_config.session.idle_banter_after_secs;
-    config.auto_pause_after_secs = engine_config.session.auto_pause_after_secs;
-
-    let ui_config = if let Some(ref gm) = game_mod {
-        UiConfigSnapshot {
-            hints_label: gm.ui.sidebar.hints_label.clone(),
-            default_accent: theme_palette.accent.clone(),
-            splash_text,
-            active_tile_source: active_tile_source.clone(),
-            tile_sources: tile_sources_snapshot.clone(),
-            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
-        }
-    } else {
-        UiConfigSnapshot {
-            hints_label: "Language Hints".to_string(),
-            default_accent: theme_palette.accent.clone(),
-            splash_text,
-            active_tile_source,
-            tile_sources: tile_sources_snapshot,
-            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
-        }
-    };
-
-    // ── Feature flags ──────────────────────────────────────────────────────
+    // ── Feature flags / session infrastructure / OAuth / WS key ─────────────
     let flags_path = data_dir.join("parish-flags.json");
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
-    // ── Saves directory ───────────────────────────────────────────────────────
     let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
-
-    // ── Session registry ──────────────────────────────────────────────────────
-    let sessions = SessionRegistry::open(&saves_dir)
-        .map_err(|e| anyhow::anyhow!("Failed to open sessions.db: {}", e))?;
-
-    // ── Identity store (#618) — shared SQLite connection for account_id resolution
-    let identity_conn = open_sessions_db(&saves_dir)
-        .map_err(|e| anyhow::anyhow!("Failed to open sessions.db for identity store: {}", e))?;
-    let identity_store: std::sync::Arc<dyn parish_core::identity::IdentityStore> =
-        std::sync::Arc::new(SqliteIdentityStore::new(identity_conn));
-
-    // ── Pronunciations (shared, loaded once) ──────────────────────────────────
-    let pronunciations = game_mod
-        .as_ref()
-        .map(|gm| gm.pronunciations.clone())
-        .unwrap_or_default();
-
-    // ── Google OAuth config (optional) ────────────────────────────────────────
+    let (sessions, identity_store, pronunciations) =
+        open_session_components(&saves_dir, &game_mod)?;
     let oauth_config = build_oauth_config();
     if oauth_config.is_some() {
         tracing::info!("Google OAuth enabled");
     }
+    check_ws_signing_key_warning();
 
-    // ── #377: WS signing key ──
-    // Release builds require PARISH_WS_SIGNING_KEY (signing_key() panics
-    // otherwise). Debug builds auto-generate an ephemeral key; warn so
-    // developers notice tokens invalidate on restart.
-    if std::env::var("PARISH_WS_SIGNING_KEY")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .is_none()
-        && cfg!(debug_assertions)
-    {
-        tracing::warn!(
-            "PARISH_WS_SIGNING_KEY is not set — debug build will use a random ephemeral signing key. \
-             WS session tokens will be invalidated on server restart."
-        );
-    }
-
-    // ── Tile cache dir ────────────────────────────────────────────────────────
-    // Resolved once at startup from env var or `<saves_dir>/tile-cache/`.
-    // Stored on GlobalState so request handlers never need to probe the
-    // filesystem for a path — CLAUDE.md rule #9.
-    let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| saves_dir.join("tile-cache"));
-    // Ensure the root cache directory exists at startup so the first request
-    // doesn't race on directory creation.
-    if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
-        tracing::warn!(
-            dir = %tile_cache_dir.display(),
-            error = %e,
-            "Could not create tile cache dir — tile proxy will fail on first miss"
-        );
-    }
-    let tile_url_templates: std::collections::HashMap<String, String> = engine_config
-        .map
-        .tile_sources
-        .iter()
-        .map(|(id, cfg)| (id.clone(), cfg.url.clone()))
-        .collect();
-    let tile_cache =
-        parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
-    tracing::info!(dir = %tile_cache_dir.display(), "Tile cache initialised");
-
-    // ── Admission control: max concurrent sessions (#620) ────────────────────
-    // Resolution order: PARISH_MAX_SESSIONS env var > [engine.session] TOML >
-    // compiled-in default (50).  The feature flag "admission-control" is
-    // default-on per CLAUDE.md rule #6: use `is_disabled` as the pivot so an
-    // unknown flag (no entry) is treated as enabled.
-    let max_concurrent_sessions: Option<usize> = {
-        let flag_active = !config.flags.is_disabled("admission-control");
-        if flag_active {
-            let cap = std::env::var("PARISH_MAX_SESSIONS")
-                .ok()
-                .and_then(|v| v.trim().parse::<usize>().ok())
-                .unwrap_or(engine_config.session.max_concurrent_sessions);
-            tracing::info!(
-                cap,
-                source = if std::env::var("PARISH_MAX_SESSIONS").is_ok() {
-                    "PARISH_MAX_SESSIONS env"
-                } else {
-                    "engine config / default"
-                },
-                "Admission control enabled"
-            );
-            Some(cap)
-        } else {
-            tracing::info!("Admission control disabled via feature flag");
-            None
-        }
-    };
-
-    // ── Global state ──────────────────────────────────────────────────────────
+    // ── Tile cache / admission control / GlobalState ────────────────────────
+    let tile_cache = init_tile_cache(&saves_dir, &engine_config).await;
+    let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
         sessions,
         identity_store,
@@ -601,7 +409,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         theme_palette,
         transport: TransportConfig::default(),
         template_config: config,
-        inference_config: engine_config.inference, // (#417) persist TOML-configured timeouts
+        inference_config: engine_config.inference,
         ollama_process: tokio::sync::Mutex::new(ollama_process),
         tile_cache,
         idempotency_cache: {
@@ -613,75 +421,10 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         max_concurrent_sessions,
     });
 
-    // ── Session cleanup background task ───────────────────────────────────────
-    {
-        let g = Arc::clone(&global);
-        tokio::spawn(async move {
-            // Memory TTL: 1 day idle → evict from DashMap (cookie still
-            // valid; next visit restores from sessions.db).
-            const MEMORY_TTL: Duration = Duration::from_secs(86_400);
-            // Disk TTL: 30 days idle → purge sessions.db row +
-            // saves/<id>/ directory so long-running deployments don't
-            // accumulate dead sessions forever (#482).
-            const DISK_TTL: Duration = Duration::from_secs(30 * 86_400);
-            loop {
-                tokio::time::sleep(Duration::from_secs(3600)).await;
-                g.sessions.cleanup_stale(MEMORY_TTL);
-                // purge_expired_disk_sessions does SQLite queries and
-                // std::fs::remove_dir_all, both of which are blocking.
-                // Offload to a blocking thread so we don't stall a Tokio
-                // worker during the filesystem sweep (#612).
-                let g2 = Arc::clone(&g);
-                let purged = tokio::task::spawn_blocking(move || {
-                    g2.sessions
-                        .purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
-                })
-                .await
-                .unwrap_or(0);
-                if purged > 0 {
-                    tracing::info!(purged, "Session cleanup reaped expired disk sessions");
-                } else {
-                    tracing::debug!("Session cleanup ran (no disk expirations)");
-                }
-            }
-        });
-    }
-
-    // ── #381 / #596: Global per-IP rate limiter (120 req/min) ────────────────
-    // #596 — When `PARISH_TRUST_PROXY=1` is set, the middleware reads the real
-    // client IP from `X-Forwarded-For` or `Cf-Connecting-Ip` so each client is
-    // rate-limited individually even behind a reverse proxy (Cloudflare /
-    // Railway).  The flag defaults to `false` (socket addr) to avoid spoofing
-    // by unauthenticated callers who could inject those headers directly.
-    use governor::{Quota, RateLimiter};
-    use std::num::NonZeroU32;
-    let trust_proxy = std::env::var("PARISH_TRUST_PROXY")
-        .unwrap_or_default()
-        .trim()
-        == "1";
-    let ip_limiter = Arc::new(IpRateLimiterState {
-        limiter: RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(120).unwrap())),
-        trust_proxy,
-    });
-
-    // ── Session backend selection (#364) ─────────────────────────────────────
-    // The new `tower-sessions`-based middleware is the default.  Operators can
-    // disable it via the `tower-sessions-auth` flag in `parish-flags.json` if
-    // a regression appears, falling back to the legacy hand-rolled cookie code
-    // in `middleware::session_middleware`.  Per CLAUDE.md rule #6 the flag is
-    // default-on, so `is_disabled` is the right pivot.
-    let use_tower_sessions = !global
-        .template_config
-        .flags
-        .is_disabled("tower-sessions-auth");
-    if use_tower_sessions {
-        tracing::info!("Session middleware: tower-sessions (default)");
-    } else {
-        tracing::warn!(
-            "Session middleware: legacy hand-rolled cookie code \
-             (tower-sessions-auth flag explicitly disabled)"
-        );
-    }
+    // ── Background tasks / middleware infrastructure ────────────────────────
+    spawn_session_cleanup_background_task(&global);
+    let ip_limiter = build_ip_rate_limiter_state();
+    let use_tower_sessions = should_use_tower_sessions(&global);
 
     // ── Build router ──────────────────────────────────────────────────────────
     let oauth_enabled = global.oauth_config.is_some();
@@ -915,6 +658,265 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     .await?;
 
     Ok(())
+}
+
+// ── Extracted construction-step helpers ─────────────────────────────────────
+
+/// Loads `.env` in debug builds; warns about unloaded `.env` in release.
+fn handle_dotenv() {
+    #[cfg(debug_assertions)]
+    dotenvy::dotenv().ok();
+    #[cfg(not(debug_assertions))]
+    {
+        fn find_dotenv() -> Option<std::path::PathBuf> {
+            let mut dir = std::env::current_dir().ok()?;
+            loop {
+                let path = dir.join(".env");
+                if path.is_file() {
+                    return Some(path);
+                }
+                if !dir.pop() {
+                    return None;
+                }
+            }
+        }
+        if let Some(path) = find_dotenv() {
+            tracing::warn!(
+                ".env file found at '{}' but will NOT be loaded in \
+                 release builds — set environment variables explicitly to avoid \
+                 accidentally overriding security-critical config (#786)",
+                path.display()
+            );
+        }
+    }
+}
+
+/// Picks the world file: `parish.json` preferred, falls back to `world.json`.
+fn resolve_world_path(data_dir: &Path) -> PathBuf {
+    let parish = data_dir.join("parish.json");
+    let world = data_dir.join("world.json");
+    if parish.exists() { parish } else { world }
+}
+
+/// Merges cloud-provider env vars into `config`, runs the shared provider
+/// bootstrap, and populates per-category model slots from presets.
+async fn run_llm_bootstrap(
+    provider_cfg: parish_core::config::ProviderConfig,
+    mut config: GameConfig,
+) -> anyhow::Result<(GameConfig, parish_core::inference::client::OllamaProcess)> {
+    let cloud_env = build_cloud_client_from_env();
+    config.cloud_provider_name = cloud_env.provider_name;
+    config.cloud_model_name = cloud_env.model_name;
+    config.cloud_api_key = cloud_env.api_key;
+    config.cloud_base_url = cloud_env.base_url;
+
+    let progress = parish_core::inference::setup::StdoutProgress;
+    let (_setup_client, resolved_model, ollama_process) =
+        parish_core::inference::setup::setup_provider_client(
+            &provider_cfg,
+            &parish_core::config::InferenceConfig::default(),
+            &progress,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
+    config.model_name = resolved_model;
+    config.fill_missing_models_from_presets();
+    Ok((config, ollama_process))
+}
+
+/// Extracts the game title and theme palette from the mod, with fallbacks.
+fn resolve_splash_and_theme(game_mod: &Option<GameMod>) -> (String, ThemePalette) {
+    let game_title = game_mod.as_ref()
+        .and_then(|gm| gm.manifest.meta.title.clone())
+        .unwrap_or_else(|| "Parish".to_string());
+    let splash_text = format!(
+        "{}\nCopyright \u{00A9} 2026 David Mooney. Licensed under GPL-3.0 \u{2014} see LICENSE.\nweb-server - {}",
+        game_title, chrono::Local::now().format("%Y-%m-%d"),
+    );
+    let theme_palette = game_mod.as_ref()
+        .map(|gm| gm.ui.theme.resolved_palette())
+        .unwrap_or_else(parish_core::game_mod::default_theme_palette);
+    (splash_text, theme_palette)
+}
+
+/// Applies engine-config tile sources, timeouts, and UI config onto `config`.
+fn resolve_engine_and_ui_config(
+    mut config: GameConfig,
+    engine_config: &parish_core::config::EngineConfig,
+    game_mod: &Option<GameMod>,
+    splash_text: &str,
+    theme_palette: &ThemePalette,
+) -> (GameConfig, Vec<parish_core::ipc::TileSourceSnapshot>, String, UiConfigSnapshot) {
+    let tile_sources_snapshot =
+        parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
+    let active_tile_source = engine_config.map.default_tile_source.clone();
+    config.active_tile_source = active_tile_source.clone();
+    config.tile_sources = engine_config.map.id_label_pairs();
+    config.idle_banter_after_secs = engine_config.session.idle_banter_after_secs;
+    config.auto_pause_after_secs = engine_config.session.auto_pause_after_secs;
+
+    let ui_config = if let Some(gm) = game_mod {
+        UiConfigSnapshot {
+            hints_label: gm.ui.sidebar.hints_label.clone(),
+            default_accent: theme_palette.accent.clone(),
+            splash_text: splash_text.to_string(),
+            active_tile_source: active_tile_source.clone(),
+            tile_sources: tile_sources_snapshot.clone(),
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+        }
+    } else {
+        UiConfigSnapshot {
+            hints_label: "Language Hints".to_string(),
+            default_accent: theme_palette.accent.clone(),
+            splash_text: splash_text.to_string(),
+            active_tile_source,
+            tile_sources: tile_sources_snapshot.clone(),
+            auto_pause_timeout_seconds: engine_config.session.auto_pause_after_secs,
+        }
+    };
+
+    (config, tile_sources_snapshot, engine_config.map.default_tile_source.clone(), ui_config)
+}
+
+/// Opens sessions.db, the identity store, and extracts pronunciations.
+fn open_session_components(
+    saves_dir: &Path,
+    game_mod: &Option<GameMod>,
+) -> anyhow::Result<(SessionRegistry, Arc<dyn parish_core::identity::IdentityStore>, Vec<parish_core::game_mod::PronunciationEntry>)> {
+    let sessions = SessionRegistry::open(saves_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to open sessions.db: {}", e))?;
+    let identity_conn = open_sessions_db(saves_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to open sessions.db for identity store: {}", e))?;
+    let identity_store: Arc<dyn parish_core::identity::IdentityStore> =
+        Arc::new(SqliteIdentityStore::new(identity_conn));
+    let pronunciations = game_mod.as_ref()
+        .map(|gm| gm.pronunciations.clone())
+        .unwrap_or_default();
+    Ok((sessions, identity_store, pronunciations))
+}
+
+/// Warns when `PARISH_WS_SIGNING_KEY` is absent in debug builds.
+fn check_ws_signing_key_warning() {
+    if std::env::var("PARISH_WS_SIGNING_KEY")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_none()
+        && cfg!(debug_assertions)
+    {
+        tracing::warn!(
+            "PARISH_WS_SIGNING_KEY is not set — debug build will use a random ephemeral signing key. \
+             WS session tokens will be invalidated on server restart."
+        );
+    }
+}
+
+/// Creates the tile cache directory (env var or `<saves_dir>/tile-cache/`) and
+/// returns an initialised [`TileCache`].
+async fn init_tile_cache(
+    saves_dir: &Path,
+    engine_config: &parish_core::config::EngineConfig,
+) -> parish_core::tile_cache::TileCache {
+    let tile_cache_dir = std::env::var("PARISH_TILE_CACHE_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| saves_dir.join("tile-cache"));
+    if let Err(e) = tokio::fs::create_dir_all(&tile_cache_dir).await {
+        tracing::warn!(
+            dir = %tile_cache_dir.display(),
+            error = %e,
+            "Could not create tile cache dir — tile proxy will fail on first miss"
+        );
+    }
+    let tile_url_templates: std::collections::HashMap<String, String> = engine_config
+        .map
+        .tile_sources
+        .iter()
+        .map(|(id, cfg)| (id.clone(), cfg.url.clone()))
+        .collect();
+    let cache = parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
+    tracing::info!(dir = %tile_cache_dir.display(), "Tile cache initialised");
+    cache
+}
+
+/// Resolves the admission-control ceiling from env var or engine config.
+fn resolve_admission_control(
+    config: &GameConfig,
+    engine_config: &parish_core::config::EngineConfig,
+) -> Option<usize> {
+    let flag_active = !config.flags.is_disabled("admission-control");
+    if flag_active {
+        let cap = std::env::var("PARISH_MAX_SESSIONS")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .unwrap_or(engine_config.session.max_concurrent_sessions);
+        tracing::info!(
+            cap,
+            source = if std::env::var("PARISH_MAX_SESSIONS").is_ok() {
+                "PARISH_MAX_SESSIONS env"
+            } else {
+                "engine config / default"
+            },
+            "Admission control enabled"
+        );
+        Some(cap)
+    } else {
+        tracing::info!("Admission control disabled via feature flag");
+        None
+    }
+}
+
+/// Spawns the background task that periodically evicts stale in-memory
+/// sessions and reaps expired session data from disk.
+fn spawn_session_cleanup_background_task(global: &Arc<GlobalState>) {
+    let g = Arc::clone(global);
+    tokio::spawn(async move {
+        const MEMORY_TTL: Duration = Duration::from_secs(86_400);
+        const DISK_TTL: Duration = Duration::from_secs(30 * 86_400);
+        loop {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            g.sessions.cleanup_stale(MEMORY_TTL);
+            let g2 = Arc::clone(&g);
+            let purged = tokio::task::spawn_blocking(move || {
+                g2.sessions.purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
+            })
+            .await
+            .unwrap_or(0);
+            if purged > 0 {
+                tracing::info!(purged, "Session cleanup reaped expired disk sessions");
+            } else {
+                tracing::debug!("Session cleanup ran (no disk expirations)");
+            }
+        }
+    });
+}
+
+/// Constructs the global per-IP rate limiter (120 req/min).
+fn build_ip_rate_limiter_state() -> Arc<IpRateLimiterState> {
+    use governor::{Quota, RateLimiter};
+    use std::num::NonZeroU32;
+    let trust_proxy = std::env::var("PARISH_TRUST_PROXY")
+        .unwrap_or_default()
+        .trim()
+        == "1";
+    Arc::new(IpRateLimiterState {
+        limiter: RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(120).unwrap())),
+        trust_proxy,
+    })
+}
+
+/// Returns `true` when tower-sessions middleware should be used.
+fn should_use_tower_sessions(global: &GlobalState) -> bool {
+    let use_ts = !global.template_config.flags.is_disabled("tower-sessions-auth");
+    if use_ts {
+        tracing::info!("Session middleware: tower-sessions (default)");
+    } else {
+        tracing::warn!(
+            "Session middleware: legacy hand-rolled cookie code \
+             (tower-sessions-auth flag explicitly disabled)"
+        );
+    }
+    use_ts
 }
 
 /// Load the setting mod via [`LocalDiskModSource`], returning `None` on any

@@ -687,7 +687,8 @@ pub fn run() {
 
     // Load engine config (parish.toml) early so TOML-configured timeouts are
     // available for provider bootstrap and cloud-client construction. (#417)
-    let engine_config = parish_core::config::load_engine_config(None);
+    let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
+    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
 
     // Read provider config from env vars (optional).
     let (provider_config, provider_name, base_url, api_key) = provider_config_from_env();

@@ -10,6 +10,9 @@
 	import { knownNouns, findMatches, type KnownNoun } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
+import MentionDropdown from './MentionDropdown.svelte';
+import SlashDropdown from './SlashDropdown.svelte';
+import ModelDropdown from './ModelDropdown.svelte';
 
 	let editorEl: HTMLDivElement;
 	let editorText = $state('');
@@ -893,60 +896,13 @@
 
 <div class="input-wrapper">
 	{#if dropdownMode === 'mention' && filteredNpcs.length > 0}
-		<ul id="mention-listbox" class="mention-dropdown" role="listbox" aria-label="Mention NPC">
-			{#each filteredNpcs as npc, i}
-				<li
-					id="mention-option-{i}"
-					role="option"
-					aria-selected={i === selectedIndex}
-					class="mention-item"
-					class:selected={i === selectedIndex}
-					onmousedown={(e) => { e.preventDefault(); selectNpc(npc.name); }}
-					onmouseenter={() => (selectedIndex = i)}
-				>
-					<span class="mention-name">{npc.name}</span>
-					{#if npc.introduced}
-						<span class="mention-detail">{npc.occupation}</span>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+		<MentionDropdown npcs={filteredNpcs} {selectedIndex} onSelect={selectNpc} onHighlight={(i) => selectedIndex = i} />
 	{/if}
 	{#if dropdownMode === 'slash' && filteredCommands.length > 0}
-		<ul id="slash-listbox" class="mention-dropdown" role="listbox" aria-label="Slash commands">
-			{#each filteredCommands as cmd, i}
-				<li
-					id="slash-option-{i}"
-					role="option"
-					aria-selected={i === selectedIndex}
-					class="mention-item"
-					class:selected={i === selectedIndex}
-					onmousedown={(e) => { e.preventDefault(); selectSlashCommand(cmd); }}
-					onmouseenter={() => (selectedIndex = i)}
-				>
-					<span class="mention-name">{cmd.command}</span>
-					<span class="mention-detail">{cmd.description}</span>
-				</li>
-			{/each}
-		</ul>
+		<SlashDropdown commands={filteredCommands} {selectedIndex} onSelect={selectSlashCommand} onHighlight={(i) => selectedIndex = i} />
 	{/if}
 	{#if dropdownMode === 'model' && filteredModels.length > 0}
-		<ul id="model-listbox" class="mention-dropdown" role="listbox" aria-label="Model suggestions">
-			{#each filteredModels as model, i}
-				<li
-					id="model-option-{i}"
-					role="option"
-					aria-selected={i === selectedIndex}
-					class="mention-item"
-					class:selected={i === selectedIndex}
-					onmousedown={(e) => { e.preventDefault(); selectModelSuggestion(model); }}
-					onmouseenter={() => (selectedIndex = i)}
-				>
-					<span class="mention-name">{model.name}</span>
-					<span class="mention-detail">{model.provider}</span>
-				</li>
-			{/each}
-		</ul>
+		<ModelDropdown models={filteredModels} {selectedIndex} onSelect={selectModelSuggestion} onHighlight={(i) => selectedIndex = i} />
 	{/if}
 	{#if $npcsHere.length > 0}
 		<div class="npc-chips" data-testid="npc-chips">
@@ -1129,50 +1085,6 @@
 		outline-offset: 2px;
 	}
 
-	.mention-dropdown {
-		position: absolute;
-		bottom: 100%;
-		left: 0.75rem;
-		right: 0.75rem;
-		margin: 0;
-		padding: 0.25rem 0;
-		list-style: none;
-		background: var(--color-panel-bg);
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
-		max-height: 12rem;
-		overflow-y: auto;
-		z-index: 10;
-	}
-
-	.mention-item {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.4rem 0.75rem;
-		cursor: pointer;
-		color: var(--color-fg);
-		font-size: 0.9rem;
-	}
-
-	.mention-item.selected {
-		background: var(--color-accent);
-		color: var(--color-bg);
-	}
-
-	.mention-name {
-		font-weight: 600;
-	}
-
-	.mention-detail {
-		font-size: 0.8rem;
-		opacity: 0.7;
-	}
-
-	.mention-item.selected .mention-detail {
-		opacity: 0.85;
-	}
 
 	/* ── Quick-travel chips ────────────────────────────────────────────────── */
 

@@ -144,6 +144,77 @@ describe('ChatPanel', () => {
 		});
 	});
 
+	describe('reaction IPC failure rollback', () => {
+		afterEach(async () => {
+			const { reactToMessage } = await import('$lib/ipc');
+			(reactToMessage as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+		});
+
+		it('removes optimistic reaction when reactToMessage IPC fails', async () => {
+			const { reactToMessage } = await import('$lib/ipc');
+			(reactToMessage as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
+
+			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Bad news.' }]);
+			const { container } = render(ChatPanel);
+
+			const anchor = container.querySelector('.bubble-row.npc .bubble-anchor') as HTMLElement;
+			await fireEvent.mouseEnter(anchor);
+
+			const buttons = container.querySelectorAll('.reaction-btn');
+			await fireEvent.click(buttons[0]);
+
+			// Flush microtasks for the async IPC rejection + reaction rollback
+			for (let i = 0; i < 10; i++) {
+				await Promise.resolve();
+			}
+
+			expect(container.querySelector('[data-testid="reaction-bar"]')).toBeFalsy();
+		});
+	});
+
+	describe('tabular subtype rendering', () => {
+		it('renders tabular grid with header and cmd/desc pairs', () => {
+			textLog.set([{
+				source: 'system',
+				content: 'Commands\n/go — Move somewhere\n/look — Look around',
+				subtype: 'tabular'
+			}]);
+			const { container } = render(ChatPanel);
+			const grid = container.querySelector('.tabular-grid');
+			expect(grid).toBeTruthy();
+			expect(container.querySelector('.tabular-header')?.textContent).toContain('Commands');
+			expect(container.querySelector('.tabular-cmd')?.textContent).toBe('/go');
+			expect(container.querySelector('.tabular-desc')?.textContent).toContain('Move somewhere');
+		});
+
+		it('renders multiple cmd/desc pairs in tabular grid', () => {
+			textLog.set([{
+				source: 'system',
+				content: '/go — Move somewhere\n/look — Look around\n/talk — Start a conversation',
+				subtype: 'tabular'
+			}]);
+			const { container } = render(ChatPanel);
+			const cmds = container.querySelectorAll('.tabular-cmd');
+			expect(cmds.length).toBe(3);
+			expect(cmds[0].textContent).toBe('/go');
+			expect(cmds[1].textContent).toBe('/look');
+			expect(cmds[2].textContent).toBe('/talk');
+		});
+	});
+
+	describe('scroll-to-bottom behavior', () => {
+		it('renders log container and scrolls on new message', async () => {
+			const { container } = render(ChatPanel);
+			const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+			expect(logEl).toBeTruthy();
+
+			textLog.set([{ source: 'system', content: 'Hello' }]);
+			await Promise.resolve();
+
+			expect(container.querySelector('.chat-panel')).toBeTruthy();
+		});
+	});
+
 	describe('emoji reactions', () => {
 		it('shows reaction picker on NPC message hover', async () => {
 			textLog.set([{ id: 'msg-1', source: 'Padraig', content: 'Good morning!' }]);

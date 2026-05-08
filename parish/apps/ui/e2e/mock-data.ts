@@ -8,8 +8,12 @@ import type {
 	ThemePalette,
 	LanguageHint,
 	TextLogEntry,
-	UiConfig
+	UiConfig,
+	DebugSnapshot,
+	SaveFileInfo,
+	SaveState
 } from '../src/lib/types';
+import type { SetupSnapshot } from '../src/lib/ipc';
 import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
 // ── Theme palettes used in tests ────────────────────────────────────────────
@@ -178,3 +182,139 @@ export const TEXT_LOG: TextLogEntry[] = [
 			"Ah, you're most welcome! Come in out of the rain. What'll it be — a pint of the black stuff, or something warmer?"
 	}
 ];
+
+// ── Debug snapshot ──────────────────────────────────────────────────────────
+
+export const DEBUG_SNAPSHOT: DebugSnapshot = {
+	clock: {
+		game_time: '08:00',
+		time_of_day: 'Morning',
+		season: 'Spring',
+		festival: null,
+		weather: 'Clear',
+		paused: false,
+		inference_paused: false,
+		speed_factor: 0,
+		speed_name: null,
+		day_of_week: 'Monday',
+		day_type: 'weekday',
+		start_game_time: '08:00',
+		paused_game_time: '',
+		real_elapsed_secs: 0
+	},
+	weather: {
+		current: 'Clear',
+		since: '00:00',
+		duration_hours: 6,
+		min_duration_hours: 2,
+		last_check_hour: 8
+	},
+	world: {
+		player_location_name: 'Baile Átha Cliath',
+		player_location_id: 1,
+		location_count: 5,
+		visited_count: 1,
+		visited_locations: ['Baile Átha Cliath'],
+		edge_traversals: [],
+		text_log_tail: [],
+		text_log_len: 0,
+		locations: [],
+		player_name: null
+	},
+	npcs: [],
+	tier_summary: {
+		tier1_count: 0,
+		tier2_count: 0,
+		tier3_count: 0,
+		tier4_count: 0,
+		tier1_names: [],
+		tier2_names: [],
+		tier3_names: [],
+		tier4_names: [],
+		tier3_in_flight: false,
+		last_tier2_tick: null,
+		last_tier3_tick: null,
+		last_tier4_tick: null,
+		introduced_count: 0,
+		tier2_in_flight: false,
+		tier3_pending_count: 0,
+		tier4_recent_events: []
+	},
+	event_bus: {
+		subscriber_count: 0,
+		recent_events: []
+	},
+	gossip: {
+		item_count: 0,
+		items: []
+	},
+	conversations: {
+		exchange_count: 0,
+		exchanges: []
+	},
+	events: [],
+	inference: {
+		provider_name: 'ollama',
+		model_name: 'llama3',
+		base_url: 'http://localhost:11434',
+		cloud_provider: null,
+		cloud_model: null,
+		has_queue: false,
+		reaction_req_id: 0,
+		improv_enabled: false,
+		call_log: [],
+		categories: [],
+		configured_providers: ['ollama']
+	},
+	auth: {
+		oauth_enabled: false,
+		logged_in: false,
+		provider: null,
+		display_name: null,
+		session_id: null
+	}
+};
+
+// ── Setup snapshot (completed — prevents overlay from blocking UI) ───────────
+
+export const SETUP_SNAPSHOT: SetupSnapshot = {
+	current_message: '',
+	messages: [],
+	completed: 0,
+	total: 0,
+	done: true,
+	success: true,
+	error: ''
+};
+
+// ── Save files ──────────────────────────────────────────────────────────────
+
+export const SAVE_FILES: SaveFileInfo[] = [
+	{
+		path: '/saves/rundale.ledger',
+		filename: 'rundale.ledger',
+		file_size: '1.2 MB',
+		branches: [
+			{
+				name: 'main',
+				id: 1,
+				parent_name: null,
+				snapshot_count: 3,
+				latest_location: 'Baile Átha Cliath',
+				latest_game_date: '1820-03-15',
+				snapshots: [
+					{ id: 1, game_date: '1820-03-15', location: 'Baile Átha Cliath' },
+					{ id: 2, game_date: '1820-03-16', location: 'Howth' },
+					{ id: 3, game_date: '1820-03-17', location: 'Baile Átha Cliath' }
+				]
+			}
+		],
+		locked: false
+	}
+];
+
+export const SAVE_STATE: SaveState = {
+	filename: 'rundale.ledger',
+	branch_id: 1,
+	branch_name: 'main'
+};

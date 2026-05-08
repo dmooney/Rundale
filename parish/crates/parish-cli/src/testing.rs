@@ -509,33 +509,8 @@ impl GameTestHarness {
 
     /// Processes schedule events: debug log + player-visible text log messages.
     fn process_schedule_events(&mut self, events: &[crate::npc::manager::ScheduleEvent]) {
-        use crate::npc::manager::ScheduleEventKind;
-        let player_loc = self.app.world.player_location;
-
-        for event in events {
-            self.app.debug_event(event.debug_string());
-
-            let display = self
-                .app
-                .npc_manager
-                .get(event.npc_id)
-                .map(|n| self.app.npc_manager.display_name(n).to_string())
-                .unwrap_or_else(|| event.npc_name.clone());
-
-            match &event.kind {
-                ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                    self.app.world.log(format!(
-                        "{} heads off down the road.",
-                        capitalize_first(&display)
-                    ));
-                }
-                ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                    self.app
-                        .world
-                        .log(format!("{} arrives.", capitalize_first(&display)));
-                }
-                _ => {}
-            }
+        for msg in crate::headless::process_schedule_events_generic(&mut self.app, events) {
+            self.app.world.log(msg);
         }
     }
 

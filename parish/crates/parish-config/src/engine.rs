@@ -12,7 +12,28 @@ use crate::provider::InferenceCategory;
 use parish_types::SpeedConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Resolves the path to `parish.toml` by walking up from `start` looking for
+/// an existing `parish.toml` file (up to 5 ancestor directories). If none is
+/// found, returns `start.join("parish.toml")` so the caller still gets a path
+/// (which will produce defaults when passed to [`load_engine_config`]).
+///
+/// Must be called once at startup with a deliberately resolved starting
+/// directory — never from a request handler or per-call helper (see Rule 9).
+pub fn resolve_config_path(start: &Path) -> PathBuf {
+    let mut p = Some(start.to_path_buf());
+    for _ in 0..5 {
+        if let Some(ref dir) = p {
+            let candidate = dir.join("parish.toml");
+            if candidate.is_file() {
+                return candidate;
+            }
+            p = dir.parent().map(|d| d.to_path_buf());
+        }
+    }
+    start.join("parish.toml")
+}
 
 /// Loads the `[engine]` section from a `parish.toml` at the given path.
 ///
@@ -23,16 +44,14 @@ use std::path::Path;
 ///
 /// Intended for Tauri/web-server boot; the CLI already has its own
 /// `resolve_config` pipeline for provider/cloud config.
-pub fn load_engine_config(path: Option<&Path>) -> EngineConfig {
+pub fn load_engine_config(path: &Path) -> EngineConfig {
     #[derive(Deserialize, Default)]
     struct Wrapper {
         #[serde(default)]
         engine: EngineConfig,
     }
 
-    let default_path = Path::new("parish.toml");
-    let resolved = path.unwrap_or(default_path);
-    let text = match std::fs::read_to_string(resolved) {
+    let text = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(_) => return EngineConfig::default(),
     };
@@ -1095,7 +1114,7 @@ memory_capacity = 30
 
     #[test]
     fn test_load_engine_config_missing_file() {
-        let cfg = load_engine_config(Some(Path::new("/nonexistent/parish.toml")));
+        let cfg = load_engine_config(Path::new("/nonexistent/parish.toml"));
         assert_eq!(cfg.map.default_tile_source, "historic");
         assert_eq!(cfg.map.tile_sources.len(), 2);
     }
@@ -1115,7 +1134,7 @@ url = "https://override/{z}/{x}/{y}.png"
 "#,
         )
         .unwrap();
-        let cfg = load_engine_config(Some(&path));
+        let cfg = load_engine_config(&path);
         assert_eq!(cfg.map.default_tile_source, "historic");
         assert_eq!(
             cfg.map.tile_sources.len(),
@@ -1290,24 +1309,5 @@ max_reactions = 5
         assert_eq!(cfg.max_reactions, 5);
     }
 
-    #[test]
-    #[serial_test::serial]
-    fn test_load_engine_config_none() {
-        let dir = tempfile::tempdir().unwrap();
-        let parish_toml = dir.path().join("parish.toml");
-        std::fs::write(
-            &parish_toml,
-            r#"
-[engine.map]
-default_tile_source = "osm"
-"#,
-        )
-        .unwrap();
-        let orig = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
-        let cfg = load_engine_config(None);
-        assert_eq!(cfg.map.default_tile_source, "osm");
-        assert_eq!(cfg.map.tile_sources.len(), 2);
-        std::env::set_current_dir(orig).unwrap();
-    }
+
 }

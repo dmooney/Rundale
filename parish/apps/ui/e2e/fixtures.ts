@@ -15,7 +15,11 @@ import {
 	NPCS,
 	IRISH_HINTS,
 	TEXT_LOG,
-	UI_CONFIG
+	UI_CONFIG,
+	DEBUG_SNAPSHOT,
+	SAVE_FILES,
+	SAVE_STATE,
+	SETUP_SNAPSHOT
 } from './mock-data';
 import type { ThemePalette, WorldSnapshot, TextLogEntry } from '../src/lib/types';
 
@@ -41,7 +45,8 @@ export async function installTileRouteMock(page: Page): Promise<void> {
  */
 export async function installTauriMock(
 	page: Page,
-	timeOfDay: string = 'morning'
+	timeOfDay: string = 'morning',
+	options?: { debugSnapshot?: unknown; saveFiles?: unknown; saveState?: unknown }
 ): Promise<void> {
 	await installTileRouteMock(page);
 	const snapshot = SNAPSHOTS[timeOfDay];
@@ -49,9 +54,13 @@ export async function installTauriMock(
 	const mapData = MAP_DATA;
 	const npcs = NPCS;
 	const uiConfig = UI_CONFIG;
+	const debugSnapshot = options?.debugSnapshot ?? DEBUG_SNAPSHOT;
+	const saveFiles = options?.saveFiles ?? SAVE_FILES;
+	const saveState = options?.saveState ?? SAVE_STATE;
+	const setupSnapshot = SETUP_SNAPSHOT;
 
 	await page.addInitScript(
-		({ snapshot, palette, mapData, npcs, uiConfig }) => {
+		({ snapshot, palette, mapData, npcs, uiConfig, debugSnapshot, saveFiles, saveState, setupSnapshot }) => {
 			// ── Callback registry (mirrors Tauri's transformCallback) ────────
 			const callbacks: Record<number, (data: unknown) => void> = {};
 			let nextCallbackId = 1;
@@ -67,7 +76,11 @@ export async function installTauriMock(
 				get_map: mapData,
 				get_npcs_here: npcs,
 				get_theme: palette,
-				get_ui_config: uiConfig
+				get_ui_config: uiConfig,
+				get_debug_snapshot: debugSnapshot,
+				discover_save_files: saveFiles,
+				get_save_state: saveState,
+				get_setup_snapshot: setupSnapshot
 			};
 
 			// Expose for test helpers
@@ -154,7 +167,7 @@ export async function installTauriMock(
 				convertFileSrc: (path: string) => path
 			};
 		},
-		{ snapshot, palette, mapData, npcs, uiConfig }
+		{ snapshot, palette, mapData, npcs, uiConfig, debugSnapshot, saveFiles, saveState, setupSnapshot }
 	);
 }
 
