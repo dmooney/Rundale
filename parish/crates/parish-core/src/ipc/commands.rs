@@ -324,7 +324,7 @@ fn handle_time_control_command(
                 CommandResult::text(format!("{} schedule event(s) processed.", count))
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -397,7 +397,7 @@ fn handle_info_command(
                 festival
             ))
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -415,16 +415,14 @@ fn handle_sidebar_improv_command(cmd: Command, config: &mut GameConfig) -> Comma
                 CommandResult::text("The characters settle back to their usual selves.")
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
 /// Base provider/model/key commands.
 fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
     match cmd {
-        Command::ShowProvider => {
-            CommandResult::text(format!("Provider: {}", config.provider_name))
-        }
+        Command::ShowProvider => CommandResult::text(format!("Provider: {}", config.provider_name)),
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 config.base_url = provider.default_base_url().to_string();
@@ -456,7 +454,7 @@ fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResu
             config.api_key = Some(value);
             CommandResult::with_effect("API key updated.", CommandEffect::RebuildInference)
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -498,12 +496,9 @@ fn handle_cloud_provider_command(cmd: Command, config: &mut GameConfig) -> Comma
         },
         Command::SetCloudKey(value) => {
             config.cloud_api_key = Some(value);
-            CommandResult::with_effect(
-                "Cloud API key updated.",
-                CommandEffect::RebuildCloudClient,
-            )
+            CommandResult::with_effect("Cloud API key updated.", CommandEffect::RebuildCloudClient)
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -521,9 +516,7 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
         Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 let provider_name = format!("{:?}", provider).to_lowercase();
-                config
-                    .category_provider
-                    .insert(cat, provider_name.clone());
+                config.category_provider.insert(cat, provider_name.clone());
                 config
                     .category_base_url
                     .insert(cat, provider.default_base_url().to_string());
@@ -548,9 +541,7 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
             CommandResult::text(format!("{} model changed to {}.", cat.name(), name))
         }
         Command::ShowCategoryKey(cat) => match config.category_api_key.get(&cat) {
-            Some(key) => {
-                CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key)))
-            }
+            Some(key) => CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key))),
             None => CommandResult::text(format!("{} API key: (not set)", cat.name())),
         },
         Command::SetCategoryKey(cat, value) => {
@@ -561,7 +552,7 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
                 CommandEffect::RebuildInference,
             )
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -591,9 +582,7 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
                     }
 
                     for cat in InferenceCategory::ALL {
-                        config
-                            .category_provider
-                            .insert(cat, provider_name.clone());
+                        config.category_provider.insert(cat, provider_name.clone());
                         config.category_base_url.insert(cat, default_url.clone());
                         if let Some(m) = presets[cat.idx()].map(str::to_string) {
                             config.category_model.insert(cat, m);
@@ -622,7 +611,7 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
             }
             Err(e) => CommandResult::text(format!("{}", e)),
         },
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -663,7 +652,7 @@ fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
         Command::InvalidBranchName(msg) => CommandResult::text(msg),
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 

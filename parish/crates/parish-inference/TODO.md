@@ -2,9 +2,7 @@
 
 ## Open
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-015 | Weak Tests | P3 | `src/client.rs:362-370` | `OllamaProcess::stop` Windows `taskkill` has zero coverage. Needs Command mock abstraction. |
+*(none)*
 
 ## In Progress
 
@@ -36,3 +34,4 @@
 | TD-004 | 2026-05-07 | Extracted shared `read_sse_stream` free function and `OpenAiClient::stream_response` helper from the ~30-line identical streaming loop in `generate_stream` / `generate_stream_json`. |
 | TD-020 | 2026-05-07 | Extracted `inference_with_timeout` helper to eliminate triple-repeated timeout+duration+error-construction pattern in `spawn_inference_worker`. Reduced function from ~146 to ~116 lines. |
 | TD-021 | 2026-05-07 | Replaced hand-rolled byte-level XML tag parser (`neutralise_structural_tags`, `match_structural_close_at`, `skip_ascii_ws`) with `regex`-based replacement using `LazyLock<Regex>` compiled from `STRUCTURAL_TAGS`. Removed ~68 lines of byte-walking code. |
+| TD-015 | 2026-05-08 | Extracted pure helpers `taskkill_args(pid_arg) -> [&str; 4]` and `pid_string(pid)` from `OllamaProcess::stop`. Added 2 cross-platform unit tests (`taskkill_args_are_force_tree_kill_with_pid`, `taskkill_args_handle_u32_max_pid`) that pin the `/F /T /PID <pid>` invariant without needing a Windows host or a Command mock. The `Command::new("taskkill")` invocation itself remains platform-locked but is now a thin shim around tested data. |

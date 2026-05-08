@@ -33,4 +33,4 @@
 
 ## Discovery note
 
-Discovery scan of `parish/crates/parish-core/src/` found no additional credible debt beyond the items already tracked. The dead-code removal (TD-001, TD-010), doc fixes (TD-013, TD-014), duplication cleanup (TD-003), and test additions (TD-004, TD-007, TD-009) cover the actionable items. Remaining weak-test and complexity items are recorded as Follow-up for separate work since they require integration-level changes or carry behavioral risk.
+Discovery scan of `parish/crates/parish-core/src/` found no additional credible debt beyond the items already tracked. The dead-code removal (TD-001, TD-010), doc fixes (TD-013, TD-014), duplication cleanup (TD-003), and test additions (TD-004, TD-007, TD-009) cover the actionable items. All in-scope weak-test and complexity items were addressed inline (see TD-001 through TD-014).

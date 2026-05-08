@@ -133,7 +133,10 @@ async fn list_branches_returns_all_branches() {
     seed_save_file(tmp.path(), session_id);
     let store = DbSessionStore::new(tmp.path().to_path_buf());
 
-    store.create_branch(session_id, "alpha", None).await.unwrap();
+    store
+        .create_branch(session_id, "alpha", None)
+        .await
+        .unwrap();
     store.create_branch(session_id, "beta", None).await.unwrap();
 
     let branches = store.list_branches(session_id).await.unwrap();
@@ -251,7 +254,10 @@ async fn save_path_resolves_to_existing_db_file() {
     let store = DbSessionStore::new(tmp.path().to_path_buf());
 
     let path = store.save_path(session_id);
-    assert!(path.is_some(), "save_path must return Some with existing db");
+    assert!(
+        path.is_some(),
+        "save_path must return Some with existing db"
+    );
     let path = path.unwrap();
     assert!(path.exists(), "returned path must exist on disk");
     assert!(path.to_string_lossy().contains(session_id));

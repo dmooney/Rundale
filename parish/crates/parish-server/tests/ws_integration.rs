@@ -14,7 +14,7 @@ use axum::routing::get;
 use futures_util::StreamExt;
 
 use parish_server::cf_auth::{AuthContext, SessionToken};
-use parish_server::ws::{validate_ws_upgrade, WsValidation};
+use parish_server::ws::{WsValidation, validate_ws_upgrade};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -112,12 +112,10 @@ async fn ws_message_forwarding() {
         auto_pause_timeout_seconds: 300,
     };
     let theme_palette = parish_core::game_mod::default_theme_palette();
-    let saves_dir =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
-    let session_store: Arc<dyn parish_core::session_store::SessionStore> =
-        Arc::new(parish_server::session_store_impl::DbSessionStore::new(
-            saves_dir.clone(),
-        ));
+    let saves_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../saves");
+    let session_store: Arc<dyn parish_core::session_store::SessionStore> = Arc::new(
+        parish_server::session_store_impl::DbSessionStore::new(saves_dir.clone()),
+    );
     let state: Arc<AppState> = parish_server::state::build_app_state(
         "test-session".to_string(),
         world,

@@ -18,18 +18,18 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-pub(crate) mod emoji_reactions;
 pub(crate) mod arrival_reactions;
+pub(crate) mod emoji_reactions;
 
 // Re-export public items from sub-modules.
-pub use emoji_reactions::{
-    build_player_message_reaction_prompt, generate_rule_reaction, infer_player_message_reaction,
-    LlmReactionDecision,
-};
 pub use arrival_reactions::{
-    build_reaction_prompt, generate_arrival_reactions, reaction_threshold, ArrivalContext,
-    GreetingsByTime, IntroductionTemplates, LlmGreetingParams, NpcReaction, OccupationGreetings,
-    ReactionKind, ReactionTemplates, resolve_llm_greeting, WelcomesByOccupation,
+    ArrivalContext, GreetingsByTime, IntroductionTemplates, LlmGreetingParams, NpcReaction,
+    OccupationGreetings, ReactionKind, ReactionTemplates, WelcomesByOccupation,
+    build_reaction_prompt, generate_arrival_reactions, reaction_threshold, resolve_llm_greeting,
+};
+pub use emoji_reactions::{
+    LlmReactionDecision, build_player_message_reaction_prompt, generate_rule_reaction,
+    infer_player_message_reaction,
 };
 
 // ── Emoji reaction system ────────────────────────────────────────────────────
@@ -278,12 +278,13 @@ mod tests {
             );
         }
         assert_eq!(log.len(), MAX_ENTRIES);
-        assert!(log
-            .entries()
-            .last()
-            .unwrap()
-            .context
-            .contains(&format!("ctx {}", MAX_ENTRIES)));
+        assert!(
+            log.entries()
+                .last()
+                .unwrap()
+                .context
+                .contains(&format!("ctx {}", MAX_ENTRIES))
+        );
     }
 
     #[test]

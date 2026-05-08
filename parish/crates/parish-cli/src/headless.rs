@@ -95,7 +95,11 @@ async fn run_headless_repl_loop(
                         app.cloud_client.clone().or_else(|| app.client.clone())
                     };
                     if let Some(new_client) = any {
-                        let queue = setup_inference_queue(new_client, &app.inference_config, &inference_log);
+                        let queue = setup_inference_queue(
+                            new_client,
+                            &app.inference_config,
+                            &inference_log,
+                        );
                         app.inference_queue = Some(queue);
                     }
                 }
@@ -106,7 +110,14 @@ async fn run_headless_repl_loop(
             InputResult::GameInput(text) => {
                 let intent_client = app.intent.client.clone();
                 let intent_model = app.intent.model.clone();
-                handle_headless_game_input(app, intent_client.as_ref(), &intent_model, &text, &mut request_id).await?;
+                handle_headless_game_input(
+                    app,
+                    intent_client.as_ref(),
+                    &intent_model,
+                    &text,
+                    &mut request_id,
+                )
+                .await?;
                 emit_headless_npc_reactions(app, &text).await;
             }
         }
@@ -121,9 +132,9 @@ async fn run_headless_repl_loop(
         }
 
         dispatch_headless_weather(app);
-        let schedule_events = app.npc_manager.tick_schedules(
-            &app.world.clock, &app.world.graph, app.world.weather,
-        );
+        let schedule_events =
+            app.npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
         process_headless_schedule_events(app, &schedule_events);
         dispatch_headless_banshee(app);
         dispatch_headless_tier4_tick(app);
@@ -488,7 +499,7 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
         match db.find_branch(name).await {
             Ok(Some(branch)) => {
                 let db = db.clone();
-            if branch.id != app.active_branch_id {
+                if branch.id != app.active_branch_id {
                     let snapshot =
                         crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
                     let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
@@ -611,13 +622,12 @@ async fn stream_headless_npc_dialogue(
         {
             Ok(rx) => {
                 let stream_handle = tokio::spawn(async move {
-                    let accumulated =
-                        parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
-                            cancel_for_stream.notify_one();
-                            print!("{}", batch);
-                            std::io::stdout().flush().ok();
-                        })
-                        .await;
+                    let accumulated = parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                        cancel_for_stream.notify_one();
+                        print!("{}", batch);
+                        std::io::stdout().flush().ok();
+                    })
+                    .await;
                     println!();
                     accumulated
                 });
@@ -628,10 +638,7 @@ async fn stream_headless_npc_dialogue(
                         let _ = anim_handle.await;
 
                         if let Some(err) = &response.error {
-                            println!(
-                                "[The parish storyteller has lost the thread: {}]",
-                                err
-                            );
+                            println!("[The parish storyteller has lost the thread: {}]", err);
                         } else {
                             let parsed = parse_npc_stream_response(&response.text);
                             if let Some(meta) = &parsed.metadata {
@@ -643,21 +650,21 @@ async fn stream_headless_npc_dialogue(
                             }
 
                             let game_time = app.world.clock.now();
-                            let player_name_for_mem =
-                                if app.npc_manager.knows_player_name(npc_id) {
-                                    app.world.player_name.clone()
-                                } else {
-                                    None
-                                };
+                            let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
+                                app.world.player_name.clone()
+                            } else {
+                                None
+                            };
                             if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-                                let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
-                                    npc_mut,
-                                    &parsed,
-                                    text,
-                                    game_time,
-                                    &Default::default(),
-                                    player_name_for_mem.as_deref(),
-                                );
+                                let debug_events =
+                                    parish_core::npc::ticks::apply_tier1_response_with_config(
+                                        npc_mut,
+                                        &parsed,
+                                        text,
+                                        game_time,
+                                        &Default::default(),
+                                        player_name_for_mem.as_deref(),
+                                    );
                                 for event in &debug_events {
                                     app.debug_event(event.clone());
                                 }
@@ -675,16 +682,15 @@ async fn stream_headless_npc_dialogue(
                                 },
                             );
 
-                            let witness_events =
-                                parish_core::npc::ticks::record_witness_memories(
-                                    app.npc_manager.npcs_mut(),
-                                    npc_id,
-                                    &npc_display_name,
-                                    text,
-                                    &parsed.dialogue,
-                                    game_time,
-                                    location,
-                                );
+                            let witness_events = parish_core::npc::ticks::record_witness_memories(
+                                app.npc_manager.npcs_mut(),
+                                npc_id,
+                                &npc_display_name,
+                                text,
+                                &parsed.dialogue,
+                                game_time,
+                                location,
+                            );
                             for event in &witness_events {
                                 app.debug_event(event.clone());
                             }
@@ -1177,7 +1183,10 @@ pub(crate) fn process_schedule_events_generic(
 
         match &event.kind {
             ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                messages.push(format!("{} heads off down the road.", capitalize_first(&display)));
+                messages.push(format!(
+                    "{} heads off down the road.",
+                    capitalize_first(&display)
+                ));
             }
             ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
                 messages.push(format!("{} arrives.", capitalize_first(&display)));
