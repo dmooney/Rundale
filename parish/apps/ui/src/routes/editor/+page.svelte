@@ -63,18 +63,16 @@
 
 	<div class="tab-bar">
 		{#each tabs as t}
-			{#if snap || t.id === 'mods' || t.id === 'saves'}
-				<button
-					class="tab-btn"
-					class:active={tab === t.id}
-					onclick={() => selectTab(t.id)}
-				>
-					{t.label}
-					{#if t.id === 'validator' && issueCount > 0}
-						<span class="badge">{issueCount}</span>
-					{/if}
-				</button>
-			{/if}
+			<button
+				class="tab-btn"
+				class:active={tab === t.id}
+				onclick={() => selectTab(t.id)}
+			>
+				{t.label}
+				{#if t.id === 'validator' && issueCount > 0}
+					<span class="badge">{issueCount}</span>
+				{/if}
+			</button>
 		{/each}
 	</div>
 
