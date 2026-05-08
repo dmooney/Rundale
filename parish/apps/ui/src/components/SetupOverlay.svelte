@@ -6,12 +6,14 @@
 		onSetupStatus,
 		onSetupProgress,
 		onSetupDone,
+		onSetupNeedsOnboarding,
 		type SetupSnapshot,
 		type SetupStatusPayload,
 		type SetupProgressPayload,
 		type SetupDonePayload
 	} from '$lib/ipc';
 	import { LONG_WAIT_MESSAGES } from '$lib/setupWaitMessages';
+	import ByokFork from './ByokFork.svelte';
 	import {
 		formatBytes,
 		formatDuration,
@@ -68,6 +70,7 @@
 	let longSetupWaitActive = false;
 	let receivedLiveSetupEvent = false;
 	let receivedSetupDone = false;
+	let needsOnboarding = $state(false);
 
 	let downloadPct = $derived(
 		downloadTotal > 0 ? Math.min(100, (downloadCompleted / downloadTotal) * 100) : null
@@ -370,7 +373,7 @@
 			elapsedSeconds += 1;
 		}, 1000);
 
-		const [statusCleanup, progressCleanup, doneCleanup] = await Promise.all([
+		const [statusCleanup, progressCleanup, doneCleanup, onboardingCleanup] = await Promise.all([
 			onSetupStatus((p: SetupStatusPayload) => {
 				receivedLiveSetupEvent = true;
 				if (setupComplete) clearSetupComplete();
@@ -386,10 +389,18 @@
 			onSetupDone((p: SetupDonePayload) => {
 				receivedLiveSetupEvent = true;
 				receivedSetupDone = true;
+				if (p.success) {
+					needsOnboarding = false;
+				}
 				applySetupDone(p.success, p.error);
+			}),
+			onSetupNeedsOnboarding(() => {
+				if (setupComplete) clearSetupComplete();
+				needsOnboarding = true;
+				showSetupOverlay();
 			})
 		]);
-		cleanupFns.push(statusCleanup, progressCleanup, doneCleanup);
+		cleanupFns.push(statusCleanup, progressCleanup, doneCleanup, onboardingCleanup);
 
 		try {
 			const snapshot = await getSetupSnapshot();
@@ -417,6 +428,11 @@
 
 {#if visible}
 	<div class="setup-overlay" class:fading>
+		{#if needsOnboarding}
+			<div class="setup-box setup-box--byok">
+				<ByokFork onComplete={() => (needsOnboarding = false)} />
+			</div>
+		{:else}
 		<div class="setup-box">
 			<h1 class="game-title">Rundale</h1>
 
@@ -529,6 +545,7 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 	</div>
 {/if}
 
@@ -548,6 +565,15 @@
 	.setup-overlay.fading {
 		opacity: 0;
 		pointer-events: none;
+	}
+
+	.setup-box--byok {
+		background: var(--color-bg);
+		max-width: none;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		display: block;
 	}
 
 	.setup-box {
