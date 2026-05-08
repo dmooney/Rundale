@@ -2423,10 +2423,8 @@ mod cmd_tests {
     async fn discover_save_files_returns_ok_for_missing_saves_dir() {
         let state = test_app_state();
         let world = state.world.lock().await;
-        let nonexistent_dir =
-            std::path::Path::new("/tmp/rundale_test_nonexistent_saves_dir");
-        let saves =
-            parish_core::persistence::picker::discover_saves(nonexistent_dir, &world.graph);
+        let nonexistent_dir = std::path::Path::new("/tmp/rundale_test_nonexistent_saves_dir");
+        let saves = parish_core::persistence::picker::discover_saves(nonexistent_dir, &world.graph);
         // Missing dir should return empty vec, not panic
         assert!(
             saves.is_empty(),
