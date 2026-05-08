@@ -324,7 +324,7 @@ fn handle_time_control_command(
                 CommandResult::text(format!("{} schedule event(s) processed.", count))
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -397,7 +397,7 @@ fn handle_info_command(
                 festival
             ))
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -415,7 +415,7 @@ fn handle_sidebar_improv_command(cmd: Command, config: &mut GameConfig) -> Comma
                 CommandResult::text("The characters settle back to their usual selves.")
             }
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -454,7 +454,7 @@ fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResu
             config.api_key = Some(value);
             CommandResult::with_effect("API key updated.", CommandEffect::RebuildInference)
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -498,7 +498,7 @@ fn handle_cloud_provider_command(cmd: Command, config: &mut GameConfig) -> Comma
             config.cloud_api_key = Some(value);
             CommandResult::with_effect("Cloud API key updated.", CommandEffect::RebuildCloudClient)
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -552,7 +552,7 @@ fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> Co
                 CommandEffect::RebuildInference,
             )
         }
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -611,7 +611,7 @@ fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult
             }
             Err(e) => CommandResult::text(format!("{}", e)),
         },
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
@@ -652,7 +652,7 @@ fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
         Command::InvalidBranchName(msg) => CommandResult::text(msg),
-        _ => unreachable!(),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
