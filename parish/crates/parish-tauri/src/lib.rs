@@ -8,6 +8,7 @@ pub mod command_registry;
 pub mod commands;
 pub mod editor_commands;
 pub mod events;
+pub mod keychain;
 mod mcp_bridge;
 mod setup;
 
