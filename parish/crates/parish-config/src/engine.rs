@@ -1308,6 +1308,4 @@ max_reactions = 5
         assert_eq!(cfg.llm_timeout_secs, 10);
         assert_eq!(cfg.max_reactions, 5);
     }
-
-
 }

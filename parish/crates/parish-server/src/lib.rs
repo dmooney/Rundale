@@ -378,7 +378,13 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
     let engine_config = parish_core::config::load_engine_config(&engine_config_path);
     let (mut config, _tile_sources_snapshot, _active_tile_source, ui_config) =
-        resolve_engine_and_ui_config(config, &engine_config, &game_mod, &splash_text, &theme_palette);
+        resolve_engine_and_ui_config(
+            config,
+            &engine_config,
+            &game_mod,
+            &splash_text,
+            &theme_palette,
+        );
 
     // ── Feature flags / session infrastructure / OAuth / WS key ─────────────
     let flags_path = data_dir.join("parish-flags.json");
@@ -726,14 +732,17 @@ async fn run_llm_bootstrap(
 
 /// Extracts the game title and theme palette from the mod, with fallbacks.
 fn resolve_splash_and_theme(game_mod: &Option<GameMod>) -> (String, ThemePalette) {
-    let game_title = game_mod.as_ref()
+    let game_title = game_mod
+        .as_ref()
         .and_then(|gm| gm.manifest.meta.title.clone())
         .unwrap_or_else(|| "Parish".to_string());
     let splash_text = format!(
         "{}\nCopyright \u{00A9} 2026 David Mooney. Licensed under GPL-3.0 \u{2014} see LICENSE.\nweb-server - {}",
-        game_title, chrono::Local::now().format("%Y-%m-%d"),
+        game_title,
+        chrono::Local::now().format("%Y-%m-%d"),
     );
-    let theme_palette = game_mod.as_ref()
+    let theme_palette = game_mod
+        .as_ref()
         .map(|gm| gm.ui.theme.resolved_palette())
         .unwrap_or_else(parish_core::game_mod::default_theme_palette);
     (splash_text, theme_palette)
@@ -746,7 +755,12 @@ fn resolve_engine_and_ui_config(
     game_mod: &Option<GameMod>,
     splash_text: &str,
     theme_palette: &ThemePalette,
-) -> (GameConfig, Vec<parish_core::ipc::TileSourceSnapshot>, String, UiConfigSnapshot) {
+) -> (
+    GameConfig,
+    Vec<parish_core::ipc::TileSourceSnapshot>,
+    String,
+    UiConfigSnapshot,
+) {
     let tile_sources_snapshot =
         parish_core::ipc::TileSourceSnapshot::list_from_map_config(&engine_config.map);
     let active_tile_source = engine_config.map.default_tile_source.clone();
@@ -775,21 +789,31 @@ fn resolve_engine_and_ui_config(
         }
     };
 
-    (config, tile_sources_snapshot, engine_config.map.default_tile_source.clone(), ui_config)
+    (
+        config,
+        tile_sources_snapshot,
+        engine_config.map.default_tile_source.clone(),
+        ui_config,
+    )
 }
 
 /// Opens sessions.db, the identity store, and extracts pronunciations.
 fn open_session_components(
     saves_dir: &Path,
     game_mod: &Option<GameMod>,
-) -> anyhow::Result<(SessionRegistry, Arc<dyn parish_core::identity::IdentityStore>, Vec<parish_core::game_mod::PronunciationEntry>)> {
+) -> anyhow::Result<(
+    SessionRegistry,
+    Arc<dyn parish_core::identity::IdentityStore>,
+    Vec<parish_core::game_mod::PronunciationEntry>,
+)> {
     let sessions = SessionRegistry::open(saves_dir)
         .map_err(|e| anyhow::anyhow!("Failed to open sessions.db: {}", e))?;
     let identity_conn = open_sessions_db(saves_dir)
         .map_err(|e| anyhow::anyhow!("Failed to open sessions.db for identity store: {}", e))?;
     let identity_store: Arc<dyn parish_core::identity::IdentityStore> =
         Arc::new(SqliteIdentityStore::new(identity_conn));
-    let pronunciations = game_mod.as_ref()
+    let pronunciations = game_mod
+        .as_ref()
         .map(|gm| gm.pronunciations.clone())
         .unwrap_or_default();
     Ok((sessions, identity_store, pronunciations))
@@ -878,7 +902,8 @@ fn spawn_session_cleanup_background_task(global: &Arc<GlobalState>) {
             g.sessions.cleanup_stale(MEMORY_TTL);
             let g2 = Arc::clone(&g);
             let purged = tokio::task::spawn_blocking(move || {
-                g2.sessions.purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
+                g2.sessions
+                    .purge_expired_disk_sessions(&g2.saves_dir, DISK_TTL)
             })
             .await
             .unwrap_or(0);
@@ -907,7 +932,10 @@ fn build_ip_rate_limiter_state() -> Arc<IpRateLimiterState> {
 
 /// Returns `true` when tower-sessions middleware should be used.
 fn should_use_tower_sessions(global: &GlobalState) -> bool {
-    let use_ts = !global.template_config.flags.is_disabled("tower-sessions-auth");
+    let use_ts = !global
+        .template_config
+        .flags
+        .is_disabled("tower-sessions-auth");
     if use_ts {
         tracing::info!("Session middleware: tower-sessions (default)");
     } else {

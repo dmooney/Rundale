@@ -30,6 +30,58 @@ use crate::state::AppState;
 /// Maximum number of concurrent WebSocket connections across all users (#460).
 const MAX_WS_CONNECTIONS: usize = 100;
 
+/// Outcome of pre-upgrade validation.
+///
+/// Extracted so token validation, loopback bypass, and auth-context lookup can
+/// be regression-tested without booting an axum router or opening a real TCP
+/// socket. The `ws_handler` glue still deals with admission control (`409`,
+/// `503`) and the actual upgrade handshake — those depend on shared mutable
+/// state and stay in the handler.
+#[derive(Debug, PartialEq, Eq)]
+pub enum WsValidation {
+    /// Validation passed; resolved `account_id` for admission control.
+    Accepted(uuid::Uuid),
+    /// Validation failed; respond with this status before attempting upgrade.
+    Rejected(axum::http::StatusCode),
+}
+
+/// Validates a WebSocket upgrade request before any socket I/O happens.
+///
+/// In debug builds, loopback peers bypass token validation (matches
+/// `cf_access_guard`) and resolve to the well-known nil UUID so the
+/// single-WS-per-account dedup still works for local dev. Otherwise the
+/// `?token=` parameter must round-trip [`SessionToken::validate_full`]; an
+/// already-resolved [`AuthContext`] supplies the canonical `account_id`.
+///
+/// Pure: no async, no shared state. Easy to unit-test (TD-011).
+pub fn validate_ws_upgrade(
+    addr: std::net::SocketAddr,
+    token: Option<&str>,
+    auth: Option<&AuthContext>,
+) -> WsValidation {
+    if cfg!(debug_assertions) && addr.ip().is_loopback() {
+        return WsValidation::Accepted(uuid::Uuid::nil());
+    }
+
+    let token_str = match token {
+        Some(t) if !t.is_empty() => t,
+        _ => {
+            tracing::warn!("ws_handler: rejected — missing ?token query param");
+            return WsValidation::Rejected(axum::http::StatusCode::UNAUTHORIZED);
+        }
+    };
+
+    match SessionToken::validate_full(token_str) {
+        Ok(_email) => {
+            WsValidation::Accepted(auth.map(|ctx| ctx.account_id).unwrap_or(uuid::Uuid::nil()))
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "ws_handler: rejected — invalid session token");
+            WsValidation::Rejected(axum::http::StatusCode::UNAUTHORIZED)
+        }
+    }
+}
+
 /// RAII guard that removes an `account_id` from `AppState::active_ws` on drop.
 ///
 /// This guarantees the slot is released even if `handle_socket` panics (#618).
@@ -73,37 +125,14 @@ pub async fn ws_handler(
     Extension(state): Extension<Arc<AppState>>,
     auth: Option<Extension<AuthContext>>,
 ) -> impl IntoResponse {
-    // #379 — debug-only loopback bypass matches `cf_access_guard`: e2e and local
-    // dev open a WS without minting a session-init token first.
-    //
-    // #618 — In the loopback-bypass path we use a well-known nil UUID so the
-    // single-WS-per-account dedup still works correctly for local dev.
-    let account_id: uuid::Uuid = if cfg!(debug_assertions) && addr.ip().is_loopback() {
-        uuid::Uuid::nil()
-    } else {
-        // #377 — validate session token before accepting the WS upgrade.
-        let token = match params.get("token") {
-            Some(t) => t.clone(),
-            None => {
-                tracing::warn!("ws_handler: rejected — missing ?token query param");
-                return StatusCode::UNAUTHORIZED.into_response();
-            }
-        };
-
-        // Validate the HMAC token (the email it contains is used only to derive
-        // account_id via the AuthContext injected by cf_access_guard).
-        match SessionToken::validate_full(&token) {
-            Ok(_email) => {
-                // Prefer the AuthContext account_id already resolved by the
-                // guard; fall back to nil (should not happen in normal flow).
-                auth.map(|Extension(ctx)| ctx.account_id)
-                    .unwrap_or(uuid::Uuid::nil())
-            }
-            Err(err) => {
-                tracing::warn!(error = %err, "ws_handler: rejected — invalid session token");
-                return StatusCode::UNAUTHORIZED.into_response();
-            }
-        }
+    // #377/#379/#618 — token validation, debug-only loopback bypass, and
+    // auth-context lookup are all pure functions of the request, so they live
+    // in `validate_ws_upgrade` and are unit-tested directly.
+    let token = params.get("token").map(String::as_str);
+    let auth_ctx = auth.as_ref().map(|Extension(ctx)| ctx);
+    let account_id: uuid::Uuid = match validate_ws_upgrade(addr, token, auth_ctx) {
+        WsValidation::Accepted(id) => id,
+        WsValidation::Rejected(status) => return status.into_response(),
     };
 
     // #334/#618 — enforce single WebSocket per account_id; #460 — enforce global cap.

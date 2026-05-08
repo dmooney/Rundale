@@ -331,6 +331,7 @@ describe('DebugPanel', () => {
 					exchange_count: 1,
 					exchanges: [{
 						timestamp: '09:15',
+						speaker_id: 1,
 						location_name: 'Village Green',
 						player_input: 'Good day to you.',
 						speaker_name: 'Brigid',

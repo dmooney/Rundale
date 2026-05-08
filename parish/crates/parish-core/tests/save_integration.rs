@@ -1,16 +1,18 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use parish_core::game_loop::save::{do_new_game, do_save_game, load_fresh_world_and_npcs, NewGameParams};
+use parish_core::game_loop::save::{
+    NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
+};
 use parish_core::game_mod::GameMod;
-use parish_core::ipc::event_emitter::EventEmitter;
 use parish_core::ipc::ConversationRuntimeState;
+use parish_core::ipc::event_emitter::EventEmitter;
 use parish_core::npc::manager::NpcManager;
 use parish_core::persistence::Database;
 use parish_core::world::transport::TransportMode;
 use parish_core::world::{LocationId, WorldState};
-use tokio::sync::Mutex;
 use tempfile::TempDir;
+use tokio::sync::Mutex;
 
 /// Returns the path to the `mods/rundale` fixture directory relative to the
 /// repo root.
@@ -33,8 +35,8 @@ fn load_fresh_world_and_npcs_with_mod_loads_world_and_npcs() {
     let mod_dir = rundale_mod_dir();
     let game_mod = GameMod::load(&mod_dir).expect("failed to load rundale mod");
 
-    let (world, npc_manager) =
-        load_fresh_world_and_npcs(Some(&game_mod), &mod_dir).expect("load_fresh_world_and_npcs failed");
+    let (world, npc_manager) = load_fresh_world_and_npcs(Some(&game_mod), &mod_dir)
+        .expect("load_fresh_world_and_npcs failed");
 
     assert_eq!(
         world.player_location,
@@ -75,8 +77,7 @@ fn load_fresh_world_and_npcs_with_mod_loads_rundale_world_graph() {
 fn load_fresh_world_and_npcs_without_mod_uses_data_dir() {
     let mod_dir = rundale_mod_dir();
 
-    let (world, npc_manager) =
-        load_fresh_world_and_npcs(None, &mod_dir).unwrap();
+    let (world, npc_manager) = load_fresh_world_and_npcs(None, &mod_dir).unwrap();
 
     assert!(
         world.graph.location_ids().len() > 10,
@@ -95,8 +96,7 @@ fn load_fresh_world_and_npcs_without_mod_returns_empty_npcs_when_file_missing() 
     let src = rundale_mod_dir().join("world.json");
     std::fs::copy(&src, tmp.path().join("world.json")).unwrap();
 
-    let (world, npc_manager) =
-        load_fresh_world_and_npcs(None, tmp.path()).unwrap();
+    let (world, npc_manager) = load_fresh_world_and_npcs(None, tmp.path()).unwrap();
 
     assert!(
         world.graph.location_ids().len() > 10,
@@ -220,7 +220,10 @@ async fn do_new_game_resets_conversation_state() {
     do_new_game(params).await.unwrap();
 
     let conv = conversation.lock().await;
-    assert!(conv.location.is_none(), "conversation location should reset");
+    assert!(
+        conv.location.is_none(),
+        "conversation location should reset"
+    );
     assert!(conv.transcript.is_empty(), "transcript should be cleared");
 }
 
@@ -331,10 +334,7 @@ async fn do_save_game_with_existing_path_writes_snapshot() {
     .await
     .expect("do_save_game with existing path failed");
 
-    assert!(
-        msg.contains("Game saved to"),
-        "success message: {msg}"
-    );
+    assert!(msg.contains("Game saved to"), "success message: {msg}");
 
     let snapshot_count = count_snapshots_in_db(&db_path);
     assert_eq!(
@@ -364,22 +364,29 @@ async fn do_save_game_multiple_saves_accumulate_snapshots() {
     let current_branch_name: Mutex<Option<String>> = Mutex::new(Some("main".to_string()));
 
     do_save_game(
-        &world, &npc_manager, &save_path, &current_branch_id, &current_branch_name, tmp.path(),
+        &world,
+        &npc_manager,
+        &save_path,
+        &current_branch_id,
+        &current_branch_name,
+        tmp.path(),
     )
     .await
     .unwrap();
 
     do_save_game(
-        &world, &npc_manager, &save_path, &current_branch_id, &current_branch_name, tmp.path(),
+        &world,
+        &npc_manager,
+        &save_path,
+        &current_branch_id,
+        &current_branch_name,
+        tmp.path(),
     )
     .await
     .unwrap();
 
     let snapshot_count = count_snapshots_in_db(&db_path);
-    assert_eq!(
-        snapshot_count, 2,
-        "two saves should produce two snapshots"
-    );
+    assert_eq!(snapshot_count, 2, "two saves should produce two snapshots");
 }
 
 #[tokio::test]
@@ -403,7 +410,12 @@ async fn do_save_game_without_existing_branch_auto_resolves_main() {
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
 
     let msg = do_save_game(
-        &world, &npc_manager, &save_path, &current_branch_id, &current_branch_name, tmp.path(),
+        &world,
+        &npc_manager,
+        &save_path,
+        &current_branch_id,
+        &current_branch_name,
+        tmp.path(),
     )
     .await
     .expect("do_save_game with no branch should auto-resolve");
@@ -423,7 +435,5 @@ fn count_snapshots_in_db(path: &Path) -> usize {
         .find_branch("main")
         .expect("find_branch failed")
         .expect("main branch must exist");
-    db.branch_log(branch.id)
-        .expect("branch_log failed")
-        .len()
+    db.branch_log(branch.id).expect("branch_log failed").len()
 }

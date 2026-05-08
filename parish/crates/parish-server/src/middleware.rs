@@ -437,7 +437,9 @@ pub async fn idempotency_middleware(
         .insert(IdempotencyKeyExt(idem_key.clone()));
 
     // Check for a cached response.
-    if let Some(response) = try_replay_from_cache(&global.idempotency_cache, &cache_key, &idem_key).await {
+    if let Some(response) =
+        try_replay_from_cache(&global.idempotency_cache, &cache_key, &idem_key).await
+    {
         return response;
     }
 
@@ -470,8 +472,7 @@ async fn try_replay_from_cache(
         return None;
     }
 
-    let status = StatusCode::from_u16(cached.status)
-        .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let status = StatusCode::from_u16(cached.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     let body_bytes = cached.body.clone();
     let content_type = cached.content_type.clone();
 

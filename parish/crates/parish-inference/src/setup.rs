@@ -185,10 +185,10 @@ impl OllamaProcess {
 
             #[cfg(target_os = "windows")]
             {
-                let pid = child.id();
-                // Kill the entire process tree so GPU workers release VRAM
+                let pid_arg = pid_string(child.id());
+                let args = taskkill_args(&pid_arg);
                 let _ = Command::new("taskkill")
-                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .args(args)
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
                     .status();
@@ -203,6 +203,26 @@ impl OllamaProcess {
             self.child = None;
         }
     }
+}
+
+/// Builds the `taskkill` argument list used by [`OllamaProcess::stop`] on
+/// Windows. Force-kill (`/F`) the entire process tree (`/T`) for the given
+/// `/PID`, releasing GPU worker VRAM that orphans otherwise hold. Returned as
+/// `&str` slices so the call site can pass them straight to `Command::args`.
+///
+/// Pure (no `Command` invocation), cross-platform, and total — so the
+/// invariant "we always pass `/F /T /PID <pid>`" can be regression-tested
+/// without spawning processes or running on Windows. (TD-015)
+#[cfg(any(target_os = "windows", test))]
+fn taskkill_args(pid_arg: &str) -> [&str; 4] {
+    ["/F", "/T", "/PID", pid_arg]
+}
+
+/// Formats a Windows process ID for the `taskkill /PID` argument.
+/// Pure helper paired with [`taskkill_args`] for test isolation. (TD-015)
+#[cfg(any(target_os = "windows", test))]
+fn pid_string(pid: u32) -> String {
+    pid.to_string()
 }
 
 impl Drop for OllamaProcess {
@@ -1372,6 +1392,29 @@ mod tests {
         assert_eq!(GpuVendor::Amd.to_string(), "AMD");
         assert_eq!(GpuVendor::AppleSilicon.to_string(), "Apple Silicon (Metal)");
         assert_eq!(GpuVendor::CpuOnly.to_string(), "CPU-only");
+    }
+
+    /// Regression guard for TD-015 — Windows `taskkill` argument vector.
+    ///
+    /// `OllamaProcess::stop` on Windows force-kills the entire process tree so
+    /// orphan GPU workers release VRAM. Drift in this argv (e.g. dropping `/T`
+    /// or `/F`) would silently leak GPU memory across restarts. The Command
+    /// invocation itself is platform-locked, but the argv is pure and tested
+    /// here on every host.
+    #[test]
+    fn taskkill_args_are_force_tree_kill_with_pid() {
+        let pid = pid_string(4242);
+        assert_eq!(pid, "4242");
+        assert_eq!(taskkill_args(&pid), ["/F", "/T", "/PID", "4242"]);
+    }
+
+    /// PIDs at the u32 boundary must still format without panicking — a defensive
+    /// check since Windows can recycle PIDs into the upper range under load.
+    #[test]
+    fn taskkill_args_handle_u32_max_pid() {
+        let pid = pid_string(u32::MAX);
+        assert_eq!(pid, "4294967295");
+        assert_eq!(taskkill_args(&pid), ["/F", "/T", "/PID", "4294967295"]);
     }
 
     #[test]

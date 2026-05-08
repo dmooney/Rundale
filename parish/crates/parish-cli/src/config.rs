@@ -125,7 +125,9 @@ pub fn resolve_category_configs(
     let mut result = HashMap::new();
 
     for category in InferenceCategory::ALL {
-        if let Some(cfg) = resolve_single_category(&toml_cfg, category, base, cli_categories, cli_cloud)? {
+        if let Some(cfg) =
+            resolve_single_category(&toml_cfg, category, base, cli_categories, cli_cloud)?
+        {
             result.insert(category, cfg);
         }
     }
@@ -134,7 +136,10 @@ pub fn resolve_category_configs(
 }
 
 /// Returns the TOML category override for the given category.
-fn category_toml_override(toml_cfg: &TomlConfig, cat: InferenceCategory) -> Option<&TomlCategoryOverride> {
+fn category_toml_override(
+    toml_cfg: &TomlConfig,
+    cat: InferenceCategory,
+) -> Option<&TomlCategoryOverride> {
     match cat {
         InferenceCategory::Dialogue => toml_cfg.provider.dialogue.as_ref(),
         InferenceCategory::Simulation => toml_cfg.provider.simulation.as_ref(),
@@ -199,37 +204,77 @@ fn resolve_single_category(
 
     // Layer 1: Legacy [cloud] for dialogue (lowest priority override)
     if category == InferenceCategory::Dialogue {
-        if let Some(ref name) = toml_cfg.cloud.name { provider_str = Some(name.clone()); }
-        if let Some(ref url) = toml_cfg.cloud.base_url { cat_base_url = Some(url.clone()); }
-        if let Some(ref key) = toml_cfg.cloud.api_key { cat_api_key = Some(key.clone()); }
-        if let Some(ref m) = toml_cfg.cloud.model { cat_model = Some(m.clone()); }
-        if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") { provider_str = Some(val); }
-        if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") { cat_base_url = Some(val); }
-        if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") { cat_model = Some(val); }
-        if let Some(ref val) = cli_cloud.provider { provider_str = Some(val.clone()); }
-        if let Some(ref val) = cli_cloud.base_url { cat_base_url = Some(val.clone()); }
-        if let Some(ref val) = cli_cloud.model { cat_model = Some(val.clone()); }
+        if let Some(ref name) = toml_cfg.cloud.name {
+            provider_str = Some(name.clone());
+        }
+        if let Some(ref url) = toml_cfg.cloud.base_url {
+            cat_base_url = Some(url.clone());
+        }
+        if let Some(ref key) = toml_cfg.cloud.api_key {
+            cat_api_key = Some(key.clone());
+        }
+        if let Some(ref m) = toml_cfg.cloud.model {
+            cat_model = Some(m.clone());
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") {
+            provider_str = Some(val);
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
+            cat_base_url = Some(val);
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
+            cat_model = Some(val);
+        }
+        if let Some(ref val) = cli_cloud.provider {
+            provider_str = Some(val.clone());
+        }
+        if let Some(ref val) = cli_cloud.base_url {
+            cat_base_url = Some(val.clone());
+        }
+        if let Some(ref val) = cli_cloud.model {
+            cat_model = Some(val.clone());
+        }
     }
 
     // Layer 2: TOML [provider.<category>] overrides legacy cloud
     if let Some(ref toml_ov) = toml_override {
-        if let Some(ref name) = toml_ov.name { provider_str = Some(name.clone()); }
-        if let Some(ref url) = toml_ov.base_url { cat_base_url = Some(url.clone()); }
-        if let Some(ref key) = toml_ov.api_key { cat_api_key = Some(key.clone()); }
-        if let Some(ref m) = toml_ov.model { cat_model = Some(m.clone()); }
+        if let Some(ref name) = toml_ov.name {
+            provider_str = Some(name.clone());
+        }
+        if let Some(ref url) = toml_ov.base_url {
+            cat_base_url = Some(url.clone());
+        }
+        if let Some(ref key) = toml_ov.api_key {
+            cat_api_key = Some(key.clone());
+        }
+        if let Some(ref m) = toml_ov.model {
+            cat_model = Some(m.clone());
+        }
     }
 
     // Layer 3: Per-category env vars
     let prefix = category.env_prefix();
-    if let Some(val) = env_non_empty(&format!("{prefix}_PROVIDER")) { provider_str = Some(val); }
-    if let Some(val) = env_non_empty(&format!("{prefix}_BASE_URL")) { cat_base_url = Some(val); }
-    if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) { cat_model = Some(val); }
+    if let Some(val) = env_non_empty(&format!("{prefix}_PROVIDER")) {
+        provider_str = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{prefix}_BASE_URL")) {
+        cat_base_url = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) {
+        cat_model = Some(val);
+    }
 
     // Layer 4: Per-category CLI flags
     if let Some(cli_ov) = cli_override {
-        if let Some(ref val) = cli_ov.provider { provider_str = Some(val.clone()); }
-        if let Some(ref val) = cli_ov.base_url { cat_base_url = Some(val.clone()); }
-        if let Some(ref val) = cli_ov.model { cat_model = Some(val.clone()); }
+        if let Some(ref val) = cli_ov.provider {
+            provider_str = Some(val.clone());
+        }
+        if let Some(ref val) = cli_ov.base_url {
+            cat_base_url = Some(val.clone());
+        }
+        if let Some(ref val) = cli_ov.model {
+            cat_model = Some(val.clone());
+        }
     }
 
     // Resolve provider before the API key check
@@ -259,7 +304,9 @@ fn resolve_single_category(
     let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
 
     if provider.requires_api_key() && cat_api_key.is_none() {
-        let hint = provider.api_key_env_var().unwrap_or("the provider API key env var");
+        let hint = provider
+            .api_key_env_var()
+            .unwrap_or("the provider API key env var");
         return Err(ParishError::Config(format!(
             "{} {:?} provider requires an API key. Set {}.",
             category.name(),

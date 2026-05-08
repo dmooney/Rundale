@@ -2,7 +2,7 @@
 
 ## Open
 
-_(none — see Follow-up for items deferred due to risk/scope)_
+*(none)*
 
 ## In Progress
 
@@ -40,15 +40,12 @@ _(none)_
 | TD-018 | Complexity          | P1       | Fixed  | Extracted `createStreamManager(appendStreamToken + NPC turn pump) to `$lib/setup/stream-manager.ts`; -208 lines in +page.svelte. |
 | TD-021 | Complexity          | P2       | Fixed  | Extracted `<LedgerList>` and `<DagTree>` sub-components from SavePicker.svelte; -420 lines in SavePicker.svelte. |
 | TD-022 | Complexity          | P2       | Fixed  | Split download-rate tracking, message formatting, and session storage into `$lib/setup/` modules; -162 lines in SetupOverlay.svelte. |
+| TD-019 | Complexity          | P1       | Fixed  | Extracted `<MentionDropdown>`, `<SlashDropdown>`, `<ModelDropdown>` from InputField.svelte; -88 lines (was 1321).                                                                |
+| TD-020 | Complexity          | P2       | Fixed  | Extracted 8 tab components (`<DebugOverviewTab>`, `<DebugNpcsTab>`, `<DebugWorldTab>`, `<DebugWeatherTab>`, `<DebugGossipTab>`, `<DebugConversationsTab>`, `<DebugEventsTab>`, `<DebugInferenceTab>`) from DebugPanel.svelte; -872 lines (was 1083). |
 
 ## Follow-up
 
-Items deferred due to risk, scope, or requiring changes outside this crate:
-
-| ID     | Category    | Severity | Description                                                                                                    |
-| ------ | ----------- | -------- | -------------------------------------------------------------------------------------------------------------- |
-| TD-019 | Complexity  | P1       | Fixed — extracted mention/slash/model dropdowns to 3 components; InputField.svelte -88 lines.                  |
-| TD-020 | Complexity  | P2       | Fixed — extracted 8 tab components; DebugPanel.svelte -872 lines.                                              |
+*(none)*
 
 ## Progress Log
 
