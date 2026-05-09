@@ -19,7 +19,9 @@ import {
 	DEBUG_SNAPSHOT,
 	SAVE_FILES,
 	SAVE_STATE,
-	SETUP_SNAPSHOT
+	SETUP_SNAPSHOT,
+	EDITOR_MODS,
+	EDITOR_SNAPSHOT
 } from './mock-data';
 import type { ThemePalette, WorldSnapshot, TextLogEntry } from '../src/lib/types';
 
@@ -34,14 +36,6 @@ const BLANK_PNG = Buffer.from(
  * Must be called before `page.goto()`.
  */
 export async function installTileRouteMock(page: Page): Promise<void> {
-	// MapLibre's default glyphsUrl points at the demo CDN
-	// (demotiles.maplibre.org) which has no SLA and stalls on GitHub Actions
-	// runners — the resulting trickle of PBF requests prevents
-	// `networkidle` from settling and tests hit the 60s timeout. Empty 200s
-	// keep MapLibre happy without a label render that any test asserts on.
-	await page.route('**/demotiles.maplibre.org/**', (route) =>
-		route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) })
-	);
 	await page.route('**/tiles/**', (route) =>
 		route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG })
 	);
@@ -66,9 +60,23 @@ export async function installTauriMock(
 	const saveFiles = options?.saveFiles ?? SAVE_FILES;
 	const saveState = options?.saveState ?? SAVE_STATE;
 	const setupSnapshot = SETUP_SNAPSHOT;
+	const editorMods = EDITOR_MODS;
+	const editorSnapshot = EDITOR_SNAPSHOT;
 
 	await page.addInitScript(
-		({ snapshot, palette, mapData, npcs, uiConfig, debugSnapshot, saveFiles, saveState, setupSnapshot }) => {
+		({
+			snapshot,
+			palette,
+			mapData,
+			npcs,
+			uiConfig,
+			debugSnapshot,
+			saveFiles,
+			saveState,
+			setupSnapshot,
+			editorMods,
+			editorSnapshot
+		}) => {
 			// ── Callback registry (mirrors Tauri's transformCallback) ────────
 			const callbacks: Record<number, (data: unknown) => void> = {};
 			let nextCallbackId = 1;
@@ -88,7 +96,9 @@ export async function installTauriMock(
 				get_debug_snapshot: debugSnapshot,
 				discover_save_files: saveFiles,
 				get_save_state: saveState,
-				get_setup_snapshot: setupSnapshot
+				get_setup_snapshot: setupSnapshot,
+				editor_list_mods: editorMods,
+				editor_open_mod: editorSnapshot
 			};
 
 			// Expose for test helpers
@@ -175,7 +185,19 @@ export async function installTauriMock(
 				convertFileSrc: (path: string) => path
 			};
 		},
-		{ snapshot, palette, mapData, npcs, uiConfig, debugSnapshot, saveFiles, saveState, setupSnapshot }
+		{
+			snapshot,
+			palette,
+			mapData,
+			npcs,
+			uiConfig,
+			debugSnapshot,
+			saveFiles,
+			saveState,
+			setupSnapshot,
+			editorMods,
+			editorSnapshot
+		}
 	);
 }
 
