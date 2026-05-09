@@ -8,6 +8,7 @@ pub mod command_registry;
 pub mod commands;
 pub mod editor_commands;
 pub mod events;
+mod mcp_bridge;
 mod setup;
 
 use parish_core::AUTOSAVE_INTERVAL_SECS;
@@ -651,6 +652,18 @@ pub fn run() {
             })
     };
 
+    // Parse optional --mcp-port <N> flag. When set, an in-process Axum
+    // listener mirrors the parish-server IPC routes against this process's
+    // live AppState so an MCP client (parish-mcp) can drive the desktop
+    // session the user can see in the window. Bound to 127.0.0.1 only.
+    let mcp_port: Option<u16> = {
+        let args: Vec<String> = std::env::args().collect();
+        args.iter()
+            .position(|a| a == "--mcp-port")
+            .and_then(|i| args.get(i + 1))
+            .and_then(|s| s.parse::<u16>().ok())
+    };
+
     // Try to load game mod (auto-detect from workspace root) via the
     // ModSource abstraction.  load_setting_mod_sync is used here because
     // Tauri's run() is synchronous and no tokio runtime exists yet.
@@ -930,6 +943,10 @@ pub fn run() {
                 setup::spawn_inactivity_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_debug_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_autosave_tick(Arc::clone(&state_setup));
+
+                if let Some(port) = mcp_port {
+                    mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
+                }
             });
 
             Ok(())
