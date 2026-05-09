@@ -28,12 +28,12 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use serde_json::Value;
 use tauri::{AppHandle, Emitter};
-use tokio::task::JoinHandle;
 
 use crate::events::{EVENT_TEXT_LOG, TextLogPayload};
-use crate::{AppState, MapData, MapLocation, NpcInfo, SaveState, SetupStatusSnapshot, WorldSnapshot};
+use crate::{
+    AppState, MapData, MapLocation, NpcInfo, SaveState, SetupStatusSnapshot, WorldSnapshot,
+};
 
 /// Shared extractor state carried by every Axum handler in the bridge.
 ///
@@ -45,12 +45,12 @@ struct BridgeState {
     app: AppHandle,
 }
 
-/// Spawns the MCP bridge listener on `127.0.0.1:port`.
+/// Spawns the MCP bridge listener on `127.0.0.1:port` as a fire-and-forget
+/// background task — matches the `spawn_*_tick` pattern in `setup.rs`.
 ///
-/// Returns the `JoinHandle` so the caller can await shutdown if needed.
-/// Bind failures are logged and the task exits — they should not crash the
+/// Bind failures are logged and the task exits; they should not crash the
 /// desktop app.
-pub(crate) fn spawn(state: Arc<AppState>, app: AppHandle, port: u16) -> JoinHandle<()> {
+pub(crate) fn spawn(state: Arc<AppState>, app: AppHandle, port: u16) {
     let bridge = BridgeState { state, app };
     tokio::spawn(async move {
         let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
@@ -66,7 +66,7 @@ pub(crate) fn spawn(state: Arc<AppState>, app: AppHandle, port: u16) -> JoinHand
         if let Err(e) = axum::serve(listener, router).await {
             tracing::error!(error = %e, "mcp_bridge: server task exited with error");
         }
-    })
+    });
 }
 
 /// Builds the Axum router. Extracted so unit tests can pin the route table
@@ -214,7 +214,7 @@ async fn new_game(State(b): State<BridgeState>) -> Result<StatusCode, AppError> 
     Ok(StatusCode::OK)
 }
 
-async fn save_game(State(b): State<BridgeState>) -> Result<Json<Value>, AppError> {
+async fn save_game(State(b): State<BridgeState>) -> Result<Json<serde_json::Value>, AppError> {
     let msg = crate::commands::do_save_game(&b.state)
         .await
         .map_err(AppError::from)?;
@@ -284,7 +284,13 @@ mod tests {
             let stem = cmd.strip_prefix("get_").unwrap_or(cmd);
             let kebab: String = stem
                 .chars()
-                .map(|c| if c == '_' { '-' } else { c.to_ascii_lowercase() })
+                .map(|c| {
+                    if c == '_' {
+                        '-'
+                    } else {
+                        c.to_ascii_lowercase()
+                    }
+                })
                 .collect();
             format!("/api/{kebab}")
         };

@@ -271,7 +271,13 @@ pub(crate) async fn do_submit_input(
             let reaction_location = state.world.lock().await.player_location;
             handle_game_input(raw, addressed_to, state, app.clone()).await;
             // Generate NPC reactions to the player's message in the background.
-            emit_npc_reactions(&player_msg_id, &raw_for_reactions, reaction_location, state, app);
+            emit_npc_reactions(
+                &player_msg_id,
+                &raw_for_reactions,
+                reaction_location,
+                state,
+                app,
+            );
         }
     }
 
