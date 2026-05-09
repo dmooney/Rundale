@@ -12,10 +12,10 @@
 //!   for free.
 //!
 //! - [`GenericTauriBackend`] — a stub for the future WebDriver / `tauri-driver`
-//!   path that drives an arbitrary Tauri app's window directly. It is
-//!   currently `unimplemented!()` at the call sites; the type is exported so
-//!   downstream code can pin its tool registry against the trait now and the
-//!   real impl can land later without API churn.
+//!   path that drives an arbitrary Tauri app's window directly. It returns
+//!   [`BackendError::Unimplemented`] today; the type is exported so downstream
+//!   code can pin its tool registry against the trait now and the real impl
+//!   can land later without API churn.
 
 use async_trait::async_trait;
 use serde_json::Value;
