@@ -90,10 +90,11 @@ fn build_router(bridge: BridgeState) -> Router {
 
 // ── handlers ────────────────────────────────────────────────────────────────
 
-// Sync handlers: axum implements `Handler` for both sync and async functions.
-// `health` and `setup_snapshot` do no async work, so making them sync avoids
-// `clippy::unused_async`.
-fn health() -> &'static str {
+// `health` and `setup_snapshot` do no async work but stay `async fn` for
+// uniformity with the rest of the handler set; the explicit allow keeps
+// `cargo clippy --workspace -- -D warnings` happy.
+#[allow(clippy::unused_async)]
+async fn health() -> &'static str {
     "ok"
 }
 
@@ -170,7 +171,8 @@ async fn save_state(State(b): State<BridgeState>) -> Json<SaveState> {
     })
 }
 
-fn setup_snapshot(State(b): State<BridgeState>) -> Json<SetupStatusSnapshot> {
+#[allow(clippy::unused_async)]
+async fn setup_snapshot(State(b): State<BridgeState>) -> Json<SetupStatusSnapshot> {
     Json(
         b.state
             .setup_status

@@ -517,11 +517,11 @@ pub(crate) async fn handle_game_input(
     // intent parser classifies it as Talk. An empty `raw` still produces the
     // "say something first" prompt, which is correct for bare "talk to X".
     if is_talk && let Some(target) = talk_target {
-        // Cap explicitly: `addressed_to` is already validated to ≤ MAX_ADDRESSED_TO
-        // (10) entries by `validate_addressed_to`, but bounding here lets static
-        // analyzers see the upper bound without tracing the validator.
-        let cap = (addressed_to.len() + 1).min(MAX_ADDRESSED_TO + 1);
-        let mut targets: Vec<String> = Vec::with_capacity(cap);
+        // Pre-allocate at the validated upper bound. Using the constant
+        // directly (rather than `addressed_to.len() + 1`) keeps the
+        // allocation size independent of user-controlled values for
+        // CodeQL's `rust/uncontrolled-allocation-size` query (#933).
+        let mut targets: Vec<String> = Vec::with_capacity(MAX_ADDRESSED_TO + 1);
         for name in addressed_to {
             if !targets.iter().any(|t| t == &name) {
                 targets.push(name);
@@ -544,11 +544,10 @@ pub(crate) async fn handle_game_input(
     // inline @mentions that aren't already in the chip set. Deduping happens
     // in `resolve_npc_targets` via `find_by_name`, which matches both real
     // and display names.
-    // See note above on bounding the capacity for static analyzers. NPC mention
-    // lists are also bounded (one entry per NPC in the world), but using a fixed
-    // ceiling keeps the allocation guaranteed-small regardless.
-    let cap = (addressed_to.len() + mentions.names.len()).min(MAX_TARGETS);
-    let mut targets: Vec<String> = Vec::with_capacity(cap);
+    // See note above. Pre-allocate at the fixed upper bound so the
+    // allocation argument is a constant — independent of any user-controlled
+    // input — and CodeQL's data-flow analyzer can see that.
+    let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
@@ -983,7 +982,7 @@ pub async fn load_branch(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    do_load_branch(&state, &app, file_path, branch_id).await
+    do_load_branch(state.inner(), &app, file_path, branch_id).await
 }
 
 /// Internal load-branch implementation shared with the MCP bridge.
