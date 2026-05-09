@@ -18,8 +18,8 @@ Exposes a small, curated set of MCP tools that map onto Parish's IPC surface:
 | `parish_new_game` | Start a fresh game on a new branch. |
 | `parish_save_game` | Save the current branch. |
 | `parish_load_branch` | Load a named branch by id. |
-| `parish_setup_status` | **Stub.** Reads first-run setup state — backend returns `{"stub": true, ...}` until the setup-UI branch lands. |
-| `parish_setup_byok` | **Stub.** Submits a BYOK provider config (api_key, optional base_url + model). Same stub envelope. |
+| `parish_setup_status` | Reads BYOK setup state: `{complete, provider, model, base_url, has_api_key, has_env_key}`. |
+| `parish_setup_byok` | Persists a BYOK provider config (writes key to OS keychain, rebuilds the live inference worker). |
 | `parish_latest_screenshot` | Reads metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
 | `tauri_invoke` | Generic escape hatch — call any backend command by name. |
 
@@ -241,11 +241,12 @@ Two extensions remain open:
   schema validation). Curated tools would tighten the model's
   affordances and self-document the editor flow.
 
-- **BYOK setup-flow real implementation.** `parish_setup_status` and
-  `parish_setup_byok` are stubbed (see "What it does today" above);
-  the route bodies in `parish-tauri/src/mcp_bridge.rs` and matching
-  Tauri commands + parish-server routes need to land with the setup-UI
-  branch. Tool contract is stable across that change.
+- **Server-mode BYOK parity.** `parish_setup_status` / `parish_setup_byok`
+  are wired against the in-process Tauri MCP bridge (single `AppState`
+  shared with the desktop window). `parish-server` does not yet expose
+  the matching `/api/setup-status` and `/api/submit-byok` HTTP routes,
+  so the MCP tools only work against a running Tauri instance until
+  multi-user web BYOK is designed.
 
 The crate ships unit tests for:
 

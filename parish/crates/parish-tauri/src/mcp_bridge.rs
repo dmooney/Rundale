@@ -92,12 +92,12 @@ fn build_router(bridge: BridgeState) -> Router {
         // file out of band. Posting a `data_url` from MCP is intentionally
         // out of scope until the future-work design questions are resolved.
         .route("/api/latest-screenshot", get(latest_screenshot))
-        // ── BYOK setup-flow stubs (#933) ─────────────────────────────────────
-        // Backend returns `{"stub": true, ...}` until the setup-UI branch
-        // lands; the route paths stay the same so MCP tool callers don't
-        // change when the real implementation arrives.
-        .route("/api/setup-status", get(setup_status_stub))
-        .route("/api/submit-byok", post(submit_byok_stub))
+        // ── BYOK setup-flow (#933) ────────────────────────────────────────
+        // Real handlers backed by `parish_core::ipc::byok` — the Svelte
+        // wizard and the MCP client share these. Routes match the schema
+        // the stubs originally pinned.
+        .route("/api/setup-status", get(setup_status))
+        .route("/api/submit-byok", post(submit_byok))
         .with_state(bridge)
 }
 
@@ -264,37 +264,86 @@ async fn latest_screenshot(
     Ok(Json(info))
 }
 
-// ── BYOK setup-flow stubs ────────────────────────────────────────────────────
+// ── BYOK setup-flow ──────────────────────────────────────────────────────────
 //
-// The full implementation lives on a sibling branch. These two handlers
-// return a structured `{"stub": true, ...}` response so an MCP client can
-// distinguish "endpoint exists but unimplemented" from "transport error /
-// 404". When the real handlers land they replace these bodies; the route
-// paths and the JSON envelope shape stay the same.
+// Real handlers backed by the shared `parish_core::ipc::byok` orchestration —
+// they share the same `AppState`, secret store, and user-config dir as the
+// Svelte BYOK wizard, so an MCP client and the desktop UI converge on
+// identical effects.
 
-const STUB_MESSAGE: &str =
-    "BYOK setup flow is stubbed. Implementation lands with the setup-UI branch.";
+#[derive(Debug, Deserialize)]
+struct SubmitByokBody {
+    provider: String,
+    #[serde(default)]
+    api_key: Option<String>,
+    #[serde(default)]
+    base_url: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+}
 
-#[allow(clippy::unused_async)]
-async fn setup_status_stub() -> Json<serde_json::Value> {
+async fn setup_status(State(b): State<BridgeState>) -> Json<serde_json::Value> {
+    let provider = parish_core::ipc::byok::handle_get_provider_config(&b.state.config).await;
+    let complete =
+        parish_core::config::user_config::onboarding_complete(&b.state.user_config_dir);
     Json(serde_json::json!({
-        "stub": true,
-        "implemented": false,
-        "message": STUB_MESSAGE,
-        // Shape the eventual real response will fill in:
-        "providers": [],
-        "complete": false,
+        "implemented": true,
+        "complete": complete,
+        "provider": provider.provider,
+        "model": provider.model,
+        "base_url": provider.base_url,
+        "has_api_key": provider.has_api_key,
+        "has_env_key": provider.has_env_key,
     }))
 }
 
-#[allow(clippy::unused_async)]
-async fn submit_byok_stub(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "stub": true,
-        "implemented": false,
-        "accepted": false,
-        "message": STUB_MESSAGE,
-    }))
+async fn submit_byok(
+    State(b): State<BridgeState>,
+    Json(body): Json<SubmitByokBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let args = parish_core::ipc::byok::SetProviderConfigArgs {
+        provider: body.provider,
+        base_url: body.base_url,
+        model: body.model,
+        api_key: body.api_key,
+        category_overrides: Default::default(),
+    };
+    let ctx = parish_core::ipc::byok::ByokContext {
+        config: &b.state.config,
+        inference_config: &b.state.inference_config,
+        inference_log: b.state.inference_log.clone(),
+        slots: parish_core::game_loop::inference::InferenceSlots {
+            client: &b.state.client,
+            worker_handle: &b.state.worker_handle,
+            inference_queue: &b.state.inference_queue,
+        },
+        secrets: std::sync::Arc::clone(&b.state.secret_store),
+        user_config_dir: b.state.user_config_dir.as_path(),
+    };
+    parish_core::ipc::byok::handle_set_provider_config(args, ctx)
+        .await
+        .map_err(|e| AppError(e.to_string()))?;
+
+    // Match the Tauri command shim: emit setup-done so the SetupOverlay (if
+    // any) dismisses and gameplay can proceed.
+    crate::record_setup_done(&b.state, true, String::new());
+    let _ = b.app.emit(
+        crate::events::EVENT_SETUP_DONE,
+        crate::events::SetupDonePayload {
+            success: true,
+            error: String::new(),
+        },
+    );
+
+    let snapshot =
+        parish_core::ipc::byok::handle_get_provider_config(&b.state.config).await;
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "provider": snapshot.provider,
+        "model": snapshot.model,
+        "base_url": snapshot.base_url,
+        "has_api_key": snapshot.has_api_key,
+    })))
 }
 
 // ── error mapping ───────────────────────────────────────────────────────────
