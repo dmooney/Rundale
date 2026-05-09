@@ -465,6 +465,9 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
             "/api/llm-player-action",
             post(routes::get_llm_player_action),
         )
+        // ── Screenshot stubs (Tauri-only feature; server returns 501) ───────
+        .route("/api/save-screenshot", post(routes::save_screenshot))
+        .route("/api/latest-screenshot", get(routes::get_latest_screenshot))
         .route("/api/ws", get(ws::ws_handler))
         // ── Tile proxy (issue #360) ──────────────────────────────────────
         // Requires a valid session (session_middleware already in the stack).

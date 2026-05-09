@@ -102,6 +102,33 @@ export const getDemoContext = () => command<DemoContextSnapshot>('get_demo_conte
 export const getLlmPlayerAction = (ctx: DemoContextSnapshot) =>
 	command<string>('get_llm_player_action', { ctx });
 
+// ── Screenshot commands ─────────────────────────────────────────────────────
+
+export interface ScreenshotInfo {
+	/** Absolute filesystem path to the PNG written by the backend. */
+	path: string;
+	/** ISO-8601 UTC timestamp the file was written (`YYYY-MM-DDTHH:MM:SSZ`). */
+	taken_at: string;
+	/** Size of the PNG payload in bytes. */
+	size_bytes: number;
+}
+
+/**
+ * Persists a screenshot captured by `captureScreen()` (in `lib/screenshot.ts`).
+ *
+ * `dataUrl` must be a `data:image/png;base64,...` string. Tauri-only: the
+ * web server returns 501 since the headless backend has no DOM to capture.
+ */
+export const saveScreenshot = (dataUrl: string) =>
+	command<ScreenshotInfo>('save_screenshot', { dataUrl });
+
+/**
+ * Reads metadata for the most recently captured screenshot, or `null` if
+ * none has been captured this session (or the cached file was deleted).
+ */
+export const getLatestScreenshot = () =>
+	command<ScreenshotInfo | null>('get_latest_screenshot');
+
 // ── Events ──────────────────────────────────────────────────────────────────
 
 type UnlistenFn = () => void;
