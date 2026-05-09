@@ -20,11 +20,19 @@ if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
 fi
 
 # Fast-path: warm container already has the package files. Cheaper than
-# even an `apt-get update`.
+# even an `apt-get update`. Run synchronously (no async marker) so the
+# session starts instantly when nothing needs to install.
 if pkg-config --exists 'gdk-3.0' 'webkit2gtk-4.1' 'libsoup-3.0' \
     'javascriptcoregtk-4.1' 2>/dev/null; then
     exit 0
 fi
+
+# Cold container: install runs in the background so the session prompt
+# appears immediately. The 5-minute timeout is generous; on this sandbox
+# the install is ~30s. Agent code that tries `cargo check -p parish-tauri`
+# before the install finishes will see the gdk-sys build failure and can
+# wait + retry.
+echo '{"async": true, "asyncTimeout": 300000}'
 
 echo "[session-start-hook] Installing parish-tauri system deps (GTK 3 + WebKit2GTK 4.1)..." >&2
 
