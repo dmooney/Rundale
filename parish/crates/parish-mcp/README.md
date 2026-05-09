@@ -182,6 +182,90 @@ forwarded as `Cf-Access-Authenticated-User-Email`.
 cargo test -p parish-mcp
 ```
 
+## Future work
+
+Items deferred from the initial PR. None of these block existing tools;
+they extend coverage so new use cases can be added without re-thinking
+the architecture.
+
+### Screenshot capture (player-triggered, MCP-readable)
+
+A "lots of games have this" screenshot feature, plumbed through the
+same desktop bridge as the rest of the MCP surface. Architecture choice:
+**frontend captures via `html-to-image`** so the feature works
+cross-platform (the existing GDK code in `parish-tauri/src/lib.rs` is
+Linux-only and only used for the `--screenshot` CI batch flag).
+
+Layered scope, ~14 files:
+
+| Layer | File | Change |
+|---|---|---|
+| Frontend | `parish/apps/ui/package.json` | + `html-to-image` dep |
+| Frontend | `parish/apps/ui/src/lib/screenshot.ts` (new) | `captureScreen()` returning a `data:image/png;base64,...` URL |
+| Frontend | `parish/apps/ui/src/lib/ipc.ts` | + `saveScreenshot(dataUrl)` wrapper using the existing `command()` helper (works in Tauri *and* web modes) |
+| Frontend | `parish/apps/ui/src/routes/+page.svelte` | F2 key binding alongside the existing F5/F11/F12 chord; small "Screenshot saved" toast |
+| Backend | `parish-tauri/src/commands.rs` | `save_screenshot(data_url) -> ScreenshotInfo` Tauri command + `do_save_screenshot` helper + `get_latest_screenshot` reader |
+| Backend | `parish-tauri/src/lib.rs` | new `latest_screenshot_path: tokio::sync::Mutex<Option<PathBuf>>` field on `AppState`; two new entries in `tauri::generate_handler!` |
+| Backend | `parish-tauri/src/command_registry.rs` | + `save_screenshot`, `get_latest_screenshot` in `EXPECTED_COMMANDS` |
+| Backend | `parish-tauri/src/mcp_bridge.rs` | `GET /api/latest-screenshot` route delegating to the helper |
+| Backend | `parish-server/src/routes.rs` | 501 stubs for both endpoints (Tauri-only feature, same pattern as the existing `demo_*` routes) |
+| Backend | `parish-server/src/lib.rs` | route registration |
+| Backend | `parish-server/src/route_registry.rs` | + paths in `EXPECTED_HTTP_ROUTES` so `wiring_parity` stays green |
+| MCP | `parish-mcp/src/tools.rs` | `parish_latest_screenshot` tool (returns `{path, taken_at, size_bytes}`) |
+| Docs | this README + `AGENTS.md` | new tool-table rows |
+| Tests | tools, bridge, command | translation, route-table pin, base64 round-trip |
+
+Save location: `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`.
+Reuses the saves-dir resolution path that already lives on `AppState`.
+
+**Two open design questions** when this lands:
+
+1. *Player-trigger-only vs. MCP-trigger.* The initial scope above is
+   player-only — MCP reads the latest saved file. Adding MCP-trigger
+   means an event round-trip in `mcp_bridge.rs`: store a oneshot
+   `Sender` keyed by request id in a new `pending_screenshots:
+   Mutex<HashMap<String, oneshot::Sender<...>>>` field, emit a
+   `request-screenshot` Tauri event, await the receiver with a
+   reasonable timeout (~10 s). The frontend already has a `request_id`
+   plumbing pattern for similar flows; ~50 extra lines.
+
+2. *Inline image vs. path-only in the MCP response.* MCP `tools/call`
+   responses support `content: [{type: "image", data: "<base64>",
+   mimeType: "image/png"}]` so the model can see the screenshot
+   directly. Today the parish-mcp envelope only emits text parts (see
+   `tool_call_result` in `src/mcp.rs`). Returning an image part means
+   adding a `returns_image` flag to `ToolDef` and a parallel branch in
+   `call_tool`. Worth it once we have a vision-capable client routinely
+   driving the bridge; otherwise path-as-text is fine and the model
+   reads the file via a Read tool.
+
+### Other deferred items
+
+- **Event push (`notifications/*`).** Today the model has to poll
+  `parish_world_snapshot` between turns to see NPC reactions, weather
+  ticks, autosave fires, and setup progress. A `WebSocket → MCP
+  notification` fan-in would let the bridge push these proactively. ~80
+  lines, mostly in `mcp_bridge.rs` and a new `pending_notifications`
+  channel on `McpServer`.
+
+- **`GenericTauriBackend` (WebDriver).** The `BackendError::Unimplemented`
+  stub is wired through the `TauriBackend` trait so a future
+  [`tauri-driver`](https://v2.tauri.app/develop/tests/webdriver/) impl
+  drops in without protocol changes. Unblocks DOM-level driving (click
+  selectors, read visible text, real screenshots of the OS window) and
+  app-agnostic Tauri control beyond Parish.
+
+- **Editor + debug surfaces as curated tools.** `editor_*` and
+  `get_debug_snapshot` are reachable today only via `tauri_invoke` (no
+  schema validation). Curated tools would tighten the model's
+  affordances and self-document the editor flow.
+
+- **BYOK setup-flow real implementation.** `parish_setup_status` and
+  `parish_setup_byok` are stubbed (see "What it does today" above);
+  the route bodies in `parish-tauri/src/mcp_bridge.rs` and matching
+  Tauri commands + parish-server routes need to land with the setup-UI
+  branch. Tool contract is stable across that change.
+
 The crate ships unit tests for:
 
 - JSON-RPC framing (round-trip, notifications, parse errors)
