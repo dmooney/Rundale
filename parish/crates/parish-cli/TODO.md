@@ -2,7 +2,19 @@
 
 ## Open
 
-*(none)*
+| ID | Category | Description |
+|----|----------|-------------|
+| TD-020 | Config/Cargo | Remove unused `tokio-test` dev-dep at `Cargo.toml:33`. No `tokio_test` import or `tokio_test::` macro is used anywhere in `src/` or `tests/`; the existing async tests use `tokio::test` (the `tokio` proc-macro), which is unrelated. |
+| TD-021 | CLAUDE.md Rule 9 | `src/main.rs:194` calls `std::env::current_dir()` inside `resolve_configs()` to derive `engine_config_path`. This is the same daemonised/`/tmp` failure mode that already led to deprecating `find_data_dir`/`find_ui_dist_dir` (TD-014). Resolve `engine_config_path` from an explicit CLI flag/env var or a startup-time picker, not from the per-call cwd. |
+| TD-022 | Stale Code | `src/testing.rs:892` and `src/testing.rs:904` fall back to `data/parish.json` and `data/npcs.json` inside `handle_new_game_effect`. Game content has moved under `mods/rundale/` (CLAUDE.md "Rundale game content" map); the legacy `data/` paths cannot exist in a fresh checkout. Drop the dead fallback or replace it with a clear error. |
+| TD-023 | Stale Docs | `src/command_host.rs:13-17` documents the move-back idiom as `std::mem::replace(app, App::new())` + `Arc::try_unwrap(app_arc).expect("no clone").into_inner()`. The real call site at `src/headless.rs:416,427-429` uses `std::mem::take(app)` and `Arc::into_inner(app_arc).expect(...).into_inner()`. Update the doc example to match. |
+| TD-024 | Bug Risk | `src/debug.rs:359` sorts relationships with `b.1.strength.partial_cmp(&a.1.strength).unwrap()`. `Relationship::strength` is `f64`; a `NaN` value (e.g. from a corrupt save) panics the entire `/debug rels <name>` command. Use `unwrap_or(std::cmp::Ordering::Equal)` or `total_cmp`. |
+| TD-025 | Code Smell | `src/app.rs:209,219` panic with `panic!("Dialogue has no CategoryOverride")` from `category_override`/`category_override_mut`. The Dialogue branch is reachable through any `set_category_*` call that the public API exposes — only convention prevents misuse. Either narrow the input enum (e.g. `NonDialogueCategory`) so the panic is statically unreachable, or use `unreachable!` with a clearer rationale. |
+| TD-026 | Stale Docs | `README.md` (lines 13-17) lists "Key modules" as `main`, `app`, `headless`, `config`, `debug`/`testing`, but mis-describes `app` as "top-level startup and mode routing" (it's the shared `App` state) and omits the entire `command_host`, `emitter`, and `lib` modules. Refresh the module list to match `src/lib.rs`. |
+| TD-027 | Duplication | The `GameSnapshot::capture(&world, &npc_manager)` + `db.save_snapshot(branch_id, &snapshot)` pair is repeated 6+ times across `src/command_host.rs:95-96, 195-196, 217-220` and `src/testing.rs:665-666, 694-698, 737-741`, plus `src/headless.rs:391, 446-447, 504-505, 549-550, 1437-1438`. Extract a shared `capture_and_save(db, &mut app)` helper (sync + async variants) so journal-clear and `last_autosave` bookkeeping stay in one place. |
+| TD-028 | Duplication | `src/headless.rs:528-560` (`handle_headless_new_game`) and `src/testing.rs:883-917` (`handle_new_game_effect`) both reload the active mod's world + NPCs and call `assign_tiers`. The mod-reload core (`world_state_from_mod` + `NpcManager::load_from_file` + `assign_tiers`) belongs in a shared helper instead of being copy-pasted across the headless and testing modes. |
+| TD-029 | Complexity | `stream_headless_npc_dialogue` (`src/headless.rs:566-716`, ~150 lines) reaches brace nesting depth 9 around line 646 (`match queue.send` → `Ok(rx)` → spawned task → `match rx.await` → `Ok(response)` → `else` arm → `if let Some(meta)` → ...). Split the response-handling arm into a `apply_npc_response` helper to flatten the control flow. |
+| TD-030 | Dead State | `App::idle_counter` (`src/app.rs:75,155,404`) is initialized to `0` and asserted in one test but never read or mutated anywhere. The headless idle messaging instead uses the file-scoped `HEADLESS_IDLE_COUNTER` `AtomicUsize` (`src/headless.rs:400-401, 788`). Either delete the dead `App` field or migrate the headless counter onto `App` so the state lives in one place. |
 
 ## In Progress
 
