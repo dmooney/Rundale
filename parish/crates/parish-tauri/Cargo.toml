@@ -34,6 +34,14 @@ parish-core    = { workspace = true }
 parish-palette = { workspace = true }
 rand           = { workspace = true }
 
+# MCP bridge — embedded HTTP listener that mirrors the parish-server IPC routes
+# against this process's live AppState, so an MCP client (parish-mcp) can drive
+# the desktop session it can see in the window. Only spawned when the user
+# passes `--mcp-port <N>`; otherwise inert. Matches parish-server's axum
+# version + defaults so the workspace shares one resolved version.
+axum           = "0.8"
+tower          = "0.5"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 gdk  = "0.18"
 glib = "0.22"

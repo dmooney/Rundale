@@ -232,20 +232,33 @@ pub async fn submit_input(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    do_submit_input(state.inner(), &app, text, addressed_to.unwrap_or_default()).await
+}
+
+/// Internal submit-input implementation shared with the MCP bridge.
+///
+/// Mirrors the Tauri command body but takes plain `&Arc<AppState>` /
+/// `&tauri::AppHandle` so the `mcp_bridge` Axum handler can drive the same
+/// dispatcher against the same live AppState the desktop window observes.
+pub(crate) async fn do_submit_input(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    text: String,
+    addressed_to: Vec<String>,
+) -> Result<(), String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
-    let addressed_to = addressed_to.unwrap_or_default();
     validate_addressed_to(&addressed_to)?;
 
-    touch_player_activity(&state).await;
+    touch_player_activity(state).await;
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
-            handle_system_command(cmd, &state, &app).await;
+            handle_system_command(cmd, state, app).await;
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -256,14 +269,14 @@ pub async fn submit_input(
             let raw_for_reactions = raw.clone();
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, addressed_to, state.clone(), app.clone()).await;
+            handle_game_input(raw, addressed_to, state, app.clone()).await;
             // Generate NPC reactions to the player's message in the background.
             emit_npc_reactions(
                 &player_msg_id,
                 &raw_for_reactions,
                 reaction_location,
-                &state,
-                &app,
+                state,
+                app,
             );
         }
     }
@@ -287,16 +300,27 @@ pub fn validate_input_text(raw: &str) -> Result<String, String> {
     Ok(trimmed)
 }
 
+/// Maximum number of NPC chips a single `submit_input` may carry. Validated
+/// in [`validate_addressed_to`] and reused by `handle_game_input` to bound
+/// `Vec::with_capacity` calls (#933 — CodeQL `rust/uncontrolled-allocation-size`).
+pub(crate) const MAX_ADDRESSED_TO: usize = 10;
+
+/// Upper bound for the merged `addressed_to + mentions` target list. Sized
+/// generously above the realistic combined total — `addressed_to` is capped
+/// at [`MAX_ADDRESSED_TO`] and `mentions.names.len()` is bounded by NPCs in
+/// the world — so the allocation is guaranteed-small regardless of input.
+pub(crate) const MAX_TARGETS: usize = 64;
+
 /// Validates the `addressed_to` list from the `submit_input` command.
 ///
 /// Rules (mode-parity with the server path in `parish-server`):
-/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - At most [`MAX_ADDRESSED_TO`] entries (prevents unbounded NPC-chip spam).
 /// - Each name is at most **100** characters.
 ///
 /// Returns `Err(String)` with a user-visible message on any violation.
 pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
-    if addressed_to.len() > 10 {
-        return Err("Too many addressees (max 10).".to_string());
+    if addressed_to.len() > MAX_ADDRESSED_TO {
+        return Err(format!("Too many addressees (max {MAX_ADDRESSED_TO})."));
     }
     if addressed_to.iter().any(|name| name.len() > 100) {
         return Err("Addressee name too long (max 100 characters).".to_string());
@@ -385,10 +409,15 @@ async fn handle_system_command(
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
-async fn handle_game_input(
+///
+/// Takes plain `&Arc<AppState>` (not `tauri::State<...>`) so the body can be
+/// called from non-Tauri-extractor contexts — namely the `mcp_bridge` Axum
+/// handlers, which share the same live AppState as the desktop window. The
+/// Tauri callsite passes `state.inner()`.
+pub(crate) async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     // Resolve the intent client and model (Intent category override, or base).
@@ -458,7 +487,7 @@ async fn handle_game_input(
 
     if is_move {
         if let Some(target) = move_target {
-            handle_movement(&target, &state, &app).await;
+            handle_movement(&target, state, &app).await;
         } else {
             let _ = app.emit(
                 EVENT_TEXT_LOG,
@@ -475,7 +504,7 @@ async fn handle_game_input(
     }
 
     if is_look {
-        handle_look(&state, &app).await;
+        handle_look(state, &app).await;
         return;
     }
 
@@ -488,7 +517,11 @@ async fn handle_game_input(
     // intent parser classifies it as Talk. An empty `raw` still produces the
     // "say something first" prompt, which is correct for bare "talk to X".
     if is_talk && let Some(target) = talk_target {
-        let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + 1);
+        // Pre-allocate at the validated upper bound. Using the constant
+        // directly (rather than `addressed_to.len() + 1`) keeps the
+        // allocation size independent of user-controlled values for
+        // CodeQL's `rust/uncontrolled-allocation-size` query (#933).
+        let mut targets: Vec<String> = Vec::with_capacity(MAX_ADDRESSED_TO + 1);
         for name in addressed_to {
             if !targets.iter().any(|t| t == &name) {
                 targets.push(name);
@@ -511,7 +544,10 @@ async fn handle_game_input(
     // inline @mentions that aren't already in the chip set. Deduping happens
     // in `resolve_npc_targets` via `find_by_name`, which matches both real
     // and display names.
-    let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + mentions.names.len());
+    // See note above. Pre-allocate at the fixed upper bound so the
+    // allocation argument is a constant — independent of any user-controlled
+    // input — and CodeQL's data-flow analyzer can see that.
+    let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
@@ -767,7 +803,7 @@ async fn set_conversation_running(state: &Arc<AppState>, running: bool) {
 async fn handle_npc_conversation(
     raw: String,
     target_names: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
@@ -793,9 +829,9 @@ async fn handle_npc_conversation(
         Some(cancel)
     };
 
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
     parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
@@ -945,6 +981,19 @@ pub async fn load_branch(
     branch_id: i64,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
+) -> Result<(), String> {
+    do_load_branch(state.inner(), &app, file_path, branch_id).await
+}
+
+/// Internal load-branch implementation shared with the MCP bridge.
+///
+/// Takes plain `&Arc<AppState>` / `&tauri::AppHandle` so it can be called
+/// from non-Tauri-extractor contexts (e.g. `mcp_bridge::load_branch_route`).
+pub async fn do_load_branch(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    file_path: String,
+    branch_id: i64,
 ) -> Result<(), String> {
     use parish_core::persistence::SaveFileLock;
 
