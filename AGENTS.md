@@ -76,6 +76,8 @@ available as `mcp__parish__*`:
 | `parish_new_game` | Start a fresh game on a new save branch. |
 | `parish_save_game` | Save the current branch. |
 | `parish_load_branch` | Load a branch by integer id. |
+| `parish_setup_status` | **Stub.** Reads first-run setup state. Backend returns `{"stub": true, ...}` until the setup-UI branch lands. |
+| `parish_setup_byok` | **Stub.** Submits a BYOK provider config (`provider`, `api_key`, optional `base_url`/`model`). Same stub envelope. |
 | `tauri_invoke` | Generic escape hatch — call any backend command (e.g. `editor_*`, `get_debug_snapshot`) by name. |
 
 The MCP server is a *bridge*: it speaks HTTP to a running Parish backend on

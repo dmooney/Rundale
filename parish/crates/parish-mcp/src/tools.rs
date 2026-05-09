@@ -98,6 +98,37 @@ fn translate_invoke(args: &Value) -> Result<(String, Value), String> {
     Ok((command, inner))
 }
 
+// ── BYOK setup-flow stubs (#933) ─────────────────────────────────────────────
+//
+// These tools shape the contract for the BYOK ("bring your own key") setup
+// flow that lives on a sibling branch. The backend routes return a structured
+// `{"stub": true, ...}` response today; when the real implementation lands,
+// the route bodies fill in but the tool surface (names, schemas) stays the
+// same — so any agent code written against these tools keeps working.
+
+fn translate_setup_status(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_setup_status".into(), Value::Null))
+}
+
+fn translate_setup_byok(args: &Value) -> Result<(String, Value), String> {
+    let provider = require_string(args, "provider")?.to_string();
+    let api_key = require_string(args, "api_key")?.to_string();
+    let base_url = args
+        .get("base_url")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let model = args.get("model").and_then(|v| v.as_str()).map(String::from);
+    Ok((
+        "submit_byok".into(),
+        json!({
+            "provider": provider,
+            "api_key": api_key,
+            "base_url": base_url,
+            "model": model,
+        }),
+    ))
+}
+
 /// Returns the curated tool registry. Tools are listed in the order the
 /// MCP client will see them via `tools/list`.
 pub fn registry() -> Vec<ToolDef> {
@@ -182,6 +213,44 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             translate: translate_load_branch,
         },
+        // ── BYOK setup-flow (stubbed; see translate_setup_*) ─────────────────
+        ToolDef {
+            name: "parish_setup_status",
+            description: "Reads the setup state — which providers are configured, whether \
+                          first-run setup is complete, and what the user still needs to \
+                          supply. STUB: backend returns `{\"stub\": true, ...}` today; the \
+                          real implementation lands with the setup-UI branch and the tool \
+                          contract is stable across that change.",
+            input_schema: empty_object_schema(),
+            translate: translate_setup_status,
+        },
+        ToolDef {
+            name: "parish_setup_byok",
+            description: "Submits a 'bring your own key' provider configuration. STUB: the \
+                          backend currently returns `{\"stub\": true, ...}` and does not \
+                          persist the key; the real implementation lands with the setup-UI \
+                          branch.",
+            input_schema: json!({
+                "type": "object",
+                "required": ["provider", "api_key"],
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "description": "Provider id (e.g. anthropic, openrouter, openai, ollama)."
+                    },
+                    "api_key": {"type": "string", "minLength": 1},
+                    "base_url": {
+                        "type": "string",
+                        "description": "Optional override for the provider's base URL."
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Optional explicit model id; defaults to the provider's preset."
+                    }
+                }
+            }),
+            translate: translate_setup_byok,
+        },
     ]
 }
 
@@ -241,5 +310,53 @@ mod tests {
         assert!(err.contains("branch_id"));
         let err = translate_load_branch(&json!({"branch_id": "abc"})).unwrap_err();
         assert!(err.contains("branch_id"));
+    }
+
+    #[test]
+    fn setup_status_takes_no_args() {
+        let (cmd, args) = translate_setup_status(&json!({})).unwrap();
+        assert_eq!(cmd, "get_setup_status");
+        assert!(args.is_null());
+    }
+
+    #[test]
+    fn setup_byok_requires_provider_and_api_key() {
+        assert!(translate_setup_byok(&json!({})).is_err());
+        assert!(translate_setup_byok(&json!({"provider": "anthropic"})).is_err());
+        assert!(translate_setup_byok(&json!({"api_key": "sk-..."})).is_err());
+    }
+
+    #[test]
+    fn setup_byok_passes_required_and_optional_fields() {
+        let (cmd, args) = translate_setup_byok(&json!({
+            "provider": "openrouter",
+            "api_key": "sk-or-v1-abc",
+            "base_url": "https://openrouter.ai/api",
+            "model": "anthropic/claude-sonnet-4.5"
+        }))
+        .unwrap();
+        assert_eq!(cmd, "submit_byok");
+        assert_eq!(args["provider"], "openrouter");
+        assert_eq!(args["api_key"], "sk-or-v1-abc");
+        assert_eq!(args["base_url"], "https://openrouter.ai/api");
+        assert_eq!(args["model"], "anthropic/claude-sonnet-4.5");
+    }
+
+    #[test]
+    fn setup_byok_omits_optional_fields_as_null() {
+        let (_, args) = translate_setup_byok(&json!({
+            "provider": "ollama",
+            "api_key": "n/a"
+        }))
+        .unwrap();
+        assert!(args["base_url"].is_null());
+        assert!(args["model"].is_null());
+    }
+
+    #[test]
+    fn registry_includes_byok_setup_stubs() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert!(names.contains(&"parish_setup_status"));
+        assert!(names.contains(&"parish_setup_byok"));
     }
 }

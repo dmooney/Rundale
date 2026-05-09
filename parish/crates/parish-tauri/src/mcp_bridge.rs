@@ -85,6 +85,12 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/new-game", post(new_game))
         .route("/api/save-game", post(save_game))
         .route("/api/load-branch", post(load_branch))
+        // ── BYOK setup-flow stubs (#933) ─────────────────────────────────────
+        // Backend returns `{"stub": true, ...}` until the setup-UI branch
+        // lands; the route paths stay the same so MCP tool callers don't
+        // change when the real implementation arrives.
+        .route("/api/setup-status", get(setup_status_stub))
+        .route("/api/submit-byok", post(submit_byok_stub))
         .with_state(bridge)
 }
 
@@ -242,6 +248,39 @@ async fn load_branch(
     Ok(StatusCode::OK)
 }
 
+// ── BYOK setup-flow stubs ────────────────────────────────────────────────────
+//
+// The full implementation lives on a sibling branch. These two handlers
+// return a structured `{"stub": true, ...}` response so an MCP client can
+// distinguish "endpoint exists but unimplemented" from "transport error /
+// 404". When the real handlers land they replace these bodies; the route
+// paths and the JSON envelope shape stay the same.
+
+const STUB_MESSAGE: &str =
+    "BYOK setup flow is stubbed. Implementation lands with the setup-UI branch.";
+
+#[allow(clippy::unused_async)]
+async fn setup_status_stub() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "stub": true,
+        "implemented": false,
+        "message": STUB_MESSAGE,
+        // Shape the eventual real response will fill in:
+        "providers": [],
+        "complete": false,
+    }))
+}
+
+#[allow(clippy::unused_async)]
+async fn submit_byok_stub(Json(_body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "stub": true,
+        "implemented": false,
+        "accepted": false,
+        "message": STUB_MESSAGE,
+    }))
+}
+
 // ── error mapping ───────────────────────────────────────────────────────────
 
 /// Bridges domain `Result<_, String>` errors from the `do_*` helpers onto
@@ -281,6 +320,9 @@ mod tests {
             "/api/new-game",
             "/api/save-game",
             "/api/load-branch",
+            // BYOK setup-flow stubs (#933).
+            "/api/setup-status",
+            "/api/submit-byok",
         ];
         // Mirrors parish-mcp's ParishHttpBackend::command_to_path.
         let translate = |cmd: &str| {
@@ -307,6 +349,8 @@ mod tests {
             "new_game",
             "save_game",
             "load_branch",
+            "get_setup_status",
+            "submit_byok",
         ] {
             let path = translate(cmd);
             assert!(

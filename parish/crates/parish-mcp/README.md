@@ -18,6 +18,8 @@ Exposes a small, curated set of MCP tools that map onto Parish's IPC surface:
 | `parish_new_game` | Start a fresh game on a new branch. |
 | `parish_save_game` | Save the current branch. |
 | `parish_load_branch` | Load a named branch by id. |
+| `parish_setup_status` | **Stub.** Reads first-run setup state — backend returns `{"stub": true, ...}` until the setup-UI branch lands. |
+| `parish_setup_byok` | **Stub.** Submits a BYOK provider config (api_key, optional base_url + model). Same stub envelope. |
 | `tauri_invoke` | Generic escape hatch — call any backend command by name. |
 
 Behind the scenes these go through a [`TauriBackend`](src/backend.rs) trait. The
