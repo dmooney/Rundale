@@ -34,6 +34,14 @@ const BLANK_PNG = Buffer.from(
  * Must be called before `page.goto()`.
  */
 export async function installTileRouteMock(page: Page): Promise<void> {
+	// MapLibre's default glyphsUrl points at the demo CDN
+	// (demotiles.maplibre.org) which has no SLA and stalls on GitHub Actions
+	// runners — the resulting trickle of PBF requests prevents
+	// `networkidle` from settling and tests hit the 60s timeout. Empty 200s
+	// keep MapLibre happy without a label render that any test asserts on.
+	await page.route('**/demotiles.maplibre.org/**', (route) =>
+		route.fulfill({ status: 200, contentType: 'application/x-protobuf', body: Buffer.alloc(0) })
+	);
 	await page.route('**/tiles/**', (route) =>
 		route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG })
 	);
