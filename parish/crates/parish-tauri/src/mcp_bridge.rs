@@ -90,11 +90,14 @@ fn build_router(bridge: BridgeState) -> Router {
 
 // ── handlers ────────────────────────────────────────────────────────────────
 
-async fn health() -> &'static str {
+// Sync handlers: axum implements `Handler` for both sync and async functions.
+// `health` and `setup_snapshot` do no async work, so making them sync avoids
+// `clippy::unused_async`.
+fn health() -> &'static str {
     "ok"
 }
 
-async fn world_snapshot(State(b): State<BridgeState>) -> Result<Json<WorldSnapshot>, AppError> {
+async fn world_snapshot(State(b): State<BridgeState>) -> Json<WorldSnapshot> {
     let world = b.state.world.lock().await;
     let transport = b.state.transport.default_mode();
     let npc_manager = b.state.npc_manager.lock().await;
@@ -104,10 +107,10 @@ async fn world_snapshot(State(b): State<BridgeState>) -> Result<Json<WorldSnapsh
         Some(&npc_manager),
         &b.state.pronunciations,
     );
-    Ok(Json(snap))
+    Json(snap)
 }
 
-async fn map(State(b): State<BridgeState>) -> Result<Json<MapData>, AppError> {
+async fn map(State(b): State<BridgeState>) -> Json<MapData> {
     let world = b.state.world.lock().await;
     let config = b.state.config.lock().await;
     let transport = b.state.transport.default_mode();
@@ -121,7 +124,7 @@ async fn map(State(b): State<BridgeState>) -> Result<Json<MapData>, AppError> {
         .map(|d| (d.lat, d.lon))
         .unwrap_or((0.0, 0.0));
 
-    Ok(Json(MapData {
+    Json(MapData {
         locations: core_map
             .locations
             .into_iter()
@@ -144,7 +147,7 @@ async fn map(State(b): State<BridgeState>) -> Result<Json<MapData>, AppError> {
         edge_traversals: core_map.edge_traversals,
         transport_label: core_map.transport_label,
         transport_id: core_map.transport_id,
-    }))
+    })
 }
 
 async fn npcs_here(State(b): State<BridgeState>) -> Json<Vec<NpcInfo>> {
@@ -167,7 +170,7 @@ async fn save_state(State(b): State<BridgeState>) -> Json<SaveState> {
     })
 }
 
-async fn setup_snapshot(State(b): State<BridgeState>) -> Json<SetupStatusSnapshot> {
+fn setup_snapshot(State(b): State<BridgeState>) -> Json<SetupStatusSnapshot> {
     Json(
         b.state
             .setup_status
