@@ -8,7 +8,7 @@
 | TD-009 | Duplication | P3 | `src/lib.rs:157, 266, 271-273` | The `v.round().clamp(0.0, 255.0) as u8` cast pattern is written four times (`lerp_u8`, the gray fallback in `ensure_color_contrast`, plus three channel scales). Extract a `f32_to_u8_clamped` helper. |
 | TD-010 | Redundant Test | P3 | `src/lib.rs:523-527` | `test_compute_palette_produces_valid_colors` only asserts `bg != black` at one timestamp; fully subsumed by `test_compute_palette_all_hours_valid` (line 530). Delete to reduce noise. |
 | TD-011 | Stale Docs | P3 | `README.md:14` | Pipeline diagram only mentions `compute_palette()`; the sibling public entry point `compute_palette_with_config(hour, minute, &PaletteConfig)` is not documented. Either document it or address via TD-008. |
-| TD-012 | Brittle Conditional | P3 | `src/lib.rs:224-225` | `interpolated_palette` ends with a silent `KEYFRAMES[0].palette` fallback labelled "shouldn't be reached". A future bug in the search loop would yield a Midnight palette instead of failing loudly — switch to `unreachable!()` (or `debug_assert!` + documented behaviour) so regressions surface in tests. |
+| TD-012 | Brittle Conditional | P3 | `src/lib.rs:224-225` | `interpolated_palette` ends with a silent `KEYFRAMES[0].palette` fallback labelled "shouldn't be reached". A future bug in the search loop would yield a Midnight palette instead of failing loudly — switch to a panicking `unreachable!` macro (or `debug_assert!` + documented behaviour) so regressions surface in tests. |
 
 ## In Progress
 
