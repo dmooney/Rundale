@@ -35,6 +35,64 @@ A second impl, `GenericTauriBackend`, is a stub for a future
 backend that would drive any Tauri app's webview directly. It is wired
 through the same trait so the MCP layer needs no changes when it lands.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    Claude["<b>Claude Code / Claude Desktop</b><br/>(MCP client)"]
+
+    subgraph mcp_proc["parish-mcp (stdio process)"]
+        Tools["Tool registry<br/>parish_world_snapshot,<br/>parish_submit_input,<br/>parish_setup_byok, ..."]
+        Backend["TauriBackend trait<br/>↳ ParishHttpBackend<br/>↳ GenericTauriBackend (stub)"]
+        Tools --> Backend
+    end
+
+    subgraph tauri_proc["parish-tauri --mcp-port 3030 (live desktop)"]
+        Window["Desktop window<br/>(Svelte UI / wry)"]
+        TIPC["Tauri IPC commands<br/>(submit_input, save_game, ...)"]
+        TBridge["mcp_bridge::router<br/>Axum on 127.0.0.1:3030"]
+        TState["<b>Arc&lt;AppState&gt; + AppHandle</b><br/><i>single shared instance</i>"]
+        Window <--> TIPC
+        TIPC --> TState
+        TBridge --> TState
+        TBridge -. "shares do_* helpers" .-> TIPC
+    end
+
+    subgraph server_proc["parish-server / 'parish web' (headless, alternative)"]
+        SRoutes["routes.rs<br/>Axum /api/*"]
+        SState["Arc&lt;AppState&gt;<br/>(separate session)"]
+        SRoutes --> SState
+    end
+
+    Core["<b>parish-core</b><br/>game_loop · EventEmitter trait · WorldState · NpcManager · do_* shared helpers"]
+
+    Claude -->|"stdio<br/>JSON-RPC 2.0"| Tools
+    Backend -->|"HTTP /api/*"| TBridge
+    Backend -. "HTTP /api/*<br/>(alternative)" .-> SRoutes
+    TState --> Core
+    SState --> Core
+
+    classDef stub stroke-dasharray:5 5
+    class server_proc stub
+```
+
+**Key invariants the diagram encodes:**
+- `parish-mcp` is a thin protocol bridge — it never touches game state
+  directly. All mutations flow through HTTP to whichever backend is
+  configured.
+- The desktop path (`parish-tauri --mcp-port`) shares **one**
+  `Arc<AppState>` between the Svelte window, the Tauri IPC commands,
+  and the embedded Axum bridge. That's what makes MCP-driven inputs
+  appear in the live window.
+- The headless path (`parish-server`) is an entirely separate process
+  with its own `AppState`. Same `/api/*` surface, different session.
+  The `wiring_parity` sensor in `parish-core/tests` enforces that the
+  two route tables stay aligned.
+- Both backends ultimately delegate to the same `parish-core` game
+  loop, parameterised over the runtime via the `EventEmitter` trait
+  (CLAUDE.md rule #12). New shared logic must land there, not in either
+  entry point.
+
 ## Transport
 
 The binary speaks **stdio JSON-RPC 2.0**, the standard MCP transport for
