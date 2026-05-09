@@ -101,14 +101,15 @@ impl ParishHttpBackend {
         format!("/api/{kebab}")
     }
 
-    /// Heuristic: GET when no body fields are present, POST otherwise.
-    /// Keeps callers from having to know the verb of every endpoint.
+    /// Heuristic: GET when `args` is JSON null, POST otherwise.
+    ///
+    /// Empty objects (`{}`) are POST: tool translators like
+    /// `parish_new_game` and `parish_save_game` deliberately emit
+    /// `json!({})` to signal a body-less mutation endpoint, and the
+    /// matching `parish-server` route is registered with `.post(...)`.
+    /// Treating `{}` as GET would silently route those calls to a 404.
     fn is_post(args: &Value) -> bool {
-        match args {
-            Value::Null => false,
-            Value::Object(map) => !map.is_empty(),
-            _ => true,
-        }
+        !args.is_null()
     }
 }
 
@@ -120,7 +121,8 @@ impl TauriBackend for ParishHttpBackend {
 
     async fn invoke(&self, command: &str, args: Value) -> Result<Value, BackendError> {
         let url = format!("{}{}", self.base_url, Self::command_to_path(command));
-        let mut req = if Self::is_post(&args) {
+        let use_post = Self::is_post(&args);
+        let mut req = if use_post {
             self.client.post(&url).json(&args)
         } else {
             self.client.get(&url)
@@ -142,15 +144,8 @@ impl TauriBackend for ParishHttpBackend {
 
         if !status.is_success() {
             return Err(BackendError::Rejected(format!(
-                "{} {} -> {}: {}",
-                if Self::is_post(&Value::Null) {
-                    "GET"
-                } else {
-                    "POST"
-                },
-                url,
-                status,
-                body,
+                "{} {url} -> {status}: {body}",
+                if use_post { "POST" } else { "GET" },
             )));
         }
 
@@ -217,13 +212,55 @@ mod tests {
     }
 
     #[test]
-    fn is_post_treats_null_and_empty_object_as_get() {
+    fn is_post_treats_null_as_get_and_everything_else_as_post() {
         assert!(!ParishHttpBackend::is_post(&Value::Null));
-        assert!(!ParishHttpBackend::is_post(&serde_json::json!({})));
+        // Empty objects must be POST: parish_new_game / parish_save_game emit
+        // `json!({})` to drive a body-less mutation endpoint.
+        assert!(ParishHttpBackend::is_post(&serde_json::json!({})));
         assert!(ParishHttpBackend::is_post(
             &serde_json::json!({"text": "hi"})
         ));
         assert!(ParishHttpBackend::is_post(&serde_json::json!([1, 2, 3])));
+    }
+
+    /// Regression: empty-object args (the shape `parish_new_game` / `parish_save_game`
+    /// emit) must reach the backend as POST, not GET. Pre-fix this test would
+    /// fail because `is_post(&json!({}))` returned `false`.
+    #[tokio::test]
+    async fn empty_object_args_dispatch_as_post() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/new-game"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(""))
+            .mount(&server)
+            .await;
+
+        let backend = ParishHttpBackend::new(server.uri());
+        let v = backend
+            .invoke("new_game", serde_json::json!({}))
+            .await
+            .unwrap();
+        assert!(v.is_null());
+    }
+
+    /// Failures on a GET request must report `GET` in the error message —
+    /// the pre-fix code hardcoded `POST` because it called
+    /// `is_post(&Value::Null)` instead of inspecting the actual args.
+    #[tokio::test]
+    async fn rejected_error_reports_actual_http_method() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/world-snapshot"))
+            .respond_with(ResponseTemplate::new(404).set_body_string("missing"))
+            .mount(&server)
+            .await;
+        let backend = ParishHttpBackend::new(server.uri());
+        let err = backend
+            .invoke("get_world_snapshot", Value::Null)
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("GET "), "expected GET in error, got: {msg}");
     }
 
     #[tokio::test]
