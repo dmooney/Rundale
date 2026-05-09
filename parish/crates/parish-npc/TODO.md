@@ -2,7 +2,18 @@
 
 ## Open
 
-*(none)*
+| ID | Category | Description |
+|----|----------|-------------|
+| TD-016 | Dead Code | `pub fn build_action_line` in `src/lib.rs:475-488` is only called from its own tests; all production callers (`parish-core/src/ipc/handlers.rs:627`, `src/ticks.rs:351`) use `build_named_action_line(input, None)`. Delete the function and its three local tests, or fold them into `build_named_action_line` tests. |
+| TD-017 | Dead Code | `pub async fn extract_intended_references` (`src/lib.rs:592-643`) and `pub fn format_reference_hint` (`src/lib.rs:646-655`) are exported but have zero callers anywhere in the workspace (verified with `rg`). Two-pass dialogue generation was apparently superseded; remove both functions and the private `ReferencePrePassResponse` (`src/lib.rs:580-585`) that only feeds them. |
+| TD-018 | Duplication | `ReactionLog::add` (`src/reactions.rs:103-115`) and `add_player_message_reaction` (`src/reactions.rs:122-139`) are identical except for the parameter name; same for `context_string` (`145-165`) vs `npc_context_string` (`171-191`) — same loop, only the format prefix differs. Extract a private `push_entry(&mut self, emoji, ctx, ts)` and `format_lines(&self, n, fmt_fn)` helper. |
+| TD-019 | Duplication | Four near-identical tier-filter helpers `tier1_npcs`/`tier2_npcs`/`tier3_npcs`/`tier4_npcs` in `src/manager.rs:314-347`. Replace with a single `npcs_in_tier(&self, tier: CogTier) -> Vec<NpcId>` and either delete the wrappers or keep one-line shims. |
+| TD-020 | Duplication | Tier-state management is copy-pasted 3× across tiers in `src/manager.rs:365-476` (`needs_tier{2,3,4}_tick`, `_with_config`, `last_tier{2,3,4}_game_time`, `record_tier{2,3,4}_tick`, `tier{2,3,4}_in_flight`, `set_tier{2,3,4}_in_flight`) — only the tier number, time-unit (minutes/hours/days) and config field differ. Collapse into a `TierTickState` struct with `needs_tick`, `record`, `last_time`, `in_flight`, `set_in_flight` methods, parameterised on the interval. |
+| TD-021 | Complexity | `Intelligence::prompt_guidance` in `src/types.rs:94-224` is a 130-line function consisting of six near-identical 5-arm `match` blocks (verbal/analytical/emotional/practical/wisdom/creative). Extract a table-driven helper: e.g., a `&'static [(u8, &str)]` per dimension and a small `score_label(score, table)` lookup. Should shrink to ~25 lines. |
+| TD-022 | Complexity | `tier4::apply_events` in `src/tier4.rs:349-522` is a 185-line monolithic `match`. Each arm (`Illness`, `Recovery`, `Death`, `Birth`, `SeasonalShift`, `TradeCompleted`, `FestivalDetected`, `FestivalBond`) is a self-contained handler. Extract one `apply_*` helper per variant and reduce the dispatch loop to a thin `match`. |
+| TD-023 | Logic Smell | `tier4::apply_events` Death-without-banshee branch at `src/tier4.rs:412-423`: `npcs.remove(npc_id)` runs unconditionally even when the preceding `if let Some(npc) = npcs.get(npc_id)` failed. If the NPC is missing, `name.unwrap_or_default()` would silently emit `" has passed away."`. Combine into a single `if let Some(npc) = npcs.remove(npc_id) { ... }`. |
+| TD-024 | Logic Smell | `tier4::apply_events` Birth arm (`src/tier4.rs:425-441`) uses `unwrap_or_default()` for both parent names; if either parent is missing the description becomes `"A child has been born to  and ."` (empty names, double space). Skip the event or fall back to a sensible label when a parent id can't be resolved. |
+| TD-025 | Dead Code (test-only public surface) | Four `pub` no-config shims in `src/ticks.rs` are only called from internal `#[cfg(test)] mod tests` and have no external callers: `relationship_label` (line 72), `build_enhanced_system_prompt` (line 147), `build_enhanced_context` (line 331), `apply_tier1_response` (line 417). Either delete and inline the `_with_config` form into the tests, or downgrade to `pub(crate)` to shrink the leaf-crate API surface. |
 
 ## In Progress
 
