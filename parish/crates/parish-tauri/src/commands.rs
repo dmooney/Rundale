@@ -300,16 +300,27 @@ pub fn validate_input_text(raw: &str) -> Result<String, String> {
     Ok(trimmed)
 }
 
+/// Maximum number of NPC chips a single `submit_input` may carry. Validated
+/// in [`validate_addressed_to`] and reused by `handle_game_input` to bound
+/// `Vec::with_capacity` calls (#933 — CodeQL `rust/uncontrolled-allocation-size`).
+pub(crate) const MAX_ADDRESSED_TO: usize = 10;
+
+/// Upper bound for the merged `addressed_to + mentions` target list. Sized
+/// generously above the realistic combined total — `addressed_to` is capped
+/// at [`MAX_ADDRESSED_TO`] and `mentions.names.len()` is bounded by NPCs in
+/// the world — so the allocation is guaranteed-small regardless of input.
+pub(crate) const MAX_TARGETS: usize = 64;
+
 /// Validates the `addressed_to` list from the `submit_input` command.
 ///
 /// Rules (mode-parity with the server path in `parish-server`):
-/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - At most [`MAX_ADDRESSED_TO`] entries (prevents unbounded NPC-chip spam).
 /// - Each name is at most **100** characters.
 ///
 /// Returns `Err(String)` with a user-visible message on any violation.
 pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
-    if addressed_to.len() > 10 {
-        return Err("Too many addressees (max 10).".to_string());
+    if addressed_to.len() > MAX_ADDRESSED_TO {
+        return Err(format!("Too many addressees (max {MAX_ADDRESSED_TO})."));
     }
     if addressed_to.iter().any(|name| name.len() > 100) {
         return Err("Addressee name too long (max 100 characters).".to_string());
@@ -506,7 +517,11 @@ pub(crate) async fn handle_game_input(
     // intent parser classifies it as Talk. An empty `raw` still produces the
     // "say something first" prompt, which is correct for bare "talk to X".
     if is_talk && let Some(target) = talk_target {
-        let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + 1);
+        // Cap explicitly: `addressed_to` is already validated to ≤ MAX_ADDRESSED_TO
+        // (10) entries by `validate_addressed_to`, but bounding here lets static
+        // analyzers see the upper bound without tracing the validator.
+        let cap = (addressed_to.len() + 1).min(MAX_ADDRESSED_TO + 1);
+        let mut targets: Vec<String> = Vec::with_capacity(cap);
         for name in addressed_to {
             if !targets.iter().any(|t| t == &name) {
                 targets.push(name);
@@ -529,7 +544,11 @@ pub(crate) async fn handle_game_input(
     // inline @mentions that aren't already in the chip set. Deduping happens
     // in `resolve_npc_targets` via `find_by_name`, which matches both real
     // and display names.
-    let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + mentions.names.len());
+    // See note above on bounding the capacity for static analyzers. NPC mention
+    // lists are also bounded (one entry per NPC in the world), but using a fixed
+    // ceiling keeps the allocation guaranteed-small regardless.
+    let cap = (addressed_to.len() + mentions.names.len()).min(MAX_TARGETS);
+    let mut targets: Vec<String> = Vec::with_capacity(cap);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
