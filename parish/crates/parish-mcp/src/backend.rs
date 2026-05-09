@@ -134,13 +134,13 @@ impl TauriBackend for ParishHttpBackend {
         let resp = req
             .send()
             .await
-            .map_err(|e| BackendError::Transport(e.to_string()))?;
+            .map_err(|e| self.transport_error_with_hint(&url, e.to_string()))?;
 
         let status = resp.status();
         let body = resp
             .text()
             .await
-            .map_err(|e| BackendError::Transport(e.to_string()))?;
+            .map_err(|e| self.transport_error_with_hint(&url, e.to_string()))?;
 
         if !status.is_success() {
             return Err(BackendError::Rejected(format!(
@@ -158,6 +158,32 @@ impl TauriBackend for ParishHttpBackend {
         serde_json::from_str(&body).map_err(|e| {
             BackendError::Transport(format!("invalid JSON from {url}: {e} (body: {body})"))
         })
+    }
+}
+
+impl ParishHttpBackend {
+    /// Wraps a transport-layer reqwest error with a self-service recovery
+    /// hint so a less-capable model can act on the message without
+    /// out-of-band knowledge. Connection failures here almost always mean
+    /// "no Parish backend listening on the configured port" — the most
+    /// common cause is forgetting to start one — so spell out exactly how
+    /// to fix it inline.
+    fn transport_error_with_hint(&self, url: &str, raw: String) -> BackendError {
+        BackendError::Transport(format!(
+            "{raw}\n\
+             \n\
+             Hint: no Parish backend appears to be listening at {base_url}. \
+             Start one before retrying:\n\
+             \x20 - Headless (recommended in sandboxes / CI):\n\
+             \x20     bash parish/scripts/parish-mcp-backend.sh start\n\
+             \x20 - Desktop (drives the live window when a display is available):\n\
+             \x20     cargo run -p parish-tauri -- --mcp-port 3030\n\
+             \n\
+             Then re-issue the tool call. The script polls /api/health for up \
+             to 60s and returns success only once the bridge is live.\n\
+             Failed URL: {url}",
+            base_url = self.base_url,
+        ))
     }
 }
 
@@ -261,6 +287,40 @@ mod tests {
             .unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("GET "), "expected GET in error, got: {msg}");
+    }
+
+    /// When nothing is listening on the configured port (the dominant
+    /// failure mode in a fresh sandbox), the transport error must include
+    /// a self-service hint pointing at parish-mcp-backend.sh so a less
+    /// capable model can act without out-of-band context.
+    #[tokio::test]
+    async fn transport_error_includes_recovery_hint() {
+        // Bind a TCP port, take its address, then drop the listener so the
+        // address is reserved-and-free — guarantees connection-refused on
+        // the first request without depending on a magic port number.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let backend = ParishHttpBackend::new(format!("http://{addr}"));
+        let err = backend
+            .invoke("get_world_snapshot", Value::Null)
+            .await
+            .unwrap_err();
+        let BackendError::Transport(msg) = err else {
+            panic!("expected Transport error, got {err:?}");
+        };
+        assert!(
+            msg.contains("parish-mcp-backend.sh start"),
+            "missing recovery hint, got: {msg}",
+        );
+        assert!(
+            msg.contains("--mcp-port 3030"),
+            "missing desktop alternative, got: {msg}",
+        );
+        assert!(
+            msg.contains(&addr.to_string()),
+            "hint should name the failed base URL, got: {msg}",
+        );
     }
 
     #[tokio::test]
