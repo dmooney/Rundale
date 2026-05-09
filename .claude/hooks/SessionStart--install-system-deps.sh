@@ -1,51 +1,73 @@
 #!/bin/bash
-# SessionStart hook — install Linux system libraries the parish-tauri build
-# needs in Claude Code on the web. Locally we leave the host alone.
+# SessionStart hook — prepare the Claude Code on the web sandbox for parish work.
 #
-# parish-tauri pulls Tauri 2 + wry, which bind to GTK 3 and WebKit2GTK 4.1.
-# Without these `.pc` files installed, `cargo check -p parish-tauri` fails
-# at the `gdk-sys` build script with "Package gdk-3.0 was not found".
+# Two responsibilities:
+# 1. Install GTK 3 + WebKit2GTK 4.1 dev packages so `cargo check -p parish-tauri`
+#    works (Tauri 2 + wry depend on `gdk-3.0`, `webkit2gtk-4.1`, `libsoup-3.0`,
+#    `javascriptcoregtk-4.1` `.pc` files that aren't preinstalled).
+# 2. Pre-build `parish-mcp` and `parish` binaries so the project-level MCP
+#    server in `.mcp.json` can spawn parish-mcp at session start, and so the
+#    agent can run `parish web` as the bridge backend without a cold cargo
+#    compile.
 #
-# Idempotent: a fast-path at the top exits early when pkg-config already
-# resolves the relevant package files, so resumed sessions skip the
-# apt-get cost on warm containers.
+# Both responsibilities are gated by a fast-path: if pkg-config already finds
+# the .pc files AND both binaries are executable, the hook exits before
+# emitting the async marker so the prompt comes up instantly. Cold path runs
+# both steps in the background.
+#
+# Locally (CLAUDE_CODE_REMOTE unset) the hook is a no-op.
 
 set -euo pipefail
 
-# Only run in the remote Claude Code on the web sandbox; on a local
-# checkout the user has their own GTK install (or runs `cargo run` via the
-# desktop without ever crossing this codepath).
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
     exit 0
 fi
 
-# Fast-path: warm container already has the package files. Cheaper than
-# even an `apt-get update`. Run synchronously (no async marker) so the
-# session starts instantly when nothing needs to install.
-if pkg-config --exists 'gdk-3.0' 'webkit2gtk-4.1' 'libsoup-3.0' \
+REPO="$(git rev-parse --show-toplevel)"
+MCP_BIN="$REPO/parish/target/debug/parish-mcp"
+PARISH_BIN="$REPO/parish/target/debug/parish"
+
+needs_apt=false
+if ! pkg-config --exists 'gdk-3.0' 'webkit2gtk-4.1' 'libsoup-3.0' \
     'javascriptcoregtk-4.1' 2>/dev/null; then
+    needs_apt=true
+fi
+
+needs_build=false
+if [ ! -x "$MCP_BIN" ] || [ ! -x "$PARISH_BIN" ]; then
+    needs_build=true
+fi
+
+if ! $needs_apt && ! $needs_build; then
     exit 0
 fi
 
-# Cold container: install runs in the background so the session prompt
-# appears immediately. The 5-minute timeout is generous; on this sandbox
-# the install is ~30s. Agent code that tries `cargo check -p parish-tauri`
-# before the install finishes will see the gdk-sys build failure and can
-# wait + retry.
-echo '{"async": true, "asyncTimeout": 300000}'
+# Cold container: do everything in the background so the session prompt
+# appears immediately. Generous 10-minute timeout — apt is ~30s, the cold
+# cargo build of parish-mcp + parish is the bulk.
+echo '{"async": true, "asyncTimeout": 600000}'
 
-echo "[session-start-hook] Installing parish-tauri system deps (GTK 3 + WebKit2GTK 4.1)..." >&2
+if $needs_apt; then
+    echo "[session-start-hook] Installing parish-tauri system deps (GTK 3 + WebKit2GTK 4.1)..." >&2
+    # Refresh apt indices first — packaged container lists can go stale
+    # enough to 404 individual .deb URLs.
+    sudo -n apt-get update -qq
+    sudo -n apt-get install -y --no-install-recommends \
+        libgtk-3-dev \
+        libwebkit2gtk-4.1-dev \
+        libsoup-3.0-dev \
+        libjavascriptcoregtk-4.1-dev
+fi
 
-# Refresh apt indices first — observed that the packaged container's apt
-# lists can be stale enough to 404 individual .deb URLs without an update.
-sudo -n apt-get update -qq
+if $needs_build; then
+    echo "[session-start-hook] Pre-building parish-mcp + parish binaries..." >&2
+    # parish-mcp has no tauri dep; parish (the CLI) has no tauri dep. Both
+    # build without GTK. parish-tauri itself is left to the user's local
+    # `cargo run` since it needs a display.
+    (cd "$REPO/parish" && cargo build -p parish-mcp --quiet) \
+        || echo "[session-start-hook] WARN: parish-mcp build failed" >&2
+    (cd "$REPO/parish" && cargo build -p parish --bin parish --quiet) \
+        || echo "[session-start-hook] WARN: parish build failed" >&2
+fi
 
-# --no-install-recommends keeps the install lean; the named packages pull
-# in the actual headers + .pc files we need and not much else.
-sudo -n apt-get install -y --no-install-recommends \
-    libgtk-3-dev \
-    libwebkit2gtk-4.1-dev \
-    libsoup-3.0-dev \
-    libjavascriptcoregtk-4.1-dev
-
-echo "[session-start-hook] parish-tauri system deps ready." >&2
+echo "[session-start-hook] Setup complete." >&2

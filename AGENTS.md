@@ -60,6 +60,45 @@ just ui-e2e        # Playwright end-to-end tests
 just screenshots   # regenerate docs/screenshots/*.png
 ```
 
+## Driving Parish via MCP (`parish-mcp`)
+
+`.mcp.json` at the repo root registers `parish-mcp` as a project-level MCP
+server. When you start a Claude Code session here, the tools below are
+available as `mcp__parish__*`:
+
+| Tool | Effect |
+| --- | --- |
+| `parish_world_snapshot` | Read clock, player location, weather, recent log. |
+| `parish_map` | Read the location graph plus the player's position. |
+| `parish_npcs_here` | List NPCs co-located with the player. |
+| `parish_save_state` | Read save-file / branch metadata. |
+| `parish_submit_input` | Send player input — movement, action, dialogue, system commands. Optional `addressed_to` array scopes dialogue. |
+| `parish_new_game` | Start a fresh game on a new save branch. |
+| `parish_save_game` | Save the current branch. |
+| `parish_load_branch` | Load a branch by integer id. |
+| `tauri_invoke` | Generic escape hatch — call any backend command (e.g. `editor_*`, `get_debug_snapshot`) by name. |
+
+The MCP server is a *bridge*: it speaks HTTP to a running Parish backend on
+`127.0.0.1:3030`. **Before using any `mcp__parish__*` tool**, ensure a
+backend is up:
+
+```sh
+# Headless web server (works in any sandbox; recommended in CI / on the web):
+bash parish/scripts/parish-mcp-backend.sh start    # spawn + wait for /api/health
+bash parish/scripts/parish-mcp-backend.sh status   # report pid + health
+bash parish/scripts/parish-mcp-backend.sh stop     # graceful shutdown
+
+# Desktop, when a display is available — drives the live window:
+cargo run -p parish-tauri -- --mcp-port 3030
+```
+
+If a tool call returns an MCP `isError: true` with `transport error: ...`,
+the backend isn't running — call `parish-mcp-backend.sh start` first.
+
+For deeper context on the bridge implementation see
+[parish/crates/parish-mcp/README.md](parish/crates/parish-mcp/README.md)
+and [parish/crates/parish-tauri/src/mcp_bridge.rs](parish/crates/parish-tauri/src/mcp_bridge.rs).
+
 ## Commit and PR expectations
 
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
