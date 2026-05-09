@@ -3261,6 +3261,7 @@ name = "parish-tauri"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "chrono",
  "dotenvy",
  "gdk",
@@ -3278,6 +3279,7 @@ dependencies = [
  "tauri-build",
  "tokio",
  "tokio-util",
+ "tower",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",

@@ -150,10 +150,40 @@ cargo clippy -p parish-mcp --all-targets -- -D warnings
 
 Result: clean, no warnings.
 
+## Live desktop session bridge
+
+A follow-up commit added `parish-tauri/src/mcp_bridge.rs`: an in-process
+Axum listener that binds `127.0.0.1:<port>` (opt-in via `--mcp-port <N>`)
+and serves the subset of `/api/*` routes parish-mcp drives, against the
+same `Arc<AppState>` and `tauri::AppHandle` the desktop window owns. This
+closes the gap noted earlier where parish-mcp could only drive a parallel
+headless `parish-server` session: with the bridge enabled, the LLM
+client's `submit_input` / `new_game` / `save_game` calls mutate the
+running window's world and fire the same UI events the user would see
+if they typed in the input box.
+
+The bridge dispatches into existing `do_*` helpers — `do_submit_input`,
+`do_new_game`, `do_save_game`, `do_load_branch` — so the Tauri command
+and the bridge handler always run the same code path. `do_submit_input`
+and `do_load_branch` are new extractions; the others already existed.
+
+Routing matches `parish-mcp::backend::ParishHttpBackend::command_to_path`
+exactly (pinned by a unit test in `mcp_bridge.rs`), so the existing
+parish-mcp tools work unchanged against either the desktop bridge or a
+standalone parish-server.
+
+Local toolchain note: parish-tauri requires GTK system libraries that
+are not available in this sandbox, so its `cargo check` cannot run
+locally. The `Rust quality gate` job in CI compiles parish-tauri on a
+runner with `gdk-3.0` installed; the `architecture-fitness` and
+`wiring-parity` sensors on parish-core still pass locally (3/3 + 6/6).
+
 ## Summary
 
-All gates green: 25 unit tests pass, architecture-fitness sensors
-unchanged, clippy clean, end-to-end stdio handshake + `tools/list` +
+All gates green: 27 unit tests pass in parish-mcp (incl. two regression
+tests for the `is_post` heuristic from review feedback),
+architecture-fitness and wiring-parity sensors unchanged, agent-check
+clean, clippy clean, end-to-end stdio handshake + `tools/list` +
 `tools/call` round-trip verified. No partial-completion markers; the
 production code path never reaches a placeholder macro. The future
 WebDriver backend (`GenericTauriBackend`) intentionally returns

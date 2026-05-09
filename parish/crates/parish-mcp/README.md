@@ -46,17 +46,47 @@ need a second wiring path.
 
 ## Running it
 
-Start a Parish HTTP server in one terminal:
+There are two backends parish-mcp can drive — pick whichever matches what you
+want to control.
+
+### A. Live desktop session (recommended)
+
+Run the Tauri desktop app with the embedded MCP bridge enabled:
+
+```sh
+cargo run -p parish-tauri -- --mcp-port 3030
+```
+
+The desktop window comes up as usual; in parallel, an in-process Axum
+listener binds `127.0.0.1:3030` and exposes the same `/api/*` routes as
+`parish-server`, sharing the live `AppState` and `tauri::AppHandle`. Every
+write the MCP client sends — `submit_input`, `new_game`, `save_game` —
+mutates the running window's world and triggers the same UI events the user
+would see if they typed in the input box.
+
+Then run parish-mcp pointed at the same port:
+
+```sh
+cargo run -p parish-mcp -- --base-url http://127.0.0.1:3030
+```
+
+### B. Headless `parish-server` session
+
+Useful when you want a separate, headless session (e.g. for batched
+evaluation or CI). Start a server in one terminal:
 
 ```sh
 cargo run -p parish --bin parish -- web --port 3030
 ```
 
-Then run the MCP server pointed at it:
+Then run parish-mcp pointed at it:
 
 ```sh
 cargo run -p parish-mcp -- --base-url http://127.0.0.1:3030
 ```
+
+The MCP client sees an identical tool surface either way — that's what
+`parish-core/tests/wiring_parity.rs` enforces.
 
 It will block waiting for JSON-RPC messages on stdin. From another
 shell you can poke it directly:

@@ -232,20 +232,33 @@ pub async fn submit_input(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    do_submit_input(state.inner(), &app, text, addressed_to.unwrap_or_default()).await
+}
+
+/// Internal submit-input implementation shared with the MCP bridge.
+///
+/// Mirrors the Tauri command body but takes plain `&Arc<AppState>` /
+/// `&tauri::AppHandle` so the `mcp_bridge` Axum handler can drive the same
+/// dispatcher against the same live AppState the desktop window observes.
+pub(crate) async fn do_submit_input(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    text: String,
+    addressed_to: Vec<String>,
+) -> Result<(), String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
-    let addressed_to = addressed_to.unwrap_or_default();
     validate_addressed_to(&addressed_to)?;
 
-    touch_player_activity(&state).await;
+    touch_player_activity(state).await;
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
-            handle_system_command(cmd, &state, &app).await;
+            handle_system_command(cmd, state, app).await;
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -256,15 +269,9 @@ pub async fn submit_input(
             let raw_for_reactions = raw.clone();
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, addressed_to, state.clone(), app.clone()).await;
+            handle_game_input(raw, addressed_to, state, app.clone()).await;
             // Generate NPC reactions to the player's message in the background.
-            emit_npc_reactions(
-                &player_msg_id,
-                &raw_for_reactions,
-                reaction_location,
-                &state,
-                &app,
-            );
+            emit_npc_reactions(&player_msg_id, &raw_for_reactions, reaction_location, state, app);
         }
     }
 
@@ -385,10 +392,15 @@ async fn handle_system_command(
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
-async fn handle_game_input(
+///
+/// Takes plain `&Arc<AppState>` (not `tauri::State<...>`) so the body can be
+/// called from non-Tauri-extractor contexts — namely the `mcp_bridge` Axum
+/// handlers, which share the same live AppState as the desktop window. The
+/// Tauri callsite passes `state.inner()`.
+pub(crate) async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     // Resolve the intent client and model (Intent category override, or base).
@@ -767,7 +779,7 @@ async fn set_conversation_running(state: &Arc<AppState>, running: bool) {
 async fn handle_npc_conversation(
     raw: String,
     target_names: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
@@ -945,6 +957,19 @@ pub async fn load_branch(
     branch_id: i64,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
+) -> Result<(), String> {
+    do_load_branch(&state, &app, file_path, branch_id).await
+}
+
+/// Internal load-branch implementation shared with the MCP bridge.
+///
+/// Takes plain `&Arc<AppState>` / `&tauri::AppHandle` so it can be called
+/// from non-Tauri-extractor contexts (e.g. `mcp_bridge::load_branch_route`).
+pub async fn do_load_branch(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    file_path: String,
+    branch_id: i64,
 ) -> Result<(), String> {
     use parish_core::persistence::SaveFileLock;
 
