@@ -272,60 +272,30 @@ async fn latest_screenshot(
 // identical effects.
 
 #[derive(Debug, Deserialize)]
-struct SubmitByokBody {
-    provider: String,
+pub(crate) struct SubmitByokBody {
+    pub(crate) provider: String,
     #[serde(default)]
-    api_key: Option<String>,
+    pub(crate) api_key: Option<String>,
     #[serde(default)]
-    base_url: Option<String>,
+    pub(crate) base_url: Option<String>,
     #[serde(default)]
-    model: Option<String>,
+    pub(crate) model: Option<String>,
 }
 
 async fn setup_status(State(b): State<BridgeState>) -> Json<serde_json::Value> {
-    let provider = parish_core::ipc::byok::handle_get_provider_config(&b.state.config).await;
-    let complete =
-        parish_core::config::user_config::onboarding_complete(&b.state.user_config_dir);
-    Json(serde_json::json!({
-        "implemented": true,
-        "complete": complete,
-        "provider": provider.provider,
-        "model": provider.model,
-        "base_url": provider.base_url,
-        "has_api_key": provider.has_api_key,
-        "has_env_key": provider.has_env_key,
-    }))
+    Json(do_setup_status(&b.state).await)
 }
 
 async fn submit_byok(
     State(b): State<BridgeState>,
     Json(body): Json<SubmitByokBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let args = parish_core::ipc::byok::SetProviderConfigArgs {
-        provider: body.provider,
-        base_url: body.base_url,
-        model: body.model,
-        api_key: body.api_key,
-        category_overrides: Default::default(),
-    };
-    let ctx = parish_core::ipc::byok::ByokContext {
-        config: &b.state.config,
-        inference_config: &b.state.inference_config,
-        inference_log: b.state.inference_log.clone(),
-        slots: parish_core::game_loop::inference::InferenceSlots {
-            client: &b.state.client,
-            worker_handle: &b.state.worker_handle,
-            inference_queue: &b.state.inference_queue,
-        },
-        secrets: std::sync::Arc::clone(&b.state.secret_store),
-        user_config_dir: b.state.user_config_dir.as_path(),
-    };
-    parish_core::ipc::byok::handle_set_provider_config(args, ctx)
+    let response = do_submit_byok(&b.state, body)
         .await
-        .map_err(|e| AppError(e.to_string()))?;
+        .map_err(AppError::from)?;
 
-    // Match the Tauri command shim: emit setup-done so the SetupOverlay (if
-    // any) dismisses and gameplay can proceed.
+    // Side-effect: dismiss the SetupOverlay (if any) by signalling completion
+    // through the same channel the desktop wizard uses.
     crate::record_setup_done(&b.state, true, String::new());
     let _ = b.app.emit(
         crate::events::EVENT_SETUP_DONE,
@@ -335,15 +305,63 @@ async fn submit_byok(
         },
     );
 
-    let snapshot =
-        parish_core::ipc::byok::handle_get_provider_config(&b.state.config).await;
-    Ok(Json(serde_json::json!({
+    Ok(Json(response))
+}
+
+/// Internal setup-status builder. Pure (no side effects), no AppHandle —
+/// exists so the bridge route AND tests can call it.
+pub(crate) async fn do_setup_status(state: &Arc<AppState>) -> serde_json::Value {
+    let provider = parish_core::ipc::byok::handle_get_provider_config(&state.config).await;
+    let complete =
+        parish_core::config::user_config::onboarding_complete(&state.user_config_dir);
+    serde_json::json!({
+        "implemented": true,
+        "complete": complete,
+        "provider": provider.provider,
+        "model": provider.model,
+        "base_url": provider.base_url,
+        "has_api_key": provider.has_api_key,
+        "has_env_key": provider.has_env_key,
+    })
+}
+
+/// Internal submit-byok worker. Persists the key + config and rebuilds the
+/// inference worker; the caller emits `setup-done` if it has an AppHandle.
+pub(crate) async fn do_submit_byok(
+    state: &Arc<AppState>,
+    body: SubmitByokBody,
+) -> Result<serde_json::Value, String> {
+    let args = parish_core::ipc::byok::SetProviderConfigArgs {
+        provider: body.provider,
+        base_url: body.base_url,
+        model: body.model,
+        api_key: body.api_key,
+        category_overrides: Default::default(),
+    };
+    let ctx = parish_core::ipc::byok::ByokContext {
+        config: &state.config,
+        inference_config: &state.inference_config,
+        inference_log: state.inference_log.clone(),
+        slots: parish_core::game_loop::inference::InferenceSlots {
+            client: &state.client,
+            worker_handle: &state.worker_handle,
+            inference_queue: &state.inference_queue,
+        },
+        secrets: std::sync::Arc::clone(&state.secret_store),
+        user_config_dir: state.user_config_dir.as_path(),
+    };
+    parish_core::ipc::byok::handle_set_provider_config(args, ctx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let snapshot = parish_core::ipc::byok::handle_get_provider_config(&state.config).await;
+    Ok(serde_json::json!({
         "ok": true,
         "provider": snapshot.provider,
         "model": snapshot.model,
         "base_url": snapshot.base_url,
         "has_api_key": snapshot.has_api_key,
-    })))
+    }))
 }
 
 // ── error mapping ───────────────────────────────────────────────────────────
@@ -367,6 +385,228 @@ impl IntoResponse for AppError {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use parish_core::secret_store::InMemorySecretStore;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+    use tokio::sync::Mutex;
+    use tokio_util::sync::CancellationToken;
+
+    use crate::{
+        AppState, ConversationRuntimeState, DEBUG_EVENT_CAPACITY, DemoConfig, GameConfig,
+        UiConfigSnapshot,
+    };
+
+    /// Minimal AppState for byok bridge tests. Uses a TempDir for
+    /// `user_config_dir` and an `InMemorySecretStore` so nothing escapes the
+    /// test sandbox. Intentionally lighter than `commands::cmd_tests::test_app_state`:
+    /// loads no world / NPC data, since the byok handlers don't read those.
+    fn byok_test_state(dir: &TempDir) -> Arc<AppState> {
+        use parish_core::inference::new_inference_log;
+        use parish_core::npc::manager::NpcManager;
+        use parish_core::world::WorldState;
+        use parish_core::world::transport::TransportConfig;
+
+        let world = WorldState::default();
+        let npc_manager = NpcManager::new();
+        let transport = TransportConfig::default();
+        let ui_config = UiConfigSnapshot {
+            hints_label: "test".to_string(),
+            default_accent: "#000".to_string(),
+            splash_text: String::new(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            auto_pause_timeout_seconds: 300,
+        };
+        let theme_palette = parish_core::game_mod::default_theme_palette();
+        let game_config = GameConfig {
+            provider_name: "simulator".to_string(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            flags: parish_core::config::FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+        };
+        let saves_dir = dir.path().join("saves");
+        let session_store: Arc<dyn parish_core::session_store::SessionStore> =
+            Arc::new(parish_core::session_store::DbSessionStore::new(
+                saves_dir.clone(),
+            ));
+
+        Arc::new(AppState {
+            world: Mutex::new(world),
+            npc_manager: Mutex::new(npc_manager),
+            inference_queue: Mutex::new(None),
+            client: Mutex::new(None),
+            cloud_client: Mutex::new(None),
+            conversation: Mutex::new(ConversationRuntimeState::new()),
+            debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
+                DEBUG_EVENT_CAPACITY,
+            )),
+            game_events: Mutex::new(std::collections::VecDeque::with_capacity(
+                DEBUG_EVENT_CAPACITY,
+            )),
+            inference_log: new_inference_log(),
+            ui_config,
+            theme_palette,
+            pronunciations: Vec::new(),
+            reaction_templates: parish_core::npc::reactions::ReactionTemplates::default(),
+            save_path: Mutex::new(None),
+            current_branch_id: Mutex::new(None),
+            current_branch_name: Mutex::new(None),
+            transport,
+            data_dir: dir.path().to_path_buf(),
+            saves_dir,
+            worker_handle: Mutex::new(None),
+            editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
+            save_lock: Mutex::new(None),
+            ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
+            inference_config: parish_core::config::InferenceConfig::default(),
+            setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
+            language_settings: parish_core::npc::LanguageSettings::english_only(),
+            config: Mutex::new(game_config),
+            demo_config: DemoConfig::default(),
+            shutdown_token: CancellationToken::new(),
+            session_store,
+            user_config_dir: dir.path().to_path_buf(),
+            secret_store: Arc::new(InMemorySecretStore::new()),
+        })
+    }
+
+    #[tokio::test]
+    async fn setup_status_reports_incomplete_before_byok() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let res = do_setup_status(&state).await;
+        assert_eq!(res["implemented"], serde_json::Value::Bool(true));
+        assert_eq!(res["complete"], serde_json::Value::Bool(false));
+        assert_eq!(res["has_api_key"], serde_json::Value::Bool(false));
+    }
+
+    #[tokio::test]
+    async fn submit_byok_anthropic_persists_and_rebuilds() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        let body = SubmitByokBody {
+            provider: "anthropic".to_string(),
+            api_key: Some("sk-ant-mcp-test".to_string()),
+            base_url: None,
+            model: Some("claude-opus-4-7".to_string()),
+        };
+        let response = do_submit_byok(&state, body).await.unwrap();
+        assert_eq!(response["ok"], serde_json::Value::Bool(true));
+        assert_eq!(response["provider"], "anthropic");
+        assert_eq!(response["model"], "claude-opus-4-7");
+        assert_eq!(response["has_api_key"], serde_json::Value::Bool(true));
+
+        // Live AppState is updated.
+        {
+            let cfg = state.config.lock().await;
+            assert_eq!(cfg.provider_name, "anthropic");
+            assert_eq!(cfg.api_key.as_deref(), Some("sk-ant-mcp-test"));
+        }
+        // Keychain persists the secret.
+        assert_eq!(
+            state
+                .secret_store
+                .get("provider:anthropic")
+                .unwrap()
+                .as_deref(),
+            Some("sk-ant-mcp-test")
+        );
+        // On-disk parish.toml exists, no api_key field in it.
+        let toml_body = std::fs::read_to_string(dir.path().join("parish.toml")).unwrap();
+        assert!(toml_body.contains("provider = \"anthropic\""));
+        assert!(!toml_body.contains("api_key"));
+        // Onboarding sentinel exists — next launch skips the wizard.
+        assert!(dir.path().join(".onboarded").exists());
+        // Inference worker rebuilt against the new config.
+        assert!(state.inference_queue.lock().await.is_some());
+
+        // Subsequent setup_status reflects the change.
+        let status = do_setup_status(&state).await;
+        assert_eq!(status["complete"], serde_json::Value::Bool(true));
+        assert_eq!(status["provider"], "anthropic");
+        assert_eq!(status["has_api_key"], serde_json::Value::Bool(true));
+    }
+
+    #[tokio::test]
+    async fn submit_byok_rejects_cloud_without_key() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let body = SubmitByokBody {
+            provider: "openai".to_string(),
+            api_key: None,
+            base_url: None,
+            model: None,
+        };
+        let err = do_submit_byok(&state, body).await.unwrap_err();
+        assert!(err.contains("requires an API key"), "got: {err}");
+        // Nothing persisted.
+        assert!(!dir.path().join(".onboarded").exists());
+        assert!(state.secret_store.get("provider:openai").unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn submit_byok_keyless_local_provider_works() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let body = SubmitByokBody {
+            provider: "lmstudio".to_string(),
+            api_key: None,
+            base_url: None,
+            model: None,
+        };
+        let response = do_submit_byok(&state, body).await.unwrap();
+        assert_eq!(response["provider"], "lmstudio");
+        assert_eq!(response["has_api_key"], serde_json::Value::Bool(false));
+        assert!(dir.path().join(".onboarded").exists());
+    }
+
+    #[tokio::test]
+    async fn submit_byok_custom_requires_base_url() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let body = SubmitByokBody {
+            provider: "custom".to_string(),
+            api_key: Some("sk".to_string()),
+            base_url: None,
+            model: Some("foo".to_string()),
+        };
+        let err = do_submit_byok(&state, body).await.unwrap_err();
+        assert!(err.to_lowercase().contains("base_url"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn submit_byok_unknown_provider_is_structured_error() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let body = SubmitByokBody {
+            provider: "not-a-real-provider".to_string(),
+            api_key: Some("sk".to_string()),
+            base_url: None,
+            model: None,
+        };
+        let err = do_submit_byok(&state, body).await.unwrap_err();
+        assert!(err.to_lowercase().contains("provider"), "got: {err}");
+    }
+
     /// Pin the route table so a refactor that drops or renames an endpoint
     /// gets caught before the parish-mcp client breaks.
     #[test]
