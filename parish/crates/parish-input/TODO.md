@@ -2,16 +2,6 @@
 
 ## Open
 
-A discovery scan was performed after all original items were resolved. A subsequent sweep on 2026-05-09 turned up new credible debt — see `### 2026-05-09 sweep` below. The previous "no new debt" note is preserved here for context:
-
-- **Dead code**: All dependencies (`parish-types`, `parish-config`, `parish-inference`, `serde`) are actively used. No unused imports or dead functions detected.
-- **Duplication**: The `move_phrases`/`move_verbs` duplication (TD-002) was resolved via `try_move_prefix` helper. Any remaining duplication in `parse_flag_subcommand` between "enable" and "disable" branches is acceptably minimal (~4 lines each).
-- **Test coverage**: Previously untested areas (`validate_flag_name`, `/flag`, music aliases, `/weather`, `move pub`) now all have tests. Total test count increased from 119 to 137.
-- **Complexity**: The `parse_system_command` match body is now under 100 lines thanks to `parse_zero_arg_command` extraction. _(Note: this claim is now stale — see TD-009 below.)_
-- **Comments/docs**: No stale or outdated comments found. File-level doc comments accurately describe module purpose. _(Note: a stale comment was found in 2026-05-09 sweep — see TD-013.)_
-
-### 2026-05-09 sweep
-
 | ID | Category | Severity | Description |
 |----|----------|----------|-------------|
 | TD-009 | Complexity | P2 | `parse_system_command` body has rebounded to 109 lines (`src/parser.rs:19-127`), exceeding the >100-line hotspot threshold. The arms for `/cloud`, `/flag`, `/weather`, `/preset`, `/provider`, `/model`, `/key`, `/spinner`, `/debug`, `/speed` etc. could be split into a dispatch table or grouped per-command helpers (similar to `parse_zero_arg_command` from TD-007). The TODO `## Done` entry for TD-007 is now stale on this point. |

@@ -19,8 +19,6 @@
 | TD-024 | Weak Tests | P2 | `lib.rs:143 from_parish_file` and `lib.rs:158 from_mod_params` are the two production constructors used by `parish-core` mod loaders, yet neither has a test in `lib.rs` `mod tests` — only `WorldState::new()` (the in-memory crossroads stub) is covered. The RFC 3339 fallback branch at `lib.rs:166-175` (parse error → `Utc::now()` warning) is completely unexercised, so a malformed mod `start_date` ships untested. |
 | TD-025 | Stale Docs | P3 | `lib.rs:35-36` `MAX_TEXT_LOG` doc says "matching the frontend cap (`MAX_TEXT_LOG_SIZE` in `apps/ui/src/stores/game.ts`)", but the repo layout is `parish/apps/ui/src/stores/game.ts` (per CLAUDE.md "Frontend: `parish/apps/ui/`"). The dangling `apps/ui/...` path has no `apps/` directory at the repo root — the cross-reference is broken until the prefix is fixed. |
 
-*(none)*
-
 ## Done
 
 | ID | Category | Severity | Summary |
