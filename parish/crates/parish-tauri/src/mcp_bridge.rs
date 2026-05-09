@@ -263,8 +263,6 @@ impl IntoResponse for AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     /// Pin the route table so a refactor that drops or renames an endpoint
     /// gets caught before the parish-mcp client breaks.
     #[test]
