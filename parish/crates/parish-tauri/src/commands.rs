@@ -487,7 +487,7 @@ pub(crate) async fn handle_game_input(
 
     if is_move {
         if let Some(target) = move_target {
-            handle_movement(&target, &state, &app).await;
+            handle_movement(&target, state, &app).await;
         } else {
             let _ = app.emit(
                 EVENT_TEXT_LOG,
@@ -504,7 +504,7 @@ pub(crate) async fn handle_game_input(
     }
 
     if is_look {
-        handle_look(&state, &app).await;
+        handle_look(state, &app).await;
         return;
     }
 
@@ -829,9 +829,9 @@ async fn handle_npc_conversation(
         Some(cancel)
     };
 
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
     parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
