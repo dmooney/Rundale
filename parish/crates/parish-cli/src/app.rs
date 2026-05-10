@@ -319,9 +319,6 @@ impl App {
             cloud_base_url: self.cloud_base_url.clone(),
             improv_enabled: self.improv_enabled,
             reveal_unexplored_locations: self.reveal_unexplored_locations,
-            max_follow_up_turns: 2,
-            idle_banter_after_secs: 120,
-            auto_pause_after_secs: 300,
             flags: self.flags.clone(),
             ..GameConfig::default()
         };
