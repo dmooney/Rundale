@@ -1330,7 +1330,10 @@ pub(crate) async fn do_get_latest_screenshot(
     let Some(path) = state.latest_screenshot_path.lock().await.clone() else {
         return Ok(None);
     };
-    let metadata = match std::fs::metadata(&path) {
+    // Use tokio::fs::metadata so the stat call doesn't block the async
+    // executor under load (this handler may be invoked from the MCP bridge
+    // while other Tokio tasks are waiting on the same worker thread).
+    let metadata = match tokio::fs::metadata(&path).await {
         Ok(m) => m,
         Err(_) => return Ok(None),
     };
