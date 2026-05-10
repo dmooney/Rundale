@@ -38,7 +38,6 @@
 	let baseUrl = $state('');
 	let modelName = $state('');
 	let revealKey = $state(false);
-	let showOther = $state(false);
 	let validationError = $state<ValidationOutcome | null>(null);
 	let saveError = $state('');
 
@@ -164,23 +163,14 @@
 				{/each}
 			</div>
 
-			<button
-				class="byok__expand"
-				type="button"
-				onclick={() => (showOther = !showOther)}
-			>
-				{showOther ? 'Hide' : 'Show'} other providers ({OTHER_PROVIDERS.length})
-			</button>
-			{#if showOther}
-				<div class="byok__grid byok__grid--small">
-					{#each OTHER_PROVIDERS as p (p.id + p.label)}
-						<button class="byok__card" type="button" onclick={() => pick(p)}>
-							<h3>{p.label}</h3>
-							<p>{p.blurb}</p>
-						</button>
-					{/each}
-				</div>
-			{/if}
+			<div class="byok__other-label">Other providers</div>
+			<div class="byok__chips">
+				{#each OTHER_PROVIDERS as p (p.id + p.label)}
+					<button class="byok__chip" type="button" onclick={() => pick(p)} title={p.blurb}>
+						{p.label}
+					</button>
+				{/each}
+			</div>
 
 			{#if onBack}
 				<button class="byok__back" type="button" onclick={back}>Back</button>
@@ -312,12 +302,8 @@
 		grid-template-columns: repeat(3, 1fr);
 		gap: 0.75rem;
 	}
-	.byok__grid--small {
-		grid-template-columns: repeat(2, 1fr);
-	}
 	@media (max-width: 720px) {
-		.byok__grid,
-		.byok__grid--small {
+		.byok__grid {
 			grid-template-columns: 1fr;
 		}
 	}
@@ -347,15 +333,30 @@
 		opacity: 0.7;
 		font-size: 0.85rem;
 	}
-	.byok__expand {
-		background: none;
-		border: none;
-		color: inherit;
-		opacity: 0.7;
-		cursor: pointer;
+	.byok__other-label {
+		margin-top: 0.5rem;
+		font-size: 0.85rem;
+		opacity: 0.6;
+	}
+	.byok__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.byok__chip {
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.18);
+		border-radius: 999px;
+		padding: 0.3rem 0.75rem;
 		font: inherit;
-		text-decoration: underline;
-		align-self: flex-start;
+		font-size: 0.85rem;
+		color: inherit;
+		cursor: pointer;
+	}
+	.byok__chip:hover,
+	.byok__chip:focus-visible {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.32);
 	}
 	.byok__field {
 		display: flex;
