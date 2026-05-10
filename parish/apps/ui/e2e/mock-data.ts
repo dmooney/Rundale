@@ -14,6 +14,7 @@ import type {
 	SaveState
 } from '../src/lib/types';
 import type { SetupSnapshot } from '../src/lib/ipc';
+import type { ModSummary, EditorModSnapshot } from '../src/lib/editor-types';
 import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
 
 // ── Theme palettes used in tests ────────────────────────────────────────────
@@ -317,4 +318,41 @@ export const SAVE_STATE: SaveState = {
 	filename: 'rundale.ledger',
 	branch_id: 1,
 	branch_name: 'main'
+};
+
+// ── Editor (Parish Designer) ────────────────────────────────────────────────
+
+export const EDITOR_MODS: ModSummary[] = [
+	{
+		id: 'rundale',
+		name: 'rundale',
+		title: 'Rundale',
+		version: '0.1.0',
+		description: 'Test mod for e2e',
+		path: '/mods/rundale'
+	}
+];
+
+export const EDITOR_SNAPSHOT: EditorModSnapshot = {
+	mod_path: '/mods/rundale',
+	manifest: {
+		id: 'rundale',
+		name: 'rundale',
+		title: 'Rundale',
+		version: '0.1.0',
+		description: 'Test mod for e2e',
+		start_date: '1820-03-15',
+		start_location: 1,
+		period_year: 1820
+	},
+	npcs: { npcs: [] },
+	locations: [],
+	festivals: [],
+	encounters: {},
+	anachronisms: {
+		context_alert_prefix: '',
+		context_alert_suffix: '',
+		terms: []
+	},
+	validation: { errors: [], warnings: [] }
 };
