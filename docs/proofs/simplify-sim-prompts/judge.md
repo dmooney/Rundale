@@ -1,4 +1,5 @@
 Verdict: sufficient
+Technical debt: clear
 
 I reviewed `parish/crates/parish-npc/src/ticks.rs`, `parish/crates/parish-npc/src/types.rs`, `parish/crates/parish-npc/src/lib.rs`, `parish/crates/parish-npc/src/manager.rs`, `parish/crates/parish-npc/tests/tier2_llm_integration.rs`, `parish/crates/parish-tauri/src/setup.rs`, and `parish/crates/parish-cli/src/headless.rs` against the transcript's claims. The new Tier 2 / Tier 3 prompt bodies in `build_tier2_prompt` and `build_tier3_prompt` no longer emit `INT[...]` codes or raw `NPC <id> (0.5)` strings — they use natural-language intelligence prose, comma-separated adjectives, and "friendly with X" phrasing, with `[id]` brackets as the parser anchor (confirmed by the new `assert!(!prompt.contains("INT["))` and `assert!(!prompt.contains("NPC 1 \""))` guards). The JSON response structs (`Tier2Response`, `Tier3Response`, `Tier3Update`, `MoodChange`, `RelationshipChange`) in `types.rs` lines 569-615 are untouched, so the deserializer keeps working with the same `npc_id` keys.
 

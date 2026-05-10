@@ -1,4 +1,4 @@
-Evidence type: gameplay transcript + LLM A/B comparison
+Evidence type: gameplay transcript
 
 ## Summary
 
