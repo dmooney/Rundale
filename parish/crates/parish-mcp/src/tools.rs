@@ -98,6 +98,10 @@ fn translate_invoke(args: &Value) -> Result<(String, Value), String> {
     Ok((command, inner))
 }
 
+fn translate_latest_screenshot(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_latest_screenshot".into(), Value::Null))
+}
+
 // ── BYOK setup-flow stubs (#933) ─────────────────────────────────────────────
 //
 // These tools shape the contract for the BYOK ("bring your own key") setup
@@ -212,6 +216,24 @@ pub fn registry() -> Vec<ToolDef> {
                 }
             }),
             translate: translate_load_branch,
+        },
+        // ── Screenshot reader (player-triggered, MCP-readable) ──────────────
+        // The capture itself is initiated from the live UI by pressing F2
+        // (frontend uses `html-to-image`, then posts the data URL through the
+        // Tauri `save_screenshot` IPC). This tool only reads back the path,
+        // taken-at timestamp, and PNG size — the model can then load the file
+        // via a separate Read tool, or, in a future revision, the response
+        // can carry the image inline (see the README's open design questions).
+        ToolDef {
+            name: "parish_latest_screenshot",
+            description: "Reads metadata for the most recently captured screenshot \
+                          (path, ISO-8601 taken_at, size_bytes). Returns null when no \
+                          screenshot exists yet — capture is player-initiated by pressing \
+                          F2 in the live desktop window. The path is relative to the \
+                          host filesystem; pair this tool with a separate Read to view \
+                          the PNG.",
+            input_schema: empty_object_schema(),
+            translate: translate_latest_screenshot,
         },
         // ── BYOK setup-flow (stubbed; see translate_setup_*) ─────────────────
         ToolDef {
@@ -358,5 +380,20 @@ mod tests {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_setup_status"));
         assert!(names.contains(&"parish_setup_byok"));
+    }
+
+    #[test]
+    fn latest_screenshot_takes_no_args_and_routes_to_get() {
+        let (cmd, args) = translate_latest_screenshot(&json!({})).unwrap();
+        assert_eq!(cmd, "get_latest_screenshot");
+        // Null args mean the HTTP backend dispatches as GET (matches
+        // `ParishHttpBackend::is_post`).
+        assert!(args.is_null());
+    }
+
+    #[test]
+    fn registry_includes_latest_screenshot_tool() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert!(names.contains(&"parish_latest_screenshot"));
     }
 }

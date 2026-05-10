@@ -17,6 +17,7 @@ chrono      = { workspace = true }
 [dependencies]
 tauri          = { version = "2", features = [] }
 png            = "0.17"
+base64         = "0.22"
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 tokio          = { workspace = true }
@@ -45,3 +46,6 @@ tower          = "0.5"
 [target.'cfg(target_os = "linux")'.dependencies]
 gdk  = "0.18"
 glib = "0.22"
+
+[dev-dependencies]
+tempfile = { workspace = true }

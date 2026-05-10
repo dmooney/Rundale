@@ -1236,6 +1236,146 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
     })
 }
 
+// ── Screenshot capture (player-triggered, MCP-readable) ──────────────────────
+
+/// Metadata describing the most-recently-saved screenshot.
+///
+/// The image is written to `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`
+/// by the Svelte frontend (which calls `html-to-image` and posts the resulting
+/// `data:image/png;base64,...` URL to the `save_screenshot` command). Once
+/// written, the absolute path is cached on `AppState::latest_screenshot_path`
+/// so the `parish_latest_screenshot` MCP tool can report it without scanning
+/// the directory.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScreenshotInfo {
+    /// Absolute filesystem path to the PNG.
+    pub path: String,
+    /// ISO-8601 UTC timestamp the file was written (`YYYY-MM-DDTHH:MM:SSZ`).
+    pub taken_at: String,
+    /// Size of the PNG payload in bytes.
+    pub size_bytes: u64,
+}
+
+/// Decodes a `data:image/png;base64,...` URL into the raw PNG byte payload.
+///
+/// Returns `Err` if the URL is malformed, has the wrong MIME type, or the
+/// base64 segment fails to decode.
+pub fn decode_data_url_png(data_url: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine as _;
+    const PREFIX: &str = "data:image/png;base64,";
+    let b64 = data_url
+        .strip_prefix(PREFIX)
+        .ok_or_else(|| format!("expected data URL to start with `{PREFIX}`"))?;
+    base64::engine::general_purpose::STANDARD
+        .decode(b64.as_bytes())
+        .map_err(|e| format!("base64 decode failed: {e}"))
+}
+
+/// Writes the decoded PNG bytes under `<saves_dir>/screenshots/parish-<ISO>.png`
+/// and returns the [`ScreenshotInfo`] metadata for the newly created file.
+///
+/// Pure on `(saves_dir, png_bytes, now)` — no AppState, no Tauri handle — so
+/// it can be unit-tested in isolation. The `now` callback returns the UTC
+/// timestamp used both in the filename and the response (it is parameterised
+/// so tests can pin the value).
+pub fn write_screenshot_to_disk(
+    saves_dir: &std::path::Path,
+    png_bytes: &[u8],
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<ScreenshotInfo, String> {
+    let dir = saves_dir.join("screenshots");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create {}: {e}", dir.display()))?;
+
+    // Filenames must be filesystem-safe on every platform we support, so use
+    // `-` instead of `:` in the time component. `format!("{:?}", ts)` would
+    // include sub-second precision plus the trailing `Z`; we keep the stem
+    // tidy by formatting with the second-precision strftime template.
+    let stem = now.format("parish-%Y-%m-%dT%H-%M-%SZ").to_string();
+    let path = dir.join(format!("{stem}.png"));
+
+    std::fs::write(&path, png_bytes)
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+
+    let size_bytes = png_bytes.len() as u64;
+    let path_string = path.to_string_lossy().to_string();
+    let taken_at = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    Ok(ScreenshotInfo {
+        path: path_string,
+        taken_at,
+        size_bytes,
+    })
+}
+
+/// Internal save-screenshot implementation shared with the MCP bridge / web
+/// route. Decodes the `data_url`, writes the PNG, and updates
+/// [`AppState::latest_screenshot_path`].
+pub(crate) async fn do_save_screenshot(
+    state: &Arc<AppState>,
+    data_url: String,
+) -> Result<ScreenshotInfo, String> {
+    let bytes = decode_data_url_png(&data_url)?;
+    let info = write_screenshot_to_disk(&state.saves_dir, &bytes, chrono::Utc::now())?;
+    *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
+    Ok(info)
+}
+
+/// Internal latest-screenshot reader shared with the MCP bridge / web route.
+///
+/// Re-stat`s the file each call so a screenshot deleted out from under the
+/// session is reported as missing rather than reused indefinitely.
+pub(crate) async fn do_get_latest_screenshot(
+    state: &Arc<AppState>,
+) -> Result<Option<ScreenshotInfo>, String> {
+    let Some(path) = state.latest_screenshot_path.lock().await.clone() else {
+        return Ok(None);
+    };
+    // Use tokio::fs::metadata so the stat call doesn't block the async
+    // executor under load (this handler may be invoked from the MCP bridge
+    // while other Tokio tasks are waiting on the same worker thread).
+    let metadata = match tokio::fs::metadata(&path).await {
+        Ok(m) => m,
+        Err(_) => return Ok(None),
+    };
+    let modified = metadata
+        .modified()
+        .map_err(|e| format!("stat({}): {e}", path.display()))?;
+    let taken_at = chrono::DateTime::<chrono::Utc>::from(modified)
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    Ok(Some(ScreenshotInfo {
+        path: path.to_string_lossy().to_string(),
+        taken_at,
+        size_bytes: metadata.len(),
+    }))
+}
+
+/// Persists a screenshot captured by the frontend.
+///
+/// `data_url` is a `data:image/png;base64,...` string produced by
+/// `html-to-image` in the Svelte UI. The PNG is decoded and written to
+/// `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`; the resulting path
+/// is cached on [`AppState::latest_screenshot_path`] so the MCP
+/// `parish_latest_screenshot` tool can read it back without rescanning.
+#[tauri::command]
+pub async fn save_screenshot(
+    data_url: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<ScreenshotInfo, String> {
+    do_save_screenshot(&state, data_url).await
+}
+
+/// Reads metadata for the most recently captured screenshot, if any.
+///
+/// Returns `Ok(None)` when no screenshot has been captured this session, or
+/// when the cached path no longer exists on disk.
+#[tauri::command]
+pub async fn get_latest_screenshot(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Option<ScreenshotInfo>, String> {
+    do_get_latest_screenshot(&state).await
+}
+
 /// Formats branch list as text for the /branches command.
 pub async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = {
@@ -1981,6 +2121,7 @@ mod cmd_tests {
             transport,
             data_dir: data_dir.clone(),
             saves_dir,
+            latest_screenshot_path: Mutex::new(None),
             worker_handle: Mutex::new(None),
             editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
             save_lock: Mutex::new(None),
@@ -2222,5 +2363,107 @@ mod cmd_tests {
             "location name should be populated"
         );
         assert_eq!(snapshot.location_name, "Kilteevan Village");
+    }
+
+    // ── Screenshot helpers ────────────────────────────────────────────────
+
+    /// A 1×1 transparent PNG, as the smallest valid payload to round-trip.
+    const ONE_PIXEL_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
+    fn one_pixel_data_url() -> String {
+        format!("data:image/png;base64,{ONE_PIXEL_PNG_B64}")
+    }
+
+    #[test]
+    fn decode_data_url_png_accepts_well_formed_url() {
+        let bytes = decode_data_url_png(&one_pixel_data_url()).unwrap();
+        // PNG magic header is 8 bytes starting with 0x89 'P' 'N' 'G'.
+        assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+    }
+
+    #[test]
+    fn decode_data_url_png_rejects_wrong_prefix() {
+        let err = decode_data_url_png("data:image/jpeg;base64,xxxx").unwrap_err();
+        assert!(err.contains("data:image/png;base64,"), "got: {err}");
+    }
+
+    #[test]
+    fn decode_data_url_png_rejects_invalid_base64() {
+        let err = decode_data_url_png("data:image/png;base64,***not-base64***").unwrap_err();
+        assert!(err.contains("base64 decode failed"), "got: {err}");
+    }
+
+    #[test]
+    fn write_screenshot_to_disk_creates_file_and_reports_size() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bytes = decode_data_url_png(&one_pixel_data_url()).unwrap();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-05-09T12:34:56Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let info = write_screenshot_to_disk(tmp.path(), &bytes, now).unwrap();
+
+        let path = std::path::PathBuf::from(&info.path);
+        assert!(path.exists(), "PNG should be written to {}", info.path);
+        assert!(
+            info.path.ends_with("parish-2026-05-09T12-34-56Z.png"),
+            "filename should embed the timestamp; got {}",
+            info.path
+        );
+        assert_eq!(info.size_bytes, bytes.len() as u64);
+        assert_eq!(info.taken_at, "2026-05-09T12:34:56Z");
+
+        // The directory was auto-created.
+        assert!(tmp.path().join("screenshots").is_dir());
+    }
+
+    #[tokio::test]
+    async fn do_save_screenshot_round_trips_through_app_state() {
+        // Override saves_dir to a fresh tempdir so the test is hermetic
+        // (otherwise the screenshot would land under the workspace `saves/`
+        // dir and pollute later runs).
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = test_app_state();
+        let s = std::sync::Arc::get_mut(&mut state)
+            .expect("test_app_state must hand back a unique Arc");
+        s.saves_dir = tmp.path().to_path_buf();
+
+        let info = do_save_screenshot(&state, one_pixel_data_url())
+            .await
+            .expect("screenshot should save");
+
+        assert!(std::path::PathBuf::from(&info.path).exists());
+
+        // The latest_screenshot_path is now populated.
+        let latest = state.latest_screenshot_path.lock().await.clone();
+        assert_eq!(
+            latest.map(|p| p.to_string_lossy().to_string()),
+            Some(info.path.clone()),
+        );
+
+        // get_latest_screenshot reads the same file back.
+        let read_back = do_get_latest_screenshot(&state)
+            .await
+            .expect("read back must succeed")
+            .expect("a screenshot should be cached");
+        assert_eq!(read_back.path, info.path);
+        assert_eq!(read_back.size_bytes, info.size_bytes);
+    }
+
+    #[tokio::test]
+    async fn do_get_latest_screenshot_returns_none_when_unset() {
+        let state = test_app_state();
+        let info = do_get_latest_screenshot(&state).await.unwrap();
+        assert!(info.is_none(), "no screenshot taken yet → None");
+    }
+
+    #[tokio::test]
+    async fn do_get_latest_screenshot_returns_none_when_file_missing() {
+        let mut state = test_app_state();
+        let s = std::sync::Arc::get_mut(&mut state).unwrap();
+        // Point at a path that doesn't exist on disk.
+        *s.latest_screenshot_path.get_mut() =
+            Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
+        let info = do_get_latest_screenshot(&state).await.unwrap();
+        assert!(info.is_none(), "missing file on disk → None");
     }
 }

@@ -54,19 +54,49 @@
 		onNpcReaction,
 		onTravelStart,
 		submitInput,
+		saveScreenshot,
 		disposeTransport
 	} from '$lib/ipc';
+	import { captureScreen } from '$lib/screenshot';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
 	import { createStreamManager } from '$lib/setup/stream-manager';
 
+	/** Transient toast text shown after a screenshot is saved (or fails). */
+	let screenshotToast = $state<string | null>(null);
+	let screenshotToastTimer: ReturnType<typeof setTimeout> | null = null;
+	function flashScreenshotToast(message: string) {
+		screenshotToast = message;
+		if (screenshotToastTimer !== null) clearTimeout(screenshotToastTimer);
+		screenshotToastTimer = setTimeout(() => {
+			screenshotToast = null;
+			screenshotToastTimer = null;
+		}, 2500);
+	}
+
+	async function handleScreenshot() {
+		try {
+			const dataUrl = await captureScreen();
+			const info = await saveScreenshot(dataUrl);
+			flashScreenshotToast(`Screenshot saved: ${info.path}`);
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			flashScreenshotToast(`Screenshot failed: ${msg}`);
+		}
+	}
+
 	const MOUSEMOVE_THROTTLE_MS = 1000;
 
-	// F5 toggle for save picker, F11 toggle for demo panel, F12 toggle for debug panel, M toggle for map
+	// F2 = capture screenshot, F5 toggle for save picker, F11 toggle for demo panel,
+	// F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && get(demoEnabled)) {
 			e.preventDefault();
 			stopDemo();
 			return;
+		}
+		if (e.key === 'F2') {
+			e.preventDefault();
+			void handleScreenshot();
 		}
 		if (e.key === 'F5') {
 			e.preventDefault();
@@ -493,6 +523,10 @@
 <SavePicker />
 <SetupOverlay />
 
+{#if screenshotToast}
+	<div class="screenshot-toast" role="status" aria-live="polite">{screenshotToast}</div>
+{/if}
+
 <style>
 	.app-shell {
 		display: flex;
@@ -587,5 +621,28 @@
 			border-color: var(--color-accent);
 		}
 
+	}
+
+	/* ── Screenshot toast ── */
+	.screenshot-toast {
+		position: fixed;
+		bottom: 1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--color-panel-bg, rgba(20, 20, 20, 0.92));
+		color: var(--color-text, #f4f4f4);
+		border: 1px solid var(--color-border, #555);
+		padding: 0.55rem 1rem;
+		font-family: var(--font-display, sans-serif);
+		font-size: 0.75rem;
+		letter-spacing: 0.05em;
+		border-radius: 4px;
+		box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+		z-index: 1000;
+		max-width: min(80vw, 50rem);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		pointer-events: none;
 	}
 </style>
