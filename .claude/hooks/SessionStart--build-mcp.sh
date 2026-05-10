@@ -16,7 +16,8 @@ if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ]; then
 fi
 
 REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-MCP_BIN="$REPO/parish/target/debug/parish-mcp"
+TARGET_DIR="${CARGO_TARGET_DIR:-$REPO/parish/target}"
+MCP_BIN="$TARGET_DIR/debug/parish-mcp"
 
 if [ -x "$MCP_BIN" ]; then
     exit 0
