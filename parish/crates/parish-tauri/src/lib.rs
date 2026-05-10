@@ -972,6 +972,14 @@ pub fn run() {
             let provider_config_setup = provider_config;
             let inference_config_setup = inference_config_for_spawn;
             tauri::async_runtime::spawn(async move {
+                // Spawn the MCP bridge first so an MCP client can drive
+                // onboarding (parish_setup_byok) when bootstrap is gated on
+                // the BYOK fork — the bridge needs to be reachable BEFORE
+                // bootstrap_inference_provider returns false on first run.
+                if let Some(port) = mcp_port {
+                    mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
+                }
+
                 if !setup::bootstrap_inference_provider(
                     &handle,
                     &state_setup,
@@ -990,10 +998,6 @@ pub fn run() {
                 setup::spawn_inactivity_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_debug_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_autosave_tick(Arc::clone(&state_setup));
-
-                if let Some(port) = mcp_port {
-                    mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
-                }
             });
 
             Ok(())
