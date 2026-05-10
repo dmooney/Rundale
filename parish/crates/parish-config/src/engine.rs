@@ -135,7 +135,7 @@ impl Default for SessionConfig {
 }
 
 fn default_idle_banter_after_secs() -> u64 {
-    25
+    120
 }
 fn default_auto_pause_after_secs() -> u64 {
     300
