@@ -30,6 +30,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::commands::ScreenshotInfo;
 use crate::events::{EVENT_TEXT_LOG, TextLogPayload};
 use crate::{
     AppState, MapData, MapLocation, NpcInfo, SaveState, SetupStatusSnapshot, WorldSnapshot,
@@ -85,6 +86,12 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/new-game", post(new_game))
         .route("/api/save-game", post(save_game))
         .route("/api/load-branch", post(load_branch))
+        // ── Screenshot reader (player-triggered, MCP-readable) ───────────────
+        // GET-only: capture is initiated from the live UI by pressing F2; the
+        // bridge surfaces the most recent path so an MCP client can read the
+        // file out of band. Posting a `data_url` from MCP is intentionally
+        // out of scope until the future-work design questions are resolved.
+        .route("/api/latest-screenshot", get(latest_screenshot))
         // ── BYOK setup-flow stubs (#933) ─────────────────────────────────────
         // Backend returns `{"stub": true, ...}` until the setup-UI branch
         // lands; the route paths stay the same so MCP tool callers don't
@@ -248,6 +255,15 @@ async fn load_branch(
     Ok(StatusCode::OK)
 }
 
+async fn latest_screenshot(
+    State(b): State<BridgeState>,
+) -> Result<Json<Option<ScreenshotInfo>>, AppError> {
+    let info = crate::commands::do_get_latest_screenshot(&b.state)
+        .await
+        .map_err(AppError::from)?;
+    Ok(Json(info))
+}
+
 // ── BYOK setup-flow stubs ────────────────────────────────────────────────────
 //
 // The full implementation lives on a sibling branch. These two handlers
@@ -320,6 +336,8 @@ mod tests {
             "/api/new-game",
             "/api/save-game",
             "/api/load-branch",
+            // Screenshot reader (player-triggered, MCP-readable).
+            "/api/latest-screenshot",
             // BYOK setup-flow stubs (#933).
             "/api/setup-status",
             "/api/submit-byok",
@@ -349,6 +367,7 @@ mod tests {
             "new_game",
             "save_game",
             "load_branch",
+            "get_latest_screenshot",
             "get_setup_status",
             "submit_byok",
         ] {

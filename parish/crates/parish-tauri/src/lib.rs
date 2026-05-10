@@ -234,6 +234,13 @@ pub struct AppState {
     /// Saves directory resolved once at startup (#771).
     /// Every save/load command reads this rather than re-probing the cwd.
     pub saves_dir: PathBuf,
+    /// Absolute path to the most recent player-triggered screenshot, if any.
+    ///
+    /// Populated by the `save_screenshot` command after the frontend posts a
+    /// `data:image/png;base64,...` URL captured by `html-to-image`. Read by
+    /// `get_latest_screenshot` (and the matching MCP tool) so the path can be
+    /// reported without rescanning `<saves_dir>/screenshots/`.
+    pub latest_screenshot_path: Mutex<Option<PathBuf>>,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
     /// Editor session — separate from gameplay state, may be empty.
@@ -858,6 +865,7 @@ pub fn run() {
         transport,
         data_dir: data_dir.clone(),
         saves_dir,
+        latest_screenshot_path: Mutex::new(None),
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
@@ -893,6 +901,8 @@ pub fn run() {
             commands::get_demo_config,
             commands::get_demo_context,
             commands::get_llm_player_action,
+            commands::save_screenshot,
+            commands::get_latest_screenshot,
             editor_commands::editor_list_mods,
             editor_commands::editor_open_mod,
             editor_commands::editor_get_snapshot,

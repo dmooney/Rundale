@@ -20,6 +20,7 @@ Exposes a small, curated set of MCP tools that map onto Parish's IPC surface:
 | `parish_load_branch` | Load a named branch by id. |
 | `parish_setup_status` | **Stub.** Reads first-run setup state — backend returns `{"stub": true, ...}` until the setup-UI branch lands. |
 | `parish_setup_byok` | **Stub.** Submits a BYOK provider config (api_key, optional base_url + model). Same stub envelope. |
+| `parish_latest_screenshot` | Reads metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
 | `tauri_invoke` | Generic escape hatch — call any backend command by name. |
 
 Behind the scenes these go through a [`TauriBackend`](src/backend.rs) trait. The
@@ -188,42 +189,22 @@ Items deferred from the initial PR. None of these block existing tools;
 they extend coverage so new use cases can be added without re-thinking
 the architecture.
 
-### Screenshot capture (player-triggered, MCP-readable)
+### Screenshot capture extensions
 
-A "lots of games have this" screenshot feature, plumbed through the
-same desktop bridge as the rest of the MCP surface. Architecture choice:
-**frontend captures via `html-to-image`** so the feature works
-cross-platform (the existing GDK code in `parish-tauri/src/lib.rs` is
-Linux-only and only used for the `--screenshot` CI batch flag).
+The player-triggered, MCP-readable screenshot path has shipped:
+pressing F2 in the live desktop window captures the Svelte UI via
+`html-to-image`, the data URL is decoded by the `save_screenshot`
+Tauri command, and the resulting PNG is written to
+`<saves_dir>/screenshots/parish-<ISO-timestamp>.png`. The MCP
+`parish_latest_screenshot` tool reads `{path, taken_at, size_bytes}`
+back through the bridge.
 
-Layered scope, ~14 files:
+Two extensions remain open:
 
-| Layer | File | Change |
-|---|---|---|
-| Frontend | `parish/apps/ui/package.json` | + `html-to-image` dep |
-| Frontend | `parish/apps/ui/src/lib/screenshot.ts` (new) | `captureScreen()` returning a `data:image/png;base64,...` URL |
-| Frontend | `parish/apps/ui/src/lib/ipc.ts` | + `saveScreenshot(dataUrl)` wrapper using the existing `command()` helper (works in Tauri *and* web modes) |
-| Frontend | `parish/apps/ui/src/routes/+page.svelte` | F2 key binding alongside the existing F5/F11/F12 chord; small "Screenshot saved" toast |
-| Backend | `parish-tauri/src/commands.rs` | `save_screenshot(data_url) -> ScreenshotInfo` Tauri command + `do_save_screenshot` helper + `get_latest_screenshot` reader |
-| Backend | `parish-tauri/src/lib.rs` | new `latest_screenshot_path: tokio::sync::Mutex<Option<PathBuf>>` field on `AppState`; two new entries in `tauri::generate_handler!` |
-| Backend | `parish-tauri/src/command_registry.rs` | + `save_screenshot`, `get_latest_screenshot` in `EXPECTED_COMMANDS` |
-| Backend | `parish-tauri/src/mcp_bridge.rs` | `GET /api/latest-screenshot` route delegating to the helper |
-| Backend | `parish-server/src/routes.rs` | 501 stubs for both endpoints (Tauri-only feature, same pattern as the existing `demo_*` routes) |
-| Backend | `parish-server/src/lib.rs` | route registration |
-| Backend | `parish-server/src/route_registry.rs` | + paths in `EXPECTED_HTTP_ROUTES` so `wiring_parity` stays green |
-| MCP | `parish-mcp/src/tools.rs` | `parish_latest_screenshot` tool (returns `{path, taken_at, size_bytes}`) |
-| Docs | this README + `AGENTS.md` | new tool-table rows |
-| Tests | tools, bridge, command | translation, route-table pin, base64 round-trip |
-
-Save location: `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`.
-Reuses the saves-dir resolution path that already lives on `AppState`.
-
-**Two open design questions** when this lands:
-
-1. *Player-trigger-only vs. MCP-trigger.* The initial scope above is
-   player-only — MCP reads the latest saved file. Adding MCP-trigger
-   means an event round-trip in `mcp_bridge.rs`: store a oneshot
-   `Sender` keyed by request id in a new `pending_screenshots:
+1. *MCP-trigger.* Today the model can only *read* the latest saved
+   file; it cannot ask the live window to capture one. Adding
+   MCP-trigger means an event round-trip in `mcp_bridge.rs`: store a
+   oneshot `Sender` keyed by request id in a new `pending_screenshots:
    Mutex<HashMap<String, oneshot::Sender<...>>>` field, emit a
    `request-screenshot` Tauri event, await the receiver with a
    reasonable timeout (~10 s). The frontend already has a `request_id`

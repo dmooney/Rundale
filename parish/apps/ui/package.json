@@ -32,6 +32,7 @@
 	},
 	"dependencies": {
 		"@tauri-apps/api": "^2.10.1",
+		"html-to-image": "^1.11.13",
 		"maplibre-gl": "^5.22.0",
 		"phosphor-svelte": "^3.1.0"
 	},
