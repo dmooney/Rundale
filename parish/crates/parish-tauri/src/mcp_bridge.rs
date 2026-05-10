@@ -492,6 +492,7 @@ mod tests {
             session_store,
             user_config_dir: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),
+            latest_screenshot_path: Mutex::new(None),
         })
     }
 
