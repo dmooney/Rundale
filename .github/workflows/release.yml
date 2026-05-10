@@ -1,0 +1,212 @@
+name: Release
+
+# Tag-driven release pipeline.
+#
+# Production trigger:
+#   git push origin vX.Y.Z   →  builds + publishes a GitHub Release.
+#
+# Human dry-run:
+#   workflow_dispatch with `dry_run: true` builds the artifacts but skips
+#   tagging, releasing, and uploading. The packaged tarball is still attached
+#   to the workflow run as a downloadable artifact for inspection.
+#
+# Claude execution path:
+#   parish/scripts/release.sh <version>      # bump + commit + tag locally
+#   git push origin <branch>                 # land the bump
+#   git push origin v<version>               # this workflow takes over
+#
+# The tag version is the source of truth and must match parish-cli's
+# Cargo.toml `[package].version` — the validate-tag job enforces this.
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version (without leading v), e.g. 0.2.0"
+        required: true
+        type: string
+      dry_run:
+        description: "Build artifacts but do not publish a Release"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # required to create the GitHub Release on tag push
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  resolve:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set.outputs.version }}
+      tag: ${{ steps.set.outputs.tag }}
+      dry_run: ${{ steps.set.outputs.dry_run }}
+    steps:
+      - name: Determine version + dry-run from event
+        id: set
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            tag="${GITHUB_REF##*/}"
+            version="${tag#v}"
+            dry_run="false"
+          else
+            version="${{ inputs.version }}"
+            tag="v${version}"
+            dry_run="${{ inputs.dry_run }}"
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag"         >> "$GITHUB_OUTPUT"
+          echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$tag dry_run=$dry_run"
+
+  validate-tag:
+    name: Validate tag matches Cargo.toml
+    needs: resolve
+    # Only enforced on real tag pushes. workflow_dispatch dry-runs are
+    # allowed to test the build pipeline before any version bump lands.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Compare tag version with parish-cli Cargo.toml
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ needs.resolve.outputs.version }}"
+          actual="$(awk '/^\[package\]/{p=1; next} p && /^version = "/{gsub(/^version = "|"$/, ""); print; exit}' parish/crates/parish-cli/Cargo.toml)"
+          echo "tag version:        $expected"
+          echo "Cargo.toml version: $actual"
+          if [[ "$expected" != "$actual" ]]; then
+            echo "::error::Tag $expected does not match parish-cli Cargo.toml ($actual). Run parish/scripts/release.sh $expected."
+            exit 1
+          fi
+
+  build-linux:
+    name: Build Linux x86_64 release binary
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      tarball: ${{ steps.package.outputs.tarball }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: parish
+
+      - name: Install Linux native deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev
+
+      - name: Build parish (release)
+        working-directory: parish
+        # No --locked: a freshly-bumped workspace member version would race
+        # ahead of Cargo.lock until the next regular CI run picks up the
+        # refreshed lockfile. release.sh refreshes it best-effort locally.
+        run: cargo build -p parish --release
+
+      - name: Package tarball
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.resolve.outputs.version }}"
+          stage="$(mktemp -d)"
+          name="parish-v${version}-x86_64-linux-gnu"
+          mkdir -p "$stage/$name"
+          cp parish/target/release/parish "$stage/$name/"
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md "$stage/$name/"
+          ( cd "$stage" && tar czf "$name.tar.gz" "$name" )
+          mkdir -p dist
+          mv "$stage/$name.tar.gz" "dist/$name.tar.gz"
+          ( cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
+          echo "tarball=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
+          ls -la dist
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: parish-linux-x86_64
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    # Hard gate: only real tag pushes can publish. workflow_dispatch is
+    # dry-run-only — it can't slip a release out without a tag landing.
+    needs: [resolve, validate-tag, build-linux]
+    if: github.event_name == 'push' && needs.resolve.outputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: parish-linux-x86_64
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve.outputs.tag }}
+          name: Rundale ${{ needs.resolve.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  dry-run-summary:
+    name: Dry-run summary
+    needs: [resolve, build-linux]
+    if: needs.resolve.outputs.dry_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print summary
+        shell: bash
+        run: |
+          {
+            echo "## Dry run for ${{ needs.resolve.outputs.tag }}"
+            echo
+            echo "- Built tarball: \`${{ needs.build-linux.outputs.tarball }}\`"
+            echo "- No tag was created."
+            echo "- No GitHub Release was published."
+            echo "- Artifact is available on this run under \`parish-linux-x86_64\`."
+          } >> "$GITHUB_STEP_SUMMARY"
