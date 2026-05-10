@@ -263,6 +263,13 @@ pub async fn set_provider_config(
         .await
         .map_err(|e| e.to_string())?;
 
+    {
+        let mut s = state_arc
+            .setup_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        s.clear_needs_onboarding();
+    }
     crate::record_setup_done(&state_arc, true, String::new());
     let _ = app.emit(
         crate::events::EVENT_SETUP_DONE,

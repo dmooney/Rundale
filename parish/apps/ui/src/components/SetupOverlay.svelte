@@ -312,6 +312,16 @@
 			return;
 		}
 
+		// BYOK fork: if the gate fired before our event listener mounted,
+		// recover the state from the snapshot rather than falling through to
+		// the spinner UI.
+		if (snapshot.needs_onboarding) {
+			clearSetupComplete();
+			needsOnboarding = true;
+			showSetupOverlay();
+			return;
+		}
+
 		const rawSnapshotMessages =
 			snapshot.messages.length > 0
 				? snapshot.messages

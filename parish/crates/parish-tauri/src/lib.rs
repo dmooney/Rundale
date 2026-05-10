@@ -58,6 +58,11 @@ pub struct SetupStatusSnapshot {
     pub success: Option<bool>,
     /// Error message when setup failed.
     pub error: String,
+    /// True when the BYOK gate fired and the frontend should render the
+    /// onboarding fork instead of the Ollama spinner. Persisted on the
+    /// snapshot (not just emitted as an event) so SetupOverlay can recover
+    /// the state if it mounts after the gate fires.
+    pub needs_onboarding: bool,
 }
 
 impl Default for SetupStatusSnapshot {
@@ -70,11 +75,23 @@ impl Default for SetupStatusSnapshot {
             done: false,
             success: None,
             error: String::new(),
+            needs_onboarding: false,
         }
     }
 }
 
 impl SetupStatusSnapshot {
+    pub(crate) fn record_needs_onboarding(&mut self) {
+        self.needs_onboarding = true;
+        // Don't push a status message — the fork screen renders directly
+        // and the spinner UI shouldn't show "Awaiting provider choice"
+        // text underneath.
+    }
+
+    pub(crate) fn clear_needs_onboarding(&mut self) {
+        self.needs_onboarding = false;
+    }
+
     fn record_status(&mut self, msg: &str) {
         self.current_message = msg.to_string();
         if self.messages.last().is_some_and(|last| last == msg) {

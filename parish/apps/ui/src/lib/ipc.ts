@@ -363,6 +363,7 @@ export interface SetupSnapshot {
 	done: boolean;
 	success: boolean | null;
 	error: string;
+	needs_onboarding: boolean;
 }
 
 export const getSetupSnapshot = () => command<SetupSnapshot>('get_setup_snapshot');

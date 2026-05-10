@@ -294,8 +294,15 @@ async fn submit_byok(
         .await
         .map_err(AppError::from)?;
 
-    // Side-effect: dismiss the SetupOverlay (if any) by signalling completion
-    // through the same channel the desktop wizard uses.
+    // Clear the BYOK gate flag and signal completion so the SetupOverlay
+    // (if any) dismisses through the same channel the desktop wizard uses.
+    {
+        let mut s = b.state
+            .setup_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        s.clear_needs_onboarding();
+    }
     crate::record_setup_done(&b.state, true, String::new());
     let _ = b.app.emit(
         crate::events::EVENT_SETUP_DONE,

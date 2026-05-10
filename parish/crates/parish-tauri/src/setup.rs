@@ -141,9 +141,11 @@ pub(crate) async fn bootstrap_inference_provider(
             app: handle.clone(),
             state: Arc::clone(state),
         };
-        progress.with_setup_status(|status| {
-            status.record_status("Awaiting provider choice...");
-        });
+        // Persist on the snapshot so SetupOverlay can render the fork even
+        // if it mounts after the event fires (race avoidance — the
+        // EVENT_SETUP_NEEDS_ONBOARDING listener might not be installed
+        // before the gate fires on a slow first frontend mount).
+        progress.with_setup_status(|status| status.record_needs_onboarding());
         let _ = handle.emit(
             events::EVENT_SETUP_NEEDS_ONBOARDING,
             events::SetupStatusPayload {
