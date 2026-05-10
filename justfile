@@ -111,3 +111,13 @@ notices:
 # Audit dependencies for security vulnerabilities
 audit:
     cd parish && just audit
+
+# ─── Release ────────────────────────────────────────────────────────────────
+
+# Bump versions, commit, and tag a release locally. See docs/release.md.
+release VERSION:
+    cd parish && just release {{VERSION}}
+
+# Dry-run the release: show would-be diffs without writing or tagging.
+release-dry-run VERSION:
+    cd parish && just release-dry-run {{VERSION}}
