@@ -90,7 +90,9 @@ fn relationship_preposition(label: &str) -> &'static str {
 ///
 /// Resolves peer ids to names via `npc_names` (falling back to "someone" for
 /// unknown ids) and maps each strength to a verbal label via
-/// `relationship_label_with_config`. Returns an empty string for an empty list.
+/// `relationship_label_with_config`. The conventional player id `NpcId(0)` is
+/// rendered as "the newcomer" to match the Tier 1 dialogue convention (see
+/// `interlocutor_block`). Returns an empty string for an empty list.
 ///
 /// Example output: `"friendly with Mary McKenna, cool to Sean Doyle"`.
 pub fn format_relationships_natural(
@@ -100,7 +102,11 @@ pub fn format_relationships_natural(
 ) -> String {
     rels.iter()
         .map(|(id, strength)| {
-            let name = npc_names.get(id).map(|s| s.as_str()).unwrap_or("someone");
+            let name = if id.0 == 0 {
+                "the newcomer"
+            } else {
+                npc_names.get(id).map(|s| s.as_str()).unwrap_or("someone")
+            };
             let label = relationship_label_with_config(*strength, cfg);
             let prep = relationship_preposition(label);
             format!("{label} {prep} {name}")
@@ -584,6 +590,25 @@ pub fn build_tier2_prompt(
     prompt
 }
 
+/// Returns the top-N strongest relationships (by absolute strength) in a
+/// stable order: by |strength| descending, then by NpcId ascending as a
+/// tie-breaker so iteration order over the underlying HashMap doesn't leak.
+fn top_relationships(npc: &Npc, n: usize) -> Vec<(NpcId, f64)> {
+    let mut rels: Vec<(NpcId, f64)> = npc
+        .relationships
+        .iter()
+        .map(|(id, rel)| (*id, rel.strength))
+        .collect();
+    rels.sort_by(|(a_id, a_s), (b_id, b_s)| {
+        b_s.abs()
+            .partial_cmp(&a_s.abs())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a_id.0.cmp(&b_id.0))
+    });
+    rels.truncate(n);
+    rels
+}
+
 /// Creates an `NpcSnapshot` from a live NPC for Tier 2 background inference.
 ///
 /// The snapshot is a lightweight owned copy that can be passed to a background
@@ -594,12 +619,7 @@ pub fn npc_snapshot_from_npc(
     npc: &Npc,
     npc_names: &std::collections::HashMap<NpcId, String>,
 ) -> NpcSnapshot {
-    let rels: Vec<(NpcId, f64)> = npc
-        .relationships
-        .iter()
-        .take(3)
-        .map(|(id, rel)| (*id, rel.strength))
-        .collect();
+    let rels = top_relationships(npc, 3);
 
     NpcSnapshot {
         id: npc.id,
@@ -939,12 +959,7 @@ pub fn tier3_snapshot_from_npc(
         String::new()
     };
 
-    let rels: Vec<(NpcId, f64)> = npc
-        .relationships
-        .iter()
-        .take(3)
-        .map(|(id, rel)| (*id, rel.strength))
-        .collect();
+    let rels = top_relationships(npc, 3);
 
     Tier3Snapshot {
         id: npc.id,
@@ -2246,6 +2261,62 @@ mod tests {
         let cfg = RelationshipLabelConfig::default();
         let out = format_relationships_natural(&[(NpcId(99), 0.8)], &names, &cfg);
         assert!(out.contains("someone"));
+    }
+
+    #[test]
+    fn test_format_relationships_natural_player_rendered_as_newcomer() {
+        // NpcId(0) is the conventional player id. The player is never in
+        // npc_names (the map is built from NpcManager NPCs), so the natural
+        // fallback would be "someone" — but the prompt reads better with the
+        // Tier 1 convention of "the newcomer".
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let cfg = RelationshipLabelConfig::default();
+        let out = format_relationships_natural(&[(NpcId(0), 0.9)], &names, &cfg);
+        assert!(out.contains("the newcomer"));
+        assert!(!out.contains("someone"));
+    }
+
+    #[test]
+    fn test_top_relationships_sorted_by_absolute_strength() {
+        // Iteration over `npc.relationships` (a HashMap) is non-deterministic.
+        // top_relationships must surface the strongest |strength| values in a
+        // stable order so the prompt is reproducible across runs.
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        use crate::types::{Relationship, RelationshipKind};
+        npc.relationships
+            .insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.3));
+        npc.relationships
+            .insert(NpcId(3), Relationship::new(RelationshipKind::Enemy, -0.9));
+        npc.relationships
+            .insert(NpcId(4), Relationship::new(RelationshipKind::Neighbor, 0.1));
+        npc.relationships
+            .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.6));
+
+        let top = top_relationships(&npc, 3);
+        assert_eq!(top.len(), 3);
+        // |0.9| > |0.6| > |0.3| > |0.1| — bottom one (NpcId 4) is dropped.
+        assert_eq!(top[0].0, NpcId(3));
+        assert_eq!(top[1].0, NpcId(5));
+        assert_eq!(top[2].0, NpcId(2));
+    }
+
+    #[test]
+    fn test_top_relationships_tiebreaks_by_id() {
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        use crate::types::{Relationship, RelationshipKind};
+        // Three relationships at identical |strength| — order must still be
+        // deterministic (ascending NpcId).
+        npc.relationships
+            .insert(NpcId(7), Relationship::new(RelationshipKind::Friend, 0.5));
+        npc.relationships
+            .insert(NpcId(3), Relationship::new(RelationshipKind::Friend, -0.5));
+        npc.relationships
+            .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.5));
+
+        let top = top_relationships(&npc, 3);
+        assert_eq!(top[0].0, NpcId(3));
+        assert_eq!(top[1].0, NpcId(5));
+        assert_eq!(top[2].0, NpcId(7));
     }
 
     #[test]
