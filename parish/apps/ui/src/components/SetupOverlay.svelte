@@ -584,6 +584,13 @@
 		min-height: 0;
 		padding: 0;
 		display: block;
+		/* Allow the wizard to scroll when the "Other providers" expander
+		   pushes content past the viewport height. align-items: center on
+		   the parent overlay clips overflow without this. */
+		max-height: 100vh;
+		max-height: 100dvh;
+		overflow-y: auto;
+		width: 100%;
 	}
 
 	.setup-box {
