@@ -572,11 +572,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                     use parish_core::npc::ticks::Tier3Snapshot;
                     use parish_core::npc::ticks::tier3_snapshot_from_npc;
 
+                    let npc_names: std::collections::HashMap<_, _> =
+                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
                     let tier3_ids = npc_mgr.tier3_npcs();
                     let snapshots: Vec<Tier3Snapshot> = tier3_ids
                         .iter()
                         .filter_map(|id| npc_mgr.get(*id))
-                        .map(|npc| tier3_snapshot_from_npc(npc, &world.graph))
+                        .map(|npc| tier3_snapshot_from_npc(npc, &world.graph, &npc_names))
                         .collect();
 
                     if !snapshots.is_empty() {
@@ -677,6 +679,8 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
                     let groups_map = npc_mgr.tier2_groups();
                     if !groups_map.is_empty() {
+                        let npc_names: std::collections::HashMap<_, _> =
+                            npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
                         // Build owned snapshots inside the lock scope.
                         let groups: Vec<Tier2Group> = groups_map
                             .into_iter()
@@ -689,7 +693,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let npcs: Vec<_> = npc_ids
                                     .iter()
                                     .filter_map(|id| npc_mgr.get(*id))
-                                    .map(npc_snapshot_from_npc)
+                                    .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
                                     .collect();
                                 if npcs.is_empty() {
                                     return None;

@@ -1286,11 +1286,18 @@ fn dispatch_headless_tier4_tick(app: &mut App) {
 async fn dispatch_headless_tier3_tick(app: &mut App) {
     let now = app.world.clock.now();
     if app.npc_manager.needs_tier3_tick(now) && !app.npc_manager.tier3_in_flight() {
+        let npc_names: std::collections::HashMap<_, _> = app
+            .npc_manager
+            .all_npcs()
+            .map(|n| (n.id, n.name.clone()))
+            .collect();
         let tier3_ids = app.npc_manager.tier3_npcs();
         let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
             .iter()
             .filter_map(|id| app.npc_manager.get(*id))
-            .map(|npc| parish_core::npc::ticks::tier3_snapshot_from_npc(npc, &app.world.graph))
+            .map(|npc| {
+                parish_core::npc::ticks::tier3_snapshot_from_npc(npc, &app.world.graph, &npc_names)
+            })
             .collect();
 
         if !snapshots.is_empty()
@@ -1352,6 +1359,11 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
         if !groups_map.is_empty() {
             use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
 
+            let npc_names: std::collections::HashMap<_, _> = app
+                .npc_manager
+                .all_npcs()
+                .map(|n| (n.id, n.name.clone()))
+                .collect();
             let groups: Vec<Tier2Group> = groups_map
                 .into_iter()
                 .filter_map(|(loc, npc_ids)| {
@@ -1364,7 +1376,7 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                     let npcs: Vec<_> = npc_ids
                         .iter()
                         .filter_map(|id| app.npc_manager.get(*id))
-                        .map(npc_snapshot_from_npc)
+                        .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
                         .collect();
                     if npcs.is_empty() {
                         return None;
