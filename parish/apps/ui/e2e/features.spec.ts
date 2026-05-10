@@ -222,6 +222,12 @@ test.describe('Reactions', () => {
 });
 
 test.describe('Editor', () => {
+	// NPCs / Locations / Validator tabs only render once an
+	// EditorModSnapshot is loaded — see the `{#if snap || t.id === 'mods'
+	// || t.id === 'saves'}` guard in parish/apps/ui/src/routes/editor/+page.svelte.
+	// The fixture mocks `editor_list_mods` (one ModSummary card) and
+	// `editor_open_mod` (a minimal EditorModSnapshot), and these tests click
+	// the mod card to load the snapshot before asserting tab state.
 	test('navigates to editor and shows tabs', async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/editor');
@@ -230,6 +236,8 @@ test.describe('Editor', () => {
 		const editor = page.locator('[data-testid="editor-page"]');
 		await expect(editor).toBeVisible();
 		await expect(editor).toContainText('Parish Designer');
+
+		await editor.locator('.mod-card').first().click();
 		await expect(editor.locator('.tab-btn')).toHaveCount(5);
 		await expect(editor.locator('.tab-btn').first()).toHaveText('Mods');
 	});
@@ -240,6 +248,9 @@ test.describe('Editor', () => {
 		await page.waitForLoadState('networkidle');
 
 		const editor = page.locator('[data-testid="editor-page"]');
+		await editor.locator('.mod-card').first().click();
+		await expect(editor.locator('.tab-btn')).toHaveCount(5);
+
 		const labels = ['Mods', 'NPCs', 'Locations', 'Validator', 'Saves'];
 		for (const label of labels) {
 			await editor.getByText(label).first().click();

@@ -39,7 +39,7 @@ use axum::middleware as axum_mw;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use parish_core::game_mod::GameMod;
@@ -545,7 +545,17 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     // present further out.  Both paths terminate in the same set of route
     // handlers; only the cookie machinery differs.
     let app = app
-        .fallback_service(ServeDir::new(&static_dir).append_index_html_on_directories(true))
+        // SvelteKit's adapter-static is configured with `fallback: 'index.html'`
+        // (see parish/apps/ui/svelte.config.js) — so client-side routes such as
+        // `/editor` rely on the server returning the SPA shell for any path
+        // ServeDir can't satisfy. Without this, `/editor` 404s and the
+        // Playwright e2e suite's Editor tests time out waiting for elements
+        // that never render.
+        .fallback_service(
+            ServeDir::new(&static_dir)
+                .append_index_html_on_directories(true)
+                .not_found_service(ServeFile::new(static_dir.join("index.html"))),
+        )
         .layer(axum_mw::from_fn_with_state(
             Arc::clone(&global),
             cf_access_guard,
