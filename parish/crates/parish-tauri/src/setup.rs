@@ -89,12 +89,58 @@ pub(crate) fn init_screenshot_mode(handle: AppHandle, state: Arc<AppState>, dir:
 /// `provider_config` carries whatever `provider_config_from_env` already
 /// resolved — if it's anything other than the defaulted Simulator, the user
 /// has explicit intent and we should skip the wizard.
-fn needs_byok_onboarding(state: &Arc<AppState>, provider_config: &ProviderConfig) -> bool {
+/// First-run outcome computed from platform + provider config.
+///
+/// Drives the SetupOverlay fork: macOS hosts with sufficient unified
+/// memory see a local-inference recommendation, smaller Macs see a
+/// limited-quality local option alongside BYOK, and everything else
+/// falls straight to BYOK (Linux defaults to Ollama and so never reaches
+/// the fork in practice — the `LocalUnavailable` variant is reserved
+/// for the rare case where no provider is wired and we're not on Mac).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OnboardingChoice {
+    /// Provider already pinned by env / CLI / saved config — skip the wizard.
+    Configured,
+    /// macOS Apple Silicon with ≥ 16 GB unified memory. Show local-recommended
+    /// card; allow BYOK as a side option.
+    LocalRecommended,
+    /// macOS Apple Silicon below 16 GB. Show small-slot local + BYOK; warn on
+    /// degraded quality.
+    LocalLowMem,
+    /// Non-Mac (or local-inference unavailable on this host) — BYOK only.
+    LocalUnavailable,
+}
+
+impl OnboardingChoice {
+    /// True when the wizard should render any kind of fork UI.
+    pub fn needs_user_choice(self) -> bool {
+        !matches!(self, OnboardingChoice::Configured)
+    }
+}
+
+/// Resolves the first-run flow for the current host.
+///
+/// "Configured" means: a `--provider` CLI flag, `PARISH_PROVIDER`, a
+/// standard provider key env var (`ANTHROPIC_API_KEY` etc.), a saved
+/// onboarding-complete sentinel, or a non-default provider in
+/// `provider_config`. Anything else triggers the wizard.
+///
+/// When the wizard is required, the variant is informed by
+/// [`parish_core::config::Provider::recommended_for_platform`]:
+///
+/// - macOS ≥ 16 GB → [`OnboardingChoice::LocalRecommended`]
+/// - macOS < 16 GB → [`OnboardingChoice::LocalLowMem`]
+/// - everywhere else → [`OnboardingChoice::LocalUnavailable`] (BYOK-only fork)
+pub(crate) fn onboarding_choice_for_platform(
+    state: &Arc<AppState>,
+    provider_config: &ProviderConfig,
+) -> OnboardingChoice {
     use parish_core::config::Provider;
 
     // 1. Sentinel from a previous successful onboarding wins immediately.
     if parish_core::config::user_config::onboarding_complete(&state.user_config_dir) {
-        return false;
+        return OnboardingChoice::Configured;
     }
     // 2. Any explicit env / CLI / TOML override means there's a real choice.
     if std::env::var("PARISH_PROVIDER")
@@ -102,21 +148,33 @@ fn needs_byok_onboarding(state: &Arc<AppState>, provider_config: &ProviderConfig
         .filter(|s| !s.is_empty())
         .is_some()
     {
-        return false;
+        return OnboardingChoice::Configured;
     }
     // 3. Standard provider env vars (`ANTHROPIC_API_KEY` etc.) — the wizard
     //    will still pre-fill the field, but we don't block startup on it.
     if let Some(var) = provider_config.provider.api_key_env_var()
         && std::env::var(var).ok().filter(|s| !s.is_empty()).is_some()
     {
-        return false;
+        return OnboardingChoice::Configured;
     }
     // 4. A non-default provider in the resolved config means parish.toml
     //    or a CLI flag picked one explicitly.
     if !matches!(provider_config.provider, Provider::Simulator) {
-        return false;
+        return OnboardingChoice::Configured;
     }
-    true
+
+    // 5. Unconfigured — surface the right wizard for this host.
+    if cfg!(target_os = "macos") {
+        match Provider::recommended_for_platform() {
+            Provider::VllmMlx => OnboardingChoice::LocalRecommended,
+            // recommended_for_platform returns Simulator on Mac < 16 GB.
+            // We still offer local (small slot only) as an option.
+            Provider::Simulator if cfg!(target_os = "macos") => OnboardingChoice::LocalLowMem,
+            _ => OnboardingChoice::LocalUnavailable,
+        }
+    } else {
+        OnboardingChoice::LocalUnavailable
+    }
 }
 
 /// Runs the inference-provider bootstrap (Ollama install/start, model pull,
@@ -136,24 +194,28 @@ pub(crate) async fn bootstrap_inference_provider(
     // BYOK gate: if the user has never picked a provider AND no PARISH_/CLI
     // override is in effect AND no standard env-var key is set, render the
     // onboarding fork instead of running the (Ollama-shaped) bootstrap path.
-    if needs_byok_onboarding(state, provider_config) {
+    let choice = onboarding_choice_for_platform(state, provider_config);
+    if choice.needs_user_choice() {
         let progress = TauriProgress {
             app: handle.clone(),
             state: Arc::clone(state),
         };
-        // Persist on the snapshot so SetupOverlay can render the fork even
-        // if it mounts after the event fires (race avoidance — the
-        // EVENT_SETUP_NEEDS_ONBOARDING listener might not be installed
-        // before the gate fires on a slow first frontend mount).
-        progress.with_setup_status(|status| status.record_needs_onboarding());
+        // Persist on the snapshot so SetupOverlay can render the right
+        // fork even if it mounts after the event fires (race avoidance
+        // — the EVENT_SETUP_NEEDS_ONBOARDING listener might not be
+        // installed before the gate fires on a slow first frontend
+        // mount). The choice variant tells the UI whether to show the
+        // local-recommended card, the low-mem fork, or pure BYOK.
+        progress.with_setup_status(|status| status.record_onboarding_choice(choice));
         let _ = handle.emit(
             events::EVENT_SETUP_NEEDS_ONBOARDING,
             events::SetupStatusPayload {
                 message: "Awaiting provider choice".to_string(),
             },
         );
-        // Bail out of bootstrap; the user's set_provider_config call will
-        // populate the worker and emit a fresh setup-done.
+        // Bail out of bootstrap; the user's set_provider_config or
+        // start_local_inference_setup call will populate the worker and
+        // emit a fresh setup-done.
         return false;
     }
 

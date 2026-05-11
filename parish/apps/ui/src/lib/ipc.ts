@@ -441,3 +441,34 @@ export interface ProviderPresetModels {
 
 export const listPresetModels = () =>
 	command<Record<string, ProviderPresetModels>>('list_preset_models');
+
+/**
+ * Bindings for the local-inference onboarding flow (vllm-mlx on macOS).
+ *
+ * `OnboardingChoice` is serialized kebab-case by the Rust enum:
+ *   "configured" | "local-recommended" | "local-low-mem" | "local-unavailable"
+ *
+ * `LocalSetupArgs.variant`:
+ *   - "two-slot"   — 14B Dialogue + 1.5B small-slot. Recommended on Mac ≥ 16 GB.
+ *   - "small-only" — 1.5B for everything. Mac < 16 GB; degraded quality.
+ */
+export type OnboardingChoice =
+	| 'configured'
+	| 'local-recommended'
+	| 'local-low-mem'
+	| 'local-unavailable';
+
+export interface OnboardingOptions {
+	choice: OnboardingChoice;
+	ram_gb: number;
+}
+
+export interface LocalSetupArgs {
+	variant: 'two-slot' | 'small-only';
+}
+
+export const getOnboardingOptions = () =>
+	command<OnboardingOptions>('get_onboarding_options');
+
+export const startLocalInferenceSetup = (args: LocalSetupArgs) =>
+	command<void>('start_local_inference_setup', { args });
