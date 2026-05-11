@@ -197,7 +197,11 @@ impl Default for InferenceConfig {
 }
 
 fn default_timeout_secs() -> u64 {
-    30
+    // Matches `default_streaming_timeout_secs` so non-streaming
+    // inference can absorb cold-loads of large local models. A 30s
+    // budget triggered timeouts on Ollama after the model unloaded
+    // post-idle (#?). Cloud APIs that respond promptly are unaffected.
+    300
 }
 fn default_streaming_timeout_secs() -> u64 {
     300
@@ -873,7 +877,7 @@ mod tests {
     #[test]
     fn test_engine_config_default() {
         let cfg = EngineConfig::default();
-        assert_eq!(cfg.inference.timeout_secs, 30);
+        assert_eq!(cfg.inference.timeout_secs, 300);
         assert_eq!(cfg.inference.streaming_timeout_secs, 300);
         assert_eq!(cfg.inference.log_capacity, 50);
         assert!((cfg.speeds.normal - 36.0).abs() < f64::EPSILON);
@@ -888,7 +892,7 @@ mod tests {
     #[test]
     fn test_engine_config_deserialize_empty() {
         let cfg: EngineConfig = toml::from_str("").unwrap();
-        assert_eq!(cfg.inference.timeout_secs, 30);
+        assert_eq!(cfg.inference.timeout_secs, 300);
         assert_eq!(cfg.npc.memory_capacity, 20);
     }
 

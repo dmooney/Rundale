@@ -132,6 +132,8 @@ pub fn redact_call_log(
             response_len: e.response_len,
             error: e.error.clone(),
             max_tokens: e.max_tokens,
+            ttft_ms: e.ttft_ms,
+            output_tokens: e.output_tokens,
             // Redacted fields:
             system_prompt: None,
             prompt_text: String::new(),

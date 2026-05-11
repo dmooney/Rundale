@@ -414,7 +414,9 @@ describe('DebugPanel', () => {
 							system_prompt: 'You are Brigid, a local woman.',
 							prompt_text: 'What do you think?',
 							response_text: 'I think the harvest will be poor this year.',
-							max_tokens: null
+							max_tokens: null,
+							ttft_ms: null,
+							output_tokens: null
 						}
 					]
 				}
@@ -471,7 +473,9 @@ describe('DebugPanel', () => {
 							system_prompt: null,
 							prompt_text: 'Hello',
 							response_text: 'Hi there.',
-							max_tokens: null
+							max_tokens: null,
+							ttft_ms: null,
+							output_tokens: null
 						}
 					]
 				}

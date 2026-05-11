@@ -231,6 +231,131 @@ impl Drop for OllamaProcess {
     }
 }
 
+/// Manages a vllm-mlx server process started by Parish (macOS / Apple Silicon local runtime).
+///
+/// Parallels [`OllamaProcess`] for the vllm-mlx runtime: probes
+/// `/v1/models` first, spawns `vllm-mlx serve <model> --port <p>
+/// --enable-prefix-cache --continuous-batching` if not already
+/// running, and stops the child on drop.
+///
+/// `VLLM_MLX_BIN` overrides the binary path. This works around the
+/// case where installing rapid-mlx clobbers the `vllm-mlx` symlink
+/// in `~/.local/bin`; setting `VLLM_MLX_BIN=$HOME/.local/share/uv/tools/vllm-mlx/bin/vllm-mlx`
+/// keeps Parish on the pristine binary.
+///
+/// Spike scope: this struct is callable today via
+/// `VllmMlxProcess::ensure_running`. Wiring it into
+/// [`setup_provider_client`] for `Provider::Vllm` on macOS is a
+/// follow-up.
+pub struct VllmMlxProcess {
+    child: Option<Child>,
+}
+
+impl VllmMlxProcess {
+    /// Creates a no-op process handle (for non-vllm-mlx providers).
+    pub fn none() -> Self {
+        Self { child: None }
+    }
+
+    /// Checks if vllm-mlx is reachable at `base_url`. If not, spawns
+    /// `vllm-mlx serve <model> --port <port>` and waits for the
+    /// `/v1/models` endpoint to respond (up to 60 s).
+    ///
+    /// `base_url` should include the port (e.g.
+    /// `http://localhost:8000/v1`); the port is parsed back out for
+    /// the `--port` flag, falling back to 8000 if absent.
+    pub async fn ensure_running(base_url: &str, model_name: &str) -> Result<Self, ParishError> {
+        if Self::is_reachable(base_url).await {
+            tracing::info!("vllm-mlx already running at {}", base_url);
+            return Ok(Self { child: None });
+        }
+
+        tracing::info!("vllm-mlx not detected, starting vllm-mlx serve...");
+
+        let port = port_from_base_url(base_url).unwrap_or(8000);
+        let bin = std::env::var("VLLM_MLX_BIN").unwrap_or_else(|_| "vllm-mlx".to_string());
+
+        let child = Command::new(&bin)
+            .arg("serve")
+            .arg(model_name)
+            .arg("--port")
+            .arg(port.to_string())
+            .arg("--enable-prefix-cache")
+            .arg("--continuous-batching")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| {
+                ParishError::Inference(format!(
+                    "failed to start vllm-mlx: {}. Is it installed? Try: \
+                     `uv tool install vllm-mlx` or set VLLM_MLX_BIN to the binary path.",
+                    e
+                ))
+            })?;
+
+        // Poll for readiness (up to 60 s; cold-load measured at ~3.3 s
+        // when prefix-cache is persisted, longer on first-ever launch).
+        let mut ready = false;
+        for i in 0..120 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if Self::is_reachable(base_url).await {
+                tracing::info!("vllm-mlx ready after ~{}ms", (i + 1) * 500);
+                ready = true;
+                break;
+            }
+        }
+
+        if !ready {
+            return Err(ParishError::Inference(
+                "vllm-mlx serve started but did not become reachable within 60s".to_string(),
+            ));
+        }
+
+        Ok(Self { child: Some(child) })
+    }
+
+    /// Returns whether we started the vllm-mlx process (vs. it was already running).
+    pub fn was_started_by_us(&self) -> bool {
+        self.child.is_some()
+    }
+
+    /// Probes `/v1/models` to see if a vllm-mlx server is reachable.
+    async fn is_reachable(base_url: &str) -> bool {
+        let url = format!("{}/models", base_url.trim_end_matches('/'));
+        let client =
+            build_client_or_fallback(Duration::from_secs(2), "vllm-mlx reachability probe");
+        client.get(&url).send().await.is_ok()
+    }
+
+    /// Stops the vllm-mlx process if we started it.
+    pub fn stop(&mut self) {
+        if let Some(ref mut child) = self.child {
+            tracing::info!("Stopping vllm-mlx server...");
+            let _ = child.kill();
+            let _ = child.wait();
+            self.child = None;
+        }
+    }
+}
+
+impl Drop for VllmMlxProcess {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+/// Parses the port out of an OpenAI-compat base_url like
+/// `http://localhost:8000/v1`. Returns `None` if no explicit port.
+fn port_from_base_url(base_url: &str) -> Option<u16> {
+    let url = url_from_str(base_url)?;
+    url.port()
+}
+
+/// Lightweight URL parser using `reqwest::Url` (already a workspace dep).
+fn url_from_str(s: &str) -> Option<reqwest::Url> {
+    reqwest::Url::parse(s).ok()
+}
+
 /// The result of the full Ollama setup process.
 pub struct OllamaSetup {
     /// The managed Ollama server process (stops on drop if we started it).
@@ -1392,6 +1517,22 @@ mod tests {
         assert_eq!(GpuVendor::Amd.to_string(), "AMD");
         assert_eq!(GpuVendor::AppleSilicon.to_string(), "Apple Silicon (Metal)");
         assert_eq!(GpuVendor::CpuOnly.to_string(), "CPU-only");
+    }
+
+    #[test]
+    fn test_port_from_base_url() {
+        assert_eq!(port_from_base_url("http://localhost:8000/v1"), Some(8000));
+        assert_eq!(port_from_base_url("http://localhost:11434"), Some(11434));
+        assert_eq!(port_from_base_url("http://127.0.0.1:8001/v1"), Some(8001));
+        assert_eq!(port_from_base_url("http://localhost/v1"), None);
+        assert_eq!(port_from_base_url("not-a-url"), None);
+    }
+
+    #[test]
+    fn test_vllm_mlx_process_none_is_no_op() {
+        let mut p = VllmMlxProcess::none();
+        assert!(!p.was_started_by_us());
+        p.stop(); // must not panic on no-op
     }
 
     /// Regression guard for TD-015 — Windows `taskkill` argument vector.

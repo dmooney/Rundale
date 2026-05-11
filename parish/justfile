@@ -187,6 +187,20 @@ ui-e2e-update:
 screenshots:
     cd apps/ui && npx playwright test e2e/screenshots.spec.ts
 
+# ─── Inference benchmark ────────────────────────────────────────────────────
+
+# Run /inf-bench against an OpenAI-compatible endpoint.
+# Defaults target local Ollama with gemma4:e4b for both intent and main slots.
+# Override via env: BASE_URL, INTENT_MODEL, MAIN_MODEL, ITERS, API_KEY.
+inf-bench:
+    cd {{justfile_directory()}} && \
+        cargo run -p parish-inference --release --example inf_bench -- \
+            --base-url "${BASE_URL:-http://localhost:11434}" \
+            --intent-model "${INTENT_MODEL:-gemma4:e4b}" \
+            --main-model  "${MAIN_MODEL:-gemma4:e4b}" \
+            --iters "${ITERS:-3}" \
+            $(if [ -n "${API_KEY:-}" ]; then echo "--api-key $API_KEY"; fi)
+
 # ─── Test ────────────────────────────────────────────────────────────────────
 
 # Run all Rust tests
