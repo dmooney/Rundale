@@ -1474,4 +1474,169 @@ model = "toml-model"
         assert_eq!(config.base_url, "http://remote-ollama:11434");
         assert_eq!(config.model, "llama3");
     }
+
+    #[test]
+    fn test_provider_api_key_env_var() {
+        assert_eq!(
+            Provider::Anthropic.api_key_env_var(),
+            Some("ANTHROPIC_API_KEY")
+        );
+        assert_eq!(Provider::OpenAi.api_key_env_var(), Some("OPENAI_API_KEY"));
+        assert_eq!(
+            Provider::OpenRouter.api_key_env_var(),
+            Some("OPENROUTER_API_KEY")
+        );
+        assert_eq!(Provider::Google.api_key_env_var(), Some("GOOGLE_API_KEY"));
+        assert_eq!(Provider::Groq.api_key_env_var(), Some("GROQ_API_KEY"));
+        assert_eq!(Provider::Xai.api_key_env_var(), Some("XAI_API_KEY"));
+        assert_eq!(Provider::Mistral.api_key_env_var(), Some("MISTRAL_API_KEY"));
+        assert_eq!(
+            Provider::DeepSeek.api_key_env_var(),
+            Some("DEEPSEEK_API_KEY")
+        );
+        assert_eq!(
+            Provider::Together.api_key_env_var(),
+            Some("TOGETHER_API_KEY")
+        );
+        assert_eq!(
+            Provider::NvidiaNim.api_key_env_var(),
+            Some("NVIDIA_API_KEY")
+        );
+
+        // Local providers and Custom have no env var
+        assert_eq!(Provider::Ollama.api_key_env_var(), None);
+        assert_eq!(Provider::LmStudio.api_key_env_var(), None);
+        assert_eq!(Provider::Vllm.api_key_env_var(), None);
+        assert_eq!(Provider::Custom.api_key_env_var(), None);
+        assert_eq!(Provider::Simulator.api_key_env_var(), None);
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_provider_is_configured_in_env() {
+        clear_parish_env();
+
+        // Local providers are always "configured"
+        assert!(Provider::Ollama.is_configured_in_env());
+        assert!(Provider::LmStudio.is_configured_in_env());
+        assert!(Provider::Vllm.is_configured_in_env());
+        assert!(Provider::Simulator.is_configured_in_env());
+        assert!(Provider::Custom.is_configured_in_env());
+
+        // Cloud providers without keys are not configured
+        assert!(!Provider::OpenAi.is_configured_in_env());
+        assert!(!Provider::Anthropic.is_configured_in_env());
+
+        // Set a key and verify
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-test") };
+        assert!(Provider::Anthropic.is_configured_in_env());
+
+        // Empty string counts as not configured
+        unsafe { std::env::set_var("ANTHROPIC_API_KEY", "") };
+        assert!(!Provider::Anthropic.is_configured_in_env());
+    }
+
+    #[test]
+    fn test_provider_config_provider_display() {
+        let cfg = ProviderConfig {
+            provider: Provider::Ollama,
+            base_url: "http://localhost:11434".to_string(),
+            api_key: None,
+            model: None,
+        };
+        assert_eq!(cfg.provider_display(), "ollama");
+
+        let cfg = ProviderConfig {
+            provider: Provider::NvidiaNim,
+            base_url: "https://integrate.api.nvidia.com".to_string(),
+            api_key: None,
+            model: None,
+        };
+        assert_eq!(cfg.provider_display(), "nvidia-nim");
+
+        let cfg = ProviderConfig {
+            provider: Provider::OpenAi,
+            base_url: "https://api.openai.com".to_string(),
+            api_key: None,
+            model: None,
+        };
+        assert_eq!(cfg.provider_display(), "openai");
+    }
+
+    #[test]
+    fn test_inference_category_name() {
+        assert_eq!(InferenceCategory::Dialogue.name(), "dialogue");
+        assert_eq!(InferenceCategory::Simulation.name(), "simulation");
+        assert_eq!(InferenceCategory::Intent.name(), "intent");
+        assert_eq!(InferenceCategory::Reaction.name(), "reaction");
+    }
+
+    #[test]
+    fn test_inference_category_from_name() {
+        assert_eq!(
+            InferenceCategory::from_name("dialogue"),
+            Some(InferenceCategory::Dialogue)
+        );
+        assert_eq!(
+            InferenceCategory::from_name("simulation"),
+            Some(InferenceCategory::Simulation)
+        );
+        assert_eq!(
+            InferenceCategory::from_name("intent"),
+            Some(InferenceCategory::Intent)
+        );
+        assert_eq!(
+            InferenceCategory::from_name("reaction"),
+            Some(InferenceCategory::Reaction)
+        );
+        assert_eq!(InferenceCategory::from_name("unknown"), None);
+        // Case insensitive
+        assert_eq!(
+            InferenceCategory::from_name("Dialogue"),
+            Some(InferenceCategory::Dialogue)
+        );
+        assert_eq!(
+            InferenceCategory::from_name("DIALOGUE"),
+            Some(InferenceCategory::Dialogue)
+        );
+    }
+
+    #[test]
+    fn test_inference_category_env_prefix() {
+        assert_eq!(InferenceCategory::Dialogue.env_prefix(), "PARISH_DIALOGUE");
+        assert_eq!(
+            InferenceCategory::Simulation.env_prefix(),
+            "PARISH_SIMULATION"
+        );
+        assert_eq!(InferenceCategory::Intent.env_prefix(), "PARISH_INTENT");
+        assert_eq!(InferenceCategory::Reaction.env_prefix(), "PARISH_REACTION");
+    }
+
+    #[test]
+    fn test_provider_all_exhaustive() {
+        let mut count = 0;
+        for provider in Provider::ALL {
+            match provider {
+                Provider::Ollama
+                | Provider::LmStudio
+                | Provider::OpenRouter
+                | Provider::Vllm
+                | Provider::OpenAi
+                | Provider::Google
+                | Provider::Groq
+                | Provider::Xai
+                | Provider::Mistral
+                | Provider::DeepSeek
+                | Provider::Together
+                | Provider::NvidiaNim
+                | Provider::Anthropic
+                | Provider::Custom
+                | Provider::Simulator => {}
+            }
+            count += 1;
+        }
+        assert_eq!(count, Provider::ALL.len());
+        assert_eq!(Provider::ALL.len(), 15);
+    }
 }
