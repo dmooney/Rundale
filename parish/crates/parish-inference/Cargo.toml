@@ -21,10 +21,7 @@ lru           = { workspace = true }
 uuid          = { workspace = true }
 async-trait   = { workspace = true }
 
-[features]
-default = ["inference-client-trait", "inference-response-cache"]
-inference-client-trait = []
-inference-response-cache = []
+
 
 [dev-dependencies]
 wiremock           = { workspace = true }
