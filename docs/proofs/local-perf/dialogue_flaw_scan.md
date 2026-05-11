@@ -1,3 +1,5 @@
+Evidence type: gameplay transcript
+
 # Dialogue flaw scan — 100 prompts on Qwen2.5-7B-Instruct-4bit
 
 Flagged 1/100 (1%) for non-Latin script leakage or empty/over-long output.
