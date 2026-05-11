@@ -331,6 +331,34 @@ impl LanguageSettings {
     }
 }
 
+/// Curated ga-IE phrase list appended to the directive when native is
+/// Irish. The May 2026 Opus-blind eval found that Qwen2.5 knows *where*
+/// to drop a sprinkle but often picks ungrammatical or anachronistic
+/// Irish — e.g. "Tá mo chuid lánaí eile" ("my share of other children"
+/// literally). A small list of pre-vetted phrases lifts authenticity
+/// without changing model.
+///
+/// Categories cover the situations most likely to come up in NPC
+/// dialogue: greetings, blessings, exclamations, terms of endearment,
+/// thanks, and a few period-appropriate plant/herb names. Each entry
+/// includes a brief English gloss so the model can match phrase to
+/// register.
+const GA_IE_PHRASE_GUIDE: &str = "\n\
+    Preferred ga-IE phrases (use these where natural; do not confabulate \
+    other Irish): \
+    Greetings: \"Dia dhuit\" (hello), \"Dia is Muire dhuit\" (reply), \
+    \"Conas atá tú?\" (how are you), \"Slán\" (goodbye), \
+    \"Slán abhaile\" (safe home). \
+    Blessings / thanks: \"Go raibh maith agat\" (thank you), \
+    \"Le cúnamh Dé\" (with God's help), \"Buíochas le Dia\" (thank God), \
+    \"Beannacht Dé ort\" (God bless you), \"Go n-éirí leat\" (good luck to you). \
+    Exclamations: \"Mo ghrá\" (my love), \"A chroí\" (dear, sweetheart), \
+    \"A stór\" (treasure / dear), \"A leanbh\" (child), \"Mhuise\" (well, indeed), \
+    \"Faith\", \"Bedad\", \"Bedambut\". \
+    Concepts: \"sídhe\" (fairy folk), \"sí\" (fairy mound), \
+    \"seanchaí\" (storyteller), \"céilí\" (gathering), \
+    \"poitín\" (illicit spirits), \"piseog\" (superstition).";
+
 /// Renders the locale directive injected into every dialogue system prompt.
 ///
 /// Always emits a leading `LANGUAGE: Speak in {player}.` clause, plus
@@ -338,7 +366,10 @@ impl LanguageSettings {
 /// variant other than `en-US`, the directive forbids en-US spellings.
 /// When a `native` language is set, the directive instructs the model to
 /// code-switch naturally and record secondary-language words in the
-/// `language_hints` metadata array.
+/// `language_hints` metadata array. When `native` is `ga-IE` specifically,
+/// the directive appends a curated phrase list ([`GA_IE_PHRASE_GUIDE`])
+/// so the model picks from grammatical, period-appropriate Irish rather
+/// than confabulating its own.
 ///
 /// Closes with a character-set guard that forbids non-Latin scripts
 /// (Cyrillic, Han, Hiragana, Katakana, Hangul, Arabic, Hebrew, Greek,
@@ -376,6 +407,9 @@ pub fn language_directive(lang: &LanguageSettings) -> String {
             Use ONLY {player} and {native} — no other language under any \
             circumstances."
         ));
+        if native.eq_ignore_ascii_case("ga-IE") || native.eq_ignore_ascii_case("ga") {
+            directive.push_str(GA_IE_PHRASE_GUIDE);
+        }
     } else {
         directive.push_str(&format!(
             " Stay in {player} — do not invent or import other languages."
@@ -1127,6 +1161,34 @@ mod tests {
         assert!(
             !directive.contains("do not invent or import other languages"),
             "mono-language restriction must not appear when native language is set"
+        );
+    }
+
+    #[test]
+    fn language_directive_includes_ga_ie_phrase_guide_for_irish_native() {
+        let lang = LanguageSettings::new("en-IE", Some("ga-IE".into()));
+        let directive = language_directive(&lang);
+        assert!(
+            directive.contains("Preferred ga-IE phrases"),
+            "ga-IE native should append the curated phrase guide"
+        );
+        assert!(
+            directive.contains("\"Dia dhuit\""),
+            "phrase guide should include canonical greetings"
+        );
+        assert!(
+            directive.contains("\"seanchaí\""),
+            "phrase guide should include period-appropriate concept words"
+        );
+    }
+
+    #[test]
+    fn language_directive_omits_ga_ie_phrase_guide_for_non_irish_native() {
+        let lang = LanguageSettings::new("en-US", Some("fr-FR".into()));
+        let directive = language_directive(&lang);
+        assert!(
+            !directive.contains("Preferred ga-IE phrases"),
+            "ga-IE phrase guide must only fire for Irish native"
         );
     }
 

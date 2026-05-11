@@ -680,6 +680,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                         npc_mgr.set_tier3_in_flight(true);
 
                         let state_t3 = Arc::clone(&state);
+                        // #9 — snapshot the sim-preemption token BEFORE spawn
+                        // so player input arriving mid-decode can cancel this
+                        // call. The snapshot semantics matter: cancelling the
+                        // token replaces it with a fresh one for the *next*
+                        // sim cycle, but this clone keeps a handle to the
+                        // canceller for the current call.
+                        let cancel_t3 = state_t3.sim_cancel.lock().await.clone();
                         tokio::spawn(async move {
                             // Briefly lock to clone the queue + resolve the model.
                             // NOTE: queue submissions go through the base worker
@@ -713,7 +720,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 hours,
                                 batch_size: 0,
                                 language: &state_t3.language_settings,
-                                cancel: None,
+                                cancel: Some(cancel_t3),
                             };
 
                             let result = parish_core::npc::ticks::tick_tier3(&ctx).await;
@@ -804,6 +811,9 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                             npc_mgr.set_tier2_in_flight(true);
 
                             let state_t2 = Arc::clone(&state);
+                            // #9 — snapshot the sim-preemption token (same
+                            // semantics as the Tier 3 site above).
+                            let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
                             tokio::spawn(async move {
                                 // Briefly lock to clone the queue + resolve model.
                                 // NOTE: queue submissions go through the base worker
@@ -838,11 +848,20 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                         &time_desc,
                                         &weather_str,
                                         &state_t2.language_settings,
-                                        None,
+                                        Some(cancel_t2.clone()),
                                     )
                                     .await
                                     {
                                         events.push(evt);
+                                    }
+                                    // If the player turn fired during the
+                                    // previous group's call, the snapshotted
+                                    // token is now cancelled — bail rather
+                                    // than burn the queue running every
+                                    // remaining group through a cancellation
+                                    // error.
+                                    if cancel_t2.is_cancelled() {
+                                        break;
                                     }
                                 }
 

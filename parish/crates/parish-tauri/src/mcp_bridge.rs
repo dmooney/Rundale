@@ -502,6 +502,7 @@ mod tests {
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),
             shutdown_token: CancellationToken::new(),
+            sim_cancel: Mutex::new(CancellationToken::new()),
             session_store,
             user_config_dir: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),

@@ -11,6 +11,32 @@ use parish_types::ParishError;
 use serde::Deserialize;
 use std::path::Path;
 
+/// Returns the host's total physical memory in bytes, or `None` on
+/// platforms where we can't read it cheaply.
+///
+/// Used by [`Provider::recommended_for_platform`] to gate the macOS
+/// vllm-mlx recommendation behind the 16 GB minimum (the two-slot
+/// Qwen loadout is ~9.3 GB resident).
+fn unified_memory_bytes() -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let output = Command::new("sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let s = std::str::from_utf8(&output.stdout).ok()?;
+        s.trim().parse::<u64>().ok()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
 /// Default base URL for each provider.
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const DEFAULT_LMSTUDIO_URL: &str = "http://localhost:1234";
@@ -215,9 +241,14 @@ impl Provider {
 
     /// Returns the recommended local provider for the current platform.
     ///
-    /// - **macOS** → [`Provider::VllmMlx`]. The MLX runtime is the
-    ///   native Apple Silicon path; the two-slot Qwen loadout fits any
-    ///   modern Mac and beats Ollama on every measured budget.
+    /// - **macOS, 16 GB+ unified memory** → [`Provider::VllmMlx`].
+    ///   The MLX runtime is the native Apple Silicon path; the two-slot
+    ///   Qwen loadout (Qwen2.5-14B Dialogue + Qwen2.5-1.5B small slot,
+    ///   ~9.3 GB resident) needs at least 16 GB of unified memory.
+    /// - **macOS, < 16 GB unified memory** → [`Provider::Simulator`].
+    ///   The local two-slot loadout won't fit; first-run UI should
+    ///   detect this and route the user into BYOK (OpenRouter,
+    ///   Anthropic, Google) instead of degrading the local tier.
     /// - **Linux / Windows** → [`Provider::Ollama`]. Mature GPU stack
     ///   (CUDA on NVIDIA, ROCm on AMD), auto-install, auto-pull.
     ///
@@ -226,7 +257,14 @@ impl Provider {
     /// wins — this is only consulted when no provider has been chosen.
     pub fn recommended_for_platform() -> Self {
         if cfg!(target_os = "macos") {
-            Provider::VllmMlx
+            if unified_memory_bytes().unwrap_or(0) >= 16 * 1_073_741_824 {
+                Provider::VllmMlx
+            } else {
+                // Below 16 GB: don't ship a degraded local default.
+                // Simulator keeps the app usable while the UI prompts
+                // for a BYOK cloud key.
+                Provider::Simulator
+            }
         } else {
             Provider::Ollama
         }

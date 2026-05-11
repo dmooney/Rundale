@@ -281,6 +281,16 @@ pub struct AppState {
     /// Cancellation token — cancelled during app shutdown to stop background ticks
     /// gracefully. Clones are passed into each spawned tick task (#104).
     pub shutdown_token: CancellationToken,
+    /// Sim-preemption cancel token (#9).
+    ///
+    /// Cancelled-and-replaced by [`commands::do_submit_input`] when a player
+    /// turn arrives, so any in-flight Tier 2 / Tier 3 background inference
+    /// drops mid-decode and frees the local model slot for the player's
+    /// dialogue call. The token is snapshotted at dispatch time and passed
+    /// into `run_tier2_for_group` / `Tier3Context::cancel`, so cancelling the
+    /// current token only affects already-running sim calls; the next sim
+    /// tick spawns with the freshly-replaced token.
+    pub sim_cancel: Mutex<CancellationToken>,
     /// Trait-erased per-session persistence (#696, slice 8).
     ///
     /// Single-user Tauri runtime uses `session_id = ""` with a flat
@@ -925,6 +935,7 @@ pub fn run() {
         config: Mutex::new(game_config),
         demo_config,
         shutdown_token: shutdown_token.clone(),
+        sim_cancel: Mutex::new(CancellationToken::new()),
         session_store,
         user_config_dir,
         secret_store,
