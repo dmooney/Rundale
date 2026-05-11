@@ -300,9 +300,13 @@ impl VllmMlxProcess {
             .spawn()
             .map_err(|e| {
                 ParishError::Inference(format!(
-                    "failed to start vllm-mlx: {}. Is it installed? Try: \
-                     `uv tool install vllm-mlx` or set VLLM_MLX_BIN to the binary path.",
-                    e
+                    "failed to start vllm-mlx at `{}`: {}. \
+                     Packaged Parish builds ship vllm-mlx in app resources and \
+                     auto-set VLLM_MLX_BIN; if you see this from a packaged \
+                     build the bundle is incomplete. For dev builds, install \
+                     with `uv tool install vllm-mlx` or set VLLM_MLX_BIN to a \
+                     binary path.",
+                    bin, e
                 ))
             })?;
 
