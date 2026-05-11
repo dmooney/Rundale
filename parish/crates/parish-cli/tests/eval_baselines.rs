@@ -250,7 +250,11 @@ fn rubric_look_descriptions_are_non_empty() {
 fn rubric_tier4_events_appear_in_journal() {
     let mut h = GameTestHarness::new();
 
-    let tier4_count_before = h.app.npc_manager.tier4_npcs().len();
+    let tier4_count_before = h
+        .app
+        .npc_manager
+        .npcs_in_tier(parish::npc::types::CogTier::Tier4)
+        .len();
 
     // Subscribe to the event bus BEFORE advancing time.
     let mut rx = h.app.world.event_bus.subscribe();
