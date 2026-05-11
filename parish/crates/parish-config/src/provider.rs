@@ -17,7 +17,7 @@ use std::path::Path;
 /// Used by [`Provider::recommended_for_platform`] to gate the macOS
 /// vllm-mlx recommendation behind the 16 GB minimum (the two-slot
 /// Qwen loadout is ~9.3 GB resident).
-fn unified_memory_bytes() -> Option<u64> {
+pub fn unified_memory_bytes() -> Option<u64> {
     #[cfg(target_os = "macos")]
     {
         use std::process::Command;

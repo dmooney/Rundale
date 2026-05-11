@@ -244,6 +244,49 @@ pub struct VllmMlxSlot {
     pub model: String,
 }
 
+/// Resolved spawn shape for `VLLM_MLX_BIN`.
+///
+/// Two layouts are supported:
+///
+/// 1. **Native binary** — `VLLM_MLX_BIN=/path/to/vllm-mlx`. The binary
+///    takes `serve <model> --port N ...` directly. This is what
+///    `uv tool install vllm-mlx` produces on a dev machine.
+///
+/// 2. **Bundled venv** — `VLLM_MLX_BIN=/path/to/python3` (any path whose
+///    filename starts with `python`). The binary is the interpreter
+///    inside our bundled portable Python, and the `vllm_mlx` package is
+///    located via `PYTHONPATH`. The spawn becomes `python3 -m vllm_mlx
+///    serve <model> --port N ...`. This is the layout packaged
+///    Parish.app ships so end users don't have to `uv tool install`.
+///
+/// The discriminator is the filename: if the basename starts with
+/// `python` we add `-m vllm_mlx` as a prefix; otherwise we invoke the
+/// binary directly.
+struct VllmMlxInvocation {
+    program: String,
+    prefix_args: Vec<&'static str>,
+}
+
+impl VllmMlxInvocation {
+    fn resolve(bin: &str) -> Self {
+        let basename = std::path::Path::new(bin)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        if basename.starts_with("python") {
+            Self {
+                program: bin.to_string(),
+                prefix_args: vec!["-m", "vllm_mlx"],
+            }
+        } else {
+            Self {
+                program: bin.to_string(),
+                prefix_args: Vec::new(),
+            }
+        }
+    }
+}
+
 /// Manages a vllm-mlx server process started by Parish (macOS / Apple Silicon local runtime).
 ///
 /// Parallels [`OllamaProcess`] for the vllm-mlx runtime: probes
@@ -287,14 +330,36 @@ impl VllmMlxProcess {
 
         let port = port_from_base_url(base_url).unwrap_or(8000);
         let bin = std::env::var("VLLM_MLX_BIN").unwrap_or_else(|_| "vllm-mlx".to_string());
+        let invocation = VllmMlxInvocation::resolve(&bin);
 
-        let child = Command::new(&bin)
+        let mut command = Command::new(invocation.program);
+        for arg in invocation.prefix_args {
+            command.arg(arg);
+        }
+        command
             .arg("serve")
             .arg(model_name)
             .arg("--port")
             .arg(port.to_string())
             .arg("--enable-prefix-cache")
-            .arg("--continuous-batching")
+            .arg("--continuous-batching");
+
+        // Inject HF cache + offline env so a child python -m vllm_mlx reads
+        // models from the cache our HfModelDownloader populated and skips
+        // any HF round-trips during gameplay. PARISH_HF_HOME and
+        // PARISH_VLLM_MLX_PYTHONPATH are set by parish-tauri at startup
+        // when a bundled venv is detected; unset for dev runs (PATH
+        // fallback expects an already-installed vllm-mlx and its global
+        // ~/.cache/huggingface).
+        if let Ok(hf_home) = std::env::var("PARISH_HF_HOME") {
+            command.env("HF_HOME", hf_home);
+            command.env("HF_HUB_OFFLINE", "1");
+        }
+        if let Ok(pp) = std::env::var("PARISH_VLLM_MLX_PYTHONPATH") {
+            command.env("PYTHONPATH", pp);
+        }
+
+        let child = command
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
@@ -1667,6 +1732,43 @@ mod tests {
         let mut p = VllmMlxProcess::none();
         assert!(!p.was_started_by_us());
         p.stop(); // must not panic on no-op
+    }
+
+    // ── VllmMlxInvocation: native vs python-venv spawn shapes ──────────────
+
+    #[test]
+    fn invocation_resolves_native_binary_directly() {
+        // Dev path: `uv tool install vllm-mlx` puts a wrapper at
+        // ~/.local/bin/vllm-mlx. Spawn calls it with `serve` as the first arg.
+        let inv = VllmMlxInvocation::resolve("/Users/dev/.local/bin/vllm-mlx");
+        assert_eq!(inv.program, "/Users/dev/.local/bin/vllm-mlx");
+        assert!(inv.prefix_args.is_empty());
+    }
+
+    #[test]
+    fn invocation_resolves_python_to_module_invocation() {
+        // Packaged path: bundle ships a portable Python and the vllm_mlx
+        // package on PYTHONPATH. Spawn calls `python3 -m vllm_mlx serve …`.
+        let inv = VllmMlxInvocation::resolve(
+            "/Applications/Rundale.app/Contents/Resources/vllm-mlx/python-runtime/bin/python3",
+        );
+        assert!(inv.program.ends_with("python3"));
+        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx"]);
+    }
+
+    #[test]
+    fn invocation_treats_python3_13_as_python() {
+        // Versioned interpreter names (`python3.13`, `python3.14`) must
+        // still trigger the `-m vllm_mlx` path.
+        let inv = VllmMlxInvocation::resolve("/opt/parish/python-runtime/bin/python3.13");
+        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx"]);
+    }
+
+    #[test]
+    fn invocation_falls_back_to_native_on_bare_name() {
+        // Production env on dev Macs: `VLLM_MLX_BIN=vllm-mlx` (no path).
+        let inv = VllmMlxInvocation::resolve("vllm-mlx");
+        assert!(inv.prefix_args.is_empty());
     }
 
     #[test]

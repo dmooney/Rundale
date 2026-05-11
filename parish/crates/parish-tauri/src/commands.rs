@@ -308,6 +308,188 @@ pub async fn list_preset_models()
     Ok(parish_core::ipc::byok::handle_list_preset_models())
 }
 
+// ── #?: local-inference onboarding commands ────────────────────────────────
+
+/// Onboarding-choice payload returned to the SetupOverlay so it can render
+/// the right fork (local-recommended / local-low-mem / local-unavailable /
+/// configured).
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct OnboardingOptions {
+    /// The variant computed from platform + RAM + provider env.
+    pub choice: crate::setup::OnboardingChoice,
+    /// Unified memory in GB (macOS) or 0 elsewhere — feeds the "your Mac
+    /// has Xgb" copy on the local-recommended card.
+    pub ram_gb: u64,
+}
+
+/// Computes the onboarding fork to show the user on first run.
+///
+/// Pure read: no side effects on `AppState`. The SetupOverlay calls this
+/// once on mount to populate the fork UI; the same value is also persisted
+/// on `SetupStatusSnapshot.onboarding_choice` so reconnects after the
+/// EVENT_SETUP_NEEDS_ONBOARDING event still resolve.
+#[tauri::command]
+pub async fn get_onboarding_options(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<OnboardingOptions, String> {
+    use parish_core::config::Provider;
+
+    let cfg = state.config.lock().await;
+    let provider_config = parish_core::config::ProviderConfig {
+        provider: Provider::from_str_loose(&cfg.provider_name).unwrap_or_default(),
+        api_key: cfg.api_key.clone(),
+        base_url: cfg.base_url.clone(),
+        model: Some(cfg.model_name.clone()),
+    };
+    drop(cfg);
+    let choice = crate::setup::onboarding_choice_for_platform(state.inner(), &provider_config);
+    let ram_gb = parish_core::config::unified_memory_bytes()
+        .map(|b| b / (1024 * 1024 * 1024))
+        .unwrap_or(0);
+    Ok(OnboardingOptions { choice, ram_gb })
+}
+
+/// Selection submitted from `LocalInferenceFork`. `two-slot` runs the
+/// 14B Dialogue + 1.5B small-slot loadout (recommended ≥16 GB);
+/// `small-only` runs Qwen2.5-1.5B-Instruct-4bit for every category on
+/// the same port (acceptable on <16 GB Macs at degraded quality).
+#[derive(serde::Deserialize)]
+pub struct LocalSetupArgs {
+    pub variant: String,
+}
+
+/// Persists local-inference config (provider=vllm-mlx + per-category
+/// overrides for the two-slot loadout), pre-downloads the required
+/// HuggingFace repos with progress reporting through the existing
+/// SetupOverlay surface, and rebuilds the inference worker.
+///
+/// On success, emits `setup-done` and clears the onboarding gate exactly
+/// like `set_provider_config` does for BYOK.
+#[tauri::command]
+pub async fn start_local_inference_setup(
+    args: LocalSetupArgs,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    use parish_core::inference::hf_downloader::HfModelDownloader;
+    use parish_core::inference::setup::SetupProgress;
+    use std::sync::Arc as StdArc;
+
+    let state_arc = state.inner().clone();
+
+    let two_slot = match args.variant.as_str() {
+        "two-slot" => true,
+        "small-only" => false,
+        other => return Err(format!("unknown variant: {other}")),
+    };
+
+    // Repos to fetch. The small slot is always present; the big slot only
+    // when the user picked two-slot (≥16 GB hosts).
+    let mut repos: Vec<&str> = vec!["mlx-community/Qwen2.5-1.5B-Instruct-4bit"];
+    if two_slot {
+        repos.insert(0, "mlx-community/Qwen2.5-14B-Instruct-4bit");
+    }
+
+    // Co-locate the HF cache under the user's app-config dir so a
+    // re-extracted bundle finds the existing models. `HF_HOME` env var
+    // gets set to this same path when we spawn vllm-mlx serve.
+    let hf_home = state_arc.user_config_dir.join("models");
+    std::fs::create_dir_all(&hf_home).map_err(|e| format!("mkdir {hf_home:?}: {e}"))?;
+
+    // `hf-hub` follows the Python convention: cache lives at
+    // `$HF_HOME/hub/...`. We pass the `hub` subdir directly to
+    // `with_cache_dir` (hf-hub treats it as the root for `models--…`).
+    let hf_hub = hf_home.join("hub");
+
+    let progress: StdArc<dyn SetupProgress> = StdArc::new(crate::TauriProgress::new(
+        app.clone(),
+        StdArc::clone(&state_arc),
+    ));
+
+    let downloader = HfModelDownloader::new(progress).with_cache_dir(hf_hub);
+    downloader
+        .download_models(&repos)
+        .await
+        .map_err(|e| format!("HF download failed: {e}"))?;
+
+    // Hand HF cache root + offline marker to the spawned vllm-mlx serve so
+    // it never re-checks the hub.
+    //
+    // SAFETY: set_var is unsafe on POSIX in multi-threaded contexts.
+    // The Tauri app is already running multi-threaded at this point, but
+    // we still need the env to be picked up by `VllmMlxProcess::ensure_running`
+    // when bootstrap runs. The variables are set before any worker spawn
+    // and the threads that read them do so within Command::env-style
+    // snapshots; this is the same approach used by parish_tauri::run() for
+    // VLLM_MLX_BIN.
+    unsafe {
+        std::env::set_var("PARISH_HF_HOME", &hf_home);
+    }
+
+    // Write provider config: two-slot puts Sim/Reaction/Intent on the
+    // small-slot port, Dialogue on the big-slot port. Small-only puts
+    // everything on the small-slot port.
+    let (provider_name, model_name, base_url) = if two_slot {
+        (
+            "vllm-mlx".to_string(),
+            "mlx-community/Qwen2.5-14B-Instruct-4bit".to_string(),
+            "http://localhost:8000".to_string(),
+        )
+    } else {
+        (
+            "vllm-mlx".to_string(),
+            "mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string(),
+            "http://localhost:8001".to_string(),
+        )
+    };
+
+    let mut category_overrides: std::collections::BTreeMap<
+        String,
+        parish_core::config::user_config::CategoryOverride,
+    > = std::collections::BTreeMap::new();
+    if two_slot {
+        for cat_name in ["simulation", "reaction", "intent"] {
+            category_overrides.insert(
+                cat_name.to_string(),
+                parish_core::config::user_config::CategoryOverride {
+                    provider: Some("vllm-mlx".to_string()),
+                    base_url: Some("http://localhost:8001".to_string()),
+                    model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
+                },
+            );
+        }
+    }
+
+    let set_args = parish_core::ipc::byok::SetProviderConfigArgs {
+        provider: provider_name,
+        base_url: Some(base_url),
+        model: Some(model_name),
+        api_key: None,
+        category_overrides,
+    };
+    parish_core::ipc::byok::handle_set_provider_config(set_args, byok_ctx(&state_arc))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Clear the onboarding gate, emit setup-done — mirrors the BYOK path.
+    {
+        let mut s = state_arc
+            .setup_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        s.clear_needs_onboarding();
+    }
+    crate::record_setup_done(&state_arc, true, String::new());
+    let _ = app.emit(
+        crate::events::EVENT_SETUP_DONE,
+        crate::events::SetupDonePayload {
+            success: true,
+            error: String::new(),
+        },
+    );
+    Ok(())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
