@@ -644,6 +644,10 @@ pub fn npc_snapshot_from_npc(
 ///
 /// Submits to the Background lane of the inference priority queue.
 /// Returns a `Tier2Event` with the summary, mood changes, and relationship deltas.
+///
+/// `cancel` is forwarded to the underlying streaming submit so a player turn
+/// can preempt this Tier 2 call mid-flight. Pass `None` when no preemption is
+/// needed (callers without a sim-cancel token).
 pub async fn run_tier2_for_group(
     queue: &parish_inference::InferenceQueue,
     model: &str,
@@ -651,6 +655,7 @@ pub async fn run_tier2_for_group(
     time_desc: &str,
     weather: &str,
     language: &LanguageSettings,
+    cancel: Option<parish_inference::CancellationToken>,
 ) -> Option<Tier2Event> {
     if group.npcs.len() < 2 {
         // Solo NPC: generate a simple template event, no inference needed
@@ -684,7 +689,7 @@ pub async fn run_tier2_for_group(
         &prompt,
         None,
         Some(200),
-        None,
+        cancel,
     )
     .await
     {
@@ -1014,6 +1019,9 @@ pub struct Tier3Context<'a> {
     pub batch_size: usize,
     /// Language settings for locale-aware dialogue directives.
     pub language: &'a LanguageSettings,
+    /// Optional cancellation token forwarded to every batch's streaming
+    /// submit, so a player turn can preempt Tier 3 mid-flight.
+    pub cancel: Option<parish_inference::CancellationToken>,
 }
 
 /// Runs a Tier 3 batch simulation for distant NPCs.
@@ -1054,7 +1062,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             &prompt,
             None,
             Some(600),
-            None,
+            ctx.cancel.clone(),
         )
         .await
         {
@@ -1714,7 +1722,8 @@ mod tests {
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
         let lang = LanguageSettings::english_only();
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang).await;
+        let event =
+            run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang, None).await;
         assert!(event.is_some());
         let event = event.unwrap();
         assert!(event.summary.contains("Padraig"));
@@ -1738,7 +1747,8 @@ mod tests {
         let (batx, _batrx) = tokio::sync::mpsc::channel(1);
         let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
         let lang = LanguageSettings::english_only();
-        let event = run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang).await;
+        let event =
+            run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang, None).await;
         assert!(event.is_none());
     }
 

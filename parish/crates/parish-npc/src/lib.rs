@@ -339,6 +339,12 @@ impl LanguageSettings {
 /// When a `native` language is set, the directive instructs the model to
 /// code-switch naturally and record secondary-language words in the
 /// `language_hints` metadata array.
+///
+/// Closes with a character-set guard that forbids non-Latin scripts
+/// (Cyrillic, Han, Hiragana, Katakana, Hangul, Arabic, Hebrew, Greek,
+/// Devanagari). Multilingual model weights — notably Qwen2.5 — drift
+/// into Chinese or Russian mid-sentence on rural-Irish prompts at higher
+/// temperatures; the explicit allow-list disciplines the output side.
 pub fn language_directive(lang: &LanguageSettings) -> String {
     let player = &lang.player;
     let mut directive = format!(
@@ -359,13 +365,31 @@ pub fn language_directive(lang: &LanguageSettings) -> String {
         directive.push_str(&format!(
             " Where a native speaker would naturally code-switch, sprinkle words \
             and short phrases from {native} into your dialogue and record them \
-            in the `language_hints` metadata array."
+            in the `language_hints` metadata array. \
+            CRITICAL: {native} is a SPRINKLE only — at most one short phrase \
+            (1-5 words) per reply, woven into otherwise-{player} prose. \
+            {player} must carry the meaning of every sentence. \
+            NEVER reply entirely in {native}, even if the player's question \
+            seems to invite it. The player may not speak {native}; the meaning \
+            of your reply must be clear to a {player} speaker who knows zero \
+            {native}. \
+            Use ONLY {player} and {native} — no other language under any \
+            circumstances."
         ));
     } else {
         directive.push_str(&format!(
             " Stay in {player} — do not invent or import other languages."
         ));
     }
+
+    directive.push_str(
+        " Every character you emit must be Latin script (a-z, A-Z, accented \
+        Latin such as á é í ó ú ü ñ ç ß) or standard punctuation. \
+        Do NOT emit Cyrillic (Russian), Han (Chinese), Hiragana / Katakana \
+        (Japanese), Hangul (Korean), Arabic, Hebrew, Greek, or Devanagari \
+        characters — replace any tempted non-Latin word with its English or \
+        native-language equivalent, or omit it.",
+    );
 
     directive
 }
@@ -1191,11 +1215,48 @@ mod tests {
             directive.contains("language_hints"),
             "directive should mention the language_hints metadata field"
         );
+        assert!(
+            directive.contains("Use ONLY en-IE and ga-IE"),
+            "directive should name an explicit two-language allow-list"
+        );
         // Should NOT tell the NPC to stay in one language when a native is given
         assert!(
             !directive.contains("do not invent or import other languages"),
             "mono-language restriction must not appear when native language is set"
         );
+    }
+
+    #[test]
+    fn language_directive_forbids_non_latin_scripts() {
+        // Character-set guard must appear regardless of locale config so the
+        // multilingual-model drift (Qwen → Han / Cyrillic mid-sentence) is
+        // disciplined at the prompt boundary.
+        for lang in [
+            LanguageSettings::new("en-IE", Some("ga-IE".into())),
+            LanguageSettings::english_only(),
+            LanguageSettings::new("fr-FR", None),
+        ] {
+            let directive = language_directive(&lang);
+            assert!(
+                directive.contains("Latin script"),
+                "directive should allow-list Latin script"
+            );
+            for forbidden in [
+                "Cyrillic",
+                "Han",
+                "Hiragana",
+                "Hangul",
+                "Arabic",
+                "Hebrew",
+                "Greek",
+                "Devanagari",
+            ] {
+                assert!(
+                    directive.contains(forbidden),
+                    "directive should explicitly forbid {forbidden}: {directive:?}"
+                );
+            }
+        }
     }
 
     #[test]

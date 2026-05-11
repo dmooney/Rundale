@@ -141,17 +141,30 @@ impl Provider {
                 Some("qwen3:14b"),
             ],
             // vllm-mlx Apple Silicon two-slot loadout (validated May 2026):
-            //   Dialogue → Qwen2.5-7B-Instruct-4bit  (~4 GB, ttft 64-183 ms,
-            //              quality 4.6/5)
+            //   Dialogue → Qwen2.5-14B-Instruct-4bit (~8 GB, ttft p95
+            //              367 ms, Opus-blind quality 4.76/5, 0% script
+            //              flaw rate on the 100-prompt scan)
             //   Simulation/Reaction/Intent → Qwen2.5-1.5B-Instruct-4bit
             //              (~1.3 GB, hits ttft<200 ms Intent budget)
             //
-            // Both load cleanly via vllm-mlx 0.3.x's mlx_lm path
+            // Both load via vllm-mlx 0.3.x's clean mlx_lm path
             // (`mllm=False`) — neither matches the MLLM pattern that traps
-            // gemma-3. Total memory ~5.3 GB resident across both slots,
-            // fits comfortably on every modern Apple Silicon Mac.
+            // gemma-3. Total memory ~9.3 GB resident across both slots.
+            //
+            // **16 GB unified memory is the minimum for local-everything.**
+            // Below 16 GB, route through BYOK cloud (OpenRouter / Anthropic
+            // / Google) — the small-slot-only fallback produces flat,
+            // anachronistic dialogue (Opus-blind 2.96/5) and isn't worth
+            // shipping as a default.
+            //
+            // The 7B tier was the prior Dialogue pick but lost its niche
+            // once the code-switch directive landed: with that patch in
+            // place the 14B → 7B Overall delta is only 0.36 (about the
+            // judge-noise threshold), so the marginal memory savings
+            // don't justify the quality drop on hardware that can hold
+            // the 14B.
             Provider::VllmMlx => [
-                Some("mlx-community/Qwen2.5-7B-Instruct-4bit"),
+                Some("mlx-community/Qwen2.5-14B-Instruct-4bit"),
                 Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
                 Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
                 Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),

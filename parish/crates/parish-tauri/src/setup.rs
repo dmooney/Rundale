@@ -713,6 +713,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 hours,
                                 batch_size: 0,
                                 language: &state_t3.language_settings,
+                                cancel: None,
                             };
 
                             let result = parish_core::npc::ticks::tick_tier3(&ctx).await;
@@ -837,6 +838,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                         &time_desc,
                                         &weather_str,
                                         &state_t2.language_settings,
+                                        None,
                                     )
                                     .await
                                     {
