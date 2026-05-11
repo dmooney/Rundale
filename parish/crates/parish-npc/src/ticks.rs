@@ -9,8 +9,7 @@ use chrono::{DateTime, Utc};
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::{
-    LanguageSettings, Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
-    build_tier1_system_prompt,
+    LanguageSettings, Npc, NpcId, NpcStreamResponse, build_tier1_context, build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
 use parish_inference::InferencePriority;
@@ -77,6 +76,23 @@ pub fn relationship_label(strength: f64) -> &'static str {
 ///
 /// Extends the base system prompt with relationship summaries (using real names)
 /// and knowledge entries for richer, more contextual NPC dialogue.
+#[cfg(test)]
+pub(crate) fn build_enhanced_system_prompt(
+    npc: &Npc,
+    improv: bool,
+    language: &LanguageSettings,
+    npc_names: &std::collections::HashMap<NpcId, String>,
+) -> String {
+    build_enhanced_system_prompt_with_config(
+        npc,
+        improv,
+        language,
+        &NpcConfig::default(),
+        npc_names,
+        None,
+    )
+}
+
 pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
@@ -138,26 +154,6 @@ pub fn build_enhanced_system_prompt_with_config(
     }
 
     prompt
-}
-
-/// Builds an enhanced system prompt for Tier 1 interactions.
-///
-/// Extends the base system prompt with relationship summaries and
-/// knowledge entries for richer, more contextual NPC dialogue.
-pub fn build_enhanced_system_prompt(
-    npc: &Npc,
-    improv: bool,
-    language: &LanguageSettings,
-    npc_names: &std::collections::HashMap<NpcId, String>,
-) -> String {
-    build_enhanced_system_prompt_with_config(
-        npc,
-        improv,
-        language,
-        &NpcConfig::default(),
-        npc_names,
-        None,
-    )
 }
 
 /// Interlocutor label — who the NPC is speaking with.
@@ -328,7 +324,8 @@ pub fn build_enhanced_context_with_config(
 ///
 /// Extends the base context with the NPC's recent memories and
 /// information about other NPCs present at the same location.
-pub fn build_enhanced_context(
+#[cfg(test)]
+pub(crate) fn build_enhanced_context(
     npc: &Npc,
     world: &WorldState,
     player_input: &str,
@@ -348,7 +345,7 @@ pub fn build_enhanced_context(
     );
     // Player's current input last — everything above is context for this moment
     context.push_str("\n\n");
-    context.push_str(&build_named_action_line(player_input, None));
+    context.push_str(&crate::build_named_action_line(player_input, None));
     context
 }
 
@@ -414,7 +411,8 @@ pub fn apply_tier1_response_with_config(
 /// entry recording the interaction.
 ///
 /// Returns a list of debug event strings (e.g. mood changes, memory commits).
-pub fn apply_tier1_response(
+#[cfg(test)]
+pub(crate) fn apply_tier1_response(
     npc: &mut Npc,
     response: &NpcStreamResponse,
     player_input: &str,
@@ -706,7 +704,8 @@ pub fn apply_tier2_event_with_config(
 /// for all participating NPCs.
 ///
 /// Returns debug event strings describing what happened.
-pub fn apply_tier2_event(
+#[cfg(test)]
+pub(crate) fn apply_tier2_event(
     event: &Tier2Event,
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
