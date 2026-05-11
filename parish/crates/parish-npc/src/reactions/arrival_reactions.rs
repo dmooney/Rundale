@@ -696,12 +696,21 @@ pub fn build_reaction_prompt(
          Current mood: {mood}\n\n\
          Write a single brief greeting or reaction (1-2 sentences max). \
          Dialogue only, no narration or action descriptions. \
-         Do not use any modern language.",
+         Do not use any modern language.\n\n\
+         FORBIDDEN phrases — never say any of these, they break the 1820 \
+         rural-Irish voice and read as an AI assistant: \
+         \"How may I assist\", \"How can I help\", \"Is there anything I can \
+         do for you\", \"How may I be of service\", \"What brings you here \
+         today\". \
+         Greet the way an 1820 villager would: \"Aye, {name_first}\", \
+         \"Bedad,\", \"Faith,\", \"Begob,\", \"God save ye,\", or by simply \
+         calling out their name. Cap the reply at ~20 words.",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
         personality = personality_snippet,
         mood = npc.mood,
+        name_first = npc.name.split_whitespace().next().unwrap_or(&npc.name),
     );
 
     system.push_str("\n\n");
