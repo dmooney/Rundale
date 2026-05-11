@@ -255,6 +255,7 @@ fn build_locations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lod::DetailLevel;
     use crate::osm_model::{GeoFeature, LocationType};
 
     #[test]
@@ -352,6 +353,83 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .contains("sídhe")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_dry_run_with_area() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = PipelineConfig {
+            area: Some("Kiltoom".to_string()),
+            bbox: None,
+            level: super::AdminLevel::Parish,
+            detail: DetailLevel::Full,
+            merge_path: None,
+            output_path: dir.path().join("out.json"),
+            cache_dir: dir.path().join("cache"),
+            no_cache: false,
+            dry_run: true,
+            id_offset: None,
+            max_locations: 0,
+        };
+        let result = run(config).await;
+        assert!(result.is_ok(), "dry run should succeed without network");
+    }
+
+    #[tokio::test]
+    async fn test_run_dry_run_with_bbox() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = PipelineConfig {
+            area: None,
+            bbox: Some(super::overpass::BoundingBox {
+                south: 53.45,
+                west: -8.05,
+                north: 53.55,
+                east: -7.95,
+            }),
+            level: super::AdminLevel::Parish,
+            detail: DetailLevel::Full,
+            merge_path: None,
+            output_path: dir.path().join("out.json"),
+            cache_dir: dir.path().join("cache"),
+            no_cache: false,
+            dry_run: true,
+            id_offset: None,
+            max_locations: 0,
+        };
+        let result = run(config).await;
+        assert!(
+            result.is_ok(),
+            "dry run with bbox should succeed without network"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_run_fails_without_area_or_bbox() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = PipelineConfig {
+            area: None,
+            bbox: None,
+            level: super::AdminLevel::Parish,
+            detail: DetailLevel::Full,
+            merge_path: None,
+            output_path: dir.path().join("out.json"),
+            cache_dir: dir.path().join("cache"),
+            no_cache: false,
+            dry_run: false,
+            id_offset: None,
+            max_locations: 0,
+        };
+        let result = run(config).await;
+        assert!(
+            result.is_err(),
+            "should fail when neither area nor bbox is specified"
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("must specify either --area or --bbox")
         );
     }
 }

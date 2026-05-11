@@ -2,17 +2,7 @@
 
 ## Open
 
-| ID | Category | Severity | Description |
-|----|----------|----------|-------------|
-| TD-012 | Weak Tests | P2 | `extract_crossroads` (`src/extract.rs:303`) is `pub` and called from `pipeline::run` but has no unit test — junction-counting (3+ ways), missing-coord skip, and 50m proximity dedup are all unverified |
-| TD-013 | Weak Tests | P2 | `merge::merge_locations` connection-target remap (`src/merge.rs:113-122`) is untested — every existing test (`test_merge_preserves_curated`, `test_merge_drops_duplicate_by_name`, `test_merge_drops_by_proximity`) builds locations with empty `connections`, so the ID-rewrite branch never fires |
-| TD-014 | Weak Tests | P3 | `merge::determine_id_offset` merge-from-existing-file branch (`src/merge.rs:136-142`) is untested — only the explicit-offset and default-1 branches have coverage |
-| TD-015 | Weak Tests | P3 | `realign_rundale_coords::derive_deltas_from_baseline` (`src/bin/realign_rundale_coords.rs:201-229`) and `apply_set_source_overrides` (line 164-174) have no unit tests — sibling functions (`apply_set_coord_overrides`, `parse_set_source`) are tested |
-| TD-016 | Weak Tests | P3 | `pipeline::run` validation branch (`src/pipeline.rs:59-61`, "must specify either --area or --bbox") and dry-run early-return (`src/pipeline.rs:64-73`) have no test |
-| TD-017 | Duplication | P3 | Earth radius constant `6_371_000.0` is duplicated: `src/osm_model.rs:211` (`EARTH_RADIUS_M`) and `src/bin/realign_rundale_coords.rs:302` (`EARTH_R_M`). Bin can't import from the parent module today; consider moving to `src/world_file_shared.inc` (already used as a shared inc) or a new shared `.inc` |
-| TD-018 | Dead Code | P3 | `_from: &GeoFeature` parameter is unused in `generate_path_description` (`src/connections.rs:220`) and `generate_direct_description` (`src/connections.rs:240`). Both are private and only called locally — drop the parameter |
-| TD-019 | Stale Docs | P3 | `--no-cache` CLI doc says "Skip cache and always re-download" (`src/main.rs:76-78`), but `OverpassClient::execute_query` (`src/overpass.rs:111-119`) only skips the cache *read*; it still calls `cache.put` after a successful download (line 137). Doc should say "Ignore existing cache entries" or the behavior should match the doc |
-| TD-020 | Brittle Logic | P3 | `extract_crossroads` (`src/extract.rs:304-329`) counts node *appearances*, not unique ways: a closed loop (e.g. roundabout where `nodes.first() == nodes.last()`) credits the start/end node twice from a single way, and a node listed N≥3 times in one way is falsely promoted to a junction. Either dedupe per-way or document the heuristic |
+*(none — all items resolved in 2026-05-11 sweep)*
 
 ## In Progress
 
@@ -33,3 +23,16 @@
 | TD-009 | Weak Tests | P2 | Added 3 tests: no-coords filter, unclassifiable filter, OSM-id dedup |
 | TD-010 | Complexity | P2 | Split `classify_element` into 8 tag-category helpers (under 100 lines) |
 | TD-011 | Stale Docs | P3 | Updated descriptions.rs module doc from "three tiers" to "two tiers" |
+| TD-012 | Weak Tests | P2 | Added 5 unit tests for `extract_crossroads` (empty, 2-way, 3-way, repeated-node dedup, no-geometry) |
+| TD-013 | Weak Tests | P2 | Added `test_merge_remaps_generated_connection_targets` for connection-target ID remap |
+| TD-014 | Weak Tests | P2 | Added `test_determine_id_offset_from_existing_file` using tempfile + serde_json |
+| TD-015 | Weak Tests | P2 | Added 4 tests for `derive_deltas_from_baseline` and `apply_set_source_overrides` in realign binary |
+| TD-016 | Weak Tests | P2 | Added 3 async tests for `pipeline::run` dry-run and input-validation branches |
+| TD-017 | Duplication | P2 | Extracted shared `pub const EARTH_RADIUS_M` to `osm_model.rs`; created `lib.rs` for cross-binary reuse |
+| TD-018 | Dead Code | P3 | Removed unused `_from` parameter from `generate_path_description` and `generate_direct_description` |
+| TD-019 | Stale Docs | P3 | Fixed `--no-cache` CLI doc from "always re-download" to "skip reading from cache" |
+| TD-020 | Brittle Logic | P2 | Changed `extract_crossroads` to count unique ways per node (HashSet) instead of raw appearances |
+
+## Progress Log
+
+- **2026-05-11**: Resolved TD-012 through TD-020. All fixes behavior-safe; 22 new tests added. `cargo test -p parish-geo-tool` passes (113 tests). `cargo clippy -p parish-geo-tool --all-targets` clean.
