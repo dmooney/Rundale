@@ -29,6 +29,20 @@
 | TD-014 | Stale Docs | Updated `CogTier` doc: removed "future" labels from Tier 3 and Tier 4 descriptions. |
 | TD-015 | Dead Code | Removed `DailySchedule` struct/impl (superseded by `SeasonalSchedule`), converted 3 tests to use `SeasonalSchedule`. |
 | TD-002 (partial) | Duplication | Replaced local `make_npc` helpers in `transitions.rs` and `autonomous.rs` with `test_helpers::make_test_npc`. |
+| TD-016 | Dead Code | Removed `build_action_line` (only used in tests), folded tests into `build_named_action_line` tests. |
+| TD-017 | Dead Code | Removed `extract_intended_references`, `format_reference_hint`, and `ReferencePrePassResponse` (unused). |
+| TD-018 | Duplication | Extracted `push_entry` and `format_lines` helpers in `reactions.rs` to deduplicate `add`/`add_player_message_reaction` and `context_string`/`npc_context_string`. |
+| TD-019 | Duplication | Replaced `tier1_npcs`/`tier2_npcs`/`tier3_npcs`/`tier4_npcs` with single `npcs_in_tier(tier: CogTier)` in `manager.rs`. |
+| TD-020 | Duplication | Collapsed tier-state management copy-paste into `TierTickState` struct in `manager.rs`. |
+| TD-021 | Complexity | Table-drove `Intelligence::prompt_guidance` using per-dimension lookup tables and a shared `push_guidance` helper. |
+| TD-022 | Complexity | Extracted `apply_illness`, `apply_recovery`, `apply_death`, `apply_birth`, `apply_seasonal_shift`, `apply_trade`, `apply_festival_detected`, `apply_festival_bond` helpers from `tier4::apply_events` match. |
+| TD-023 | Logic Smell | Fixed Death-without-banshee path in `tier4.rs` to use `npcs.remove(npc_id)` atomically and only emit event when NPC exists. |
+| TD-024 | Logic Smell | Fixed Birth arm empty parent names in `tier4.rs` by early-returning if either parent is missing from the NPC map. |
+| TD-025 | Dead Code | Downgraded `build_enhanced_system_prompt`, `build_enhanced_context`, `apply_tier1_response`, and `apply_tier2_event` no-config shims to `#[cfg(test)] pub(crate)`; updated external call sites to use `_with_config` variants. |
+
+## Progress Log
+
+- **2026-05-11**: Completed TD-016 through TD-025. All changes behavior-safe; 400 parish-npc tests pass; clippy clean on parish-npc, parish-core, parish-tauri, and parish-cli.
 
 ## Follow-up
 
