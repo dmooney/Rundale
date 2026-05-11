@@ -26,7 +26,7 @@ struct Cli {
     #[arg(long, value_name = "FILE")]
     script: Option<String>,
 
-    /// LLM provider: ollama (default), lmstudio, openrouter, vllm, openai, google,
+    /// LLM provider: ollama (default), lmstudio, openrouter, vllm-mlx, openai, google,
     /// groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, simulator
     #[arg(long, env = "PARISH_PROVIDER")]
     provider: Option<String>,
@@ -144,7 +144,7 @@ struct ResolvedConfigs {
 
 async fn resolve_configs(
     cli: &Cli,
-) -> Result<(ResolvedConfigs, parish::inference::client::OllamaProcess)> {
+) -> Result<(ResolvedConfigs, parish::inference::client::RuntimeProcesses)> {
     let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
     let overrides = CliOverrides {
         provider: cli.provider.clone(),
@@ -168,7 +168,7 @@ async fn resolve_configs(
         &cloud_overrides,
     )?;
 
-    let (client, model, ollama_process) = setup_provider(cli, &provider_config).await?;
+    let (client, model, runtime_processes) = setup_provider(cli, &provider_config).await?;
 
     let clients = build_inference_clients(&provider_config, &client, &model, &category_configs);
 
@@ -205,7 +205,7 @@ async fn resolve_configs(
             clients,
             engine_inference: engine_config.inference,
         },
-        ollama_process,
+        runtime_processes,
     ))
 }
 
@@ -255,7 +255,7 @@ async fn main() -> Result<()> {
         return parish_server::run_server(port, data_dir, static_dir).await;
     }
 
-    let (cfg, mut ollama_process) = resolve_configs(&cli).await?;
+    let (cfg, mut runtime_processes) = resolve_configs(&cli).await?;
     let game_mod = load_game_mod(&cli);
 
     use std::io::IsTerminal as _;
@@ -274,7 +274,7 @@ async fn main() -> Result<()> {
         script_mode,
     )
     .await;
-    ollama_process.stop();
+    runtime_processes.stop();
     result
 }
 
@@ -289,11 +289,12 @@ async fn setup_provider(
 ) -> Result<(
     parish::inference::AnyClient,
     String,
-    parish::inference::client::OllamaProcess,
+    parish::inference::client::RuntimeProcesses,
 )> {
     let progress = StdoutProgress;
     let (client, model, process) = setup::setup_provider_client(
         config,
+        &[],
         &parish::config::InferenceConfig::default(),
         &progress,
     )

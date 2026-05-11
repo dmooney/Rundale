@@ -628,12 +628,12 @@ async fn anthropic_generate_stream_json_parses_sse_chunks() {
 // =============================================================================
 //
 // One table-driven loop verifies that every OpenAI-compatible provider
-// (LM Studio, vLLM, OpenRouter, Google/Gemini, Groq, xAI, Mistral,
+// (LM Studio, vllm-mlx, OpenRouter, Google/Gemini, Groq, xAI, Mistral,
 // DeepSeek, Together, Custom) routes its request to the correct URL path
 // and sends / omits the Authorization header as required.
 //
 // Each case is (provider_label, provider, optional_api_key).
-// Local providers (LmStudio, Vllm, Custom) carry no API key; cloud
+// Local providers (LmStudio, VllmMlx, Custom) carry no API key; cloud
 // providers send Bearer <key>.
 //
 // We use `build_client` from `parish_inference` so we exercise the actual
@@ -658,8 +658,8 @@ async fn openai_compatible_provider_smoke() {
             api_key: None,
         },
         ProviderCase {
-            label: "Vllm",
-            provider: Provider::Vllm,
+            label: "VllmMlx",
+            provider: Provider::VllmMlx,
             api_key: None,
         },
         ProviderCase {

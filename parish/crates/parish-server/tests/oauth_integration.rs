@@ -57,8 +57,8 @@ fn make_global_state(tmp: &tempfile::TempDir, with_oauth: bool) -> Arc<GlobalSta
         transport: parish_core::world::transport::TransportConfig::default(),
         template_config: default_game_config(),
         inference_config: parish_core::config::InferenceConfig::default(),
-        ollama_process: tokio::sync::Mutex::new(
-            parish_core::inference::client::OllamaProcess::none(),
+        runtime_processes: tokio::sync::Mutex::new(
+            parish_core::inference::client::RuntimeProcesses::none(),
         ),
         tile_cache: parish_core::tile_cache::TileCache::new(
             tmp.path().join("tile-cache"),

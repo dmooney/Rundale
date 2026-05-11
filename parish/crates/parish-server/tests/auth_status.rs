@@ -21,7 +21,7 @@ use tower::ServiceExt as _;
 
 use parish_core::config::{FeatureFlags, InferenceConfig};
 use parish_core::game_mod::default_theme_palette;
-use parish_core::inference::client::OllamaProcess;
+use parish_core::inference::client::RuntimeProcesses;
 use parish_core::world::transport::TransportConfig;
 use parish_server::auth::get_auth_status;
 use parish_server::middleware::SessionId;
@@ -88,7 +88,7 @@ fn make_global_state(tmp: &tempfile::TempDir) -> Arc<GlobalState> {
         transport: TransportConfig::default(),
         template_config: default_game_config(),
         inference_config: InferenceConfig::default(),
-        ollama_process: tokio::sync::Mutex::new(OllamaProcess::none()),
+        runtime_processes: tokio::sync::Mutex::new(RuntimeProcesses::none()),
         tile_cache: parish_core::tile_cache::TileCache::new(
             tmp.path().join("tile-cache"),
             HashMap::new(),

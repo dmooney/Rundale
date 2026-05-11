@@ -140,11 +140,21 @@ impl Provider {
                 Some("qwen3:4b"),
                 Some("qwen3:14b"),
             ],
-            Provider::Vllm => [
-                Some("Qwen/Qwen3-32B"),
-                Some("Qwen/Qwen3-14B"),
-                Some("Qwen/Qwen3-4B"),
-                Some("Qwen/Qwen3-14B"),
+            // vllm-mlx Apple Silicon two-slot loadout (validated May 2026):
+            //   Dialogue → Qwen2.5-7B-Instruct-4bit  (~4 GB, ttft 64-183 ms,
+            //              quality 4.6/5)
+            //   Simulation/Reaction/Intent → Qwen2.5-1.5B-Instruct-4bit
+            //              (~1.3 GB, hits ttft<200 ms Intent budget)
+            //
+            // Both load cleanly via vllm-mlx 0.3.x's mlx_lm path
+            // (`mllm=False`) — neither matches the MLLM pattern that traps
+            // gemma-3. Total memory ~5.3 GB resident across both slots,
+            // fits comfortably on every modern Apple Silicon Mac.
+            Provider::VllmMlx => [
+                Some("mlx-community/Qwen2.5-7B-Instruct-4bit"),
+                Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
+                Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
+                Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit"),
             ],
             Provider::Custom | Provider::Simulator => [None, None, None, None],
         }
@@ -204,7 +214,7 @@ mod tests {
 
     #[test]
     fn local_providers_have_complete_presets() {
-        for provider in [Provider::Ollama, Provider::LmStudio, Provider::Vllm] {
+        for provider in [Provider::Ollama, Provider::LmStudio, Provider::VllmMlx] {
             let presets = provider.preset_models();
             for (i, slot) in presets.iter().enumerate() {
                 let model =

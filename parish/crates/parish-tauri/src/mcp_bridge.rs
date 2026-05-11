@@ -461,6 +461,7 @@ mod tests {
             active_tile_source: String::new(),
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
+            auto_setup_model: None,
         };
         let saves_dir = dir.path().join("saves");
         let session_store: Arc<dyn parish_core::session_store::SessionStore> = Arc::new(
@@ -494,7 +495,7 @@ mod tests {
             worker_handle: Mutex::new(None),
             editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
             save_lock: Mutex::new(None),
-            ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
+            runtime_processes: Mutex::new(parish_core::inference::client::RuntimeProcesses::default()),
             inference_config: parish_core::config::InferenceConfig::default(),
             setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
             language_settings: parish_core::npc::LanguageSettings::english_only(),

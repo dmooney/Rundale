@@ -1,7 +1,7 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Supports Simulator (offline, default), Ollama (local), LM Studio (local), vLLM (local),
-//! and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
+//! Supports Simulator (offline, default), Ollama (local), LM Studio (local), vllm-mlx
+//! (local Apple Silicon), and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
 //! xAI (Grok), Mistral, DeepSeek, Together AI, NVIDIA NIM, and Anthropic
 //! (Claude) via the native Messages API. A custom OpenAI-compatible
 //! endpoint is also available. Configuration is resolved from a TOML file,
@@ -15,7 +15,7 @@ use std::path::Path;
 const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
 const DEFAULT_LMSTUDIO_URL: &str = "http://localhost:1234";
 const DEFAULT_OPENROUTER_URL: &str = "https://openrouter.ai/api";
-const DEFAULT_VLLM_URL: &str = "http://localhost:8000";
+const DEFAULT_VLLM_MLX_URL: &str = "http://localhost:8000";
 const DEFAULT_OPENAI_URL: &str = "https://api.openai.com";
 const DEFAULT_GOOGLE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
 const DEFAULT_GROQ_URL: &str = "https://api.groq.com/openai";
@@ -39,8 +39,9 @@ pub enum Provider {
     LmStudio,
     /// OpenRouter cloud gateway (requires API key).
     OpenRouter,
-    /// Local vLLM inference server (OpenAI-compatible, requires model name).
-    Vllm,
+    /// Local vllm-mlx inference server for Apple Silicon
+    /// (OpenAI-compatible, requires model name).
+    VllmMlx,
     /// OpenAI API (requires API key).
     OpenAi,
     /// Google Gemini via OpenAI-compatible endpoint (requires API key).
@@ -79,7 +80,7 @@ impl Provider {
         Provider::Ollama,
         Provider::LmStudio,
         Provider::OpenRouter,
-        Provider::Vllm,
+        Provider::VllmMlx,
         Provider::OpenAi,
         Provider::Google,
         Provider::Groq,
@@ -99,7 +100,7 @@ impl Provider {
             "ollama" => Ok(Provider::Ollama),
             "lmstudio" | "lm_studio" | "lm-studio" => Ok(Provider::LmStudio),
             "openrouter" | "open_router" | "open-router" => Ok(Provider::OpenRouter),
-            "vllm" => Ok(Provider::Vllm),
+            "vllm-mlx" | "vllm_mlx" | "vllmmlx" | "vllm" => Ok(Provider::VllmMlx),
             "openai" | "open_ai" | "open-ai" => Ok(Provider::OpenAi),
             "google" | "gemini" => Ok(Provider::Google),
             "groq" => Ok(Provider::Groq),
@@ -112,7 +113,7 @@ impl Provider {
             "custom" => Ok(Provider::Custom),
             "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
             other => Err(ParishError::Config(format!(
-                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm, openai, \
+                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm-mlx, openai, \
                  google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, \
                  simulator",
                 other
@@ -127,7 +128,7 @@ impl Provider {
             Provider::Ollama => "ollama",
             Provider::LmStudio => "lmstudio",
             Provider::OpenRouter => "openrouter",
-            Provider::Vllm => "vllm",
+            Provider::VllmMlx => "vllmmlx",
             Provider::OpenAi => "openai",
             Provider::Google => "google",
             Provider::Groq => "groq",
@@ -148,7 +149,7 @@ impl Provider {
             Provider::Ollama => DEFAULT_OLLAMA_URL,
             Provider::LmStudio => DEFAULT_LMSTUDIO_URL,
             Provider::OpenRouter => DEFAULT_OPENROUTER_URL,
-            Provider::Vllm => DEFAULT_VLLM_URL,
+            Provider::VllmMlx => DEFAULT_VLLM_MLX_URL,
             Provider::OpenAi => DEFAULT_OPENAI_URL,
             Provider::Google => DEFAULT_GOOGLE_URL,
             Provider::Groq => DEFAULT_GROQ_URL,
@@ -188,7 +189,7 @@ impl Provider {
 
     /// The well-known environment variable that carries this provider's API key.
     ///
-    /// Returns `None` for local providers (Ollama, LM Studio, vLLM, Simulator)
+    /// Returns `None` for local providers (Ollama, LM Studio, vllm-mlx, Simulator)
     /// and `Custom` — Custom provider keys must be set via TOML `api_key`.
     ///
     /// The returned name is the standard, provider-issued variable (e.g.
@@ -209,6 +210,25 @@ impl Provider {
             Provider::Together => Some("TOGETHER_API_KEY"),
             Provider::NvidiaNim => Some("NVIDIA_API_KEY"),
             _ => None,
+        }
+    }
+
+    /// Returns the recommended local provider for the current platform.
+    ///
+    /// - **macOS** → [`Provider::VllmMlx`]. The MLX runtime is the
+    ///   native Apple Silicon path; the two-slot Qwen loadout fits any
+    ///   modern Mac and beats Ollama on every measured budget.
+    /// - **Linux / Windows** → [`Provider::Ollama`]. Mature GPU stack
+    ///   (CUDA on NVIDIA, ROCm on AMD), auto-install, auto-pull.
+    ///
+    /// First-run setup flows use this to pre-select the right provider
+    /// for the host. Existing TOML / env / CLI configuration always
+    /// wins — this is only consulted when no provider has been chosen.
+    pub fn recommended_for_platform() -> Self {
+        if cfg!(target_os = "macos") {
+            Provider::VllmMlx
+        } else {
+            Provider::Ollama
         }
     }
 
@@ -340,7 +360,7 @@ struct TomlConfig {
 /// The `[provider]` section of the TOML config.
 #[derive(Debug, Deserialize, Default)]
 struct TomlProvider {
-    /// Provider name: "ollama", "lmstudio", "openrouter", "vllm", "custom".
+    /// Provider name: "ollama", "lmstudio", "openrouter", "vllm-mlx", "custom".
     name: Option<String>,
     /// Base URL override.
     base_url: Option<String>,
@@ -898,7 +918,7 @@ mod tests {
         // Local providers don't require API keys
         assert!(!Provider::Ollama.requires_api_key());
         assert!(!Provider::LmStudio.requires_api_key());
-        assert!(!Provider::Vllm.requires_api_key());
+        assert!(!Provider::VllmMlx.requires_api_key());
         assert!(!Provider::Custom.requires_api_key());
 
         // All cloud providers require API keys
@@ -917,7 +937,7 @@ mod tests {
         assert!(!Provider::Ollama.requires_model());
         assert!(Provider::LmStudio.requires_model());
         assert!(Provider::OpenRouter.requires_model());
-        assert!(Provider::Vllm.requires_model());
+        assert!(Provider::VllmMlx.requires_model());
         assert!(Provider::OpenAi.requires_model());
         assert!(Provider::Google.requires_model());
         assert!(Provider::Groq.requires_model());
@@ -932,15 +952,41 @@ mod tests {
 
     #[test]
     fn test_vllm_provider_from_str() {
-        assert_eq!(Provider::from_str_loose("vllm").unwrap(), Provider::Vllm);
-        assert_eq!(Provider::from_str_loose("VLLM").unwrap(), Provider::Vllm);
+        assert_eq!(Provider::from_str_loose("vllm").unwrap(), Provider::VllmMlx);
+        assert_eq!(Provider::from_str_loose("VLLM").unwrap(), Provider::VllmMlx);
     }
 
     #[test]
     fn test_vllm_provider_defaults() {
-        assert_eq!(Provider::Vllm.default_base_url(), "http://localhost:8000");
-        assert!(!Provider::Vllm.requires_api_key());
-        assert!(Provider::Vllm.requires_model());
+        assert_eq!(
+            Provider::VllmMlx.default_base_url(),
+            "http://localhost:8000"
+        );
+        assert!(!Provider::VllmMlx.requires_api_key());
+        assert!(Provider::VllmMlx.requires_model());
+    }
+
+    /// macOS hosts get vllm-mlx; other platforms get Ollama. This is the
+    /// pre-select hint surfaced through the first-run setup-status flow.
+    #[test]
+    fn recommended_for_platform_picks_vllm_mlx_on_macos_else_ollama() {
+        let expected = if cfg!(target_os = "macos") {
+            Provider::VllmMlx
+        } else {
+            Provider::Ollama
+        };
+        assert_eq!(Provider::recommended_for_platform(), expected);
+    }
+
+    #[test]
+    fn vllm_mlx_aliases_resolve() {
+        for alias in ["vllm-mlx", "vllm_mlx", "vllmmlx", "VLLM-MLX"] {
+            assert_eq!(
+                Provider::from_str_loose(alias).unwrap(),
+                Provider::VllmMlx,
+                "alias {alias} must resolve to VllmMlx"
+            );
+        }
     }
 
     #[test]
@@ -954,7 +1000,7 @@ mod tests {
             model: Some("Qwen/Qwen3-8B".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Vllm);
+        assert_eq!(config.provider, Provider::VllmMlx);
         assert_eq!(config.base_url, "http://localhost:8000");
         assert!(config.api_key.is_none());
         assert_eq!(config.model.as_deref(), Some("Qwen/Qwen3-8B"));
@@ -971,7 +1017,7 @@ mod tests {
             model: Some("meta-llama/Llama-3-8B".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Vllm);
+        assert_eq!(config.provider, Provider::VllmMlx);
         assert_eq!(config.base_url, "http://gpu-server:8000");
     }
 
@@ -1534,7 +1580,7 @@ model = "toml-model"
         // Local providers and Custom have no env var
         assert_eq!(Provider::Ollama.api_key_env_var(), None);
         assert_eq!(Provider::LmStudio.api_key_env_var(), None);
-        assert_eq!(Provider::Vllm.api_key_env_var(), None);
+        assert_eq!(Provider::VllmMlx.api_key_env_var(), None);
         assert_eq!(Provider::Custom.api_key_env_var(), None);
         assert_eq!(Provider::Simulator.api_key_env_var(), None);
     }
@@ -1547,7 +1593,7 @@ model = "toml-model"
         // Local providers are always "configured"
         assert!(Provider::Ollama.is_configured_in_env());
         assert!(Provider::LmStudio.is_configured_in_env());
-        assert!(Provider::Vllm.is_configured_in_env());
+        assert!(Provider::VllmMlx.is_configured_in_env());
         assert!(Provider::Simulator.is_configured_in_env());
         assert!(Provider::Custom.is_configured_in_env());
 
@@ -1649,7 +1695,7 @@ model = "toml-model"
                 Provider::Ollama
                 | Provider::LmStudio
                 | Provider::OpenRouter
-                | Provider::Vllm
+                | Provider::VllmMlx
                 | Provider::OpenAi
                 | Provider::Google
                 | Provider::Groq

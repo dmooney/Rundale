@@ -369,7 +369,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
 
     // ── LLM client + config (template, cloned per session) ───────────────────
     let (provider_cfg, config) = build_client_and_config();
-    let (config, ollama_process) = run_llm_bootstrap(provider_cfg, config).await?;
+    let (config, runtime_processes) = run_llm_bootstrap(provider_cfg, config).await?;
 
     // ── Game mod / engine config / UI config ──────────────────────────────────
     let game_mod: Option<GameMod> = load_setting_mod_via_source().await;
@@ -416,7 +416,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         transport: TransportConfig::default(),
         template_config: config,
         inference_config: engine_config.inference,
-        ollama_process: tokio::sync::Mutex::new(ollama_process),
+        runtime_processes: tokio::sync::Mutex::new(runtime_processes),
         tile_cache,
         idempotency_cache: {
             use std::num::NonZeroUsize;
@@ -722,7 +722,7 @@ fn resolve_world_path(data_dir: &Path) -> PathBuf {
 async fn run_llm_bootstrap(
     provider_cfg: parish_core::config::ProviderConfig,
     mut config: GameConfig,
-) -> anyhow::Result<(GameConfig, parish_core::inference::client::OllamaProcess)> {
+) -> anyhow::Result<(GameConfig, parish_core::inference::client::RuntimeProcesses)> {
     let cloud_env = build_cloud_client_from_env();
     config.cloud_provider_name = cloud_env.provider_name;
     config.cloud_model_name = cloud_env.model_name;
@@ -730,9 +730,11 @@ async fn run_llm_bootstrap(
     config.cloud_base_url = cloud_env.base_url;
 
     let progress = parish_core::inference::setup::StdoutProgress;
-    let (_setup_client, resolved_model, ollama_process) =
+    let extra_slots = config.vllm_mlx_extra_slots();
+    let (_setup_client, resolved_model, runtime_procs) =
         parish_core::inference::setup::setup_provider_client(
             &provider_cfg,
+            &extra_slots,
             &parish_core::config::InferenceConfig::default(),
             &progress,
         )
@@ -750,7 +752,7 @@ async fn run_llm_bootstrap(
     // No-op for Ollama after `pin_setup_model` filled every slot; for
     // cloud providers fills per-role tier mapping (Opus/Sonnet/Haiku).
     config.fill_missing_models_from_presets();
-    Ok((config, ollama_process))
+    Ok((config, runtime_procs))
 }
 
 /// Extracts the game title and theme palette from the mod, with fallbacks.
