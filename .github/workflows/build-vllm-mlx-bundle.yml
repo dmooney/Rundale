@@ -1,0 +1,58 @@
+# Builds the relocatable Python runtime + vllm-mlx venv that Parish
+# ships inside the macOS .app's Contents/Resources for first-run local
+# inference. Output uploaded as a workflow artifact; the .dmg build
+# step (separate workflow) downloads it before invoking
+# `cargo tauri build`.
+#
+# Manual trigger only — the bundle is a heavy artifact (~80-100 MB
+# compressed, ~250 MB unpacked) and changes rarely. Re-run when:
+#   - vllm-mlx publishes a new release we want to ship
+#   - python-build-standalone publishes a new Python patch
+#   - hf-hub / our HfModelDownloader changes its expected cache layout
+#
+# The workflow always builds from the ref it was triggered on (i.e. the
+# branch / tag selected in the GitHub UI). No untrusted inputs are
+# interpolated into run: blocks.
+
+name: build-vllm-mlx-bundle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14   # Apple Silicon; matches our `target = aarch64-apple-darwin`.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install just
+        run: brew install just
+
+      - name: Verify host arch is aarch64
+        run: |
+          uname -sm
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+
+      - name: Cache python-build-standalone tarball
+        uses: actions/cache@v4
+        with:
+          path: parish/dist/cpython-*.tar.zst
+          key: pbs-${{ runner.os }}-${{ runner.arch }}-v1
+
+      - name: Build the bundle
+        run: just build-vllm-mlx-bundle
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vllm-mlx-bundle-aarch64-apple-darwin
+          path: |
+            parish/dist/vllm-mlx-bundle.tar.zst
+            parish/dist/vllm-mlx-bundle.tar.zst.sha256
+          retention-days: 90
+          compression-level: 0   # the tarball is already zstd-compressed

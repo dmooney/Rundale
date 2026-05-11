@@ -35,48 +35,94 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 const INITIAL_SETUP_MESSAGE: &str = "Preparing the storyteller...";
 const SETUP_HISTORY_LIMIT: usize = 50;
 
-/// Resolves the path to a bundled `vllm-mlx` binary, if Parish was shipped with
-/// one inside its app resources.
+/// Resolves the python interpreter inside the bundled vllm-mlx venv, if
+/// Parish was shipped with the inference runtime in its app resources.
 ///
-/// On macOS the binary lives at
-/// `<Parish.app>/Contents/Resources/binaries/vllm-mlx-aarch64-apple-darwin`.
-/// On Linux / Windows builds the layout is
-/// `<exe-dir>/resources/binaries/vllm-mlx[.exe]`. Dev (`cargo tauri dev`) builds
-/// don't ship the bundle — this function returns `None` and the runtime falls
-/// through to `VLLM_MLX_BIN` env or `PATH` lookup.
+/// macOS layout (the only platform we ship a bundle for — see
+/// `justfile::build-vllm-mlx-bundle`):
 ///
-/// Apache 2.0: vllm-mlx is permissively licensed so we ship it directly. The
-/// build-time materialization (`uv tool install vllm-mlx --target <out>`) is
-/// performed by CI and not by this function — this function only locates the
-/// already-bundled binary at runtime.
+/// ```text
+/// <Parish.app>/Contents/Resources/vllm-mlx/
+///   ├── python-runtime/          ← python-build-standalone tree
+///   └── venv/
+///       ├── bin/python3          ← what this function returns
+///       └── lib/python3.13/site-packages/vllm_mlx/...
+/// ```
+///
+/// `VllmMlxProcess::ensure_running` detects `python*` in the binary name
+/// and invokes it as `python3 -m vllm_mlx serve …`. The site-packages
+/// path also lands on `PARISH_VLLM_MLX_PYTHONPATH` so the child finds
+/// the package without activating the venv.
+///
+/// Dev (`cargo tauri dev`) builds don't ship the bundle — this function
+/// returns `None` and the runtime falls through to `VLLM_MLX_BIN` env or
+/// `PATH` lookup of a user-installed `vllm-mlx` (the `uv tool install`
+/// flow).
+///
+/// Apache 2.0: vllm-mlx is permissively licensed so we ship it directly.
+/// Build-time materialization (`just build-vllm-mlx-bundle`) happens in CI;
+/// this function only locates the already-bundled tree at runtime.
 pub fn resolve_bundled_vllm_mlx_bin() -> Option<PathBuf> {
+    resolve_bundled_vllm_mlx_paths().map(|p| p.python)
+}
+
+/// Bundle layout used by `parish-tauri::run` startup and the local
+/// onboarding command. Two related paths land on env vars so
+/// `VllmMlxProcess::ensure_running` and the spawned `python -m vllm_mlx`
+/// child both see the same view of the bundle.
+pub struct BundledVllmMlxPaths {
+    /// `<Resources>/vllm-mlx/venv/bin/python3`. Spawned as `python3 -m vllm_mlx serve …`.
+    pub python: PathBuf,
+    /// `<Resources>/vllm-mlx/venv/lib/python<X.Y>/site-packages`. Passed
+    /// via `PYTHONPATH` so the child finds the `vllm_mlx` package.
+    pub site_packages: PathBuf,
+}
+
+/// Probes for the bundled vllm-mlx layout next to the running executable.
+/// Returns both the python interpreter path and its matching
+/// site-packages dir, or `None` if the bundle is absent (dev runs).
+pub fn resolve_bundled_vllm_mlx_paths() -> Option<BundledVllmMlxPaths> {
     let exe = std::env::current_exe().ok()?;
     let exe_dir = exe.parent()?;
 
-    let candidates: &[&[&str]] = if cfg!(target_os = "macos") {
-        // Inside an .app: Contents/MacOS/<exe> → ../Resources/binaries/...
-        &[&[
-            "..",
-            "Resources",
-            "binaries",
-            "vllm-mlx-aarch64-apple-darwin",
-        ]]
-    } else if cfg!(target_os = "windows") {
-        &[&["resources", "binaries", "vllm-mlx.exe"]]
+    // macOS .app layout: Contents/MacOS/<exe> → ../Resources/vllm-mlx/
+    // Other platforms: <exe-dir>/resources/vllm-mlx/ (Tauri's default
+    // resource-dir convention for non-macOS).
+    let venv_root = if cfg!(target_os = "macos") {
+        exe_dir.join("../Resources/vllm-mlx/venv")
     } else {
-        &[&["resources", "binaries", "vllm-mlx"]]
+        exe_dir.join("resources/vllm-mlx/venv")
     };
 
-    for parts in candidates {
-        let mut p = exe_dir.to_path_buf();
-        for seg in *parts {
-            p.push(seg);
-        }
-        if p.is_file() {
-            return Some(p);
-        }
+    let python = if cfg!(target_os = "windows") {
+        venv_root.join("Scripts/python.exe")
+    } else {
+        venv_root.join("bin/python3")
+    };
+    if !python.is_file() {
+        return None;
     }
-    None
+
+    // Discover the python3.X site-packages dir — python-build-standalone
+    // pins to a specific version, but we don't hardcode 3.13 in case the
+    // bundle moves to 3.14+ later.
+    let lib_dir = venv_root.join("lib");
+    let site_packages = std::fs::read_dir(&lib_dir).ok()?.find_map(|entry| {
+        let e = entry.ok()?;
+        let name = e.file_name();
+        let s = name.to_str()?;
+        if s.starts_with("python") {
+            let p = e.path().join("site-packages");
+            if p.is_dir() { Some(p) } else { None }
+        } else {
+            None
+        }
+    })?;
+
+    Some(BundledVllmMlxPaths {
+        python,
+        site_packages,
+    })
 }
 
 // ── IPC type definitions ─────────────────────────────────────────────────────
@@ -675,23 +721,29 @@ pub fn run() {
     // `.env` is visible when building the provider.
     dotenvy::dotenv().ok();
 
-    // Resolve a bundled vllm-mlx binary if Parish ships one. Sets
-    // `VLLM_MLX_BIN` for the inference setup path (`VllmMlxProcess::ensure_running`)
-    // so packaged builds don't depend on the user pre-installing vllm-mlx via
-    // `uv tool install`. The env var wins over PATH but loses to a user-set
-    // override.
+    // Resolve a bundled vllm-mlx runtime if Parish ships one. Sets
+    // `VLLM_MLX_BIN` (interpreter) and `PARISH_VLLM_MLX_PYTHONPATH`
+    // (site-packages) so packaged builds don't depend on the user
+    // pre-installing vllm-mlx via `uv tool install`. The env var wins
+    // over PATH but loses to a user-set override.
+    //
+    // SAFETY: set_var is unsafe on POSIX in multi-threaded contexts. We
+    // call this before tauri::Builder::default() spawns any background
+    // tasks, so the runtime is still single-threaded here.
     if std::env::var_os("VLLM_MLX_BIN").is_none()
-        && let Some(path) = resolve_bundled_vllm_mlx_bin()
+        && let Some(paths) = resolve_bundled_vllm_mlx_paths()
     {
-        // SAFETY: set_var is unsafe on POSIX in multi-threaded contexts. We
-        // call this before tauri::Builder::default() spawns any background
-        // tasks, so the runtime is still single-threaded here.
         unsafe {
-            std::env::set_var("VLLM_MLX_BIN", &path);
+            std::env::set_var("VLLM_MLX_BIN", &paths.python);
+            std::env::set_var("PARISH_VLLM_MLX_PYTHONPATH", &paths.site_packages);
         }
         // Tracing isn't initialized yet — eprintln so the line still lands in
         // the dev console / packaged-app stderr capture.
-        eprintln!("vllm-mlx: using bundled binary at {}", path.display());
+        eprintln!(
+            "vllm-mlx: using bundled python at {} (site-packages={})",
+            paths.python.display(),
+            paths.site_packages.display()
+        );
     }
 
     // Build the optional OTel provider before any tracing is emitted.

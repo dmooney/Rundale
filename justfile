@@ -117,6 +117,21 @@ audit:
 inf-bench:
     cd parish && just inf-bench
 
+# Build the bundled portable Python + vllm-mlx venv shipped inside the
+# macOS .app's Contents/Resources for first-run local inference. Output:
+# parish/dist/vllm-mlx-bundle.tar.zst (~80-100 MB compressed).
+#
+# Requires:
+#   - macOS aarch64 (Apple Silicon) — the only target Parish ships local
+#     inference for; Linux/Windows use Ollama and don't need this bundle.
+#   - curl, tar, zstd, sh (in PATH)
+#   - Internet (downloads python-build-standalone + pip-installs vllm-mlx)
+#
+# CI (`.github/workflows/build-vllm-mlx-bundle.yml`) drives this on
+# macos-14 runners; dev runs locally before `cargo tauri build`.
+build-vllm-mlx-bundle:
+    cd parish && just build-vllm-mlx-bundle
+
 # ─── Release ────────────────────────────────────────────────────────────────
 
 # Bump versions, commit, and tag a release locally. See docs/release.md.
