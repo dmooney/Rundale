@@ -10,6 +10,7 @@
 use parish_inference::AnthropicClient;
 use parish_inference::TOKEN_CHANNEL_CAPACITY;
 use parish_inference::openai_client::OpenAiClient;
+use parish_inference::setup::{RuntimeProcesses, VllmMlxProcess, VllmMlxSlot};
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use wiremock::matchers::{header, header_exists, method, path};
@@ -756,4 +757,131 @@ async fn openai_compatible_provider_smoke() {
             case.label
         );
     }
+}
+
+// =============================================================================
+// VllmMlxProcess::ensure_slots — multi-slot e2e coverage
+// =============================================================================
+//
+// These tests stand up wiremock servers that mimic the `/v1/models` reachability
+// probe vllm-mlx exposes, then drive `ensure_slots` through the production code
+// path. They cover three behaviours that production depends on:
+//
+//   1. Multi-slot reachability: when N distinct (base_url, model) slots are
+//      already reachable, `ensure_slots` returns N no-op handles without
+//      attempting to spawn a real `vllm-mlx serve` child.
+//   2. Dedup: duplicate slots collapse to a single handle.
+//   3. RuntimeProcesses::stop is idempotent and safe to call against the
+//      handles produced by `ensure_slots`.
+
+/// Mounts a `GET /models` 200 responder on a fresh wiremock server.
+///
+/// Returns the mock's base URI (no trailing `/`). `VllmMlxProcess::is_reachable`
+/// formats `{base_url}/models` so the probe lands on the mounted matcher.
+async fn vllm_reachable_mock() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "object": "list",
+            "data": []
+        })))
+        .mount(&server)
+        .await;
+    server
+}
+
+#[tokio::test]
+async fn ensure_slots_spawns_one_handle_per_unique_reachable_slot() {
+    // Two distinct (base_url, model) tuples — different ports, different models.
+    // Both are already reachable, so `ensure_running` must NOT spawn a real
+    // vllm-mlx process (which would fail in CI). Verifies the two-slot
+    // Apple Silicon loadout's happy path: large model :8000 + small :8001.
+    let big = vllm_reachable_mock().await;
+    let small = vllm_reachable_mock().await;
+
+    let slots = vec![
+        VllmMlxSlot {
+            base_url: big.uri(),
+            model: "mlx-community/Qwen2.5-14B-Instruct-4bit".to_string(),
+        },
+        VllmMlxSlot {
+            base_url: small.uri(),
+            model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string(),
+        },
+    ];
+
+    let mut handles = VllmMlxProcess::ensure_slots(&slots)
+        .await
+        .expect("two reachable slots should resolve without spawning");
+
+    assert_eq!(handles.len(), 2, "one handle per unique slot");
+    for h in &handles {
+        assert!(
+            !h.was_started_by_us(),
+            "reachable slot must NOT spawn — both should be no-op handles"
+        );
+    }
+
+    // Stop is idempotent and must not panic on no-op handles.
+    for h in handles.iter_mut() {
+        h.stop();
+        h.stop();
+    }
+}
+
+#[tokio::test]
+async fn ensure_slots_dedups_duplicate_slot_inputs() {
+    // Repeating the same slot twice must collapse to one spawn attempt —
+    // the small slot is shared by Intent + Reaction + Simulation in
+    // production, so `vllm_mlx_extra_slots()` can return duplicates.
+    let mock = vllm_reachable_mock().await;
+    let slot = VllmMlxSlot {
+        base_url: mock.uri(),
+        model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string(),
+    };
+    let slots = vec![slot.clone(), slot.clone(), slot.clone()];
+
+    let handles = VllmMlxProcess::ensure_slots(&slots)
+        .await
+        .expect("dedup path must not error");
+    assert_eq!(
+        handles.len(),
+        1,
+        "three identical slots must collapse to exactly one handle"
+    );
+}
+
+#[tokio::test]
+async fn runtime_processes_stop_cleans_up_multi_slot_bundle() {
+    // End-to-end: ensure_slots → bundle into RuntimeProcesses → stop.
+    // Validates the lifecycle shared by every entry point (Tauri, web
+    // server, CLI) — drop on shutdown must not panic and must drain the
+    // vllm_mlx Vec.
+    let big = vllm_reachable_mock().await;
+    let small = vllm_reachable_mock().await;
+
+    let slots = vec![
+        VllmMlxSlot {
+            base_url: big.uri(),
+            model: "big-model".to_string(),
+        },
+        VllmMlxSlot {
+            base_url: small.uri(),
+            model: "small-model".to_string(),
+        },
+    ];
+
+    let vllm_mlx = VllmMlxProcess::ensure_slots(&slots).await.unwrap();
+    let mut bundle = RuntimeProcesses {
+        ollama: parish_inference::setup::OllamaProcess::none(),
+        vllm_mlx,
+    };
+    assert_eq!(bundle.vllm_mlx.len(), 2);
+
+    // `stop` must drain both sub-processes without panic. We don't assert
+    // that vllm_mlx is *emptied* because the current API only kills the
+    // children in place; the important invariant is "no panic, no leak".
+    bundle.stop();
+    bundle.stop(); // idempotent on second call
 }

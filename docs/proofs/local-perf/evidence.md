@@ -729,6 +729,101 @@ sub-ms cached ttft on warm prompts. The bench above measures ttft on a
 schema-free dialogue path, which is the actual production use case for
 the large slot.
 
+## Tier-up to Qwen2.5-14B + code-switch fix (May 11 2026)
+
+Two-slot loadout above shipped with 7B Dialogue but a 100-prompt scan
+exposed a code-switch failure mode — the 7B model occasionally replied
+entirely in Irish on cough/illness prompts (~1% of the scan). Two
+changes followed:
+
+1. **`language_directive` strengthened with a sprinkle-only clause**
+   (`parish-npc/src/lib.rs`): en-IE must carry the meaning of every
+   sentence; ga-IE is at most one 1-5 word phrase per reply. Plus a
+   Latin-only character guard (Cyrillic, Han, Hiragana, Katakana,
+   Hangul, Arabic, Hebrew, Greek, Devanagari forbidden).
+2. **Bench + Opus-blind compare extended to 14B** as the next tier up
+   for hosts with memory headroom.
+
+### Qwen2.5-14B bench (production-faithful, 3 iters)
+
+Raw: [`bench-qwen14-prod.txt`](bench-qwen14-prod.txt).
+
+| Category   | ttft p50 / p95 | total p50 / p95 | tok/s p50 | Verdict |
+|---|---|---|---|---|
+| Intent     | 327 / 859 ms   | 1174 / 1695 ms  | 11.9      | FAIL (over Intent budget) |
+| Reaction   | 128 / 348 ms   | 1463 / 2480 ms  | 18.1      | FAIL (over Reaction budget) |
+| Simulation | 329 / 693 ms   | 10620 / 26262 ms| 11.9      | FAIL (Tier 3-shaped) |
+| **Dialogue**   | **128 / 367 ms**  | **2087 / 2377 ms**  | **17.5**  | **PASS** |
+
+Same shape as 7B: Dialogue passes; small-budget categories fail. That's
+the intended split — 14B never serves Intent/Reaction/Sim in the
+two-slot loadout; the 1.5B slot does.
+
+### Opus-blind 3-way quality (after code-switch fix)
+
+`/eval-dialogue` skill, Claude Opus 4.7 as judge, models hidden behind
+`Model X/Y/Z`. Full report:
+[`quality_eval_20260511T163000Z.md`](quality_eval_20260511T163000Z.md).
+
+| Model | Character | Authenticity | Language | Responsiveness | Craft | Overall |
+|---|---|---|---|---|---|---|
+| Qwen2.5-14B-Instruct-4bit | 5.00 | 4.40 | 5.00 | 4.80 | 4.60 | **4.76** |
+| Qwen2.5-7B-Instruct-4bit  | 4.60 | 3.80 | 4.40 | 5.00 | 4.20 | **4.40** |
+| Qwen2.5-1.5B-Instruct-4bit| 2.00 | 2.20 | 5.00 | 3.40 | 2.20 | **2.96** |
+
+Delta vs prior run (no code-switch fix):
+
+| Model | Prior | New | Δ |
+|---|---|---|---|
+| 14B | 4.72 | 4.76 | +0.04 |
+| 7B  | 4.04 | 4.40 | **+0.36** (recovers prompt-3 catastrophe) |
+| 1.5B| 3.20 | 2.96 | -0.24 |
+
+14B → 7B gap narrowed to 0.36 — at the judge-noise threshold (~0.3).
+With 7B's failure mode patched, the only reason to tier-up is host
+memory headroom.
+
+### 100-prompt flaw scan on 14B
+
+`docs/proofs/local-perf/dialogue_flaw_scan_14b.md`: **0/100** prompts
+flagged for non-Latin script leakage or shape errors. The Latin-only
+guard plus the sprinkle-only clause eliminated the failure mode entirely
+on this model.
+
+## Policy: 14B Dialogue + 1.5B small slot, 16 GB minimum
+
+The shipping default for macOS local-inference is now:
+
+| Slot | Port | Model | Categories | Memory |
+|---|---|---|---|---|
+| Dialogue | 8000 | mlx-community/Qwen2.5-14B-Instruct-4bit  | Dialogue                     | ~8.0 GB |
+| Small    | 8001 | mlx-community/Qwen2.5-1.5B-Instruct-4bit | Intent, Reaction, Simulation | ~1.3 GB |
+
+Total resident: ~9.3 GB. Validated p95 latencies all under per-category
+budgets; Opus-blind dialogue quality 4.76/5; 0% script-flaw rate.
+
+7B was dropped from the defaults: 0.36 Overall delta vs 14B isn't
+worth the per-host configuration knob now that the catastrophic
+code-switch failure is patched. 1.5B-only (Dialogue served by 1.5B as
+well) scored 2.96 Opus-blind — flat, anachronistic prose with weak
+character voice. Not shippable as a default.
+
+**16 GB unified memory is the minimum host requirement for local-everything.**
+Below 16 GB, `Provider::recommended_for_platform()` returns
+`Provider::Simulator` and the onboarding flow steers the user to BYOK
+cloud (OpenRouter, Anthropic, Google) rather than degrade silently to
+the 2.96/5 small-only fallback. `unified_memory_bytes()` in
+`parish-config/src/provider.rs` probes `sysctl -n hw.memsize` on macOS
+for this gate.
+
+Auto-launch wiring for the multi-slot loadout flows through
+`GameConfig::vllm_mlx_extra_slots()` →
+`VllmMlxProcess::ensure_slots()` (deduped against the base slot, idempotent).
+The base slot spawns from `setup_provider_client`; extras spawn in
+parallel and are tracked on `RuntimeProcesses { ollama, vllm_mlx:
+Vec<VllmMlxProcess> }` so `RuntimeProcesses::stop()` cleans up all
+spawned children on shutdown.
+
 ## Test results
 
 ```

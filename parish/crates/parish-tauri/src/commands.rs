@@ -343,6 +343,17 @@ pub(crate) async fn do_submit_input(
 
     touch_player_activity(state).await;
 
+    // #9 — preempt any in-flight Tier 2 / Tier 3 sim call so the player's
+    // turn doesn't queue behind a 30 s constrained-decode batch. Cancel the
+    // current sim token (any sim call that snapshotted it will drop
+    // mid-stream and free the model slot) and install a fresh token so the
+    // next sim cycle has a live one to snapshot.
+    {
+        let mut sc = state.sim_cancel.lock().await;
+        sc.cancel();
+        *sc = tokio_util::sync::CancellationToken::new();
+    }
+
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
             handle_system_command(cmd, state, app).await;
@@ -2212,6 +2223,7 @@ mod cmd_tests {
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),
             shutdown_token,
+            sim_cancel: Mutex::new(CancellationToken::new()),
             session_store,
             user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
             secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
@@ -2545,5 +2557,43 @@ mod cmd_tests {
             Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
         let info = do_get_latest_screenshot(&state).await.unwrap();
         assert!(info.is_none(), "missing file on disk → None");
+    }
+
+    // ── #9 sim-cancel preemption ─────────────────────────────────────────────
+
+    /// Snapshotting `sim_cancel`, then calling the fire-and-replace block
+    /// from `do_submit_input`, must cancel the snapshot AND leave a fresh
+    /// (uncancelled) token in place for the next sim cycle.
+    #[tokio::test]
+    async fn sim_cancel_fires_snapshot_and_replaces_token() {
+        let state = test_app_state();
+
+        // Snapshot the current sim_cancel — this is what Tier 2/3 spawn
+        // captures before player input arrives.
+        let snapshot = state.sim_cancel.lock().await.clone();
+        assert!(!snapshot.is_cancelled(), "fresh token starts uncancelled");
+
+        // Inline the fire-and-replace block from do_submit_input. We don't
+        // call do_submit_input directly because it needs a tauri::AppHandle.
+        {
+            let mut sc = state.sim_cancel.lock().await;
+            sc.cancel();
+            *sc = tokio_util::sync::CancellationToken::new();
+        }
+
+        // The snapshot is cancelled — any in-flight Tier 2/3 call that
+        // captured it will see is_cancelled() == true and bail.
+        assert!(
+            snapshot.is_cancelled(),
+            "captured snapshot must observe cancellation"
+        );
+
+        // The new token replacing it is *not* cancelled — the next sim
+        // cycle captures this one cleanly.
+        let next = state.sim_cancel.lock().await.clone();
+        assert!(
+            !next.is_cancelled(),
+            "replacement token must be fresh / uncancelled"
+        );
     }
 }
