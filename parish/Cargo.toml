@@ -57,6 +57,10 @@ tokio-util = "0.7"
 # HTTP client — base features; crates needing json/stream add them locally
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
+# HuggingFace Hub client (Apache-2.0). Used by parish-inference for the
+# vllm-mlx onboarding download path. `tokio` feature gives the async API.
+hf-hub = { version = "0.5", default-features = false, features = ["tokio"] }
+
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
 
