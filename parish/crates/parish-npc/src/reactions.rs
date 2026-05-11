@@ -95,11 +95,7 @@ pub struct ReactionLog {
 const MAX_ENTRIES: usize = 20;
 
 impl ReactionLog {
-    /// Adds a player→NPC reaction (player reacts to something the NPC said).
-    ///
-    /// Evicts the oldest entry if at capacity. Only adds when the emoji is in
-    /// the canonical palette. `context` is what the NPC said.
-    pub fn add(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
+    fn push_entry(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
         if let Some(desc) = reaction_description(emoji) {
             self.entries.push_back(ReactionEntry {
                 emoji: emoji.to_string(),
@@ -113,6 +109,14 @@ impl ReactionLog {
         }
     }
 
+    /// Adds a player→NPC reaction (player reacts to something the NPC said).
+    ///
+    /// Evicts the oldest entry if at capacity. Only adds when the emoji is in
+    /// the canonical palette. `context` is what the NPC said.
+    pub fn add(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
+        self.push_entry(emoji, context, timestamp);
+    }
+
     /// Adds an NPC→player-message reaction (NPC reacts to a player's spoken line).
     ///
     /// Evicts the oldest entry if at capacity. Only adds when the emoji is in
@@ -124,17 +128,15 @@ impl ReactionLog {
         player_message: &str,
         timestamp: DateTime<Utc>,
     ) {
-        if let Some(desc) = reaction_description(emoji) {
-            self.entries.push_back(ReactionEntry {
-                emoji: emoji.to_string(),
-                description: desc.to_string(),
-                context: player_message.chars().take(80).collect(),
-                timestamp,
-            });
-            if self.entries.len() > MAX_ENTRIES {
-                self.entries.pop_front();
-            }
+        self.push_entry(emoji, player_message, timestamp);
+    }
+
+    fn format_lines(&self, n: usize, line_fn: impl Fn(&ReactionEntry) -> String) -> String {
+        if self.entries.is_empty() {
+            return String::new();
         }
+        let lines: Vec<String> = self.entries.iter().rev().take(n).map(line_fn).collect();
+        lines.join("\n")
     }
 
     /// Formats the `n` most recent player→NPC reactions as prompt context.
@@ -142,25 +144,16 @@ impl ReactionLog {
     /// Each line reads: "- The player [description] when you said [context]".
     /// Returns an empty string if there are no reactions.
     pub fn context_string(&self, n: usize) -> String {
-        if self.entries.is_empty() {
+        let lines = self.format_lines(n, |e| {
+            format!(
+                "- The player {} when you said \"{}\"",
+                e.description, e.context
+            )
+        });
+        if lines.is_empty() {
             return String::new();
         }
-        let lines: Vec<String> = self
-            .entries
-            .iter()
-            .rev()
-            .take(n)
-            .map(|e| {
-                format!(
-                    "- The player {} when you said \"{}\"",
-                    e.description, e.context
-                )
-            })
-            .collect();
-        format!(
-            "Recent nonverbal reactions from the player:\n{}",
-            lines.join("\n")
-        )
+        format!("Recent nonverbal reactions from the player:\n{lines}")
     }
 
     /// Formats the `n` most recent NPC→player-message reactions as prompt context.
@@ -168,25 +161,16 @@ impl ReactionLog {
     /// Each line reads: "- You [description] in response to the player saying [message]".
     /// Returns an empty string if there are no entries.
     pub fn npc_context_string(&self, n: usize) -> String {
-        if self.entries.is_empty() {
+        let lines = self.format_lines(n, |e| {
+            format!(
+                "- You {} in response to the player saying \"{}\"",
+                e.description, e.context
+            )
+        });
+        if lines.is_empty() {
             return String::new();
         }
-        let lines: Vec<String> = self
-            .entries
-            .iter()
-            .rev()
-            .take(n)
-            .map(|e| {
-                format!(
-                    "- You {} in response to the player saying \"{}\"",
-                    e.description, e.context
-                )
-            })
-            .collect();
-        format!(
-            "Recent nonverbal reactions you showed to the player:\n{}",
-            lines.join("\n")
-        )
+        format!("Recent nonverbal reactions you showed to the player:\n{lines}")
     }
 
     /// Returns the number of stored entries.
