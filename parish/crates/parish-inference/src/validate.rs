@@ -74,7 +74,14 @@ pub async fn validate(
 
     match provider {
         Provider::Simulator => ValidationOutcome::Ok,
-        Provider::Ollama => probe_get(&client, &format!("{}/api/tags", base_url.trim_end_matches('/')), None).await,
+        Provider::Ollama => {
+            probe_get(
+                &client,
+                &format!("{}/api/tags", base_url.trim_end_matches('/')),
+                None,
+            )
+            .await
+        }
         Provider::Anthropic => probe_anthropic(&client, base_url, api_key).await,
         // Every other provider speaks OpenAI-compatible /v1.
         _ => probe_openai_compat(&client, base_url, api_key).await,
@@ -158,9 +165,7 @@ async fn probe_anthropic(
     classify_response(resp).await
 }
 
-async fn classify_response(
-    result: Result<reqwest::Response, reqwest::Error>,
-) -> ValidationOutcome {
+async fn classify_response(result: Result<reqwest::Response, reqwest::Error>) -> ValidationOutcome {
     let resp = match result {
         Ok(r) => r,
         Err(e) => {
@@ -207,7 +212,11 @@ async fn body_excerpt(resp: reqwest::Response) -> String {
     if trimmed.len() <= MAX_LEN {
         trimmed.to_string()
     } else {
-        let cut = trimmed.char_indices().nth(MAX_LEN).map(|(i, _)| i).unwrap_or(MAX_LEN);
+        let cut = trimmed
+            .char_indices()
+            .nth(MAX_LEN)
+            .map(|(i, _)| i)
+            .unwrap_or(MAX_LEN);
         format!("{}…", &trimmed[..cut])
     }
 }
@@ -250,7 +259,10 @@ mod tests {
 
         let outcome = validate(&Provider::OpenAi, &server.uri(), Some("sk-bad")).await;
         match outcome {
-            ValidationOutcome::AuthFailed { status, body_excerpt } => {
+            ValidationOutcome::AuthFailed {
+                status,
+                body_excerpt,
+            } => {
                 assert_eq!(status, 401);
                 assert!(body_excerpt.contains("invalid_api_key"));
             }

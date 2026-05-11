@@ -290,9 +290,8 @@ async fn byok_env_keys() -> Json<std::collections::BTreeMap<String, bool>> {
 }
 
 #[allow(clippy::unused_async)]
-async fn preset_models() -> Json<
-    std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>,
-> {
+async fn preset_models()
+-> Json<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>> {
     Json(parish_core::ipc::byok::handle_list_preset_models())
 }
 
@@ -311,7 +310,8 @@ async fn submit_byok(
     // Clear the BYOK gate flag and signal completion so the SetupOverlay
     // (if any) dismisses through the same channel the desktop wizard uses.
     {
-        let mut s = b.state
+        let mut s = b
+            .state
             .setup_status
             .lock()
             .unwrap_or_else(|p| p.into_inner());
@@ -333,8 +333,7 @@ async fn submit_byok(
 /// exists so the bridge route AND tests can call it.
 pub(crate) async fn do_setup_status(state: &Arc<AppState>) -> serde_json::Value {
     let provider = parish_core::ipc::byok::handle_get_provider_config(&state.config).await;
-    let complete =
-        parish_core::config::user_config::onboarding_complete(&state.user_config_dir);
+    let complete = parish_core::config::user_config::onboarding_complete(&state.user_config_dir);
     serde_json::json!({
         "implemented": true,
         "complete": complete,
@@ -464,10 +463,9 @@ mod tests {
             reveal_unexplored_locations: false,
         };
         let saves_dir = dir.path().join("saves");
-        let session_store: Arc<dyn parish_core::session_store::SessionStore> =
-            Arc::new(parish_core::session_store::DbSessionStore::new(
-                saves_dir.clone(),
-            ));
+        let session_store: Arc<dyn parish_core::session_store::SessionStore> = Arc::new(
+            parish_core::session_store::DbSessionStore::new(saves_dir.clone()),
+        );
 
         Arc::new(AppState {
             world: Mutex::new(world),

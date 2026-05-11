@@ -116,7 +116,7 @@ pub async fn handle_validate_provider_config(
         .and_then(|var| std::env::var(var).ok())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
-    let key_to_use: Option<&str> = typed.or_else(|| env_key.as_deref());
+    let key_to_use: Option<&str> = typed.or(env_key.as_deref());
     validate::validate(&provider, &url, key_to_use).await
 }
 
@@ -124,8 +124,7 @@ pub async fn handle_validate_provider_config(
 /// provider that has presets. Single source of truth for the wizard's model
 /// prefill — avoids the previous hand-duplicated table that drifted from
 /// `parish-config/src/presets.rs`.
-pub fn handle_list_preset_models()
--> std::collections::BTreeMap<String, ProviderPresetModels> {
+pub fn handle_list_preset_models() -> std::collections::BTreeMap<String, ProviderPresetModels> {
     use crate::config::InferenceCategory;
     let mut out = std::collections::BTreeMap::new();
     for p in Provider::ALL {
@@ -135,10 +134,16 @@ pub fn handle_list_preset_models()
         out.insert(
             p.id().to_string(),
             ProviderPresetModels {
-                dialogue: p.preset_model(InferenceCategory::Dialogue).map(String::from),
-                simulation: p.preset_model(InferenceCategory::Simulation).map(String::from),
+                dialogue: p
+                    .preset_model(InferenceCategory::Dialogue)
+                    .map(String::from),
+                simulation: p
+                    .preset_model(InferenceCategory::Simulation)
+                    .map(String::from),
                 intent: p.preset_model(InferenceCategory::Intent).map(String::from),
-                reaction: p.preset_model(InferenceCategory::Reaction).map(String::from),
+                reaction: p
+                    .preset_model(InferenceCategory::Reaction)
+                    .map(String::from),
             },
         );
     }
@@ -172,9 +177,7 @@ pub fn handle_list_env_keys() -> std::collections::BTreeMap<String, bool> {
 
 /// Returns the current effective config (without exposing the API key) so the
 /// UI's settings panel can render it.
-pub async fn handle_get_provider_config(
-    config: &Mutex<GameConfig>,
-) -> GetProviderConfigResult {
+pub async fn handle_get_provider_config(config: &Mutex<GameConfig>) -> GetProviderConfigResult {
     let cfg = config.lock().await;
     let env_key = Provider::from_str_loose(&cfg.provider_name)
         .ok()
@@ -269,8 +272,8 @@ pub async fn handle_set_provider_config(
     }
 
     // Persist non-secret choices to ~/parish.toml.
-    let mut user = load_user_config(ctx.user_config_dir)
-        .map_err(|e| ByokError::Config(e.to_string()))?;
+    let mut user =
+        load_user_config(ctx.user_config_dir).map_err(|e| ByokError::Config(e.to_string()))?;
     user.provider = Some(provider_name.clone());
     user.base_url = if args.base_url.is_some() {
         Some(base_url.clone())
@@ -279,8 +282,7 @@ pub async fn handle_set_provider_config(
     };
     user.model = args.model.clone();
     user.category_overrides = args.category_overrides.clone();
-    save_user_config(ctx.user_config_dir, &user)
-        .map_err(|e| ByokError::Config(e.to_string()))?;
+    save_user_config(ctx.user_config_dir, &user).map_err(|e| ByokError::Config(e.to_string()))?;
 
     // Update GameConfig in memory.
     {
@@ -334,8 +336,7 @@ pub async fn handle_set_provider_config(
     .await;
 
     // Sentinel — first-run gate now skips on next launch.
-    mark_onboarding_complete(ctx.user_config_dir)
-        .map_err(|e| ByokError::Config(e.to_string()))?;
+    mark_onboarding_complete(ctx.user_config_dir).map_err(|e| ByokError::Config(e.to_string()))?;
 
     Ok(client)
 }
@@ -344,17 +345,14 @@ pub async fn handle_set_provider_config(
 /// config, and resets `GameConfig.api_key` to None. Does NOT abort the
 /// running inference worker — call set_provider_config afterwards with a new
 /// provider to rebuild.
-pub async fn handle_clear_provider_config(
-    ctx: ByokContext<'_>,
-) -> Result<(), ByokError> {
+pub async fn handle_clear_provider_config(ctx: ByokContext<'_>) -> Result<(), ByokError> {
     let provider_name = {
         let cfg = ctx.config.lock().await;
         cfg.provider_name.clone()
     };
     let account = provider_account(&provider_name.to_lowercase());
     let _ = ctx.secrets.delete(&account); // idempotent
-    clear_user_config(ctx.user_config_dir)
-        .map_err(|e| ByokError::Config(e.to_string()))?;
+    clear_user_config(ctx.user_config_dir).map_err(|e| ByokError::Config(e.to_string()))?;
     {
         let mut cfg = ctx.config.lock().await;
         cfg.api_key = None;
@@ -494,8 +492,7 @@ mod tests {
             Some("sk-ant-test")
         );
         // user_config TOML has provider but NOT api_key.
-        let body =
-            std::fs::read_to_string(dir.path().join("parish.toml")).unwrap();
+        let body = std::fs::read_to_string(dir.path().join("parish.toml")).unwrap();
         assert!(body.contains("provider = \"anthropic\""));
         assert!(!body.contains("api_key"));
         // Onboarding sentinel exists.

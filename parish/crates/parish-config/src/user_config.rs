@@ -108,16 +108,10 @@ fn platform_config_dir() -> Option<PathBuf> {
 pub fn load_user_config(dir: &Path) -> Result<UserConfig, ParishError> {
     let path = dir.join(USER_CONFIG_FILENAME);
     match std::fs::read_to_string(&path) {
-        Ok(body) => {
-            toml::from_str::<UserConfig>(&body).map_err(|e| {
-                ParishError::Config(format!("parse {}: {e}", path.display()))
-            })
-        }
+        Ok(body) => toml::from_str::<UserConfig>(&body)
+            .map_err(|e| ParishError::Config(format!("parse {}: {e}", path.display()))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(UserConfig::default()),
-        Err(e) => Err(ParishError::Config(format!(
-            "read {}: {e}",
-            path.display()
-        ))),
+        Err(e) => Err(ParishError::Config(format!("read {}: {e}", path.display()))),
     }
 }
 

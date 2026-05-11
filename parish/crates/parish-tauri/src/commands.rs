@@ -223,9 +223,7 @@ pub async fn get_setup_snapshot(
 
 // ── BYOK onboarding commands ─────────────────────────────────────────────────
 
-fn byok_ctx<'a>(
-    state: &'a Arc<AppState>,
-) -> parish_core::ipc::byok::ByokContext<'a> {
+fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext<'a> {
     parish_core::ipc::byok::ByokContext {
         config: &state.config,
         inference_config: &state.inference_config,
@@ -292,9 +290,7 @@ pub async fn get_provider_config(
 
 /// Wipes the keychain entry for the active provider and clears parish.toml.
 #[tauri::command]
-pub async fn clear_provider_config(
-    state: tauri::State<'_, Arc<AppState>>,
-) -> Result<(), String> {
+pub async fn clear_provider_config(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
     let state_arc = state.inner().clone();
     parish_core::ipc::byok::handle_clear_provider_config(byok_ctx(&state_arc))
         .await
@@ -305,8 +301,7 @@ pub async fn clear_provider_config(
 /// wizard can show the env-detected hint on the picked provider, not just the
 /// current one.
 #[tauri::command]
-pub async fn list_byok_env_keys()
--> Result<std::collections::BTreeMap<String, bool>, String> {
+pub async fn list_byok_env_keys() -> Result<std::collections::BTreeMap<String, bool>, String> {
     Ok(parish_core::ipc::byok::handle_list_env_keys())
 }
 
@@ -315,10 +310,8 @@ pub async fn list_byok_env_keys()
 /// will actually install for the other tiers.
 #[tauri::command]
 pub async fn list_preset_models()
--> Result<
-    std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>,
-    String,
-> {
+-> Result<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>, String>
+{
     Ok(parish_core::ipc::byok::handle_list_preset_models())
 }
 
@@ -2235,9 +2228,7 @@ mod cmd_tests {
             shutdown_token,
             session_store,
             user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
-            secret_store: std::sync::Arc::new(
-                parish_core::secret_store::InMemorySecretStore::new(),
-            ),
+            secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
         })
     }
 

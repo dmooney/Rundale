@@ -89,10 +89,7 @@ pub(crate) fn init_screenshot_mode(handle: AppHandle, state: Arc<AppState>, dir:
 /// `provider_config` carries whatever `provider_config_from_env` already
 /// resolved — if it's anything other than the defaulted Simulator, the user
 /// has explicit intent and we should skip the wizard.
-fn needs_byok_onboarding(
-    state: &Arc<AppState>,
-    provider_config: &ProviderConfig,
-) -> bool {
+fn needs_byok_onboarding(state: &Arc<AppState>, provider_config: &ProviderConfig) -> bool {
     use parish_core::config::Provider;
 
     // 1. Sentinel from a previous successful onboarding wins immediately.
@@ -100,7 +97,11 @@ fn needs_byok_onboarding(
         return false;
     }
     // 2. Any explicit env / CLI / TOML override means there's a real choice.
-    if std::env::var("PARISH_PROVIDER").ok().filter(|s| !s.is_empty()).is_some() {
+    if std::env::var("PARISH_PROVIDER")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some()
+    {
         return false;
     }
     // 3. Standard provider env vars (`ANTHROPIC_API_KEY` etc.) — the wizard
@@ -117,7 +118,6 @@ fn needs_byok_onboarding(
     }
     true
 }
-
 
 /// Runs the inference-provider bootstrap (Ollama install/start, model pull,
 /// or remote-client construction) inside the async setup spawn, so the Tauri

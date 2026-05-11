@@ -106,6 +106,13 @@ pub trait SystemCommandHost: Send + Sync {
     /// The CLI backend runs [`crate::debug::handle_debug`] and returns the lines.
     fn handle_debug(&self, sub: Option<String>) -> BoxFuture<'_, String>;
 
+    /// Handle [`CommandEffect::ResetByok`] — wipe BYOK config and re-open the
+    /// provider picker. GUI backends emit `EVENT_SETUP_NEEDS_ONBOARDING`;
+    /// headless backends should print a short message.
+    fn reset_byok(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async {})
+    }
+
     /// Emit a text-log message with the given presentation hint.
     ///
     /// This is synchronous (no await) because all three backends emit text-log
@@ -202,6 +209,9 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command) {
                 if !msg.is_empty() {
                     host.emit_text_log(msg, TextPresentation::Prose);
                 }
+            }
+            CommandEffect::ResetByok => {
+                host.reset_byok().await;
             }
         }
     }
