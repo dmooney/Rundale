@@ -1,3 +1,5 @@
+Evidence type: gameplay transcript
+
 # Inference category samples (May 2026)
 
 Production-faithful prompts mirroring `parish-inference/examples/inf_bench.rs`. Two-slot Apple Silicon loadout: small slot = `mlx-community/Qwen2.5-1.5B-Instruct-4bit` on :8001 (Intent, Reaction, Simulation); large slot = `mlx-community/Qwen2.5-7B-Instruct-4bit` on :8000 (Dialogue). Generated via `/tmp/gen_samples.py`.
