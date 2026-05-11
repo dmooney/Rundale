@@ -35,6 +35,50 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 const INITIAL_SETUP_MESSAGE: &str = "Preparing the storyteller...";
 const SETUP_HISTORY_LIMIT: usize = 50;
 
+/// Resolves the path to a bundled `vllm-mlx` binary, if Parish was shipped with
+/// one inside its app resources.
+///
+/// On macOS the binary lives at
+/// `<Parish.app>/Contents/Resources/binaries/vllm-mlx-aarch64-apple-darwin`.
+/// On Linux / Windows builds the layout is
+/// `<exe-dir>/resources/binaries/vllm-mlx[.exe]`. Dev (`cargo tauri dev`) builds
+/// don't ship the bundle — this function returns `None` and the runtime falls
+/// through to `VLLM_MLX_BIN` env or `PATH` lookup.
+///
+/// Apache 2.0: vllm-mlx is permissively licensed so we ship it directly. The
+/// build-time materialization (`uv tool install vllm-mlx --target <out>`) is
+/// performed by CI and not by this function — this function only locates the
+/// already-bundled binary at runtime.
+pub fn resolve_bundled_vllm_mlx_bin() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?;
+
+    let candidates: &[&[&str]] = if cfg!(target_os = "macos") {
+        // Inside an .app: Contents/MacOS/<exe> → ../Resources/binaries/...
+        &[&[
+            "..",
+            "Resources",
+            "binaries",
+            "vllm-mlx-aarch64-apple-darwin",
+        ]]
+    } else if cfg!(target_os = "windows") {
+        &[&["resources", "binaries", "vllm-mlx.exe"]]
+    } else {
+        &[&["resources", "binaries", "vllm-mlx"]]
+    };
+
+    for parts in candidates {
+        let mut p = exe_dir.to_path_buf();
+        for seg in *parts {
+            p.push(seg);
+        }
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
 // ── IPC type definitions ─────────────────────────────────────────────────────
 
 // WorldSnapshot, MapLocation, and NpcInfo are defined in parish-core and
@@ -605,6 +649,25 @@ pub fn run() {
     // `.env` is visible when building the provider.
     dotenvy::dotenv().ok();
 
+    // Resolve a bundled vllm-mlx binary if Parish ships one. Sets
+    // `VLLM_MLX_BIN` for the inference setup path (`VllmMlxProcess::ensure_running`)
+    // so packaged builds don't depend on the user pre-installing vllm-mlx via
+    // `uv tool install`. The env var wins over PATH but loses to a user-set
+    // override.
+    if std::env::var_os("VLLM_MLX_BIN").is_none()
+        && let Some(path) = resolve_bundled_vllm_mlx_bin()
+    {
+        // SAFETY: set_var is unsafe on POSIX in multi-threaded contexts. We
+        // call this before tauri::Builder::default() spawns any background
+        // tasks, so the runtime is still single-threaded here.
+        unsafe {
+            std::env::set_var("VLLM_MLX_BIN", &path);
+        }
+        // Tracing isn't initialized yet — eprintln so the line still lands in
+        // the dev console / packaged-app stderr capture.
+        eprintln!("vllm-mlx: using bundled binary at {}", path.display());
+    }
+
     // Build the optional OTel provider before any tracing is emitted.
     let otel_provider = build_tauri_otel_provider();
     let otel_tracer = otel_provider.as_ref().map(|p| {
@@ -1162,6 +1225,21 @@ fn build_cloud_client_from_env(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Dev-build path: no bundled binary lives next to `cargo test`'s test
+    /// runner exe, so the helper must return `None` rather than fabricate a
+    /// path or panic. Packaged-build coverage is a manual probe — there is no
+    /// `.app` bundle around the unit-test binary.
+    #[test]
+    fn resolve_bundled_vllm_mlx_bin_returns_none_for_dev_builds() {
+        let resolved = resolve_bundled_vllm_mlx_bin();
+        assert!(
+            resolved.is_none(),
+            "dev/test binaries are not packaged with a vllm-mlx resource; \
+             got {:?} — if this fails, the probe is mis-matching",
+            resolved,
+        );
+    }
 
     /// A successful send resolves immediately and propagates the result.
     #[tokio::test]

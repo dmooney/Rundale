@@ -1301,7 +1301,7 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
             .collect();
 
         if !snapshots.is_empty()
-            && let Some(queue) = app.inference_queue.as_ref()
+            && let Some(sim_client) = app.simulation.client.as_ref()
         {
             let time_desc = app.world.clock.time_of_day().to_string();
             let weather_str = app.world.weather.to_string();
@@ -1314,7 +1314,7 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
             let lang = app.language_settings();
             let ctx = parish_core::npc::ticks::Tier3Context {
                 snapshots: &snapshots,
-                queue,
+                client: sim_client,
                 model: &sim_model,
                 time_desc: &time_desc,
                 weather: &weather_str,
@@ -1354,7 +1354,7 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
     let now = app.world.clock.now();
     if app.npc_manager.needs_tier2_tick(now)
         && !app.npc_manager.tier2_in_flight()
-        && let Some(queue) = app.inference_queue.as_ref()
+        && let Some(sim_client) = app.simulation.client.as_ref()
     {
         let groups_map = app.npc_manager.tier2_groups();
         if !groups_map.is_empty() {
@@ -1399,7 +1399,7 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                 let mut events = Vec::new();
                 for group in &groups {
                     if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                        queue,
+                        sim_client,
                         &sim_model,
                         group,
                         &app.world.clock.time_of_day().to_string(),

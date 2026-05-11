@@ -682,37 +682,32 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                         let state_t3 = Arc::clone(&state);
                         // #9 — snapshot the sim-preemption token BEFORE spawn
                         // so player input arriving mid-decode can cancel this
-                        // call. The snapshot semantics matter: cancelling the
-                        // token replaces it with a fresh one for the *next*
-                        // sim cycle, but this clone keeps a handle to the
-                        // canceller for the current call.
+                        // call. Cancelling replaces the token with a fresh one
+                        // for the *next* sim cycle.
                         let cancel_t3 = state_t3.sim_cancel.lock().await.clone();
                         tokio::spawn(async move {
-                            // Briefly lock to clone the queue + resolve the model.
-                            // NOTE: queue submissions go through the base worker
-                            // client; per-category Simulation overrides are not
-                            // honored for batch inference. TODO: per-category
-                            // routing through the queue worker.
-                            let (queue_opt, model) = {
+                            // Resolve the per-category Simulation client +
+                            // model. Direct-client dispatch (not the queue)
+                            // is what makes per-category routing actually
+                            // hit the small slot on the two-slot loadout —
+                            // the queue's worker only knows about the base
+                            // client (#?). Mirrors `emit_npc_reactions`.
+                            let (client_opt, model) = {
                                 let cfg = state_t3.config.lock().await;
-                                let queue_guard = state_t3.inference_queue.lock().await;
-                                let queue = queue_guard.clone();
-                                let model = cfg
-                                    .category_model
-                                    .get(&InferenceCategory::Simulation)
-                                    .cloned()
-                                    .unwrap_or_else(|| cfg.model_name.clone());
-                                (queue, model)
+                                let base_client = state_t3.client.lock().await;
+                                cfg.resolve_category_client(
+                                    InferenceCategory::Simulation,
+                                    base_client.as_ref(),
+                                )
                             };
-
-                            let Some(queue) = queue_opt else {
+                            let Some(sim_client) = client_opt else {
                                 state_t3.npc_manager.lock().await.set_tier3_in_flight(false);
                                 return;
                             };
 
                             let ctx = parish_core::npc::ticks::Tier3Context {
                                 snapshots: &snapshots,
-                                queue: &queue,
+                                client: &sim_client,
                                 model: &model,
                                 time_desc: &time_desc,
                                 weather: &weather_str,
@@ -815,24 +810,20 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                             // semantics as the Tier 3 site above).
                             let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
                             tokio::spawn(async move {
-                                // Briefly lock to clone the queue + resolve model.
-                                // NOTE: queue submissions go through the base worker
-                                // client; per-category Simulation overrides are not
-                                // honored for batch inference. TODO: per-category
-                                // routing through the queue worker.
-                                let (queue_opt, model) = {
+                                // Resolve the per-category Simulation client +
+                                // model. Direct-client dispatch is what makes
+                                // the two-slot loadout actually hit the small
+                                // slot for Simulation. Matches the Tier 3 site
+                                // above.
+                                let (client_opt, model) = {
                                     let cfg = state_t2.config.lock().await;
-                                    let queue_guard = state_t2.inference_queue.lock().await;
-                                    let queue = queue_guard.clone();
-                                    let model = cfg
-                                        .category_model
-                                        .get(&InferenceCategory::Simulation)
-                                        .cloned()
-                                        .unwrap_or_else(|| cfg.model_name.clone());
-                                    (queue, model)
+                                    let base_client = state_t2.client.lock().await;
+                                    cfg.resolve_category_client(
+                                        InferenceCategory::Simulation,
+                                        base_client.as_ref(),
+                                    )
                                 };
-
-                                let Some(queue) = queue_opt else {
+                                let Some(sim_client) = client_opt else {
                                     state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
                                     return;
                                 };
@@ -842,7 +833,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let mut events = Vec::new();
                                 for group in &groups {
                                     if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                                        &queue,
+                                        &sim_client,
                                         &model,
                                         group,
                                         &time_desc,

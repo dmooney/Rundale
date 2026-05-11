@@ -7,14 +7,11 @@
 //! with it, and drive the multi-NPC path through success, HTTP error,
 //! and malformed-JSON branches.
 
+use parish_inference::AnyClient;
 use parish_inference::openai_client::OpenAiClient;
-use parish_inference::{
-    AnyClient, InferenceQueue, InferenceRequest, new_inference_log, spawn_inference_worker,
-};
 use parish_npc::LanguageSettings;
 use parish_npc::ticks::{NpcSnapshot, Tier2Group, run_tier2_for_group};
 use parish_types::{LocationId, NpcId};
-use tokio::sync::mpsc;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -45,27 +42,13 @@ fn two_npc_group() -> Tier2Group {
     }
 }
 
-/// Build an InferenceQueue backed by a wiremock server and spawn a worker.
-fn spawn_mock_worker(server_uri: &str) -> InferenceQueue {
-    let client = OpenAiClient::new(server_uri, None);
-    let any_client = AnyClient::open_ai(client);
-    let log = new_inference_log();
-
-    let (itx, irx) = mpsc::channel::<InferenceRequest>(16);
-    let (btx, brx) = mpsc::channel::<InferenceRequest>(32);
-    let (batx, batrx) = mpsc::channel::<InferenceRequest>(64);
-    let queue = InferenceQueue::new(itx, btx, batx);
-
-    spawn_inference_worker(
-        any_client,
-        irx,
-        brx,
-        batrx,
-        log,
-        parish_inference::InferenceConfig::default(),
-    );
-
-    queue
+/// Build an `AnyClient` pointing at the given wiremock URI.
+///
+/// `run_tier2_for_group` now dispatches directly against an `AnyClient`
+/// (the per-category Simulation client resolved by the caller) rather
+/// than the shared `InferenceQueue`, so the test fixture mirrors that.
+fn mock_client(server_uri: &str) -> AnyClient {
+    AnyClient::open_ai(OpenAiClient::new(server_uri, None))
 }
 
 /// Mount a `/v1/chat/completions` response carrying `content` as the
@@ -103,11 +86,11 @@ async fn tier2_multi_npc_success_returns_event() {
     )
     .await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Afternoon",
@@ -134,11 +117,11 @@ async fn tier2_multi_npc_with_mood_and_relationship_changes() {
     )
     .await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Morning",
@@ -163,11 +146,11 @@ async fn tier2_http_error_returns_none() {
         .mount(&server)
         .await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Morning",
@@ -185,11 +168,11 @@ async fn tier2_malformed_json_returns_none() {
     let server = MockServer::start().await;
     mount_tier2_response(&server, "this is not json at all").await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Morning",
@@ -214,11 +197,11 @@ async fn tier2_empty_choices_returns_none() {
         .mount(&server)
         .await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Morning",
@@ -239,11 +222,11 @@ async fn tier2_missing_optional_fields_defaults_to_empty() {
     let server = MockServer::start().await;
     mount_tier2_response(&server, r#"{"summary":"They nod at each other."}"#).await;
 
-    let queue = spawn_mock_worker(&server.uri());
+    let client = mock_client(&server.uri());
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
     let event = run_tier2_for_group(
-        &queue,
+        &client,
         "test-model",
         &group,
         "Morning",

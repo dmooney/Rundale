@@ -13,7 +13,6 @@ use crate::{
     build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
-use parish_inference::InferencePriority;
 use parish_types::GossipNetwork;
 use parish_types::ParishError;
 use parish_world::graph::WorldGraph;
@@ -642,14 +641,23 @@ pub fn npc_snapshot_from_npc(
 
 /// Runs Tier 2 inference for a group of NPCs at a location.
 ///
-/// Submits to the Background lane of the inference priority queue.
-/// Returns a `Tier2Event` with the summary, mood changes, and relationship deltas.
+/// Calls the provided `client` directly — the caller resolves the right
+/// per-category client (typically `InferenceCategory::Simulation`) via
+/// `GameConfig::resolve_category_client` before invoking this. This was
+/// formerly routed through the shared `InferenceQueue`, which always sent
+/// to the *base* provider's HTTP endpoint regardless of the per-category
+/// override, breaking the two-slot Apple Silicon loadout where
+/// Simulation is supposed to hit the small slot on `:8001` while
+/// Dialogue holds the big slot on `:8000`. Direct-client dispatch is
+/// the same pattern `emit_npc_reactions` already uses.
 ///
-/// `cancel` is forwarded to the underlying streaming submit so a player turn
-/// can preempt this Tier 2 call mid-flight. Pass `None` when no preemption is
-/// needed (callers without a sim-cancel token).
+/// `cancel` enables mid-flight preemption when a player turn arrives:
+/// the streaming future races against the token via `tokio::select!`
+/// and drops on cancel, closing the underlying HTTP/SSE connection so
+/// the simulation slot frees up for the next request. Pass `None` when
+/// no preemption is needed.
 pub async fn run_tier2_for_group(
-    queue: &parish_inference::InferenceQueue,
+    client: &parish_inference::AnyClient,
     model: &str,
     group: &Tier2Group,
     time_desc: &str,
@@ -679,20 +687,30 @@ pub async fn run_tier2_for_group(
 
     // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
     // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
-    // Streaming variant: discards chunks but enables mid-flight cancellation
-    // (#9) and emits TTFT + token-count telemetry through the worker's
-    // StreamStats observer.
-    match parish_inference::submit_json_streaming::<Tier2Response>(
-        queue,
-        InferencePriority::Background,
-        model,
-        &prompt,
-        None,
-        Some(200),
-        cancel,
-    )
-    .await
-    {
+    // Streaming path: discards chunks (the assembled string returns from
+    // generate_stream_with_format) but enables mid-flight cancellation (#9).
+    let (sink_tx, mut sink_rx) =
+        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+
+    let stream_fut =
+        client.generate_stream_with_format(model, &prompt, None, sink_tx, None, Some(200), None);
+
+    let raw = match cancel {
+        Some(tok) => tokio::select! {
+            biased;
+            () = tok.cancelled() => Err(ParishError::Inference(
+                "Tier 2 cancelled mid-stream".to_string(),
+            )),
+            res = stream_fut => res,
+        },
+        None => stream_fut.await,
+    };
+
+    match raw.and_then(|s| {
+        serde_json::from_str::<Tier2Response>(&s)
+            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
+    }) {
         Ok(resp) => Some(Tier2Event {
             location: group.location,
             summary: resp.summary,
@@ -997,14 +1015,17 @@ pub fn tier3_snapshot_from_npc(
 
 /// Context for a Tier 3 batch simulation call.
 ///
-/// Tier 3 batches are submitted through the priority `InferenceQueue` with
-/// `Batch` priority so they yield to player-facing dialogue (Tier 1 Interactive)
-/// and Tier 2 background simulation (Background).
+/// Tier 3 batches are dispatched directly against a per-category
+/// `AnyClient` resolved by the caller (typically the Simulation slot).
+/// Routing through the shared `InferenceQueue` was abandoned because the
+/// queue worker always hit the base provider's HTTP endpoint, defeating
+/// the per-category override that the two-slot loadout depends on. The
+/// streaming code path keeps `cancel` mid-flight preemption working.
 pub struct Tier3Context<'a> {
     /// NPC snapshots to simulate.
     pub snapshots: &'a [Tier3Snapshot],
-    /// Inference queue used to submit batch requests.
-    pub queue: &'a parish_inference::InferenceQueue,
+    /// Per-category LLM client (resolved for `InferenceCategory::Simulation`).
+    pub client: &'a parish_inference::AnyClient,
     /// Model name to use.
     pub model: &'a str,
     /// Time description (e.g. "Morning").
@@ -1050,22 +1071,39 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
         );
 
         // Cap output to bound vllm-mlx runaway. 6-NPC batches output
-        // ~200-400 tokens in practice; 600 is comfortable headroom and
-        // keeps a single batch under the 1500 ms simulation budget.
-        // Streaming variant: chunks discarded, but the streaming code
-        // path is what lets a player turn preempt this batch mid-flight
-        // (#9). TTFT + token-count surface via StreamStats.
-        match parish_inference::submit_json_streaming::<Tier3Response>(
-            ctx.queue,
-            InferencePriority::Batch,
+        // ~200-400 tokens in practice; 600 is comfortable headroom.
+        // Direct-client streaming: chunks discarded (a sink task drains
+        // the channel), but the streaming code path is what lets a
+        // player turn preempt this batch mid-flight (#9).
+        let (sink_tx, mut sink_rx) =
+            tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+        tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+
+        let stream_fut = ctx.client.generate_stream_with_format(
             ctx.model,
             &prompt,
             None,
+            sink_tx,
+            None,
             Some(600),
-            ctx.cancel.clone(),
-        )
-        .await
-        {
+            None,
+        );
+
+        let raw = match ctx.cancel.clone() {
+            Some(tok) => tokio::select! {
+                biased;
+                () = tok.cancelled() => Err(ParishError::Inference(
+                    "Tier 3 cancelled mid-stream".to_string(),
+                )),
+                res = stream_fut => res,
+            },
+            None => stream_fut.await,
+        };
+
+        match raw.and_then(|s| {
+            serde_json::from_str::<Tier3Response>(&s)
+                .map_err(|e| ParishError::Inference(format!("Tier 3 JSON parse failed: {e}")))
+        }) {
             Ok(resp) => {
                 all_updates.extend(resp.updates);
             }
@@ -1716,14 +1754,12 @@ mod tests {
             }],
         };
 
-        // Solo NPC short-circuits before any LLM call — a disconnected queue is fine.
-        let (itx, _irx) = tokio::sync::mpsc::channel(1);
-        let (btx, _brx) = tokio::sync::mpsc::channel(1);
-        let (batx, _batrx) = tokio::sync::mpsc::channel(1);
-        let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
+        // Solo NPC short-circuits before any LLM call — the simulator client
+        // satisfies the type and never gets called.
+        let client = parish_inference::AnyClient::simulator();
         let lang = LanguageSettings::english_only();
         let event =
-            run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang, None).await;
+            run_tier2_for_group(&client, "test", &group, "Morning", "Clear", &lang, None).await;
         assert!(event.is_some());
         let event = event.unwrap();
         assert!(event.summary.contains("Padraig"));
@@ -1741,14 +1777,11 @@ mod tests {
             npcs: Vec::new(),
         };
 
-        // Empty group short-circuits before any LLM call — a disconnected queue is fine.
-        let (itx, _irx) = tokio::sync::mpsc::channel(1);
-        let (btx, _brx) = tokio::sync::mpsc::channel(1);
-        let (batx, _batrx) = tokio::sync::mpsc::channel(1);
-        let queue = parish_inference::InferenceQueue::new(itx, btx, batx);
+        // Empty group short-circuits before any LLM call.
+        let client = parish_inference::AnyClient::simulator();
         let lang = LanguageSettings::english_only();
         let event =
-            run_tier2_for_group(&queue, "test", &group, "Morning", "Clear", &lang, None).await;
+            run_tier2_for_group(&client, "test", &group, "Morning", "Clear", &lang, None).await;
         assert!(event.is_none());
     }
 
