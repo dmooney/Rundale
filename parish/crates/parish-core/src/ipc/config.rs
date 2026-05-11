@@ -254,7 +254,7 @@ impl Default for GameConfig {
             cloud_base_url: None,
             improv_enabled: false,
             max_follow_up_turns: 2,
-            idle_banter_after_secs: 25,
+            idle_banter_after_secs: 120,
             auto_pause_after_secs: DEFAULT_AUTO_PAUSE_SECS,
             category_provider: HashMap::new(),
             category_model: HashMap::new(),
@@ -280,7 +280,7 @@ mod tests {
         assert!(!c.improv_enabled);
         assert!(c.api_key.is_none());
         assert_eq!(c.max_follow_up_turns, 2);
-        assert_eq!(c.idle_banter_after_secs, 25);
+        assert_eq!(c.idle_banter_after_secs, 120);
         assert_eq!(c.auto_pause_after_secs, DEFAULT_AUTO_PAUSE_SECS);
         assert!(c.active_tile_source.is_empty());
         assert!(c.tile_sources.is_empty());
