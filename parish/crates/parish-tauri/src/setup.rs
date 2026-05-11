@@ -170,10 +170,21 @@ pub(crate) async fn bootstrap_inference_provider(
             message: "Starting inference provider setup...".to_string(),
         },
     );
-    match bootstrap_provider(provider_config, inference_config, &progress).await {
-        Ok((client, model_name, ollama_process)) => {
+    let extra_vllm_slots = {
+        let cfg = state.config.lock().await;
+        cfg.vllm_mlx_extra_slots()
+    };
+    match bootstrap_provider(
+        provider_config,
+        &extra_vllm_slots,
+        inference_config,
+        &progress,
+    )
+    .await
+    {
+        Ok((client, model_name, runtime_processes)) => {
             *state.client.lock().await = client;
-            *state.ollama_process.lock().await = ollama_process;
+            *state.runtime_processes.lock().await = runtime_processes;
             {
                 let mut config = state.config.lock().await;
                 if matches!(

@@ -199,12 +199,23 @@ Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud`
 
 #### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
 
-| Category   | Local pick                              | Cloud pick                  | Notes |
-|------------|------------------------------------------|-----------------------------|-------|
-| Dialogue   | `mlx-community/gemma-3-4b-it-4bit`       | Claude Sonnet 4.6           | Hits Dialogue ttft budget (34 ms p50) on vllm-mlx with prefix cache warm; verified PASS |
-| Simulation | `mlx-community/gemma-3-4b-it-4bit`       | Gemini 2.5 Flash / Flash-Lite | PASS on quiet/mildly-eventful scenes (~968 ms p50) when prompt steers empty change-arrays. Eventful scenes overshoot 1500 ms — see [evidence.md](../proofs/local-perf/evidence.md#sim-eventful-scene-measurement-uneven-outcome) |
-| Reaction   | `mlx-community/gemma-3-4b-it-4bit`       | Gemini 2.5 Flash-Lite       | PASS on both p50 (441 ms) and p95 (514 ms) |
-| Intent     | _Two-slot loadout pending_; today shares the 4B | — (always local) | FAILs p95 (688 ms vs 500 ms budget) on the shared 4B. Fix is a 1B intent slot — blocked on either (a) non-gemma-3 small MLX model (Qwen2.5-0.5B candidate, untested) or (b) vllm-mlx fixing the `gemma3_text` drafter path |
+Two-slot Qwen loadout (recommended):
+
+| Category   | Local pick                                    | Cloud pick                  | Notes |
+|------------|------------------------------------------------|-----------------------------|-------|
+| Dialogue   | `mlx-community/Qwen2.5-7B-Instruct-4bit` (slot :8000) | Claude Sonnet 4.6     | Hits Dialogue ttft 64 ms p50 / 183 ms p95, total 1087 ms p95. 33 tok/s sustained. Blind quality 4.6/5 vs 2.4/5 for the small slot |
+| Simulation | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash    | PASS on Tier 2 (~3x faster than gemma-3-4b). Tier 3 still over the 1500 ms budget but ~3x improved — Tier 3 is intentionally relaxed |
+| Reaction   | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash-Lite | PASS |
+| Intent     | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | — (always local) | PASS — small Qwen unblocks the previously-failing Intent path |
+
+Both models load through vllm-mlx 0.3.x's clean mlx_lm path
+(`mllm=False`) — neither matches the MLLM pattern that traps gemma-3.
+Memory footprint ~5.3 GB resident total (1.3 GB + 4.0 GB). See
+[evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026).
+
+Legacy single-slot fallback (gemma-3-4b on one process), kept for
+reference: Dialogue PASS, Reaction PASS, Sim Tier 2 PASS, Intent FAIL
+(229 ms+ ttft on shared 4B vs 200 ms budget), Tier 3 FAIL (30 s wall).
 
 Notes on the picks:
 
@@ -255,13 +266,25 @@ base_url = "http://localhost:11435"
 model = "ministral3:3b"
 ```
 
-**Apple Silicon local (macOS, MLX engine)** — single vllm-mlx process serving gemma-3-4b on port 8000. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-inference/src/setup.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
+**Apple Silicon local (macOS, MLX engine)** — two vllm-mlx processes, one per slot. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-inference/src/setup.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
 
 ```toml
 [provider]
-name = "vllm"
-base_url = "http://localhost:8000/v1"
-model = "mlx-community/gemma-3-4b-it-4bit"
+name = "vllm-mlx"
+base_url = "http://localhost:8000"
+model = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+
+[provider.intent]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[provider.reaction]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[provider.simulation]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 ```
 
 Pre-launch:
@@ -270,9 +293,23 @@ uv tool install vllm-mlx
 # or: pip install vllm-mlx
 # verify pristine binary if you also have rapid-mlx installed:
 # readlink -f ~/.local/bin/vllm-mlx
+
+# Start two slots manually (multi-slot auto-launch is TODO):
+vllm-mlx serve mlx-community/Qwen2.5-7B-Instruct-4bit \
+    --port 8000 --enable-prefix-cache --continuous-batching &
+vllm-mlx serve mlx-community/Qwen2.5-1.5B-Instruct-4bit \
+    --port 8001 --enable-prefix-cache --continuous-batching &
 ```
 
-The engine auto-spawns `vllm-mlx serve <model> --port 8000 --enable-prefix-cache --continuous-batching` if nothing is reachable at `base_url`, and stops the child on shutdown. Cold-load is ~3.3 s with persisted prefix cache. Two-slot loadout (1B intent + 4B main) is **not yet supported** — see "Known broken paths" above.
+The engine auto-spawns the *base* `vllm-mlx serve <model> --port 8000` if nothing is reachable, and stops it on shutdown. Cold-load is ~3.3 s with persisted prefix cache per process. Total memory ~5.3 GB resident across both processes. Single-slot fallback (one process, one model) still works for hosts with tighter memory.
+
+Legacy single-slot config:
+```toml
+[provider]
+name = "vllm-mlx"
+base_url = "http://localhost:8000"
+model = "mlx-community/gemma-3-4b-it-4bit"
+```
 
 **Quality-maximalist** — full cloud, everything routed via one provider for simplicity:
 

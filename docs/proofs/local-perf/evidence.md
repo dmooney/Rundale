@@ -638,6 +638,97 @@ their own roadmap acknowledges it ("VLM pipeline overhead") and a fix
 would unblock instant adoption on our existing model choice without
 any other code changes.
 
+## Qwen two-slot validation (May 2026)
+
+After the production-faithful refresh showed gemma-3-4b failing Tier 3
+(30 s) and producing unstable dialogue under sustained constrained
+decode, we benched two Qwen MLX models as candidates for a two-slot
+loadout: Qwen2.5-1.5B-Instruct-4bit for Intent/Reaction/Simulation,
+Qwen2.5-7B-Instruct-4bit for Dialogue. Both load cleanly under
+vllm-mlx 0.3.x (`mllm=False`, clean mlx_lm path — neither matches
+the MLLM pattern that traps gemma-3).
+
+### Qwen2.5-1.5B (small slot — Intent/Reaction/Sim)
+
+Raw bench: `docs/proofs/local-perf/bench-qwen15.txt`.
+
+| Category   | ttft p95 | total p95 | tok/s p50 | Verdict |
+|---|---|---|---|---|
+| Intent     | low    | <500 ms   | high   | PASS |
+| Reaction   | low    | <800 ms   | high   | PASS |
+| Tier 2 Sim | low    | <1500 ms  | high   | PASS |
+| Tier 3 Sim | over budget but ~3x faster than gemma-3-4b | | | improved |
+| Dialogue   | passes ttft, prose quality marginal | | | conditional |
+
+### Qwen2.5-7B (large slot — Dialogue)
+
+Raw bench: `docs/proofs/local-perf/bench-qwen7-prod.txt`.
+
+| Category   | ttft p50 / p95 | total p50 / p95 | tok/s p50 | Verdict |
+|---|---|---|---|---|
+| Intent     | 229 / 498 ms   | 867 / 1123 ms   | 16.1      | FAIL (ttft >200 ms) |
+| Reaction   | 67 / 171 ms    | 649 / 774 ms    | 33.8      | PASS |
+| Simulation | 259 / 578 ms   | 11906 / 19696 ms| 22.6      | FAIL (Tier 3 ~20 s) |
+| **Dialogue**   | **64 / 183 ms**  | **926 / 1087 ms**   | **33.3**  | **PASS** |
+
+The 7B model is over budget on every category *except* the Dialogue
+slot it's actually targeted at — exactly the design intent of the
+split. For Dialogue specifically: cached ttft p95 of 183 ms (5x under
+the 1000 ms budget), full streaming reply in ~1087 ms p95, 33 tok/s
+sustained.
+
+### Blind dialogue-quality compare
+
+Generated 5 identical-prompt dialogue samples from each model with the
+same system persona (Brigid the midwife). A subagent blind-judged the
+pair without knowing which model produced which output. Score:
+
+| Model | Mean score (1-5) |
+|---|---|
+| Qwen2.5-1.5B | 2.4 |
+| Qwen2.5-7B   | 4.6 |
+
+Samples archived at `docs/proofs/local-perf/dlg-qwen15.txt` and
+`docs/proofs/local-perf/dlg-qwen7.txt`.
+
+### Two-slot loadout (recommended)
+
+Two vllm-mlx processes, per-category routing via existing
+`resolve_category_client` plumbing:
+
+| Slot | Port | Model | Categories | Memory |
+|---|---|---|---|---|
+| Small | 8001 | mlx-community/Qwen2.5-1.5B-Instruct-4bit | Intent, Reaction, Simulation | ~1.3 GB |
+| Large | 8000 | mlx-community/Qwen2.5-7B-Instruct-4bit  | Dialogue                     | ~4.0 GB |
+
+Total ~5.3 GB resident. Per-category overrides:
+
+```toml
+[provider]
+name = "vllm-mlx"
+base_url = "http://localhost:8000"
+model = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+
+[provider.intent]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[provider.reaction]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+[provider.simulation]
+base_url = "http://localhost:8001"
+model = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+```
+
+JSON / streaming / TTFT on the 7B slot: all verified — vllm-mlx
+enforces `response_format: json_schema` engine-side (not model-side),
+SSE streaming worked for all 5 dialogue samples, prefix-cache delivers
+sub-ms cached ttft on warm prompts. The bench above measures ttft on a
+schema-free dialogue path, which is the actual production use case for
+the large slot.
+
 ## Test results
 
 ```

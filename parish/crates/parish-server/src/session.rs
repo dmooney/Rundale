@@ -116,10 +116,10 @@ pub struct GlobalState {
     /// `/provider`) honour the operator-configured values instead of falling
     /// back to the compiled-in defaults. (#417)
     pub inference_config: InferenceConfig,
-    /// Child `ollama serve` process handle (no-op for non-Ollama providers).
-    /// Held for the server's lifetime so dropping `GlobalState` stops the
-    /// server. Wrapped in a `Mutex` so the struct stays `Sync`.
-    pub ollama_process: tokio::sync::Mutex<parish_core::inference::client::OllamaProcess>,
+    /// Local runtime child processes (Ollama or N vllm-mlx slots).
+    /// Held for the server's lifetime so dropping `GlobalState` stops them.
+    /// Wrapped in a `Mutex` so the struct stays `Sync`.
+    pub runtime_processes: tokio::sync::Mutex<parish_core::inference::client::RuntimeProcesses>,
     /// Disk-backed HTTP cache for NLS historic map tiles.
     ///
     /// Shared across all sessions — tiles are content-addressable (z/x/y) and
