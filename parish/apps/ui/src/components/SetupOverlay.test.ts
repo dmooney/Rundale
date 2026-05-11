@@ -16,6 +16,7 @@ const mockIpc = vi.hoisted(() => {
 		done: boolean;
 		success: boolean | null;
 		error: string;
+		needs_onboarding: boolean;
 	};
 
 	const defaultSnapshot = (): Snapshot => ({
@@ -25,13 +26,15 @@ const mockIpc = vi.hoisted(() => {
 		total: 0,
 		done: false,
 		success: null,
-		error: ''
+		error: '',
+		needs_onboarding: false
 	});
 
 	const callbacks: {
 		status?: StatusCb;
 		progress?: ProgressCb;
 		done?: DoneCb;
+		needsOnboarding?: () => void;
 	} = {};
 
 	return {
@@ -49,6 +52,10 @@ const mockIpc = vi.hoisted(() => {
 			callbacks.done = cb;
 			return vi.fn();
 		}),
+		onSetupNeedsOnboarding: vi.fn(async (cb: () => void) => {
+			callbacks.needsOnboarding = cb;
+			return vi.fn();
+		}),
 		getSetupSnapshot: vi.fn(async (): Promise<Snapshot> => defaultSnapshot())
 	};
 });
@@ -58,7 +65,8 @@ vi.mock('$lib/ipc', () => ({
 	isTauri: mockIpc.isTauri,
 	onSetupStatus: mockIpc.onSetupStatus,
 	onSetupProgress: mockIpc.onSetupProgress,
-	onSetupDone: mockIpc.onSetupDone
+	onSetupDone: mockIpc.onSetupDone,
+	onSetupNeedsOnboarding: mockIpc.onSetupNeedsOnboarding
 }));
 
 describe('SetupOverlay', () => {
@@ -69,6 +77,7 @@ describe('SetupOverlay', () => {
 		mockIpc.onSetupStatus.mockClear();
 		mockIpc.onSetupProgress.mockClear();
 		mockIpc.onSetupDone.mockClear();
+		mockIpc.onSetupNeedsOnboarding.mockClear();
 		mockIpc.getSetupSnapshot.mockClear();
 		mockIpc.getSetupSnapshot.mockResolvedValue({
 			current_message: 'Preparing the storyteller...',
@@ -77,11 +86,13 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 		mockIpc.callbacks.status = undefined;
 		mockIpc.callbacks.progress = undefined;
 		mockIpc.callbacks.done = undefined;
+		mockIpc.callbacks.needsOnboarding = undefined;
 	});
 
 	it('has a deep pool of still-loading messages', () => {
@@ -129,7 +140,8 @@ describe('SetupOverlay', () => {
 			total: 100,
 			done: true,
 			success: true,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const { container, queryByRole } = render(SetupOverlay);
@@ -159,7 +171,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const second = render(SetupOverlay);
@@ -205,7 +218,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 		const { getAllByText } = render(SetupOverlay);
 
@@ -261,7 +275,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const { container, getByText } = render(SetupOverlay);
