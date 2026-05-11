@@ -569,8 +569,10 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                 // Dispatch Tier 4 rules engine if enough game time has elapsed.
                 // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
                 if npc_mgr.needs_tier4_tick(now) {
-                    let tier4_ids: std::collections::HashSet<parish_core::npc::NpcId> =
-                        npc_mgr.tier4_npcs().into_iter().collect();
+                    let tier4_ids: std::collections::HashSet<parish_core::npc::NpcId> = npc_mgr
+                        .npcs_in_tier(parish_core::npc::types::CogTier::Tier4)
+                        .into_iter()
+                        .collect();
                     let events = {
                         let mut tier4_refs: Vec<&mut parish_core::npc::Npc> = npc_mgr
                             .npcs_mut()
@@ -638,7 +640,8 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
                     let npc_names: std::collections::HashMap<_, _> =
                         npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                    let tier3_ids = npc_mgr.tier3_npcs();
+                    let tier3_ids =
+                        npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
                     let snapshots: Vec<Tier3Snapshot> = tier3_ids
                         .iter()
                         .filter_map(|id| npc_mgr.get(*id))
@@ -829,10 +832,11 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let game_time = world.clock.now();
 
                                 for event in &events {
-                                    let _dbg = parish_core::npc::ticks::apply_tier2_event(
+                                    let _dbg = parish_core::npc::ticks::apply_tier2_event_with_config(
                                         event,
                                         npc_mgr.npcs_mut(),
                                         game_time,
+                                        &parish_core::config::NpcConfig::default(),
                                     );
                                     // Push gossip so it can propagate to other NPCs.
                                     parish_core::npc::ticks::create_gossip_from_tier2_event(
