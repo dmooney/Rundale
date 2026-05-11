@@ -41,7 +41,7 @@ jobs:
       - name: Cache python-build-standalone tarball
         uses: actions/cache@v4
         with:
-          path: parish/dist/cpython-*.tar.zst
+          path: parish/dist/cpython-*.tar.gz
           key: pbs-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Build the bundle

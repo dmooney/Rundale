@@ -31,7 +31,7 @@
       "../../../LICENSE": "LICENSE",
       "../../../NOTICE": "NOTICE",
       "../../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
-      "../../dist/vllm-mlx/": "vllm-mlx/"
+      "../../dist/vllm-mlx/python-runtime/": "vllm-mlx/python-runtime/"
     },
     "macOS": {
       "frameworks": [],

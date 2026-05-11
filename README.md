@@ -185,17 +185,20 @@ For a shippable `.app` that ends users can double-click — no Python or
 the app:
 
 ```sh
-just build-vllm-mlx-bundle    # ~5 min, ~80 MB compressed, Apple Silicon only
+just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
 cd parish && cargo tauri build --target aarch64-apple-darwin
 ```
 
-The first command materialises a relocatable Python + vllm-mlx venv at
-`parish/dist/vllm-mlx/` (using `python-build-standalone` and `pip`).
+The first command materialises a relocatable Python runtime with
+vllm-mlx pip-installed straight into its site-packages at
+`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
+`install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
+would break when the bundle moves into `Rundale.app/Contents/Resources/`).
 `cargo tauri build` then includes that tree under
-`Rundale.app/Contents/Resources/vllm-mlx/`. On first launch the app
-detects the bundle, recommends local inference for Macs with ≥16 GB
-unified memory, and downloads the Qwen2.5 weights with a live progress
-bar.
+`Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
+launch the app detects the bundle, recommends local inference for Macs
+with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
+live progress bar.
 
 CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
 trigger, uploads the bundle as an artifact). For dev iteration on

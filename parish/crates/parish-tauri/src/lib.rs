@@ -35,24 +35,29 @@ use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 const INITIAL_SETUP_MESSAGE: &str = "Preparing the storyteller...";
 const SETUP_HISTORY_LIMIT: usize = 50;
 
-/// Resolves the python interpreter inside the bundled vllm-mlx venv, if
-/// Parish was shipped with the inference runtime in its app resources.
+/// Resolves the python interpreter inside the bundled vllm-mlx runtime,
+/// if Parish was shipped with the inference runtime in its app resources.
 ///
 /// macOS layout (the only platform we ship a bundle for — see
 /// `justfile::build-vllm-mlx-bundle`):
 ///
 /// ```text
 /// <Parish.app>/Contents/Resources/vllm-mlx/
-///   ├── python-runtime/          ← python-build-standalone tree
-///   └── venv/
-///       ├── bin/python3          ← what this function returns
+///   └── python-runtime/             ← python-build-standalone tree
+///       ├── bin/python3             ← what this function returns
 ///       └── lib/python3.13/site-packages/vllm_mlx/...
 /// ```
 ///
 /// `VllmMlxProcess::ensure_running` detects `python*` in the binary name
 /// and invokes it as `python3 -m vllm_mlx serve …`. The site-packages
 /// path also lands on `PARISH_VLLM_MLX_PYTHONPATH` so the child finds
-/// the package without activating the venv.
+/// the package without sys.path surprises.
+///
+/// No venv is involved: python-build-standalone's `install_only` tarball
+/// is a relocatable interpreter, so we pip-install vllm-mlx straight
+/// into the runtime's own site-packages. A venv would bake the build
+/// host's absolute paths into pyvenv.cfg, breaking when the bundle
+/// lands in `/Applications/Rundale.app/Contents/Resources/`.
 ///
 /// Dev (`cargo tauri dev`) builds don't ship the bundle — this function
 /// returns `None` and the runtime falls through to `VLLM_MLX_BIN` env or
@@ -71,10 +76,12 @@ pub fn resolve_bundled_vllm_mlx_bin() -> Option<PathBuf> {
 /// `VllmMlxProcess::ensure_running` and the spawned `python -m vllm_mlx`
 /// child both see the same view of the bundle.
 pub struct BundledVllmMlxPaths {
-    /// `<Resources>/vllm-mlx/venv/bin/python3`. Spawned as `python3 -m vllm_mlx serve …`.
+    /// `<Resources>/vllm-mlx/python-runtime/bin/python3`. Spawned as
+    /// `python3 -m vllm_mlx serve …`.
     pub python: PathBuf,
-    /// `<Resources>/vllm-mlx/venv/lib/python<X.Y>/site-packages`. Passed
-    /// via `PYTHONPATH` so the child finds the `vllm_mlx` package.
+    /// `<Resources>/vllm-mlx/python-runtime/lib/python<X.Y>/site-packages`.
+    /// Passed via `PYTHONPATH` so the child finds the `vllm_mlx` package
+    /// even when launched through a wrapper that scrubs sys.path.
     pub site_packages: PathBuf,
 }
 
@@ -88,16 +95,16 @@ pub fn resolve_bundled_vllm_mlx_paths() -> Option<BundledVllmMlxPaths> {
     // macOS .app layout: Contents/MacOS/<exe> → ../Resources/vllm-mlx/
     // Other platforms: <exe-dir>/resources/vllm-mlx/ (Tauri's default
     // resource-dir convention for non-macOS).
-    let venv_root = if cfg!(target_os = "macos") {
-        exe_dir.join("../Resources/vllm-mlx/venv")
+    let runtime_root = if cfg!(target_os = "macos") {
+        exe_dir.join("../Resources/vllm-mlx/python-runtime")
     } else {
-        exe_dir.join("resources/vllm-mlx/venv")
+        exe_dir.join("resources/vllm-mlx/python-runtime")
     };
 
     let python = if cfg!(target_os = "windows") {
-        venv_root.join("Scripts/python.exe")
+        runtime_root.join("Scripts/python.exe")
     } else {
-        venv_root.join("bin/python3")
+        runtime_root.join("bin/python3")
     };
     if !python.is_file() {
         return None;
@@ -106,7 +113,7 @@ pub fn resolve_bundled_vllm_mlx_paths() -> Option<BundledVllmMlxPaths> {
     // Discover the python3.X site-packages dir — python-build-standalone
     // pins to a specific version, but we don't hardcode 3.13 in case the
     // bundle moves to 3.14+ later.
-    let lib_dir = venv_root.join("lib");
+    let lib_dir = runtime_root.join("lib");
     let site_packages = std::fs::read_dir(&lib_dir).ok()?.find_map(|entry| {
         let e = entry.ok()?;
         let name = e.file_name();
