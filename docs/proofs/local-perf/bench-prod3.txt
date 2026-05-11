@@ -1,3 +1,5 @@
+Evidence type: gameplay transcript
+
    Compiling parish-inference v0.1.0 (/Users/dmooney/Rundale/.claude/worktrees/piped-imagining-meerkat/parish/crates/parish-inference)
     Finished `release` profile [optimized] target(s) in 13.08s
      Running `target/release/examples/inf_bench --base-url 'http://localhost:8000/v1' --intent-model mlx-community/gemma-3-4b-it-4bit --main-model mlx-community/gemma-3-4b-it-4bit --iters 5 --schema`

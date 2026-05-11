@@ -68,14 +68,28 @@ fn spawn_mock_worker(server_uri: &str) -> InferenceQueue {
     queue
 }
 
-/// Mount a `/v1/chat/completions` response whose `content` field is a JSON
-/// string that will be deserialized into `Tier2Response`.
+/// Mount a `/v1/chat/completions` response carrying `content` as the
+/// assistant message text.
+///
+/// Emits an SSE body so the streaming code path in the worker can parse
+/// it — `submit_json_streaming` (used by Tier 2 / Tier 3) routes through
+/// `generate_stream_with_format`, which expects
+/// `data: {...}\n\ndata: [DONE]\n\n`.
 async fn mount_tier2_response(server: &MockServer, content: &str) {
+    let chunk = serde_json::json!({
+        "choices": [{"delta": {"content": content}}],
+    });
+    let stop = serde_json::json!({
+        "choices": [{"delta": {}, "finish_reason": "stop"}],
+    });
+    let body = format!("data: {chunk}\n\ndata: {stop}\n\ndata: [DONE]\n\n");
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"role": "assistant", "content": content}}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("Content-Type", "text/event-stream")
+                .set_body_string(body),
+        )
         .mount(server)
         .await;
 }
