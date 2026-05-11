@@ -206,10 +206,11 @@ impl OsmElement {
     }
 }
 
+/// Earth radius in meters (WGS-84 equatorial approximation).
+pub const EARTH_RADIUS_M: f64 = 6_371_000.0;
+
 /// Calculate the Haversine distance between two lat/lon points in meters.
 pub fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    const EARTH_RADIUS_M: f64 = 6_371_000.0;
-
     let dlat = (lat2 - lat1).to_radians();
     let dlon = (lon2 - lon1).to_radians();
     let lat1_rad = lat1.to_radians();
