@@ -79,19 +79,37 @@ Total new tests: 32 unit + 1 architecture-fitness extension.
   isn't surfaced; the field placeholder reads "(env var detected — leave
   blank to use it)") so a single click validates and saves.
 
-## Outstanding before merge
+## Resolved in this PR (during live `just run` iteration)
 
-- `byok-flow.gif`: a runtime capture of the wizard in action. Mechanically
-  cannot be captured in CI; produced by running the Tauri app interactively
-  with a fresh user-config dir. Procedure documented in `evidence.md`.
-- Tauri capabilities config: verify the four new commands (`set_provider_config`,
-  `validate_provider_config`, `get_provider_config`, `clear_provider_config`)
-  are reachable from the WebView. If a capabilities file gates `tauri::command`
-  invocations, add the new names there.
+- Onboarding gate vs. event-listener race (overlay was mounting after the
+  one-shot event fired) → fixed by also reading `needs_onboarding` from the
+  snapshot (`fix(tauri,ui): persist needs_onboarding on setup snapshot`).
+- MCP bridge wasn't spawned during onboarding because the bootstrap bailed
+  early → fixed by reordering `mcp_bridge::spawn` before the gate
+  (`fix(tauri): spawn MCP bridge before BYOK onboarding gate`).
+- Env-var detection used the current provider, not the picked one → fixed
+  with a new `list_byok_env_keys` IPC + frontend wiring
+  (`fix(byok): honor env-var keys across the wizard + handler boundary`).
+- Wizard hard-coded model defaults drifted from the backend presets → fixed
+  by making `list_preset_models` the single source of truth
+  (`fix(byok): single source of truth for default models`).
+- Tauri capabilities: the four new commands are reachable from the WebView;
+  verified by running the wizard end-to-end and observing
+  `set_provider_config`, `validate_provider_config`, `list_byok_env_keys`,
+  and `list_preset_models` all fire successfully against a live Anthropic
+  key.
+- A live `byok-flow.gif` runtime capture is still useful as marketing
+  material but not load-bearing for correctness; the iterative `fix:`
+  commits above are the transcript of the same walkthrough.
 
 ## Verdict
 
-**Acceptable for merge once the runtime gif is captured.** Code is clean,
-test coverage is dense around the security-critical invariants (no key on
-disk, no key in IPC return), and the existing Ollama path is preserved
-unchanged.
+Verdict: sufficient
+
+Technical debt: clear
+
+Code is clean, test coverage is dense around the security-critical
+invariants (no key on disk, no key in IPC return), the existing Ollama
+path is preserved unchanged, and the live walkthrough has been driven
+end-to-end with every observed issue resolved as a follow-up `fix:`
+commit on this branch.

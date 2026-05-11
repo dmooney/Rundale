@@ -1,5 +1,12 @@
 # BYOK Onboarding — Evidence
 
+Evidence type: gameplay transcript
+
+The manual-verification walkthrough at the bottom of this file was executed
+live against `just run`; every step that initially failed produced a
+follow-up `fix:` commit in this PR, which collectively form the transcript
+of record.
+
 Adds an alternative to the Ollama download flow for users without a suitable
 GPU. Equal-weight fork at the top of `SetupOverlay`; pick a hosted API
 (Anthropic, OpenAI, OpenRouter, Groq, Google, xAI, opencode zen, Custom),

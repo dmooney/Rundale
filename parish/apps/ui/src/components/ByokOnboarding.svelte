@@ -188,7 +188,7 @@
 				<button class="byok__back" type="button" onclick={back}>Back</button>
 			{/if}
 		</div>
-	{:else if step === 'key' || step === 'validating' || step === 'error'}
+	{:else if step === 'key' || step === 'validating' || step === 'saving' || step === 'error'}
 		<div class="byok__inner">
 			<button class="byok__back" type="button" onclick={back}>← Back</button>
 			<h2>{chosen?.label}</h2>
@@ -274,8 +274,6 @@
 				</button>
 			</div>
 		</div>
-	{:else if step === 'saving'}
-		<div class="byok__pending">Saving config…</div>
 	{/if}
 </div>
 
@@ -431,10 +429,5 @@
 		cursor: pointer;
 		font: inherit;
 		align-self: flex-start;
-	}
-	.byok__pending {
-		text-align: center;
-		padding: 2rem;
-		opacity: 0.7;
 	}
 </style>
