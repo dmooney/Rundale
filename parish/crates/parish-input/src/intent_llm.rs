@@ -78,3 +78,25 @@ pub async fn parse_intent(
         }),
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_intent_response_deserialize() {
+        let json = r#"{"intent": "move", "target": "the pub", "dialogue": null}"#;
+        let resp: IntentResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.intent, Some(IntentKind::Move));
+        assert_eq!(resp.target, Some("the pub".to_string()));
+        assert!(resp.dialogue.is_none());
+    }
+    #[test]
+    fn test_intent_response_empty() {
+        let json = r#"{}"#;
+        let resp: IntentResponse = serde_json::from_str(json).unwrap();
+        assert!(resp.intent.is_none());
+        assert!(resp.target.is_none());
+        assert!(resp.dialogue.is_none());
+    }
+}

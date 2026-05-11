@@ -51,3 +51,23 @@ pub enum InputResult {
     /// Free-form game input for LLM parsing.
     GameInput(String),
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json;
+
+    #[test]
+    fn test_intent_kind_deserialize() {
+        let json = r#""move""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Move);
+
+        let json = r#""talk""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Talk);
+
+        let json = r#""unknown""#;
+        let kind: IntentKind = serde_json::from_str(json).unwrap();
+        assert_eq!(kind, IntentKind::Unknown);
+    }
+}
