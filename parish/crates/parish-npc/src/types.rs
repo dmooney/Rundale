@@ -222,6 +222,65 @@ impl Intelligence {
 
         parts.join(" ")
     }
+
+    /// Returns a compact comma-separated list of adjectives capturing only the
+    /// notable intelligence dimensions.
+    ///
+    /// For use in token-tight prompts (e.g. Tier 3 batch inference) where the
+    /// full `prompt_guidance` prose would balloon the input. Only dimensions
+    /// rated 1-2 or 4-5 contribute a single adjective each; average 3s are
+    /// skipped. Returns an empty string for an all-3s profile.
+    pub fn adjective_summary(&self) -> String {
+        let mut parts: Vec<&'static str> = Vec::new();
+        let dims = [
+            (
+                self.verbal,
+                "halting",
+                "plain-spoken",
+                "well-spoken",
+                "eloquent",
+            ),
+            (
+                self.analytical,
+                "muddled",
+                "concrete-minded",
+                "sharp",
+                "incisive",
+            ),
+            (
+                self.emotional,
+                "oblivious",
+                "blunt",
+                "perceptive",
+                "deeply empathetic",
+            ),
+            (
+                self.practical,
+                "impractical",
+                "ham-fisted",
+                "resourceful",
+                "endlessly resourceful",
+            ),
+            (self.wisdom, "reckless", "impulsive", "wise", "deeply wise"),
+            (
+                self.creative,
+                "literal-minded",
+                "unimaginative",
+                "quick-witted",
+                "brilliantly creative",
+            ),
+        ];
+        for (rating, w1, w2, w4, w5) in dims {
+            match rating {
+                1 => parts.push(w1),
+                2 => parts.push(w2),
+                4 => parts.push(w4),
+                5 => parts.push(w5),
+                _ => {}
+            }
+        }
+        parts.join(", ")
+    }
 }
 
 /// The kind of relationship between two NPCs.
@@ -856,6 +915,45 @@ mod tests {
         let guidance = intel.prompt_guidance();
         assert!(guidance.contains("eloquent"));
         assert!(guidance.contains("impractical"));
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_average_is_empty() {
+        let intel = Intelligence::default();
+        assert_eq!(intel.adjective_summary(), "");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_high() {
+        let intel = Intelligence::new(5, 3, 3, 3, 3, 3);
+        assert_eq!(intel.adjective_summary(), "eloquent");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_low() {
+        let intel = Intelligence::new(3, 3, 3, 3, 3, 1);
+        assert_eq!(intel.adjective_summary(), "literal-minded");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_mixed_order_stable() {
+        // V4 A3 E5 P3 W2 C3 — adjectives appear in declaration order
+        // (verbal, analytical, emotional, practical, wisdom, creative).
+        let intel = Intelligence::new(4, 3, 5, 3, 2, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "well-spoken, deeply empathetic, impulsive"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_covers_all_bands() {
+        // V1 A2 E4 P5 W3 C3 — covers bands 1, 2, 4, 5; skips 3s.
+        let intel = Intelligence::new(1, 2, 4, 5, 3, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "halting, concrete-minded, perceptive, endlessly resourceful"
+        );
     }
 
     #[test]
