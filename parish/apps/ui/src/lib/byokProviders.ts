@@ -3,9 +3,13 @@
  *
  * The full provider list (15 entries) is shipped by parish-config; this table
  * hand-picks the most-recognized options for the front-of-grid display, with
- * an "Other..." expander revealing the long tail. opencode zen is surfaced as
+ * an "Other…" expander revealing the long tail. opencode zen is surfaced as
  * a labeled preset that resolves to `Provider::Custom` with a pre-filled
  * base URL — see `presetBaseUrl`.
+ *
+ * Default model names live in `parish-config/src/presets.rs` (the same table
+ * `fill_missing_models_from_presets` reads). The wizard fetches them at
+ * runtime via `list_preset_models` so we don't drift.
  */
 
 export interface ByokProviderMeta {
@@ -21,8 +25,6 @@ export interface ByokProviderMeta {
 	needsBaseUrl: boolean;
 	/** True if the provider does not require an API key (Ollama, LM Studio, vLLM, Simulator). */
 	keyless: boolean;
-	/** Default model for the dialogue tier. Used as the model picker's initial selection. */
-	defaultModel: string;
 	/**
 	 * Pre-filled base URL when this preset resolves to `Provider::Custom`
 	 * (e.g. opencode zen). When omitted, the provider's default base URL
@@ -37,11 +39,10 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 	{
 		id: 'anthropic',
 		label: 'Anthropic',
-		blurb: 'Claude — the engine\'s native dialogue partner.',
+		blurb: "Claude — the engine's native dialogue partner.",
 		signupUrl: 'https://console.anthropic.com/settings/keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'claude-opus-4-7'
+		keyless: false
 	},
 	{
 		id: 'openai',
@@ -49,8 +50,7 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'GPT-class models, broadest tooling.',
 		signupUrl: 'https://platform.openai.com/api-keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'gpt-4o'
+		keyless: false
 	},
 	{
 		id: 'openrouter',
@@ -58,8 +58,7 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'One key, dozens of model providers.',
 		signupUrl: 'https://openrouter.ai/keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'anthropic/claude-sonnet-4-6'
+		keyless: false
 	},
 	{
 		id: 'groq',
@@ -67,8 +66,7 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Fast tokens, generous free tier.',
 		signupUrl: 'https://console.groq.com/keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'llama-3.3-70b-versatile'
+		keyless: false
 	},
 	{
 		id: 'google',
@@ -76,8 +74,7 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Free tier with quota — Gemini family.',
 		signupUrl: 'https://aistudio.google.com/app/apikey',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'gemini-2.5-flash'
+		keyless: false
 	},
 	{
 		id: 'xai',
@@ -85,8 +82,7 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'OpenAI-compatible Grok API.',
 		signupUrl: 'https://console.x.ai',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'grok-2-latest'
+		keyless: false
 	}
 ];
 
@@ -98,8 +94,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'European, OpenAI-compatible.',
 		signupUrl: 'https://console.mistral.ai/api-keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'mistral-large-latest'
+		keyless: false
 	},
 	{
 		id: 'deepseek',
@@ -107,8 +102,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Cost-efficient reasoning models.',
 		signupUrl: 'https://platform.deepseek.com/api_keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'deepseek-chat'
+		keyless: false
 	},
 	{
 		id: 'together',
@@ -116,8 +110,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Open-source models hosted.',
 		signupUrl: 'https://api.together.xyz/settings/api-keys',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
+		keyless: false
 	},
 	{
 		id: 'nvidia-nim',
@@ -125,8 +118,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'NVIDIA-hosted OpenAI-compatible inference.',
 		signupUrl: 'https://build.nvidia.com',
 		needsBaseUrl: false,
-		keyless: false,
-		defaultModel: 'meta/llama-3.3-70b-instruct'
+		keyless: false
 	},
 	{
 		id: 'lmstudio',
@@ -134,8 +126,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Local desktop server. No key.',
 		signupUrl: 'https://lmstudio.ai',
 		needsBaseUrl: false,
-		keyless: true,
-		defaultModel: ''
+		keyless: true
 	},
 	{
 		id: 'vllm',
@@ -143,8 +134,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Self-hosted OpenAI-compatible server.',
 		signupUrl: 'https://docs.vllm.ai',
 		needsBaseUrl: false,
-		keyless: true,
-		defaultModel: ''
+		keyless: true
 	},
 	{
 		// opencode zen — sst's hosted gateway. Resolves to Provider::Custom on
@@ -152,11 +142,10 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		// presetBaseUrl pre-fills the URL so the user only pastes a key.
 		id: 'custom',
 		label: 'opencode zen',
-		blurb: 'opencode\'s hosted gateway.',
+		blurb: "opencode's hosted gateway.",
 		signupUrl: 'https://opencode.ai/zen',
 		needsBaseUrl: true,
 		keyless: false,
-		defaultModel: '',
 		presetBaseUrl: 'https://opencode.ai'
 	},
 	{
@@ -165,8 +154,7 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		blurb: 'Bring your own endpoint URL.',
 		signupUrl: '',
 		needsBaseUrl: true,
-		keyless: false,
-		defaultModel: ''
+		keyless: false
 	}
 ];
 

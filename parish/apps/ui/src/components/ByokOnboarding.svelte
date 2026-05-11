@@ -11,8 +11,10 @@
 		setProviderConfig,
 		validateProviderConfig,
 		listByokEnvKeys,
+		listPresetModels,
 		type ValidationOutcome,
-		type SetProviderConfigArgs
+		type SetProviderConfigArgs,
+		type ProviderPresetModels
 	} from '$lib/ipc';
 	import {
 		FEATURED_PROVIDERS,
@@ -52,18 +54,30 @@
 	// by the *picked* provider id (not the current GameConfig provider) so
 	// the hint shows during first-run too.
 	let envKeys = $state<Record<string, boolean>>({});
+	let presetModels = $state<Record<string, ProviderPresetModels>>({});
 	onMount(() => {
 		listByokEnvKeys()
 			.then((m) => (envKeys = m))
 			.catch(() => (envKeys = {}));
+		listPresetModels()
+			.then((m) => (presetModels = m))
+			.catch(() => (presetModels = {}));
 	});
 	let hasEnvKey = $derived(chosenId ? !!envKeys[chosenId] : false);
+
+	function defaultModelFor(id: string): string {
+		// Backend's presets.rs is the single source of truth. The dialogue
+		// tier is what `model_name` (used for player-facing NPC dialogue) is
+		// prefilled with; other tiers fall back to their own presets via
+		// fill_missing_models_from_presets after save.
+		return presetModels[id]?.dialogue ?? '';
+	}
 
 	function pick(p: ByokProviderMeta) {
 		chosenId = p.id;
 		apiKey = '';
 		baseUrl = p.presetBaseUrl ?? '';
-		modelName = p.defaultModel;
+		modelName = defaultModelFor(p.id);
 		revealKey = false;
 		validationError = null;
 		saveError = '';
@@ -230,7 +244,7 @@
 				<input
 					type="text"
 					bind:value={modelName}
-					placeholder={chosen?.defaultModel || 'leave blank for default'}
+					placeholder={defaultModelFor(chosenId) || 'leave blank for default'}
 					disabled={step === 'validating' || step === 'saving'}
 				/>
 				<small>Used for NPC dialogue. Other categories fall back to presets.</small>

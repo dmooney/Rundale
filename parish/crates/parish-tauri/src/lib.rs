@@ -944,6 +944,7 @@ pub fn run() {
             commands::get_provider_config,
             commands::clear_provider_config,
             commands::list_byok_env_keys,
+            commands::list_preset_models,
             commands::submit_input,
             commands::discover_save_files,
             commands::save_game,

@@ -99,6 +99,7 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/setup-status", get(setup_status))
         .route("/api/submit-byok", post(submit_byok))
         .route("/api/byok-env-keys", get(byok_env_keys))
+        .route("/api/preset-models", get(preset_models))
         .with_state(bridge)
 }
 
@@ -286,6 +287,13 @@ pub(crate) struct SubmitByokBody {
 #[allow(clippy::unused_async)]
 async fn byok_env_keys() -> Json<std::collections::BTreeMap<String, bool>> {
     Json(parish_core::ipc::byok::handle_list_env_keys())
+}
+
+#[allow(clippy::unused_async)]
+async fn preset_models() -> Json<
+    std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>,
+> {
+    Json(parish_core::ipc::byok::handle_list_preset_models())
 }
 
 async fn setup_status(State(b): State<BridgeState>) -> Json<serde_json::Value> {

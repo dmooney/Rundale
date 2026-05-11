@@ -120,6 +120,39 @@ pub async fn handle_validate_provider_config(
     validate::validate(&provider, &url, key_to_use).await
 }
 
+/// Returns `{provider_id: {dialogue, simulation, intent, reaction}}` for every
+/// provider that has presets. Single source of truth for the wizard's model
+/// prefill — avoids the previous hand-duplicated table that drifted from
+/// `parish-config/src/presets.rs`.
+pub fn handle_list_preset_models()
+-> std::collections::BTreeMap<String, ProviderPresetModels> {
+    use crate::config::InferenceCategory;
+    let mut out = std::collections::BTreeMap::new();
+    for p in Provider::ALL {
+        if !p.has_preset() {
+            continue;
+        }
+        out.insert(
+            p.id().to_string(),
+            ProviderPresetModels {
+                dialogue: p.preset_model(InferenceCategory::Dialogue).map(String::from),
+                simulation: p.preset_model(InferenceCategory::Simulation).map(String::from),
+                intent: p.preset_model(InferenceCategory::Intent).map(String::from),
+                reaction: p.preset_model(InferenceCategory::Reaction).map(String::from),
+            },
+        );
+    }
+    out
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderPresetModels {
+    pub dialogue: Option<String>,
+    pub simulation: Option<String>,
+    pub intent: Option<String>,
+    pub reaction: Option<String>,
+}
+
 /// Returns a map of `{provider_id: has_env_key}` for every known provider.
 /// The wizard uses this BEFORE the user has saved a choice — so the placeholder
 /// hint can say "env var detected" for the provider being picked, not just the

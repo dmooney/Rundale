@@ -310,6 +310,18 @@ pub async fn list_byok_env_keys()
     Ok(parish_core::ipc::byok::handle_list_env_keys())
 }
 
+/// Returns `{provider_id: {dialogue, simulation, intent, reaction}}` — the
+/// wizard uses this so its prefill matches what fill_missing_models_from_presets
+/// will actually install for the other tiers.
+#[tauri::command]
+pub async fn list_preset_models()
+-> Result<
+    std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>,
+    String,
+> {
+    Ok(parish_core::ipc::byok::handle_list_preset_models())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
