@@ -198,3 +198,76 @@ pub(crate) fn validate_flag_name(name: &str) -> Result<String, String> {
     }
     Ok(name.to_string())
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_branch_name_valid() {
+        assert!(validate_branch_name("my-save").is_ok());
+        assert!(validate_branch_name("save_1").is_ok());
+        assert!(validate_branch_name("My Save Game").is_ok());
+    }
+    #[test]
+    fn test_validate_branch_name_too_long() {
+        let long_name = "a".repeat(256);
+        assert!(validate_branch_name(&long_name).is_err());
+    }
+    #[test]
+    fn test_validate_branch_name_invalid_chars() {
+        assert!(validate_branch_name("save/game").is_err());
+        assert!(validate_branch_name("save;drop").is_err());
+        assert!(validate_branch_name("../../etc").is_err());
+    }
+    // --- validate_flag_name tests ---
+    #[test]
+    fn test_validate_flag_name_valid() {
+        assert!(validate_flag_name("experimental").is_ok());
+        assert!(validate_flag_name("my-flag").is_ok());
+        assert!(validate_flag_name("test_flag").is_ok());
+        assert!(validate_flag_name("a1b2c3").is_ok());
+    }
+    #[test]
+    fn test_validate_flag_name_empty() {
+        let err = validate_flag_name("").unwrap_err();
+        assert!(err.contains("cannot be empty"));
+    }
+    #[test]
+    fn test_validate_flag_name_too_long() {
+        let long_name = "a".repeat(65);
+        let err = validate_flag_name(&long_name).unwrap_err();
+        assert!(err.contains("max 64"));
+    }
+    #[test]
+    fn test_validate_flag_name_at_max_length() {
+        let name = "a".repeat(64);
+        assert!(validate_flag_name(&name).is_ok());
+    }
+    #[test]
+    fn test_validate_flag_name_invalid_chars() {
+        assert!(validate_flag_name("bad name").is_err());
+        assert!(validate_flag_name("bad/name").is_err());
+        assert!(validate_flag_name("bad.name").is_err());
+        assert!(validate_flag_name("bad!flag").is_err());
+        assert!(validate_flag_name("bad@flag").is_err());
+    }
+    // --- validate_branch_name edge cases ---
+    #[test]
+    fn test_validate_branch_name_at_max_length() {
+        let name = "a".repeat(255);
+        assert!(validate_branch_name(&name).is_ok());
+    }
+    #[test]
+    fn test_validate_branch_name_just_over_max() {
+        let name = "a".repeat(256);
+        let err = validate_branch_name(&name).unwrap_err();
+        assert!(err.contains("max 255"));
+    }
+    #[test]
+    fn test_validate_branch_name_with_special_chars() {
+        assert!(validate_branch_name("save!game").is_err());
+        assert!(validate_branch_name("save@game").is_err());
+        assert!(validate_branch_name("save#game").is_err());
+        assert!(validate_branch_name("save.game").is_err());
+    }
+}
