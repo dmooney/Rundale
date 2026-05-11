@@ -640,8 +640,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
                     let npc_names: std::collections::HashMap<_, _> =
                         npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                    let tier3_ids =
-                        npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
+                    let tier3_ids = npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
                     let snapshots: Vec<Tier3Snapshot> = tier3_ids
                         .iter()
                         .filter_map(|id| npc_mgr.get(*id))
@@ -832,12 +831,13 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                                 let game_time = world.clock.now();
 
                                 for event in &events {
-                                    let _dbg = parish_core::npc::ticks::apply_tier2_event_with_config(
-                                        event,
-                                        npc_mgr.npcs_mut(),
-                                        game_time,
-                                        &parish_core::config::NpcConfig::default(),
-                                    );
+                                    let _dbg =
+                                        parish_core::npc::ticks::apply_tier2_event_with_config(
+                                            event,
+                                            npc_mgr.npcs_mut(),
+                                            game_time,
+                                            &parish_core::config::NpcConfig::default(),
+                                        );
                                     // Push gossip so it can propagate to other NPCs.
                                     parish_core::npc::ticks::create_gossip_from_tier2_event(
                                         event,
