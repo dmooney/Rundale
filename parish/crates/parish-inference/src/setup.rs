@@ -252,16 +252,21 @@ pub struct VllmMlxSlot {
 ///    takes `serve <model> --port N ...` directly. This is what
 ///    `uv tool install vllm-mlx` produces on a dev machine.
 ///
-/// 2. **Bundled venv** — `VLLM_MLX_BIN=/path/to/python3` (any path whose
-///    filename starts with `python`). The binary is the interpreter
-///    inside our bundled portable Python, and the `vllm_mlx` package is
-///    located via `PYTHONPATH`. The spawn becomes `python3 -m vllm_mlx
-///    serve <model> --port N ...`. This is the layout packaged
-///    Parish.app ships so end users don't have to `uv tool install`.
+/// 2. **Bundled runtime** — `VLLM_MLX_BIN=/path/to/python3` (any path
+///    whose filename starts with `python`). The binary is the
+///    interpreter inside our bundled portable Python, with the
+///    `vllm_mlx` package pip-installed into its own site-packages.
+///    The spawn becomes `python3 -m vllm_mlx.cli serve <model> --port
+///    N ...`. (`vllm_mlx` itself isn't directly executable as `-m
+///    vllm_mlx` — the package has no `__main__.py`; the console
+///    entry point installed by pip is `vllm_mlx.cli:main`, which we
+///    invoke directly so we don't depend on the pip-generated
+///    shebang line — that shebang is baked at install time and would
+///    point at the build machine inside a shipped .app.)
 ///
 /// The discriminator is the filename: if the basename starts with
-/// `python` we add `-m vllm_mlx` as a prefix; otherwise we invoke the
-/// binary directly.
+/// `python` we add `-m vllm_mlx.cli` as a prefix; otherwise we
+/// invoke the binary directly.
 struct VllmMlxInvocation {
     program: String,
     prefix_args: Vec<&'static str>,
@@ -276,7 +281,7 @@ impl VllmMlxInvocation {
         if basename.starts_with("python") {
             Self {
                 program: bin.to_string(),
-                prefix_args: vec!["-m", "vllm_mlx"],
+                prefix_args: vec!["-m", "vllm_mlx.cli"],
             }
         } else {
             Self {
@@ -1753,7 +1758,7 @@ mod tests {
             "/Applications/Rundale.app/Contents/Resources/vllm-mlx/python-runtime/bin/python3",
         );
         assert!(inv.program.ends_with("python3"));
-        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx"]);
+        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx.cli"]);
     }
 
     #[test]
@@ -1761,7 +1766,7 @@ mod tests {
         // Versioned interpreter names (`python3.13`, `python3.14`) must
         // still trigger the `-m vllm_mlx` path.
         let inv = VllmMlxInvocation::resolve("/opt/parish/python-runtime/bin/python3.13");
-        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx"]);
+        assert_eq!(inv.prefix_args, vec!["-m", "vllm_mlx.cli"]);
     }
 
     #[test]
