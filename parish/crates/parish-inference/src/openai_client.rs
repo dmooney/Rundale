@@ -4,8 +4,11 @@
 //! Ollama (`/v1/chat/completions`), LM Studio, OpenRouter, or any custom
 //! OpenAI-compatible endpoint. Uses SSE (Server-Sent Events) for streaming.
 
+use crate::SseResult;
 use crate::TOKEN_CHANNEL_CAPACITY;
+use crate::client_base::ClientBase;
 use crate::rate_limit::InferenceRateLimiter;
+use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
@@ -45,17 +48,8 @@ pub(crate) fn build_client_or_fallback(timeout: Duration, label: &'static str) -
 /// without any caller awareness.
 #[derive(Clone)]
 pub struct OpenAiClient {
-    /// HTTP client with default timeout for non-streaming requests.
-    client: reqwest::Client,
-    /// HTTP client with longer timeout for streaming requests.
-    /// Reused across calls to preserve connection pooling.
-    streaming_client: reqwest::Client,
-    /// Base URL (e.g. "http://localhost:11434" or "https://openrouter.ai/api").
-    base_url: String,
-    /// Optional API key for authenticated providers.
-    api_key: Option<String>,
-    /// Optional outbound request rate limiter. `None` means unlimited.
-    rate_limiter: Option<InferenceRateLimiter>,
+    /// Shared HTTP client state (fields, builder methods, rate limiter).
+    pub(crate) base: ClientBase,
 }
 
 /// A single message in the chat completions request.
@@ -155,35 +149,14 @@ impl OpenAiClient {
         api_key: Option<&str>,
         config: &InferenceConfig,
     ) -> Self {
-        let client = build_client_or_fallback(
-            Duration::from_secs(config.timeout_secs),
-            "OpenAI-compatible",
-        );
-
-        // Pre-build the streaming client once so connection pooling is
-        // preserved across streaming calls instead of creating a fresh
-        // client (and fresh TCP connections) on every request.
-        let streaming_client = build_client_or_fallback(
-            Duration::from_secs(config.streaming_timeout_secs),
-            "OpenAI-compatible streaming",
-        );
-
-        // Normalize the base URL: strip a trailing slash, and also strip a
-        // trailing `/v1` (with or without slash) because the endpoint paths
-        // below unconditionally append `/v1/chat/completions`. Users who set
-        // `PARISH_BASE_URL=https://api.groq.com/openai/v1` would otherwise get
-        // `https://api.groq.com/openai/v1/v1/chat/completions` (404).
-        let normalized = {
-            let trimmed = base_url.trim_end_matches('/');
-            trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
-        };
-
         Self {
-            client,
-            streaming_client,
-            base_url: normalized,
-            api_key: api_key.map(|s| s.to_string()),
-            rate_limiter: None,
+            base: ClientBase::new(
+                base_url,
+                api_key,
+                "OpenAI-compatible",
+                "OpenAI-compatible streaming",
+                config,
+            ),
         }
     }
 
@@ -192,36 +165,34 @@ impl OpenAiClient {
     /// All subsequent `generate*` calls will block on the limiter
     /// before issuing the HTTP request. Use [`InferenceRateLimiter::from_config`]
     /// to build a limiter from a `parish.toml` `[rate_limits]` entry.
-    pub fn with_rate_limit(mut self, limiter: InferenceRateLimiter) -> Self {
-        self.rate_limiter = Some(limiter);
-        self
+    pub fn with_rate_limit(self, limiter: InferenceRateLimiter) -> Self {
+        Self {
+            base: self.base.with_rate_limit(limiter),
+        }
     }
 
     /// Convenience: attach a rate limiter only if `limiter` is `Some`.
     ///
     /// Equivalent to `match limiter { Some(l) => self.with_rate_limit(l), None => self }`.
     pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
-        match limiter {
-            Some(l) => self.with_rate_limit(l),
-            None => self,
+        Self {
+            base: self.base.maybe_with_rate_limit(limiter),
         }
     }
 
     /// Returns whether this client has a rate limiter attached.
     pub fn has_rate_limiter(&self) -> bool {
-        self.rate_limiter.is_some()
+        self.base.has_rate_limiter()
     }
 
     /// Awaits a free slot in the limiter (no-op if unlimited).
     async fn acquire_slot(&self) {
-        if let Some(rl) = &self.rate_limiter {
-            rl.acquire().await;
-        }
+        self.base.acquire_slot().await
     }
 
     /// Returns the base URL of this client.
     pub fn base_url(&self) -> &str {
-        &self.base_url
+        self.base.base_url()
     }
 
     /// Sends a non-streaming chat completion request and returns the response text.
@@ -253,8 +224,9 @@ impl OpenAiClient {
     /// Posts to `/v1/chat/completions` with `stream: true`. Parses SSE
     /// (Server-Sent Events) data lines, extracts delta content, and sends
     /// each token through `token_tx`. Returns the full accumulated text
-    /// after the stream completes. Uses a 5-minute timeout. An optional
-    /// `max_tokens` cap prevents excessively long responses.
+    /// after the stream completes. Uses `InferenceConfig::streaming_timeout_secs`
+    /// as the timeout. An optional `max_tokens` cap prevents excessively long
+    /// responses.
     pub async fn generate_stream(
         &self,
         model: &str,
@@ -266,49 +238,7 @@ impl OpenAiClient {
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, true, false, max_tokens, temperature);
-
-        let url = format!("{}/v1/chat/completions", self.base_url);
-        let mut req = self.streaming_client.post(&url).json(&body);
-        req = self.apply_auth_headers(req);
-
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| ParishError::Network(e.to_string()))?;
-
-        let mut accumulated = String::new();
-        let mut line_buf = String::new();
-        let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
-
-        let mut response = resp;
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-        {
-            // Decode incrementally so multi-byte characters split across
-            // HTTP chunk boundaries aren't mangled into U+FFFD (#223).
-            line_buf.push_str(&decoder.push(&chunk));
-
-            while let Some(newline_pos) = line_buf.find('\n') {
-                let line: String = line_buf.drain(..=newline_pos).collect();
-                match process_sse_line(&line, &token_tx, &mut accumulated) {
-                    SseResult::Continue => {}
-                    SseResult::Done => return Ok(accumulated),
-                }
-            }
-        }
-
-        // Flush any trailing incomplete bytes, then process any remaining line.
-        line_buf.push_str(&decoder.flush());
-        let remaining = line_buf.trim();
-        if !remaining.is_empty() {
-            process_sse_line(remaining, &token_tx, &mut accumulated);
-        }
-
-        Ok(accumulated)
+        self.stream_response(body, token_tx).await
     }
 
     /// Sends a streaming chat completion request with JSON mode enabled.
@@ -327,46 +257,7 @@ impl OpenAiClient {
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, true, true, max_tokens, temperature);
-
-        let url = format!("{}/v1/chat/completions", self.base_url);
-        let mut req = self.streaming_client.post(&url).json(&body);
-        req = self.apply_auth_headers(req);
-
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| ParishError::Network(e.to_string()))?;
-
-        let mut accumulated = String::new();
-        let mut line_buf = String::new();
-        let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
-
-        let mut response = resp;
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|e| ParishError::Network(e.to_string()))?
-        {
-            line_buf.push_str(&decoder.push(&chunk));
-
-            while let Some(newline_pos) = line_buf.find('\n') {
-                let line: String = line_buf.drain(..=newline_pos).collect();
-                match process_sse_line(&line, &token_tx, &mut accumulated) {
-                    SseResult::Continue => {}
-                    SseResult::Done => return Ok(accumulated),
-                }
-            }
-        }
-
-        line_buf.push_str(&decoder.flush());
-        let remaining = line_buf.trim();
-        if !remaining.is_empty() {
-            process_sse_line(remaining, &token_tx, &mut accumulated);
-        }
-
-        Ok(accumulated)
+        self.stream_response(body, token_tx).await
     }
 
     /// Sends a non-streaming request and deserializes the response as structured JSON.
@@ -390,8 +281,9 @@ impl OpenAiClient {
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
-        let content = extract_content(&completion);
-        let parsed: T = serde_json::from_str(&content)?;
+        let trimmed = extract_content(&completion);
+        let content = strip_json_fence(&trimmed);
+        let parsed: T = serde_json::from_str(content)?;
         Ok(parsed)
     }
 
@@ -437,13 +329,36 @@ impl OpenAiClient {
         }
     }
 
+    /// Shared streaming path: posts the request body, decodes the SSE stream.
+    ///
+    /// Used by both [`generate_stream`] and [`generate_stream_json`] to
+    /// avoid duplicating the HTTP request and SSE parsing loop.
+    async fn stream_response(
+        &self,
+        body: ChatCompletionRequest<'_>,
+        token_tx: mpsc::Sender<String>,
+    ) -> Result<String, ParishError> {
+        let url = format!("{}/v1/chat/completions", self.base.base_url);
+        let mut req = self.base.streaming_client.post(&url).json(&body);
+        req = self.apply_auth_headers(req);
+
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ParishError::Network(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| ParishError::Network(e.to_string()))?;
+
+        read_sse_stream(resp, &token_tx).await
+    }
+
     /// Sends a non-streaming request and returns the raw response.
     async fn send_request(
         &self,
         body: &ChatCompletionRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
-        let url = format!("{}/v1/chat/completions", self.base_url);
-        let mut req = self.client.post(&url).json(body);
+        let url = format!("{}/v1/chat/completions", self.base.base_url);
+        let mut req = self.base.client.post(&url).json(body);
         req = self.apply_auth_headers(req);
 
         req.send()
@@ -459,11 +374,11 @@ impl OpenAiClient {
     /// when the base URL targets OpenRouter, avoiding client fingerprinting
     /// on other providers.
     fn apply_auth_headers(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        let req = match &self.api_key {
+        let req = match &self.base.api_key {
             Some(key) => req.header("Authorization", format!("Bearer {}", key)),
             None => req,
         };
-        if self.base_url.contains("openrouter") {
+        if self.base.base_url.contains("openrouter") {
             req.header("HTTP-Referer", "https://github.com/parish-game/parish")
                 .header("X-Title", "Parish")
         } else {
@@ -472,12 +387,44 @@ impl OpenAiClient {
     }
 }
 
-/// Result of processing a single SSE line.
-enum SseResult {
-    /// Continue reading more lines.
-    Continue,
-    /// Stream is complete.
-    Done,
+/// Reads an SSE response body, parsing data lines and forwarding tokens.
+///
+/// Shared by [`OpenAiClient::generate_stream`] and
+/// [`OpenAiClient::generate_stream_json`] to avoid duplicating the
+/// streaming-loop boilerplate (TD-004).
+async fn read_sse_stream(
+    response: reqwest::Response,
+    token_tx: &mpsc::Sender<String>,
+) -> Result<String, ParishError> {
+    let mut accumulated = String::new();
+    let mut line_buf = String::new();
+    let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
+
+    let mut response = response;
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| ParishError::Network(e.to_string()))?
+    {
+        line_buf.push_str(&decoder.push(&chunk));
+
+        while let Some(newline_pos) = line_buf.find('\n') {
+            let line: String = line_buf.drain(..=newline_pos).collect();
+            match process_sse_line(&line, token_tx, &mut accumulated) {
+                SseResult::Continue => {}
+                SseResult::Done => return Ok(accumulated),
+                SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
+            }
+        }
+    }
+
+    line_buf.push_str(&decoder.flush());
+    let remaining = line_buf.trim();
+    if !remaining.is_empty() {
+        process_sse_line(remaining, token_tx, &mut accumulated);
+    }
+
+    Ok(accumulated)
 }
 
 /// Processes a single SSE line: extracts content, sends tokens, detects completion.
@@ -598,7 +545,7 @@ mod tests {
     fn test_openai_client_new() {
         let client = OpenAiClient::new("http://localhost:11434", None);
         assert_eq!(client.base_url(), "http://localhost:11434");
-        assert!(client.api_key.is_none());
+        assert!(client.base.api_key.is_none());
     }
 
     #[test]
@@ -610,7 +557,7 @@ mod tests {
     #[test]
     fn test_openai_client_with_api_key() {
         let client = OpenAiClient::new("https://openrouter.ai/api", Some("sk-test"));
-        assert_eq!(client.api_key.as_deref(), Some("sk-test"));
+        assert_eq!(client.base.api_key.as_deref(), Some("sk-test"));
     }
 
     #[test]
@@ -910,5 +857,44 @@ mod tests {
             )
             .await;
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_generate_blocks_when_rate_limiter_exhausted() {
+        use std::time::Instant;
+
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .and(wiremock::matchers::path("/v1/chat/completions"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "choices": [{"message": {"content": "Hello!"}}]
+                })),
+            )
+            .mount(&server)
+            .await;
+
+        let limiter = InferenceRateLimiter::new(600, 1).expect("limiter");
+        let client = OpenAiClient::new(&server.uri(), None).with_rate_limit(limiter);
+
+        let start = Instant::now();
+        let _result1 = client.generate("test-model", "hi", None, None, None).await;
+        let elapsed_first = start.elapsed();
+
+        let start = Instant::now();
+        let _result2 = client.generate("test-model", "hi", None, None, None).await;
+        let elapsed_second = start.elapsed();
+
+        assert!(
+            elapsed_second > elapsed_first,
+            "second generate (rate-limited) should take longer: first={:?}, second={:?}",
+            elapsed_first,
+            elapsed_second,
+        );
+        assert!(
+            elapsed_second >= std::time::Duration::from_millis(50),
+            "second call waited {:?}, expected at least 50ms refill wait",
+            elapsed_second,
+        );
     }
 }

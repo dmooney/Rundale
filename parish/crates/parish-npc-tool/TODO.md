@@ -4,21 +4,18 @@
 
 | ID | Category | Severity | Location | Description |
 |----|----------|----------|----------|-------------|
-| TD-001 | Complexity | P3 | `src/main.rs:373-384` | Deep nesting (4 levels) in `generate_parish` relationship generation: `for id in &npc_ids { for _ in 0..2 { if let Some(other) = npc_ids.choose(&mut rng) && other != id { … } } }`. |
-| TD-002 | Weak Tests | P2 | `src/main.rs:409-453` | `list_npcs` has zero test coverage. User-facing query function with dynamic SQL construction and multiple filter paths. |
-| TD-003 | Weak Tests | P2 | `src/main.rs:455-495` | `show_npc` has zero test coverage — neither the found nor the not-found error path is tested. |
-| TD-004 | Weak Tests | P2 | `src/main.rs:530-550` | `edit_npc` has zero test coverage — no test for mood-only, occupation-only, both, or the "no changes provided" error path. |
-| TD-005 | Weak Tests | P2 | `src/main.rs:570-589` | `elaborate_parish` has zero test coverage — batch promotion logic, LIMIT, and empty-result paths untested. |
-| TD-006 | Weak Tests | P2 | `src/main.rs:660-680` | `stats` has zero test coverage — counts across tiers, empty DB, and multi-parish scenarios untested. |
-| TD-007 | Weak Tests | P2 | `src/main.rs:682-726` | `export_npcs` has zero direct test coverage — only exercised indirectly through the import test helper; parish-filtered and unfiltered output formats untested. |
-| TD-008 | Weak Tests | P2 | `src/main.rs:849-881` | `relationships` has zero test coverage — NPC-not-found error path and empty-relationships case untested. |
-| TD-009 | Weak Tests | P2 | `src/main.rs:503-528,1165-1174` | `search_npcs` tested only indirectly via the `search_names` helper (line 1165) which calls `escape_like` directly, bypassing the actual function. LIMIT handling, output formatting, and the join-with-parish path are all untested. |
-| TD-010 | Weak Tests | P2 | `src/main.rs:288-291` | `generate_world` empty-counties error path (`bail!("--counties is required")`) is never exercised in tests. |
-| TD-011 | Duplication | P2 | `src/main.rs:947-1050,762-787` | `test_import_preserves_household_and_restores_sex` copies the full UPSERT SQL verbatim from `import_npcs` (lines 762-787) instead of factoring it out. Any schema change to the import path requires updating both copies. |
-| TD-012 | Stale Docs | P3 | `src/main.rs:803` | Comment says `household_id` is nullable "in the schema (line 216)", but the actual `CREATE TABLE npcs` definition is at line 261. Stale line-number reference. |
-| TD-013 | Stale Docs | P3 | `src/main.rs:604-606` | Inner function `with_filter` uses `///` doc comments; these are not rendered by rustdoc on non-public items. Should use `//` to avoid misleading readers. |
-| TD-014 | Complexity | P3 | `src/main.rs:416-420` | `list_npcs` uses the `"WHERE 1=1"` anti-pattern with manual `push_str` for dynamic filter construction. A `Vec<&dyn ToSql>` + conditional-bind approach (or a query builder) would be less error-prone. |
-| TD-015 | Data Consistency | P2 | `src/main.rs:295,324` | `generate_world` normalizes county names via `.to_lowercase()` (line 295), but `generate_parish` inserts parish names as-is (line 324). SQLite UNIQUE uses BINARY collation, so `--parish Kiltoom` and `--parish kiltoom` produce two separate parish rows that won't unify in exports or queries. |
+| TD-016 | Weak Tests | P2 | `src/main.rs:643-657,659-668` | `validate_db` only has test coverage for the `elaborated_without_personality` rule (line 967). The other three rules — `missing_households`, `invalid_age`, and `broken_relationships` — have no direct tests, despite each being a separate failure mode that triggers `bail!("validation failed")`. Add focused tests that seed a row violating each rule and assert the corresponding count is non-zero / the bail fires. |
+| TD-017 | Weak Tests | P2 | `src/main.rs:604-607` | The `--parish` + `--all` mutual-exclusion error path (`bail!("choose either --parish or --all")`) is untested. Add a unit test that calls `validate_db(&conn, Some("x".into()), true)` and asserts the error message contains "choose either". |
+| TD-018 | Weak Tests | P2 | `src/main.rs:564-580` | `promote_npc` not-found path (`changed == 0` -> `bail!("NPC {} not found")` at lines 575-577) is untested. The happy path is covered by `test_promote_sets_personality` (line 937), but the missing-NPC branch never executes. Add a regression test calling `promote_npc(&conn, 9_999_999)` and asserting the error mentions "not found". |
+| TD-019 | Weak Tests | P3 | `src/main.rs:402-412` | `weighted_occupation` has no direct unit test. The fallback return `"Other"` at line 411 is unreachable in practice (weights sum to 100) but is silent insurance against the table drifting. A small RNG-driven test (loop 10k iterations, assert every observed occupation belongs to `OCCUPATIONS`) would lock down the distribution and exercise the helper as a unit. |
+| TD-020 | Weak Tests | P3 | `src/main.rs:509-513` | `escape_like` has no direct unit test. It's only exercised transitively via `search_npcs`. A handful of cheap unit tests (`%` -> `\%`, `_` -> `\_`, `\` -> `\\`, mixed payload) would document the contract and catch regressions without spinning up a SQLite connection. |
+| TD-021 | Weak Tests | P3 | `src/main.rs:111-128` | `DataTier::as_i64` and `DataTier::from_i64` have no direct tests. The `from_i64` "Unknown" fallback at line 125 (for any `v` outside 0..=2) is dead in normal flow but exists to defend against schema drift; a roundtrip test (`Sketched`/`Elaborated`/`Authored` survive `as_i64` then `from_i64`) plus a test for the unknown tier guard the contract. |
+| TD-022 | Duplication | P2 | `src/main.rs:335,360,789` | The "current world year" `1820` is duplicated. `generate_parish` defines `let now_year = 1820_i64;` (line 335) and uses it at line 360, but `import_npcs_inner` line 789 hard-codes the literal `1820` again to recompute `birth_year`. Promote a single module-level `const WORLD_YEAR: i64 = 1820;` and reference it from both call sites; the literal will silently diverge the day someone advances the simulation year. |
+| TD-023 | Brittle Code | P2 | `src/main.rs:305-314` | `generate_parish` silently auto-creates a county named `'roscommon'` when no county exists (line 311), and the insert is wrapped in `.expect("inserting default county should succeed")` — a panic on a read-only or constrained DB instead of a `Result` error. The hard-coded county also surprises authors of mods set elsewhere (Galway, Mayo). Either fail with a clear `bail!("run generate-world first")` or accept the county on the CLI; do not panic and do not pick a county on the user's behalf. |
+| TD-024 | Manifest / Config | P3 | `src/main.rs:11` | `DEFAULT_DB = "data/parish-world.db"` is a relative path, so the tool's behaviour silently depends on the caller's `cwd`. CLAUDE.md rule #9 explicitly forbids resolving runtime paths from `cwd` for the engine; this is a dev tool so the rule is softer, but the relative default still produces a different DB depending on where you launch the binary. Resolve once via env var (e.g. `PARISH_NPC_DB`) or anchor under a known project root, falling back to a documented default. |
+| TD-025 | Weak Tests | P3 | `src/main.rs:809-818` | `import_npcs` (the stdin-reading wrapper around `import_npcs_inner`) has no test for its JSON-error path: malformed input should bubble `"invalid JSON input"` (the `.context` at line 812). `import_npcs_inner` is well-covered, but the wrapper's JSON validation contract is not. A test that builds a `Cursor` over bad bytes and asserts the error message would close the gap (or split parsing into a pure helper). |
+| TD-026 | Stale Docs | P3 | `src/main.rs:319` | The comment "Matches the pattern used by `import_npcs`" inside `generate_parish` now points at the wrong function — the transactional UPSERT pattern actually lives in `import_npcs_inner` (line 741), not `import_npcs` (line 809, which only reads stdin and delegates). Update the reference so future readers find the real prior art. |
+| TD-027 | Complexity | P3 | `src/main.rs:604-671` | `validate_db` mixes a tiny inner `with_filter` helper (line 620), a local `count!` macro (line 632), and four duplicated `query_row` calls. The macro exists only to switch between a `params![…]` and `[]` binding based on `has_parish`. A small `count_with_optional_parish(conn, predicate, parish_lc.as_deref())` free function would remove the macro, the boolean flag, and the inner `fn`, and let each rule become a one-liner. |
 
 ## In Progress
 
@@ -26,4 +23,22 @@
 
 ## Done
 
-*(none)*
+| ID | Category | Severity | Location | Description |
+|----|----------|----------|----------|-------------|
+| TD-001 | Complexity | P3 | `src/main.rs:373-384` | Flattened 4-level deep nesting in `generate_parish` relationship generation by collecting pairs first, then inserting. |
+| TD-002 | Weak Tests | P2 | `src/main.rs:409-453` | Added `list_npcs` tests: unfiltered, parish-filtered, occupation-filtered, tier-filtered, all-filters, empty-result (6 tests). |
+| TD-003 | Weak Tests | P2 | `src/main.rs:455-495` | Added `show_npc` tests: found and not-found error paths (2 tests). |
+| TD-004 | Weak Tests | P2 | `src/main.rs:530-550` | Added `edit_npc` tests: mood-only, occupation-only, both, and "no changes provided" error path (4 tests). |
+| TD-005 | Weak Tests | P2 | `src/main.rs:570-589` | Added `elaborate_parish` tests: basic batch, empty-result, and zero-limit (3 tests). |
+| TD-006 | Weak Tests | P2 | `src/main.rs:660-680` | Added `stats` tests: with data and empty DB (2 tests). |
+| TD-007 | Weak Tests | P2 | `src/main.rs:682-726` | Added `export_npcs` tests: unfiltered, parish-filtered, empty-result (3 tests). |
+| TD-008 | Weak Tests | P2 | `src/main.rs:849-881` | Added `relationships` tests: NPC found and NPC-not-found error (2 tests). |
+| TD-009 | Weak Tests | P2 | `src/main.rs:503-528,1165-1174` | Added `search_npcs` direct tests: matches, no-matches, zero-limit (3 tests). |
+| TD-010 | Weak Tests | P2 | `src/main.rs:288-291` | Added test for `generate_world` empty-counties error path (1 test). |
+| TD-011 | Duplication | P2 | `src/main.rs:947-1050,762-787` | Extracted `import_npcs_inner` helper; test calls it instead of duplicating UPSERT SQL. |
+| TD-012 | Stale Docs | P3 | `src/main.rs:803` | Fixed stale line-number reference (216 -> 261). |
+| TD-013 | Stale Docs | P3 | `src/main.rs:604-606` | Changed `///` doc comments to `//` on non-public `with_filter` inner function. |
+| TD-014 | Complexity | P3 | `src/main.rs:416-420` | Replaced `WHERE 1=1` anti-pattern with dynamic clauses Vec + conditional `WHERE` prefix. |
+| TD-015 | Data Consistency | P2 | `src/main.rs:295,324` | Normalized parish names via `.to_lowercase()` at all insert and query sites, matching county behavior. |
+
+2026-05-07: All 15 items resolved. 36 tests pass, clippy clean.

@@ -5,13 +5,13 @@
 
 use std::collections::HashMap;
 
-use chrono::{Datelike, Duration, Timelike};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
 use crate::types::NpcState;
 use crate::{Npc, NpcId};
 use parish_types::{LocationId, Weather};
 use parish_world::graph::WorldGraph;
-use parish_world::time::GameClock;
+use parish_world::time::{DayType, GameClock, Season};
 
 /// An event produced by a schedule tick.
 #[derive(Debug, Clone)]
@@ -61,6 +61,55 @@ impl ScheduleEvent {
     }
 }
 
+/// Returns a cuaird override location, or `None` if this NPC is not on a cuaird this hour.
+fn resolve_cuaird_location(
+    npc: &Npc,
+    current_hour: u8,
+    season: Season,
+    day_type: DayType,
+    npcs: &HashMap<NpcId, Npc>,
+    now: DateTime<Utc>,
+) -> Option<LocationId> {
+    let entry = npc.schedule_entry(current_hour, season, day_type)?;
+    if !entry.cuaird {
+        return None;
+    }
+    let friends: Vec<LocationId> = npc
+        .relationships
+        .iter()
+        .filter(|(_, rel)| rel.strength > 0.3)
+        .filter_map(|(friend_id, _)| npcs.get(friend_id).and_then(|f| f.home))
+        .collect();
+    if friends.is_empty() {
+        return None;
+    }
+    let day_of_year = now.ordinal() as usize;
+    Some(friends[day_of_year % friends.len()])
+}
+
+/// Returns `true` when the NPC's desired destination is outdoor and weather
+/// forces them to seek shelter (or stay put if none found).
+fn needs_weather_shelter(
+    desired: LocationId,
+    npc: &Npc,
+    weather: Weather,
+    graph: &WorldGraph,
+) -> bool {
+    let rainy = matches!(
+        weather,
+        Weather::LightRain | Weather::HeavyRain | Weather::Storm
+    );
+    if !rainy {
+        return false;
+    }
+    let is_farmer = npc.occupation.to_ascii_lowercase().contains("farm");
+    let dest_outdoor = graph.get(desired).map(|d| !d.indoor).unwrap_or(false);
+    if is_farmer && matches!(weather, Weather::LightRain) {
+        return false;
+    }
+    dest_outdoor
+}
+
 /// Advances NPC schedules based on the current game time.
 ///
 /// For each NPC that is `Present` and whose schedule says they should be
@@ -92,46 +141,18 @@ pub fn tick_schedules(
                     continue;
                 };
 
-                // Cuaird override: only compute friend locations when this NPC actually has a
-                // cuaird slot active — avoids an O(relationships) scan for every NPC every tick.
-                if let Some(entry) = npc.schedule_entry(current_hour, season, day_type)
-                    && entry.cuaird
+                if let Some(cuaird_loc) =
+                    resolve_cuaird_location(npc, current_hour, season, day_type, npcs, now)
                 {
-                    let r: &HashMap<NpcId, Npc> = npcs;
-                    let friends: Vec<LocationId> = npc
-                        .relationships
-                        .iter()
-                        .filter(|(_, rel)| rel.strength > 0.3)
-                        .filter_map(|(friend_id, _)| r.get(friend_id).and_then(|f| f.home))
-                        .collect();
-                    if !friends.is_empty() {
-                        let day_of_year = now.ordinal() as usize;
-                        desired = friends[day_of_year % friends.len()];
-                    }
+                    desired = cuaird_loc;
                 }
 
-                // Weather shelter override: seek indoor locations in bad weather.
-                let rainy = matches!(
-                    weather,
-                    Weather::LightRain | Weather::HeavyRain | Weather::Storm
-                );
-                if rainy {
-                    // Consistent with tier4.rs which uses contains("farm") for occupation checks.
-                    let is_farmer = npc.occupation.to_ascii_lowercase().contains("farm");
-                    let dest_outdoor = graph.get(desired).map(|d| !d.indoor).unwrap_or(false);
-                    let needs_shelter = if is_farmer {
-                        // Farmers tolerate light rain.
-                        !matches!(weather, Weather::LightRain) && dest_outdoor
-                    } else {
-                        dest_outdoor
-                    };
-                    if needs_shelter {
-                        match npc.home {
-                            Some(home) if graph.get(home).map(|d| d.indoor).unwrap_or(false) => {
-                                desired = home;
-                            }
-                            _ => continue, // No indoor refuge — stay put.
+                if needs_weather_shelter(desired, npc, weather, graph) {
+                    match npc.home {
+                        Some(home) if graph.get(home).map(|d| d.indoor).unwrap_or(false) => {
+                            desired = home;
                         }
+                        _ => continue,
                     }
                 }
 

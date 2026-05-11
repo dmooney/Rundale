@@ -5,7 +5,7 @@
       "name": "vite-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "apps/ui",
+      "cwd": "parish/apps/ui",
       "port": 5173,
       "autoPort": true
     },
@@ -13,12 +13,14 @@
       "name": "parish-web",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": ["-c", "source $HOME/.cargo/env && cargo run -- --web"],
+      "cwd": "parish",
       "port": 3001
     },
     {
       "name": "parish-e2e",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": ["-c", "source $HOME/.cargo/env && cargo run -- --web 3099"],
+      "cwd": "parish",
       "port": 3099
     }
   ]

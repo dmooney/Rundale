@@ -494,7 +494,7 @@ fn find_npc_by_name<'a>(mgr: &'a NpcManager, name: &str) -> Option<&'a crate::np
         .find(|n| n.name.to_lowercase().contains(&lower))
 }
 
-/// Renders a visual strength bar: ████░░░░░░ for -1.0 to 1.0.
+/// Renders a visual strength bar: `[##########]` for 1.0 to `[..........]` for -1.0.
 fn strength_bar(strength: f64) -> String {
     let normalized = ((strength + 1.0) / 2.0 * 10.0) as usize;
     let filled = normalized.min(10);

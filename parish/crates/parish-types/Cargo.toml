@@ -15,5 +15,3 @@ tokio      = { workspace = true, features = ["sync"] }
 rand       = { workspace = true }
 tracing    = { workspace = true }
 
-[dev-dependencies]
-tokio-test = { workspace = true }

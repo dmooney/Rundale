@@ -209,34 +209,61 @@ fn find_toplevel_dialogue_key(buffer: &str) -> Option<usize> {
     None
 }
 
+/// Processes a JSON `\uXXXX` escape sequence (or surrogate pair) starting
+/// at index `i` in `value_bytes` where `value_bytes[i]` is `\` and `value_bytes[i+1]` is `u`.
+///
+/// Returns `(consumed, code_point, stop)` where `consumed` is bytes consumed
+/// from the buffer, `code_point` is the decoded character (or `None` to skip),
+/// and `stop` indicates the buffer ended mid-sequence and the caller should yield.
+fn handle_json_unicode_escape(value_bytes: &[u8], i: usize) -> (usize, Option<char>, bool) {
+    if i + 5 >= value_bytes.len() {
+        return (0, None, true);
+    }
+
+    let hex1 = match std::str::from_utf8(&value_bytes[i + 2..i + 6])
+        .ok()
+        .and_then(|s| u32::from_str_radix(s, 16).ok())
+    {
+        Some(v) => v,
+        None => return (6, None, false),
+    };
+
+    if (0xD800..=0xDBFF).contains(&hex1) {
+        if i + 11 < value_bytes.len() && value_bytes[i + 6] == b'\\' && value_bytes[i + 7] == b'u' {
+            let hex2 = std::str::from_utf8(&value_bytes[i + 8..i + 12])
+                .ok()
+                .and_then(|s| u32::from_str_radix(s, 16).ok());
+            if let Some(low) = hex2
+                && (0xDC00..=0xDFFF).contains(&low)
+            {
+                let code_point = 0x10000 + ((hex1 - 0xD800) << 10) + (low - 0xDC00);
+                let ch = char::from_u32(code_point);
+                return (12, ch, false);
+            }
+        } else if i + 11 >= value_bytes.len() {
+            return (0, None, true);
+        }
+        return (6, None, false);
+    }
+
+    let ch = char::from_u32(hex1);
+    (6, ch, false)
+}
+
 /// Extracts the dialogue field value from a partial JSON string during streaming.
 ///
 /// Scans the accumulated JSON buffer for the `"dialogue"` field and extracts
 /// its string value as it streams in. Returns `Some(text)` with the dialogue
 /// content extracted so far, or `None` if the dialogue field hasn't started yet.
-///
-/// This enables token-by-token streaming of NPC dialogue to the player while
-/// the full JSON response (including metadata) is still being generated.
-///
-/// # Security (fix #649)
-/// Uses depth-aware scanning via [`find_toplevel_dialogue_key`] so that
-/// `"dialogue"` embedded inside another field's string value cannot hijack
-/// extraction.
-///
-/// # Unicode (fix #655)
-/// JSON `\uXXXX` surrogate pairs (0xD800–0xDBFF followed by 0xDC00–0xDFFF)
-/// are combined into the correct non-BMP code point rather than silently dropped.
 pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
     let key = b"\"dialogue\"";
     let key_pos = find_toplevel_dialogue_key(buffer)?;
     let after_key = key_pos + key.len();
 
-    // Skip whitespace between key and colon
     let rest = &buffer[after_key..];
     let colon_offset = rest.find(':')?;
     let after_colon = after_key + colon_offset + 1;
 
-    // Skip whitespace between colon and opening quote
     let rest = &buffer[after_colon..];
     let quote_offset = rest.find('"')?;
     let start = after_colon + quote_offset + 1;
@@ -247,84 +274,52 @@ pub fn extract_dialogue_from_partial_json(buffer: &str) -> Option<String> {
     let mut i = 0;
     while i < value_bytes.len() {
         match value_bytes[i] {
-            b'"' => {
-                return Some(result);
-            }
+            b'"' => return Some(result),
             b'\\' => {
                 if i + 1 >= value_bytes.len() {
-                    // Incomplete escape at end of buffer — stop before it so
-                    // the next chunk can complete the sequence.
                     return Some(result);
                 }
                 match value_bytes[i + 1] {
-                    b'"' => result.push('"'),
-                    b'\\' => result.push('\\'),
-                    b'n' => result.push('\n'),
-                    b'r' => result.push('\r'),
-                    b't' => result.push('\t'),
-                    b'/' => result.push('/'),
+                    b'"' => {
+                        result.push('"');
+                        i += 2;
+                    }
+                    b'\\' => {
+                        result.push('\\');
+                        i += 2;
+                    }
+                    b'n' => {
+                        result.push('\n');
+                        i += 2;
+                    }
+                    b'r' => {
+                        result.push('\r');
+                        i += 2;
+                    }
+                    b't' => {
+                        result.push('\t');
+                        i += 2;
+                    }
+                    b'/' => {
+                        result.push('/');
+                        i += 2;
+                    }
                     b'u' => {
-                        // Need at least \uXXXX (6 bytes total from i).
-                        if i + 5 >= value_bytes.len() {
-                            // Incomplete \u escape at end of buffer — stop here.
+                        let (consumed, ch, stop) = handle_json_unicode_escape(value_bytes, i);
+                        if stop {
                             return Some(result);
                         }
-                        let hex1 = match std::str::from_utf8(&value_bytes[i + 2..i + 6])
-                            .ok()
-                            .and_then(|s| u32::from_str_radix(s, 16).ok())
-                        {
-                            Some(v) => v,
-                            None => {
-                                i += 6;
-                                continue;
-                            }
-                        };
-                        // Check for surrogate pair: high surrogate 0xD800–0xDBFF.
-                        if (0xD800..=0xDBFF).contains(&hex1) {
-                            // Expect a low surrogate immediately following: \uXXXX.
-                            // Total offset from i: 6 (first \uXXXX) + 2 (\\u) + 4 (hex) = 12.
-                            if i + 11 < value_bytes.len()
-                                && value_bytes[i + 6] == b'\\'
-                                && value_bytes[i + 7] == b'u'
-                            {
-                                let hex2 = std::str::from_utf8(&value_bytes[i + 8..i + 12])
-                                    .ok()
-                                    .and_then(|s| u32::from_str_radix(s, 16).ok());
-                                if let Some(low) = hex2
-                                    && (0xDC00..=0xDFFF).contains(&low)
-                                {
-                                    // Combine surrogate pair into a scalar value.
-                                    let code_point =
-                                        0x10000 + ((hex1 - 0xD800) << 10) + (low - 0xDC00);
-                                    if let Some(c) = char::from_u32(code_point) {
-                                        result.push(c);
-                                    }
-                                    i += 12;
-                                    continue;
-                                }
-                            } else if i + 11 >= value_bytes.len() {
-                                // Low surrogate not yet in buffer — stop here and wait
-                                // for the next chunk.
-                                return Some(result);
-                            }
-                            // Malformed: high surrogate without a valid low surrogate.
-                            // Skip the high surrogate silently.
-                            i += 6;
-                            continue;
-                        }
-                        // Normal BMP code point.
-                        if let Some(c) = char::from_u32(hex1) {
+                        if let Some(c) = ch {
                             result.push(c);
                         }
-                        i += 6;
-                        continue;
+                        i += consumed;
                     }
                     _ => {
                         result.push('\\');
                         result.push(value_bytes[i + 1] as char);
+                        i += 2;
                     }
                 }
-                i += 2;
             }
             _ => {
                 if let Some(rest) = buffer.get(start + i..) {

@@ -120,6 +120,28 @@ impl Provider {
         }
     }
 
+    /// Canonical lowercase id matching `Provider::from_str_loose`.
+    /// Stable wire-format identifier — used by the BYOK frontend and IPC.
+    pub fn id(&self) -> &'static str {
+        match self {
+            Provider::Ollama => "ollama",
+            Provider::LmStudio => "lmstudio",
+            Provider::OpenRouter => "openrouter",
+            Provider::Vllm => "vllm",
+            Provider::OpenAi => "openai",
+            Provider::Google => "google",
+            Provider::Groq => "groq",
+            Provider::Xai => "xai",
+            Provider::Mistral => "mistral",
+            Provider::DeepSeek => "deepseek",
+            Provider::Together => "together",
+            Provider::NvidiaNim => "nvidia-nim",
+            Provider::Anthropic => "anthropic",
+            Provider::Custom => "custom",
+            Provider::Simulator => "simulator",
+        }
+    }
+
     /// Returns the default base URL for this provider.
     pub fn default_base_url(&self) -> &'static str {
         match self {

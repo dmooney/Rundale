@@ -25,7 +25,7 @@ pub use time::{DayType, Festival, GameClock, GameSpeed, Season, SpeedConfig, Tim
 /// A single anachronism term entry loaded from mod JSON data.
 ///
 /// Shared between `parish-npc` (for detection) and `parish-core` (for mod loading).
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnachronismEntry {
     /// The anachronistic term or phrase.
     pub term: String,

@@ -276,6 +276,73 @@ describe('SavePicker', () => {
 		});
 	});
 
+	describe('IPC failure paths', () => {
+		it('keeps dialog open when loadBranch IPC fails', async () => {
+			mockLoadBranch.mockRejectedValue(new Error('Backend unreachable'));
+			const branches = [makeBranch('main', null, 1)];
+			const { container } = await mountWithFile(makeFile('parish.db', branches));
+
+			const nodeBtn = container.querySelector('.node-body') as HTMLButtonElement;
+			await fireEvent.click(nodeBtn);
+			await flush();
+
+			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+		});
+
+		it('shows fork error text when createBranch IPC fails', async () => {
+			mockCreateBranch.mockRejectedValue(new Error('Name conflict'));
+			const branches = [makeBranch('main', null, 1)];
+			const { container } = await mountWithFile(makeFile('parish.db', branches));
+
+			await fireEvent.click(container.querySelector('.node-branch-btn')!);
+			await tick();
+
+			const createBtn = Array.from(container.querySelectorAll('.phantom-btn')).find(
+				b => b.textContent?.trim() === 'Create'
+			) as HTMLButtonElement;
+			await fireEvent.click(createBtn);
+			await flush();
+
+			const forkError = container.querySelector('.fork-error');
+			expect(forkError).toBeTruthy();
+			expect(forkError?.textContent).toContain('Name conflict');
+		});
+
+		it('keeps dialog open when newSaveFile IPC fails', async () => {
+			mockNewSaveFile.mockRejectedValue(new Error('Disk full'));
+			const file = makeFile('parish.db', [makeBranch('main', null, 1)]);
+			const { container, getByText } = await mountWithFile(file);
+
+			await fireEvent.click(getByText('Ledgers'));
+			await tick();
+
+			const forkLedgerRow = Array.from(container.querySelectorAll('.new-ledger')).find(
+				row => row.textContent?.includes('Fork New Ledger')
+			) as HTMLElement;
+			await fireEvent.click(forkLedgerRow);
+			await flush();
+
+			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+		});
+
+		it('keeps dialog open when newGame IPC fails', async () => {
+			mockNewGame.mockRejectedValue(new Error('Backend error'));
+			const file = makeFile('parish.db', [makeBranch('main', null, 1)]);
+			const { container, getByText } = await mountWithFile(file);
+
+			await fireEvent.click(getByText('Ledgers'));
+			await tick();
+
+			const newGameRow = Array.from(container.querySelectorAll('.new-ledger')).find(
+				row => row.textContent?.includes('New Game')
+			) as HTMLElement;
+			await fireEvent.click(newGameRow);
+			await flush();
+
+			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+		});
+	});
+
 	describe('close button', () => {
 		it('hides modal when Close is clicked', async () => {
 			savePickerVisible.set(true);

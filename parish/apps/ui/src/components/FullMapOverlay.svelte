@@ -4,7 +4,9 @@
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
+	import { subscribeTileSource } from '$lib/map/tileSync';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
+	import MapTooltip from './MapTooltip.svelte';
 	import type { MapTooltipInfo } from '$lib/types';
 
 	interface Props {
@@ -64,9 +66,13 @@
 			hasFitOnce = true;
 		}
 
+		// Keep base tiles in sync with `/tiles` selection.
+		const unsubscribeTiles = subscribeTileSource(() => controller);
+
 		mounted = true;
 
 		return () => {
+			unsubscribeTiles();
 			controller?.destroy();
 			controller = null;
 		};
@@ -110,12 +116,6 @@
 		}
 	});
 
-	// Swap the base tile source when the user toggles via `/tiles`.
-	$effect(() => {
-		if (!mounted || !controller) return;
-		controller.setTileSource(currentTileSource($tiles));
-	});
-
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') {
 			e.preventDefault();
@@ -138,21 +138,7 @@
 		<span aria-hidden="true">&times;</span>
 	</button>
 	<div class="map-container" bind:this={container}></div>
-	{#if tooltip}
-		<div class="tooltip">
-			<div class="tooltip-name">{tooltip.name}</div>
-			{#if tooltip.visited === false}
-				<div class="tooltip-detail tooltip-unexplored">Unexplored</div>
-			{:else}
-				{#if tooltip.indoor !== undefined}
-					<div class="tooltip-detail">{tooltip.indoor ? 'Indoor' : 'Outdoor'}</div>
-				{/if}
-				{#if tooltip.travel_minutes != null && tooltip.travel_minutes > 0}
-					<div class="tooltip-detail">{tooltip.travel_minutes} min walk</div>
-				{/if}
-			{/if}
-		</div>
-	{/if}
+	<MapTooltip info={tooltip} variant="full" />
 </div>
 
 <style>
@@ -198,32 +184,4 @@
 	}
 
 	/* .travel-dot-marker and @keyframes travel-pulse are defined once in app.css */
-
-	.tooltip {
-		position: absolute;
-		bottom: 0.75rem;
-		right: 0.75rem;
-		background: var(--color-input-bg);
-		border: 1px solid var(--color-border);
-		color: var(--color-fg);
-		padding: 0.3rem 0.6rem;
-		font-size: 0.8rem;
-		border-radius: 4px;
-		pointer-events: none;
-		line-height: 1.3;
-		z-index: 10;
-	}
-
-	.tooltip-name {
-		font-weight: 600;
-	}
-
-	.tooltip-detail {
-		color: var(--color-muted);
-		font-size: 0.7rem;
-	}
-
-	.tooltip-unexplored {
-		font-style: italic;
-	}
 </style>

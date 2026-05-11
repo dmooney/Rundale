@@ -39,10 +39,7 @@ struct Cli {
     set_source: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorldFile {
-    locations: Vec<LocationData>,
-}
+include!("../world_file_shared.inc");
 
 #[derive(Debug, Deserialize)]
 struct NominatimHit {
@@ -496,7 +493,6 @@ mod tests {
                 public: true,
                 connections: vec![Connection {
                     target: LocationId(2),
-                    traversal_minutes: None,
                     path_description: "".to_string(),
                     hazard: Default::default(),
                 }],
@@ -517,7 +513,6 @@ mod tests {
                 public: true,
                 connections: vec![Connection {
                     target: LocationId(1),
-                    traversal_minutes: None,
                     path_description: "".to_string(),
                     hazard: Default::default(),
                 }],

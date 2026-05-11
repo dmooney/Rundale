@@ -16,6 +16,7 @@ const mockIpc = vi.hoisted(() => {
 		done: boolean;
 		success: boolean | null;
 		error: string;
+		needs_onboarding: boolean;
 	};
 
 	const defaultSnapshot = (): Snapshot => ({
@@ -25,13 +26,15 @@ const mockIpc = vi.hoisted(() => {
 		total: 0,
 		done: false,
 		success: null,
-		error: ''
+		error: '',
+		needs_onboarding: false
 	});
 
 	const callbacks: {
 		status?: StatusCb;
 		progress?: ProgressCb;
 		done?: DoneCb;
+		needsOnboarding?: () => void;
 	} = {};
 
 	return {
@@ -49,6 +52,10 @@ const mockIpc = vi.hoisted(() => {
 			callbacks.done = cb;
 			return vi.fn();
 		}),
+		onSetupNeedsOnboarding: vi.fn(async (cb: () => void) => {
+			callbacks.needsOnboarding = cb;
+			return vi.fn();
+		}),
 		getSetupSnapshot: vi.fn(async (): Promise<Snapshot> => defaultSnapshot())
 	};
 });
@@ -58,7 +65,8 @@ vi.mock('$lib/ipc', () => ({
 	isTauri: mockIpc.isTauri,
 	onSetupStatus: mockIpc.onSetupStatus,
 	onSetupProgress: mockIpc.onSetupProgress,
-	onSetupDone: mockIpc.onSetupDone
+	onSetupDone: mockIpc.onSetupDone,
+	onSetupNeedsOnboarding: mockIpc.onSetupNeedsOnboarding
 }));
 
 describe('SetupOverlay', () => {
@@ -69,6 +77,7 @@ describe('SetupOverlay', () => {
 		mockIpc.onSetupStatus.mockClear();
 		mockIpc.onSetupProgress.mockClear();
 		mockIpc.onSetupDone.mockClear();
+		mockIpc.onSetupNeedsOnboarding.mockClear();
 		mockIpc.getSetupSnapshot.mockClear();
 		mockIpc.getSetupSnapshot.mockResolvedValue({
 			current_message: 'Preparing the storyteller...',
@@ -77,11 +86,13 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 		mockIpc.callbacks.status = undefined;
 		mockIpc.callbacks.progress = undefined;
 		mockIpc.callbacks.done = undefined;
+		mockIpc.callbacks.needsOnboarding = undefined;
 	});
 
 	it('has a deep pool of still-loading messages', () => {
@@ -129,7 +140,8 @@ describe('SetupOverlay', () => {
 			total: 100,
 			done: true,
 			success: true,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const { container, queryByRole } = render(SetupOverlay);
@@ -159,7 +171,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const second = render(SetupOverlay);
@@ -205,7 +218,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 		const { getAllByText } = render(SetupOverlay);
 
@@ -261,7 +275,8 @@ describe('SetupOverlay', () => {
 			total: 0,
 			done: false,
 			success: null,
-			error: ''
+			error: '',
+			needs_onboarding: false
 		});
 
 		const { container, getByText } = render(SetupOverlay);
@@ -394,6 +409,48 @@ describe('SetupOverlay', () => {
 		} finally {
 			nowSpy.mockRestore();
 		}
+	});
+
+	describe('error state rendering', () => {
+		it('shows error box with message when setup fails', async () => {
+			const { container, getByText } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: 'Ollama not found' });
+			await tick();
+
+			expect(getByText('Something went wrong.')).toBeTruthy();
+			expect(container.querySelector('.error-box')).toBeTruthy();
+			expect(container.querySelector('.error-msg')?.textContent).toContain('Ollama not found');
+			expect(getByText(/Close the app/)).toBeTruthy();
+		});
+
+		it('shows generic error message when error string is empty', async () => {
+			const { container, getByText } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: '' });
+			await tick();
+
+			expect(getByText('Something went wrong.')).toBeTruthy();
+			// errorMsg is '' so the error-msg is rendered empty; "Setup failed."
+			// is appended to the activity messages instead
+			expect(container.querySelector('.error-box')).toBeTruthy();
+		});
+
+		it('keeps overlay visible after error', async () => {
+			const { container } = render(SetupOverlay);
+
+			await waitFor(() => expect(mockIpc.callbacks.done).toBeDefined());
+
+			mockIpc.callbacks.done?.({ success: false, error: 'Ollama not found' });
+			await tick();
+
+			expect(container.querySelector('.setup-overlay')).toBeTruthy();
+			expect(container.querySelector('.error-box')).toBeTruthy();
+		});
 	});
 
 	it('registers all setup listeners on mount', async () => {

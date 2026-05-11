@@ -55,11 +55,15 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     ];
 
     // Single-verb prefixes (without "to") — "saunter pub", "go pub", etc.
+    // Must be kept in sync with `move_phrases` above: every verb in `move_phrases`
+    // should also appear here without the "to " suffix, so bare "move pub" works
+    // the same as "move to the pub".
     let move_verbs = [
         "go ",
         "walk ",
         "head ",
         "visit ",
+        "move ",
         "run ",
         "jog ",
         "dash ",
@@ -86,47 +90,13 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     ];
 
     // Try multi-word phrases first for longest-match semantics
-    for prefix in &move_phrases {
-        if lower.starts_with(prefix) {
-            // Match on lowercase, but extract target from original (trimmed) input.
-            // Use char count to find the byte boundary, avoiding UTF-8 safety issues.
-            let byte_offset: usize = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(i, _)| i)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_offset..].trim();
-            if !target.is_empty() {
-                return Some(PlayerIntent {
-                    intent: IntentKind::Move,
-                    target: Some(target.to_string()),
-                    dialogue: None,
-                    raw: raw_input.to_string(),
-                });
-            }
-        }
+    if let Some(intent) = try_move_prefix(trimmed, &lower, raw_input, &move_phrases) {
+        return Some(intent);
     }
 
     // Then try bare verb + destination
-    for prefix in &move_verbs {
-        if lower.starts_with(prefix) {
-            // Match on lowercase, but extract target from original (trimmed) input.
-            // Use char count to find the byte boundary, avoiding UTF-8 safety issues.
-            let byte_offset: usize = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(i, _)| i)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_offset..].trim();
-            if !target.is_empty() {
-                return Some(PlayerIntent {
-                    intent: IntentKind::Move,
-                    target: Some(target.to_string()),
-                    dialogue: None,
-                    raw: raw_input.to_string(),
-                });
-            }
-        }
+    if let Some(intent) = try_move_prefix(trimmed, &lower, raw_input, &move_verbs) {
+        return Some(intent);
     }
 
     // Look patterns
@@ -154,5 +124,35 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         });
     }
 
+    None
+}
+
+/// Shared helper: checks if `lower` starts with any prefix in `prefixes`,
+/// extracts the target from the original (cased) `trimmed` input using
+/// char-count-based byte-offset computation, and returns a `Move` intent.
+fn try_move_prefix(
+    trimmed: &str,
+    lower: &str,
+    raw_input: &str,
+    prefixes: &[&str],
+) -> Option<PlayerIntent> {
+    for prefix in prefixes {
+        if lower.starts_with(prefix) {
+            let byte_offset: usize = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(i, _)| i)
+                .unwrap_or(trimmed.len());
+            let target = trimmed[byte_offset..].trim();
+            if !target.is_empty() {
+                return Some(PlayerIntent {
+                    intent: IntentKind::Move,
+                    target: Some(target.to_string()),
+                    dialogue: None,
+                    raw: raw_input.to_string(),
+                });
+            }
+        }
+    }
     None
 }

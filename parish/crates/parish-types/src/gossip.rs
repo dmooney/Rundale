@@ -199,11 +199,10 @@ const EMOTION_SHIFTS: &[(&str, &str)] = &[
 
 /// Applies a random distortion to a gossip string.
 ///
-/// Distortion rules:
-/// 1. Drop an adjective (30% weight)
-/// 2. Exaggerate a quantity (30% weight)
-/// 3. Shift emotional tone (30% weight)
-/// 4. Swap a name — not implemented without NPC name list (10% weight, skipped)
+/// Distortion rules (each ~33% weight):
+/// 1. Drop an adjective
+/// 2. Exaggerate a quantity
+/// 3. Shift emotional tone
 fn distort(content: &str, rng: &mut impl Rng) -> String {
     let roll: f64 = rng.random();
 

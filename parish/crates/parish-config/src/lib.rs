@@ -4,10 +4,10 @@ pub mod engine;
 pub mod flags;
 pub mod presets;
 pub mod provider;
+pub mod user_config;
 
 pub use engine::*;
 pub use flags::FeatureFlags;
-pub use presets::PresetModels;
 pub use provider::*;
 
 // Re-export SpeedConfig from parish-types so downstream crates can find it

@@ -69,6 +69,23 @@ Contemporary with Parish’s setting. Contains dialect dialogue in the context o
 
 -----
 
+### Reference works (period instructional material)
+
+These supply the gentry / middling-farmer register and are programmatically convertible into instruction pairs (Talkie-1930-13B's reference-work-mining methodology). The cottier signal still has to come from the literary sources above; reference works almost exclusively document the educated registers.
+
+- **Period etiquette manuals** — e.g. *Hints on Etiquette and the Usages of Society* (1830s, multiple editions). Documents the salutations, forms of address, and conversational moves expected of the gentry and aspiring middling farmers.
+  - **Internet Archive search:** <https://archive.org/search?query=hints+on+etiquette+1830>
+- **Period letter-writing manuals** — e.g. *The Complete Letter-Writer*, *The Universal Letter-Writer* (multiple 18th–19th-century editions). Templates for tenant-to-landlord, suitor-to-father, employer-to-servant correspondence.
+  - **Internet Archive search:** <https://archive.org/search?query=complete+letter-writer+19th+century>
+- **Old Moore's Almanack** and contemporaneous almanacs — calendar / seasonal vocabulary, agricultural terminology, weather idioms, market-day phrasing.
+  - **Internet Archive search:** <https://archive.org/search?query=old+moore+almanack>
+- **Period dictionaries** — filtered to game-domain entries (agriculture, kinship, religion, trade). Useful as lexical attestation for the OED 1820 cutoff anachronism wordlist used by the period-axis judge.
+  - **Internet Archive search:** <https://archive.org/search?query=dictionary+english+language+1820>
+
+These four sources feed `training/src/parish_train/ingest/{ia_etiquette,ia_letter_writing,ia_almanac,ia_period_dict}.py` per the [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md).
+
+-----
+
 ## Academic Corpora
 
 ### CORIECOR — Corpus of Irish English Correspondence
@@ -234,6 +251,28 @@ Rather than hunting for a pre-existing model, build your own fine-tune. Take a s
 1. **Carleton’s *Traits and Stories* dialogue** — Public domain. Northern/Ulster peasant speech.
 1. **Hand-crafted NPC utterance examples** — Write a set yourself using the grammar rules documented above. This is your “style anchor” for the fine-tune.
 1. **Irish-language phrases from RIA corpus** — For code-switching flavour: exclamations, blessings, curses, greetings (*a Mhuire*, *go raibh maith agat*, *mo léan*, etc.)
+
+### Dialect-oracle corpus spec (fully disjoint author split)
+
+The [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md) trains a small (~250M-param) decoder-only LM on the literary corpus to use as a period/dialect judge during DPO. To avoid circularity (the oracle preferring outputs that mimic exactly the authors the policy is trained on), the oracle's training corpus and the SFT mix **must use fully disjoint author splits** — no shared authors.
+
+The 5-author corpus above is too thin to support a meaningful disjoint split, so the plan adds three more public-domain Anglo-Irish authors of the same era:
+
+- **Samuel Lover, *Handy Andy* (1842)** — comic Munster servant + gentry register. Gutenberg.
+- **William Hamilton Maxwell, *Wild Sports of the West* (1832)** — Connacht sporting + cottier dialogue. Internet Archive.
+- **Charles Lever, *Charles O'Malley* (1841)** — gentry + military + servant register. Gutenberg.
+
+With 8 authors a clean 4/4 split becomes possible:
+
+- **Oracle training (Stage 0):** Joyce + Carleton + Croker + Lover
+- **SFT training (Stage 1 + DPO scenarios):** Griffin + Kickham + Maxwell + Lever
+- Zero author overlap — the oracle's loglik on policy outputs is a non-circular signal.
+
+This is a design requirement, not a knob — without the disjoint split, the oracle's loglik becomes a tautological reward.
+
+-----
+
+## For Fine-Tuning / NPC Voice Model — training data format
 
 **Training data format suggestion:** Structure as instruction pairs —
 

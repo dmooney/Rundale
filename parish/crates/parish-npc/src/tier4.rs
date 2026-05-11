@@ -859,4 +859,130 @@ mod tests {
         assert!(seasonal_schedule_description("Laborer", Season::Summer).is_none());
         assert!(seasonal_schedule_description("Laborer", Season::Winter).is_none());
     }
+
+    // ── TD-007: find_eligible_couples direct unit tests ────────────────────────
+
+    use crate::types::RelationshipKind;
+
+    fn make_coupled_npc(id: u32, age: u8, is_ill: bool, partner: NpcId, strength: f64) -> Npc {
+        let mut npc = make_test_npc(id, 1);
+        npc.age = age;
+        npc.is_ill = is_ill;
+        npc.relationships.insert(
+            partner,
+            crate::types::Relationship {
+                kind: RelationshipKind::Romantic,
+                strength,
+                history: Vec::new(),
+            },
+        );
+        npc
+    }
+
+    #[test]
+    fn find_eligible_couples_normal_pair() {
+        let mut npc1 = make_coupled_npc(1, 30, false, NpcId(2), 0.8);
+        let mut npc2 = make_coupled_npc(2, 28, false, NpcId(1), 0.8);
+        let npcs = vec![&mut npc1, &mut npc2];
+        let couples = find_eligible_couples(&npcs);
+        assert_eq!(couples.len(), 1);
+        assert!(couples.contains(&(NpcId(1), NpcId(2))) || couples.contains(&(NpcId(2), NpcId(1))));
+    }
+
+    #[test]
+    fn find_eligible_couples_one_partner_ill() {
+        let mut npc1 = make_coupled_npc(1, 30, true, NpcId(2), 0.8);
+        let mut npc2 = make_coupled_npc(2, 28, false, NpcId(1), 0.8);
+        let npcs = vec![&mut npc1, &mut npc2];
+        let couples = find_eligible_couples(&npcs);
+        assert_eq!(couples.len(), 0, "ill partner must disqualify couple");
+    }
+
+    #[test]
+    fn find_eligible_couples_both_outside_age_range() {
+        let mut npc1 = make_coupled_npc(1, 50, false, NpcId(2), 0.8);
+        let mut npc2 = make_coupled_npc(2, 55, false, NpcId(1), 0.8);
+        let npcs = vec![&mut npc1, &mut npc2];
+        let couples = find_eligible_couples(&npcs);
+        assert_eq!(couples.len(), 0, "both outside 18-45 must be ineligible");
+    }
+
+    #[test]
+    fn find_eligible_couples_only_one_in_age_range() {
+        let mut npc1 = make_coupled_npc(1, 50, false, NpcId(2), 0.8);
+        let mut npc2 = make_coupled_npc(2, 25, false, NpcId(1), 0.8);
+        let npcs = vec![&mut npc1, &mut npc2];
+        let couples = find_eligible_couples(&npcs);
+        assert_eq!(couples.len(), 1, "one in range is sufficient");
+    }
+
+    #[test]
+    fn find_eligible_couples_duplicate_romantic_relationships() {
+        let mut npc1 = make_test_npc(1, 1);
+        npc1.age = 30;
+        npc1.relationships.insert(
+            NpcId(2),
+            crate::types::Relationship {
+                kind: RelationshipKind::Romantic,
+                strength: 0.8,
+                history: Vec::new(),
+            },
+        );
+        npc1.relationships.insert(
+            NpcId(3),
+            crate::types::Relationship {
+                kind: RelationshipKind::Romantic,
+                strength: 0.5,
+                history: Vec::new(),
+            },
+        );
+        let mut npc2 = make_coupled_npc(2, 28, false, NpcId(1), 0.8);
+        let mut npc3 = make_coupled_npc(3, 25, false, NpcId(1), 0.5);
+        let npcs = vec![&mut npc1, &mut npc2, &mut npc3];
+        let couples = find_eligible_couples(&npcs);
+        assert_eq!(couples.len(), 2, "both relationships should be eligible");
+    }
+
+    // ── TD-009: dead_ids exclusion from birth processing ──────────────────────
+
+    #[test]
+    fn dead_npc_excluded_from_birth_check() {
+        // tick_tier4 collects dead_ids from deaths, then skips those in birth check.
+        // Loop across seeds until we find one where the age-100 NPC dies (5% rate).
+        use rand::SeedableRng;
+        let mut found_death = false;
+        for seed in 0..2000u64 {
+            let mut npc_a = make_coupled_npc(1, 100, false, NpcId(2), 0.8);
+            let mut npc_b = make_coupled_npc(2, 28, false, NpcId(1), 0.8);
+            let mut npc_refs: Vec<&mut Npc> = vec![&mut npc_a, &mut npc_b];
+
+            let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(seed);
+            let date = chrono::NaiveDate::from_ymd_opt(1820, 6, 15).unwrap();
+            let events = tick_tier4(&mut npc_refs, Season::Summer, date, &mut rng);
+
+            if events
+                .iter()
+                .any(|e| matches!(e, Tier4Event::Death { npc_id } if *npc_id == NpcId(1)))
+            {
+                let births_with_dead = events
+                    .iter()
+                    .filter_map(|e| {
+                        if let Tier4Event::Birth { parent_ids: (a, b) } = e {
+                            if *a == NpcId(1) || *b == NpcId(1) {
+                                Some(())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .count();
+                assert_eq!(births_with_dead, 0, "no birth should involve a dead NPC");
+                found_death = true;
+                break;
+            }
+        }
+        assert!(found_death, "should find a seed where age-100 NPC dies");
+    }
 }

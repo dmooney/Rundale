@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "parish": {
+      "command": "parish/target/debug/parish-mcp",
+      "args": ["--base-url", "http://127.0.0.1:3030"],
+      "description": "Drives a running Parish/Rundale instance (parish-tauri --mcp-port 3030 or parish web --port 3030). Tools: parish_world_snapshot, parish_map, parish_npcs_here, parish_save_state, parish_submit_input, parish_new_game, parish_save_game, parish_load_branch, plus a tauri_invoke escape hatch. The backend MUST be running first — see AGENTS.md or run `bash parish/scripts/parish-mcp-backend.sh start`."
+    }
+  }
+}

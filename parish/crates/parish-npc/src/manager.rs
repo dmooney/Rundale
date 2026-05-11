@@ -1023,10 +1023,12 @@ mod tests {
 
         let tier3_ids = mgr.tier3_npcs();
         assert!(!tier3_ids.is_empty());
+        let npc_names: std::collections::HashMap<_, _> =
+            mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
         let snapshots: Vec<_> = tier3_ids
             .iter()
             .filter_map(|id| mgr.get(*id))
-            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph))
+            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph, &npc_names))
             .collect();
         assert!(!snapshots.is_empty());
 

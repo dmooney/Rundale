@@ -345,6 +345,7 @@ mod tests {
 
     use crate::test_helpers::{make_mourning_world, make_test_npc};
     use parish_types::NpcId;
+    use parish_world::time::GameClock;
     use std::collections::{HashMap, VecDeque};
 
     fn run_tick(
@@ -433,9 +434,7 @@ mod tests {
 
         let mut world = make_mourning_world();
         // Override clock to 14:00 — outside night window.
-        world.clock = parish_world::time::GameClock::new(
-            Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap(),
-        );
+        world.clock = GameClock::new(Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap());
 
         let report = run_tick(&mut npcs, &mut world);
         assert!(
@@ -462,5 +461,106 @@ mod tests {
         } else {
             panic!("expected a Heard event");
         }
+    }
+
+    // ── TD-001: Death system edge cases ─────────────────────────────────
+
+    #[test]
+    fn multiple_simultaneous_dooms_all_heralded() {
+        let mut npcs = HashMap::new();
+        let mut npc1 = make_test_npc(42, 2);
+        npc1.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc1);
+        let mut npc2 = make_test_npc(43, 3);
+        npc2.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(43), npc2);
+
+        let mut world = make_mourning_world();
+        let report = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(report.wails.len(), 2, "both NPCs should be heralded");
+        assert_eq!(report.deaths.len(), 0);
+    }
+
+    #[test]
+    fn multiple_simultaneous_dooms_all_die() {
+        let mut npcs = HashMap::new();
+        let mut npc1 = make_test_npc(42, 2);
+        npc1.doom = Some(Utc.with_ymd_and_hms(1820, 6, 15, 21, 30, 0).unwrap());
+        npc1.banshee_heralded = true;
+        npcs.insert(NpcId(42), npc1);
+        let mut npc2 = make_test_npc(43, 3);
+        npc2.doom = Some(Utc.with_ymd_and_hms(1820, 6, 15, 21, 30, 0).unwrap());
+        npc2.banshee_heralded = true;
+        npcs.insert(NpcId(43), npc2);
+
+        let mut world = make_mourning_world();
+        let report = run_tick(&mut npcs, &mut world);
+
+        assert_eq!(report.deaths.len(), 2, "both NPCs should die");
+        assert_eq!(report.wails.len(), 0);
+        assert!(!npcs.contains_key(&NpcId(42)));
+        assert!(!npcs.contains_key(&NpcId(43)));
+    }
+
+    #[test]
+    fn herald_window_boundary_exact_max() {
+        let now = t(22, 0);
+        let doom = now + Duration::hours(12);
+        assert!(
+            is_herald_window(now, doom),
+            "exactly 12h should be inside window"
+        );
+    }
+
+    #[test]
+    fn herald_window_boundary_one_minute_past() {
+        let now = t(22, 0);
+        let doom = now + Duration::hours(12) + Duration::minutes(1);
+        assert!(
+            !is_herald_window(now, doom),
+            "12h + 1m should be outside window"
+        );
+    }
+
+    #[test]
+    fn clock_rewind_after_herald_does_not_double_wail() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+
+        // First tick at 22:00 — herald fires
+        let r1 = run_tick(&mut npcs, &mut world);
+        assert_eq!(r1.wails.len(), 1);
+
+        // Simulate clock rewinding to 18:00 (outside night window, but still < 12h from doom)
+        world.clock = GameClock::new(Utc.with_ymd_and_hms(1820, 6, 15, 18, 0, 0).unwrap());
+        let r2 = run_tick(&mut npcs, &mut world);
+        assert_eq!(r2.wails.len(), 0, "clock rewind must not re-herald");
+    }
+
+    #[test]
+    fn clock_rewind_past_doom_does_not_double_kill() {
+        let mut npcs = HashMap::new();
+        let mut npc = make_test_npc(42, 2);
+        npc.doom = Some(Utc.with_ymd_and_hms(1820, 6, 16, 6, 0, 0).unwrap());
+        npc.banshee_heralded = true;
+        npcs.insert(NpcId(42), npc);
+
+        let mut world = make_mourning_world();
+
+        // Advance clock past doom — death fires
+        world.clock = GameClock::new(Utc.with_ymd_and_hms(1820, 6, 16, 7, 0, 0).unwrap());
+        let r1 = run_tick(&mut npcs, &mut world);
+        assert_eq!(r1.deaths.len(), 1);
+        assert!(!npcs.contains_key(&NpcId(42)), "NPC removed after death");
+
+        // Rewind clock to before doom
+        world.clock = GameClock::new(Utc.with_ymd_and_hms(1820, 6, 16, 5, 0, 0).unwrap());
+        // NPC is already gone — nothing to kill again
+        assert!(!npcs.contains_key(&NpcId(42)));
     }
 }

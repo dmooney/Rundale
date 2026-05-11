@@ -1,9 +1,8 @@
 //! Description template generation for game locations.
 //!
 //! Generates evocative 1820s-style description templates from OSM feature
-//! types and tags. Supports three tiers: `curated` (hand-authored, never
-//! overwritten), `template` (rule-generated), and `llm` (to be populated
-//! by a future LLM enrichment pass).
+//! types and tags. Supports two tiers: `curated` (hand-authored, never
+//! overwritten) and `template` (rule-generated).
 
 use super::osm_model::{GeoFeature, LocationType};
 
@@ -15,8 +14,6 @@ pub enum DescriptionSource {
     Curated,
     /// Auto-generated from OSM tags and location type templates.
     Template,
-    /// Placeholder awaiting LLM enrichment.
-    LlmPending,
 }
 
 /// Generates a description template for a feature based on its type and tags.
@@ -390,25 +387,12 @@ fn generate_generic_description(feature: &GeoFeature) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
-    fn make_feature(name: &str, loc_type: LocationType) -> GeoFeature {
-        GeoFeature {
-            osm_id: 1,
-            osm_type: "node".to_string(),
-            lat: 53.5,
-            lon: -8.0,
-            name: name.to_string(),
-            name_ga: None,
-            location_type: loc_type,
-            tags: HashMap::new(),
-            curated: false,
-        }
-    }
+    use crate::test_utils::make_feature;
 
     #[test]
     fn test_generate_pub_description() {
-        let feature = make_feature("Darcy's Pub", LocationType::Pub);
+        let feature = make_feature("Darcy's Pub", LocationType::Pub, 53.5, -8.0);
         let (desc, source) = generate_description(&feature);
         assert_eq!(source, DescriptionSource::Template);
         assert!(desc.contains("Darcy's Pub"));
@@ -419,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_generate_church_description() {
-        let feature = make_feature("St. Brigid's Church", LocationType::Church);
+        let feature = make_feature("St. Brigid's Church", LocationType::Church, 53.5, -8.0);
         let (desc, _) = generate_description(&feature);
         assert!(desc.contains("St. Brigid's Church"));
         assert!(desc.contains("church"));
@@ -427,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_generate_ring_fort_description() {
-        let feature = make_feature("The Rath", LocationType::RingFort);
+        let feature = make_feature("The Rath", LocationType::RingFort, 53.5, -8.0);
         let (desc, _) = generate_description(&feature);
         assert!(desc.contains("ring fort"));
         assert!(desc.contains("The Rath"));
@@ -435,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_mythological_significance_ring_fort() {
-        let feature = make_feature("Fairy Fort", LocationType::RingFort);
+        let feature = make_feature("Fairy Fort", LocationType::RingFort, 53.5, -8.0);
         let myth = generate_mythological_significance(&feature);
         assert!(myth.is_some());
         assert!(myth.unwrap().contains("sídhe"));
@@ -443,14 +427,14 @@ mod tests {
 
     #[test]
     fn test_mythological_significance_pub() {
-        let feature = make_feature("The Local", LocationType::Pub);
+        let feature = make_feature("The Local", LocationType::Pub, 53.5, -8.0);
         let myth = generate_mythological_significance(&feature);
         assert!(myth.is_none());
     }
 
     #[test]
     fn test_mythological_significance_crossroads() {
-        let feature = make_feature("A Crossroads", LocationType::Crossroads);
+        let feature = make_feature("A Crossroads", LocationType::Crossroads, 53.5, -8.0);
         let myth = generate_mythological_significance(&feature);
         assert!(myth.is_some());
         assert!(myth.unwrap().contains("veil"));
@@ -458,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_curated_feature_returns_curated_source() {
-        let mut feature = make_feature("Test", LocationType::Pub);
+        let mut feature = make_feature("Test", LocationType::Pub, 53.5, -8.0);
         feature.curated = true;
         let (_, source) = generate_description(&feature);
         assert_eq!(source, DescriptionSource::Curated);
@@ -490,11 +474,12 @@ mod tests {
             LocationType::Hill,
             LocationType::Ruin,
             LocationType::NamedPlace,
+            LocationType::Road,
             LocationType::Other,
         ];
 
         for loc_type in types {
-            let feature = make_feature("Test Place", loc_type);
+            let feature = make_feature("Test Place", loc_type, 53.5, -8.0);
             let (desc, source) = generate_description(&feature);
             assert_eq!(source, DescriptionSource::Template, "type: {loc_type:?}");
             assert!(!desc.is_empty(), "empty description for {loc_type:?}");
@@ -504,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_hill_with_elevation() {
-        let mut feature = make_feature("Slieve Bawn", LocationType::Hill);
+        let mut feature = make_feature("Slieve Bawn", LocationType::Hill, 53.5, -8.0);
         feature.tags.insert("ele".to_string(), "264".to_string());
         let (desc, _) = generate_description(&feature);
         assert!(desc.contains("264m"));

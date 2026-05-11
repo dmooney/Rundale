@@ -1,0 +1,27 @@
+[package]
+name = "parish-mcp"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Model Context Protocol (MCP) server that lets LLM clients drive a Parish/Tauri instance"
+
+[[bin]]
+name = "parish-mcp"
+path = "src/main.rs"
+
+[dependencies]
+tokio       = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+async-trait = { workspace = true }
+anyhow      = { workspace = true }
+thiserror   = { workspace = true }
+tracing     = { workspace = true }
+tracing-subscriber = { workspace = true }
+reqwest     = { workspace = true, features = ["json"] }
+clap        = { workspace = true, features = ["env"] }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+wiremock   = { workspace = true }

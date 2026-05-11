@@ -105,6 +105,53 @@ impl WorldEvent {
 /// corrupted. See [`replay_journal`].
 const MAX_MINUTES_PER_EVENT: i64 = 60 * 24 * 7;
 
+/// Applies a `PlayerMoved` event during replay.
+///
+/// Records an edge traversal when `from`→`to` are direct graph neighbours,
+/// advances the clock by `minutes` when present and in-range, updates the
+/// player position, and sets the `player_moved` flag so the caller can
+/// trigger a tier reassignment.
+fn apply_player_moved(
+    world: &mut parish_world::WorldState,
+    from: parish_types::LocationId,
+    to: parish_types::LocationId,
+    minutes: Option<i64>,
+    player_moved: &mut bool,
+) {
+    if world.graph.neighbors(from).iter().any(|(id, _)| *id == to) {
+        world.record_path_traversal(&[from, to]);
+    }
+    if let Some(m) = minutes
+        && m > 0
+        && m < MAX_MINUTES_PER_EVENT
+    {
+        world.clock.advance(m);
+    }
+    world.player_location = to;
+    world.visited_locations.insert(to);
+    *player_moved = true;
+}
+
+/// Applies a `MemoryAdded` event during replay, constructing a `MemoryEntry`
+/// from the event data and the current world clock.
+fn apply_memory_added(
+    npc_manager: &mut parish_npc::manager::NpcManager,
+    npc_id: parish_types::NpcId,
+    content: &str,
+    clock: &parish_types::GameClock,
+) {
+    if let Some(npc) = npc_manager.get_mut(npc_id) {
+        use parish_npc::memory::MemoryEntry;
+        npc.memory.add(MemoryEntry {
+            timestamp: clock.now(),
+            content: content.to_string(),
+            participants: vec![npc_id],
+            location: npc.location,
+            kind: None,
+        });
+    }
+}
+
 /// Replays a sequence of journal events onto live game state.
 ///
 /// Applies each event in order to bring the world and NPC manager
@@ -131,27 +178,7 @@ pub fn replay_journal(
     for event in events {
         match event {
             WorldEvent::PlayerMoved { from, to, minutes } => {
-                // Record the edge traversal so fog-of-war "worn paths"
-                // survive crash recovery. Only record when `from` and `to`
-                // are direct neighbours — otherwise we would fabricate an
-                // edge that does not exist in the graph.
-                if world
-                    .graph
-                    .neighbors(*from)
-                    .iter()
-                    .any(|(id, _)| *id == *to)
-                {
-                    world.record_path_traversal(&[*from, *to]);
-                }
-                if let Some(m) = minutes
-                    && *m > 0
-                    && *m < MAX_MINUTES_PER_EVENT
-                {
-                    world.clock.advance(*m);
-                }
-                world.player_location = *to;
-                world.visited_locations.insert(*to);
-                player_moved = true;
+                apply_player_moved(world, *from, *to, *minutes, &mut player_moved);
             }
             WorldEvent::NpcMoved { npc_id, to, .. } => {
                 if let Some(npc) = npc_manager.get_mut(*npc_id) {
@@ -186,21 +213,9 @@ pub fn replay_journal(
                 }
             },
             WorldEvent::MemoryAdded { npc_id, content } => {
-                if let Some(npc) = npc_manager.get_mut(*npc_id) {
-                    use parish_npc::memory::MemoryEntry;
-                    npc.memory.add(MemoryEntry {
-                        timestamp: world.clock.now(),
-                        content: content.clone(),
-                        participants: vec![*npc_id],
-                        location: npc.location,
-                        kind: None,
-                    });
-                }
+                apply_memory_added(npc_manager, *npc_id, content, &world.clock);
             }
             WorldEvent::ClockAdvanced { minutes } => {
-                // Reject non-positive or implausibly large values so a
-                // corrupted journal cannot violate the monotonic-clock
-                // invariants relied on by tier-transition bookkeeping.
                 if *minutes > 0 && *minutes < MAX_MINUTES_PER_EVENT {
                     world.clock.advance(*minutes);
                 } else {
@@ -210,17 +225,10 @@ pub fn replay_journal(
                     );
                 }
             }
-            WorldEvent::DialogueOccurred { .. } => {
-                // Dialogue events are recorded for history but don't
-                // mutate game state during replay (the memory and mood
-                // changes are recorded as separate events).
-            }
+            WorldEvent::DialogueOccurred { .. } => {}
         }
     }
 
-    // After any player movement, reassign cognitive tiers so Tier 1
-    // candidates reflect the player's final position rather than the
-    // stale snapshot-time location.
     if player_moved {
         let _ = npc_manager.assign_tiers(world, &[]);
     }
@@ -587,6 +595,151 @@ mod tests {
             Some(&1),
             "direct neighbour traversal should be recorded"
         );
+    }
+
+    #[test]
+    fn test_replay_npc_moved_updates_location_and_state() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = make_single_test_npc();
+        let events = vec![WorldEvent::NpcMoved {
+            npc_id: NpcId(1),
+            from: LocationId(1),
+            to: LocationId(3),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+        let npc = npcs.get(NpcId(1)).unwrap();
+        assert_eq!(npc.location, LocationId(3));
+        assert_eq!(npc.state, parish_npc::types::NpcState::Present);
+    }
+
+    #[test]
+    fn test_replay_npc_moved_unknown_npc_skipped() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let events = vec![WorldEvent::NpcMoved {
+            npc_id: NpcId(99),
+            from: LocationId(1),
+            to: LocationId(5),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+    }
+
+    #[test]
+    fn test_replay_relationship_changed_adjusts_strength() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = make_test_npc_with_relationship();
+        let events = vec![WorldEvent::RelationshipChanged {
+            npc_a: NpcId(1),
+            npc_b: NpcId(2),
+            delta: 0.3,
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+        let npc = npcs.get(NpcId(1)).unwrap();
+        let rel = npc.relationships.get(&NpcId(2)).unwrap();
+        assert!((rel.strength - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_replay_relationship_changed_unknown_npc_skipped() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let events = vec![WorldEvent::RelationshipChanged {
+            npc_a: NpcId(99),
+            npc_b: NpcId(2),
+            delta: 0.3,
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+    }
+
+    #[test]
+    fn test_replay_relationship_changed_missing_relationship_skipped() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = make_single_test_npc();
+        let events = vec![WorldEvent::RelationshipChanged {
+            npc_a: NpcId(1),
+            npc_b: NpcId(2),
+            delta: 0.3,
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+    }
+
+    #[test]
+    fn test_replay_memory_added_creates_entry() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = make_single_test_npc();
+        let events = vec![WorldEvent::MemoryAdded {
+            npc_id: NpcId(1),
+            content: "Met a stranger at the crossroads.".to_string(),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+        let npc = npcs.get(NpcId(1)).unwrap();
+        assert_eq!(npc.memory.len(), 1);
+    }
+
+    #[test]
+    fn test_replay_memory_added_unknown_npc_skipped() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let events = vec![WorldEvent::MemoryAdded {
+            npc_id: NpcId(99),
+            content: "Test".to_string(),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+    }
+
+    /// Helper: creates an `NpcManager` with a single NPC (id=1, loc=1).
+    fn make_single_test_npc() -> parish_npc::manager::NpcManager {
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        npcs.add_npc(npc_fixture(1, 1));
+        npcs
+    }
+
+    /// Helper: creates an `NpcManager` with NPC id=1 at loc=1 that has
+    /// a `Friend` relationship (strength 0.5) with NPC id=2.
+    fn make_test_npc_with_relationship() -> parish_npc::manager::NpcManager {
+        use parish_npc::types::{Relationship, RelationshipKind};
+        use std::collections::HashMap;
+
+        let mut rels = HashMap::new();
+        rels.insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.5));
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let mut npc = npc_fixture(1, 1);
+        npc.relationships = rels;
+        npcs.add_npc(npc);
+        npcs
+    }
+
+    /// Basic NPC fixture with default fields.
+    fn npc_fixture(id: u32, location: u32) -> parish_npc::Npc {
+        use parish_npc::memory::{LongTermMemory, ShortTermMemory};
+        use parish_npc::types::{Intelligence, NpcState};
+        use std::collections::HashMap;
+
+        parish_npc::Npc {
+            id: NpcId(id),
+            name: format!("NPC {}", id),
+            brief_description: "a person".to_string(),
+            age: 30,
+            occupation: "Test".to_string(),
+            personality: "Test".to_string(),
+            intelligence: Intelligence::default(),
+            location: LocationId(location),
+            mood: "calm".to_string(),
+            home: None,
+            workplace: None,
+            schedule: None,
+            relationships: HashMap::new(),
+            memory: ShortTermMemory::new(),
+            long_term_memory: LongTermMemory::new(),
+            knowledge: Vec::new(),
+            state: NpcState::Present,
+            deflated_summary: None,
+            reaction_log: parish_npc::reactions::ReactionLog::default(),
+            last_activity: None,
+            is_ill: false,
+            doom: None,
+            banshee_heralded: false,
+        }
     }
 
     #[test]

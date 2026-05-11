@@ -27,8 +27,6 @@ pub enum MemoryKind {
     SpokeWithNpc(NpcId),
     /// Overheard a conversation nearby.
     OverheardConversation,
-    /// Received gossip from another NPC.
-    ReceivedGossip,
 }
 
 /// A single memory entry recording something an NPC experienced.

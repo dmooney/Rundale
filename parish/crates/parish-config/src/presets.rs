@@ -1,9 +1,9 @@
 //! Recommended model presets per provider, indexed by inference category.
 //!
-//! Each entry in [`PresetModels`] is a model id chosen as a sensible default
-//! for that role, e.g. Anthropic's preset uses Opus for player-facing
-//! dialogue, Sonnet for background simulation and arrival reactions, and
-//! Haiku for low-latency intent parsing.
+//! Each entry is a model id chosen as a sensible default for that role,
+//! e.g. Anthropic's preset uses Opus for player-facing dialogue, Sonnet
+//! for background simulation and arrival reactions, and Haiku for
+//! low-latency intent parsing.
 //!
 //! Local providers reference Ollama/HuggingFace-style tags
 //! (`qwen3:32b`, `qwen3:14b`, `qwen3:4b`) sized to match the
@@ -12,12 +12,6 @@
 //! because it ignores the model name entirely.
 
 use crate::provider::{InferenceCategory, Provider};
-
-/// Recommended model id per [`InferenceCategory`], in canonical
-/// [`InferenceCategory::ALL`] order: `[Dialogue, Simulation, Intent, Reaction]`.
-///
-/// `None` in any slot means "no preset available for this provider/role".
-pub type PresetModels = [Option<&'static str>; 4];
 
 impl InferenceCategory {
     /// Array index matching [`InferenceCategory::ALL`] order.
@@ -37,7 +31,7 @@ impl Provider {
     /// `Custom` and `Simulator` return `[None; 4]`: `Custom` is opaque
     /// (the user must know their own endpoint's model ids) and `Simulator`
     /// runs offline without a real model.
-    pub fn preset_models(&self) -> PresetModels {
+    pub fn preset_models(&self) -> [Option<&'static str>; 4] {
         // Tier mapping (matches the Anthropic example — see crate docs):
         //   Dialogue  → flagship / opus-tier   (highest quality reasoning)
         //   Simulation→ mid-tier / sonnet-tier (balanced quality/throughput)
