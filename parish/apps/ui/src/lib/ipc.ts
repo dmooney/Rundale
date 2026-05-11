@@ -428,3 +428,6 @@ export const getProviderConfig = () =>
 	command<GetProviderConfigResult>('get_provider_config');
 
 export const clearProviderConfig = () => command<void>('clear_provider_config');
+
+export const listByokEnvKeys = () =>
+	command<Record<string, boolean>>('list_byok_env_keys');

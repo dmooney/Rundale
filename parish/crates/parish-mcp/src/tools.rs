@@ -113,6 +113,10 @@ fn translate_setup_status(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_setup_status".into(), Value::Null))
 }
 
+fn translate_byok_env_keys(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_byok_env_keys".into(), Value::Null))
+}
+
 fn translate_setup_byok(args: &Value) -> Result<(String, Value), String> {
     let provider = require_string(args, "provider")?.to_string();
     // `api_key` is optional: keyless local providers (Ollama, LM Studio, vLLM,
@@ -241,6 +245,16 @@ pub fn registry() -> Vec<ToolDef> {
             translate: translate_latest_screenshot,
         },
         // ── BYOK setup-flow ──────────────────────────────────────────────────
+        ToolDef {
+            name: "parish_byok_env_keys",
+            description: "Returns `{provider_id: bool}` for every supported provider — true \
+                          when the standard API-key env var (ANTHROPIC_API_KEY, OPENAI_API_KEY, \
+                          etc.) is set in the host process. Lets a wizard or MCP client tell \
+                          the user 'leave the field blank to use your existing env var' \
+                          before they commit to a provider.",
+            input_schema: empty_object_schema(),
+            translate: translate_byok_env_keys,
+        },
         ToolDef {
             name: "parish_setup_status",
             description: "Reads the BYOK setup state. Returns `{complete, provider, model, \

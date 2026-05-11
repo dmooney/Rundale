@@ -87,7 +87,10 @@ pub struct ByokContext<'a> {
     pub user_config_dir: &'a Path,
 }
 
-/// Validates the config (live ping) without touching state.
+/// Validates the config (live ping) without touching state. When `api_key` is
+/// blank but the provider's standard env var (e.g. `ANTHROPIC_API_KEY`) is set
+/// in the host process, validates against the env value — that mirrors the
+/// post-onboarding runtime, where the layered resolver picks env over keychain.
 pub async fn handle_validate_provider_config(
     args: ValidateProviderConfigArgs,
 ) -> validate::ValidationOutcome {
@@ -103,7 +106,35 @@ pub async fn handle_validate_provider_config(
     let url = args
         .base_url
         .unwrap_or_else(|| provider.default_base_url().to_string());
-    validate::validate(&provider, &url, args.api_key.as_deref()).await
+    let typed = args
+        .api_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let env_key = provider
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let key_to_use: Option<&str> = typed.or_else(|| env_key.as_deref());
+    validate::validate(&provider, &url, key_to_use).await
+}
+
+/// Returns a map of `{provider_id: has_env_key}` for every known provider.
+/// The wizard uses this BEFORE the user has saved a choice — so the placeholder
+/// hint can say "env var detected" for the provider being picked, not just the
+/// current GameConfig provider.
+pub fn handle_list_env_keys() -> std::collections::BTreeMap<String, bool> {
+    let mut out = std::collections::BTreeMap::new();
+    for p in Provider::ALL {
+        let has = p
+            .api_key_env_var()
+            .and_then(|var| std::env::var(var).ok())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
+        out.insert(p.id().to_string(), has);
+    }
+    out
 }
 
 /// Returns the current effective config (without exposing the API key) so the
@@ -156,27 +187,52 @@ pub async fn handle_set_provider_config(
 
     // Cloud providers need a key; local providers (Ollama / LM Studio / vLLM /
     // Simulator) accept None. Custom is "user knows what they're doing" — if
-    // their endpoint needs a key they'll provide one.
-    if provider.requires_api_key() && args.api_key.as_deref().unwrap_or("").is_empty() {
+    // their endpoint needs a key they'll provide one. Env-var fallback:
+    // when the user leaves the key field blank and the standard provider env
+    // var (e.g. ANTHROPIC_API_KEY) is set, treat that as the source of truth —
+    // the rebuild pipeline picks it up via the layered config resolver on next
+    // launch, and for this session we read it directly so the live inference
+    // worker sees a key.
+    let env_key = provider
+        .api_key_env_var()
+        .and_then(|var| std::env::var(var).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if provider.requires_api_key()
+        && args.api_key.as_deref().unwrap_or("").is_empty()
+        && env_key.is_none()
+    {
         return Err(ByokError::MissingApiKey {
             provider: provider_name,
         });
     }
 
-    // Sanitise the key so leading/trailing whitespace from clipboards never
-    // makes it into the keychain or HTTP headers.
-    let api_key = args
+    // Sanitise the user-supplied key. If left blank we fall back to env_key
+    // (already trimmed and non-empty when present). The keychain only stores
+    // user-supplied keys — never the env var, because the env var IS the
+    // user's chosen storage in that case and copying it would create a stale
+    // duplicate that loses precedence on next launch.
+    let typed_key = args
         .api_key
         .as_deref()
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string);
+    let used_env_key = typed_key.is_none() && env_key.is_some();
+    let api_key = typed_key.clone().or_else(|| env_key.clone());
 
-    // Persist secret to keychain (or wipe if None).
     let account = provider_account(&provider_name);
-    match &api_key {
-        Some(k) => ctx.secrets.set(&account, k)?,
-        None => ctx.secrets.delete(&account)?,
+    match (&typed_key, used_env_key) {
+        (Some(k), _) => ctx.secrets.set(&account, k)?,
+        (None, true) => {
+            // Env var is the source of truth — wipe any stale keychain entry
+            // so a previously-typed key can't shadow the env var later.
+            ctx.secrets.delete(&account)?;
+        }
+        (None, false) => {
+            // Keyless local provider — wipe.
+            ctx.secrets.delete(&account)?;
+        }
     }
 
     // Persist non-secret choices to ~/parish.toml.
@@ -413,6 +469,71 @@ mod tests {
         assert!(dir.path().join(".onboarded").exists());
         // Worker installed.
         assert!(slots.queue.lock().await.is_some());
+    }
+
+    #[tokio::test]
+    async fn list_env_keys_includes_every_provider() {
+        // Pin the shape so any new Provider variant must update id() and
+        // therefore show up in the wizard's env-detection map.
+        let map = handle_list_env_keys();
+        for p in Provider::ALL {
+            assert!(
+                map.contains_key(p.id()),
+                "handle_list_env_keys missing entry for {:?}",
+                p
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn set_provider_config_accepts_blank_key_when_env_var_set() {
+        // Guard against the "leave blank to use env var" UX promise being
+        // silently broken at the handler boundary. SAFETY: set_var/remove_var
+        // are unsafe on stable Rust 1.74+; tests are single-threaded for this
+        // env manipulation. Use a unique sentinel to avoid clobbering a real
+        // dev key.
+        unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test-env-fallback") };
+
+        let dir = TempDir::new().unwrap();
+        let secrets: Arc<dyn SecretStore> = Arc::new(InMemorySecretStore::new());
+        let cfg = Mutex::new(empty_game_config());
+        let icfg = fresh_inference_config();
+        let slots = Slots::new();
+        let log = std::sync::Arc::new(tokio::sync::Mutex::new(
+            crate::inference::BoundedInferenceLog::new(16),
+        ));
+
+        let res = handle_set_provider_config(
+            SetProviderConfigArgs {
+                provider: "anthropic".to_string(),
+                base_url: None,
+                model: None,
+                api_key: None,
+                category_overrides: Default::default(),
+            },
+            ByokContext {
+                config: &cfg,
+                inference_config: &icfg,
+                inference_log: log,
+                slots: slots.slots(),
+                secrets: Arc::clone(&secrets),
+                user_config_dir: dir.path(),
+            },
+        )
+        .await;
+
+        unsafe { std::env::remove_var("ANTHROPIC_API_KEY") };
+
+        assert!(res.is_ok(), "env-var fallback should be accepted");
+        // Live inference worker uses the env value.
+        {
+            let g = cfg.lock().await;
+            assert_eq!(g.api_key.as_deref(), Some("sk-ant-test-env-fallback"));
+        }
+        // Keychain is NOT populated — env var IS the storage, no duplicate.
+        assert!(secrets.get("provider:anthropic").unwrap().is_none());
+        // Onboarding marked complete.
+        assert!(dir.path().join(".onboarded").exists());
     }
 
     #[tokio::test]

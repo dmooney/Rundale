@@ -6,10 +6,11 @@
 	 *  - first-run via ByokFork (full overlay)
 	 *  - settings re-edit via DebugPanel (modal)
 	 */
+	import { onMount } from 'svelte';
 	import {
 		setProviderConfig,
 		validateProviderConfig,
-		getProviderConfig,
+		listByokEnvKeys,
 		type ValidationOutcome,
 		type SetProviderConfigArgs
 	} from '$lib/ipc';
@@ -45,21 +46,18 @@
 		chosenId ? findProvider(chosenId) : undefined
 	);
 
-	// Pre-fill the key field if a standard env var is already set in the
-	// process. The backend reports has_env_key but never the value itself,
-	// so the field stays empty and we surface a hint instead.
-	let hasEnvKey = $state(false);
-	$effect(() => {
-		if (chosenId) {
-			getProviderConfig()
-				.then((res) => {
-					hasEnvKey = res.has_env_key && res.provider === chosenId;
-				})
-				.catch(() => {
-					hasEnvKey = false;
-				});
-		}
+	// Map of {provider_id: has_env_key} fetched once on mount. The backend
+	// never returns the env var value itself; we just surface a "leave blank
+	// to use $ENV_VAR" hint on the key field. Critically, the lookup is keyed
+	// by the *picked* provider id (not the current GameConfig provider) so
+	// the hint shows during first-run too.
+	let envKeys = $state<Record<string, boolean>>({});
+	onMount(() => {
+		listByokEnvKeys()
+			.then((m) => (envKeys = m))
+			.catch(() => (envKeys = {}));
 	});
+	let hasEnvKey = $derived(chosenId ? !!envKeys[chosenId] : false);
 
 	function pick(p: ByokProviderMeta) {
 		chosenId = p.id;

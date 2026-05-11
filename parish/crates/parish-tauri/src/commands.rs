@@ -301,6 +301,15 @@ pub async fn clear_provider_config(
         .map_err(|e| e.to_string())
 }
 
+/// Returns `{provider_id: has_env_key}` for every known provider so the BYOK
+/// wizard can show the env-detected hint on the picked provider, not just the
+/// current one.
+#[tauri::command]
+pub async fn list_byok_env_keys()
+-> Result<std::collections::BTreeMap<String, bool>, String> {
+    Ok(parish_core::ipc::byok::handle_list_env_keys())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
