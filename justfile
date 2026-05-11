@@ -112,6 +112,11 @@ notices:
 audit:
     cd parish && just audit
 
+# Run inference benchmark harness against any OpenAI-compatible endpoint.
+# Override via env: BASE_URL, INTENT_MODEL, MAIN_MODEL, ITERS, API_KEY.
+inf-bench:
+    cd parish && just inf-bench
+
 # ─── Release ────────────────────────────────────────────────────────────────
 
 # Bump versions, commit, and tag a release locally. See docs/release.md.

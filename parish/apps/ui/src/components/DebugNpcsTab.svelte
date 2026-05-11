@@ -69,7 +69,7 @@
 			<div class="section">
 				<h5>Schedule</h5>
 				{#each selectedNpc.schedule as variant}
-					{@const variantLabel = [variant.season ?? 'All seasons', variant.day_type ?? 'All days'].join(' \u00B7 ')}
+					{@const variantLabel = [variant.season ?? 'All seasons', variant.day_type ?? 'All days'].join(' · ')}
 					<div class="schedule-variant" class:variant-active={variant.is_active}>
 						<div class="variant-label">
 							{variantLabel}

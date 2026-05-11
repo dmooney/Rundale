@@ -49,7 +49,7 @@
 		<span class="muted">{selectedEntry.model}</span>
 		{#if selectedEntry.streaming}<span class="log-badge stream">STREAM</span>{/if}
 		{#if selectedEntry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-		<span class="muted">{selectedEntry.duration_ms}ms \u00B7 prompt {selectedEntry.prompt_len}ch \u00B7 response {selectedEntry.response_len}ch</span>
+		<span class="muted">{selectedEntry.duration_ms}ms · prompt {selectedEntry.prompt_len}ch · response {selectedEntry.response_len}ch{#if selectedEntry.ttft_ms != null} · ttft {selectedEntry.ttft_ms}ms{/if}{#if selectedEntry.output_tokens != null} · {selectedEntry.output_tokens} tok{#if selectedEntry.ttft_ms != null && selectedEntry.duration_ms > selectedEntry.ttft_ms} ({(selectedEntry.output_tokens / ((selectedEntry.duration_ms - selectedEntry.ttft_ms) / 1000)).toFixed(1)} tok/s){/if}{/if}</span>
 	</div>
 	{#if selectedEntry.error}
 		<div class="log-error-msg">{selectedEntry.error}</div>
@@ -65,7 +65,7 @@
 {:else}
 	<div class="section">
 		<h4>Provider</h4>
-		<div class="field">{snap.inference.provider_name} \u00B7 {snap.inference.model_name || '(auto)'} \u00B7 {snap.inference.base_url || '(default)'}</div>
+		<div class="field">{snap.inference.provider_name} · {snap.inference.model_name || '(auto)'} · {snap.inference.base_url || '(default)'}</div>
 		<div class="field">Queue: {snap.inference.has_queue ? 'Active' : 'Inactive'}</div>
 		<div class="field">Improv: {snap.inference.improv_enabled ? 'Active' : 'Inactive'}</div>
 		{#if snap.inference.cloud_provider}
@@ -148,7 +148,7 @@
 					{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{:else}<span class="log-model">{entry.model}</span>{/if}
 					{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
 					{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-					<span class="muted">{entry.duration_ms}ms</span>
+					<span class="muted">{entry.duration_ms}ms{#if entry.ttft_ms != null} · ttft {entry.ttft_ms}ms{/if}{#if entry.output_tokens != null && entry.ttft_ms != null && entry.duration_ms > entry.ttft_ms} · {(entry.output_tokens / ((entry.duration_ms - entry.ttft_ms) / 1000)).toFixed(1)} tok/s{/if}</span>
 				</button>
 			{/each}
 		{/if}

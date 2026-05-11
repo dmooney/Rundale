@@ -600,6 +600,8 @@ pub async fn stream_reaction_texts(
                 prompt_text,
                 response_text: accumulated,
                 max_tokens: Some(100),
+                ttft_ms: None,
+                output_tokens: None,
             };
             let mut log_guard = log.lock().await;
             log_guard.push(entry);

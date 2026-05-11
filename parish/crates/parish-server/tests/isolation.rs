@@ -162,6 +162,8 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
         prompt_text: "secret user prompt".to_string(),
         response_text: "secret response".to_string(),
         max_tokens: None,
+        ttft_ms: Some(45),
+        output_tokens: Some(12),
     };
 
     // Call the production redaction function — the same path `get_debug_snapshot`

@@ -573,12 +573,16 @@ pub fn build_tier2_prompt(
         Weather: {weather}.{weather_commentary}\n\n\
         Dramatis personae (id in brackets — reuse these in your JSON):\n\
         {characters}\n\n\
-        Write a 1-2 sentence summary of what they are doing and saying to each \
-        other. Note any mood changes or relationship shifts.\n\n\
-        Respond with JSON, using the bracketed ids:\n\
-        {{\"summary\":\"...\",\n\
-         \"mood_changes\":[{{\"npc_id\":<id>,\"new_mood\":\"...\"}}],\n\
-         \"relationship_changes\":[{{\"from\":<id>,\"to\":<id>,\"delta\":<-0.1..0.1>}}]}}",
+        Write one short sentence (max 20 words) describing what these characters are \
+        doing right now. Most exchanges are uneventful — leave mood_changes and \
+        relationship_changes as empty arrays unless a character's mood has clearly \
+        shifted or a relationship has meaningfully strengthened or strained.\n\n\
+        Respond with a JSON object, using the bracketed ids. Default shape (use this \
+        when nothing notable changes):\n\
+        {{\"summary\": \"...\", \"mood_changes\": [], \"relationship_changes\": []}}\n\n\
+        Only when something actually changes, include entries:\n\
+          mood_changes:        {{\"npc_id\": <id>, \"new_mood\": \"<mood>\"}}\n\
+          relationship_changes: {{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}}",
         location = group.location_name,
         time = time_desc,
         weather = weather,
@@ -668,12 +672,15 @@ pub async fn run_tier2_for_group(
     let prompt = build_tier2_prompt(group, time_desc, weather, language);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
+    // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
+    // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
     match parish_inference::submit_json::<Tier2Response>(
         queue,
         InferencePriority::Background,
         model,
         &prompt,
         None,
+        Some(200),
     )
     .await
     {
@@ -1030,12 +1037,16 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
             ctx.language,
         );
 
+        // Cap output to bound vllm-mlx runaway. 6-NPC batches output
+        // ~200-400 tokens in practice; 600 is comfortable headroom and
+        // keeps a single batch under the 1500 ms simulation budget.
         match parish_inference::submit_json::<Tier3Response>(
             ctx.queue,
             InferencePriority::Batch,
             ctx.model,
             &prompt,
             None,
+            Some(600),
         )
         .await
         {
