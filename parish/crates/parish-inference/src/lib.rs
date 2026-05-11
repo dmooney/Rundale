@@ -52,12 +52,14 @@ pub use rate_limit::InferenceRateLimiter;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use openai_client::OpenAiClient;
+pub use openai_client::{JsonSchemaSpec, ResponseFormat};
 use simulator::SimulatorClient;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio::task::JoinHandle;
+pub use tokio_util::sync::CancellationToken;
 
 use parish_config::Provider;
 use parish_types::ParishError;
@@ -105,6 +107,14 @@ pub fn build_client(
     }
 }
 
+/// Per-call streaming statistics observed by the worker as tokens flow
+/// through the proxied channel.
+#[derive(Debug, Clone, Copy)]
+struct StreamStats {
+    ttft: Option<Duration>,
+    tokens: u64,
+}
+
 /// A single logged inference call for the debug panel.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct InferenceLogEntry {
@@ -132,6 +142,13 @@ pub struct InferenceLogEntry {
     pub response_text: String,
     /// Max tokens limit sent to provider (if any).
     pub max_tokens: Option<u32>,
+    /// Time-to-first-token in milliseconds (streaming only; None for
+    /// non-streaming requests, which never observe an intermediate token).
+    pub ttft_ms: Option<u64>,
+    /// Number of streamed tokens observed (streaming only). Each entry
+    /// counts a non-empty `delta.content` chunk; reasoning chunks are
+    /// not surfaced through this channel and are excluded.
+    pub output_tokens: Option<u64>,
 }
 
 /// Priority lane for inference requests. Higher priority lanes are drained first.
@@ -238,6 +255,22 @@ pub struct InferenceRequest {
     pub priority: InferencePriority,
     /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
     pub json_mode: bool,
+    /// Optional structured-output schema. When set, the worker forwards
+    /// it as `response_format: {"type": "json_schema", "json_schema": ...}`
+    /// — the strict-mode path required by vllm-mlx, LM Studio, and OpenAI's
+    /// structured-outputs feature. Takes precedence over `json_mode` when
+    /// both are set. Anthropic / Simulator backends ignore the schema and
+    /// fall back to plain generation; the prompt should still describe the
+    /// expected shape so unconstrained backends produce parseable output.
+    pub json_schema: Option<JsonSchemaSpec>,
+    /// Optional cancellation token. When fired, the worker drops the
+    /// in-flight inference future, which closes the underlying HTTP/SSE
+    /// connection — Ollama, LM Studio, and vllm-mlx all halt generation
+    /// on client disconnect, freeing the model slot. Required so that a
+    /// player turn can preempt mid-flight Tier 2/3 simulation calls
+    /// without waiting for them to drain. The response carries
+    /// `error: Some("cancelled")` when this fires.
+    pub cancel: Option<CancellationToken>,
 }
 
 /// The response from an inference request.
@@ -297,6 +330,83 @@ impl InferenceQueue {
         json_mode: bool,
     ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
     {
+        self.send_with_schema(
+            id,
+            model,
+            prompt,
+            system,
+            token_tx,
+            max_tokens,
+            temperature,
+            priority,
+            json_mode,
+            None,
+        )
+        .await
+    }
+
+    /// Schema-aware variant of [`Self::send`].
+    ///
+    /// Pass `json_schema = Some(...)` to forward a strict structured-output
+    /// schema all the way to the provider's `response_format` field.
+    /// `json_schema` takes precedence over `json_mode` when both are set.
+    /// `json_mode = true` with `json_schema = None` keeps the legacy
+    /// "json_object" Ollama path.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_with_schema(
+        &self,
+        id: u64,
+        model: String,
+        prompt: String,
+        system: Option<String>,
+        token_tx: Option<mpsc::Sender<String>>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+        priority: InferencePriority,
+        json_mode: bool,
+        json_schema: Option<JsonSchemaSpec>,
+    ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
+    {
+        self.send_full(
+            id,
+            model,
+            prompt,
+            system,
+            token_tx,
+            max_tokens,
+            temperature,
+            priority,
+            json_mode,
+            json_schema,
+            None,
+        )
+        .await
+    }
+
+    /// Full-fidelity submit with both a structured-output schema and a
+    /// caller-controlled cancellation token.
+    ///
+    /// Firing the token causes the worker to drop its in-flight inference
+    /// future, which closes the underlying HTTP/SSE connection so the
+    /// provider can free its slot. The response carries
+    /// `error: Some("cancelled")`. Required so a player turn can preempt
+    /// mid-flight Tier 2/3 simulation.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_full(
+        &self,
+        id: u64,
+        model: String,
+        prompt: String,
+        system: Option<String>,
+        token_tx: Option<mpsc::Sender<String>>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+        priority: InferencePriority,
+        json_mode: bool,
+        json_schema: Option<JsonSchemaSpec>,
+        cancel: Option<CancellationToken>,
+    ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
+    {
         let (response_tx, response_rx) = oneshot::channel();
         let request = InferenceRequest {
             id,
@@ -309,6 +419,8 @@ impl InferenceQueue {
             temperature,
             priority,
             json_mode,
+            json_schema,
+            cancel,
         };
         let lane = match priority {
             InferencePriority::Interactive => &self.interactive_tx,
@@ -374,14 +486,18 @@ static QUEUE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Submit a request that expects a JSON response, then deserialize it.
 ///
-/// Used by Tier 3 batch inference and (in future Track B) Tier 2 background simulation.
+/// Used by Tier 3 batch inference and Tier 2 background simulation.
 /// Requests are non-streaming and routed to the given priority lane.
+/// `max_tokens=None` matches legacy callers; new callers should pass a
+/// sensible cap to bound runtime — uncapped JSON generation on vllm-mlx
+/// can run away (5000+ tokens) on richly-prompted batches.
 pub async fn submit_json<T: serde::de::DeserializeOwned>(
     queue: &InferenceQueue,
     priority: InferencePriority,
     model: &str,
     prompt: &str,
     system: Option<&str>,
+    max_tokens: Option<u32>,
 ) -> Result<T, ParishError> {
     let id = QUEUE_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
     let response_rx = queue
@@ -391,7 +507,7 @@ pub async fn submit_json<T: serde::de::DeserializeOwned>(
             prompt.to_string(),
             system.map(String::from),
             None,
-            None,
+            max_tokens,
             None,
             priority,
             false,
@@ -615,6 +731,86 @@ impl AnyClient {
         }
     }
 
+    /// Non-streaming generate with an explicit OpenAI `response_format`.
+    ///
+    /// Returns the raw response text; callers parse JSON themselves. Used
+    /// by the inference queue worker so [`InferenceRequest::json_schema`]
+    /// can flow end-to-end without the worker having to know the target
+    /// `T`. Anthropic and Simulator backends ignore `response_format`
+    /// (they don't speak OpenAI's structured-outputs wire shape) and fall
+    /// back to plain `generate`.
+    pub async fn generate_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        response_format: Option<ResponseFormat>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate_text_with_format(
+                    model,
+                    prompt,
+                    system,
+                    response_format,
+                    max_tokens,
+                    temperature,
+                )
+                .await
+            }
+            Self::Anthropic(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate(model, prompt, system, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
+    /// Streaming counterpart of [`generate_with_format`]. Used by the
+    /// worker when a request carries a token sender *and* a response
+    /// format (e.g. Tier 1 dialogue with a strict schema). Anthropic /
+    /// Simulator ignore `response_format` and fall back to their plain
+    /// streaming methods.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn generate_stream_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::Sender<String>,
+        response_format: Option<ResponseFormat>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        match self {
+            Self::OpenAi(c) => {
+                c.generate_stream_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    response_format,
+                    max_tokens,
+                    temperature,
+                )
+                .await
+            }
+            Self::Anthropic(c) => {
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+            Self::Simulator(c) => {
+                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                    .await
+            }
+        }
+    }
+
     /// Returns a reference to the inner `OpenAiClient`, if this is a real client.
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
@@ -649,21 +845,41 @@ impl AnyClient {
     }
 }
 
-/// Wraps an inference future with a timeout, producing a consistent error
-/// message so the caller doesn't repeat the match+format pattern.
+/// Wraps an inference future with a timeout *and* an optional cancellation
+/// token, producing consistent error messages so callers don't repeat the
+/// match+format pattern.
+///
+/// Resolution order is `select!`-style: whichever of {cancel, timeout, the
+/// inner future} fires first wins. Cancel and timeout both drop the inner
+/// future, which closes the underlying HTTP/SSE connection so providers
+/// release their model slot.
 async fn inference_with_timeout<F, T>(
     future: F,
     timeout: std::time::Duration,
     timeout_secs: u64,
     model: &str,
     label: &str,
+    cancel: Option<&CancellationToken>,
 ) -> Result<T, ParishError>
 where
     F: std::future::Future<Output = Result<T, ParishError>>,
 {
-    match tokio::time::timeout(timeout, future).await {
-        Ok(result) => result,
-        Err(_) => Err(ParishError::Inference(format!(
+    // tokio::pin so the future is select-safe across branches.
+    tokio::pin!(future);
+    let cancel_fut = async {
+        match cancel {
+            Some(tok) => tok.cancelled().await,
+            // Never resolves; the select degrades to "timeout || future".
+            None => std::future::pending::<()>().await,
+        }
+    };
+    tokio::select! {
+        biased;
+        () = cancel_fut => Err(ParishError::Inference(format!(
+            "{label} cancelled (model={model})",
+        ))),
+        result = &mut future => result,
+        () = tokio::time::sleep(timeout) => Err(ParishError::Inference(format!(
             "{label} timed out after {timeout_secs}s (model={model})",
         ))),
     }
@@ -717,47 +933,69 @@ pub fn spawn_inference_worker(
                 std::time::Duration::from_secs(timeout_config.streaming_timeout_secs);
             let blocking_timeout = std::time::Duration::from_secs(timeout_config.timeout_secs);
 
-            let result = match (request.token_tx, request.json_mode) {
-                (Some(token_tx), true) => {
-                    inference_with_timeout(
-                        client.generate_stream_json(
+            // Resolve effective response_format: schema wins over json_mode.
+            let response_format: Option<ResponseFormat> =
+                match (request.json_schema.clone(), request.json_mode) {
+                    (Some(schema), _) => Some(ResponseFormat::JsonSchema {
+                        json_schema: schema,
+                    }),
+                    (None, true) => Some(ResponseFormat::JsonObject),
+                    (None, false) => None,
+                };
+
+            let (result, stream_stats) = match request.token_tx {
+                Some(token_tx) => {
+                    let (proxy_tx, mut proxy_rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+                    let observer_start = start;
+                    let observer = tokio::spawn(async move {
+                        let mut ttft: Option<Duration> = None;
+                        let mut tokens: u64 = 0;
+                        while let Some(tok) = proxy_rx.recv().await {
+                            if ttft.is_none() {
+                                ttft = Some(observer_start.elapsed());
+                            }
+                            tokens += 1;
+                            if token_tx.send(tok).await.is_err() {
+                                break;
+                            }
+                        }
+                        StreamStats { ttft, tokens }
+                    });
+                    let label = match response_format {
+                        Some(ResponseFormat::JsonSchema { .. }) => "streaming (schema) inference",
+                        Some(ResponseFormat::JsonObject) => "streaming (json) inference",
+                        None => "streaming inference",
+                    };
+                    let result = inference_with_timeout(
+                        client.generate_stream_with_format(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
-                            token_tx,
+                            proxy_tx,
+                            response_format.clone(),
                             request.max_tokens,
                             request.temperature,
                         ),
                         streaming_timeout,
                         timeout_config.streaming_timeout_secs,
                         &request.model,
-                        "streaming (json) inference",
+                        label,
+                        request.cancel.as_ref(),
                     )
-                    .await
+                    .await;
+                    let stats = observer.await.unwrap_or(StreamStats {
+                        ttft: None,
+                        tokens: 0,
+                    });
+                    (result, Some(stats))
                 }
-                (Some(token_tx), false) => {
-                    inference_with_timeout(
-                        client.generate_stream(
+                None => {
+                    let result = inference_with_timeout(
+                        client.generate_with_format(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
-                            token_tx,
-                            request.max_tokens,
-                            request.temperature,
-                        ),
-                        streaming_timeout,
-                        timeout_config.streaming_timeout_secs,
-                        &request.model,
-                        "streaming inference",
-                    )
-                    .await
-                }
-                (None, _) => {
-                    inference_with_timeout(
-                        client.generate(
-                            &request.model,
-                            &request.prompt,
-                            request.system.as_deref(),
+                            response_format.clone(),
                             request.max_tokens,
                             request.temperature,
                         ),
@@ -765,12 +1003,18 @@ pub fn spawn_inference_worker(
                         timeout_config.timeout_secs,
                         &request.model,
                         "inference",
+                        request.cancel.as_ref(),
                     )
-                    .await
+                    .await;
+                    (result, None)
                 }
             };
 
             let elapsed = start.elapsed();
+            let (ttft_ms, output_tokens) = match stream_stats {
+                Some(s) => (s.ttft.map(|d| d.as_millis() as u64), Some(s.tokens)),
+                None => (None, None),
+            };
 
             let (response, entry_error, response_len, response_text) = match &result {
                 Ok(text) => (
@@ -810,6 +1054,8 @@ pub fn spawn_inference_worker(
                     prompt_text,
                     response_text,
                     max_tokens,
+                    ttft_ms,
+                    output_tokens,
                 };
                 let mut log = log.lock().await;
                 log.push(entry);
@@ -839,6 +1085,8 @@ mod tests {
             prompt_text: String::new(),
             response_text: String::new(),
             max_tokens: None,
+            ttft_ms: None,
+            output_tokens: None,
         }
     }
 
@@ -1355,12 +1603,137 @@ mod tests {
             temperature: None,
             priority: InferencePriority::Interactive,
             json_mode: false,
+            json_schema: None,
+            cancel: None,
         };
         // send returns Err when the receiver has been dropped by the aborted task.
         let send_result = interactive_tx.send(req).await;
         assert!(
             send_result.is_err(),
             "expected send to fail after worker abort"
+        );
+    }
+
+    /// A streaming request must record `ttft_ms` and `output_tokens` in the
+    /// log entry so the debug panel can surface throughput metrics. The
+    /// simulator emits one token every ~40 ms, so both fields must be `Some`
+    /// after the call resolves.
+    #[tokio::test]
+    async fn test_streaming_request_records_ttft_and_token_count() {
+        let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_btx, background_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_batx, batch_rx) = mpsc::channel::<InferenceRequest>(4);
+        let log = new_inference_log();
+        let _handle = spawn_inference_worker(
+            AnyClient::simulator(),
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log.clone(),
+            InferenceConfig::default(),
+        );
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let (tok_tx, mut tok_rx) = mpsc::channel::<String>(64);
+        let drain = tokio::spawn(async move { while tok_rx.recv().await.is_some() {} });
+        interactive_tx
+            .send(InferenceRequest {
+                id: 1,
+                model: "sim".to_string(),
+                prompt: "Tell me about Roscommon.".to_string(),
+                system: None,
+                token_tx: Some(tok_tx),
+                response_tx: resp_tx,
+                max_tokens: None,
+                temperature: None,
+                priority: InferencePriority::Interactive,
+                json_mode: false,
+                json_schema: None,
+                cancel: None,
+            })
+            .await
+            .expect("send");
+
+        let resp = resp_rx.await.expect("response");
+        assert!(resp.error.is_none(), "expected ok, got {:?}", resp.error);
+        drain.await.ok();
+
+        let log_guard = log.lock().await;
+        let entry = log_guard.iter().find(|e| e.request_id == 1).expect("entry");
+        assert!(
+            entry.ttft_ms.is_some(),
+            "ttft_ms must be populated for streaming"
+        );
+        let tokens = entry.output_tokens.expect("output_tokens populated");
+        assert!(tokens > 0, "expected >0 tokens, got {tokens}");
+    }
+
+    /// A request whose cancel token fires mid-stream must surface
+    /// `error: "cancelled"` and free the worker for the next request.
+    /// Uses the simulator (40 ms/token); we fire cancel after the first
+    /// token arrives.
+    #[tokio::test]
+    async fn test_cancellation_fires_mid_stream_yields_error() {
+        let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_btx, background_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (_batx, batch_rx) = mpsc::channel::<InferenceRequest>(4);
+        let log = new_inference_log();
+        let _handle = spawn_inference_worker(
+            AnyClient::simulator(),
+            interactive_rx,
+            background_rx,
+            batch_rx,
+            log,
+            InferenceConfig::default(),
+        );
+
+        let cancel = CancellationToken::new();
+        let cancel_for_request = cancel.clone();
+
+        let (resp_tx, resp_rx) = oneshot::channel();
+        let (tok_tx, mut tok_rx) = mpsc::channel::<String>(64);
+
+        // Drain forwarded tokens; fire cancel as soon as the first one
+        // lands so the worker drops its inflight future mid-stream.
+        let drain = tokio::spawn(async move {
+            let mut count: u64 = 0;
+            while tok_rx.recv().await.is_some() {
+                count += 1;
+                if count == 1 {
+                    cancel.cancel();
+                }
+            }
+            count
+        });
+
+        interactive_tx
+            .send(InferenceRequest {
+                id: 7,
+                model: "sim".to_string(),
+                prompt: "Tell me a long story about Roscommon hedges.".to_string(),
+                system: None,
+                token_tx: Some(tok_tx),
+                response_tx: resp_tx,
+                max_tokens: None,
+                temperature: None,
+                priority: InferencePriority::Interactive,
+                json_mode: false,
+                json_schema: None,
+                cancel: Some(cancel_for_request),
+            })
+            .await
+            .expect("send");
+
+        let resp = resp_rx.await.expect("response");
+        let tokens_seen = drain.await.unwrap_or(0);
+        let err = resp.error.expect("expected an error after cancel");
+        assert!(
+            err.contains("cancel"),
+            "expected error to mention cancel, got {err:?}"
+        );
+        assert!(
+            tokens_seen >= 1,
+            "expected at least one token before cancel fired"
         );
     }
 
@@ -1410,6 +1783,8 @@ mod tests {
                 system: None,
                 token_tx: None,
                 json_mode: false,
+                json_schema: None,
+                cancel: None,
                 response_tx: resp_tx,
                 max_tokens: None,
                 temperature: None,
@@ -1435,6 +1810,8 @@ mod tests {
                 system: None,
                 token_tx: None,
                 json_mode: false,
+                json_schema: None,
+                cancel: None,
                 response_tx: resp_tx2,
                 max_tokens: None,
                 temperature: None,

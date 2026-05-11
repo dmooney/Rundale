@@ -1,6 +1,21 @@
 # Inference Pipeline
 
-> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [010](../adr/010-prompt-injection-defenses.md)
+> Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [008](../adr/008-structured-json-llm-output.md), [010](../adr/010-prompt-injection-defenses.md)
+>
+> Measurement record: [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.
+
+## Per-Category Latency Budgets
+
+The engine recognizes four inference categories. Each has a different latency expectation tied to its role in the player turn:
+
+| Category   | ttft budget | total budget | Rationale |
+|------------|-------------|--------------|-----------|
+| Intent     | < 200 ms    | < 500 ms     | Player typed a command — every ms compounds onto every later turn |
+| Reaction   | < 400 ms    | < 800 ms     | NPC greeting on arrival; subsecond keeps the scene fluid |
+| Simulation | < 800 ms    | < 1500 ms    | Background world tick; runs concurrently with player turn — must finish before next player input arrives |
+| Dialogue   | < 1000 ms ttft | streaming, no total cap | First token must land quickly; rest streams under the player's reading speed |
+
+These budgets are not enforced in code today — they are the success criteria for the `/inf-bench` harness (`crates/parish-inference/examples/inf_bench.rs`) and the gate against which provider/model choices are validated.
 
 ## Pipeline Architecture
 
@@ -54,12 +69,72 @@ Queue-based calls compete for the single in-flight worker slot. Direct-category 
 
 Reaction timeouts are caller-supplied (the `reactions.rs` helper takes `timeout_secs: u64`), not hardcoded on the queue side.
 
+### Request shape (json_schema, cancel-token, streaming stats)
+
+`InferenceRequest` (`crates/parish-inference/src/lib.rs`) carries optional shape and lifecycle controls in addition to the prompt:
+
+| Field           | Type                              | Purpose |
+|-----------------|-----------------------------------|---------|
+| `json_mode`     | `bool`                            | Sends `response_format: {"type":"json_object"}` — loose JSON, no enforced shape |
+| `json_schema`   | `Option<JsonSchemaSpec>`          | Sends `response_format: {"type":"json_schema", "json_schema": {...}}` — enforced shape via constrained decode. **Wins over `json_mode` when both are set.** |
+| `cancel`        | `Option<CancellationToken>`       | `tokio_util::sync::CancellationToken`; firing it races the in-flight future via `tokio::select!` and drops the connection. Tested end-to-end: vllm-mlx frees the slot in 1-30 ms post-cancel |
+| `token_tx`      | `Option<mpsc::Sender<String>>`    | When `Some`, the worker uses streaming generate and forwards tokens via a proxy channel that also records `ttft_ms` + `output_tokens` |
+| `max_tokens`    | `Option<u32>`                     | Hard cap on output. Strongly recommended when streaming reasoning models or pairing with `cancel` |
+
+`InferenceQueue` has three send methods of progressively wider surface:
+
+- `send(prompt, ...)` — legacy path, no schema, no cancel
+- `send_with_schema(...)` — adds `json_schema`
+- `send_full(...)` — adds `cancel` on top
+
+Worker captures streaming stats via `StreamStats { ttft, tokens }` and records them on the `InferenceLogEntry` for debug-panel display.
+
+### Constrained-decode trade-offs
+
+`response_format: json_schema` is the production path for structured outputs (Intent, Tier 2 Simulation), enforced by the underlying engine (vllm-mlx uses its constrained sampler). Two caveats:
+
+1. **Decode is ~2.2x slower** than free generation on gemma-3-4b-it-4bit (44 vs 95 tok/s). Affordable at small outputs (≤80 tokens), budget-breaking past that. Schema design should keep required fields small and prefer flat shapes over arrays-of-objects.
+2. **Array item shape must be declared explicitly.** Tier2's `mood_changes` / `relationship_changes` are typed as `{type: array}` with no item schema today. The constrained decoder doesn't enforce item shape, and observed outputs sometimes return arrays of `{"summary": "..."}` or other off-shape objects that break Rust deserialization. Tighten with `items: {type: object, properties: {...}, required: [...]}` when revisiting these schemas.
+
 ## Throughput Estimates
+
+### Linux + Ollama (ADR-005 baseline, RX 9070)
 
 - 9B-class local model (Ollama, q4) on RX 9070: **~40-60 tokens/sec**
 - At ~100-150 tokens per NPC response: **~3-6 NPC "thoughts" per second**
-- Cloud providers (Claude Sonnet 4.6, Gemini 2.5 Flash) are typically faster per-token than local but add ~300-1000 ms network round-trip; budget ~1-2 s per Tier 1 response end-to-end.
-- Numbers vary with model, quantization, and prompt length — measure on your own hardware before tuning tick intervals.
+
+### Cloud providers
+
+- Claude Sonnet 4.6, Gemini 2.5 Flash: faster per-token than local but add ~300-1000 ms network round-trip
+- Budget ~1-2 s per Tier 1 response end-to-end
+
+### macOS / Apple Silicon + vllm-mlx
+
+Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
+
+| Category   | ttft p50 | total p50 | total p95 | budget | verdict |
+|------------|----------|-----------|-----------|--------|---------|
+| Intent     | 46 ms    | 369 ms    | 688 ms    | ttft<200ms / total<500ms | FAIL p95 (1B intent slot is the fix) |
+| Reaction   | 36 ms    | 441 ms    | 514 ms    | ttft<400ms / total<800ms | **PASS** |
+| Simulation | 46 ms    | 968 ms    | 1026 ms   | ttft<800ms / total<1500ms | **PASS** (with prompt steering toward empty change-arrays) |
+| Dialogue   | 34 ms    | 833 ms    | 1257 ms   | ttft<1000ms | **PASS** (ttft is what the budget measures) |
+
+Key engine properties on this path:
+
+- **Prefix-cache delivers**: identical-prefix requests get **~1.1-1.4 ms cached ttft** (verified across a 6-turn game-loop sequence sharing the same system prompt).
+- **Continuous batching is a free lunch**: three simultaneous requests (intent + reaction + sim) finish in **~587 ms wall** — less than two sequential. The "two-worker concurrency" goal is largely already delivered; the remaining engineering is firing requests concurrently from one queue rather than spinning a second worker.
+- **Cold-load**: `vllm-mlx serve` spawn → first 200 OK = **~3.3 s** with persisted prefix cache; RSS **~4.3 GB** for the 4B 4-bit model.
+- **Cancel-token works end-to-end**: cancelling a streaming request mid-decode and immediately firing a new one yields post-cancel ttft of **1-30 ms** — vllm-mlx frees the slot promptly.
+- **Schema-enforcement tax**: constrained `response_format: json_schema` decode is **~2.2x slower** than free generation (44 vs 95 tok/s on gemma-3-4b-it-4bit). At ≤80 output tokens, comfortably absorbed.
+- **Sim eventfulness ceiling**: prompts that legitimately emit non-empty `mood_changes` / `relationship_changes` arrays (a fight, a death) blow past the 1500 ms budget at ~4.2 s p50. Mitigation paths documented in evidence.md.
+
+### Known broken paths
+
+- **`mlx-community/gemma-3-1b-it-4bit`** does not load on vllm-mlx 0.3.x — `mlx_vlm.speculative.drafters.gemma3_text` module missing despite `mlx_lm/models/gemma3_text.py` existing in the same install. Blocks the two-slot loadout via gemma family.
+- **vllm-mlx `--models-config` (multi-model registry)** has a `pydantic ValidationError: model field None` on the response builder even when the model loads. Blocks single-process two-model serving on this version.
+- **Rapid-MLX 0.6.30** (vllm-mlx fork): every `mlx-community/gemma-3-4b-it-4bit` request hangs (`stream=false` 60 s no chunks; `stream=true` first chunk in 948 μs then hangs). Their roadmap acknowledges "VLM pipeline overhead" on Gemma 3 as a known issue. **Sidelined**, revisit when (a) we move to Qwen3.5 family, (b) we add tool-calling, (c) Rapid lands EAGLE-3, or (d) they fix the gemma-3 VLM-pipeline routing.
+
+Numbers will vary with model, quantization, and prompt length — measure on your own hardware before tuning tick intervals.
 
 ## Player Input Parsing
 
@@ -105,11 +180,11 @@ The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRou
 
 Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client and swaps per-category clients atomically.
 
-### Recommended Models (April 2026)
+### Recommended Models (May 2026 refresh)
 
-> This section is **refreshable** — specific picks will drift as the open-model landscape evolves. Last refresh: April 2026. See ADR-005 for the architectural decision; this section owns the specific picks.
+> This section is **refreshable** — specific picks will drift as the open-model landscape evolves. Last refresh: May 2026 (added macOS / vllm-mlx path measured against per-category budgets). See ADR-005 for the architectural decision; this section owns the specific picks.
 
-Hardware baseline: RX 9070 16 GB + i9-13900KS (matches ADR-005).
+#### Linux / Windows + Ollama (RX 9070 16 GB + i9-13900KS, matches ADR-005)
 
 | Category                    | Local pick                 | Cloud pick                          | Why |
 |-----------------------------|----------------------------|-------------------------------------|-----|
@@ -119,11 +194,22 @@ Hardware baseline: RX 9070 16 GB + i9-13900KS (matches ADR-005).
 | Intent                      | Ministral 3 3B             | — (always local)                    | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private |
 | Reaction                    | Ministral 3 3B             | Gemini 2.5 Flash-Lite               | Short, fast responses; shares the 3B model with Intent |
 
+#### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
+
+| Category   | Local pick                              | Cloud pick                  | Notes |
+|------------|------------------------------------------|-----------------------------|-------|
+| Dialogue   | `mlx-community/gemma-3-4b-it-4bit`       | Claude Sonnet 4.6           | Hits Dialogue ttft budget (34 ms p50) on vllm-mlx with prefix cache warm; verified PASS |
+| Simulation | `mlx-community/gemma-3-4b-it-4bit`       | Gemini 2.5 Flash / Flash-Lite | PASS on quiet/mildly-eventful scenes (~968 ms p50) when prompt steers empty change-arrays. Eventful scenes overshoot 1500 ms — see [evidence.md](../proofs/local-perf/evidence.md#sim-eventful-scene-measurement-uneven-outcome) |
+| Reaction   | `mlx-community/gemma-3-4b-it-4bit`       | Gemini 2.5 Flash-Lite       | PASS on both p50 (441 ms) and p95 (514 ms) |
+| Intent     | _Two-slot loadout pending_; today shares the 4B | — (always local) | FAILs p95 (688 ms vs 500 ms budget) on the shared 4B. Fix is a 1B intent slot — blocked on either (a) non-gemma-3 small MLX model (Qwen2.5-0.5B candidate, untested) or (b) vllm-mlx fixing the `gemma3_text` drafter path |
+
 Notes on the picks:
 
 - **Gemma 4** (Apache 2.0, April 2, 2026) tends to be stronger at naturalistic prose. **Qwen 3.5 9B** (Feb 2026) tends to be stronger at structured output. Qwen 3.5 does not ship a 14B size — 9B is the new Tier 1 target, superseding the Qwen3 14B reference from ADR-005.
 - **Ministral 3 3B** ships with first-class JSON / function-calling, which is exactly what Intent and Reaction need.
 - **Claude Sonnet 4.6** remains the quality leader for in-character dialogue if you have a cloud budget.
+- **gemma-3-4b-it-4bit** on macOS is the measured production target; the 1b text-only variant doesn't load on current vllm-mlx (mlx_vlm gemma3_text drafter missing).
+- **Reasoning models (Qwen3.5, DeepSeek-R1, etc.)** stall on unconstrained generation — `<think>` blocks burn the budget. If we ever use one, every category must pass `response_format` to short-circuit thinking into JSON. Today, Reaction and Dialogue default to free-form prose, so they'd break. Policy: pin gemma-3 family for local on macOS until reasoning-aware routing exists.
 - Benchmarks don't measure 1820 Irish peasant dialogue. Build a small fixture and use the `/prove` harness before committing any model to production.
 
 ### Starter Configurations
@@ -165,6 +251,25 @@ name = "ollama"
 base_url = "http://localhost:11435"
 model = "ministral3:3b"
 ```
+
+**Apple Silicon local (macOS, MLX engine)** — single vllm-mlx process serving gemma-3-4b on port 8000. Auto-launch is wired via `VllmMlxProcess::ensure_running` (`crates/parish-inference/src/setup.rs`); set `VLLM_MLX_BIN` to override the binary path when rapid-mlx or another installer has clobbered the `~/.local/bin/vllm-mlx` symlink.
+
+```toml
+[provider]
+name = "vllm"
+base_url = "http://localhost:8000/v1"
+model = "mlx-community/gemma-3-4b-it-4bit"
+```
+
+Pre-launch:
+```sh
+uv tool install vllm-mlx
+# or: pip install vllm-mlx
+# verify pristine binary if you also have rapid-mlx installed:
+# readlink -f ~/.local/bin/vllm-mlx
+```
+
+The engine auto-spawns `vllm-mlx serve <model> --port 8000 --enable-prefix-cache --continuous-batching` if nothing is reachable at `base_url`, and stops the child on shutdown. Cold-load is ~3.3 s with persisted prefix cache. Two-slot loadout (1B intent + 4B main) is **not yet supported** — see "Known broken paths" above.
 
 **Quality-maximalist** — full cloud, everything routed via one provider for simplicity:
 
@@ -286,6 +391,7 @@ Both log `tracing::debug!` at startup. Serialisation errors inside either loop s
 - [Cognitive LOD](cognitive-lod.md) — Tier determines model selection and batch strategy
 - [Player Input](player-input.md) — Natural language input parsed via this pipeline
 - [Debug UI](debug-ui.md) — Debug panel that displays inference call log
+- [Local-perf evidence](../proofs/local-perf/evidence.md) — raw measurements for the macOS / vllm-mlx path, the four-runtime benchmark, and the corrected vllm-mlx-doesn't-hang finding
 - [ADR 005: Ollama Local Inference](../adr/005-ollama-local-inference.md)
 - [ADR 008: Structured JSON LLM Output](../adr/008-structured-json-llm-output.md)
 

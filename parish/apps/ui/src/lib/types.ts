@@ -454,6 +454,8 @@ export interface InferenceLogEntry {
 	prompt_text: string;
 	response_text: string;
 	max_tokens: number | null;
+	ttft_ms: number | null;
+	output_tokens: number | null;
 }
 
 // ── Persistence types ───────────────────────────────────────────────────────

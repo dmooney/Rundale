@@ -74,10 +74,34 @@ struct ChatCompletionRequest<'a> {
 }
 
 /// Controls structured output format.
-#[derive(Serialize, Debug)]
-struct ResponseFormat {
-    #[serde(rename = "type")]
-    format_type: String,
+///
+/// Wire format follows OpenAI's `response_format` shape, which Ollama and
+/// most OpenAI-compat servers accept. LM Studio and vllm-mlx both reject
+/// the bare `{"type": "json_object"}` shorthand and require either
+/// `{"type": "text"}` or `{"type": "json_schema", "json_schema": {...}}`.
+/// Callers should prefer `JsonSchema` and only fall back to `JsonObject`
+/// when targeting Ollama specifically. To send "no constraint", pass
+/// `None` instead of constructing a `Text` variant.
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ResponseFormat {
+    /// `{"type": "json_object"}` — legacy Ollama path. Constrains output
+    /// to *some* JSON; the structure is implied by the prompt.
+    JsonObject,
+    /// `{"type": "json_schema", "json_schema": {"name": ..., "schema": ...}}`
+    /// — strict-mode structured output. Required by vllm-mlx, LM Studio,
+    /// and OpenAI's structured-outputs feature. The model is constrained
+    /// to emit JSON matching the supplied schema.
+    JsonSchema { json_schema: JsonSchemaSpec },
+}
+
+/// The named-schema payload that sits under `response_format.json_schema`.
+#[derive(Serialize, Debug, Clone)]
+pub struct JsonSchemaSpec {
+    /// Schema name (display label, also a routing key in some servers).
+    pub name: String,
+    /// The JSON Schema document the model must conform to.
+    pub schema: serde_json::Value,
 }
 
 /// Non-streaming response from chat completions.
@@ -210,7 +234,7 @@ impl OpenAiClient {
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(model, prompt, system, false, false, max_tokens, temperature);
+        let body = self.build_request(model, prompt, system, false, None, max_tokens, temperature);
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp
             .json()
@@ -237,7 +261,7 @@ impl OpenAiClient {
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(model, prompt, system, true, false, max_tokens, temperature);
+        let body = self.build_request(model, prompt, system, true, None, max_tokens, temperature);
         self.stream_response(body, token_tx).await
     }
 
@@ -256,16 +280,25 @@ impl OpenAiClient {
         temperature: Option<f32>,
     ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(model, prompt, system, true, true, max_tokens, temperature);
+        let body = self.build_request(
+            model,
+            prompt,
+            system,
+            true,
+            Some(ResponseFormat::JsonObject),
+            max_tokens,
+            temperature,
+        );
         self.stream_response(body, token_tx).await
     }
 
     /// Sends a non-streaming request and deserializes the response as structured JSON.
     ///
-    /// Requests JSON output via `response_format: {"type": "json_object"}` and
-    /// parses the response content into the target type `T`. Use
-    /// `#[serde(default)]` on optional fields in `T` for robustness. An
-    /// optional `max_tokens` cap prevents excessively long responses.
+    /// Equivalent to `generate_json_with_format` with
+    /// `response_format = Some(ResponseFormat::JsonObject)`. Kept as a thin
+    /// wrapper because most callers want the legacy Ollama-compatible
+    /// behaviour; new callers targeting LM Studio / vllm-mlx should use
+    /// [`generate_json_with_format`] with a `JsonSchema` instead.
     pub async fn generate_json<T: DeserializeOwned>(
         &self,
         model: &str,
@@ -274,20 +307,109 @@ impl OpenAiClient {
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> Result<T, ParishError> {
+        self.generate_json_with_format(
+            model,
+            prompt,
+            system,
+            Some(ResponseFormat::JsonObject),
+            max_tokens,
+            temperature,
+        )
+        .await
+    }
+
+    /// Like [`generate`] but lets the caller pick the wire-level
+    /// response_format. Pass `None` for unconstrained text, `JsonObject`
+    /// for the Ollama-style "some JSON" mode, or `JsonSchema` for strict
+    /// schema-guided decoding (vllm-mlx, LM Studio, OpenAI structured
+    /// outputs). Returns the raw response content; callers parse JSON
+    /// themselves.
+    pub async fn generate_text_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        response_format: Option<ResponseFormat>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
         self.acquire_slot().await;
-        let body = self.build_request(model, prompt, system, false, true, max_tokens, temperature);
+        let body = self.build_request(
+            model,
+            prompt,
+            system,
+            false,
+            response_format,
+            max_tokens,
+            temperature,
+        );
         let resp = self.send_request(&body).await?;
         let completion: ChatCompletionResponse = resp
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
         let trimmed = extract_content(&completion);
-        let content = strip_json_fence(&trimmed);
-        let parsed: T = serde_json::from_str(content)?;
+        Ok(strip_json_fence(&trimmed).to_string())
+    }
+
+    /// Typed counterpart of [`generate_text_with_format`]. Same
+    /// trade-offs; deserialises the response into `T`.
+    pub async fn generate_json_with_format<T: DeserializeOwned>(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        response_format: Option<ResponseFormat>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<T, ParishError> {
+        let raw = self
+            .generate_text_with_format(
+                model,
+                prompt,
+                system,
+                response_format,
+                max_tokens,
+                temperature,
+            )
+            .await?;
+        let parsed: T = serde_json::from_str(&raw)?;
         Ok(parsed)
     }
 
+    /// Streaming counterpart to [`generate_json_with_format`]. Same
+    /// trade-offs: `JsonObject` for Ollama compat, `JsonSchema` for strict
+    /// servers, `None` for unconstrained text streaming.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn generate_stream_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::Sender<String>,
+        response_format: Option<ResponseFormat>,
+        max_tokens: Option<u32>,
+        temperature: Option<f32>,
+    ) -> Result<String, ParishError> {
+        self.acquire_slot().await;
+        let body = self.build_request(
+            model,
+            prompt,
+            system,
+            true,
+            response_format,
+            max_tokens,
+            temperature,
+        );
+        self.stream_response(body, token_tx).await
+    }
+
     /// Builds a chat completion request body.
+    ///
+    /// `response_format` is taken verbatim — callers decide whether to send
+    /// `text`, `json_object`, or a fully-typed `json_schema` based on what
+    /// the target server accepts. See [`ResponseFormat`] for the wire
+    /// shapes.
     #[allow(clippy::too_many_arguments)] // builder pattern with all params explicit
     fn build_request<'a>(
         &self,
@@ -295,7 +417,7 @@ impl OpenAiClient {
         prompt: &'a str,
         system: Option<&'a str>,
         stream: bool,
-        json_mode: bool,
+        response_format: Option<ResponseFormat>,
         max_tokens: Option<u32>,
         temperature: Option<f32>,
     ) -> ChatCompletionRequest<'a> {
@@ -310,14 +432,6 @@ impl OpenAiClient {
             role: "user",
             content: prompt,
         });
-
-        let response_format = if json_mode {
-            Some(ResponseFormat {
-                format_type: "json_object".to_string(),
-            })
-        } else {
-            None
-        };
 
         ChatCompletionRequest {
             model,
@@ -616,7 +730,7 @@ mod tests {
             "hello",
             Some("you are helpful"),
             false,
-            false,
+            None,
             None,
             None,
         );
@@ -633,7 +747,7 @@ mod tests {
     #[test]
     fn test_build_request_without_system() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, false, None, None);
+        let req = client.build_request("model", "hello", None, false, None, None, None);
         assert_eq!(req.messages.len(), 1);
         assert_eq!(req.messages[0].role, "user");
     }
@@ -641,15 +755,47 @@ mod tests {
     #[test]
     fn test_build_request_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, false, true, None, None);
+        let req = client.build_request(
+            "model",
+            "hello",
+            None,
+            false,
+            Some(ResponseFormat::JsonObject),
+            None,
+            None,
+        );
         let fmt = req.response_format.unwrap();
-        assert_eq!(fmt.format_type, "json_object");
+        let serialized = serde_json::to_value(&fmt).unwrap();
+        assert_eq!(serialized["type"], "json_object");
+    }
+
+    #[test]
+    fn test_build_request_json_schema() {
+        let client = OpenAiClient::new("http://localhost:11434", None);
+        let req = client.build_request(
+            "model",
+            "hello",
+            None,
+            false,
+            Some(ResponseFormat::JsonSchema {
+                json_schema: JsonSchemaSpec {
+                    name: "intent".to_string(),
+                    schema: serde_json::json!({"type":"object"}),
+                },
+            }),
+            None,
+            None,
+        );
+        let fmt = req.response_format.unwrap();
+        let serialized = serde_json::to_value(&fmt).unwrap();
+        assert_eq!(serialized["type"], "json_schema");
+        assert_eq!(serialized["json_schema"]["name"], "intent");
     }
 
     #[test]
     fn test_build_request_streaming() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("model", "hello", None, true, false, None, None);
+        let req = client.build_request("model", "hello", None, true, None, None, None);
         assert!(req.stream);
     }
 
@@ -764,7 +910,7 @@ mod tests {
             "hello",
             Some("be brief"),
             false,
-            false,
+            None,
             None,
             None,
         );
@@ -782,7 +928,15 @@ mod tests {
     #[test]
     fn test_request_serialization_json_mode() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, true, None, None);
+        let req = client.build_request(
+            "qwen3:14b",
+            "hello",
+            None,
+            false,
+            Some(ResponseFormat::JsonObject),
+            None,
+            None,
+        );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["response_format"]["type"], "json_object");
     }
@@ -790,7 +944,7 @@ mod tests {
     #[test]
     fn test_request_serialization_with_max_tokens() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, false, Some(300), None);
+        let req = client.build_request("qwen3:14b", "hello", None, false, None, Some(300), None);
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["max_tokens"], 300);
     }
@@ -798,7 +952,7 @@ mod tests {
     #[test]
     fn test_request_serialization_with_temperature() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, false, None, Some(0.7));
+        let req = client.build_request("qwen3:14b", "hello", None, false, None, None, Some(0.7));
         let json = serde_json::to_value(&req).unwrap();
         assert!((json["temperature"].as_f64().unwrap() - 0.7).abs() < 0.01);
     }
@@ -806,7 +960,7 @@ mod tests {
     #[test]
     fn test_request_serialization_temperature_omitted_when_none() {
         let client = OpenAiClient::new("http://localhost:11434", None);
-        let req = client.build_request("qwen3:14b", "hello", None, false, false, None, None);
+        let req = client.build_request("qwen3:14b", "hello", None, false, None, None, None);
         let json = serde_json::to_value(&req).unwrap();
         assert!(json.get("temperature").is_none());
     }
