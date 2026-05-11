@@ -35,4 +35,11 @@
 | TD-017 | 2026-05-07 | Updated `client.rs` module doc to mention `OllamaProcess` lifecycle management. |
 | TD-018 | 2026-05-07 | Declared `inference-client-trait` and `inference-response-cache` feature flags in `Cargo.toml` `[features]`. |
 | TD-019 | 2026-05-07 | Updated `generate_stream` doc to reference configurable `streaming_timeout_secs`. |
-| TD-022 | 2026-05-07 | Refactored `select_model_for_vram` to table-driven lookup with `ModelTier` static slice.
+| TD-022 | 2026-05-07 | Refactored `select_model_for_vram` to table-driven lookup with `ModelTier` static slice. |
+| TD-024 | 2026-05-11 | Deleted dead `OllamaClient`, `GenerateRequest`, `GenerateResponse` and their tests from `client.rs` and `tests/http_mock_tests.rs`. |
+| TD-025 | 2026-05-11 | Removed unused `inference-client-trait` and `inference-response-cache` feature flags from `Cargo.toml`; updated docs in `inference_client.rs` and `parish-server/src/state.rs`. |
+| TD-026 | 2026-05-11 | Removed stale `OllamaClient` doc comment about 30-second timeout (code deleted in TD-024). |
+| TD-027 | 2026-05-11 | Updated `README.md` key modules list to include `anthropic_client`, `inference_client`, `utf8_stream` and corrected `client` description. |
+| TD-028 | 2026-05-11 | Added four unit tests for `submit_json` async helper in `lib.rs`. |
+| TD-029 | 2026-05-11 | Fixed OpenAI trailing-buffer SSE error propagation in `generate_stream` and `generate_stream_json` to match Anthropic pattern. |
+| TD-030 | 2026-05-11 | Tightened `ChatCompletionChunk`, `StreamChoice`, and `Delta` visibility from `pub(crate)` to private in `openai_client.rs`.
