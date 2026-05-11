@@ -76,8 +76,8 @@ available as `mcp__parish__*`:
 | `parish_new_game` | Start a fresh game on a new save branch. |
 | `parish_save_game` | Save the current branch. |
 | `parish_load_branch` | Load a branch by integer id. |
-| `parish_setup_status` | **Stub.** Reads first-run setup state. Backend returns `{"stub": true, ...}` until the setup-UI branch lands. |
-| `parish_setup_byok` | **Stub.** Submits a BYOK provider config (`provider`, `api_key`, optional `base_url`/`model`). Same stub envelope. |
+| `parish_setup_status` | Reads first-run setup state: `{implemented, complete, provider, model, base_url, has_api_key, has_env_key}`. |
+| `parish_setup_byok` | Submits a BYOK provider config (`provider`, `api_key`, optional `base_url`/`model`). Persists to keychain + `parish.toml`, rebuilds the inference worker, emits `setup-done`. |
 | `parish_latest_screenshot` | Read metadata for the most recent player-triggered screenshot (`path`, `taken_at`, `size_bytes`). Capture is initiated by pressing F2 in the live desktop window. |
 | `tauri_invoke` | Generic escape hatch — call any backend command (e.g. `editor_*`, `get_debug_snapshot`) by name. |
 
