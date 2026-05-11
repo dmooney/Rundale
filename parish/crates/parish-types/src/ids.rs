@@ -14,7 +14,7 @@ use crate::ParishError;
 /// Current weather conditions in the game world.
 ///
 /// Affects location description templates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Weather {
     Clear,
     PartlyCloudy,

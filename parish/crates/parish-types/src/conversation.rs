@@ -68,15 +68,6 @@ impl ConversationLog {
             .collect()
     }
 
-    /// Returns the NPC id of the most recent speaker at a location, if any.
-    pub fn last_speaker_at(&self, location: LocationId) -> Option<NpcId> {
-        self.exchanges
-            .iter()
-            .rev()
-            .find(|e| e.location == location)
-            .map(|e| e.speaker_id)
-    }
-
     /// Checks whether the given NPC was the speaker in any of the last `n`
     /// exchanges at this location.
     pub fn has_recent_exchange_with(
