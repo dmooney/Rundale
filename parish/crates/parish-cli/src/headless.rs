@@ -6,7 +6,7 @@
 
 use crate::app::App;
 use crate::config::{
-    CategoryConfig, CloudConfig, InferenceCategory, InferenceConfig, ProviderConfig,
+    CategoryConfig, CloudConfig, InferenceCategory, InferenceConfig, NpcConfig, ProviderConfig,
 };
 use crate::inference::{self, AnyClient, InferenceClients, InferenceQueue};
 use crate::input::{Command, InputResult, classify_input, extract_mention, parse_intent};
@@ -1256,8 +1256,11 @@ fn dispatch_headless_banshee(app: &mut App) {
 fn dispatch_headless_tier4_tick(app: &mut App) {
     let now = app.world.clock.now();
     if app.npc_manager.needs_tier4_tick(now) {
-        let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
-            app.npc_manager.tier4_npcs().into_iter().collect();
+        let tier4_ids: std::collections::HashSet<crate::npc::NpcId> = app
+            .npc_manager
+            .npcs_in_tier(crate::npc::types::CogTier::Tier4)
+            .into_iter()
+            .collect();
         let events = {
             let mut tier4_refs: Vec<&mut crate::npc::Npc> = app
                 .npc_manager
@@ -1291,7 +1294,9 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
             .all_npcs()
             .map(|n| (n.id, n.name.clone()))
             .collect();
-        let tier3_ids = app.npc_manager.tier3_npcs();
+        let tier3_ids = app
+            .npc_manager
+            .npcs_in_tier(crate::npc::types::CogTier::Tier3);
         let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
             .iter()
             .filter_map(|id| app.npc_manager.get(*id))
@@ -1413,10 +1418,11 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
 
                 let game_time = app.world.clock.now();
                 for event in &events {
-                    let _dbg = parish_core::npc::ticks::apply_tier2_event(
+                    let _dbg = parish_core::npc::ticks::apply_tier2_event_with_config(
                         event,
                         app.npc_manager.npcs_mut(),
                         game_time,
+                        &NpcConfig::default(),
                     );
                     parish_core::npc::ticks::create_gossip_from_tier2_event(
                         event,
