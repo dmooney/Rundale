@@ -57,6 +57,10 @@ pub enum CommandEffect {
     /// (e.g. "osm", "historic") — frontend looks up URL etc.
     /// from the tile registry it received via `UiConfigSnapshot`.
     ApplyTiles(String),
+    /// Wipe BYOK config (keychain entry, parish.toml, .onboarded sentinel,
+    /// GameConfig.api_key) and signal the frontend to re-open the fork
+    /// screen via `EVENT_SETUP_NEEDS_ONBOARDING`.
+    ResetByok,
 }
 
 /// How a command's response text should be presented by the frontend.
@@ -252,6 +256,9 @@ pub fn handle_command(
         Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
         Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
         Command::Theme(arg) => handle_theme_command(arg),
+        Command::ResetByok => {
+            CommandResult::with_effect("Re-opening provider picker...", CommandEffect::ResetByok)
+        }
     }
 }
 

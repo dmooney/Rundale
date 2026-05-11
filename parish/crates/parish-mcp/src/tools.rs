@@ -102,21 +102,30 @@ fn translate_latest_screenshot(_args: &Value) -> Result<(String, Value), String>
     Ok(("get_latest_screenshot".into(), Value::Null))
 }
 
-// ── BYOK setup-flow stubs (#933) ─────────────────────────────────────────────
+// ── BYOK setup-flow (#933) ───────────────────────────────────────────────────
 //
-// These tools shape the contract for the BYOK ("bring your own key") setup
-// flow that lives on a sibling branch. The backend routes return a structured
-// `{"stub": true, ...}` response today; when the real implementation lands,
-// the route bodies fill in but the tool surface (names, schemas) stays the
-// same — so any agent code written against these tools keeps working.
+// Real handlers in `parish-tauri/src/mcp_bridge.rs` back these tools — they
+// share the same `AppState`, secret store, and user-config dir as the
+// Svelte BYOK wizard, so an MCP client and the desktop UI converge on
+// identical effects.
 
 fn translate_setup_status(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_setup_status".into(), Value::Null))
 }
 
+fn translate_byok_env_keys(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_byok_env_keys".into(), Value::Null))
+}
+
 fn translate_setup_byok(args: &Value) -> Result<(String, Value), String> {
     let provider = require_string(args, "provider")?.to_string();
-    let api_key = require_string(args, "api_key")?.to_string();
+    // `api_key` is optional: keyless local providers (Ollama, LM Studio, vLLM,
+    // Simulator) accept None. Hosted providers will fail validation server-side
+    // with a structured error if the key is missing.
+    let api_key = args
+        .get("api_key")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let base_url = args
         .get("base_url")
         .and_then(|v| v.as_str())
@@ -235,39 +244,56 @@ pub fn registry() -> Vec<ToolDef> {
             input_schema: empty_object_schema(),
             translate: translate_latest_screenshot,
         },
-        // ── BYOK setup-flow (stubbed; see translate_setup_*) ─────────────────
+        // ── BYOK setup-flow ──────────────────────────────────────────────────
+        ToolDef {
+            name: "parish_byok_env_keys",
+            description: "Returns `{provider_id: bool}` for every supported provider — true \
+                          when the standard API-key env var (ANTHROPIC_API_KEY, OPENAI_API_KEY, \
+                          etc.) is set in the host process. Lets a wizard or MCP client tell \
+                          the user 'leave the field blank to use your existing env var' \
+                          before they commit to a provider.",
+            input_schema: empty_object_schema(),
+            translate: translate_byok_env_keys,
+        },
         ToolDef {
             name: "parish_setup_status",
-            description: "Reads the setup state — which providers are configured, whether \
-                          first-run setup is complete, and what the user still needs to \
-                          supply. STUB: backend returns `{\"stub\": true, ...}` today; the \
-                          real implementation lands with the setup-UI branch and the tool \
-                          contract is stable across that change.",
+            description: "Reads the BYOK setup state. Returns `{complete, provider, model, \
+                          base_url, has_api_key, has_env_key}`: `complete` is true once the \
+                          user (or the model, via parish_setup_byok) has picked a provider; \
+                          `has_env_key` is true if a standard provider env var \
+                          (ANTHROPIC_API_KEY etc.) is already set in the host process.",
             input_schema: empty_object_schema(),
             translate: translate_setup_status,
         },
         ToolDef {
             name: "parish_setup_byok",
-            description: "Submits a 'bring your own key' provider configuration. STUB: the \
-                          backend currently returns `{\"stub\": true, ...}` and does not \
-                          persist the key; the real implementation lands with the setup-UI \
-                          branch.",
+            description: "Persists a 'bring your own key' provider configuration: writes the \
+                          API key to the OS keychain, updates the user config TOML, and \
+                          rebuilds the live inference worker so subsequent dialogue uses \
+                          the new provider. Returns `{ok, provider, model, base_url, \
+                          has_api_key}` on success or an HTTP 500 with a structured error \
+                          message on failure (missing key for a hosted provider, missing \
+                          base_url for `custom`, invalid provider name, etc.).",
             input_schema: json!({
                 "type": "object",
-                "required": ["provider", "api_key"],
+                "required": ["provider"],
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "description": "Provider id (e.g. anthropic, openrouter, openai, ollama)."
+                        "description": "Provider id (e.g. anthropic, openrouter, openai, groq, ollama, lmstudio, custom)."
                     },
-                    "api_key": {"type": "string", "minLength": 1},
+                    "api_key": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Required for hosted providers; omit for keyless local providers (ollama, lmstudio, vllm, simulator)."
+                    },
                     "base_url": {
                         "type": "string",
-                        "description": "Optional override for the provider's base URL."
+                        "description": "Optional override for the provider's base URL; required when provider is `custom`."
                     },
                     "model": {
                         "type": "string",
-                        "description": "Optional explicit model id; defaults to the provider's preset."
+                        "description": "Optional explicit model id; defaults to the provider's dialogue preset."
                     }
                 }
             }),
@@ -342,10 +368,19 @@ mod tests {
     }
 
     #[test]
-    fn setup_byok_requires_provider_and_api_key() {
+    fn setup_byok_requires_provider() {
         assert!(translate_setup_byok(&json!({})).is_err());
-        assert!(translate_setup_byok(&json!({"provider": "anthropic"})).is_err());
         assert!(translate_setup_byok(&json!({"api_key": "sk-..."})).is_err());
+    }
+
+    #[test]
+    fn setup_byok_accepts_keyless_local_provider() {
+        // Ollama needs no key; the backend will accept None on submit_byok
+        // and skip the keychain write.
+        let (cmd, args) = translate_setup_byok(&json!({"provider": "ollama"})).unwrap();
+        assert_eq!(cmd, "submit_byok");
+        assert_eq!(args["provider"], "ollama");
+        assert!(args["api_key"].is_null());
     }
 
     #[test]
@@ -367,10 +402,10 @@ mod tests {
     #[test]
     fn setup_byok_omits_optional_fields_as_null() {
         let (_, args) = translate_setup_byok(&json!({
-            "provider": "ollama",
-            "api_key": "n/a"
+            "provider": "ollama"
         }))
         .unwrap();
+        assert!(args["api_key"].is_null());
         assert!(args["base_url"].is_null());
         assert!(args["model"].is_null());
     }

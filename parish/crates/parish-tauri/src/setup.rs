@@ -79,6 +79,46 @@ pub(crate) fn init_screenshot_mode(handle: AppHandle, state: Arc<AppState>, dir:
 
 // ── Provider bootstrap ───────────────────────────────────────────────────────
 
+/// True iff the user has never completed BYOK onboarding AND nothing else has
+/// already pinned a provider.
+///
+/// "Already pinned" means: a `--provider` CLI flag, `PARISH_PROVIDER`, a
+/// standard provider key env var (`ANTHROPIC_API_KEY` etc.), a `parish.toml`
+/// at the project root, or a saved `parish.toml` in the user-config dir.
+///
+/// `provider_config` carries whatever `provider_config_from_env` already
+/// resolved — if it's anything other than the defaulted Simulator, the user
+/// has explicit intent and we should skip the wizard.
+fn needs_byok_onboarding(state: &Arc<AppState>, provider_config: &ProviderConfig) -> bool {
+    use parish_core::config::Provider;
+
+    // 1. Sentinel from a previous successful onboarding wins immediately.
+    if parish_core::config::user_config::onboarding_complete(&state.user_config_dir) {
+        return false;
+    }
+    // 2. Any explicit env / CLI / TOML override means there's a real choice.
+    if std::env::var("PARISH_PROVIDER")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .is_some()
+    {
+        return false;
+    }
+    // 3. Standard provider env vars (`ANTHROPIC_API_KEY` etc.) — the wizard
+    //    will still pre-fill the field, but we don't block startup on it.
+    if let Some(var) = provider_config.provider.api_key_env_var()
+        && std::env::var(var).ok().filter(|s| !s.is_empty()).is_some()
+    {
+        return false;
+    }
+    // 4. A non-default provider in the resolved config means parish.toml
+    //    or a CLI flag picked one explicitly.
+    if !matches!(provider_config.provider, Provider::Simulator) {
+        return false;
+    }
+    true
+}
+
 /// Runs the inference-provider bootstrap (Ollama install/start, model pull,
 /// or remote-client construction) inside the async setup spawn, so the Tauri
 /// window is open and can receive setup-status events while bootstrap runs.
@@ -93,6 +133,30 @@ pub(crate) async fn bootstrap_inference_provider(
     provider_config: &ProviderConfig,
     inference_config: &parish_core::config::InferenceConfig,
 ) -> bool {
+    // BYOK gate: if the user has never picked a provider AND no PARISH_/CLI
+    // override is in effect AND no standard env-var key is set, render the
+    // onboarding fork instead of running the (Ollama-shaped) bootstrap path.
+    if needs_byok_onboarding(state, provider_config) {
+        let progress = TauriProgress {
+            app: handle.clone(),
+            state: Arc::clone(state),
+        };
+        // Persist on the snapshot so SetupOverlay can render the fork even
+        // if it mounts after the event fires (race avoidance — the
+        // EVENT_SETUP_NEEDS_ONBOARDING listener might not be installed
+        // before the gate fires on a slow first frontend mount).
+        progress.with_setup_status(|status| status.record_needs_onboarding());
+        let _ = handle.emit(
+            events::EVENT_SETUP_NEEDS_ONBOARDING,
+            events::SetupStatusPayload {
+                message: "Awaiting provider choice".to_string(),
+            },
+        );
+        // Bail out of bootstrap; the user's set_provider_config call will
+        // populate the worker and emit a fresh setup-done.
+        return false;
+    }
+
     let progress = TauriProgress {
         app: handle.clone(),
         state: Arc::clone(state),

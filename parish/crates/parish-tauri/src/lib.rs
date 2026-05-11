@@ -8,6 +8,7 @@ pub mod command_registry;
 pub mod commands;
 pub mod editor_commands;
 pub mod events;
+pub mod keychain;
 mod mcp_bridge;
 mod setup;
 
@@ -57,6 +58,11 @@ pub struct SetupStatusSnapshot {
     pub success: Option<bool>,
     /// Error message when setup failed.
     pub error: String,
+    /// True when the BYOK gate fired and the frontend should render the
+    /// onboarding fork instead of the Ollama spinner. Persisted on the
+    /// snapshot (not just emitted as an event) so SetupOverlay can recover
+    /// the state if it mounts after the gate fires.
+    pub needs_onboarding: bool,
 }
 
 impl Default for SetupStatusSnapshot {
@@ -69,11 +75,23 @@ impl Default for SetupStatusSnapshot {
             done: false,
             success: None,
             error: String::new(),
+            needs_onboarding: false,
         }
     }
 }
 
 impl SetupStatusSnapshot {
+    pub(crate) fn record_needs_onboarding(&mut self) {
+        self.needs_onboarding = true;
+        // Don't push a status message — the fork screen renders directly
+        // and the spinner UI shouldn't show "Awaiting provider choice"
+        // text underneath.
+    }
+
+    pub(crate) fn clear_needs_onboarding(&mut self) {
+        self.needs_onboarding = false;
+    }
+
     fn record_status(&mut self, msg: &str) {
         self.current_message = msg.to_string();
         if self.messages.last().is_some_and(|last| last == msg) {
@@ -271,6 +289,13 @@ pub struct AppState {
     /// Not part of the lock-ordering chain: never held across acquisition
     /// of any `Mutex` field.
     pub session_store: std::sync::Arc<dyn parish_core::session_store::SessionStore>,
+    /// Per-user, per-machine config dir resolved once at startup (Rule 9).
+    /// Hosts `parish.toml` (non-secret BYOK choices) and the `.onboarded`
+    /// marker. API keys live in the OS keychain via `secret_store`.
+    pub user_config_dir: PathBuf,
+    /// OS keychain (Tauri only). Backed by `keyring` on real builds; tests
+    /// can swap in `InMemorySecretStore` via the trait.
+    pub secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore>,
     /// Language settings derived from the active mod manifest.
     ///
     /// Resolved once at startup and injected into all dialogue prompt builders
@@ -841,6 +866,29 @@ pub fn run() {
     // Cancellation token for graceful background-task shutdown (#104).
     let shutdown_token = CancellationToken::new();
 
+    // Resolve the per-user config dir once at startup (Rule 9). Hydrate
+    // GameConfig.api_key from the keychain if the standard provider env var
+    // wasn't already set — keychain ranks below env vars but above defaults.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    let secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore> =
+        std::sync::Arc::new(keychain::KeyringSecretStore::new());
+    if game_config.api_key.is_none()
+        && let Ok(provider_enum) =
+            parish_core::config::Provider::from_str_loose(&game_config.provider_name)
+    {
+        let env_key_set = provider_enum
+            .api_key_env_var()
+            .and_then(|v| std::env::var(v).ok())
+            .filter(|v| !v.trim().is_empty())
+            .is_some();
+        if !env_key_set {
+            let account = parish_core::secret_store::provider_account(&game_config.provider_name);
+            if let Ok(Some(k)) = secret_store.get(&account) {
+                game_config.api_key = Some(k);
+            }
+        }
+    }
+
     let state = Arc::new(AppState {
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -877,6 +925,8 @@ pub fn run() {
         demo_config,
         shutdown_token: shutdown_token.clone(),
         session_store,
+        user_config_dir,
+        secret_store,
     });
 
     tauri::Builder::default()
@@ -889,6 +939,12 @@ pub fn run() {
             commands::get_ui_config,
             commands::get_debug_snapshot,
             commands::get_setup_snapshot,
+            commands::set_provider_config,
+            commands::validate_provider_config,
+            commands::get_provider_config,
+            commands::clear_provider_config,
+            commands::list_byok_env_keys,
+            commands::list_preset_models,
             commands::submit_input,
             commands::discover_save_files,
             commands::save_game,
@@ -935,6 +991,14 @@ pub fn run() {
             let provider_config_setup = provider_config;
             let inference_config_setup = inference_config_for_spawn;
             tauri::async_runtime::spawn(async move {
+                // Spawn the MCP bridge first so an MCP client can drive
+                // onboarding (parish_setup_byok) when bootstrap is gated on
+                // the BYOK fork — the bridge needs to be reachable BEFORE
+                // bootstrap_inference_provider returns false on first run.
+                if let Some(port) = mcp_port {
+                    mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
+                }
+
                 if !setup::bootstrap_inference_provider(
                     &handle,
                     &state_setup,
@@ -953,10 +1017,6 @@ pub fn run() {
                 setup::spawn_inactivity_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_debug_tick(handle.clone(), Arc::clone(&state_setup));
                 setup::spawn_autosave_tick(Arc::clone(&state_setup));
-
-                if let Some(port) = mcp_port {
-                    mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
-                }
             });
 
             Ok(())

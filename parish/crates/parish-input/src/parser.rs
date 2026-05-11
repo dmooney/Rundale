@@ -147,6 +147,7 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
         "/tick" => Some(Command::Tick),
         "/flags" => Some(Command::Flags),
         "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun" => Some(Command::Session),
+        "/byok" | "/onboard" | "/setup" => Some(Command::ResetByok),
         _ => None,
     }
 }
