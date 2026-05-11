@@ -119,62 +119,89 @@ impl OnboardingChoice {
     }
 }
 
+/// Inputs to [`resolve_onboarding_choice`]. Exposed as a struct so the
+/// wrapper can read OS-y bits (env vars, user-config dir, sysctl) once
+/// and then dispatch into the pure decision function — which keeps the
+/// platform-fork logic unit-testable without needing a real AppState.
+pub(crate) struct OnboardingInputs {
+    /// User-config sentinel: a prior successful onboarding wrote this.
+    pub onboarding_complete: bool,
+    /// `PARISH_PROVIDER` env var was set (non-empty).
+    pub parish_provider_env_set: bool,
+    /// The provider's standard API-key env var (`ANTHROPIC_API_KEY`,
+    /// `OPENAI_API_KEY`, …) was set non-empty.
+    pub api_key_env_set: bool,
+    /// Provider already picked explicitly (anything non-Simulator).
+    pub explicit_provider_set: bool,
+    /// `cfg!(target_os = "macos")` evaluated at call-site.
+    pub is_macos: bool,
+    /// What [`Provider::recommended_for_platform`] returned. Only
+    /// consulted on macOS.
+    pub recommended: parish_core::config::Provider,
+}
+
+/// Pure decision function for the first-run flow.
+///
+/// "Configured" means any of: prior-onboarding sentinel, `PARISH_PROVIDER`,
+/// a provider API-key env var, or an explicit non-Simulator provider.
+/// Otherwise, the variant is informed by `recommended`:
+///
+/// - macOS + recommended=VllmMlx → [`OnboardingChoice::LocalRecommended`]
+/// - macOS + recommended=Simulator → [`OnboardingChoice::LocalLowMem`]
+///   (the platform-recommender returns Simulator for Mac < 16 GB)
+/// - everywhere else → [`OnboardingChoice::LocalUnavailable`]
+pub(crate) fn resolve_onboarding_choice(inputs: OnboardingInputs) -> OnboardingChoice {
+    use parish_core::config::Provider;
+
+    if inputs.onboarding_complete
+        || inputs.parish_provider_env_set
+        || inputs.api_key_env_set
+        || inputs.explicit_provider_set
+    {
+        return OnboardingChoice::Configured;
+    }
+
+    if inputs.is_macos {
+        match inputs.recommended {
+            Provider::VllmMlx => OnboardingChoice::LocalRecommended,
+            Provider::Simulator => OnboardingChoice::LocalLowMem,
+            _ => OnboardingChoice::LocalUnavailable,
+        }
+    } else {
+        OnboardingChoice::LocalUnavailable
+    }
+}
+
 /// Resolves the first-run flow for the current host.
 ///
-/// "Configured" means: a `--provider` CLI flag, `PARISH_PROVIDER`, a
-/// standard provider key env var (`ANTHROPIC_API_KEY` etc.), a saved
-/// onboarding-complete sentinel, or a non-default provider in
-/// `provider_config`. Anything else triggers the wizard.
-///
-/// When the wizard is required, the variant is informed by
-/// [`parish_core::config::Provider::recommended_for_platform`]:
-///
-/// - macOS ≥ 16 GB → [`OnboardingChoice::LocalRecommended`]
-/// - macOS < 16 GB → [`OnboardingChoice::LocalLowMem`]
-/// - everywhere else → [`OnboardingChoice::LocalUnavailable`] (BYOK-only fork)
+/// Reads the OS-y inputs (user-config dir sentinel, env vars, sysctl
+/// memory probe) and dispatches into [`resolve_onboarding_choice`].
 pub(crate) fn onboarding_choice_for_platform(
     state: &Arc<AppState>,
     provider_config: &ProviderConfig,
 ) -> OnboardingChoice {
     use parish_core::config::Provider;
 
-    // 1. Sentinel from a previous successful onboarding wins immediately.
-    if parish_core::config::user_config::onboarding_complete(&state.user_config_dir) {
-        return OnboardingChoice::Configured;
-    }
-    // 2. Any explicit env / CLI / TOML override means there's a real choice.
-    if std::env::var("PARISH_PROVIDER")
-        .ok()
+    let api_key_env_set = provider_config
+        .provider
+        .api_key_env_var()
+        .and_then(|v| std::env::var(v).ok())
         .filter(|s| !s.is_empty())
-        .is_some()
-    {
-        return OnboardingChoice::Configured;
-    }
-    // 3. Standard provider env vars (`ANTHROPIC_API_KEY` etc.) — the wizard
-    //    will still pre-fill the field, but we don't block startup on it.
-    if let Some(var) = provider_config.provider.api_key_env_var()
-        && std::env::var(var).ok().filter(|s| !s.is_empty()).is_some()
-    {
-        return OnboardingChoice::Configured;
-    }
-    // 4. A non-default provider in the resolved config means parish.toml
-    //    or a CLI flag picked one explicitly.
-    if !matches!(provider_config.provider, Provider::Simulator) {
-        return OnboardingChoice::Configured;
-    }
+        .is_some();
 
-    // 5. Unconfigured — surface the right wizard for this host.
-    if cfg!(target_os = "macos") {
-        match Provider::recommended_for_platform() {
-            Provider::VllmMlx => OnboardingChoice::LocalRecommended,
-            // recommended_for_platform returns Simulator on Mac < 16 GB.
-            // We still offer local (small slot only) as an option.
-            Provider::Simulator if cfg!(target_os = "macos") => OnboardingChoice::LocalLowMem,
-            _ => OnboardingChoice::LocalUnavailable,
-        }
-    } else {
-        OnboardingChoice::LocalUnavailable
-    }
+    resolve_onboarding_choice(OnboardingInputs {
+        onboarding_complete: parish_core::config::user_config::onboarding_complete(
+            &state.user_config_dir,
+        ),
+        parish_provider_env_set: std::env::var("PARISH_PROVIDER")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .is_some(),
+        api_key_env_set,
+        explicit_provider_set: !matches!(provider_config.provider, Provider::Simulator),
+        is_macos: cfg!(target_os = "macos"),
+        recommended: Provider::recommended_for_platform(),
+    })
 }
 
 /// Runs the inference-provider bootstrap (Ollama install/start, model pull,
@@ -1107,4 +1134,123 @@ pub(crate) fn spawn_autosave_tick(state: Arc<AppState>) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod onboarding_choice_tests {
+    use super::{OnboardingChoice, OnboardingInputs, resolve_onboarding_choice};
+    use parish_core::config::Provider;
+
+    fn unconfigured() -> OnboardingInputs {
+        OnboardingInputs {
+            onboarding_complete: false,
+            parish_provider_env_set: false,
+            api_key_env_set: false,
+            explicit_provider_set: false,
+            is_macos: false,
+            recommended: Provider::Simulator,
+        }
+    }
+
+    #[test]
+    fn prior_onboarding_short_circuits() {
+        let mut inputs = unconfigured();
+        inputs.onboarding_complete = true;
+        // Even if every other "you're in a wizard" signal is true,
+        // the sentinel wins and we skip the fork entirely.
+        inputs.is_macos = true;
+        inputs.recommended = Provider::VllmMlx;
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::Configured
+        );
+    }
+
+    #[test]
+    fn parish_provider_env_short_circuits() {
+        let mut inputs = unconfigured();
+        inputs.parish_provider_env_set = true;
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::Configured
+        );
+    }
+
+    #[test]
+    fn api_key_env_short_circuits() {
+        let mut inputs = unconfigured();
+        inputs.api_key_env_set = true;
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::Configured
+        );
+    }
+
+    #[test]
+    fn explicit_non_simulator_provider_short_circuits() {
+        let mut inputs = unconfigured();
+        inputs.explicit_provider_set = true;
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::Configured
+        );
+    }
+
+    #[test]
+    fn mac_with_vllm_recommendation_picks_local_recommended() {
+        let inputs = OnboardingInputs {
+            is_macos: true,
+            recommended: Provider::VllmMlx,
+            ..unconfigured()
+        };
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::LocalRecommended
+        );
+    }
+
+    #[test]
+    fn mac_below_16gb_picks_local_low_mem() {
+        // recommended_for_platform returns Simulator for Mac < 16 GB.
+        // We still offer a local-fork option (small slot only); we
+        // don't fall through to BYOK-only.
+        let inputs = OnboardingInputs {
+            is_macos: true,
+            recommended: Provider::Simulator,
+            ..unconfigured()
+        };
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::LocalLowMem
+        );
+    }
+
+    #[test]
+    fn mac_with_non_mac_recommendation_falls_back_to_byok_only() {
+        // Defensive: if the platform-recommender ever returns Ollama
+        // or another non-local pick on Mac, we don't expose a local
+        // fork — surface BYOK-only.
+        let inputs = OnboardingInputs {
+            is_macos: true,
+            recommended: Provider::Ollama,
+            ..unconfigured()
+        };
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::LocalUnavailable
+        );
+    }
+
+    #[test]
+    fn non_mac_always_picks_byok_only() {
+        let inputs = OnboardingInputs {
+            is_macos: false,
+            recommended: Provider::VllmMlx, // ignored on non-Mac
+            ..unconfigured()
+        };
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::LocalUnavailable
+        );
+    }
 }
