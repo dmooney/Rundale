@@ -221,6 +221,100 @@ pub async fn get_setup_snapshot(
         .clone())
 }
 
+// ── BYOK onboarding commands ─────────────────────────────────────────────────
+
+fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext<'a> {
+    parish_core::ipc::byok::ByokContext {
+        config: &state.config,
+        inference_config: &state.inference_config,
+        inference_log: state.inference_log.clone(),
+        slots: parish_core::game_loop::inference::InferenceSlots {
+            client: &state.client,
+            worker_handle: &state.worker_handle,
+            inference_queue: &state.inference_queue,
+        },
+        secrets: std::sync::Arc::clone(&state.secret_store),
+        user_config_dir: state.user_config_dir.as_path(),
+    }
+}
+
+/// Validates an unsaved provider/key combination by issuing a tiny live
+/// request. Used by the BYOK wizard before saving.
+#[tauri::command]
+pub async fn validate_provider_config(
+    args: parish_core::ipc::byok::ValidateProviderConfigArgs,
+) -> Result<parish_core::inference::validate::ValidationOutcome, String> {
+    Ok(parish_core::ipc::byok::handle_validate_provider_config(args).await)
+}
+
+/// Persists a BYOK config (keychain + parish.toml), updates GameConfig, and
+/// rebuilds the inference worker. Emits a fresh `setup-done` so the overlay
+/// dismisses.
+#[tauri::command]
+pub async fn set_provider_config(
+    args: parish_core::ipc::byok::SetProviderConfigArgs,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let state_arc = state.inner().clone();
+    parish_core::ipc::byok::handle_set_provider_config(args, byok_ctx(&state_arc))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    {
+        let mut s = state_arc
+            .setup_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        s.clear_needs_onboarding();
+    }
+    crate::record_setup_done(&state_arc, true, String::new());
+    let _ = app.emit(
+        crate::events::EVENT_SETUP_DONE,
+        crate::events::SetupDonePayload {
+            success: true,
+            error: String::new(),
+        },
+    );
+    Ok(())
+}
+
+/// Returns the current effective provider config for the settings panel.
+/// Never returns the API key itself — only `has_api_key`/`has_env_key` flags.
+#[tauri::command]
+pub async fn get_provider_config(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<parish_core::ipc::byok::GetProviderConfigResult, String> {
+    Ok(parish_core::ipc::byok::handle_get_provider_config(&state.config).await)
+}
+
+/// Wipes the keychain entry for the active provider and clears parish.toml.
+#[tauri::command]
+pub async fn clear_provider_config(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let state_arc = state.inner().clone();
+    parish_core::ipc::byok::handle_clear_provider_config(byok_ctx(&state_arc))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Returns `{provider_id: has_env_key}` for every known provider so the BYOK
+/// wizard can show the env-detected hint on the picked provider, not just the
+/// current one.
+#[tauri::command]
+pub async fn list_byok_env_keys() -> Result<std::collections::BTreeMap<String, bool>, String> {
+    Ok(parish_core::ipc::byok::handle_list_env_keys())
+}
+
+/// Returns `{provider_id: {dialogue, simulation, intent, reaction}}` — the
+/// wizard uses this so its prefill matches what fill_missing_models_from_presets
+/// will actually install for the other tiers.
+#[tauri::command]
+pub async fn list_preset_models()
+-> Result<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>, String>
+{
+    Ok(parish_core::ipc::byok::handle_list_preset_models())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
@@ -2133,6 +2227,8 @@ mod cmd_tests {
             demo_config: DemoConfig::default(),
             shutdown_token,
             session_store,
+            user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
         })
     }
 

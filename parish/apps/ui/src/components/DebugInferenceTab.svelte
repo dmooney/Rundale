@@ -2,6 +2,7 @@
 	import { submitInput } from '$lib/ipc';
 	import type { DebugSnapshot } from '$lib/types';
 	import { Key, Check, WarningCircle } from 'phosphor-svelte';
+	import ByokOnboarding from './ByokOnboarding.svelte';
 
 	const PRESET_PROVIDERS = [
 		'anthropic',
@@ -34,6 +35,7 @@
 		onDeselectLog: () => void;
 	} = $props();
 
+	let byokOpen = $state(false);
 	const selectedEntry = $derived(snap.inference.call_log.find(e => e.request_id === logId) ?? null);
 </script>
 
@@ -97,6 +99,11 @@
 			{/each}
 		</div>
 		<div class="field muted">Sets a sensible model per inference role; API keys are not changed.</div>
+		<div class="byok-row">
+			<button class="byok-btn" type="button" onclick={() => (byokOpen = true)}>
+				Change provider or key…
+			</button>
+		</div>
 	</div>
 	{#if snap.inference.categories.length > 0}
 		<div class="section">
@@ -148,6 +155,31 @@
 	</div>
 {/if}
 
+{#if byokOpen}
+	<div
+		class="byok-modal-backdrop"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Change provider or key"
+	>
+		<div class="byok-modal">
+			<button
+				type="button"
+				class="byok-modal__close"
+				onclick={() => (byokOpen = false)}
+				aria-label="Close"
+			>
+				✕
+			</button>
+			<ByokOnboarding
+				mode="modal"
+				onComplete={() => (byokOpen = false)}
+				onBack={() => (byokOpen = false)}
+			/>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.section { margin-bottom: 0.75rem; }
 	.field { color: var(--color-fg); line-height: 1.4; word-break: break-word; }
@@ -177,6 +209,58 @@
 		flex-wrap: wrap;
 		gap: 0.25rem;
 		margin-bottom: 0.25rem;
+	}
+
+	.byok-row {
+		margin-top: 0.4rem;
+	}
+	.byok-btn {
+		background: none;
+		border: 1px solid var(--color-accent);
+		color: var(--color-accent);
+		cursor: pointer;
+		padding: 0.25rem 0.6rem;
+		font-size: 0.7rem;
+	}
+	.byok-btn:hover,
+	.byok-btn:focus-visible {
+		background: var(--color-accent);
+		color: var(--color-bg);
+	}
+
+	.byok-modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 100;
+	}
+	.byok-modal {
+		position: relative;
+		background: var(--color-bg);
+		border: 1px solid var(--color-accent);
+		border-radius: 0.5rem;
+		max-width: 40rem;
+		width: 95%;
+		max-height: 90vh;
+		overflow-y: auto;
+		padding: 1rem;
+	}
+	.byok-modal__close {
+		position: absolute;
+		top: 0.5rem;
+		right: 0.5rem;
+		background: none;
+		border: none;
+		color: var(--color-muted);
+		cursor: pointer;
+		font-size: 1rem;
+	}
+	.byok-modal__close:hover,
+	.byok-modal__close:focus-visible {
+		color: var(--color-fg);
 	}
 
 	.preset-btn {

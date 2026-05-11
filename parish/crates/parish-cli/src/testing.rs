@@ -650,6 +650,9 @@ impl GameTestHarness {
                 CommandEffect::ApplyTiles(..) => {
                     // No map in test harness; response text is returned below.
                 }
+                CommandEffect::ResetByok => {
+                    // No BYOK overlay in the test harness; response text is returned below.
+                }
             }
         }
 

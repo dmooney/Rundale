@@ -363,6 +363,7 @@ export interface SetupSnapshot {
 	done: boolean;
 	success: boolean | null;
 	error: string;
+	needs_onboarding: boolean;
 }
 
 export const getSetupSnapshot = () => command<SetupSnapshot>('get_setup_snapshot');
@@ -375,3 +376,68 @@ export const onSetupProgress = (cb: (payload: SetupProgressPayload) => void) =>
 
 export const onSetupDone = (cb: (payload: SetupDonePayload) => void) =>
 	onEvent<SetupDonePayload>('setup-done', cb);
+
+export const onSetupNeedsOnboarding = (cb: (payload: SetupStatusPayload) => void) =>
+	onEvent<SetupStatusPayload>('setup-needs-onboarding', cb);
+
+// ── BYOK onboarding commands ────────────────────────────────────────────────
+
+export interface ByokCategoryOverride {
+	provider?: string;
+	model?: string;
+	base_url?: string;
+}
+
+export interface SetProviderConfigArgs {
+	provider: string;
+	base_url?: string;
+	model?: string;
+	api_key?: string;
+	category_overrides?: Record<string, ByokCategoryOverride>;
+}
+
+export interface ValidateProviderConfigArgs {
+	provider: string;
+	base_url?: string;
+	api_key?: string;
+}
+
+export type ValidationOutcome =
+	| { kind: 'ok' }
+	| { kind: 'auth_failed'; status: number; body_excerpt: string }
+	| { kind: 'not_found'; status: number; body_excerpt: string }
+	| { kind: 'rate_limited'; status: number; retry_after_secs: number | null }
+	| { kind: 'network'; message: string }
+	| { kind: 'unexpected'; status: number; body_excerpt: string };
+
+export interface GetProviderConfigResult {
+	provider: string;
+	model: string;
+	base_url: string;
+	has_api_key: boolean;
+	has_env_key: boolean;
+}
+
+export const setProviderConfig = (args: SetProviderConfigArgs) =>
+	command<void>('set_provider_config', { args });
+
+export const validateProviderConfig = (args: ValidateProviderConfigArgs) =>
+	command<ValidationOutcome>('validate_provider_config', { args });
+
+export const getProviderConfig = () =>
+	command<GetProviderConfigResult>('get_provider_config');
+
+export const clearProviderConfig = () => command<void>('clear_provider_config');
+
+export const listByokEnvKeys = () =>
+	command<Record<string, boolean>>('list_byok_env_keys');
+
+export interface ProviderPresetModels {
+	dialogue: string | null;
+	simulation: string | null;
+	intent: string | null;
+	reaction: string | null;
+}
+
+export const listPresetModels = () =>
+	command<Record<string, ProviderPresetModels>>('list_preset_models');
