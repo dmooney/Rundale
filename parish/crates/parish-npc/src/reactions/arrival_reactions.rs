@@ -764,10 +764,18 @@ pub async fn resolve_llm_greeting(
     let model = params.model;
     let timeout_secs = params.timeout_secs;
 
+    // Streaming variant: discards chunks but uses the streaming code path
+    // so the underlying provider streams tokens (TTFT visibility) and a
+    // future preemption pathway can cancel mid-flight (#9). Reaction is a
+    // short greeting (~14-20 tokens), so cancellation is rarely needed —
+    // but keeping every NPC turn on the same code path avoids divergence.
     let timeout = Duration::from_secs(timeout_secs);
+    let (sink_tx, mut sink_rx) =
+        tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
+    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
     let result = tokio::time::timeout(
         timeout,
-        client.generate(model, &context, Some(&system), Some(100), None),
+        client.generate_stream(model, &context, Some(&system), sink_tx, Some(100), None),
     )
     .await;
 

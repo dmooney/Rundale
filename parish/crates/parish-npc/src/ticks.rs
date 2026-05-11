@@ -1044,8 +1044,8 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
         // ~200-400 tokens in practice; 600 is comfortable headroom and
         // keeps a single batch under the 1500 ms simulation budget.
         // Streaming variant: chunks discarded, but the streaming code
-        // path is what lets a player turn preempt this 20+ s batch mid
-        // flight (#9). TTFT + token-count surface via StreamStats.
+        // path is what lets a player turn preempt this batch mid-flight
+        // (#9). TTFT + token-count surface via StreamStats.
         match parish_inference::submit_json_streaming::<Tier3Response>(
             ctx.queue,
             InferencePriority::Batch,
