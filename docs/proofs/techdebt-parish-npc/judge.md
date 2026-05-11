@@ -2,7 +2,8 @@
 
 **Reviewer:** automated / cargo test + clippy
 
-**Verdict:** PASS
+Verdict: sufficient
+Technical debt: clear
 
 **Criteria:**
 - [x] All 400 parish-npc unit tests pass

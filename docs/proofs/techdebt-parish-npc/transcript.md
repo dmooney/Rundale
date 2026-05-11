@@ -1,3 +1,5 @@
+Evidence type: gameplay transcript
+
 # Proof: parish-npc TD-016 through TD-025
 
 ## Verification Commands Run
