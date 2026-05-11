@@ -265,10 +265,10 @@ pub struct AppState {
     pub editor: std::sync::Mutex<parish_core::ipc::editor::EditorSession>,
     /// Advisory file lock for the currently active save file.
     pub save_lock: Mutex<Option<parish_core::persistence::SaveFileLock>>,
-    /// Child `ollama serve` process handle (no-op for non-Ollama providers).
-    /// Stored here so it lives for the app's lifetime — dropping it kills the
-    /// server. See [`parish_core::inference::client::OllamaProcess`].
-    pub ollama_process: Mutex<parish_core::inference::client::OllamaProcess>,
+    /// Local runtime child processes (Ollama or N vllm-mlx slots), held for
+    /// the app's lifetime — dropping it kills all spawned servers.
+    /// See [`parish_core::inference::client::RuntimeProcesses`].
+    pub runtime_processes: Mutex<parish_core::inference::client::RuntimeProcesses>,
     /// TOML-configured inference timeouts loaded from `parish.toml` at boot.
     /// Used by rebuild paths so `/provider` switches honour the configured
     /// values instead of falling back to compiled-in defaults. (#417)
@@ -918,7 +918,7 @@ pub fn run() {
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
-        ollama_process: Mutex::new(parish_core::inference::client::OllamaProcess::none()),
+        runtime_processes: Mutex::new(parish_core::inference::client::RuntimeProcesses::none()),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
         language_settings,
@@ -1070,12 +1070,13 @@ fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>
 /// rule #2 (mode parity).
 async fn bootstrap_provider(
     config: &ProviderConfig,
+    extra_vllm_slots: &[parish_core::inference::client::VllmMlxSlot],
     inference_config: &parish_core::config::InferenceConfig,
     progress: &dyn parish_core::inference::setup::SetupProgress,
 ) -> anyhow::Result<(
     Option<AnyClient>,
     String,
-    parish_core::inference::client::OllamaProcess,
+    parish_core::inference::client::RuntimeProcesses,
 )> {
     // Non-Ollama providers without a model → leave the client unset so the
     // UI can surface a config error instead of failing hard at startup.
@@ -1083,12 +1084,13 @@ async fn bootstrap_provider(
         return Ok((
             None,
             String::new(),
-            parish_core::inference::client::OllamaProcess::none(),
+            parish_core::inference::client::RuntimeProcesses::none(),
         ));
     }
 
     let (client, model, process) = parish_core::inference::setup::setup_provider_client(
         config,
+        extra_vllm_slots,
         inference_config, // (#417) use TOML-configured timeouts
         progress,
     )

@@ -672,13 +672,17 @@ pub async fn run_tier2_for_group(
 
     // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
     // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
-    match parish_inference::submit_json::<Tier2Response>(
+    // Streaming variant: discards chunks but enables mid-flight cancellation
+    // (#9) and emits TTFT + token-count telemetry through the worker's
+    // StreamStats observer.
+    match parish_inference::submit_json_streaming::<Tier2Response>(
         queue,
         InferencePriority::Background,
         model,
         &prompt,
         None,
         Some(200),
+        None,
     )
     .await
     {
@@ -1039,13 +1043,17 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
         // Cap output to bound vllm-mlx runaway. 6-NPC batches output
         // ~200-400 tokens in practice; 600 is comfortable headroom and
         // keeps a single batch under the 1500 ms simulation budget.
-        match parish_inference::submit_json::<Tier3Response>(
+        // Streaming variant: chunks discarded, but the streaming code
+        // path is what lets a player turn preempt this 20+ s batch mid
+        // flight (#9). TTFT + token-count surface via StreamStats.
+        match parish_inference::submit_json_streaming::<Tier3Response>(
             ctx.queue,
             InferencePriority::Batch,
             ctx.model,
             &prompt,
             None,
             Some(600),
+            None,
         )
         .await
         {

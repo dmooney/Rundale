@@ -231,6 +231,19 @@ impl Drop for OllamaProcess {
     }
 }
 
+/// One vllm-mlx server slot: a (base_url, model) tuple.
+///
+/// Used by [`VllmMlxProcess::ensure_slots`] to spawn one process per unique
+/// slot. The two-slot Apple Silicon loadout uses two slots — large model on
+/// :8000 for Dialogue, small model on :8001 for Intent/Reaction/Simulation.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VllmMlxSlot {
+    /// Base URL including port (e.g. `http://localhost:8001`).
+    pub base_url: String,
+    /// Hugging Face model id (e.g. `mlx-community/Qwen2.5-1.5B-Instruct-4bit`).
+    pub model: String,
+}
+
 /// Manages a vllm-mlx server process started by Parish (macOS / Apple Silicon local runtime).
 ///
 /// Parallels [`OllamaProcess`] for the vllm-mlx runtime: probes
@@ -243,10 +256,10 @@ impl Drop for OllamaProcess {
 /// in `~/.local/bin`; setting `VLLM_MLX_BIN=$HOME/.local/share/uv/tools/vllm-mlx/bin/vllm-mlx`
 /// keeps Parish on the pristine binary.
 ///
-/// Spike scope: this struct is callable today via
-/// `VllmMlxProcess::ensure_running`. Wiring it into
-/// [`setup_provider_client`] for `Provider::Vllm` on macOS is a
-/// follow-up.
+/// Wired into [`setup_provider_client`] for `Provider::VllmMlx`. The
+/// base provider slot is always spawned; additional slots may be
+/// supplied via `extra_vllm_slots` for per-category routing
+/// (two-slot Apple Silicon loadout).
 pub struct VllmMlxProcess {
     child: Option<Child>,
 }
@@ -314,6 +327,26 @@ impl VllmMlxProcess {
         Ok(Self { child: Some(child) })
     }
 
+    /// Ensures each unique [`VllmMlxSlot`] has a vllm-mlx server reachable.
+    ///
+    /// Deduplicates slots by `(base_url, model)`. Returns one
+    /// [`VllmMlxProcess`] per unique slot — slots that were already running
+    /// produce a no-op handle. Caller must hold all handles for the
+    /// app lifetime so spawned children are stopped on drop.
+    pub async fn ensure_slots(slots: &[VllmMlxSlot]) -> Result<Vec<Self>, ParishError> {
+        let mut seen: std::collections::HashSet<(String, String)> =
+            std::collections::HashSet::new();
+        let mut out = Vec::with_capacity(slots.len());
+        for slot in slots {
+            let key = (slot.base_url.clone(), slot.model.clone());
+            if !seen.insert(key) {
+                continue;
+            }
+            out.push(Self::ensure_running(&slot.base_url, &slot.model).await?);
+        }
+        Ok(out)
+    }
+
     /// Returns whether we started the vllm-mlx process (vs. it was already running).
     pub fn was_started_by_us(&self) -> bool {
         self.child.is_some()
@@ -341,6 +374,48 @@ impl VllmMlxProcess {
 impl Drop for VllmMlxProcess {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+/// Bundle of runtime processes started by Parish during provider setup.
+///
+/// Carries either an [`OllamaProcess`] (when `Provider::Ollama` is the base)
+/// or a [`Vec<VllmMlxProcess>`] (when `Provider::VllmMlx` is the base or
+/// per-category routing spawns vllm-mlx slots). Callers must hold this
+/// value for the app lifetime so children are stopped on drop.
+pub struct RuntimeProcesses {
+    /// Ollama child process, if Ollama is the base provider.
+    pub ollama: OllamaProcess,
+    /// One vllm-mlx process per unique slot (base + per-category overrides).
+    pub vllm_mlx: Vec<VllmMlxProcess>,
+}
+
+impl RuntimeProcesses {
+    /// Creates an empty bundle (no spawned processes).
+    pub fn none() -> Self {
+        Self {
+            ollama: OllamaProcess::none(),
+            vllm_mlx: Vec::new(),
+        }
+    }
+
+    /// Stops every child process (Ollama + each vllm-mlx slot).
+    ///
+    /// Safe to call multiple times; each underlying process tracks its own
+    /// `Option<Child>` and skips when already stopped. Drop impls also call
+    /// `stop()`, so explicit calls are only needed when callers want to
+    /// release resources before the bundle goes out of scope.
+    pub fn stop(&mut self) {
+        self.ollama.stop();
+        for slot in &mut self.vllm_mlx {
+            slot.stop();
+        }
+    }
+}
+
+impl Default for RuntimeProcesses {
+    fn default() -> Self {
+        Self::none()
     }
 }
 
@@ -1453,30 +1528,40 @@ async fn warmup_model_with_config(
 
 /// Builds an inference client for the resolved [`ProviderConfig`], running
 /// the full Ollama setup sequence (install, auto-start, GPU detection,
-/// model pull, warmup) when the provider is [`Provider::Ollama`].
+/// model pull, warmup) when the provider is [`Provider::Ollama`], or
+/// auto-spawning vllm-mlx slots when the provider is [`Provider::VllmMlx`].
 ///
 /// This is the single entry point shared by all runtime modes (CLI, Tauri,
 /// web server) so they stay in lock-step — CLAUDE.md rule #2 (mode parity).
-/// Callers are responsible for keeping the returned [`OllamaProcess`] alive
-/// for the lifetime of the app so the child `ollama serve` is stopped on
+/// Callers are responsible for keeping the returned [`RuntimeProcesses`]
+/// alive for the lifetime of the app so spawned children are stopped on
 /// exit.
+///
+/// `extra_vllm_slots` lists additional vllm-mlx slots beyond the base
+/// provider — used for the two-slot Apple Silicon loadout (large Dialogue
+/// model on :8000, small Intent/Reaction/Sim model on :8001). Slots
+/// duplicating the base `(base_url, model)` are deduplicated. Pass an
+/// empty slice when only the base slot is needed.
 ///
 /// # Errors
 ///
 /// - [`Provider::Ollama`]: bubbles up whatever `setup_ollama_with_config`
 ///   returns (no GPU, install failure, pull failure, …).
+/// - [`Provider::VllmMlx`]: returns [`ParishError::Inference`] if any
+///   slot fails to spawn or become reachable within 60s.
 /// - Other providers: returns [`ParishError::Config`] if no model is set,
-///   since non-Ollama backends have no auto-detect fallback.
+///   since non-Ollama / non-VllmMlx backends have no auto-detect fallback.
 pub async fn setup_provider_client(
     config: &ProviderConfig,
+    extra_vllm_slots: &[VllmMlxSlot],
     inference_config: &InferenceConfig,
     progress: &dyn SetupProgress,
-) -> Result<(AnyClient, String, OllamaProcess), ParishError> {
+) -> Result<(AnyClient, String, RuntimeProcesses), ParishError> {
     match config.provider {
         Provider::Simulator => Ok((
             AnyClient::simulator(),
             "simulator".to_string(),
-            OllamaProcess::none(),
+            RuntimeProcesses::none(),
         )),
         Provider::Ollama => {
             let setup = setup_ollama_with_config(
@@ -1487,7 +1572,44 @@ pub async fn setup_provider_client(
             )
             .await?;
             let client = AnyClient::open_ai(setup.client);
-            Ok((client, setup.model_name, setup.process))
+            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_slots).await?;
+            Ok((
+                client,
+                setup.model_name,
+                RuntimeProcesses {
+                    ollama: setup.process,
+                    vllm_mlx,
+                },
+            ))
+        }
+        Provider::VllmMlx => {
+            let model = config.model.clone().ok_or_else(|| {
+                ParishError::Config(
+                    "VllmMlx provider requires a model name. Set --model or PARISH_MODEL."
+                        .to_string(),
+                )
+            })?;
+            let mut all_slots: Vec<VllmMlxSlot> = Vec::with_capacity(1 + extra_vllm_slots.len());
+            all_slots.push(VllmMlxSlot {
+                base_url: config.base_url.clone(),
+                model: model.clone(),
+            });
+            all_slots.extend(extra_vllm_slots.iter().cloned());
+            let vllm_mlx = VllmMlxProcess::ensure_slots(&all_slots).await?;
+            let client = crate::build_client(
+                &config.provider,
+                &config.base_url,
+                config.api_key.as_deref(),
+                inference_config,
+            );
+            Ok((
+                client,
+                model,
+                RuntimeProcesses {
+                    ollama: OllamaProcess::none(),
+                    vllm_mlx,
+                },
+            ))
         }
         _ => {
             let model = config.model.clone().ok_or_else(|| {
@@ -1502,7 +1624,15 @@ pub async fn setup_provider_client(
                 config.api_key.as_deref(),
                 inference_config,
             );
-            Ok((client, model, OllamaProcess::none()))
+            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_slots).await?;
+            Ok((
+                client,
+                model,
+                RuntimeProcesses {
+                    ollama: OllamaProcess::none(),
+                    vllm_mlx,
+                },
+            ))
         }
     }
 }
@@ -1533,6 +1663,37 @@ mod tests {
         let mut p = VllmMlxProcess::none();
         assert!(!p.was_started_by_us());
         p.stop(); // must not panic on no-op
+    }
+
+    #[test]
+    fn test_runtime_processes_none_is_no_op() {
+        let mut p = RuntimeProcesses::none();
+        assert!(p.vllm_mlx.is_empty());
+        p.stop(); // ollama no-op + vllm_mlx empty must not panic
+    }
+
+    /// Regression guard for the two-slot loadout: `ensure_slots` must spawn
+    /// exactly one process per unique `(base_url, model)` tuple. If two
+    /// category overrides point to the same slot, only one server is spawned.
+    ///
+    /// We can't reach the network here, but the slot-builder is pure and the
+    /// dedup happens before any spawn — verify via the dedup-input contract.
+    #[test]
+    fn test_vllm_mlx_slot_eq_and_hash() {
+        use std::collections::HashSet;
+        let a = VllmMlxSlot {
+            base_url: "http://localhost:8001".to_string(),
+            model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string(),
+        };
+        let b = a.clone();
+        let c = VllmMlxSlot {
+            base_url: "http://localhost:8000".to_string(),
+            model: "mlx-community/Qwen2.5-7B-Instruct-4bit".to_string(),
+        };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        let set: HashSet<_> = [a.clone(), b.clone(), c.clone()].iter().cloned().collect();
+        assert_eq!(set.len(), 2, "duplicate slot must dedup in the HashSet");
     }
 
     /// Regression guard for TD-015 — Windows `taskkill` argument vector.

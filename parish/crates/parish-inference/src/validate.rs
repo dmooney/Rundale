@@ -307,7 +307,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Vllm, &server.uri(), None).await;
+        let outcome = validate(&Provider::VllmMlx, &server.uri(), None).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 

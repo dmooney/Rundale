@@ -524,6 +524,59 @@ pub async fn submit_json<T: serde::de::DeserializeOwned>(
         .map_err(|e| ParishError::Inference(format!("JSON parse failed: {e}")))
 }
 
+/// Streaming variant of [`submit_json`] that enables mid-flight cancellation.
+///
+/// Routes through `send_full` with an internal `token_tx` so the worker
+/// uses the streaming code path. Streamed chunks are discarded by the
+/// caller — only the final assembled JSON is consumed — but the
+/// streaming path is what lets vllm-mlx (and other providers) recognise
+/// a dropped connection and free the inference slot when `cancel` fires.
+///
+/// Required for Tier 2 / Tier 3 simulation so a player turn can preempt
+/// in-flight background inference. Pass `cancel = None` when preemption
+/// isn't needed; the streaming path still yields TTFT + token-count
+/// telemetry through the existing `StreamStats` observer.
+pub async fn submit_json_streaming<T: serde::de::DeserializeOwned>(
+    queue: &InferenceQueue,
+    priority: InferencePriority,
+    model: &str,
+    prompt: &str,
+    system: Option<&str>,
+    max_tokens: Option<u32>,
+    cancel: Option<CancellationToken>,
+) -> Result<T, ParishError> {
+    let id = QUEUE_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+    // Discard sink — we only need the streaming path enabled in the
+    // worker; the assembled JSON arrives via the response channel.
+    let (sink_tx, mut sink_rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+
+    let response_rx = queue
+        .send_full(
+            id,
+            model.to_string(),
+            prompt.to_string(),
+            system.map(String::from),
+            Some(sink_tx),
+            max_tokens,
+            None,
+            priority,
+            false,
+            None,
+            cancel,
+        )
+        .await
+        .map_err(|e| ParishError::Inference(format!("queue send failed: {e}")))?;
+    let response = response_rx
+        .await
+        .map_err(|e| ParishError::Inference(format!("response channel closed: {e}")))?;
+    if let Some(err) = response.error {
+        return Err(ParishError::Inference(err));
+    }
+    serde_json::from_str(&response.text)
+        .map_err(|e| ParishError::Inference(format!("JSON parse failed: {e}")))
+}
+
 /// Per-category LLM client routing with a base provider fallback.
 ///
 /// Each inference category (dialogue, simulation, intent) can have its own
@@ -1856,7 +1909,7 @@ mod tests {
         }
 
         let result: Result<Greeting, ParishError> =
-            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None, None).await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result.err());
         assert_eq!(result.unwrap().hello, "world");
     }
@@ -1879,7 +1932,7 @@ mod tests {
         });
 
         let result: Result<serde_json::Value, ParishError> =
-            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None, None).await;
         let err = result.expect_err("should error");
         assert!(
             err.to_string().contains("model exploded"),
@@ -1905,7 +1958,7 @@ mod tests {
         });
 
         let result: Result<serde_json::Value, ParishError> =
-            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None, None).await;
         let err = result.expect_err("should error");
         assert!(
             err.to_string().contains("JSON parse failed"),
@@ -1924,7 +1977,7 @@ mod tests {
         drop(_batrx);
 
         let result: Result<serde_json::Value, ParishError> =
-            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None, None).await;
         let err = result.expect_err("should error");
         assert!(
             err.to_string().contains("queue send failed"),
