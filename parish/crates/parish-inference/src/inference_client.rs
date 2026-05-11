@@ -8,32 +8,19 @@
 //!   are inherently single-use and cannot be cached.  Streaming stays on
 //!   [`crate::AnyClient`] until a separate streaming-trait PR lands.
 //!
-//! - [`InferenceRequest`] is the call envelope.  It is distinct from the
+//! - [`ClientInferenceRequest`] is the call envelope.  It is distinct from the
 //!   existing [`crate::InferenceRequest`] (the queue/worker envelope) which
 //!   remains unchanged.  The new envelope carries metadata needed for caching
 //!   and metrics: `request_id`, `session_id`, `account_id`, `prompt_hash`,
 //!   `priority`, `params`, and `messages`.
 //!
 //! - [`CachingInferenceClient`] is an LRU decorator keyed by
-//!   `(prompt_hash, model, params)`.  It wraps any [`InferenceClient`] impl
-//!   and is disabled entirely when the `inference-response-cache` feature
-//!   flag is off — no wrapper is constructed and there is no per-call
-//!   overhead.
+//!   `(prompt_hash, model, params)`.  It wraps any [`InferenceClient`] impl.
 //!
 //! - Structured cost metrics are emitted on every completed call via
 //!   `tracing::info!` with the standard fields established by PR #888:
 //!   `request_id`, `session_id`, `account_id`, `model`, `latency_ms`,
 //!   `cache_hit`, plus usage counters `tokens_in` / `tokens_out`.
-//!
-//! # Feature flags
-//!
-//! | Flag                         | Default | Behaviour when off                                    |
-//! |------------------------------|---------|-------------------------------------------------------|
-//! | `inference-client-trait`     | on      | fall back to direct `AnyClient` call-site path        |
-//! | `inference-response-cache`   | on      | `CachingInferenceClient` wrapper not constructed      |
-//!
-//! Both flags default-on per CLAUDE.md §6.  When `inference-response-cache`
-//! is off, `cache_hit` is always `false` in the metrics event.
 //!
 //! # Default cache capacity
 //!
@@ -194,7 +181,7 @@ pub trait InferenceClient: Send + Sync {
 ///
 /// Override at runtime with `PARISH_INFERENCE_CACHE_CAPACITY` (parsed as
 /// `usize`).  A value of `0` disables caching entirely (same as the
-/// `inference-response-cache` flag being off).
+/// cache being disabled).
 pub const DEFAULT_CACHE_CAPACITY: usize = 500;
 
 /// Reads the cache capacity from the environment, falling back to
@@ -312,10 +299,10 @@ impl InferenceClient for CachingInferenceClient {
 /// Metrics decorator that emits structured cost metrics on every
 /// non-streaming call, regardless of whether caching is enabled.
 ///
-/// When the `inference-response-cache` flag is on, the stack is:
+/// When caching is enabled, the stack is:
 /// `MeteredInferenceClient → CachingInferenceClient → ConcreteClient`
 ///
-/// When off:
+/// When disabled:
 /// `MeteredInferenceClient → ConcreteClient`
 ///
 /// Metrics are always emitted at the outermost layer, so `cache_hit` is
