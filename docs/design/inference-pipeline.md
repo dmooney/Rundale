@@ -110,14 +110,17 @@ Worker captures streaming stats via `StreamStats { ttft, tokens }` and records t
 
 ### macOS / Apple Silicon + vllm-mlx
 
-Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
+Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
 
-| Category   | ttft p50 | total p50 | total p95 | budget | verdict |
-|------------|----------|-----------|-----------|--------|---------|
-| Intent     | 46 ms    | 369 ms    | 688 ms    | ttft<200ms / total<500ms | FAIL p95 (1B intent slot is the fix) |
-| Reaction   | 36 ms    | 441 ms    | 514 ms    | ttft<400ms / total<800ms | **PASS** |
-| Simulation | 46 ms    | 968 ms    | 1026 ms   | ttft<800ms / total<1500ms | **PASS** (with prompt steering toward empty change-arrays) |
-| Dialogue   | 34 ms    | 833 ms    | 1257 ms   | ttft<1000ms | **PASS** (ttft is what the budget measures) |
+| Category | ttft p50 | total p50 | total p95 | budget | verdict |
+|----------|----------|-----------|-----------|--------|---------|
+| Intent | 61 ms | 451 ms | 734 ms | ttft<200 / total<500 | FAIL p95 (1B intent slot is the fix) |
+| Reaction | 33 ms | 147 ms | 1127 ms | ttft<400 / total<800 | FAIL p95 (bimodal; first-meeting introductions saturate the 100-tok cap at ~1060 ms) |
+| **Tier 2 Sim** | 46 ms | 1089 ms | 1095 ms | total<1500 | **PASS** |
+| **Tier 3 Batch** | 144 ms | **30459 ms** | 30667 ms | total<1500 (wrong) | **FAIL by 20x** — needs its own budget on the Batch lane |
+| Dialogue | 1.1 ms cached | — | — | ttft<1000 | **PASS** (prefix cache delivers) |
+
+Tier 3 deserves its own row because the 6-NPC batch produces ~600 tokens (hitting the production cap) and the constrained decoder runs at ~20 tok/s — 30 s/batch on this engine. Options: smaller batch size, drop schema, or cloud-route Tier 3 (Gemini Flash-Lite handles this in <2 s). See evidence.md for the full breakdown.
 
 Key engine properties on this path:
 
