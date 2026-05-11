@@ -33,12 +33,14 @@ gha-creds-*.json
 # See parish.example.toml for the expected structure.
 parish.toml
 
-# Bundled vllm-mlx Python venv produced by `just build-vllm-mlx-bundle`.
-# Contents are large (~250 MB) and built fresh per release. The empty
-# parent dir (with a .gitkeep) is tracked so tauri-build's resource
-# glob doesn't reject dev runs that skip the bundle step.
-parish/dist/vllm-mlx/python-runtime/
-parish/dist/vllm-mlx/venv/
+# Bundled vllm-mlx Python runtime produced by `just build-vllm-mlx-bundle`.
+# Contents are large (~360 MB compressed, ~1.5 GB unpacked) and built
+# fresh per release. The empty `python-runtime/` dir (with a .gitkeep)
+# is tracked so tauri-build's resource glob doesn't reject dev runs
+# that skip the bundle step.
+parish/dist/vllm-mlx/python-runtime/*
+!parish/dist/vllm-mlx/python-runtime/.gitkeep
+parish/dist/cpython-*.tar.gz
 parish/dist/cpython-*.tar.zst
 parish/dist/vllm-mlx-bundle.tar.zst
 parish/dist/vllm-mlx-bundle.tar.zst.sha256

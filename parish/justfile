@@ -506,7 +506,10 @@ ollama-models:
 # page). The 20250115 train is the first stable to ship python 3.13.
 PBS_VERSION := "20250115"
 PBS_PYTHON  := "3.13.1"
-PBS_TARBALL := "cpython-" + PBS_PYTHON + "+" + PBS_VERSION + "-aarch64-apple-darwin-pgo+lto-full.tar.zst"
+# install_only variant: PGO+LTO compiled, no dev artifacts, simple
+# `python/bin/python3` layout (the `-full` tarballs nest under
+# `python/install/bin/` and ship .c headers we don't need).
+PBS_TARBALL := "cpython-" + PBS_PYTHON + "+" + PBS_VERSION + "-aarch64-apple-darwin-install_only.tar.gz"
 PBS_URL     := "https://github.com/astral-sh/python-build-standalone/releases/download/" + PBS_VERSION + "/" + PBS_TARBALL
 
 # Build the shippable bundle. Idempotent: skips re-fetching the Python
@@ -524,7 +527,6 @@ build-vllm-mlx-bundle:
     DIST="$(pwd)/dist"
     BUNDLE_DIR="${DIST}/vllm-mlx"
     PYTHON_DIR="${BUNDLE_DIR}/python-runtime"
-    VENV_DIR="${BUNDLE_DIR}/venv"
     TARBALL_NAME="vllm-mlx-bundle.tar.zst"
     SHA_NAME="${TARBALL_NAME}.sha256"
 
@@ -541,23 +543,25 @@ build-vllm-mlx-bundle:
 
     echo "extracting Python runtime…"
     mkdir -p "${PYTHON_DIR}"
-    # python-build-standalone tarballs unpack to ./python/ — strip and
-    # land directly under PYTHON_DIR.
-    tar --zstd -xf "${PBS_LOCAL}" -C "${BUNDLE_DIR}"
+    # python-build-standalone install_only tarballs unpack to
+    # ./python/{bin,lib,...} — strip and land directly under PYTHON_DIR.
+    # The install_only variant ships a relocatable interpreter (no
+    # absolute paths baked in), so we install vllm-mlx directly into
+    # its site-packages without a venv layer. A venv would bake the
+    # build host's absolute paths into pyvenv.cfg, breaking when the
+    # bundle lands in /Applications/Rundale.app/Contents/Resources/.
+    tar -xzf "${PBS_LOCAL}" -C "${BUNDLE_DIR}"
     mv "${BUNDLE_DIR}/python/"* "${PYTHON_DIR}/"
     rmdir "${BUNDLE_DIR}/python"
 
-    echo "creating venv…"
-    "${PYTHON_DIR}/bin/python3" -m venv "${VENV_DIR}"
-
-    echo "installing vllm-mlx + hf_transfer into venv…"
-    "${VENV_DIR}/bin/pip" install --upgrade pip
+    echo "installing vllm-mlx + hf_transfer into the runtime…"
+    "${PYTHON_DIR}/bin/python3" -m pip install --upgrade pip
     # hf_transfer is the Rust-backed HuggingFace downloader. We don't
     # actually invoke vllm-mlx's internal HF downloader at runtime
     # (Parish pre-fetches everything via the Rust HfModelDownloader),
     # but bundling hf_transfer guarantees offline behaviour even if
     # vllm-mlx's startup path probes the hub for any reason.
-    "${VENV_DIR}/bin/pip" install vllm-mlx hf_transfer
+    "${PYTHON_DIR}/bin/python3" -m pip install vllm-mlx hf_transfer
 
     echo "packing tarball…"
     cd "${DIST}"
