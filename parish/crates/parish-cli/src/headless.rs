@@ -1327,6 +1327,7 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
                 hours,
                 batch_size: 0,
                 language: &lang,
+                cancel: None,
             };
 
             match parish_core::npc::ticks::tick_tier3(&ctx).await {
@@ -1409,6 +1410,7 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
                         &app.world.clock.time_of_day().to_string(),
                         &app.world.weather.to_string(),
                         &lang,
+                        None,
                     )
                     .await
                     {

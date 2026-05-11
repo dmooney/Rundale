@@ -203,15 +203,26 @@ Two-slot Qwen loadout (recommended):
 
 | Category   | Local pick                                    | Cloud pick                  | Notes |
 |------------|------------------------------------------------|-----------------------------|-------|
-| Dialogue   | `mlx-community/Qwen2.5-7B-Instruct-4bit` (slot :8000) | Claude Sonnet 4.6     | Hits Dialogue ttft 64 ms p50 / 183 ms p95, total 1087 ms p95. 33 tok/s sustained. Blind quality 4.6/5 vs 2.4/5 for the small slot |
+| Dialogue   | `mlx-community/Qwen2.5-14B-Instruct-4bit` (slot :8000) | Claude Sonnet 4.6     | Dialogue ttft p50 128 ms / p95 367 ms, total p95 2377 ms, 17.5 tok/s. Opus-blind quality 4.76/5, 0% script-flaw on the 100-prompt scan |
 | Simulation | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash    | PASS on Tier 2 (~3x faster than gemma-3-4b). Tier 3 still over the 1500 ms budget but ~3x improved — Tier 3 is intentionally relaxed |
 | Reaction   | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | Gemini 2.5 Flash-Lite | PASS |
 | Intent     | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` (slot :8001) | — (always local) | PASS — small Qwen unblocks the previously-failing Intent path |
 
 Both models load through vllm-mlx 0.3.x's clean mlx_lm path
 (`mllm=False`) — neither matches the MLLM pattern that traps gemma-3.
-Memory footprint ~5.3 GB resident total (1.3 GB + 4.0 GB). See
-[evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026).
+Memory footprint ~9.3 GB resident total (1.3 GB + 8 GB).
+**16 GB unified memory is the minimum for local-everything.** Below
+16 GB, route through BYOK cloud (OpenRouter / Anthropic / Google) —
+the small-slot-only fallback produces flat, anachronistic dialogue
+(Opus-blind 2.96/5) and isn't a recommended default. See
+[evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026)
+and the May 2026 Opus-blind compare in
+[`quality_eval_20260511T163000Z.md`](../proofs/local-perf/quality_eval_20260511T163000Z.md).
+
+The 7B tier was the prior Dialogue pick. With the sprinkle-only
+`language_directive` patch the 14B → 7B Overall quality gap is only
+0.36 (about judge-noise), so the case for 7B as a separate tier is
+weak — pick 14B when host memory permits, drop to 1.5B otherwise.
 
 Legacy single-slot fallback (gemma-3-4b on one process), kept for
 reference: Dialogue PASS, Reaction PASS, Sim Tier 2 PASS, Intent FAIL
@@ -272,7 +283,7 @@ model = "ministral3:3b"
 [provider]
 name = "vllm-mlx"
 base_url = "http://localhost:8000"
-model = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+model = "mlx-community/Qwen2.5-14B-Instruct-4bit"
 
 [provider.intent]
 base_url = "http://localhost:8001"
@@ -295,13 +306,13 @@ uv tool install vllm-mlx
 # readlink -f ~/.local/bin/vllm-mlx
 
 # Start two slots manually (multi-slot auto-launch is TODO):
-vllm-mlx serve mlx-community/Qwen2.5-7B-Instruct-4bit \
+vllm-mlx serve mlx-community/Qwen2.5-14B-Instruct-4bit \
     --port 8000 --enable-prefix-cache --continuous-batching &
 vllm-mlx serve mlx-community/Qwen2.5-1.5B-Instruct-4bit \
     --port 8001 --enable-prefix-cache --continuous-batching &
 ```
 
-The engine auto-spawns the *base* `vllm-mlx serve <model> --port 8000` if nothing is reachable, and stops it on shutdown. Cold-load is ~3.3 s with persisted prefix cache per process. Total memory ~5.3 GB resident across both processes. Single-slot fallback (one process, one model) still works for hosts with tighter memory.
+The engine auto-spawns the *base* `vllm-mlx serve <model> --port 8000` if nothing is reachable, and stops it on shutdown. Cold-load is ~3.3 s with persisted prefix cache per process. Total memory ~9.3 GB resident across both processes. Single-slot fallback (one process, one model) works for hosts with tighter memory — point base at the 1.5B and drop the per-category overrides.
 
 Legacy single-slot config:
 ```toml
@@ -310,6 +321,21 @@ name = "vllm-mlx"
 base_url = "http://localhost:8000"
 model = "mlx-community/gemma-3-4b-it-4bit"
 ```
+
+If the host can't hold the 14B (< 16 GB unified memory), point the
+whole loadout at a BYOK cloud endpoint instead of degrading the local
+tier — the small-slot-only fallback would compromise dialogue too far
+(Opus-blind 2.96/5). Example with OpenRouter:
+
+```toml
+[provider]
+name = "openrouter"
+model = "anthropic/claude-sonnet-4-6"
+api_key = "$OPENROUTER_API_KEY"
+```
+
+Or pin per-category via Anthropic's tiered Opus / Sonnet / Haiku
+preset — see the "Cloud-light" Starter Configuration above.
 
 **Quality-maximalist** — full cloud, everything routed via one provider for simplicity:
 
