@@ -319,13 +319,14 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
     // Matches the pattern used by `import_npcs`.
     let tx = conn.unchecked_transaction()?;
 
+    let parish_lc = parish.to_lowercase();
     tx.execute(
         "INSERT OR IGNORE INTO parishes(county_id, name) VALUES (?, ?)",
-        params![county_id, parish],
+        params![county_id, &parish_lc],
     )?;
     let parish_id: i64 = tx.query_row(
         "SELECT id FROM parishes WHERE name = ?",
-        params![parish],
+        params![&parish_lc],
         |r| r.get(0),
     )?;
 
@@ -370,18 +371,22 @@ fn generate_parish(conn: &Connection, parish: &str, pop: u32, seed: Option<u64>)
         .query_map(params![parish_id], |r| r.get(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(stmt);
+
+    let mut relationships: Vec<(i64, i64, f64)> = Vec::new();
     for id in &npc_ids {
         for _ in 0..2 {
             if let Some(other) = npc_ids.choose(&mut rng)
                 && other != id
             {
-                let strength: f64 = rng.random_range(-0.2..0.9);
-                tx.execute(
-                    "INSERT OR IGNORE INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, ?, ?, ?)",
-                    params![id, other, "Acquaintance", strength],
-                )?;
+                relationships.push((*id, *other, rng.random_range(-0.2..0.9)));
             }
         }
+    }
+    for (from, to, strength) in &relationships {
+        tx.execute(
+            "INSERT OR IGNORE INTO npc_relationships(from_npc_id, to_npc_id, kind, strength) VALUES (?, ?, ?, ?)",
+            params![from, to, "Acquaintance", strength],
+        )?;
     }
 
     let count: i64 = tx.query_row(
@@ -413,26 +418,33 @@ fn list_npcs(
     tier: Option<DataTier>,
     limit: u32,
 ) -> Result<()> {
-    let mut sql = "
-        SELECT n.id, n.name, p.name, n.occupation, n.data_tier
-        FROM npcs n JOIN parishes p ON p.id = n.parish_id
-        WHERE 1=1"
-        .to_string();
+    let mut clauses: Vec<String> = Vec::new();
     let mut bind: Vec<String> = Vec::new();
 
     if let Some(p) = parish {
-        sql.push_str(" AND p.name = ?");
-        bind.push(p.to_string());
+        clauses.push("p.name = ?".to_string());
+        bind.push(p.to_lowercase());
     }
     if let Some(o) = occupation {
-        sql.push_str(" AND n.occupation = ?");
+        clauses.push("n.occupation = ?".to_string());
         bind.push(o.to_string());
     }
     if let Some(t) = tier {
-        sql.push_str(" AND n.data_tier = ?");
+        clauses.push("n.data_tier = ?".to_string());
         bind.push(t.as_i64().to_string());
     }
-    sql.push_str(" ORDER BY n.id LIMIT ?");
+
+    let where_clause = if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {} ", clauses.join(" AND "))
+    };
+    let sql = format!(
+        "SELECT n.id, n.name, p.name, n.occupation, n.data_tier \
+         FROM npcs n JOIN parishes p ON p.id = n.parish_id \
+         {}ORDER BY n.id LIMIT ?",
+        where_clause
+    );
     bind.push(limit.to_string());
 
     let mut stmt = conn.prepare(&sql)?;
@@ -568,6 +580,7 @@ fn promote_npc(conn: &Connection, npc_id: i64) -> Result<()> {
 }
 
 fn elaborate_parish(conn: &Connection, parish: &str, batch: u32) -> Result<()> {
+    let parish = parish.to_lowercase();
     let mut stmt = conn.prepare(
         "
         SELECT n.id
@@ -599,11 +612,11 @@ fn validate_db(conn: &Connection, parish: Option<String>, all: bool) -> Result<(
     // (`household_id`, `age`, …) are fixed literals that never originate from
     // user input, so they remain safe to format into the SQL string.
     let has_parish = parish.is_some();
-    let parish_name: &str = parish.as_deref().unwrap_or("");
+    let parish_name: String = parish.as_deref().unwrap_or("").to_lowercase();
 
-    /// Build a counting query for a fixed predicate.  When `has_parish` is
-    /// true the query adds a second `?` placeholder for the parish name and
-    /// the caller must supply it as the last element of the params tuple.
+    // Build a counting query for a fixed predicate.  When `has_parish` is
+    // true the query adds a second `?` placeholder for the parish name and
+    // the caller must supply it as the last element of the params tuple.
     fn with_filter(predicate: &str, has_parish: bool) -> String {
         if has_parish {
             format!(
@@ -620,7 +633,7 @@ fn validate_db(conn: &Connection, parish: Option<String>, all: bool) -> Result<(
         ($predicate:expr) => {{
             let sql = with_filter($predicate, has_parish);
             if has_parish {
-                conn.query_row(&sql, params![parish_name], |r| r.get::<_, i64>(0))?
+                conn.query_row(&sql, params![&parish_name], |r| r.get::<_, i64>(0))?
             } else {
                 conn.query_row(&sql, [], |r| r.get::<_, i64>(0))?
             }
@@ -713,7 +726,7 @@ fn export_npcs(conn: &Connection, parish: Option<&str>) -> Result<()> {
         })
     };
     let npcs = if let Some(p) = parish {
-        stmt.query_map(params![p], mapper)?
+        stmt.query_map(params![p.to_lowercase()], mapper)?
             .collect::<rusqlite::Result<Vec<_>>>()?
     } else {
         stmt.query_map([], mapper)?
@@ -725,22 +738,19 @@ fn export_npcs(conn: &Connection, parish: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn import_npcs(conn: &Connection) -> Result<()> {
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    let blob: ExportBlob = serde_json::from_str(&input).context("invalid JSON input")?;
-
+fn import_npcs_inner(conn: &Connection, npcs: Vec<ExportNpc>) -> Result<(u64, u64)> {
     let tx = conn.unchecked_transaction()?;
     let mut inserted = 0u64;
     let mut updated = 0u64;
-    for npc in blob.npcs {
+    for npc in npcs {
+        let parish_lc = npc.parish.to_lowercase();
         tx.execute(
             "INSERT OR IGNORE INTO parishes(county_id, name) VALUES ((SELECT id FROM counties LIMIT 1), ?)",
-            params![npc.parish],
+            params![&parish_lc],
         )?;
         let parish_id: i64 = tx.query_row(
             "SELECT id FROM parishes WHERE name = ?",
-            params![npc.parish],
+            params![&parish_lc],
             |r| r.get(0),
         )?;
 
@@ -793,6 +803,14 @@ fn import_npcs(conn: &Connection) -> Result<()> {
         }
     }
     tx.commit()?;
+    Ok((inserted, updated))
+}
+
+fn import_npcs(conn: &Connection) -> Result<()> {
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input)?;
+    let blob: ExportBlob = serde_json::from_str(&input).context("invalid JSON input")?;
+    let (inserted, updated) = import_npcs_inner(conn, blob.npcs)?;
     println!(
         "Imported NPCs from stdin: inserted {inserted}, updated {updated} (household_id and other non-export columns preserved on updates)"
     );
@@ -800,7 +818,7 @@ fn import_npcs(conn: &Connection) -> Result<()> {
 }
 
 fn family_tree(conn: &Connection, npc_id: i64) -> Result<()> {
-    // household_id is nullable in the schema (line 216). Fetch it as
+    // household_id is nullable in the schema (line 261). Fetch it as
     // Option<i64> so a NULL value — possible via import or manual
     // editing — doesn't surface as a misleading "NPC not found" error
     // (#435). An NPC without a household still exists; we just have
@@ -883,6 +901,24 @@ fn relationships(conn: &Connection, npc_id: i64) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_generate_world_rejects_empty_counties() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        let result = generate_world(&conn, &[]);
+        assert!(
+            result.is_err(),
+            "generate_world with empty counties must fail"
+        );
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("--counties is required"),
+            "error must mention --counties"
+        );
+    }
 
     #[test]
     fn test_schema_bootstrap_and_generation() {
@@ -999,37 +1035,8 @@ mod tests {
             }],
         };
 
-        // Call the import path directly (same SQL as import_npcs, but
-        // without reading stdin). We replicate the minimal work here
-        // because import_npcs reads stdin and that's awkward to fake
-        // cleanly in a unit test.
-        let tx = conn.unchecked_transaction().unwrap();
-        for npc in blob.npcs {
-            let pid: i64 = tx
-                .query_row(
-                    "SELECT id FROM parishes WHERE name = ?",
-                    params![npc.parish],
-                    |r| r.get(0),
-                )
-                .unwrap();
-            tx.execute(
-                "INSERT INTO npcs(id, name, sex, birth_year, age, parish_id, occupation, data_tier, mood, personality)\n                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n                 ON CONFLICT(id) DO UPDATE SET\n                     name        = excluded.name,\n                     sex         = excluded.sex,\n                     birth_year  = excluded.birth_year,\n                     age         = excluded.age,\n                     parish_id   = excluded.parish_id,\n                     occupation  = excluded.occupation,\n                     data_tier   = excluded.data_tier,\n                     mood        = excluded.mood,\n                     personality = excluded.personality",
-                params![
-                    npc.id,
-                    npc.name,
-                    npc.sex,
-                    1820 - npc.age,
-                    npc.age,
-                    pid,
-                    npc.occupation,
-                    npc.data_tier,
-                    npc.mood,
-                    npc.personality
-                ],
-            )
-            .unwrap();
-        }
-        tx.commit().unwrap();
+        // Use the shared import helper instead of duplicating the UPSERT SQL.
+        import_npcs_inner(&conn, blob.npcs).unwrap();
 
         // household_id must still be set (would be NULL if INSERT OR
         // REPLACE were used — that was the #436 regression).
@@ -1223,6 +1230,287 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM npcs", [], |r| r.get(0))
             .expect("npcs table must still exist after injection attempts");
         assert_eq!(count, 0, "no NPCs were inserted so count must be 0");
+    }
+
+    // ── TD-002 list_npcs tests ────────────────────────────────────────────────
+
+    fn setup_list_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world gen");
+        generate_parish(&conn, "Kiltoom", 20, Some(1)).expect("parish gen");
+        conn
+    }
+
+    #[test]
+    fn test_list_npcs_unfiltered() {
+        let conn = setup_list_db();
+        let result = list_npcs(&conn, None, None, None, 100);
+        assert!(result.is_ok(), "unfiltered list should succeed");
+    }
+
+    #[test]
+    fn test_list_npcs_parish_filter() {
+        let conn = setup_list_db();
+        let result = list_npcs(&conn, Some("Kiltoom"), None, None, 100);
+        assert!(result.is_ok(), "parish-filtered list should succeed");
+    }
+
+    #[test]
+    fn test_list_npcs_occupation_filter() {
+        let conn = setup_list_db();
+        let result = list_npcs(&conn, None, Some("Laborer"), None, 100);
+        assert!(result.is_ok(), "occupation-filtered list should succeed");
+    }
+
+    #[test]
+    fn test_list_npcs_tier_filter() {
+        let conn = setup_list_db();
+        let result = list_npcs(&conn, None, None, Some(DataTier::Sketched), 100);
+        assert!(result.is_ok(), "tier-filtered list should succeed");
+    }
+
+    #[test]
+    fn test_list_npcs_all_filters() {
+        let conn = setup_list_db();
+        let result = list_npcs(
+            &conn,
+            Some("Kiltoom"),
+            Some("Tenant Farmer"),
+            Some(DataTier::Sketched),
+            50,
+        );
+        assert!(result.is_ok(), "all-filters list should succeed");
+    }
+
+    #[test]
+    fn test_list_npcs_empty_result() {
+        let conn = setup_list_db();
+        let result = list_npcs(&conn, Some("Nonexistent"), None, None, 10);
+        assert!(result.is_ok(), "list with no matches should succeed");
+    }
+
+    // ── TD-003 show_npc tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_show_npc_found() {
+        let conn = setup_list_db();
+        let npc_id: i64 = conn
+            .query_row("SELECT id FROM npcs ORDER BY id LIMIT 1", [], |r| r.get(0))
+            .expect("must have an NPC");
+        let result = show_npc(&conn, npc_id);
+        assert!(result.is_ok(), "show_npc for existing NPC should succeed");
+    }
+
+    #[test]
+    fn test_show_npc_not_found() {
+        let conn = setup_list_db();
+        let result = show_npc(&conn, 9_999_999);
+        assert!(result.is_err(), "show_npc for missing NPC should fail");
+        assert!(
+            result.unwrap_err().to_string().contains("not found"),
+            "error must mention 'not found'"
+        );
+    }
+
+    // ── TD-004 edit_npc tests ────────────────────────────────────────────────
+
+    fn setup_edit_db() -> (Connection, i64) {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        generate_world(&conn, &["roscommon".to_string()]).expect("world gen");
+        generate_parish(&conn, "Kiltoom", 10, Some(2)).expect("parish gen");
+        let npc_id: i64 = conn
+            .query_row("SELECT id FROM npcs ORDER BY id LIMIT 1", [], |r| r.get(0))
+            .expect("must have an NPC");
+        (conn, npc_id)
+    }
+
+    #[test]
+    fn test_edit_npc_mood_only() {
+        let (conn, npc_id) = setup_edit_db();
+        let result = edit_npc(&conn, npc_id, Some("happy".to_string()), None);
+        assert!(result.is_ok(), "edit mood should succeed");
+        let mood: Option<String> = conn
+            .query_row("SELECT mood FROM npcs WHERE id = ?", params![npc_id], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(mood.as_deref(), Some("happy"));
+    }
+
+    #[test]
+    fn test_edit_npc_occupation_only() {
+        let (conn, npc_id) = setup_edit_db();
+        let result = edit_npc(&conn, npc_id, None, Some("Publican".to_string()));
+        assert!(result.is_ok(), "edit occupation should succeed");
+        let occ: String = conn
+            .query_row(
+                "SELECT occupation FROM npcs WHERE id = ?",
+                params![npc_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(occ, "Publican");
+    }
+
+    #[test]
+    fn test_edit_npc_both() {
+        let (conn, npc_id) = setup_edit_db();
+        let result = edit_npc(
+            &conn,
+            npc_id,
+            Some("sad".to_string()),
+            Some("Laborer".to_string()),
+        );
+        assert!(result.is_ok(), "edit both should succeed");
+        let (mood, occ): (Option<String>, String) = conn
+            .query_row(
+                "SELECT mood, occupation FROM npcs WHERE id = ?",
+                params![npc_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(mood.as_deref(), Some("sad"));
+        assert_eq!(occ, "Laborer");
+    }
+
+    #[test]
+    fn test_edit_npc_no_changes() {
+        let (conn, npc_id) = setup_edit_db();
+        let result = edit_npc(&conn, npc_id, None, None);
+        assert!(result.is_err(), "edit with no changes should fail");
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("provide at least one change"),
+            "error must mention providing at least one change"
+        );
+    }
+
+    // ── TD-005 elaborate_parish tests ────────────────────────────────────────
+
+    #[test]
+    fn test_elaborate_parish_basic() {
+        let conn = setup_list_db();
+        let result = elaborate_parish(&conn, "Kiltoom", 5);
+        assert!(result.is_ok(), "elaborate_parish should succeed");
+        let elaborated: i64 = conn
+            .query_row("SELECT COUNT(*) FROM npcs WHERE data_tier >= 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(elaborated, 5, "should have elaborated 5 NPCs");
+    }
+
+    #[test]
+    fn test_elaborate_parish_empty_result() {
+        let conn = setup_list_db();
+        let result = elaborate_parish(&conn, "Nonexistent", 10);
+        assert!(
+            result.is_ok(),
+            "elaborate_parish with no matches should succeed"
+        );
+    }
+
+    #[test]
+    fn test_elaborate_parish_limit_zero() {
+        let conn = setup_list_db();
+        let result = elaborate_parish(&conn, "Kiltoom", 0);
+        assert!(
+            result.is_ok(),
+            "elaborate_parish with limit 0 should succeed"
+        );
+    }
+
+    // ── TD-008 relationships tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_relationships_npc_found() {
+        let conn = setup_list_db();
+        let npc_id: i64 = conn
+            .query_row("SELECT id FROM npcs ORDER BY id LIMIT 1", [], |r| r.get(0))
+            .expect("must have an NPC");
+        let result = relationships(&conn, npc_id);
+        assert!(
+            result.is_ok(),
+            "relationships for existing NPC should succeed"
+        );
+    }
+
+    #[test]
+    fn test_relationships_npc_not_found() {
+        let conn = setup_list_db();
+        let result = relationships(&conn, 9_999_999);
+        assert!(result.is_err(), "relationships for missing NPC should fail");
+        assert!(
+            result.unwrap_err().to_string().contains("NPC not found"),
+            "error must mention 'NPC not found'"
+        );
+    }
+
+    // ── TD-006 stats tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_stats_with_data() {
+        let conn = setup_list_db();
+        let result = stats(&conn);
+        assert!(result.is_ok(), "stats with data should succeed");
+    }
+
+    #[test]
+    fn test_stats_empty_db() {
+        let conn = Connection::open_in_memory().expect("in-memory SQLite should open");
+        ensure_schema(&conn).expect("schema should initialize");
+        let result = stats(&conn);
+        assert!(result.is_ok(), "stats on empty DB should succeed");
+    }
+
+    // ── TD-007 export_npcs tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_export_npcs_unfiltered() {
+        let conn = setup_list_db();
+        let result = export_npcs(&conn, None);
+        assert!(result.is_ok(), "unfiltered export should succeed");
+    }
+
+    #[test]
+    fn test_export_npcs_parish_filtered() {
+        let conn = setup_list_db();
+        let result = export_npcs(&conn, Some("Kiltoom"));
+        assert!(result.is_ok(), "parish-filtered export should succeed");
+    }
+
+    #[test]
+    fn test_export_npcs_empty_result() {
+        let conn = setup_list_db();
+        let result = export_npcs(&conn, Some("Nonexistent"));
+        assert!(result.is_ok(), "export with no matches should succeed");
+    }
+
+    // ── TD-009 search_npcs tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_search_npcs_matches() {
+        let conn = setup_search_db();
+        let result = search_npcs(&conn, "alice", 10);
+        assert!(result.is_ok(), "search for existing name should succeed");
+    }
+
+    #[test]
+    fn test_search_npcs_no_matches() {
+        let conn = setup_search_db();
+        let result = search_npcs(&conn, "zzzznotfound", 10);
+        assert!(result.is_ok(), "search for missing name should succeed");
+    }
+
+    #[test]
+    fn test_search_npcs_limit_zero() {
+        let conn = setup_search_db();
+        let result = search_npcs(&conn, "alice", 0);
+        assert!(result.is_ok(), "search with limit 0 should succeed");
     }
 
     /// A legitimate parish name must still filter correctly — the fix must not

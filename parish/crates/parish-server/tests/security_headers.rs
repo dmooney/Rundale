@@ -47,12 +47,11 @@ async fn response_has_content_security_policy_header() {
         csp_str.contains("frame-ancestors 'none'"),
         "CSP must include frame-ancestors 'none'; got: {csp_str}"
     );
-    // TODO(#543): script-src currently allows 'unsafe-inline' as a temporary
-    // shim so that the SvelteKit inline bootstrap <script> is not rejected by
-    // the browser (which would prevent page hydration).  Once the build pipeline
-    // computes a 'sha256-...' hash for the bootstrap block, remove 'unsafe-inline'
-    // and assert its absence here.
-    // For now we assert that script-src is present and contains 'self'.
+    // Deferred (#543): script-src retains 'unsafe-inline' because the SvelteKit
+    // inline bootstrap <script> has no hash-based replacement yet.  Once the
+    // build pipeline emits a 'sha256-...' hash, remove 'unsafe-inline' and
+    // assert its absence here.  For now we assert that script-src is present
+    // and contains 'self'.
     assert!(
         csp_str
             .split(';')

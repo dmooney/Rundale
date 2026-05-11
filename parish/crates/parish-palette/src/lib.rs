@@ -27,8 +27,8 @@ impl RawColor {
 
 /// A backend-agnostic color palette with 7 semantic color slots.
 ///
-/// Mirrors [`crate::gui::theme::GuiPalette`] but uses [`RawColor`]
-/// instead of egui types, so it can be shared between renderers.
+/// Backend-agnostic palette mirroring `parish_core::ipc::types::ThemePalette`,
+/// using [`RawColor`] instead of egui types so it can be shared between renderers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RawPalette {
     /// Main background color.
@@ -55,7 +55,7 @@ struct Keyframe {
 
 /// The 7 time-of-day keyframes, ordered by anchor hour.
 ///
-/// Anchor hours are the midpoints of each [`TimeOfDay`] range.
+/// Anchor hours are the midpoints of each time-of-day period (dawn, morning, midday, etc.).
 /// RGB values are identical to the original discrete palettes.
 const KEYFRAMES: [Keyframe; 7] = [
     // Midnight (23:00–4:59) → midpoint wraps; use 1.5
@@ -151,10 +151,15 @@ const KEYFRAMES: [Keyframe; 7] = [
     },
 ];
 
+/// Converts an f32 to a u8, clamping to [0, 255] and rounding to nearest.
+fn f32_to_u8_clamped(v: f32) -> u8 {
+    v.round().clamp(0.0, 255.0) as u8
+}
+
 /// Linearly interpolates a single byte channel.
 fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
     let v = a as f32 + (b as f32 - a as f32) * t;
-    v.round().clamp(0.0, 255.0) as u8
+    f32_to_u8_clamped(v)
 }
 
 /// Linearly interpolates between two colors.
@@ -221,8 +226,7 @@ fn interpolated_palette(hour: u32, minute: u32) -> RawPalette {
         }
     }
 
-    // Fallback (shouldn't be reached)
-    KEYFRAMES[0].palette
+    unreachable!("frac={} should always be covered by a keyframe range", frac)
 }
 
 /// Computes the luminance of an RGB color (ITU-R BT.601).
@@ -263,14 +267,14 @@ fn ensure_color_contrast(fg: RawColor, bg: RawColor, min_contrast: f32) -> RawCo
     // Scale fg channels to hit target luminance, preserving relative proportions.
     if fg_lum < 1.0 {
         // fg is near-black; just return a gray at target luminance
-        let v = target_lum.round().clamp(0.0, 255.0) as u8;
+        let v = f32_to_u8_clamped(target_lum);
         return RawColor::new(v, v, v);
     }
 
     let scale = target_lum / fg_lum;
-    let r = (fg.r as f32 * scale).round().clamp(0.0, 255.0) as u8;
-    let g = (fg.g as f32 * scale).round().clamp(0.0, 255.0) as u8;
-    let b = (fg.b as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let r = f32_to_u8_clamped(fg.r as f32 * scale);
+    let g = f32_to_u8_clamped(fg.g as f32 * scale);
+    let b = f32_to_u8_clamped(fg.b as f32 * scale);
     RawColor::new(r, g, b)
 }
 
@@ -293,7 +297,11 @@ fn ensure_contrast(palette: &mut RawPalette) {
 ///
 /// Same pipeline as [`compute_palette`] but reads contrast thresholds from
 /// `config` instead of hardcoded defaults.
-pub fn compute_palette_with_config(hour: u32, minute: u32, config: &PaletteConfig) -> RawPalette {
+pub(crate) fn compute_palette_with_config(
+    hour: u32,
+    minute: u32,
+    config: &PaletteConfig,
+) -> RawPalette {
     let mut palette = interpolated_palette(hour, minute);
     ensure_contrast_with_config(&mut palette, config);
     palette
@@ -359,14 +367,94 @@ mod tests {
     }
 
     #[test]
+    fn test_keyframe_morning_exact() {
+        // At Morning's anchor hour (8:30), should match Morning palette exactly
+        let p = interpolated_palette(8, 30);
+        assert_eq!(p.bg, KEYFRAMES[2].palette.bg);
+    }
+
+    #[test]
+    fn test_keyframe_afternoon_exact() {
+        // At Afternoon's anchor hour (15:30), should match Afternoon palette exactly
+        let p = interpolated_palette(15, 30);
+        assert_eq!(p.bg, KEYFRAMES[4].palette.bg);
+    }
+
+    #[test]
+    fn test_keyframe_dusk_exact() {
+        // At Dusk's anchor hour (18:00), should match Dusk palette exactly
+        let p = interpolated_palette(18, 0);
+        assert_eq!(p.bg, KEYFRAMES[5].palette.bg);
+    }
+
+    #[test]
     fn test_interpolation_midpoint_dawn_morning() {
         // Midpoint between Dawn(5.5) and Morning(8.5) is hour 7:00
         let p = interpolated_palette(7, 0);
-        let dawn_bg = KEYFRAMES[1].palette.bg;
-        let morning_bg = KEYFRAMES[2].palette.bg;
-        // Should be roughly halfway between Dawn and Morning bg
-        let expected_r = ((dawn_bg.r as f32 + morning_bg.r as f32) / 2.0).round() as u8;
-        let expected_g = ((dawn_bg.g as f32 + morning_bg.g as f32) / 2.0).round() as u8;
+        let a = KEYFRAMES[1].palette.bg;
+        let b = KEYFRAMES[2].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
+        assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
+        assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
+    }
+
+    #[test]
+    fn test_interpolation_midpoint_morning_midday() {
+        // Midpoint between Morning(8.5) and Midday(12.0) is 10:15
+        let p = interpolated_palette(10, 15);
+        let a = KEYFRAMES[2].palette.bg;
+        let b = KEYFRAMES[3].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
+        assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
+        assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
+    }
+
+    #[test]
+    fn test_interpolation_midpoint_midday_afternoon() {
+        // Midpoint between Midday(12.0) and Afternoon(15.5) is 13:45
+        let p = interpolated_palette(13, 45);
+        let a = KEYFRAMES[3].palette.bg;
+        let b = KEYFRAMES[4].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
+        assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
+        assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
+    }
+
+    #[test]
+    fn test_interpolation_midpoint_afternoon_dusk() {
+        // Midpoint between Afternoon(15.5) and Dusk(18.0) is 16:45
+        let p = interpolated_palette(16, 45);
+        let a = KEYFRAMES[4].palette.bg;
+        let b = KEYFRAMES[5].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
+        assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
+        assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
+    }
+
+    #[test]
+    fn test_interpolation_midpoint_dusk_night() {
+        // Midpoint between Dusk(18.0) and Night(21.0) is 19:30
+        let p = interpolated_palette(19, 30);
+        let a = KEYFRAMES[5].palette.bg;
+        let b = KEYFRAMES[6].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
+        assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
+        assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
+    }
+
+    #[test]
+    fn test_interpolation_midpoint_night_midnight() {
+        // Midpoint between Night(21.0) and Midnight(25.5) is 23:15
+        let p = interpolated_palette(23, 15);
+        let a = KEYFRAMES[6].palette.bg;
+        let b = KEYFRAMES[0].palette.bg;
+        let expected_r = ((a.r as f32 + b.r as f32) / 2.0).round() as u8;
+        let expected_g = ((a.g as f32 + b.g as f32) / 2.0).round() as u8;
         assert!((p.bg.r as i16 - expected_r as i16).unsigned_abs() <= 1);
         assert!((p.bg.g as i16 - expected_g as i16).unsigned_abs() <= 1);
     }
@@ -396,24 +484,65 @@ mod tests {
         for hour in 0..24 {
             for minute in [0, 15, 30, 45] {
                 let p = interpolated_palette(hour, minute);
-                // Just verify no panics and colors are populated
-                assert_ne!(p.bg, RawColor::new(0, 0, 0));
+                // Raw interpolation can produce low contrast at transitions,
+                // but all colors should be populated (not all-zero)
+                assert_ne!(
+                    p.bg,
+                    RawColor::new(0, 0, 0),
+                    "bg is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.fg,
+                    RawColor::new(0, 0, 0),
+                    "fg is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.accent,
+                    RawColor::new(0, 0, 0),
+                    "accent is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.panel_bg,
+                    RawColor::new(0, 0, 0),
+                    "panel_bg is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.input_bg,
+                    RawColor::new(0, 0, 0),
+                    "input_bg is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.border,
+                    RawColor::new(0, 0, 0),
+                    "border is black at {hour}:{minute:02}"
+                );
+                assert_ne!(
+                    p.muted,
+                    RawColor::new(0, 0, 0),
+                    "muted is black at {hour}:{minute:02}"
+                );
+                // fg should differ from bg (raw interpolation contrast may be low,
+                // but they should not be identical)
+                assert_ne!(p.fg, p.bg, "fg equals bg at {hour}:{minute:02}");
             }
         }
-    }
-
-    #[test]
-    fn test_compute_palette_produces_valid_colors() {
-        let p = compute_palette(12, 0);
-        assert_ne!(p.bg, RawColor::new(0, 0, 0));
     }
 
     #[test]
     fn test_compute_palette_all_hours_valid() {
         for hour in [0, 6, 12, 18, 23] {
             for minute in [0, 15, 30, 45] {
-                let _p = compute_palette(hour, minute);
-                // No panics, channels are within u8 range by construction
+                let p = compute_palette(hour, minute);
+                assert_ne!(
+                    p.bg,
+                    RawColor::new(0, 0, 0),
+                    "bg should not be black at {hour}:{minute:02}"
+                );
+                let contrast = (luminance(p.fg) - luminance(p.bg)).abs();
+                assert!(
+                    contrast >= MIN_FG_BG_CONTRAST - 1.0,
+                    "Contrast too low at {hour}:{minute:02}: {contrast:.1}"
+                );
             }
         }
     }
@@ -505,5 +634,39 @@ mod tests {
     fn test_luminance() {
         assert!((luminance(RawColor::new(255, 255, 255)) - 255.0).abs() < 0.01);
         assert!((luminance(RawColor::new(0, 0, 0))).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_compute_palette_with_non_default_config() {
+        // Higher contrast floor should produce larger fg-bg luminance gap
+        let strict_config = PaletteConfig {
+            min_fg_bg_contrast: 120.0,
+            min_muted_bg_contrast: 80.0,
+        };
+        // Lower contrast floor should produce smaller gap
+        let lax_config = PaletteConfig {
+            min_fg_bg_contrast: 40.0,
+            min_muted_bg_contrast: 20.0,
+        };
+
+        // Test at a tricky transition hour where contrast tends to dip
+        for hour in [12, 16, 17, 18] {
+            let default_p = compute_palette(hour, 0);
+            let strict_p = compute_palette_with_config(hour, 0, &strict_config);
+            let lax_p = compute_palette_with_config(hour, 0, &lax_config);
+
+            let default_contrast = (luminance(default_p.fg) - luminance(default_p.bg)).abs();
+            let strict_contrast = (luminance(strict_p.fg) - luminance(strict_p.bg)).abs();
+            let lax_contrast = (luminance(lax_p.fg) - luminance(lax_p.bg)).abs();
+
+            assert!(
+                strict_contrast >= default_contrast - 1.0,
+                "Strict config should not reduce contrast at hour {hour}: strict={strict_contrast:.1}, default={default_contrast:.1}"
+            );
+            assert!(
+                lax_contrast <= default_contrast + 1.0 || default_contrast > 100.0,
+                "Lax config should not exceed default contrast at hour {hour}: lax={lax_contrast:.1}, default={default_contrast:.1}"
+            );
+        }
     }
 }

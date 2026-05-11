@@ -4,6 +4,7 @@
 //! any UI layer (Tauri desktop, axum web server, etc.), plus pure functions
 //! that build those types from game state.
 
+pub mod byok;
 pub mod commands;
 pub mod config;
 pub mod editor;

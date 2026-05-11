@@ -347,52 +347,42 @@ impl GameSnapshot {
         }
     }
 
-    /// Restores this snapshot into live game state.
-    ///
-    /// Replaces the dynamic fields of `world` and rebuilds the `npc_manager`
-    /// from the snapshot. The world graph is left untouched (it's static data
-    /// loaded from files), but the legacy `locations` map is back-filled from
-    /// the graph so that [`parish_world::WorldState::current_location`] never
-    /// panics for a player location that's present in the graph.
-    pub fn restore(
-        self,
-        world: &mut parish_world::WorldState,
-        npc_manager: &mut parish_npc::manager::NpcManager,
-    ) {
-        use parish_types::{GameClock, Location};
-
-        // Restore clock
-        let mut clock = GameClock::new(self.clock.game_time);
-        if self.clock.paused {
+    /// Rehydrates a [`GameClock`] from a [`ClockSnapshot`], matching preset
+    /// speeds or falling back to a custom factor.
+    fn restore_clock(snapshot: &ClockSnapshot) -> parish_types::GameClock {
+        use parish_types::{GameClock, GameSpeed};
+        let mut clock = GameClock::new(snapshot.game_time);
+        if snapshot.paused {
             clock.pause();
         }
-        // Set speed by finding the matching preset, or use custom factor
-        let factor = self.clock.speed_factor;
-        use parish_types::GameSpeed;
         let speed = GameSpeed::ALL
             .iter()
             .copied()
-            .find(|s| (s.factor() - factor).abs() < 0.01);
+            .find(|s| (s.factor() - snapshot.speed_factor).abs() < 0.01);
         if let Some(s) = speed {
             clock.set_speed(s);
-        }
-        // For custom speeds, we need to set it directly — handled by with_speed constructor
-        if speed.is_none() {
-            clock = GameClock::with_speed(self.clock.game_time, factor);
-            if self.clock.paused {
+            clock
+        } else {
+            let mut clock = GameClock::with_speed(snapshot.game_time, snapshot.speed_factor);
+            if snapshot.paused {
                 clock.pause();
             }
+            clock
         }
+    }
 
-        world.clock = clock;
-        world.player_location = self.player_location;
-        world.weather = self.weather.parse().unwrap_or(parish_types::Weather::Clear);
-        world.text_log = self.text_log;
-
-        // Back-fill the legacy `locations` map from the graph so that
-        // `current_location()` won't panic if the snapshot's player location
-        // was never inserted via movement. Mirrors `WorldState::from_parish_file`.
-        // Uses `or_insert_with` so any already-populated entries are preserved.
+    /// Back-fills the legacy `locations` map from the graph and inserts a
+    /// placeholder guard for the player's location.
+    fn restore_world_locations(
+        world: &mut parish_world::WorldState,
+        player_location: parish_types::LocationId,
+        visited_locations: std::collections::HashSet<parish_types::LocationId>,
+        edge_traversals: std::collections::HashMap<
+            (parish_types::LocationId, parish_types::LocationId),
+            u32,
+        >,
+    ) {
+        use parish_types::Location;
         for loc_id in world.graph.location_ids() {
             if let Some(data) = world.graph.get(loc_id) {
                 world.locations.entry(loc_id).or_insert_with(|| Location {
@@ -406,16 +396,11 @@ impl GameSnapshot {
                 });
             }
         }
-
-        // Last-resort guard: if the player's location is absent from both the
-        // graph and the legacy map (e.g. an empty graph, or a stale save whose
-        // location was removed from the current parish data), insert a
-        // placeholder so `current_location()` stays total.
         world
             .locations
-            .entry(self.player_location)
+            .entry(player_location)
             .or_insert_with(|| Location {
-                id: self.player_location,
+                id: player_location,
                 name: "Unknown location".to_string(),
                 description: "The surroundings are hazy and unfamiliar.".to_string(),
                 indoor: false,
@@ -423,41 +408,74 @@ impl GameSnapshot {
                 lat: 0.0,
                 lon: 0.0,
             });
+        world.visited_locations = visited_locations;
+        world.visited_locations.insert(player_location);
+        world.edge_traversals = edge_traversals;
+    }
 
-        // Restore visited locations; ensure current position is always visited
-        world.visited_locations = self.visited_locations;
-        world.visited_locations.insert(self.player_location);
-
-        // Restore edge traversal counts
-        world.edge_traversals = self.edge_traversals;
-
-        // Restore NPCs
+    /// Rebuilds the NPC manager from a snapshot.
+    fn restore_npcs(
+        npc_manager: &mut parish_npc::manager::NpcManager,
+        npcs: Vec<NpcSnapshot>,
+        last_tier2_game_time: Option<chrono::DateTime<chrono::Utc>>,
+        last_tier3_game_time: Option<chrono::DateTime<chrono::Utc>>,
+        last_tier4_game_time: Option<chrono::DateTime<chrono::Utc>>,
+        introduced_npcs: std::collections::HashSet<parish_types::NpcId>,
+        npcs_who_know_player_name: std::collections::HashSet<parish_types::NpcId>,
+    ) {
         *npc_manager = parish_npc::manager::NpcManager::new();
-        for npc_snap in self.npcs {
+        for npc_snap in npcs {
             npc_manager.add_npc(npc_snap.into_npc());
         }
-        if let Some(t) = self.last_tier2_game_time {
+        if let Some(t) = last_tier2_game_time {
             npc_manager.record_tier2_tick(t);
         }
-        if let Some(t) = self.last_tier3_game_time {
+        if let Some(t) = last_tier3_game_time {
             npc_manager.record_tier3_tick(t);
         }
-        if let Some(t) = self.last_tier4_game_time {
+        if let Some(t) = last_tier4_game_time {
             npc_manager.record_tier4_tick(t);
         }
-        npc_manager.restore_introduced_set(self.introduced_npcs);
+        npc_manager.restore_introduced_set(introduced_npcs);
+        npc_manager.restore_player_name_known(npcs_who_know_player_name);
+    }
 
-        // Restore gossip network
+    /// Restores this snapshot into live game state.
+    ///
+    /// Replaces the dynamic fields of `world` and rebuilds the `npc_manager`
+    /// from the snapshot. The world graph is left untouched (it's static data
+    /// loaded from files), but the legacy `locations` map is back-filled from
+    /// the graph so that [`parish_world::WorldState::current_location`] never
+    /// panics for a player location that's present in the graph.
+    pub fn restore(
+        self,
+        world: &mut parish_world::WorldState,
+        npc_manager: &mut parish_npc::manager::NpcManager,
+    ) {
+        world.clock = Self::restore_clock(&self.clock);
+        world.player_location = self.player_location;
+        world.weather = self.weather.parse().unwrap_or(parish_types::Weather::Clear);
+        world.text_log = self.text_log;
+
+        Self::restore_world_locations(
+            world,
+            self.player_location,
+            self.visited_locations,
+            self.edge_traversals,
+        );
+        Self::restore_npcs(
+            npc_manager,
+            self.npcs,
+            self.last_tier2_game_time,
+            self.last_tier3_game_time,
+            self.last_tier4_game_time,
+            self.introduced_npcs,
+            self.npcs_who_know_player_name,
+        );
+
         world.gossip_network = self.gossip_network;
-
-        // Restore conversation log
         world.conversation_log = self.conversation_log;
-
-        // Restore player name
         world.player_name = self.player_name;
-
-        // Restore NPC knowledge of player name
-        npc_manager.restore_player_name_known(self.npcs_who_know_player_name);
     }
 }
 
@@ -915,6 +933,27 @@ mod tests {
     /// snapshot restored into a fresh `WorldState::new()` before any
     /// movement), `restore()` must back-fill the legacy map so
     /// `current_location()` returns the real location data.
+    /// The fallback path in `restore` for a speed_factor that doesn't match
+    /// any `GameSpeed::ALL` preset must produce a clock with the custom factor.
+    #[test]
+    fn test_restore_custom_speed_factor_fallback() {
+        let custom_factor = 100.0;
+        let world = WorldState::new();
+        let npc_manager = NpcManager::new();
+        let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
+        snapshot.clock.speed_factor = custom_factor;
+
+        let mut new_world = WorldState::new();
+        let mut new_npcs = NpcManager::new();
+        snapshot.restore(&mut new_world, &mut new_npcs);
+
+        let restored_factor = new_world.clock.speed_factor();
+        assert!(
+            (restored_factor - custom_factor).abs() < 0.01,
+            "expected factor {custom_factor}, got {restored_factor}"
+        );
+    }
+
     #[test]
     fn test_restore_populates_legacy_locations_from_graph() {
         use parish_world::graph::WorldGraph;

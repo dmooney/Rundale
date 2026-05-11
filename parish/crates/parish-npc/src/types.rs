@@ -222,6 +222,65 @@ impl Intelligence {
 
         parts.join(" ")
     }
+
+    /// Returns a compact comma-separated list of adjectives capturing only the
+    /// notable intelligence dimensions.
+    ///
+    /// For use in token-tight prompts (e.g. Tier 3 batch inference) where the
+    /// full `prompt_guidance` prose would balloon the input. Only dimensions
+    /// rated 1-2 or 4-5 contribute a single adjective each; average 3s are
+    /// skipped. Returns an empty string for an all-3s profile.
+    pub fn adjective_summary(&self) -> String {
+        let mut parts: Vec<&'static str> = Vec::new();
+        let dims = [
+            (
+                self.verbal,
+                "halting",
+                "plain-spoken",
+                "well-spoken",
+                "eloquent",
+            ),
+            (
+                self.analytical,
+                "muddled",
+                "concrete-minded",
+                "sharp",
+                "incisive",
+            ),
+            (
+                self.emotional,
+                "oblivious",
+                "blunt",
+                "perceptive",
+                "deeply empathetic",
+            ),
+            (
+                self.practical,
+                "impractical",
+                "ham-fisted",
+                "resourceful",
+                "endlessly resourceful",
+            ),
+            (self.wisdom, "reckless", "impulsive", "wise", "deeply wise"),
+            (
+                self.creative,
+                "literal-minded",
+                "unimaginative",
+                "quick-witted",
+                "brilliantly creative",
+            ),
+        ];
+        for (rating, w1, w2, w4, w5) in dims {
+            match rating {
+                1 => parts.push(w1),
+                2 => parts.push(w2),
+                4 => parts.push(w4),
+                5 => parts.push(w5),
+                _ => {}
+            }
+        }
+        parts.join(", ")
+    }
 }
 
 /// The kind of relationship between two NPCs.
@@ -336,40 +395,6 @@ pub struct ScheduleEntry {
     /// neighbors gathering for storytelling and music.
     #[serde(default)]
     pub cuaird: bool,
-}
-
-/// An NPC's daily schedule.
-///
-/// Contains a list of time-slot entries defining where the NPC goes
-/// throughout the day. Entries should cover all 24 hours without gaps.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct DailySchedule {
-    /// Schedule entries sorted by start_hour.
-    pub entries: Vec<ScheduleEntry>,
-}
-
-impl DailySchedule {
-    /// Returns the schedule entry active at the given hour.
-    ///
-    /// Handles overnight wraparound: an entry with `start_hour > end_hour`
-    /// (e.g. 22–06) is active when `hour >= start_hour OR hour <= end_hour`.
-    ///
-    /// Returns `None` if no entry covers the hour (schedule gap).
-    pub fn entry_at(&self, hour: u8) -> Option<&ScheduleEntry> {
-        self.entries.iter().find(|e| {
-            if e.start_hour <= e.end_hour {
-                hour >= e.start_hour && hour <= e.end_hour
-            } else {
-                // Overnight: e.g. 22–06
-                hour >= e.start_hour || hour <= e.end_hour
-            }
-        })
-    }
-
-    /// Returns the desired location at the given hour.
-    pub fn location_at(&self, hour: u8) -> Option<LocationId> {
-        self.entry_at(hour).map(|e| e.location)
-    }
 }
 
 /// A single variant of an NPC's schedule, optionally scoped to a season and/or day type.
@@ -489,8 +514,8 @@ pub enum NpcState {
 /// Higher tiers use more compute-intensive inference:
 /// - Tier 1: Full LLM (per player interaction)
 /// - Tier 2: Lighter LLM (every 5 game-minutes for nearby NPCs)
-/// - Tier 3: Batch inference (daily, for distant NPCs — future)
-/// - Tier 4: Rules engine only (seasonal — future)
+/// - Tier 3: Batch inference (daily, for distant NPCs)
+/// - Tier 4: Rules engine only (seasonal, for faraway NPCs)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CogTier {
     /// Full-fidelity inference — same location as player.
@@ -630,94 +655,112 @@ mod tests {
 
     #[test]
     fn test_schedule_entry_at() {
-        let schedule = DailySchedule {
-            entries: vec![
-                ScheduleEntry {
-                    start_hour: 6,
-                    end_hour: 11,
-                    location: LocationId(2),
-                    activity: "opening the pub".to_string(),
-                    cuaird: false,
-                },
-                ScheduleEntry {
-                    start_hour: 12,
-                    end_hour: 22,
-                    location: LocationId(2),
-                    activity: "tending bar".to_string(),
-                    cuaird: false,
-                },
-                ScheduleEntry {
-                    start_hour: 23,
-                    end_hour: 5,
-                    location: LocationId(1),
-                    activity: "sleeping".to_string(),
-                    cuaird: false,
-                },
-            ],
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![
+                    ScheduleEntry {
+                        start_hour: 6,
+                        end_hour: 11,
+                        location: LocationId(2),
+                        activity: "opening the pub".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 12,
+                        end_hour: 22,
+                        location: LocationId(2),
+                        activity: "tending bar".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 23,
+                        end_hour: 5,
+                        location: LocationId(1),
+                        activity: "sleeping".to_string(),
+                        cuaird: false,
+                    },
+                ],
+            }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
-        let entry = schedule.entry_at(8).unwrap();
+        let entry = schedule.entry_at(8, season, day).unwrap();
         assert_eq!(entry.activity, "opening the pub");
 
-        let entry = schedule.entry_at(15).unwrap();
+        let entry = schedule.entry_at(15, season, day).unwrap();
         assert_eq!(entry.activity, "tending bar");
 
         // Overnight entry (23-5): hours 23 and 3 should both match.
-        let entry = schedule.entry_at(23).unwrap();
+        let entry = schedule.entry_at(23, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
 
-        let entry = schedule.entry_at(3).unwrap();
+        let entry = schedule.entry_at(3, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
 
         // Hour 6 is the start of "opening the pub", not covered by the overnight entry.
-        let entry = schedule.entry_at(6).unwrap();
+        let entry = schedule.entry_at(6, season, day).unwrap();
         assert_eq!(entry.activity, "opening the pub");
 
         // Hour 5 is covered by the overnight sleeping entry (end_hour=5).
-        let entry = schedule.entry_at(5).unwrap();
+        let entry = schedule.entry_at(5, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
     }
 
     #[test]
     fn test_schedule_entry_at_overnight_only() {
         // A schedule with a single overnight entry (22–06).
-        let schedule = DailySchedule {
-            entries: vec![ScheduleEntry {
-                start_hour: 22,
-                end_hour: 6,
-                location: LocationId(1),
-                activity: "sleeping".to_string(),
-                cuaird: false,
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![ScheduleEntry {
+                    start_hour: 22,
+                    end_hour: 6,
+                    location: LocationId(1),
+                    activity: "sleeping".to_string(),
+                    cuaird: false,
+                }],
             }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
         // Hours in the evening portion (after midnight rollover)
-        assert!(schedule.entry_at(22).is_some());
-        assert!(schedule.entry_at(23).is_some());
+        assert!(schedule.entry_at(22, season, day).is_some());
+        assert!(schedule.entry_at(23, season, day).is_some());
         // Hours in the early-morning portion (before end_hour)
-        assert!(schedule.entry_at(0).is_some());
-        assert!(schedule.entry_at(3).is_some());
-        assert!(schedule.entry_at(6).is_some());
+        assert!(schedule.entry_at(0, season, day).is_some());
+        assert!(schedule.entry_at(3, season, day).is_some());
+        assert!(schedule.entry_at(6, season, day).is_some());
         // Hour 7 is outside the range
-        assert!(schedule.entry_at(7).is_none());
-        assert!(schedule.entry_at(12).is_none());
-        assert!(schedule.entry_at(21).is_none());
+        assert!(schedule.entry_at(7, season, day).is_none());
+        assert!(schedule.entry_at(12, season, day).is_none());
+        assert!(schedule.entry_at(21, season, day).is_none());
     }
 
     #[test]
     fn test_schedule_location_at() {
-        let schedule = DailySchedule {
-            entries: vec![ScheduleEntry {
-                start_hour: 8,
-                end_hour: 17,
-                location: LocationId(3),
-                activity: "teaching".to_string(),
-                cuaird: false,
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![ScheduleEntry {
+                    start_hour: 8,
+                    end_hour: 17,
+                    location: LocationId(3),
+                    activity: "teaching".to_string(),
+                    cuaird: false,
+                }],
             }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
-        assert_eq!(schedule.location_at(10), Some(LocationId(3)));
-        assert_eq!(schedule.location_at(20), None);
+        assert_eq!(schedule.location_at(10, season, day), Some(LocationId(3)));
+        assert_eq!(schedule.location_at(20, season, day), None);
     }
 
     #[test]
@@ -872,6 +915,45 @@ mod tests {
         let guidance = intel.prompt_guidance();
         assert!(guidance.contains("eloquent"));
         assert!(guidance.contains("impractical"));
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_average_is_empty() {
+        let intel = Intelligence::default();
+        assert_eq!(intel.adjective_summary(), "");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_high() {
+        let intel = Intelligence::new(5, 3, 3, 3, 3, 3);
+        assert_eq!(intel.adjective_summary(), "eloquent");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_low() {
+        let intel = Intelligence::new(3, 3, 3, 3, 3, 1);
+        assert_eq!(intel.adjective_summary(), "literal-minded");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_mixed_order_stable() {
+        // V4 A3 E5 P3 W2 C3 — adjectives appear in declaration order
+        // (verbal, analytical, emotional, practical, wisdom, creative).
+        let intel = Intelligence::new(4, 3, 5, 3, 2, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "well-spoken, deeply empathetic, impulsive"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_covers_all_bands() {
+        // V1 A2 E4 P5 W3 C3 — covers bands 1, 2, 4, 5; skips 3s.
+        let intel = Intelligence::new(1, 2, 4, 5, 3, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "halting, concrete-minded, perceptive, endlessly resourceful"
+        );
     }
 
     #[test]

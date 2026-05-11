@@ -3,13 +3,13 @@
 //! Each route maps to a Tauri command, calling the shared handlers in
 //! [`parish_core::ipc`] and returning JSON responses.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-// Semaphore is used by parish_core::game_loop::emit_npc_reactions (shared).
 
 use parish_core::config::InferenceCategory;
 use parish_core::inference::{
@@ -981,10 +981,29 @@ pub async fn load_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let (path, branch_id) = validate_and_acquire_lock(&state, &body).await?;
+
+    let path_clone = path.clone();
+    let (snapshot, branch_name) =
+        tokio::task::spawn_blocking(move || load_branch_snapshot(&path_clone, branch_id))
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    restore_snapshot_and_emit(&state, snapshot, &branch_name, branch_id, &path).await;
+
+    Ok(StatusCode::OK)
+}
+
+/// Validates the save-file path, checks containment, and acquires an advisory
+/// file lock when switching to a different save file.
+async fn validate_and_acquire_lock(
+    state: &Arc<AppState>,
+    body: &LoadBranchRequest,
+) -> Result<(PathBuf, i64), (StatusCode, String)> {
     use parish_core::persistence::SaveFileLock;
 
     let path = std::path::PathBuf::from(&body.file_path);
-    // Validate the path is within the saves directory to prevent path traversal.
     let canonical = path.canonicalize().map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -1006,7 +1025,6 @@ pub async fn load_branch(
     let path = canonical;
     let branch_id = body.branch_id;
 
-    // If switching to a different save file, acquire a new lock first.
     let current_path = state.save_path.lock().await.clone();
     let switching_files = current_path.as_ref() != Some(&path);
     if switching_files {
@@ -1019,27 +1037,40 @@ pub async fn load_branch(
         *state.save_lock.lock().await = Some(lock);
     }
 
-    let path_clone = path.clone();
+    Ok((path, branch_id))
+}
 
-    let (snapshot, branch_name) =
-        tokio::task::spawn_blocking(move || -> Result<(GameSnapshot, String), String> {
-            let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
-            let (_, snapshot) = db
-                .load_latest_snapshot(branch_id)
-                .map_err(|e| e.to_string())?
-                .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
-            let branches = db.list_branches().map_err(|e| e.to_string())?;
-            let branch_name = branches
-                .iter()
-                .find(|b| b.id == branch_id)
-                .map(|b| b.name.clone())
-                .unwrap_or_else(|| "unknown".to_string());
-            Ok((snapshot, branch_name))
-        })
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+/// Opens the database file, loads the latest snapshot for the given branch,
+/// and resolves the branch display name.
+fn load_branch_snapshot(
+    path: &std::path::Path,
+    branch_id: i64,
+) -> Result<(GameSnapshot, String), String> {
+    use parish_core::persistence::Database;
 
+    let db = Database::open(path).map_err(|e| e.to_string())?;
+    let (_, snapshot) = db
+        .load_latest_snapshot(branch_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
+    let branches = db.list_branches().map_err(|e| e.to_string())?;
+    let branch_name = branches
+        .iter()
+        .find(|b| b.id == branch_id)
+        .map(|b| b.name.clone())
+        .unwrap_or_else(|| "unknown".to_string());
+    Ok((snapshot, branch_name))
+}
+
+/// Restores the snapshot into the world/NPC manager, emits a world-update
+/// event, updates session state, and logs the load.
+async fn restore_snapshot_and_emit(
+    state: &Arc<AppState>,
+    snapshot: GameSnapshot,
+    branch_name: &str,
+    branch_id: i64,
+    path: &std::path::Path,
+) {
     {
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
@@ -1071,11 +1102,9 @@ pub async fn load_branch(
         ),
     );
 
-    *state.save_path.lock().await = Some(path);
+    *state.save_path.lock().await = Some(path.to_path_buf());
     *state.current_branch_id.lock().await = Some(branch_id);
-    *state.current_branch_name.lock().await = Some(branch_name);
-
-    Ok(StatusCode::OK)
+    *state.current_branch_name.lock().await = Some(branch_name.to_string());
 }
 
 /// Request body for `POST /api/create-branch`.
@@ -1185,6 +1214,67 @@ pub async fn get_save_state(Extension(state): Extension<Arc<AppState>>) -> Json<
 /// `GET /api/health` — lightweight liveness probe; no auth required.
 pub async fn get_health() -> StatusCode {
     StatusCode::OK
+}
+
+// ── Demo mode stubs (desktop-only feature) ──────────────────────────────────
+
+/// `GET /api/demo-config` — demo mode is a Tauri-only desktop feature.
+pub async fn get_demo_config() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
+/// `GET /api/demo-context` — demo mode is a Tauri-only desktop feature.
+pub async fn get_demo_context() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
+/// `POST /api/llm-player-action` — demo mode is a Tauri-only desktop feature.
+pub async fn get_llm_player_action() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Demo mode is only available in the desktop app."
+        })),
+    )
+}
+
+// ── Screenshot stubs (Tauri-only feature) ───────────────────────────────────
+//
+// Player-triggered screenshots ride the live Tauri window (the Svelte UI
+// captures via `html-to-image` and posts the data URL through the desktop
+// IPC). The headless server has no DOM to capture and no GTK display to
+// snapshot, so both endpoints return 501. Same shape as the demo stubs
+// above: keep the path so MCP / parity tests stay aligned, but signal
+// "Tauri-only" to the caller.
+
+/// `POST /api/save-screenshot` — screenshots are a Tauri-only desktop feature.
+pub async fn save_screenshot() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Screenshot capture is only available in the desktop app."
+        })),
+    )
+}
+
+/// `GET /api/latest-screenshot` — screenshots are a Tauri-only desktop feature.
+pub async fn get_latest_screenshot() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Screenshot capture is only available in the desktop app."
+        })),
+    )
 }
 
 // ── #335 — Branch name validation ───────────────────────────────────────────
@@ -1384,7 +1474,7 @@ pub async fn session_init(
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use super::*;
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex as StdMutex};
@@ -1398,6 +1488,7 @@ pub(crate) mod tests {
     use parish_core::npc::manager::NpcManager;
     use parish_core::world::transport::TransportConfig;
     use parish_core::world::{DEFAULT_START_LOCATION, LocationId, WorldState};
+    use tower::ServiceExt;
 
     #[test]
     fn submit_input_request_deserialization() {
@@ -1442,7 +1533,7 @@ pub(crate) mod tests {
     }
 
     /// Helper to build a minimal AppState from the real game data.
-    pub(crate) fn test_app_state() -> Arc<AppState> {
+    pub fn test_app_state() -> Arc<AppState> {
         let data_dir =
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let world =
@@ -2403,6 +2494,51 @@ pub(crate) mod tests {
         assert_eq!(
             world.tick_generation, 0,
             "generation should wrap to 0 on overflow"
+        );
+    }
+
+    // ── TD-013: session-init ────────────────────────────────────────────────
+
+    /// `POST /api/session-init` must return 200 with a valid HMAC token when
+    /// an `AuthContext` is present.
+    #[tokio::test]
+    async fn session_init_returns_token() {
+        let auth = crate::cf_auth::AuthContext {
+            account_id: uuid::Uuid::new_v4(),
+            email: "test@example.com".to_string(),
+        };
+
+        let auth = Arc::new(auth);
+        let app = axum::Router::new()
+            .route("/api/session-init", axum::routing::post(session_init))
+            .layer(axum::middleware::from_fn({
+                let auth = Arc::clone(&auth);
+                move |mut req: axum::http::Request<axum::body::Body>,
+                      next: axum::middleware::Next| {
+                    let auth = Arc::clone(&auth);
+                    async move {
+                        req.extensions_mut().insert((*auth).clone());
+                        next.run(req).await
+                    }
+                }
+            }));
+
+        let req = axum::http::Request::builder()
+            .method("POST")
+            .uri("/api/session-init")
+            .header("content-type", "application/json")
+            .body(axum::body::Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body: serde_json::Value =
+            serde_json::from_slice(&axum::body::to_bytes(resp.into_body(), 4096).await.unwrap())
+                .unwrap();
+        assert!(
+            body["token"].as_str().unwrap_or("").len() > 20,
+            "session-init must return a non-trivial HMAC token"
         );
     }
 }

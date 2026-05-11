@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use clap::Parser;
 use parish_core::world::LocationId;
 use parish_core::world::graph::{GeoKind, LocationData};
+use parish_geo_tool::osm_model::EARTH_RADIUS_M;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -39,10 +40,7 @@ struct Cli {
     set_source: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorldFile {
-    locations: Vec<LocationData>,
-}
+include!("../world_file_shared.inc");
 
 #[derive(Debug, Deserialize)]
 struct NominatimHit {
@@ -302,9 +300,8 @@ fn strip_type_suffix(name: &str) -> Option<String> {
 /// equirectangular approximation. Accurate to sub-metre at sub-kilometre
 /// offsets and latitudes in the 40–60° range (all of Ireland).
 fn offset_latlon(lat: f64, lon: f64, dnorth_m: f64, deast_m: f64) -> (f64, f64) {
-    const EARTH_R_M: f64 = 6_371_000.0;
-    let dlat = (dnorth_m / EARTH_R_M).to_degrees();
-    let dlon = (deast_m / (EARTH_R_M * lat.to_radians().cos())).to_degrees();
+    let dlat = (dnorth_m / EARTH_RADIUS_M).to_degrees();
+    let dlon = (deast_m / (EARTH_RADIUS_M * lat.to_radians().cos())).to_degrees();
     (lat + dlat, lon + dlon)
 }
 
@@ -496,7 +493,6 @@ mod tests {
                 public: true,
                 connections: vec![Connection {
                     target: LocationId(2),
-                    traversal_minutes: None,
                     path_description: "".to_string(),
                     hazard: Default::default(),
                 }],
@@ -517,7 +513,6 @@ mod tests {
                 public: true,
                 connections: vec![Connection {
                     target: LocationId(1),
-                    traversal_minutes: None,
                     path_description: "".to_string(),
                     hazard: Default::default(),
                 }],
@@ -741,5 +736,93 @@ mod tests {
         let delta = deltas[&LocationId(1)];
         assert!((delta.0 - 0.5).abs() < 1e-9);
         assert!((delta.1 - -0.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn apply_set_source_overrides_sets_geo_source() {
+        let mut locs = vec![mk_loc(1, "X", 53.0, -8.0, GeoKind::Real, None)];
+        apply_set_source_overrides(&["X=OS 6-inch ca. 1837".to_string()], &mut locs).unwrap();
+        assert_eq!(locs[0].geo_source.as_deref(), Some("OS 6-inch ca. 1837"));
+    }
+
+    #[test]
+    fn apply_set_source_overrides_fails_on_missing_name() {
+        let mut locs = vec![mk_loc(1, "X", 53.0, -8.0, GeoKind::Real, None)];
+        let err = apply_set_source_overrides(&["Y=some note".to_string()], &mut locs).unwrap_err();
+        assert!(err.to_string().contains("no location named 'Y'"));
+    }
+
+    #[test]
+    fn derive_deltas_from_baseline_computes_shifts() {
+        let old_locs = vec![
+            mk_loc(1, "A", 53.0, -8.0, GeoKind::Real, None),
+            mk_loc(2, "B", 53.1, -8.1, GeoKind::Fictional, None),
+        ];
+        let new_locs = vec![
+            mk_loc(1, "A", 53.001, -8.002, GeoKind::Real, None),
+            mk_loc(2, "B", 53.1, -8.1, GeoKind::Fictional, None),
+        ];
+
+        let dir = tempfile::tempdir().unwrap();
+        let baseline_path = dir.path().join("baseline.json");
+        let baseline = WorldFile {
+            locations: old_locs,
+        };
+        std::fs::write(&baseline_path, serde_json::to_string(&baseline).unwrap()).unwrap();
+
+        let deltas = derive_deltas_from_baseline(&baseline_path, &new_locs).unwrap();
+        assert_eq!(deltas.len(), 1);
+        let delta = deltas[&LocationId(1)];
+        assert!((delta.0 - 0.001).abs() < 1e-9);
+        assert!((delta.1 - -0.002).abs() < 1e-9);
+    }
+
+    #[test]
+    fn derive_deltas_from_baseline_ignores_fictional_and_relative() {
+        let old_locs = vec![
+            mk_loc(1, "A", 53.0, -8.0, GeoKind::Real, None),
+            mk_loc(
+                2,
+                "B",
+                53.1,
+                -8.1,
+                GeoKind::Real,
+                Some(RelativeRef {
+                    anchor: LocationId(1),
+                    dnorth_m: 100.0,
+                    deast_m: 0.0,
+                }),
+            ),
+            mk_loc(3, "C", 53.2, -8.2, GeoKind::Fictional, None),
+        ];
+        let new_locs = vec![
+            mk_loc(1, "A", 53.001, -8.0, GeoKind::Real, None),
+            mk_loc(
+                2,
+                "B",
+                53.1,
+                -8.1,
+                GeoKind::Real,
+                Some(RelativeRef {
+                    anchor: LocationId(1),
+                    dnorth_m: 100.0,
+                    deast_m: 0.0,
+                }),
+            ),
+            mk_loc(3, "C", 53.2, -8.2, GeoKind::Fictional, None),
+        ];
+
+        let dir = tempfile::tempdir().unwrap();
+        let baseline_path = dir.path().join("baseline.json");
+        let baseline = WorldFile {
+            locations: old_locs,
+        };
+        std::fs::write(&baseline_path, serde_json::to_string(&baseline).unwrap()).unwrap();
+
+        let deltas = derive_deltas_from_baseline(&baseline_path, &new_locs).unwrap();
+        assert_eq!(deltas.len(), 1);
+        assert!(deltas.contains_key(&LocationId(1)));
+        assert!(!deltas.contains_key(&LocationId(2)));
+        assert!(!deltas.contains_key(&LocationId(3)));
     }
 }

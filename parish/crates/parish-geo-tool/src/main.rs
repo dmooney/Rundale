@@ -30,6 +30,8 @@ mod osm_model;
 mod output;
 mod overpass;
 mod pipeline;
+#[cfg(test)]
+mod test_utils;
 
 use std::path::PathBuf;
 
@@ -71,7 +73,7 @@ struct Cli {
     #[arg(long, default_value = "data/cache/geo")]
     cache_dir: PathBuf,
 
-    /// Skip cache and always re-download.
+    /// Skip reading from cache (responses are still written to cache).
     #[arg(long)]
     no_cache: bool,
 

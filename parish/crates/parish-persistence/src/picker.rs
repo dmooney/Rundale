@@ -192,7 +192,10 @@ pub fn discover_saves(saves_dir: &Path, graph: &WorldGraph) -> Vec<SaveFileInfo>
 
         let branches = match read_save_branches(&path, graph) {
             Ok(b) => b,
-            Err(_) => continue, // Skip corrupt files
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "skipping unreadable/corrupt save file");
+                continue;
+            }
         };
 
         let file_size = std::fs::metadata(&path)

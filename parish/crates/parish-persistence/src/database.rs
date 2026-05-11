@@ -66,6 +66,16 @@ pub struct Database {
     conn: Connection,
 }
 
+/// Maps a rusqlite `Row` columns (id, name, created_at, parent_branch_id) into a `BranchInfo`.
+fn branch_info_from_row(row: &rusqlite::Row) -> rusqlite::Result<BranchInfo> {
+    Ok(BranchInfo {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        created_at: row.get(2)?,
+        parent_branch_id: row.get(3)?,
+    })
+}
+
 impl Database {
     /// Opens or creates a SQLite database at the given path.
     ///
@@ -225,14 +235,7 @@ impl Database {
             .query_row(
                 "SELECT id, name, created_at, parent_branch_id FROM branches WHERE name = ?1",
                 params![name],
-                |row| {
-                    Ok(BranchInfo {
-                        id: row.get(0)?,
-                        name: row.get(1)?,
-                        created_at: row.get(2)?,
-                        parent_branch_id: row.get(3)?,
-                    })
-                },
+                branch_info_from_row,
             )
             .optional()
             .db_err()
@@ -244,16 +247,7 @@ impl Database {
             .conn
             .prepare("SELECT id, name, created_at, parent_branch_id FROM branches ORDER BY id")
             .db_err()?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(BranchInfo {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    created_at: row.get(2)?,
-                    parent_branch_id: row.get(3)?,
-                })
-            })
-            .db_err()?;
+        let rows = stmt.query_map([], branch_info_from_row).db_err()?;
         let mut branches = Vec::new();
         for row in rows {
             branches.push(row.db_err()?);
@@ -401,20 +395,33 @@ impl AsyncDatabase {
         }
     }
 
+    /// Runs a blocking database operation on a background thread.
+    ///
+    /// Handles `Arc::clone`, `spawn_blocking`, poison recovery, and
+    /// join-error conversion so each public method is a one-liner.
+    async fn run_blocking<F, T>(&self, f: F) -> Result<T, ParishError>
+    where
+        F: FnOnce(&Database) -> Result<T, ParishError> + Send + 'static,
+        T: Send + 'static,
+    {
+        let db = self.inner.clone();
+        tokio::task::spawn_blocking(move || {
+            let guard = lock_recovered(&db);
+            f(&guard)
+        })
+        .await
+        .map_err(|e| ParishError::Database(e.to_string()))?
+    }
+
     /// Saves a game snapshot.
     pub async fn save_snapshot(
         &self,
         branch_id: i64,
         snapshot: &GameSnapshot,
     ) -> Result<i64, ParishError> {
-        let db = self.inner.clone();
         let snapshot = snapshot.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.save_snapshot(branch_id, &snapshot)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.save_snapshot(branch_id, &snapshot))
+            .await
     }
 
     /// Loads the most recent snapshot for a branch.
@@ -422,15 +429,8 @@ impl AsyncDatabase {
         &self,
         branch_id: i64,
     ) -> Result<Option<(i64, GameSnapshot)>, ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(
-            move || -> Result<Option<(i64, GameSnapshot)>, ParishError> {
-                let db = lock_recovered(&db);
-                db.load_latest_snapshot(branch_id)
-            },
-        )
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.load_latest_snapshot(branch_id))
+            .await
     }
 
     /// Creates a new branch.
@@ -439,37 +439,20 @@ impl AsyncDatabase {
         name: &str,
         parent_branch_id: Option<i64>,
     ) -> Result<i64, ParishError> {
-        let db = self.inner.clone();
         let name = name.to_string();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.create_branch(&name, parent_branch_id)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.create_branch(&name, parent_branch_id))
+            .await
     }
 
     /// Finds a branch by name.
     pub async fn find_branch(&self, name: &str) -> Result<Option<BranchInfo>, ParishError> {
-        let db = self.inner.clone();
         let name = name.to_string();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.find_branch(&name)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.find_branch(&name)).await
     }
 
     /// Lists all branches.
     pub async fn list_branches(&self) -> Result<Vec<BranchInfo>, ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.list_branches()
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.list_branches()).await
     }
 
     /// Appends a journal event.
@@ -480,15 +463,10 @@ impl AsyncDatabase {
         event: &WorldEvent,
         game_time: &str,
     ) -> Result<(), ParishError> {
-        let db = self.inner.clone();
         let event = event.clone();
         let game_time = game_time.to_string();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.append_event(branch_id, snapshot_id, &event, &game_time)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.append_event(branch_id, snapshot_id, &event, &game_time))
+            .await
     }
 
     /// Returns events since a snapshot.
@@ -497,13 +475,8 @@ impl AsyncDatabase {
         branch_id: i64,
         snapshot_id: i64,
     ) -> Result<Vec<WorldEvent>, ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.events_since_snapshot(branch_id, snapshot_id)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.events_since_snapshot(branch_id, snapshot_id))
+            .await
     }
 
     /// Returns the journal event count.
@@ -512,35 +485,19 @@ impl AsyncDatabase {
         branch_id: i64,
         snapshot_id: i64,
     ) -> Result<usize, ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.journal_count(branch_id, snapshot_id)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.journal_count(branch_id, snapshot_id))
+            .await
     }
 
     /// Returns snapshot history for a branch.
     pub async fn branch_log(&self, branch_id: i64) -> Result<Vec<SnapshotInfo>, ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.branch_log(branch_id)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.branch_log(branch_id)).await
     }
 
     /// Clears journal events after a snapshot.
     pub async fn clear_journal(&self, branch_id: i64, snapshot_id: i64) -> Result<(), ParishError> {
-        let db = self.inner.clone();
-        tokio::task::spawn_blocking(move || {
-            let db = lock_recovered(&db);
-            db.clear_journal(branch_id, snapshot_id)
-        })
-        .await
-        .map_err(|e| ParishError::Database(e.to_string()))?
+        self.run_blocking(move |db| db.clear_journal(branch_id, snapshot_id))
+            .await
     }
 }
 
@@ -863,31 +820,6 @@ mod tests {
     }
 
     #[test]
-    fn test_journal_sequence_ordering() {
-        let db = Database::open_memory().unwrap();
-        let branch = db.find_branch("main").unwrap().unwrap();
-        let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
-
-        // Append 5 events and verify ordering
-        for i in 0..5 {
-            let event = WorldEvent::ClockAdvanced { minutes: i + 1 };
-            db.append_event(branch.id, snap_id, &event, "1820-03-20T08:00:00Z")
-                .unwrap();
-        }
-
-        let events = db.events_since_snapshot(branch.id, snap_id).unwrap();
-        assert_eq!(events.len(), 5);
-        for (i, event) in events.iter().enumerate() {
-            match event {
-                WorldEvent::ClockAdvanced { minutes } => {
-                    assert_eq!(*minutes, (i as i64) + 1);
-                }
-                _ => panic!("unexpected event type"),
-            }
-        }
-    }
-
-    #[test]
     fn test_open_file_database() {
         let tmp = tempfile::NamedTempFile::new().unwrap();
         let db = Database::open(tmp.path()).unwrap();
@@ -1014,6 +946,80 @@ mod tests {
         assert_eq!(log.len(), 2);
     }
 
+    /// Regression: corrupt JSON in the `world_state` column must produce a
+    /// recoverable error, not a panic.
+    #[test]
+    fn test_corrupt_world_state_json_is_recoverable() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let db = Database::open(tmp.path()).unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        // Corrupt the world_state via a raw connection.
+        let raw = rusqlite::Connection::open(tmp.path()).unwrap();
+        raw.execute(
+            "UPDATE snapshots SET world_state = 'this is not valid json'",
+            [],
+        )
+        .unwrap();
+        drop(raw);
+
+        let result = db.load_latest_snapshot(branch.id);
+        assert!(
+            result.is_err(),
+            "corrupt JSON should produce a recoverable error"
+        );
+    }
+
+    /// Concurrent `append_event` calls must produce non-overlapping sequences:
+    /// every event must be present, no duplicates, no gaps.
+    #[tokio::test]
+    async fn test_concurrent_append_events_produce_correct_sequences() {
+        let db = Database::open_memory().unwrap();
+        let async_db = AsyncDatabase::new(db);
+
+        let branch = async_db.find_branch("main").await.unwrap().unwrap();
+        let snap_id = async_db
+            .save_snapshot(branch.id, &make_test_snapshot())
+            .await
+            .unwrap();
+
+        let num_tasks = 4usize;
+        let events_per_task = 25usize;
+        let total = num_tasks * events_per_task;
+
+        let mut handles = Vec::new();
+        for t in 0..num_tasks {
+            let adb = async_db.clone();
+            handles.push(tokio::spawn(async move {
+                for i in 0..events_per_task {
+                    adb.append_event(
+                        branch.id,
+                        snap_id,
+                        &WorldEvent::ClockAdvanced {
+                            minutes: ((t * events_per_task + i) as i64) + 1,
+                        },
+                        "1820-03-20T08:00:00Z",
+                    )
+                    .await
+                    .unwrap();
+                }
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        let count = async_db.journal_count(branch.id, snap_id).await.unwrap();
+        assert_eq!(count, total, "all events must be present");
+
+        let events = async_db
+            .events_since_snapshot(branch.id, snap_id)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), total, "all events must be queryable");
+    }
+
     // --- Issue #225: PRAGMA foreign_keys=ON enforcement ---
 
     #[test]
@@ -1061,7 +1067,7 @@ mod tests {
     }
 
     #[test]
-    fn test_append_event_sequences_are_contiguous() {
+    fn test_journal_sequences_are_contiguous() {
         let db = Database::open_memory().unwrap();
         let branch = db.find_branch("main").unwrap().unwrap();
         let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();

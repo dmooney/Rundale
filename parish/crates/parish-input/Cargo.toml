@@ -11,7 +11,6 @@ parish-types     = { workspace = true }
 parish-config    = { workspace = true }
 parish-inference = { workspace = true }
 serde            = { workspace = true }
-anyhow           = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

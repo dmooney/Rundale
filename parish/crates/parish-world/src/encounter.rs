@@ -43,6 +43,19 @@ pub fn check_encounter(time_of_day: TimeOfDay, roll: f64) -> Option<EncounterEve
     check_encounter_with_config(time_of_day, roll, &EncounterConfig::default())
 }
 
+/// Returns the encounter probability threshold for the given time of day.
+fn encounter_threshold(time_of_day: TimeOfDay, config: &EncounterConfig) -> f64 {
+    match time_of_day {
+        TimeOfDay::Dawn => config.dawn,
+        TimeOfDay::Morning => config.morning,
+        TimeOfDay::Midday => config.midday,
+        TimeOfDay::Afternoon => config.afternoon,
+        TimeOfDay::Dusk => config.dusk,
+        TimeOfDay::Night => config.night,
+        TimeOfDay::Midnight => config.midnight,
+    }
+}
+
 /// Checks whether an encounter occurs during travel using the given config.
 ///
 /// The config provides per-time-of-day probability thresholds. A random `roll`
@@ -52,26 +65,13 @@ pub fn check_encounter_with_config(
     roll: f64,
     config: &EncounterConfig,
 ) -> Option<EncounterEvent> {
-    let threshold = match time_of_day {
-        TimeOfDay::Dawn => config.dawn,
-        TimeOfDay::Morning => config.morning,
-        TimeOfDay::Midday => config.midday,
-        TimeOfDay::Afternoon => config.afternoon,
-        TimeOfDay::Dusk => config.dusk,
-        TimeOfDay::Night => config.night,
-        TimeOfDay::Midnight => config.midnight,
-    };
-
-    if roll >= threshold {
+    if roll >= encounter_threshold(time_of_day, config) {
         return None;
     }
 
-    // Generate flavor text based on time of day
-    let description = fallback_description(time_of_day);
-
     Some(EncounterEvent {
         npc_id: None,
-        description: description.to_string(),
+        description: fallback_description(time_of_day).to_string(),
     })
 }
 
@@ -85,18 +85,7 @@ pub fn check_encounter_with_table(
     roll: f64,
     table: &EncounterTable,
 ) -> Option<EncounterEvent> {
-    let config = EncounterConfig::default();
-    let threshold = match time_of_day {
-        TimeOfDay::Dawn => config.dawn,
-        TimeOfDay::Morning => config.morning,
-        TimeOfDay::Midday => config.midday,
-        TimeOfDay::Afternoon => config.afternoon,
-        TimeOfDay::Dusk => config.dusk,
-        TimeOfDay::Night => config.night,
-        TimeOfDay::Midnight => config.midnight,
-    };
-
-    if roll >= threshold {
+    if roll >= encounter_threshold(time_of_day, &EncounterConfig::default()) {
         return None;
     }
 

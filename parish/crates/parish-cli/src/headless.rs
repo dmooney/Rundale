@@ -26,6 +26,134 @@ use tokio::sync::{Notify, Semaphore, mpsc};
 /// Interval between autosaves in seconds.
 const AUTOSAVE_INTERVAL_SECS: u64 = 45;
 
+fn print_startup_header(clients: &InferenceClients, provider_config: &ProviderConfig) {
+    println!("=== Parish — Headless Mode ===");
+    println!(
+        "Base: {} ({})",
+        clients.base_model,
+        provider_config.provider_display()
+    );
+    if clients.has_custom_dialogue() {
+        let (_, dial_model) = clients.dialogue_client();
+        println!("Dialogue: {} (override)", dial_model);
+    }
+    println!("Type /help for commands, /about for credits, /quit to exit.");
+    println!();
+}
+
+/// Sets up the inference queue and spawns the background worker.
+fn setup_inference_queue(
+    dial_client: AnyClient,
+    inference_config: &InferenceConfig,
+    inference_log: &inference::InferenceLog,
+) -> InferenceQueue {
+    let (interactive_tx, interactive_rx) = mpsc::channel(16);
+    let (background_tx, background_rx) = mpsc::channel(32);
+    let (batch_tx, batch_rx) = mpsc::channel(64);
+    let _worker = inference::spawn_inference_worker(
+        dial_client,
+        interactive_rx,
+        background_rx,
+        batch_rx,
+        inference_log.clone(),
+        inference_config.clone(),
+    );
+    InferenceQueue::new(interactive_tx, background_tx, batch_tx)
+}
+
+/// Runs the headless stdin/stdout REPL loop.
+///
+/// Processes player input, schedules NPC ticks, weather, banshee, autosave.
+async fn run_headless_repl_loop(
+    app: &mut App,
+    inference_log: inference::InferenceLog,
+) -> Result<()> {
+    let mut request_id: u64 = 0;
+    let stdin = std::io::stdin();
+    let reader = stdin.lock();
+
+    for line in reader.lines() {
+        let raw_input = match line {
+            Ok(l) => l,
+            Err(_) => break,
+        };
+
+        let trimmed = raw_input.trim().to_string();
+        if trimmed.is_empty() {
+            print!("> ");
+            std::io::stdout().flush().ok();
+            continue;
+        }
+
+        match classify_input(&trimmed) {
+            InputResult::SystemCommand(cmd) => {
+                let (quit, rebuild) = handle_headless_command(app, cmd).await;
+                if rebuild {
+                    let any = if app.provider_name == "simulator" {
+                        Some(AnyClient::simulator())
+                    } else {
+                        app.cloud_client.clone().or_else(|| app.client.clone())
+                    };
+                    if let Some(new_client) = any {
+                        let queue = setup_inference_queue(
+                            new_client,
+                            &app.inference_config,
+                            &inference_log,
+                        );
+                        app.inference_queue = Some(queue);
+                    }
+                }
+                if quit {
+                    break;
+                }
+            }
+            InputResult::GameInput(text) => {
+                let intent_client = app.intent.client.clone();
+                let intent_model = app.intent.model.clone();
+                handle_headless_game_input(
+                    app,
+                    intent_client.as_ref(),
+                    &intent_model,
+                    &text,
+                    &mut request_id,
+                )
+                .await?;
+                emit_headless_npc_reactions(app, &text).await;
+            }
+        }
+
+        let tier_transitions = app.npc_manager.assign_tiers(&app.world, &[]);
+        for tt in &tier_transitions {
+            let direction = if tt.promoted { "promoted" } else { "demoted" };
+            app.debug_event(format!(
+                "[tier] {} {} {:?} → {:?}",
+                tt.npc_name, direction, tt.old_tier, tt.new_tier,
+            ));
+        }
+
+        dispatch_headless_weather(app);
+        let schedule_events =
+            app.npc_manager
+                .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
+        process_headless_schedule_events(app, &schedule_events);
+        dispatch_headless_banshee(app);
+        dispatch_headless_tier4_tick(app);
+        dispatch_headless_tier3_tick(app).await;
+        dispatch_headless_tier2_tick(app).await;
+        dispatch_headless_autosave(app).await;
+
+        if app.should_quit {
+            break;
+        }
+
+        print!("> ");
+        std::io::stdout().flush().ok();
+    }
+
+    println!("Safe home to ye. May the road rise to meet you.");
+    Ok(())
+}
+
 /// Runs the game in headless mode with a plain stdin/stdout REPL.
 ///
 /// Sets up the inference pipeline with dual-client routing: cloud client
@@ -42,10 +170,8 @@ const AUTOSAVE_INTERVAL_SECS: u64 = 45;
 /// they are distinct concerns (inference clients, provider metadata, category
 /// config, feature flags, mod content, data location, interactivity mode,
 /// and TOML-configured inference timeouts) that cannot be collapsed into a
-/// struct without creating a spurious coupling layer.  The count will decrease
-/// when the save-picker and provider initialization are extracted into a shared
-/// setup struct (#future).
-#[allow(clippy::too_many_arguments)] // all params are semantically distinct startup settings (#417)
+/// struct without creating a spurious coupling layer.
+#[allow(clippy::too_many_arguments)] // known debt: tracked in parish-cli/TODO.md (TD-019)
 pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,
@@ -57,40 +183,18 @@ pub async fn run_headless(
     inference_config: InferenceConfig, // (#417) TOML-configured timeouts
     script_mode: bool,
 ) -> Result<()> {
-    println!("=== Parish — Headless Mode ===");
-    println!(
-        "Base: {} ({})",
-        clients.base_model,
-        provider_config.provider_display()
-    );
-    if clients.has_custom_dialogue() {
-        let (_, dial_model) = clients.dialogue_client();
-        println!("Dialogue: {} (override)", dial_model);
-    }
-    println!("Type /help for commands, /about for credits, /quit to exit.");
-    println!();
+    print_startup_header(&clients, provider_config);
 
     // Initialize dialogue inference pipeline (cloud if configured, else local)
     let (dial_client, dial_model) = clients.dialogue_client();
     let dialogue_model = dial_model.to_string();
-    let (interactive_tx, interactive_rx) = mpsc::channel(16);
-    let (background_tx, background_rx) = mpsc::channel(32);
-    let (batch_tx, batch_rx) = mpsc::channel(64);
     let inference_log = inference::new_inference_log();
     let worker_client = if provider_config.provider == parish_core::config::Provider::Simulator {
         AnyClient::simulator()
     } else {
         dial_client.clone()
     };
-    let _worker = inference::spawn_inference_worker(
-        worker_client,
-        interactive_rx,
-        background_rx,
-        batch_rx,
-        inference_log.clone(),
-        inference_config.clone(),
-    );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+    let queue = setup_inference_queue(worker_client, &inference_config, &inference_log);
 
     // Initialize app state — load world from active mod
     let mut app = App::new();
@@ -125,33 +229,33 @@ pub async fn run_headless(
     let is_simulator = provider_config.provider == parish_core::config::Provider::Simulator;
     if !is_simulator {
         let (intent_cl, intent_mdl) = clients.intent_client();
-        app.intent_client = Some(intent_cl.clone());
-        app.intent_model = intent_mdl.to_string();
+        app.intent.client = Some(intent_cl.clone());
+        app.intent.model = intent_mdl.to_string();
 
         let (sim_cl, sim_mdl) = clients.simulation_client();
-        app.simulation_client = Some(sim_cl.clone());
-        app.simulation_model = sim_mdl.to_string();
+        app.simulation.client = Some(sim_cl.clone());
+        app.simulation.model = sim_mdl.to_string();
 
         let (react_cl, react_mdl) = clients.reaction_client();
-        app.reaction_client = Some(react_cl.clone());
-        app.reaction_model = react_mdl.to_string();
+        app.reaction.client = Some(react_cl.clone());
+        app.reaction.model = react_mdl.to_string();
     }
 
     // Initialize per-category provider metadata from config
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
-        app.intent_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
-        app.intent_api_key = cat_cfg.api_key.clone();
-        app.intent_base_url = Some(cat_cfg.base_url.clone());
+        app.intent.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.intent.api_key = cat_cfg.api_key.clone();
+        app.intent.base_url = Some(cat_cfg.base_url.clone());
     }
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Simulation) {
-        app.simulation_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
-        app.simulation_api_key = cat_cfg.api_key.clone();
-        app.simulation_base_url = Some(cat_cfg.base_url.clone());
+        app.simulation.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.simulation.api_key = cat_cfg.api_key.clone();
+        app.simulation.base_url = Some(cat_cfg.base_url.clone());
     }
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Reaction) {
-        app.reaction_provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
-        app.reaction_api_key = cat_cfg.api_key.clone();
-        app.reaction_base_url = Some(cat_cfg.base_url.clone());
+        app.reaction.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.reaction.api_key = cat_cfg.api_key.clone();
+        app.reaction.base_url = Some(cat_cfg.base_url.clone());
     }
 
     // Set cloud/dialogue fields if configured
@@ -238,340 +342,34 @@ pub async fn run_headless(
     print_location_arrival(&app);
     print_arrival_reactions(&mut app).await;
 
-    let mut request_id: u64 = 0;
-    let stdin = std::io::stdin();
-    let reader = stdin.lock();
+    run_headless_repl_loop(&mut app, inference_log).await
+}
 
-    for line in reader.lines() {
-        let raw_input = match line {
-            Ok(l) => l,
-            Err(_) => break,
-        };
-
-        let trimmed = raw_input.trim().to_string();
-        if trimmed.is_empty() {
-            print!("> ");
-            std::io::stdout().flush().ok();
-            continue;
+/// Restores game state from a snapshot and replay journal on the given branch.
+///
+/// Shared by `restore_from_db`, `handle_headless_load` (named-branch path),
+/// and simulation of the same sequence in test helpers.
+async fn load_and_restore_snapshot(
+    app: &mut App,
+    db: &crate::persistence::AsyncDatabase,
+    branch_id: i64,
+) -> Result<(), String> {
+    match db.load_latest_snapshot(branch_id).await {
+        Ok(Some((snap_id, snapshot))) => {
+            let events = db
+                .events_since_snapshot(branch_id, snap_id)
+                .await
+                .unwrap_or_default();
+            snapshot.restore(&mut app.world, &mut app.npc_manager);
+            crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
+            app.active_branch_id = branch_id;
+            app.latest_snapshot_id = snap_id;
+            app.npc_manager.assign_tiers(&app.world, &[]);
+            Ok(())
         }
-
-        match classify_input(&trimmed) {
-            InputResult::SystemCommand(cmd) => {
-                let (quit, rebuild) = handle_headless_command(&mut app, cmd).await;
-                if rebuild {
-                    // Rebuild dialogue queue: simulator, cloud, or local client.
-                    // Both `cloud_client` and `client` are already AnyClient now,
-                    // so no additional wrapping is needed.
-                    let any = if app.provider_name == "simulator" {
-                        Some(AnyClient::simulator())
-                    } else {
-                        app.cloud_client.clone().or_else(|| app.client.clone())
-                    };
-                    if let Some(new_client) = any {
-                        let (interactive_tx, interactive_rx) = mpsc::channel(16);
-                        let (background_tx, background_rx) = mpsc::channel(32);
-                        let (batch_tx, batch_rx) = mpsc::channel(64);
-                        let _new_worker = inference::spawn_inference_worker(
-                            new_client,
-                            interactive_rx,
-                            background_rx,
-                            batch_rx,
-                            inference_log.clone(),
-                            app.inference_config.clone(),
-                        );
-                        app.inference_queue =
-                            Some(InferenceQueue::new(interactive_tx, background_tx, batch_tx));
-                    }
-                }
-                if quit {
-                    break;
-                }
-            }
-            InputResult::GameInput(text) => {
-                let intent_client = app.intent_client.clone();
-                let intent_model = app.intent_model.clone();
-                handle_headless_game_input(
-                    &mut app,
-                    intent_client.as_ref(),
-                    &intent_model,
-                    &text,
-                    &mut request_id,
-                )
-                .await?;
-                // Emit LLM-informed (or rule-based fallback) NPC reactions
-                // to the player's message — mode parity with server and Tauri.
-                emit_headless_npc_reactions(&mut app, &text).await;
-            }
-        }
-
-        // Simulation tick after each player action
-        let tier_transitions = app.npc_manager.assign_tiers(&app.world, &[]);
-        for tt in &tier_transitions {
-            let direction = if tt.promoted { "promoted" } else { "demoted" };
-            app.debug_event(format!(
-                "[tier] {} {} {:?} → {:?}",
-                tt.npc_name, direction, tt.old_tier, tt.new_tier,
-            ));
-        }
-        // Tick weather engine
-        {
-            let season = app.world.clock.season();
-            let now = app.world.clock.now();
-            let mut rng = rand::rng();
-            if let Some(new_weather) = app.world.weather_engine.tick(now, season, &mut rng) {
-                let old = app.world.weather;
-                app.world.weather = new_weather;
-                app.world
-                    .event_bus
-                    .publish(crate::world::events::GameEvent::WeatherChanged {
-                        new_weather: new_weather.to_string(),
-                        timestamp: app.world.clock.now(),
-                    });
-                tracing::info!(old = %old, new = %new_weather, "Weather changed");
-            }
-        }
-
-        let schedule_events =
-            app.npc_manager
-                .tick_schedules(&app.world.clock, &app.world.graph, app.world.weather);
-        process_headless_schedule_events(&mut app, &schedule_events);
-
-        // Banshee tick — herald and finalise doomed NPCs. Default-on; the
-        // `banshee` flag kill-switches it.
-        if !app.flags.is_disabled("banshee") {
-            let player_loc = app.world.player_location;
-            let before_len = app.world.text_log.len();
-            let report = app.npc_manager.tick_banshee(
-                &app.world.clock,
-                &app.world.graph,
-                &mut app.world.text_log,
-                &app.world.event_bus,
-                player_loc,
-            );
-            // Echo any new lines to stdout so the headless REPL sees the wail.
-            for line in app.world.text_log.iter().skip(before_len) {
-                println!("{}", line);
-            }
-            if !report.is_empty() {
-                app.debug_event(format!(
-                    "[banshee] {} wail(s), {} death(s)",
-                    report.wails.len(),
-                    report.deaths.len()
-                ));
-            }
-        }
-
-        // Dispatch Tier 4 rules engine if enough game time has elapsed.
-        // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
-        {
-            let now = app.world.clock.now();
-            if app.npc_manager.needs_tier4_tick(now) {
-                let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
-                    app.npc_manager.tier4_npcs().into_iter().collect();
-                let events = {
-                    let mut tier4_refs: Vec<&mut crate::npc::Npc> = app
-                        .npc_manager
-                        .npcs_mut()
-                        .values_mut()
-                        .filter(|n| tier4_ids.contains(&n.id))
-                        .collect();
-                    let season = app.world.clock.season();
-                    let game_date = now.date_naive();
-                    let mut rng = rand::rng();
-                    crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
-                };
-                let banshee_on = !app.flags.is_disabled("banshee");
-                let game_events = app.npc_manager.apply_tier4_events(&events, now, banshee_on);
-                for evt in game_events {
-                    app.world.event_bus.publish(evt);
-                }
-                app.npc_manager.record_tier4_tick(now);
-                app.debug_event(format!("[tier4] {} events", events.len()));
-            }
-        }
-
-        // Dispatch Tier 3 batch LLM simulation for distant NPCs.
-        // Runs inline (single-threaded async); the LLM await is acceptable here
-        // because the user already expects potentially slow I/O after each input.
-        {
-            let now = app.world.clock.now();
-            if app.npc_manager.needs_tier3_tick(now) && !app.npc_manager.tier3_in_flight() {
-                let tier3_ids = app.npc_manager.tier3_npcs();
-                let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
-                    .iter()
-                    .filter_map(|id| app.npc_manager.get(*id))
-                    .map(|npc| {
-                        parish_core::npc::ticks::tier3_snapshot_from_npc(npc, &app.world.graph)
-                    })
-                    .collect();
-
-                if !snapshots.is_empty()
-                    && let Some(queue) = app.inference_queue.as_ref()
-                {
-                    let time_desc = app.world.clock.time_of_day().to_string();
-                    let weather_str = app.world.weather.to_string();
-                    let season_str = format!("{:?}", app.world.clock.season());
-                    let hours = 24u32;
-                    // NOTE: queue worker uses the dialogue client; per-category
-                    // Simulation overrides are not honored for batch inference.
-                    let sim_model = app.simulation_model.clone();
-
-                    app.npc_manager.set_tier3_in_flight(true);
-
-                    let lang = app.language_settings();
-                    let ctx = parish_core::npc::ticks::Tier3Context {
-                        snapshots: &snapshots,
-                        queue,
-                        model: &sim_model,
-                        time_desc: &time_desc,
-                        weather: &weather_str,
-                        season: &season_str,
-                        hours,
-                        batch_size: 0,
-                        language: &lang,
-                    };
-
-                    match parish_core::npc::ticks::tick_tier3(&ctx).await {
-                        Ok(updates) => {
-                            let game_time = app.world.clock.now();
-                            let _events = parish_core::npc::ticks::apply_tier3_updates(
-                                &updates,
-                                app.npc_manager.npcs_mut(),
-                                &app.world.graph,
-                                game_time,
-                            );
-                            app.npc_manager.record_tier3_tick(game_time);
-                            app.debug_event(format!("[tier3] {} updates", updates.len()));
-                        }
-                        Err(e) => {
-                            tracing::warn!("Tier 3 tick failed: {}", e);
-                        }
-                    }
-
-                    app.npc_manager.set_tier3_in_flight(false);
-                }
-            }
-        }
-
-        // Dispatch Tier 2 background simulation for nearby NPCs.
-        // Runs inline (single-threaded async); the LLM await is acceptable here
-        // because the user already expects potentially slow I/O after each input.
-        {
-            let now = app.world.clock.now();
-            if app.npc_manager.needs_tier2_tick(now)
-                && !app.npc_manager.tier2_in_flight()
-                && let Some(queue) = app.inference_queue.as_ref()
-            {
-                let groups_map = app.npc_manager.tier2_groups();
-                if !groups_map.is_empty() {
-                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
-
-                    let groups: Vec<Tier2Group> = groups_map
-                        .into_iter()
-                        .filter_map(|(loc, npc_ids)| {
-                            let location_name = app
-                                .world
-                                .graph
-                                .get(loc)
-                                .map(|d| d.name.clone())
-                                .unwrap_or_else(|| format!("Location {}", loc.0));
-                            let npcs: Vec<_> = npc_ids
-                                .iter()
-                                .filter_map(|id| app.npc_manager.get(*id))
-                                .map(npc_snapshot_from_npc)
-                                .collect();
-                            if npcs.is_empty() {
-                                return None;
-                            }
-                            Some(Tier2Group {
-                                location: loc,
-                                location_name,
-                                npcs,
-                            })
-                        })
-                        .collect();
-
-                    if !groups.is_empty() {
-                        // NOTE: queue worker uses the dialogue client; per-category
-                        // Simulation overrides are not honored for batch inference.
-                        let sim_model = app.simulation_model.clone();
-
-                        app.npc_manager.set_tier2_in_flight(true);
-
-                        let lang = app.language_settings();
-                        let mut events = Vec::new();
-                        for group in &groups {
-                            if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                                queue,
-                                &sim_model,
-                                group,
-                                &app.world.clock.time_of_day().to_string(),
-                                &app.world.weather.to_string(),
-                                &lang,
-                            )
-                            .await
-                            {
-                                events.push(evt);
-                            }
-                        }
-
-                        let game_time = app.world.clock.now();
-                        for event in &events {
-                            let _dbg = parish_core::npc::ticks::apply_tier2_event(
-                                event,
-                                app.npc_manager.npcs_mut(),
-                                game_time,
-                            );
-                            // Push gossip so it can propagate to other NPCs.
-                            parish_core::npc::ticks::create_gossip_from_tier2_event(
-                                event,
-                                &mut app.world.gossip_network,
-                                game_time,
-                            );
-                        }
-                        app.npc_manager.record_tier2_tick(game_time);
-                        app.debug_event(format!(
-                            "[tier2] {} events from {} groups",
-                            events.len(),
-                            groups.len()
-                        ));
-
-                        app.npc_manager.set_tier2_in_flight(false);
-                    }
-                }
-            }
-        }
-
-        // Periodic autosave
-        if let Some(ref db) = app.db {
-            let should_autosave = app
-                .last_autosave
-                .map(|t| t.elapsed().as_secs() >= AUTOSAVE_INTERVAL_SECS)
-                .unwrap_or(true);
-            if should_autosave {
-                let snapshot =
-                    crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-                if let Ok(snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
-                    let _ = db
-                        .clear_journal(app.active_branch_id, app.latest_snapshot_id)
-                        .await;
-                    app.latest_snapshot_id = snap_id;
-                    app.last_autosave = Some(std::time::Instant::now());
-                    tracing::debug!("Autosave complete");
-                }
-            }
-        }
-
-        if app.should_quit {
-            break;
-        }
-
-        print!("> ");
-        std::io::stdout().flush().ok();
+        Ok(None) => Err("No saves on this branch".to_string()),
+        Err(e) => Err(e.to_string()),
     }
-
-    println!("Safe home to ye. May the road rise to meet you.");
-    Ok(())
 }
 
 /// Restores game state from a database, loading the "main" branch snapshot.
@@ -583,15 +381,10 @@ async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::Async
     if let Ok(Some(branch)) = async_db.find_branch("main").await {
         app.active_branch_id = branch.id;
 
-        if let Ok(Some((snap_id, snapshot))) = async_db.load_latest_snapshot(branch.id).await {
-            let events = async_db
-                .events_since_snapshot(branch.id, snap_id)
-                .await
-                .unwrap_or_default();
-            snapshot.restore(&mut app.world, &mut app.npc_manager);
-            crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
-            app.latest_snapshot_id = snap_id;
-            app.npc_manager.assign_tiers(&app.world, &[]);
+        if load_and_restore_snapshot(app, async_db, branch.id)
+            .await
+            .is_ok()
+        {
             println!("Restored from save.");
         } else {
             // First run — save initial snapshot
@@ -705,34 +498,21 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
     } else if let Some(ref db) = app.db {
         match db.find_branch(name).await {
             Ok(Some(branch)) => {
+                let db = db.clone();
                 if branch.id != app.active_branch_id {
                     let snapshot =
                         crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
                     let _ = db.save_snapshot(app.active_branch_id, &snapshot).await;
                 }
-                match db.load_latest_snapshot(branch.id).await {
-                    Ok(Some((snap_id, loaded_snapshot))) => {
-                        let events = db
-                            .events_since_snapshot(branch.id, snap_id)
-                            .await
-                            .unwrap_or_default();
-                        loaded_snapshot.restore(&mut app.world, &mut app.npc_manager);
-                        crate::persistence::replay_journal(
-                            &mut app.world,
-                            &mut app.npc_manager,
-                            &events,
-                        );
-                        app.active_branch_id = branch.id;
-                        app.latest_snapshot_id = snap_id;
+                match load_and_restore_snapshot(app, &db, branch.id).await {
+                    Ok(()) => {
                         app.last_autosave = Some(std::time::Instant::now());
-                        app.npc_manager.assign_tiers(&app.world, &[]);
                         let time = app.world.clock.time_of_day();
                         let season = app.world.clock.season();
                         let loc = app.world.current_location().name.clone();
                         println!("Loaded branch '{}'. {} — {}, {}.", name, loc, season, time);
                     }
-                    Ok(None) => println!("Branch '{}' has no saves yet.", name),
-                    Err(e) => eprintln!("Failed to load branch '{}': {}", name, e),
+                    Err(msg) => println!("Branch '{}': {}", name, msg),
                 }
             }
             Ok(None) => println!("No branch named '{}' found.", name),
@@ -777,6 +557,162 @@ pub(crate) async fn handle_headless_new_game(app: &mut App) {
     println!();
     print_location_arrival(app);
     print_arrival_reactions(app).await;
+}
+
+/// Streams NPC dialogue to stdout with loading animation, then applies
+/// memory pipeline and records witness events.
+///
+/// Extracted from `handle_headless_game_input` for TD-003.
+async fn stream_headless_npc_dialogue(
+    app: &mut App,
+    text: &str,
+    setup: parish_core::ipc::NpcConversationSetup,
+    request_id: &mut u64,
+) {
+    let npc_id = setup.npc_id;
+    let system_prompt = setup.system_prompt;
+    let context = setup.context;
+
+    if let Some(queue) = &app.inference_queue {
+        app.world.clock.inference_pause();
+
+        *request_id += 1;
+
+        let (token_tx, token_rx) =
+            mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
+
+        let npc_display_name = setup.display_name;
+        let npc_actual_name = setup.npc_name;
+        print!("{}: ", capitalize_first(&npc_display_name));
+        std::io::stdout().flush().ok();
+
+        let cancel_notify = Arc::new(Notify::new());
+        let cancel_for_stream = Arc::clone(&cancel_notify);
+        let npc_name_for_anim = npc_display_name.clone();
+        let anim_handle = tokio::spawn(async move {
+            let mut anim = LoadingAnimation::new();
+            loop {
+                let ansi = anim.current_color_ansi();
+                let text = anim.display_text();
+                print!("\r{}: {}{}\x1b[0m\x1b[K", npc_name_for_anim, ansi, text);
+                std::io::stdout().flush().ok();
+                anim.tick();
+                tokio::select! {
+                    () = cancel_notify.notified() => break,
+                    () = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+                }
+            }
+            print!("\r\x1b[K{}: ", npc_name_for_anim);
+            std::io::stdout().flush().ok();
+        });
+
+        match queue
+            .send(
+                *request_id,
+                app.dialogue_model.clone(),
+                context,
+                Some(system_prompt),
+                Some(token_tx),
+                None,
+                Some(0.7),
+                parish_core::inference::InferencePriority::Interactive,
+                true,
+            )
+            .await
+        {
+            Ok(rx) => {
+                let stream_handle = tokio::spawn(async move {
+                    let accumulated = parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                        cancel_for_stream.notify_one();
+                        print!("{}", batch);
+                        std::io::stdout().flush().ok();
+                    })
+                    .await;
+                    println!();
+                    accumulated
+                });
+
+                match rx.await {
+                    Ok(response) => {
+                        let _streamed = stream_handle.await.unwrap_or_default();
+                        let _ = anim_handle.await;
+
+                        if let Some(err) = &response.error {
+                            println!("[The parish storyteller has lost the thread: {}]", err);
+                        } else {
+                            let parsed = parse_npc_stream_response(&response.text);
+                            if let Some(meta) = &parsed.metadata {
+                                tracing::debug!(
+                                    "NPC metadata: action={}, mood={}",
+                                    meta.action,
+                                    meta.mood
+                                );
+                            }
+
+                            let game_time = app.world.clock.now();
+                            let player_name_for_mem = if app.npc_manager.knows_player_name(npc_id) {
+                                app.world.player_name.clone()
+                            } else {
+                                None
+                            };
+                            if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
+                                let debug_events =
+                                    parish_core::npc::ticks::apply_tier1_response_with_config(
+                                        npc_mut,
+                                        &parsed,
+                                        text,
+                                        game_time,
+                                        &Default::default(),
+                                        player_name_for_mem.as_deref(),
+                                    );
+                                for event in &debug_events {
+                                    app.debug_event(event.clone());
+                                }
+                            }
+
+                            let location = app.world.player_location;
+                            app.world.conversation_log.add(
+                                parish_core::npc::conversation::ConversationExchange {
+                                    timestamp: game_time,
+                                    speaker_id: npc_id,
+                                    speaker_name: npc_actual_name.clone(),
+                                    player_input: text.to_string(),
+                                    npc_dialogue: parsed.dialogue.clone(),
+                                    location,
+                                },
+                            );
+
+                            let witness_events = parish_core::npc::ticks::record_witness_memories(
+                                app.npc_manager.npcs_mut(),
+                                npc_id,
+                                &npc_display_name,
+                                text,
+                                &parsed.dialogue,
+                                game_time,
+                                location,
+                            );
+                            for event in &witness_events {
+                                app.debug_event(event.clone());
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        let _ = stream_handle.await;
+                        let _ = anim_handle.await;
+                        println!("[The storyteller has wandered off mid-tale.]");
+                    }
+                }
+            }
+            Err(e) => {
+                println!();
+                println!("[The storyteller couldn't hear ye: {}]", e);
+            }
+        }
+
+        app.world.clock.inference_resume();
+    } else {
+        println!("[No storyteller could be found in the parish today.]");
+    }
 }
 
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
@@ -846,166 +782,8 @@ async fn handle_headless_game_input(
                 {
                     app.npc_manager.teach_player_name(setup.npc_id);
                 }
-                let npc_id = setup.npc_id;
-                let system_prompt = setup.system_prompt;
-                let context = setup.context;
 
-                if let Some(queue) = &app.inference_queue {
-                    // Pause the game clock during NPC dialogue inference
-                    app.world.clock.inference_pause();
-
-                    *request_id += 1;
-
-                    let (token_tx, token_rx) =
-                        mpsc::channel::<String>(parish_core::ipc::TOKEN_CHANNEL_CAPACITY);
-
-                    let npc_display_name = setup.display_name;
-                    let npc_actual_name = setup.npc_name;
-                    print!("{}: ", capitalize_first(&npc_display_name));
-                    std::io::stdout().flush().ok();
-
-                    // Spawn a loading animation that prints to stdout
-                    // until the first token arrives. Uses Notify for
-                    // deterministic cancellation instead of a timed sleep.
-                    let cancel_notify = Arc::new(Notify::new());
-                    let cancel_for_stream = Arc::clone(&cancel_notify);
-                    let npc_name_for_anim = npc_display_name.clone();
-                    let anim_handle = tokio::spawn(async move {
-                        let mut anim = LoadingAnimation::new();
-                        loop {
-                            let ansi = anim.current_color_ansi();
-                            let text = anim.display_text();
-                            print!("\r{}: {}{}\x1b[0m\x1b[K", npc_name_for_anim, ansi, text);
-                            std::io::stdout().flush().ok();
-                            anim.tick();
-                            tokio::select! {
-                                () = cancel_notify.notified() => break,
-                                () = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
-                            }
-                        }
-                        // Clear the animation line and reprint NPC prefix
-                        print!("\r\x1b[K{}: ", npc_name_for_anim);
-                        std::io::stdout().flush().ok();
-                    });
-
-                    match queue
-                        .send(
-                            *request_id,
-                            app.dialogue_model.clone(),
-                            context,
-                            Some(system_prompt),
-                            Some(token_tx),
-                            None,
-                            Some(0.7),
-                            parish_core::inference::InferencePriority::Interactive,
-                            true,
-                        )
-                        .await
-                    {
-                        Ok(rx) => {
-                            let stream_handle = tokio::spawn(async move {
-                                let accumulated =
-                                    parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
-                                        // Cancel loading animation on first token
-                                        cancel_for_stream.notify_one();
-                                        print!("{}", batch);
-                                        std::io::stdout().flush().ok();
-                                    })
-                                    .await;
-                                println!();
-                                accumulated
-                            });
-
-                            match rx.await {
-                                Ok(response) => {
-                                    let _streamed = stream_handle.await.unwrap_or_default();
-                                    let _ = anim_handle.await;
-
-                                    if let Some(err) = &response.error {
-                                        println!(
-                                            "[The parish storyteller has lost the thread: {}]",
-                                            err
-                                        );
-                                    } else {
-                                        let parsed = parse_npc_stream_response(&response.text);
-                                        if let Some(meta) = &parsed.metadata {
-                                            tracing::debug!(
-                                                "NPC metadata: action={}, mood={}",
-                                                meta.action,
-                                                meta.mood
-                                            );
-                                        }
-
-                                        // Update NPC mood and record speaker's own memory
-                                        let game_time = app.world.clock.now();
-                                        let player_name_for_mem =
-                                            if app.npc_manager.knows_player_name(npc_id) {
-                                                app.world.player_name.clone()
-                                            } else {
-                                                None
-                                            };
-                                        if let Some(npc_mut) = app.npc_manager.get_mut(npc_id) {
-                                            let debug_events = parish_core::npc::ticks::apply_tier1_response_with_config(
-                                                npc_mut,
-                                                &parsed,
-                                                text,
-                                                game_time,
-                                                &Default::default(),
-                                                player_name_for_mem.as_deref(),
-                                            );
-                                            for event in &debug_events {
-                                                app.debug_event(event.clone());
-                                            }
-                                        }
-
-                                        // Record conversation exchange
-                                        let game_time = app.world.clock.now();
-                                        let location = app.world.player_location;
-                                        app.world.conversation_log.add(
-                                            parish_core::npc::conversation::ConversationExchange {
-                                                timestamp: game_time,
-                                                speaker_id: npc_id,
-                                                speaker_name: npc_actual_name.clone(),
-                                                player_input: text.to_string(),
-                                                npc_dialogue: parsed.dialogue.clone(),
-                                                location,
-                                            },
-                                        );
-
-                                        // Record witness memories for bystander NPCs
-                                        let witness_events =
-                                            parish_core::npc::ticks::record_witness_memories(
-                                                app.npc_manager.npcs_mut(),
-                                                npc_id,
-                                                &npc_display_name,
-                                                text,
-                                                &parsed.dialogue,
-                                                game_time,
-                                                location,
-                                            );
-                                        for event in &witness_events {
-                                            app.debug_event(event.clone());
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    let _ = stream_handle.await;
-                                    let _ = anim_handle.await;
-                                    println!("[The storyteller has wandered off mid-tale.]");
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!();
-                            println!("[The storyteller couldn't hear ye: {}]", e);
-                        }
-                    }
-
-                    // Resume the game clock now that inference is complete
-                    app.world.clock.inference_resume();
-                } else {
-                    println!("[No storyteller could be found in the parish today.]");
-                }
+                stream_headless_npc_dialogue(app, text, setup, request_id).await;
             } else {
                 let idx = HEADLESS_IDLE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 println!(
@@ -1090,8 +868,8 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 
     for npc in npcs_here {
         let sem = Arc::clone(&sem);
-        let client = app.reaction_client.clone();
-        let model = app.reaction_model.clone();
+        let client = app.reaction.client.clone();
+        let model = app.reaction.model.clone();
         let input = player_input.to_string();
 
         join_set.spawn(async move {
@@ -1195,7 +973,7 @@ async fn print_arrival_reactions(app: &mut App) {
 
     for reaction in &reactions {
         let text = if reaction.use_llm {
-            if let Some(client) = &app.reaction_client {
+            if let Some(client) = &app.reaction.client {
                 let npc = app.npc_manager.get(reaction.npc_id);
                 if let Some(npc) = npc {
                     let at_workplace = npc.workplace.is_some_and(|wp| wp == loc_data.id);
@@ -1206,7 +984,7 @@ async fn print_arrival_reactions(app: &mut App) {
                         is_introduced: introduced.contains(&reaction.npc_id),
                         at_workplace,
                         client,
-                        model: &app.reaction_model.clone(),
+                        model: &app.reaction.model.clone(),
                         timeout_secs: config.llm_timeout_secs,
                     };
                     resolve_llm_greeting(reaction, npc, &llm_params).await
@@ -1380,16 +1158,23 @@ async fn handle_headless_movement(app: &mut App, target: &str) {
     }
 }
 
-/// Processes schedule events in headless mode: debug log + player-visible println.
-fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager::ScheduleEvent]) {
+/// Generic schedule event processor shared by headless and test-harness modes.
+///
+/// Returns player-visible event messages (arrival/departure) without
+/// dispatching them — the caller chooses the output channel.
+/// Debug strings are always logged via `app.debug_event`.
+pub(crate) fn process_schedule_events_generic(
+    app: &mut App,
+    events: &[crate::npc::manager::ScheduleEvent],
+) -> Vec<String> {
     use crate::npc::manager::ScheduleEventKind;
 
     let player_loc = app.world.player_location;
+    let mut messages = Vec::new();
 
     for event in events {
         app.debug_event(event.debug_string());
 
-        // Look up the display name (brief description if not yet introduced)
         let display = app
             .npc_manager
             .get(event.npc_id)
@@ -1398,12 +1183,278 @@ fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager
 
         match &event.kind {
             ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                println!("{} heads off down the road.", capitalize_first(&display));
+                messages.push(format!(
+                    "{} heads off down the road.",
+                    capitalize_first(&display)
+                ));
             }
             ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                println!("{} arrives.", capitalize_first(&display));
+                messages.push(format!("{} arrives.", capitalize_first(&display)));
             }
             _ => {}
+        }
+    }
+
+    messages
+}
+
+/// Processes schedule events in headless mode: debug log + player-visible println.
+fn process_headless_schedule_events(app: &mut App, events: &[crate::npc::manager::ScheduleEvent]) {
+    for msg in process_schedule_events_generic(app, events) {
+        println!("{msg}");
+    }
+}
+
+/// Ticks the weather engine and publishes a `WeatherChanged` event if the
+/// weather changes.
+fn dispatch_headless_weather(app: &mut App) {
+    let season = app.world.clock.season();
+    let now = app.world.clock.now();
+    let mut rng = rand::rng();
+    if let Some(new_weather) = app.world.weather_engine.tick(now, season, &mut rng) {
+        let old = app.world.weather;
+        app.world.weather = new_weather;
+        app.world
+            .event_bus
+            .publish(crate::world::events::GameEvent::WeatherChanged {
+                new_weather: new_weather.to_string(),
+                timestamp: app.world.clock.now(),
+            });
+        tracing::info!(old = %old, new = %new_weather, "Weather changed");
+    }
+}
+
+/// Ticks the banshee — herald and finalise doomed NPCs. Default-on; the
+/// `banshee` flag kill-switches it.
+fn dispatch_headless_banshee(app: &mut App) {
+    if !app.flags.is_disabled("banshee") {
+        let player_loc = app.world.player_location;
+        let before_len = app.world.text_log.len();
+        let report = app.npc_manager.tick_banshee(
+            &app.world.clock,
+            &app.world.graph,
+            &mut app.world.text_log,
+            &app.world.event_bus,
+            player_loc,
+        );
+        for line in app.world.text_log.iter().skip(before_len) {
+            println!("{}", line);
+        }
+        if !report.is_empty() {
+            app.debug_event(format!(
+                "[banshee] {} wail(s), {} death(s)",
+                report.wails.len(),
+                report.deaths.len()
+            ));
+        }
+    }
+}
+
+/// Dispatches Tier 4 rules engine if enough game time has elapsed.
+///
+/// Extracted from the REPL loop for TD-011: tick_tier4 is sub-ms CPU work.
+fn dispatch_headless_tier4_tick(app: &mut App) {
+    let now = app.world.clock.now();
+    if app.npc_manager.needs_tier4_tick(now) {
+        let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
+            app.npc_manager.tier4_npcs().into_iter().collect();
+        let events = {
+            let mut tier4_refs: Vec<&mut crate::npc::Npc> = app
+                .npc_manager
+                .npcs_mut()
+                .values_mut()
+                .filter(|n| tier4_ids.contains(&n.id))
+                .collect();
+            let season = app.world.clock.season();
+            let game_date = now.date_naive();
+            let mut rng = rand::rng();
+            crate::npc::tier4::tick_tier4(&mut tier4_refs, season, game_date, &mut rng)
+        };
+        let banshee_on = !app.flags.is_disabled("banshee");
+        let game_events = app.npc_manager.apply_tier4_events(&events, now, banshee_on);
+        for evt in game_events {
+            app.world.event_bus.publish(evt);
+        }
+        app.npc_manager.record_tier4_tick(now);
+        app.debug_event(format!("[tier4] {} events", events.len()));
+    }
+}
+
+/// Dispatches Tier 3 batch LLM simulation for distant NPCs.
+///
+/// Extracted from the REPL loop for TD-011.
+async fn dispatch_headless_tier3_tick(app: &mut App) {
+    let now = app.world.clock.now();
+    if app.npc_manager.needs_tier3_tick(now) && !app.npc_manager.tier3_in_flight() {
+        let npc_names: std::collections::HashMap<_, _> = app
+            .npc_manager
+            .all_npcs()
+            .map(|n| (n.id, n.name.clone()))
+            .collect();
+        let tier3_ids = app.npc_manager.tier3_npcs();
+        let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
+            .iter()
+            .filter_map(|id| app.npc_manager.get(*id))
+            .map(|npc| {
+                parish_core::npc::ticks::tier3_snapshot_from_npc(npc, &app.world.graph, &npc_names)
+            })
+            .collect();
+
+        if !snapshots.is_empty()
+            && let Some(queue) = app.inference_queue.as_ref()
+        {
+            let time_desc = app.world.clock.time_of_day().to_string();
+            let weather_str = app.world.weather.to_string();
+            let season_str = format!("{:?}", app.world.clock.season());
+            let hours = 24u32;
+            let sim_model = app.simulation.model.clone();
+
+            app.npc_manager.set_tier3_in_flight(true);
+
+            let lang = app.language_settings();
+            let ctx = parish_core::npc::ticks::Tier3Context {
+                snapshots: &snapshots,
+                queue,
+                model: &sim_model,
+                time_desc: &time_desc,
+                weather: &weather_str,
+                season: &season_str,
+                hours,
+                batch_size: 0,
+                language: &lang,
+            };
+
+            match parish_core::npc::ticks::tick_tier3(&ctx).await {
+                Ok(updates) => {
+                    let game_time = app.world.clock.now();
+                    let _events = parish_core::npc::ticks::apply_tier3_updates(
+                        &updates,
+                        app.npc_manager.npcs_mut(),
+                        &app.world.graph,
+                        game_time,
+                    );
+                    app.npc_manager.record_tier3_tick(game_time);
+                    app.debug_event(format!("[tier3] {} updates", updates.len()));
+                }
+                Err(e) => {
+                    tracing::warn!("Tier 3 tick failed: {}", e);
+                }
+            }
+
+            app.npc_manager.set_tier3_in_flight(false);
+        }
+    }
+}
+
+/// Dispatches Tier 2 background simulation for nearby NPCs.
+///
+/// Extracted from the REPL loop for TD-011.
+async fn dispatch_headless_tier2_tick(app: &mut App) {
+    let now = app.world.clock.now();
+    if app.npc_manager.needs_tier2_tick(now)
+        && !app.npc_manager.tier2_in_flight()
+        && let Some(queue) = app.inference_queue.as_ref()
+    {
+        let groups_map = app.npc_manager.tier2_groups();
+        if !groups_map.is_empty() {
+            use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+
+            let npc_names: std::collections::HashMap<_, _> = app
+                .npc_manager
+                .all_npcs()
+                .map(|n| (n.id, n.name.clone()))
+                .collect();
+            let groups: Vec<Tier2Group> = groups_map
+                .into_iter()
+                .filter_map(|(loc, npc_ids)| {
+                    let location_name = app
+                        .world
+                        .graph
+                        .get(loc)
+                        .map(|d| d.name.clone())
+                        .unwrap_or_else(|| format!("Location {}", loc.0));
+                    let npcs: Vec<_> = npc_ids
+                        .iter()
+                        .filter_map(|id| app.npc_manager.get(*id))
+                        .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
+                        .collect();
+                    if npcs.is_empty() {
+                        return None;
+                    }
+                    Some(Tier2Group {
+                        location: loc,
+                        location_name,
+                        npcs,
+                    })
+                })
+                .collect();
+
+            if !groups.is_empty() {
+                let sim_model = app.simulation.model.clone();
+
+                app.npc_manager.set_tier2_in_flight(true);
+
+                let lang = app.language_settings();
+                let mut events = Vec::new();
+                for group in &groups {
+                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                        queue,
+                        &sim_model,
+                        group,
+                        &app.world.clock.time_of_day().to_string(),
+                        &app.world.weather.to_string(),
+                        &lang,
+                    )
+                    .await
+                    {
+                        events.push(evt);
+                    }
+                }
+
+                let game_time = app.world.clock.now();
+                for event in &events {
+                    let _dbg = parish_core::npc::ticks::apply_tier2_event(
+                        event,
+                        app.npc_manager.npcs_mut(),
+                        game_time,
+                    );
+                    parish_core::npc::ticks::create_gossip_from_tier2_event(
+                        event,
+                        &mut app.world.gossip_network,
+                        game_time,
+                    );
+                }
+                app.npc_manager.record_tier2_tick(game_time);
+                app.debug_event(format!(
+                    "[tier2] {} events from {} groups",
+                    events.len(),
+                    groups.len()
+                ));
+
+                app.npc_manager.set_tier2_in_flight(false);
+            }
+        }
+    }
+}
+
+/// Periodic autosave — triggered every `AUTOSAVE_INTERVAL_SECS` wall-clock
+/// seconds since the last save.
+async fn dispatch_headless_autosave(app: &mut App) {
+    if let Some(ref db) = app.db {
+        let should_autosave = app
+            .last_autosave
+            .map(|t| t.elapsed().as_secs() >= AUTOSAVE_INTERVAL_SECS)
+            .unwrap_or(true);
+        if should_autosave {
+            let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+            if let Ok(snap_id) = db.save_snapshot(app.active_branch_id, &snapshot).await {
+                let _ = db
+                    .clear_journal(app.active_branch_id, app.latest_snapshot_id)
+                    .await;
+                app.latest_snapshot_id = snap_id;
+                app.last_autosave = Some(std::time::Instant::now());
+                tracing::debug!("Autosave complete");
+            }
         }
     }
 }
@@ -1652,7 +1703,7 @@ mod tests {
         .await;
         assert!(!quit);
         assert!(!rebuild);
-        assert_eq!(app.intent_model, "qwen3:1.5b");
+        assert_eq!(app.intent.model, "qwen3:1.5b");
     }
 
     #[tokio::test]
@@ -1665,7 +1716,7 @@ mod tests {
         .await;
         assert!(!quit);
         assert!(!rebuild);
-        assert_eq!(app.simulation_model, "qwen3:8b");
+        assert_eq!(app.simulation.model, "qwen3:8b");
     }
 
     #[tokio::test]
@@ -1681,7 +1732,7 @@ mod tests {
             rebuild,
             "Setting a category provider should trigger rebuild"
         );
-        assert_eq!(app.intent_provider_name.as_deref(), Some("openrouter"));
+        assert_eq!(app.intent.provider_name.as_deref(), Some("openrouter"));
     }
 
     #[tokio::test]
@@ -1717,7 +1768,7 @@ mod tests {
     fn test_app_intent_client_starts_none() {
         let app = App::new();
         // intent_client is None until initialized by run_headless; accessing it must not panic.
-        assert!(app.intent_client.is_none());
+        assert!(app.intent.client.is_none());
     }
 
     #[tokio::test]
