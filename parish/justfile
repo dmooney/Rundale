@@ -487,3 +487,84 @@ ollama-status:
 # List installed Ollama models
 ollama-models:
     ollama list
+
+# ─── vllm-mlx bundle (macOS / Apple Silicon) ─────────────────────────────────
+#
+# Build a relocatable Python runtime + vllm-mlx venv that Parish bundles
+# inside Contents/Resources/. The resulting tar.zst is extracted into the
+# user-data dir on first launch; subsequent launches re-use the cached
+# extraction. End users never see Python, pip, or uv — they see a download
+# bar for the model weights and a game.
+#
+# Outputs:
+#   dist/vllm-mlx/                       (loose tree, dev iteration)
+#   dist/vllm-mlx-bundle.tar.zst         (shippable artifact)
+#   dist/vllm-mlx-bundle.tar.zst.sha256  (integrity check)
+
+# python-build-standalone release pin. Update both URL and SHA256
+# together (download the new release's SHA file from the github release
+# page). The 20250115 train is the first stable to ship python 3.13.
+PBS_VERSION := "20250115"
+PBS_PYTHON  := "3.13.1"
+PBS_TARBALL := "cpython-" + PBS_PYTHON + "+" + PBS_VERSION + "-aarch64-apple-darwin-pgo+lto-full.tar.zst"
+PBS_URL     := "https://github.com/astral-sh/python-build-standalone/releases/download/" + PBS_VERSION + "/" + PBS_TARBALL
+
+# Build the shippable bundle. Idempotent: skips re-fetching the Python
+# tarball if a matching one is already in dist/.
+build-vllm-mlx-bundle:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
+        echo "build-vllm-mlx-bundle requires macOS aarch64." >&2
+        echo "Got $(uname -s) $(uname -m)." >&2
+        exit 1
+    fi
+
+    DIST="$(pwd)/dist"
+    BUNDLE_DIR="${DIST}/vllm-mlx"
+    PYTHON_DIR="${BUNDLE_DIR}/python-runtime"
+    VENV_DIR="${BUNDLE_DIR}/venv"
+    TARBALL_NAME="vllm-mlx-bundle.tar.zst"
+    SHA_NAME="${TARBALL_NAME}.sha256"
+
+    mkdir -p "${DIST}"
+    rm -rf "${BUNDLE_DIR}"
+
+    PBS_LOCAL="${DIST}/{{PBS_TARBALL}}"
+    if [[ ! -f "${PBS_LOCAL}" ]]; then
+        echo "fetching python-build-standalone ${PBS_LOCAL}"
+        curl -fsSL -o "${PBS_LOCAL}" "{{PBS_URL}}"
+    else
+        echo "reusing cached ${PBS_LOCAL}"
+    fi
+
+    echo "extracting Python runtime…"
+    mkdir -p "${PYTHON_DIR}"
+    # python-build-standalone tarballs unpack to ./python/ — strip and
+    # land directly under PYTHON_DIR.
+    tar --zstd -xf "${PBS_LOCAL}" -C "${BUNDLE_DIR}"
+    mv "${BUNDLE_DIR}/python/"* "${PYTHON_DIR}/"
+    rmdir "${BUNDLE_DIR}/python"
+
+    echo "creating venv…"
+    "${PYTHON_DIR}/bin/python3" -m venv "${VENV_DIR}"
+
+    echo "installing vllm-mlx + hf_transfer into venv…"
+    "${VENV_DIR}/bin/pip" install --upgrade pip
+    # hf_transfer is the Rust-backed HuggingFace downloader. We don't
+    # actually invoke vllm-mlx's internal HF downloader at runtime
+    # (Parish pre-fetches everything via the Rust HfModelDownloader),
+    # but bundling hf_transfer guarantees offline behaviour even if
+    # vllm-mlx's startup path probes the hub for any reason.
+    "${VENV_DIR}/bin/pip" install vllm-mlx hf_transfer
+
+    echo "packing tarball…"
+    cd "${DIST}"
+    tar --zstd -cf "${TARBALL_NAME}" vllm-mlx
+    shasum -a 256 "${TARBALL_NAME}" > "${SHA_NAME}"
+
+    echo
+    echo "built: ${DIST}/${TARBALL_NAME}"
+    ls -lh "${DIST}/${TARBALL_NAME}"
+    cat "${DIST}/${SHA_NAME}"

@@ -178,6 +178,30 @@ The default experience is a desktop app.
 just run          # launches cargo tauri dev
 ```
 
+### Packaged macOS build with bundled local inference
+
+For a shippable `.app` that ends users can double-click — no Python or
+`vllm-mlx` install required — build the inference bundle first, then
+the app:
+
+```sh
+just build-vllm-mlx-bundle    # ~5 min, ~80 MB compressed, Apple Silicon only
+cd parish && cargo tauri build --target aarch64-apple-darwin
+```
+
+The first command materialises a relocatable Python + vllm-mlx venv at
+`parish/dist/vllm-mlx/` (using `python-build-standalone` and `pip`).
+`cargo tauri build` then includes that tree under
+`Rundale.app/Contents/Resources/vllm-mlx/`. On first launch the app
+detects the bundle, recommends local inference for Macs with ≥16 GB
+unified memory, and downloads the Qwen2.5 weights with a live progress
+bar.
+
+CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
+trigger, uploads the bundle as an artifact). For dev iteration on
+`cargo tauri dev`, you can skip the bundle build — the runtime falls
+through to a `PATH`-installed `vllm-mlx` (i.e. `uv tool install vllm-mlx`).
+
 ## Repository Layout
 
 ```
