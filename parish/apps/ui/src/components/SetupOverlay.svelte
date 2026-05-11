@@ -14,6 +14,12 @@
 	} from '$lib/ipc';
 	import { LONG_WAIT_MESSAGES } from '$lib/setupWaitMessages';
 	import ByokFork from './ByokFork.svelte';
+	import LocalInferenceFork from './LocalInferenceFork.svelte';
+	import {
+		getOnboardingOptions,
+		type OnboardingChoice,
+		type OnboardingOptions
+	} from '$lib/ipc';
 	import {
 		formatBytes,
 		formatDuration,
@@ -71,6 +77,27 @@
 	let receivedLiveSetupEvent = false;
 	let receivedSetupDone = false;
 	let needsOnboarding = $state(false);
+	let onboardingOptions = $state<OnboardingOptions | null>(null);
+
+	/**
+	 * Resolves the right onboarding flow for this host. macOS gets the
+	 * LocalInferenceFork; everything else (or already-configured installs)
+	 * falls through to ByokFork. Called once when the gate fires.
+	 */
+	async function loadOnboardingOptions() {
+		try {
+			onboardingOptions = await getOnboardingOptions();
+		} catch {
+			// On error, default to the BYOK fork so the user can still
+			// proceed — losing the local-inference card is acceptable.
+			onboardingOptions = { choice: 'local-unavailable', ram_gb: 0 };
+		}
+	}
+
+	/** Whether to render the macOS local-vllm-mlx fork instead of BYOK. */
+	function showsLocalFork(choice: OnboardingChoice | undefined): boolean {
+		return choice === 'local-recommended' || choice === 'local-low-mem';
+	}
 
 	let downloadPct = $derived(
 		downloadTotal > 0 ? Math.min(100, (downloadCompleted / downloadTotal) * 100) : null
@@ -318,6 +345,7 @@
 		if (snapshot.needs_onboarding) {
 			clearSetupComplete();
 			needsOnboarding = true;
+			loadOnboardingOptions();
 			showSetupOverlay();
 			return;
 		}
@@ -407,6 +435,7 @@
 			onSetupNeedsOnboarding(() => {
 				if (setupComplete) clearSetupComplete();
 				needsOnboarding = true;
+				loadOnboardingOptions();
 				showSetupOverlay();
 			})
 		]);
@@ -440,7 +469,15 @@
 	<div class="setup-overlay" class:fading>
 		{#if needsOnboarding}
 			<div class="setup-box setup-box--byok">
-				<ByokFork onComplete={() => (needsOnboarding = false)} />
+				{#if showsLocalFork(onboardingOptions?.choice)}
+					<LocalInferenceFork
+						onComplete={() => (needsOnboarding = false)}
+						choice={onboardingOptions!.choice}
+						ramGb={onboardingOptions!.ram_gb}
+					/>
+				{:else}
+					<ByokFork onComplete={() => (needsOnboarding = false)} />
+				{/if}
 			</div>
 		{:else}
 		<div class="setup-box">

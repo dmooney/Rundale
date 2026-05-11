@@ -107,6 +107,13 @@ pub struct SetupStatusSnapshot {
     /// snapshot (not just emitted as an event) so SetupOverlay can recover
     /// the state if it mounts after the gate fires.
     pub needs_onboarding: bool,
+    /// Refines `needs_onboarding` with the specific fork to show:
+    /// local-recommended (Mac ≥16 GB), local-low-mem, or local-unavailable.
+    /// `None` when `needs_onboarding` is false. Serialized as kebab-case
+    /// strings (`"local-recommended"`, etc.) so the Svelte SetupOverlay
+    /// can switch on the value without an enum import.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub onboarding_choice: Option<crate::setup::OnboardingChoice>,
 }
 
 impl Default for SetupStatusSnapshot {
@@ -120,6 +127,7 @@ impl Default for SetupStatusSnapshot {
             success: None,
             error: String::new(),
             needs_onboarding: false,
+            onboarding_choice: None,
         }
     }
 }
@@ -132,8 +140,16 @@ impl SetupStatusSnapshot {
         // text underneath.
     }
 
+    pub(crate) fn record_onboarding_choice(&mut self, choice: crate::setup::OnboardingChoice) {
+        self.onboarding_choice = Some(choice);
+        if choice.needs_user_choice() {
+            self.needs_onboarding = true;
+        }
+    }
+
     pub(crate) fn clear_needs_onboarding(&mut self) {
         self.needs_onboarding = false;
+        self.onboarding_choice = None;
     }
 
     fn record_status(&mut self, msg: &str) {
@@ -546,11 +562,21 @@ async fn dispatch_screenshot(_path: std::path::PathBuf) -> anyhow::Result<()> {
 
 /// Forwards inference bootstrap progress to the frontend via Tauri events.
 /// Used inside the async `.setup()` spawn so the window exists before we call it.
-struct TauriProgress {
+pub(crate) struct TauriProgress {
     app: tauri::AppHandle,
     state: Arc<AppState>,
 }
 
+impl TauriProgress {
+    /// Constructs a TauriProgress without pulling in the rest of the
+    /// async-setup bootstrap. Used by Tauri commands that drive their own
+    /// SetupProgress-consuming work (e.g. `start_local_inference_setup`).
+    pub(crate) fn new(app: tauri::AppHandle, state: Arc<AppState>) -> Self {
+        Self { app, state }
+    }
+}
+
+#[allow(dead_code)]
 impl TauriProgress {
     fn with_setup_status(&self, update: impl FnOnce(&mut SetupStatusSnapshot)) {
         let mut status = self
@@ -1020,6 +1046,8 @@ pub fn run() {
             commands::clear_provider_config,
             commands::list_byok_env_keys,
             commands::list_preset_models,
+            commands::get_onboarding_options,
+            commands::start_local_inference_setup,
             commands::submit_input,
             commands::discover_save_files,
             commands::save_game,
