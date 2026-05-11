@@ -4,6 +4,7 @@
 pub mod anthropic_client;
 pub mod client;
 pub(crate) mod client_base;
+pub mod hf_downloader;
 pub mod inference_client;
 pub mod openai_client;
 pub mod rate_limit;
