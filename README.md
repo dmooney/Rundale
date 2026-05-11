@@ -138,7 +138,7 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 - **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
 - **Architecture fitness tests** — `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
 - **`justfile`** with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`.
-- **Witness-marker scan** — `just witness-scan` rejects AI completion stubs (`todo!()`, `// ...`) in changed files.
+- **Witness-marker scan** — `just witness-scan` rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files.
 - **Doc-path validator** — `just check-doc-paths` ensures every backtick-cited file path in `docs/` actually exists.
 - **Frontend test stack** — Vitest unit tests, Playwright E2E with mocked Tauri IPC, screenshot baselines (`just screenshots`).
 

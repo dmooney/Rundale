@@ -1,3 +1,5 @@
+Evidence type: gameplay transcript
+
     Finished `release` profile [optimized] target(s) in 0.16s
      Running `target/release/examples/inf_bench --base-url 'http://localhost:8000/v1' --intent-model mlx-community/Qwen2.5-1.5B-Instruct-4bit --main-model mlx-community/Qwen2.5-1.5B-Instruct-4bit --iters 5 --schema`
 base_url     = http://localhost:8000/v1
