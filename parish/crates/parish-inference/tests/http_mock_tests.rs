@@ -728,6 +728,33 @@ async fn anthropic_generate_stream_honors_done_sentinel() {
 }
 
 #[tokio::test]
+async fn anthropic_generate_maps_401_with_structured_error_body() {
+    let server = MockServer::start().await;
+    // Anthropic returns a structured JSON error body on 4xx.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+            "error": {
+                "type": "authentication_error",
+                "message": "Your credit card is declined"
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), Some("sk-bad"));
+    let err = client
+        .generate("m", "p", None, None, None)
+        .await
+        .expect_err("401 must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("credit card"),
+        "expected structured error message, got: {msg}"
+    );
+}
+
+#[tokio::test]
 async fn anthropic_generate_handles_empty_choices() {
     // "empty_choices" name mirrors the OpenAI sibling; Anthropic uses
     // content blocks — an empty content array degrades gracefully to "".
@@ -744,6 +771,115 @@ async fn anthropic_generate_handles_empty_choices() {
     let out = client.generate("m", "p", None, None, None).await.unwrap();
     // empty content degrades gracefully to empty string, not an error
     assert_eq!(out, "");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_parses_typed_payload() {
+    #[derive(Deserialize, Debug)]
+    struct Greeting {
+        #[serde(default)]
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "{\"hello\":\"world\"}"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let g: Greeting = client
+        .generate_json("m", "Return a greeting", None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(g.hello, "world");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_parses_fenced_payload() {
+    #[derive(Deserialize, Debug)]
+    struct Greeting {
+        #[serde(default)]
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    // Anthropic sometimes wraps JSON in ```json fences
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "```json\n{\"hello\":\"world\"}\n```"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let g: Greeting = client
+        .generate_json("m", "Return a greeting", None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(g.hello, "world");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_retries_on_parse_failure() {
+    #[derive(Deserialize, Debug)]
+    #[allow(dead_code)]
+    struct Greeting {
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    // Both attempts return bad JSON, so the retry path is taken and
+    // InferenceJsonParseFailed is returned.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "not valid json"}]
+        })))
+        .expect(2) // exactly 2 requests (initial + retry)
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let result: Result<Greeting, _> = client
+        .generate_json("m", "Return JSON", None, None, Some(0.7))
+        .await;
+    let err = result.expect_err("parse failure after retry must error");
+    assert!(
+        err.to_string().contains("JSON parse failed after retry"),
+        "expected InferenceJsonParseFailed, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn anthropic_generate_stream_json_parses_sse_chunks() {
+    let server = MockServer::start().await;
+    // generate_stream_json delegates to generate_stream with augmented system.
+    // The stream returns the raw accumulated text (pre-extraction).
+    let sse = [
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}"#,
+        r#"data: {"type":"message_stop"}"#,
+    ]
+    .join("\n");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    let full = client
+        .generate_stream_json("m", "Say hello", None, tx, None, None)
+        .await
+        .unwrap();
+    assert_eq!(full, "Hello!");
 }
 
 // =============================================================================

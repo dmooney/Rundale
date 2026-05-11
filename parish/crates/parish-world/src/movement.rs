@@ -108,6 +108,26 @@ pub fn weather_effect(conn: &Connection, weather: Weather) -> WeatherEffect {
     }
 }
 
+/// Looks up a destination by name and checks for identity.
+///
+/// Returns `Ok(destination_id)` when the target resolves to a different
+/// location than the current one. Returns `Err(MovementResult)` for
+/// early-exit cases (not found or already here).
+fn resolve_target(
+    target: &str,
+    graph: &WorldGraph,
+    current: LocationId,
+) -> Result<LocationId, MovementResult> {
+    let destination_id = match graph.find_by_name(target) {
+        Some(id) => id,
+        None => return Err(MovementResult::NotFound(target.to_string())),
+    };
+    if destination_id == current {
+        return Err(MovementResult::AlreadyHere);
+    }
+    Ok(destination_id)
+}
+
 /// Resolves a movement intent target to a `MovementResult`.
 ///
 /// Uses fuzzy name matching to find the destination, then BFS to find
@@ -119,16 +139,10 @@ pub fn resolve_movement(
     current: LocationId,
     transport: &TransportMode,
 ) -> MovementResult {
-    // Try to find the target location
-    let destination_id = match graph.find_by_name(target) {
-        Some(id) => id,
-        None => return MovementResult::NotFound(target.to_string()),
+    let destination_id = match resolve_target(target, graph, current) {
+        Ok(id) => id,
+        Err(result) => return result,
     };
-
-    // Check if already there
-    if destination_id == current {
-        return MovementResult::AlreadyHere;
-    }
 
     // Find shortest path
     let path = match graph.shortest_path(current, destination_id) {
@@ -160,68 +174,13 @@ pub fn resolve_movement(
 ///
 /// When `Weather::Clear` is passed (or the graph has no hazard tags),
 /// the result is identical to [`resolve_movement`].
-pub fn resolve_movement_with_weather(
-    target: &str,
+/// Computes weather-adjusted travel time and slowdown notes for a path.
+fn weather_adjusted_travel(
+    path: &[LocationId],
     graph: &WorldGraph,
-    current: LocationId,
     transport: &TransportMode,
     weather: Weather,
-) -> MovementResult {
-    let destination_id = match graph.find_by_name(target) {
-        Some(id) => id,
-        None => return MovementResult::NotFound(target.to_string()),
-    };
-
-    if destination_id == current {
-        return MovementResult::AlreadyHere;
-    }
-
-    // Try weather-aware pathfinding first, skipping impassable edges.
-    let filtered_path = graph.shortest_path_filtered(current, destination_id, |_from, _to, c| {
-        !matches!(weather_effect(c, weather), WeatherEffect::Impassable { .. })
-    });
-
-    let path = match filtered_path {
-        Some(p) => p,
-        None => {
-            // Fall back to an unfiltered path: if one exists, the weather
-            // is what's stopping us; otherwise the destination is simply
-            // unreachable (e.g. graph islands).
-            let full_path = match graph.shortest_path(current, destination_id) {
-                Some(p) => p,
-                None => return MovementResult::NotFound(target.to_string()),
-            };
-
-            // Find the first impassable edge along the fair-weather path
-            // and surface that reason to the player.
-            for window in full_path.windows(2) {
-                if let Some(conn) = graph.connection_between(window[0], window[1])
-                    && let WeatherEffect::Impassable { reason } = weather_effect(conn, weather)
-                {
-                    return MovementResult::BlockedByWeather {
-                        destination: destination_id,
-                        hazard: conn.hazard,
-                        weather,
-                        reason: reason.to_string(),
-                    };
-                }
-            }
-
-            // Shouldn't happen: filtered path was None but no edge was
-            // impassable. Fall through to fair-weather arrival so the
-            // player is never stuck without feedback.
-            let minutes = graph.path_travel_time(&full_path, transport.speed_m_per_s);
-            let narration = build_travel_narration(&full_path, graph, minutes, transport);
-            return MovementResult::Arrived {
-                destination: destination_id,
-                path: full_path,
-                minutes,
-                narration,
-            };
-        }
-    };
-
-    // Apply per-edge slowdown from weather.
+) -> (u16, Vec<&'static str>) {
     let mut total_minutes: u16 = 0;
     let mut notes: Vec<&'static str> = Vec::new();
     for window in path.windows(2) {
@@ -234,7 +193,7 @@ pub fn resolve_movement_with_weather(
                         let scaled = ((base as f64 / factor).ceil() as u16).max(base);
                         (scaled, Some(note))
                     }
-                    WeatherEffect::Impassable { .. } => (base, None), // filtered out above
+                    WeatherEffect::Impassable { .. } => (base, None),
                 }
             } else {
                 (base, None)
@@ -246,13 +205,80 @@ pub fn resolve_movement_with_weather(
             notes.push(n);
         }
     }
+    (total_minutes, notes)
+}
 
-    let narration = build_weather_narration(&path, graph, total_minutes, transport, &notes);
+/// Handles the case where filtered pathfinding found no route: if a
+/// fair-weather path exists, determines whether to block or fall through.
+fn blocked_or_fallback(
+    current: LocationId,
+    destination_id: LocationId,
+    graph: &WorldGraph,
+    transport: &TransportMode,
+    weather: Weather,
+) -> MovementResult {
+    let full_path = match graph.shortest_path(current, destination_id) {
+        Some(p) => p,
+        None => {
+            return MovementResult::NotFound(
+                graph
+                    .get(destination_id)
+                    .map_or_else(|| destination_id.0.to_string(), |l| l.name.clone()),
+            );
+        }
+    };
+
+    for window in full_path.windows(2) {
+        if let Some(conn) = graph.connection_between(window[0], window[1])
+            && let WeatherEffect::Impassable { reason } = weather_effect(conn, weather)
+        {
+            return MovementResult::BlockedByWeather {
+                destination: destination_id,
+                hazard: conn.hazard,
+                weather,
+                reason: reason.to_string(),
+            };
+        }
+    }
+
+    let minutes = graph.path_travel_time(&full_path, transport.speed_m_per_s);
+    let narration = build_travel_narration(&full_path, graph, minutes, transport);
+    MovementResult::Arrived {
+        destination: destination_id,
+        path: full_path,
+        minutes,
+        narration,
+    }
+}
+
+pub fn resolve_movement_with_weather(
+    target: &str,
+    graph: &WorldGraph,
+    current: LocationId,
+    transport: &TransportMode,
+    weather: Weather,
+) -> MovementResult {
+    let destination_id = match resolve_target(target, graph, current) {
+        Ok(id) => id,
+        Err(result) => return result,
+    };
+
+    let path = match graph.shortest_path_filtered(current, destination_id, |_from, _to, c| {
+        !matches!(weather_effect(c, weather), WeatherEffect::Impassable { .. })
+    }) {
+        Some(p) => p,
+        None => {
+            return blocked_or_fallback(current, destination_id, graph, transport, weather);
+        }
+    };
+
+    let (minutes, notes) = weather_adjusted_travel(&path, graph, transport, weather);
+    let narration = build_weather_narration(&path, graph, minutes, transport, &notes);
 
     MovementResult::Arrived {
         destination: destination_id,
         path,
-        minutes: total_minutes,
+        minutes,
         narration,
     }
 }
@@ -823,7 +849,6 @@ mod tests {
         // Every hazard behaves sensibly under its matching weather.
         let flood_conn = Connection {
             target: LocationId(2),
-            traversal_minutes: None,
             path_description: String::new(),
             hazard: Hazard::Flood,
         };

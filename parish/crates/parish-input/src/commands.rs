@@ -98,6 +98,9 @@ pub enum Command {
     ApplyPreset(String),
     /// Show usage / list of providers with available presets.
     ShowPreset,
+    /// Re-open the BYOK provider picker (wipes the .onboarded sentinel so the
+    /// next launch would too).
+    ResetByok,
     /// Show about / credits information.
     About,
     /// Show or change the map tile source. No arg = list sources; arg = switch to it.

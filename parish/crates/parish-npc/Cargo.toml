@@ -23,6 +23,5 @@ tokio            = { workspace = true }
 
 [dev-dependencies]
 rand_chacha = { workspace = true }
-tempfile    = { workspace = true }
 wiremock    = { workspace = true }
 # serde_json and tokio are already in [dependencies]; no need to repeat them

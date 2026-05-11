@@ -106,18 +106,27 @@ impl WorldState {
         locations.insert(crossroads_id, crossroads);
 
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
+        Self::init(clock, crossroads_id, locations, WorldGraph::new())
+    }
+
+    fn init(
+        clock: GameClock,
+        player_location: LocationId,
+        locations: HashMap<LocationId, Location>,
+        graph: WorldGraph,
+    ) -> Self {
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
         Self {
             clock,
-            player_location: crossroads_id,
+            player_location,
             locations,
-            graph: WorldGraph::new(),
+            graph,
             weather: Weather::Clear,
             weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
-            visited_locations: HashSet::from([crossroads_id]),
+            visited_locations: HashSet::from([player_location]),
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
@@ -135,44 +144,10 @@ impl WorldState {
         use chrono::{TimeZone, Utc};
 
         let graph = WorldGraph::load_from_file(path)?;
-
-        let mut locations = HashMap::new();
-        for loc_id in graph.location_ids() {
-            if let Some(data) = graph.get(loc_id) {
-                locations.insert(
-                    loc_id,
-                    Location {
-                        id: loc_id,
-                        name: data.name.clone(),
-                        description: data.description_template.clone(),
-                        indoor: data.indoor,
-                        public: data.public,
-                        lat: data.lat,
-                        lon: data.lon,
-                    },
-                );
-            }
-        }
-
+        let locations = graph_to_legacy_locations(&graph);
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
-        Ok(Self {
-            clock,
-            player_location: start_location,
-            locations,
-            graph,
-            weather: Weather::Clear,
-            weather_engine,
-            text_log: Vec::new(),
-            event_bus: EventBus::new(),
-            visited_locations: HashSet::from([start_location]),
-            edge_traversals: HashMap::new(),
-            gossip_network: GossipNetwork::new(),
-            conversation_log: ConversationLog::new(),
-            player_name: None,
-            tick_generation: 0,
-        })
+        Ok(Self::init(clock, start_location, locations, graph))
     }
 
     /// Creates a world state from mod parameters.
@@ -186,24 +161,7 @@ impl WorldState {
         start_date_rfc3339: &str,
     ) -> Result<Self, ParishError> {
         let graph = WorldGraph::load_from_file(world_path)?;
-
-        let mut locations = HashMap::new();
-        for loc_id in graph.location_ids() {
-            if let Some(data) = graph.get(loc_id) {
-                locations.insert(
-                    loc_id,
-                    Location {
-                        id: loc_id,
-                        name: data.name.clone(),
-                        description: data.description_template.clone(),
-                        indoor: data.indoor,
-                        public: data.public,
-                        lat: data.lat,
-                        lon: data.lon,
-                    },
-                );
-            }
-        }
+        let locations = graph_to_legacy_locations(&graph);
 
         let start_dt = chrono::DateTime::parse_from_rfc3339(start_date_rfc3339)
             .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -217,24 +175,8 @@ impl WorldState {
             });
 
         let clock = GameClock::new(start_dt);
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
-        Ok(Self {
-            clock,
-            player_location: start_location,
-            locations,
-            graph,
-            weather: Weather::Clear,
-            weather_engine,
-            text_log: Vec::new(),
-            event_bus: EventBus::new(),
-            visited_locations: HashSet::from([start_location]),
-            edge_traversals: HashMap::new(),
-            gossip_network: GossipNetwork::new(),
-            conversation_log: ConversationLog::new(),
-            player_name: None,
-            tick_generation: 0,
-        })
+        Ok(Self::init(clock, start_location, locations, graph))
     }
 
     /// Marks a location as visited for the fog-of-war map.
@@ -296,6 +238,29 @@ impl Default for WorldState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Builds the legacy `locations` map from a `WorldGraph` for backward
+/// compatibility with NPC context building and UI snapshots.
+fn graph_to_legacy_locations(graph: &WorldGraph) -> HashMap<LocationId, Location> {
+    let mut locations = HashMap::new();
+    for loc_id in graph.location_ids() {
+        if let Some(data) = graph.get(loc_id) {
+            locations.insert(
+                loc_id,
+                Location {
+                    id: loc_id,
+                    name: data.name.clone(),
+                    description: data.description_template.clone(),
+                    indoor: data.indoor,
+                    public: data.public,
+                    lat: data.lat,
+                    lon: data.lon,
+                },
+            );
+        }
+    }
+    locations
 }
 
 #[cfg(test)]

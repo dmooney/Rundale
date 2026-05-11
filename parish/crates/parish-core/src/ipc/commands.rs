@@ -57,6 +57,10 @@ pub enum CommandEffect {
     /// (e.g. "osm", "historic") — frontend looks up URL etc.
     /// from the tile registry it received via `UiConfigSnapshot`.
     ApplyTiles(String),
+    /// Wipe BYOK config (keychain entry, parish.toml, .onboarded sentinel,
+    /// GameConfig.api_key) and signal the frontend to re-open the fork
+    /// screen via `EVENT_SETUP_NEEDS_ONBOARDING`.
+    ResetByok,
 }
 
 /// How a command's response text should be presented by the frontend.
@@ -191,7 +195,80 @@ pub fn handle_command(
     config: &mut GameConfig,
 ) -> CommandResult {
     match cmd {
-        // ── Time control ────────────────────────────────────────────────
+        Command::Pause
+        | Command::Resume
+        | Command::Status
+        | Command::ShowSpeed
+        | Command::SetSpeed(_)
+        | Command::InvalidSpeed(_)
+        | Command::Wait(_)
+        | Command::Tick => handle_time_control_command(cmd, world, npc_manager),
+
+        Command::About | Command::NpcsHere | Command::Time => {
+            handle_info_command(cmd, world, npc_manager)
+        }
+
+        Command::ToggleSidebar | Command::ToggleImprov => {
+            handle_sidebar_improv_command(cmd, config)
+        }
+
+        Command::ShowProvider
+        | Command::SetProvider(_)
+        | Command::ShowModel
+        | Command::SetModel(_)
+        | Command::ShowKey
+        | Command::SetKey(_) => handle_provider_command(cmd, config),
+
+        Command::ShowCloud
+        | Command::SetCloudProvider(_)
+        | Command::ShowCloudModel
+        | Command::SetCloudModel(_)
+        | Command::ShowCloudKey
+        | Command::SetCloudKey(_) => handle_cloud_provider_command(cmd, config),
+
+        Command::ShowCategoryProvider(_)
+        | Command::SetCategoryProvider(_, _)
+        | Command::ShowCategoryModel(_)
+        | Command::SetCategoryModel(_, _)
+        | Command::ShowCategoryKey(_)
+        | Command::SetCategoryKey(_, _) => handle_category_provider_command(cmd, config),
+
+        Command::ShowPreset | Command::ApplyPreset(_) => handle_preset_command(cmd, config),
+
+        Command::Flags
+        | Command::Flag(_)
+        | Command::InvalidFlagName(_)
+        | Command::InvalidBranchName(_) => handle_flag_command(cmd, config),
+
+        Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
+        Command::Help => CommandResult::text_tabular(render_help_text()),
+        Command::Save => CommandResult::effect_only(CommandEffect::SaveGame),
+        Command::Fork(name) => CommandResult::effect_only(CommandEffect::ForkBranch(name)),
+        Command::Load(name) => CommandResult::effect_only(CommandEffect::LoadBranch(name)),
+        Command::Branches => CommandResult::effect_only(CommandEffect::ListBranches),
+        Command::Log => CommandResult::effect_only(CommandEffect::ShowLog),
+        Command::Map(arg) => handle_map_command(config, arg),
+        Command::Unexplored(arg) => handle_unexplored_command(config, arg),
+        Command::Weather(arg) => handle_weather_command(world, arg),
+        Command::Session => handle_session_command(world, config),
+        Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
+        Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
+        Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
+        Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
+        Command::Theme(arg) => handle_theme_command(arg),
+        Command::ResetByok => {
+            CommandResult::with_effect("Re-opening provider picker...", CommandEffect::ResetByok)
+        }
+    }
+}
+
+/// Time-control commands: pause/resume clock, status, speed, wait, tick.
+fn handle_time_control_command(
+    cmd: Command,
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+) -> CommandResult {
+    match cmd {
         Command::Pause => {
             world.clock.pause();
             CommandResult::text("The clocks of the parish stand still.")
@@ -230,9 +307,41 @@ pub fn handle_command(
             "Unknown speed '{}'. Try: slow, normal, fast, fastest, ludicrous.",
             name
         )),
-        Command::InvalidBranchName(msg) => CommandResult::text(msg),
+        Command::Wait(minutes) => {
+            world.clock.advance(minutes as i64);
+            npc_manager.assign_tiers(world, &[]);
+            let _events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+            let now = world.clock.now();
+            let tod = world.clock.time_of_day();
+            CommandResult::text(format!(
+                "You wait for {} minutes...\nIt is now {:02}:{:02} {}.",
+                minutes,
+                now.hour(),
+                now.minute(),
+                tod
+            ))
+        }
+        Command::Tick => {
+            npc_manager.assign_tiers(world, &[]);
+            let events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
+            let count = events.len();
+            if count == 0 {
+                CommandResult::text("No NPC activity.")
+            } else {
+                CommandResult::text(format!("{} schedule event(s) processed.", count))
+            }
+        }
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Info commands ───────────────────────────────────────────────
+/// Informational commands: about, NPCs here, time/weather details.
+fn handle_info_command(
+    cmd: Command,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+) -> CommandResult {
+    match cmd {
         Command::About => CommandResult::text(
             [
                 &format!(
@@ -295,31 +404,13 @@ pub fn handle_command(
                 festival
             ))
         }
-        Command::Wait(minutes) => {
-            world.clock.advance(minutes as i64);
-            npc_manager.assign_tiers(world, &[]);
-            let _events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
-            let now = world.clock.now();
-            let tod = world.clock.time_of_day();
-            CommandResult::text(format!(
-                "You wait for {} minutes...\nIt is now {:02}:{:02} {}.",
-                minutes,
-                now.hour(),
-                now.minute(),
-                tod
-            ))
-        }
-        Command::Tick => {
-            npc_manager.assign_tiers(world, &[]);
-            let events = npc_manager.tick_schedules(&world.clock, &world.graph, world.weather);
-            let count = events.len();
-            if count == 0 {
-                CommandResult::text("No NPC activity.")
-            } else {
-                CommandResult::text(format!("{} schedule event(s) processed.", count))
-            }
-        }
-        // ── Sidebar & Improv ────────────────────────────────────────────
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
+
+/// Sidebar and improv toggles.
+fn handle_sidebar_improv_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::ToggleSidebar => {
             CommandResult::text("The Irish words panel is managed by the sidebar.")
         }
@@ -331,16 +422,18 @@ pub fn handle_command(
                 CommandResult::text("The characters settle back to their usual selves.")
             }
         }
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Base provider/model/key ───────���─────────────────────────────
+/// Base provider/model/key commands.
+fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::ShowProvider => CommandResult::text(format!("Provider: {}", config.provider_name)),
         Command::SetProvider(name) => match Provider::from_str_loose(&name) {
             Ok(provider) => {
                 config.base_url = provider.default_base_url().to_string();
                 config.provider_name = format!("{:?}", provider).to_lowercase();
-                // Auto-fill any unset model fields with the provider's preset
-                // (base + per-role) so users who only set the provider get
-                // sensible defaults.
                 config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("Provider changed to {}.", config.provider_name),
@@ -368,8 +461,13 @@ pub fn handle_command(
             config.api_key = Some(value);
             CommandResult::with_effect("API key updated.", CommandEffect::RebuildInference)
         }
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Cloud provider ──────────���───────────────────────────────────
+/// Cloud provider/model/key commands.
+fn handle_cloud_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::ShowCloud => {
             if let Some(ref provider) = config.cloud_provider_name {
                 let model = config.cloud_model_name.as_deref().unwrap_or("(none)");
@@ -407,8 +505,13 @@ pub fn handle_command(
             config.cloud_api_key = Some(value);
             CommandResult::with_effect("Cloud API key updated.", CommandEffect::RebuildCloudClient)
         }
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Per-category provider/model/key ──────────────────────────────
+/// Per-category provider/model/key commands.
+fn handle_category_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::ShowCategoryProvider(cat) => match config.category_provider.get(&cat) {
             Some(p) => CommandResult::text(format!("{} provider: {}", cat.name(), p)),
             None => CommandResult::text(format!(
@@ -424,8 +527,6 @@ pub fn handle_command(
                 config
                     .category_base_url
                     .insert(cat, provider.default_base_url().to_string());
-                // Auto-fill the model for this category if unset, using the
-                // new provider's preset for this role.
                 config.fill_missing_models_from_presets();
                 CommandResult::with_effect(
                     format!("{} provider changed to {}.", cat.name(), provider_name),
@@ -458,8 +559,13 @@ pub fn handle_command(
                 CommandEffect::RebuildInference,
             )
         }
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Provider presets ────────────────────────────────────────────
+/// Provider preset commands.
+fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::ShowPreset => CommandResult::text(
             "Usage: /preset <provider>. Providers with presets: anthropic, openai, google, \
              groq, xai, mistral, deepseek, together, openrouter, ollama, lmstudio, vllm",
@@ -476,18 +582,12 @@ pub fn handle_command(
                     let provider_name = format!("{:?}", provider).to_lowercase();
                     let default_url = provider.default_base_url().to_string();
 
-                    // Base provider/url/model: use Dialogue's pick as the base model
-                    // so any code path that still falls through to `model_name` gets
-                    // a sensible value.
                     config.provider_name = provider_name.clone();
                     config.base_url = default_url.clone();
                     if let Some(m) = presets[InferenceCategory::Dialogue.idx()] {
                         config.model_name = m.to_string();
                     }
 
-                    // Per-category: always overwrite (applying a preset is an
-                    // explicit user action). API keys are intentionally left
-                    // alone — see hint below.
                     for cat in InferenceCategory::ALL {
                         config.category_provider.insert(cat, provider_name.clone());
                         config.category_base_url.insert(cat, default_url.clone());
@@ -518,8 +618,13 @@ pub fn handle_command(
             }
             Err(e) => CommandResult::text(format!("{}", e)),
         },
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
+    }
+}
 
-        // ── Feature flags ───────────────────────────────────────────────
+/// Feature flag commands.
+fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+    match cmd {
         Command::Flags | Command::Flag(FlagSubcommand::List) => {
             let list = config.flags.list();
             if list.is_empty() {
@@ -544,9 +649,6 @@ pub fn handle_command(
         }
         Command::Flag(FlagSubcommand::Disable(name)) => {
             config.flags.disable(&name);
-            // When disabling a flag that has associated cached state, clear
-            // that state immediately so the next render sees the correct value
-            // without requiring the player to run another command first.
             if name == "reveal-unexplored" {
                 config.reveal_unexplored_locations = false;
             }
@@ -556,70 +658,58 @@ pub fn handle_command(
             )
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
-
-        // ── Mode-specific commands (delegated to backend) ───────────────
-        Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
-        Command::Help => CommandResult::text_tabular(render_help_text()),
-        Command::Save => CommandResult::effect_only(CommandEffect::SaveGame),
-        Command::Fork(name) => CommandResult::effect_only(CommandEffect::ForkBranch(name)),
-        Command::Load(name) => CommandResult::effect_only(CommandEffect::LoadBranch(name)),
-        Command::Branches => CommandResult::effect_only(CommandEffect::ListBranches),
-        Command::Log => CommandResult::effect_only(CommandEffect::ShowLog),
-        Command::Map(arg) => handle_map_command(config, arg),
-        Command::Unexplored(arg) => handle_unexplored_command(config, arg),
-        Command::Weather(arg) => handle_weather_command(world, arg),
-        Command::Session => handle_session_command(world, config),
-        Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
-        Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),
-        Command::Spinner(secs) => CommandResult::effect_only(CommandEffect::ShowSpinner(secs)),
-        Command::NewGame => CommandResult::effect_only(CommandEffect::NewGame),
-        Command::Theme(arg) => match arg.as_deref().map(str::trim) {
-            None | Some("") => CommandResult::text(
-                "Available themes: default, solarized\n\
-                 Usage: /theme <name> [light|dark|auto]\n\
-                 Solarized auto switches with real-world sunrise and sunset.",
-            ),
-            Some("default") => CommandResult::with_effect(
-                "Reverting to the parish's natural colours.",
-                CommandEffect::ApplyTheme("default".to_string(), String::new()),
-            ),
-            Some(rest) => {
-                let mut parts = rest.splitn(2, ' ');
-                let name = parts.next().unwrap_or("").to_lowercase();
-                let mode = parts.next().map(str::trim).unwrap_or("").to_lowercase();
-                match name.as_str() {
-                    "solarized" => {
-                        let mode = if mode.is_empty() {
-                            "auto".to_string()
-                        } else {
-                            mode
-                        };
-                        let msg = match mode.as_str() {
-                            "light" => "Solarized light applied.",
-                            "dark" => "Solarized dark applied.",
-                            "auto" => "Solarized auto — follows the game's time of day.",
-                            other => {
-                                return CommandResult::text(format!(
-                                    "Unknown mode '{}'. Try: light, dark, auto",
-                                    other
-                                ));
-                            }
-                        };
-                        CommandResult::with_effect(
-                            msg,
-                            CommandEffect::ApplyTheme("solarized".to_string(), mode),
-                        )
-                    }
-                    other => CommandResult::text(format!(
-                        "Unknown theme '{}'. Available: default, solarized",
-                        other
-                    )),
-                }
-            }
-        },
+        Command::InvalidBranchName(msg) => CommandResult::text(msg),
+        _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
+/// Theme selection command.
+fn handle_theme_command(arg: Option<String>) -> CommandResult {
+    match arg.as_deref().map(str::trim) {
+        None | Some("") => CommandResult::text(
+            "Available themes: default, solarized\n\
+             Usage: /theme <name> [light|dark|auto]\n\
+             Solarized auto switches with real-world sunrise and sunset.",
+        ),
+        Some("default") => CommandResult::with_effect(
+            "Reverting to the parish's natural colours.",
+            CommandEffect::ApplyTheme("default".to_string(), String::new()),
+        ),
+        Some(rest) => {
+            let mut parts = rest.splitn(2, ' ');
+            let name = parts.next().unwrap_or("").to_lowercase();
+            let mode = parts.next().map(str::trim).unwrap_or("").to_lowercase();
+            match name.as_str() {
+                "solarized" => {
+                    let mode = if mode.is_empty() {
+                        "auto".to_string()
+                    } else {
+                        mode
+                    };
+                    let msg = match mode.as_str() {
+                        "light" => "Solarized light applied.",
+                        "dark" => "Solarized dark applied.",
+                        "auto" => "Solarized auto — follows the game's time of day.",
+                        other => {
+                            return CommandResult::text(format!(
+                                "Unknown mode '{}'. Try: light, dark, auto",
+                                other
+                            ));
+                        }
+                    };
+                    CommandResult::with_effect(
+                        msg,
+                        CommandEffect::ApplyTheme("solarized".to_string(), mode),
+                    )
+                }
+                other => CommandResult::text(format!(
+                    "Unknown theme '{}'. Available: default, solarized",
+                    other
+                )),
+            }
+        }
+    }
+}
 /// Handles the `/weather` command.
 ///
 /// With no argument, reports the current weather and how long it has been

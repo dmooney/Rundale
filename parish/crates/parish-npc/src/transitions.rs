@@ -182,46 +182,16 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::memory::{LongTermMemory, ShortTermMemory};
-    use crate::types::{Intelligence, NpcState};
+    use crate::test_helpers::make_test_npc;
     use chrono::{TimeZone, Utc};
-    use std::collections::HashMap;
 
     fn test_time() -> DateTime<Utc> {
         Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap()
     }
 
-    fn make_npc(id: u32) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: format!("NPC {id}"),
-            brief_description: "a person".to_string(),
-            age: 30,
-            occupation: "Test".to_string(),
-            personality: "Test personality".to_string(),
-            intelligence: Intelligence::default(),
-            location: LocationId(1),
-            mood: "calm".to_string(),
-            home: Some(LocationId(1)),
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::Present,
-            deflated_summary: None,
-            reaction_log: crate::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
-    }
-
     #[test]
     fn test_inflate_with_relevant_events() {
-        let mut npc = make_npc(1);
+        let mut npc = make_test_npc(1, 1);
         let events = vec![
             GameEvent::MoodChanged {
                 npc_id: NpcId(1),
@@ -245,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_inflate_no_relevant_events() {
-        let mut npc = make_npc(1);
+        let mut npc = make_test_npc(1, 1);
         let events = vec![GameEvent::MoodChanged {
             npc_id: NpcId(99), // different NPC
             new_mood: "angry".to_string(),
@@ -259,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_inflate_clears_deflated_summary() {
-        let mut npc = make_npc(1);
+        let mut npc = make_test_npc(1, 1);
         npc.deflated_summary = Some(NpcSummary {
             npc_id: NpcId(1),
             location: LocationId(1),
@@ -280,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_deflate_captures_state() {
-        let mut npc = make_npc(1);
+        let mut npc = make_test_npc(1, 1);
         npc.mood = "anxious".to_string();
         npc.location = LocationId(5);
 
@@ -313,7 +283,7 @@ mod tests {
 
     #[test]
     fn test_deflate_empty_state() {
-        let npc = make_npc(1);
+        let npc = make_test_npc(1, 1);
         let summary = deflate_npc_state(&npc, &[]);
         assert_eq!(summary.npc_id, NpcId(1));
         assert!(summary.recent_activity.is_empty());

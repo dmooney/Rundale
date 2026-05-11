@@ -2,10 +2,6 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { svelteTesting } from '@testing-library/svelte/vite';
 import { defineConfig } from 'vitest/config';
 
-// Minimal local declaration so TypeScript accepts `process.env` in this Node-only
-// config file without pulling in `@types/node` as a project-wide dependency.
-declare const process: { env: Record<string, string | undefined> };
-
 export default defineConfig({
 	plugins: [sveltekit(), svelteTesting()],
 	clearScreen: false,
@@ -18,19 +14,19 @@ export default defineConfig({
 			5173,
 		strictPort: true,
 		fs: {
-			allow: ['.']
+			allow: ['.'],
 		},
 		proxy: {
 			'/api': {
 				target: `http://localhost:${process.env.PARISH_WEB_PORT || '3001'}`,
-				ws: true
-			}
-		}
+				ws: true,
+			},
+		},
 	},
 	test: {
 		include: ['src/**/*.test.ts'],
 		globals: true,
 		environment: 'jsdom',
-		setupFiles: ['src/test-setup.ts']
-	}
+		setupFiles: ['src/test-setup.ts'],
+	},
 });

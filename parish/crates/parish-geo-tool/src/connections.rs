@@ -73,12 +73,12 @@ pub fn generate_connections(
             let road_dist = find_road_distance(&features[i], &features[j], &road_segments);
 
             let (desc, rev_desc) = if let Some((_, segment)) = road_dist {
-                let desc = generate_path_description(&segment, &features[i], &features[j]);
-                let rev_desc = generate_path_description(&segment, &features[j], &features[i]);
+                let desc = generate_path_description(&segment, &features[j]);
+                let rev_desc = generate_path_description(&segment, &features[i]);
                 (desc, rev_desc)
             } else {
-                let desc = generate_direct_description(&features[i], &features[j]);
-                let rev_desc = generate_direct_description(&features[j], &features[i]);
+                let desc = generate_direct_description(&features[j]);
+                let rev_desc = generate_direct_description(&features[i]);
                 (desc, rev_desc)
             };
 
@@ -217,7 +217,7 @@ fn along_road_distance(points: &[LatLon], idx_a: usize, idx_b: usize) -> f64 {
 }
 
 /// Generates a path description based on the road type.
-fn generate_path_description(segment: &RoadSegment, _from: &GeoFeature, to: &GeoFeature) -> String {
+fn generate_path_description(segment: &RoadSegment, to: &GeoFeature) -> String {
     let road_type_desc = match segment.highway_type.as_str() {
         "primary" | "secondary" => "the road",
         "tertiary" => "a country road",
@@ -237,7 +237,7 @@ fn generate_path_description(segment: &RoadSegment, _from: &GeoFeature, to: &Geo
 }
 
 /// Generates a description for a direct (off-road) connection.
-fn generate_direct_description(_from: &GeoFeature, to: &GeoFeature) -> String {
+fn generate_direct_description(to: &GeoFeature) -> String {
     format!("across the fields toward {}", to.name)
 }
 
@@ -325,14 +325,8 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
         connections.push(GeneratedConnection {
             from_idx: best_pair.0,
             to_idx: best_pair.1,
-            path_description: generate_direct_description(
-                &features[best_pair.0],
-                &features[best_pair.1],
-            ),
-            reverse_path_description: generate_direct_description(
-                &features[best_pair.1],
-                &features[best_pair.0],
-            ),
+            path_description: generate_direct_description(&features[best_pair.1]),
+            reverse_path_description: generate_direct_description(&features[best_pair.0]),
         });
     }
 }
@@ -340,27 +334,14 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::osm_model::{GeoFeature, LocationType};
-
-    fn make_feature(name: &str, lat: f64, lon: f64) -> GeoFeature {
-        GeoFeature {
-            osm_id: 0,
-            osm_type: "node".to_string(),
-            lat,
-            lon,
-            name: name.to_string(),
-            name_ga: None,
-            location_type: LocationType::Pub,
-            tags: HashMap::new(),
-            curated: false,
-        }
-    }
+    use crate::osm_model::LocationType;
+    use crate::test_utils::make_feature;
 
     #[test]
     fn test_generate_connections_nearby() {
         let features = vec![
-            make_feature("A", 53.5000, -8.0000),
-            make_feature("B", 53.5010, -8.0000), // ~111m away
+            make_feature("A", LocationType::Pub, 53.5000, -8.0000),
+            make_feature("B", LocationType::Pub, 53.5010, -8.0000), // ~111m away
         ];
         let road_response = OverpassResponse {
             version: Some(0.6),
@@ -376,8 +357,8 @@ mod tests {
     #[test]
     fn test_generate_connections_too_far() {
         let features = vec![
-            make_feature("A", 53.5, -8.0),
-            make_feature("B", 54.0, -8.0), // ~55km away
+            make_feature("A", LocationType::Pub, 53.5, -8.0),
+            make_feature("B", LocationType::Pub, 54.0, -8.0), // ~55km away
         ];
         let road_response = OverpassResponse {
             version: Some(0.6),
@@ -392,7 +373,10 @@ mod tests {
 
     #[test]
     fn test_ensure_connectivity_single_component() {
-        let features = vec![make_feature("A", 53.5, -8.0), make_feature("B", 53.5, -8.0)];
+        let features = vec![
+            make_feature("A", LocationType::Pub, 53.5, -8.0),
+            make_feature("B", LocationType::Pub, 53.5, -8.0),
+        ];
         let mut connections = vec![GeneratedConnection {
             from_idx: 0,
             to_idx: 1,
@@ -409,9 +393,9 @@ mod tests {
     #[test]
     fn test_ensure_connectivity_bridges_components() {
         let features = vec![
-            make_feature("A", 53.5000, -8.0000),
-            make_feature("B", 53.5001, -8.0000),
-            make_feature("C", 53.6000, -8.0000), // far away, disconnected
+            make_feature("A", LocationType::Pub, 53.5000, -8.0000),
+            make_feature("B", LocationType::Pub, 53.5001, -8.0000),
+            make_feature("C", LocationType::Pub, 53.6000, -8.0000), // far away, disconnected
         ];
         // Only A-B connected
         let mut connections = vec![GeneratedConnection {
@@ -455,10 +439,9 @@ mod tests {
             highway_type: "track".to_string(),
             name: None,
         };
-        let from = make_feature("Church", 53.5, -8.0);
-        let to = make_feature("Pub", 53.5, -8.0);
+        let to = make_feature("Pub", LocationType::Pub, 53.5, -8.0);
 
-        let desc = generate_path_description(&segment, &from, &to);
+        let desc = generate_path_description(&segment, &to);
         assert!(desc.contains("rough track"));
         assert!(desc.contains("Pub"));
     }
@@ -470,10 +453,9 @@ mod tests {
             highway_type: "tertiary".to_string(),
             name: Some("Bog Road".to_string()),
         };
-        let from = make_feature("A", 53.5, -8.0);
-        let to = make_feature("B", 53.5, -8.0);
+        let to = make_feature("B", LocationType::Pub, 53.5, -8.0);
 
-        let desc = generate_path_description(&segment, &from, &to);
+        let desc = generate_path_description(&segment, &to);
         assert!(desc.contains("Bog Road"));
     }
 }

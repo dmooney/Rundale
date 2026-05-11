@@ -4,8 +4,7 @@
 //! Adjustable at runtime via [`GameSpeed`] presets (Slow/Normal/Fast/Fastest).
 //! Tracks time of day, season, and calendar festivals.
 //!
-//! Festivals can be defined via the hardcoded [`Festival`] enum (legacy) or
-//! loaded from a mod's [`FestivalDef`](crate::game_mod::FestivalDef) data.
+//! Festivals are defined via the hardcoded [`Festival`] enum.
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
 use serde::{Deserialize, Serialize};
@@ -15,7 +14,7 @@ use std::time::Instant;
 /// Speed multiplier factors. Higher = faster game time.
 ///
 /// Factor of 36.0 means 40 real minutes = 1 game day.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SpeedConfig {
     /// 80 real minutes per game day.
     #[serde(default = "default_slow")]
@@ -65,7 +64,7 @@ fn default_ludicrous() -> f64 {
 /// Represents the time of day in the game world.
 ///
 /// Used to drive color palette selection and NPC behavior.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TimeOfDay {
     /// 5:00–6:59
     Dawn,
@@ -180,7 +179,7 @@ impl fmt::Display for DayType {
 ///
 /// These mark the transitions between seasons in the Irish calendar
 /// and serve as hooks for future mythological events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Festival {
     /// February 1 — Start of spring
     Imbolc,
@@ -220,7 +219,7 @@ impl fmt::Display for Festival {
 ///
 /// Each variant maps to a speed factor (game-time seconds per real-time second).
 /// The default is `Normal` (36.0 = 40 real minutes per game day).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GameSpeed {
     /// Slowest pace — 18.0 factor (80 real minutes per game day).
     Slow,
@@ -246,17 +245,12 @@ impl GameSpeed {
 
     /// Returns the speed factor for this preset using default config values.
     pub fn factor(self) -> f64 {
-        self.factor_with_config(&SpeedConfig::default())
-    }
-
-    /// Returns the speed factor for this preset using the given config.
-    pub fn factor_with_config(self, config: &SpeedConfig) -> f64 {
         match self {
-            GameSpeed::Slow => config.slow,
-            GameSpeed::Normal => config.normal,
-            GameSpeed::Fast => config.fast,
-            GameSpeed::Fastest => config.fastest,
-            GameSpeed::Ludicrous => config.ludicrous,
+            GameSpeed::Slow => 18.0,
+            GameSpeed::Normal => 36.0,
+            GameSpeed::Fast => 72.0,
+            GameSpeed::Fastest => 144.0,
+            GameSpeed::Ludicrous => 864.0,
         }
     }
 
@@ -379,26 +373,8 @@ impl GameClock {
     }
 
     /// Checks if today is a festival day using the hardcoded [`Festival`] enum.
-    ///
-    /// Prefer [`check_festival_data`](GameClock::check_festival_data) for
-    /// mod-driven festival definitions.
     pub fn check_festival(&self) -> Option<Festival> {
         Festival::check(self.now().date_naive())
-    }
-
-    /// Checks if today is a festival day using data-driven definitions.
-    ///
-    /// Returns a reference to a festival def if the current game date matches.
-    /// The festival def type is generic to avoid depending on game_mod.
-    pub fn check_festival_data<'a, F>(&self, festivals: &'a [F]) -> Option<&'a F>
-    where
-        F: HasFestivalDate,
-    {
-        let date = self.now().date_naive();
-        let (month, day) = (date.month(), date.day());
-        festivals
-            .iter()
-            .find(|f| f.month() == month && f.day() == day)
     }
 
     /// Advances the game clock by the given number of game minutes.
@@ -522,17 +498,6 @@ impl GameClock {
     pub fn real_elapsed_secs(&self) -> f64 {
         self.start_real.elapsed().as_secs_f64()
     }
-}
-
-/// Trait for types that have a festival month and day.
-///
-/// Allows `GameClock::check_festival_data` to work with any festival
-/// definition type without depending on `game_mod`.
-pub trait HasFestivalDate {
-    /// Returns the festival month (1–12).
-    fn month(&self) -> u32;
-    /// Returns the festival day (1–31).
-    fn day(&self) -> u32;
 }
 
 /// Maps an hour (0–23) to a `TimeOfDay` variant.
@@ -671,5 +636,225 @@ mod tests {
         assert_eq!(DayType::Weekday.to_string(), "Weekday");
         assert_eq!(DayType::Sunday.to_string(), "Sunday");
         assert_eq!(DayType::MarketDay.to_string(), "Market Day");
+    }
+
+    // ── GameClock pause/resume ─────────────────────────────────────────────
+
+    #[test]
+    fn test_pause_resume() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        assert!(!clock.is_paused());
+        clock.pause();
+        assert!(clock.is_paused());
+        let frozen = clock.now();
+        clock.resume();
+        assert!(!clock.is_paused());
+        // After resume, now() should be >= frozen time (not earlier)
+        assert!(clock.now() >= frozen);
+    }
+
+    #[test]
+    fn test_pause_is_idempotent() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.pause();
+        let t1 = clock.now();
+        clock.pause(); // second pause is a no-op
+        assert!(clock.is_paused());
+        assert_eq!(clock.now(), t1);
+    }
+
+    #[test]
+    fn test_resume_noop_when_not_paused() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.resume(); // no-op since not paused
+        assert!(!clock.is_paused());
+    }
+
+    #[test]
+    fn test_pause_advance_while_paused() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.pause();
+        clock.advance(60);
+        assert_eq!(clock.now().hour(), 11);
+    }
+
+    // ── GameClock inference_pause/resume ───────────────────────────────────
+
+    #[test]
+    fn test_inference_pause_resume() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        assert!(!clock.is_inference_paused());
+        clock.inference_pause();
+        assert!(clock.is_inference_paused());
+        let frozen = clock.now();
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+        assert!(clock.now() >= frozen);
+    }
+
+    #[test]
+    fn test_inference_pause_is_idempotent() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.inference_pause();
+        let t1 = clock.now();
+        clock.inference_pause(); // second call is no-op
+        assert_eq!(clock.now(), t1);
+    }
+
+    #[test]
+    fn test_inference_resume_noop_when_not_paused() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.inference_resume(); // no-op
+        assert!(!clock.is_inference_paused());
+    }
+
+    #[test]
+    fn test_inference_and_player_pause_independent() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.pause();
+        clock.inference_pause();
+        assert!(clock.is_paused());
+        assert!(clock.is_inference_paused());
+        // resume player pause but clock stays frozen due to inference pause
+        clock.resume();
+        assert!(clock.is_inference_paused());
+        assert!(!clock.is_paused());
+        let frozen = clock.now();
+        // now resume inference
+        clock.inference_resume();
+        assert!(!clock.is_inference_paused());
+        assert!(clock.now() >= frozen);
+    }
+
+    // ── GameClock set_speed / current_speed / speed_factor ────────────────
+
+    #[test]
+    fn test_set_speed_changes_factor() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        assert!((clock.speed_factor() - 36.0).abs() < f64::EPSILON);
+        clock.set_speed(GameSpeed::Fast);
+        assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_current_speed_detection() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Normal));
+        clock.set_speed(GameSpeed::Ludicrous);
+        assert_eq!(clock.current_speed(), Some(GameSpeed::Ludicrous));
+    }
+
+    #[test]
+    fn test_speed_factor_getter() {
+        let clock = GameClock::new(game_time(1820, 3, 20, 10));
+        assert!((clock.speed_factor() - 36.0).abs() < f64::EPSILON);
+    }
+
+    // ── GameClock accessors ────────────────────────────────────────────────
+
+    #[test]
+    fn test_start_game_getter() {
+        let t = game_time(1820, 3, 20, 10);
+        let clock = GameClock::new(t);
+        assert_eq!(clock.start_game(), t);
+    }
+
+    #[test]
+    fn test_paused_game_time_initialized() {
+        let t = game_time(1820, 3, 20, 10);
+        let clock = GameClock::new(t);
+        assert_eq!(clock.paused_game_time(), t);
+    }
+
+    #[test]
+    fn test_real_elapsed_secs_positive() {
+        let clock = GameClock::new(game_time(1820, 3, 20, 10));
+        let secs = clock.real_elapsed_secs();
+        assert!(secs >= 0.0, "elapsed time must be non-negative");
+    }
+
+    // ── GameSpeed::from_name / activation_message ──────────────────────────
+
+    #[test]
+    fn test_game_speed_from_name() {
+        assert_eq!(GameSpeed::from_name("slow"), Some(GameSpeed::Slow));
+        assert_eq!(GameSpeed::from_name("normal"), Some(GameSpeed::Normal));
+        assert_eq!(GameSpeed::from_name("fast"), Some(GameSpeed::Fast));
+        assert_eq!(GameSpeed::from_name("fastest"), Some(GameSpeed::Fastest));
+        assert_eq!(
+            GameSpeed::from_name("ludicrous"),
+            Some(GameSpeed::Ludicrous)
+        );
+        assert_eq!(GameSpeed::from_name("SLOW"), Some(GameSpeed::Slow));
+        assert_eq!(GameSpeed::from_name("unknown"), None);
+        assert_eq!(GameSpeed::from_name(""), None);
+    }
+
+    #[test]
+    fn test_game_speed_activation_message() {
+        assert!(GameSpeed::Slow.activation_message().contains("amble"));
+        assert!(GameSpeed::Normal.activation_message().contains("stride"));
+        assert!(GameSpeed::Fast.activation_message().contains("quickens"));
+        assert!(GameSpeed::Fastest.activation_message().contains("hat"));
+        assert!(GameSpeed::Ludicrous.activation_message().contains("blur"));
+    }
+
+    // ── GameClock with_speed ──────────────────────────────────────────────
+
+    #[test]
+    fn test_game_clock_with_speed() {
+        let clock = GameClock::with_speed(game_time(1820, 3, 20, 10), 72.0);
+        assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
+    }
+
+    // ── Display round-trip tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_festival_display() {
+        assert_eq!(Festival::Imbolc.to_string(), "Imbolc");
+        assert_eq!(Festival::Bealtaine.to_string(), "Bealtaine");
+        assert_eq!(Festival::Lughnasa.to_string(), "Lughnasa");
+        assert_eq!(Festival::Samhain.to_string(), "Samhain");
+    }
+
+    #[test]
+    fn test_season_display() {
+        assert_eq!(Season::Spring.to_string(), "Spring");
+        assert_eq!(Season::Summer.to_string(), "Summer");
+        assert_eq!(Season::Autumn.to_string(), "Autumn");
+        assert_eq!(Season::Winter.to_string(), "Winter");
+    }
+
+    #[test]
+    fn test_time_of_day_display() {
+        assert_eq!(TimeOfDay::Dawn.to_string(), "Dawn");
+        assert_eq!(TimeOfDay::Morning.to_string(), "Morning");
+        assert_eq!(TimeOfDay::Midday.to_string(), "Midday");
+        assert_eq!(TimeOfDay::Afternoon.to_string(), "Afternoon");
+        assert_eq!(TimeOfDay::Dusk.to_string(), "Dusk");
+        assert_eq!(TimeOfDay::Night.to_string(), "Night");
+        assert_eq!(TimeOfDay::Midnight.to_string(), "Midnight");
+    }
+
+    #[test]
+    fn test_game_speed_display() {
+        assert_eq!(GameSpeed::Slow.to_string(), "Slow");
+        assert_eq!(GameSpeed::Normal.to_string(), "Normal");
+        assert_eq!(GameSpeed::Fast.to_string(), "Fast");
+        assert_eq!(GameSpeed::Fastest.to_string(), "Fastest");
+        assert_eq!(GameSpeed::Ludicrous.to_string(), "Ludicrous");
+    }
+
+    // ── GameClock set_speed while frozen ───────────────────────────────────
+
+    #[test]
+    fn test_set_speed_while_frozen() {
+        let mut clock = GameClock::new(game_time(1820, 3, 20, 10));
+        clock.pause();
+        let frozen = clock.now();
+        clock.set_speed(GameSpeed::Fast);
+        assert!(clock.is_paused());
+        assert_eq!(clock.now(), frozen);
+        assert!((clock.speed_factor() - 72.0).abs() < f64::EPSILON);
     }
 }

@@ -4,7 +4,7 @@
 //! probabilistically during NPC interactions and may be distorted as
 //! it passes from person to person.
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
@@ -43,7 +43,7 @@ pub struct GossipItem {
 /// Manages all gossip items in the world.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GossipNetwork {
-    items: Vec<GossipItem>,
+    items: VecDeque<GossipItem>,
     next_id: u32,
 }
 
@@ -51,7 +51,7 @@ impl GossipNetwork {
     /// Creates an empty gossip network.
     pub fn new() -> Self {
         Self {
-            items: Vec::new(),
+            items: VecDeque::new(),
             next_id: 0,
         }
     }
@@ -67,7 +67,7 @@ impl GossipNetwork {
         let mut known_by = HashSet::new();
         known_by.insert(source);
 
-        self.items.push(GossipItem {
+        self.items.push_back(GossipItem {
             id,
             content,
             source,
@@ -78,8 +78,7 @@ impl GossipNetwork {
 
         // Evict oldest items when over capacity.
         if self.items.len() > GOSSIP_CAPACITY {
-            self.items.sort_unstable_by_key(|g| g.timestamp);
-            self.items.drain(..self.items.len() - GOSSIP_CAPACITY);
+            self.items.pop_front();
         }
 
         id
@@ -122,14 +121,6 @@ impl GossipNetwork {
             .collect()
     }
 
-    /// Returns gossip items created after the given timestamp.
-    pub fn recent(&self, since: DateTime<Utc>) -> Vec<&GossipItem> {
-        self.items
-            .iter()
-            .filter(|item| item.timestamp > since)
-            .collect()
-    }
-
     /// Returns the most recent `n` gossip items known by the given NPC.
     ///
     /// Sorted newest first.
@@ -164,8 +155,8 @@ impl GossipNetwork {
     }
 
     /// Returns all gossip items (for debug display).
-    pub fn all_items(&self) -> &[GossipItem] {
-        &self.items
+    pub fn all_items(&self) -> Vec<&GossipItem> {
+        self.items.iter().collect()
     }
 }
 
@@ -199,11 +190,10 @@ const EMOTION_SHIFTS: &[(&str, &str)] = &[
 
 /// Applies a random distortion to a gossip string.
 ///
-/// Distortion rules:
-/// 1. Drop an adjective (30% weight)
-/// 2. Exaggerate a quantity (30% weight)
-/// 3. Shift emotional tone (30% weight)
-/// 4. Swap a name — not implemented without NPC name list (10% weight, skipped)
+/// Distortion rules (each ~33% weight):
+/// 1. Drop an adjective
+/// 2. Exaggerate a quantity
+/// 3. Shift emotional tone
 fn distort(content: &str, rng: &mut impl Rng) -> String {
     let roll: f64 = rng.random();
 
@@ -404,16 +394,5 @@ mod tests {
         // Unknown NPC gets empty string
         let empty = network.gossip_context_string(NpcId(99), 2);
         assert!(empty.is_empty());
-    }
-
-    #[test]
-    fn test_gossip_recent() {
-        let mut network = GossipNetwork::new();
-        network.create("Old news".to_string(), NpcId(1), test_time(8));
-        network.create("New news".to_string(), NpcId(1), test_time(12));
-
-        let recent = network.recent(test_time(10));
-        assert_eq!(recent.len(), 1);
-        assert!(recent[0].content.contains("New news"));
     }
 }

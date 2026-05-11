@@ -99,8 +99,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn make_npc(id: u32, name: &str, mood: &str) -> Npc {
-        let mut npc = Npc::new_test_npc();
-        npc.id = NpcId(id);
+        let mut npc = crate::test_helpers::make_test_npc(id, 1);
         npc.name = name.to_string();
         npc.mood = mood.to_string();
         npc.relationships = HashMap::new();
@@ -317,6 +316,52 @@ mod tests {
         );
         assert_eq!(recently_spoken[0], NpcId(1));
         assert_eq!(recently_spoken[1], NpcId(2));
+    }
+
+    // ── TD-008: Boundary tests for pick_next_speaker ──────────────────────────
+
+    #[test]
+    fn relationship_strength_exactly_0_1_does_not_get_bonus() {
+        let mut alice = make_npc(1, "Alice", "content");
+        add_relationship(&mut alice, NpcId(99), 0.1);
+        let candidates = vec![&alice];
+        // Score: 0.4 baseline + no mood bonus + no addressed bonus = 0.4 < threshold
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[]);
+        assert!(
+            result.is_none(),
+            "strength exactly 0.1 must NOT get relationship bonus"
+        );
+    }
+
+    #[test]
+    fn relationship_strength_just_above_0_1_gets_bonus() {
+        let mut alice = make_npc(1, "Alice", "content");
+        add_relationship(&mut alice, NpcId(99), 0.1001);
+        let candidates = vec![&alice];
+        // Score: 0.4 baseline + 0.3 relationship bonus = 0.7 >= threshold
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[]);
+        assert_eq!(result.map(|n| n.id), Some(NpcId(1)));
+    }
+
+    #[test]
+    fn negative_relationship_strength_above_0_1_gets_bonus() {
+        let mut alice = make_npc(1, "Alice", "content");
+        add_relationship(&mut alice, NpcId(99), -0.1001);
+        let candidates = vec![&alice];
+        // Score: 0.4 baseline + 0.3 relationship bonus = 0.7 >= threshold
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[]);
+        assert_eq!(result.map(|n| n.id), Some(NpcId(1)));
+    }
+
+    #[test]
+    fn speak_up_threshold_0_5_is_eligible() {
+        let mut alice = make_npc(1, "Alice", "excited");
+        add_relationship(&mut alice, NpcId(99), -0.05);
+        let candidates = vec![&alice];
+        // Score: 0.4 baseline + 0.0 (abs < 0.1) + 0.1 mood = 0.5, exactly at threshold
+        // Relationship score is 0 since | -0.05 | = 0.05 <= 0.1
+        let result = pick_next_speaker(&candidates, Some(NpcId(99)), &[], &[]);
+        assert_eq!(result.map(|n| n.id), Some(NpcId(1)), "0.5 must be eligible");
     }
 
     #[test]

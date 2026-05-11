@@ -44,11 +44,7 @@ pub struct ParishMetadata {
     pub locations: Vec<LocationMetadata>,
 }
 
-/// The standard parish.json file format (game-loadable).
-#[derive(Debug, Serialize, Deserialize)]
-struct ParishFile {
-    locations: Vec<LocationData>,
-}
+include!("world_file_shared.inc");
 
 /// Writes the final parish.json and metadata files.
 ///
@@ -60,7 +56,7 @@ pub fn write_output(output_path: &Path, locations: &[TrackedLocation]) -> Result
     // Extract game-format location data
     let location_data: Vec<LocationData> = locations.iter().map(|loc| loc.data.clone()).collect();
 
-    let parish_file = ParishFile {
+    let parish_file = WorldFile {
         locations: location_data,
     };
 
@@ -150,18 +146,6 @@ pub fn print_summary(locations: &[TrackedLocation]) {
         total_connections / 2
     );
 
-    // Count by location type (from metadata)
-    let mut type_counts: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
-    for loc in locations {
-        let type_name = if loc.description_source == DescriptionSource::Curated {
-            "curated".to_string()
-        } else {
-            "generated".to_string()
-        };
-        *type_counts.entry(type_name).or_insert(0) += 1;
-    }
-
     println!("================================\n");
 }
 
@@ -184,7 +168,6 @@ mod tests {
                     lon: -8.0,
                     connections: vec![Connection {
                         target: LocationId(2),
-                        traversal_minutes: None,
                         path_description: "a path to B".to_string(),
                         hazard: Default::default(),
                     }],
@@ -211,7 +194,6 @@ mod tests {
                     lon: -8.0,
                     connections: vec![Connection {
                         target: LocationId(1),
-                        traversal_minutes: None,
                         path_description: "a path to A".to_string(),
                         hazard: Default::default(),
                     }],
@@ -258,5 +240,28 @@ mod tests {
     fn test_print_summary_does_not_panic() {
         let locations = make_tracked_locations();
         print_summary(&locations); // Just verify it doesn't panic
+    }
+
+    #[test]
+    fn test_validate_output_fails_on_invalid_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.json");
+        std::fs::write(&path, "not json").unwrap();
+        let result = validate_output(&path);
+        assert!(result.is_err(), "validation should fail for invalid JSON");
+    }
+
+    #[test]
+    fn test_validate_output_fails_on_broken_connections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.json");
+        // Write a parish file with a connection target that doesn't exist
+        let bad_data = r#"{"locations":[{"id":1,"name":"A","description_template":"A.","indoor":false,"public":true,"lat":53.0,"lon":-8.0,"connections":[{"target":99,"path_description":"nowhere","hazard":null}],"associated_npcs":[],"mythological_significance":null,"aliases":[],"geo_kind":"Real","relative_to":null,"geo_source":null}]}"#;
+        std::fs::write(&path, bad_data).unwrap();
+        let result = validate_output(&path);
+        assert!(
+            result.is_err(),
+            "validation should fail for broken connections"
+        );
     }
 }

@@ -49,7 +49,7 @@
 	const issueCount = $derived($editorIssueCount);
 </script>
 
-<div class="editor-page">
+<div class="editor-page" data-testid="editor-page">
 	<div class="editor-header">
 		<a href="/" class="back-link">&larr; Game</a>
 		<h1 class="editor-title">Parish Designer</h1>

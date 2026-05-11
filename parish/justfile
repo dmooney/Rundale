@@ -346,6 +346,17 @@ realign-coords:
 realign-coords-run *ARGS:
     cargo run -p parish-geo-tool --bin realign_rundale_coords -- {{ARGS}}
 
+# ─── Release ─────────────────────────────────────────────────────────────────
+
+# Bump versions, commit, and tag a release locally. Push the branch and the
+# new tag separately to trigger .github/workflows/release.yml. See docs/release.md.
+release VERSION:
+    bash scripts/release.sh {{VERSION}}
+
+# Show the would-be diff without writing files, committing, or tagging.
+release-dry-run VERSION:
+    bash scripts/release.sh {{VERSION}} --dry-run
+
 # ─── Dependencies ────────────────────────────────────────────────────────────
 
 # Check for outdated dependencies (requires cargo-outdated)

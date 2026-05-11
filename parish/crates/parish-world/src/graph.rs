@@ -82,9 +82,6 @@ impl Hazard {
 pub struct Connection {
     /// The destination location.
     pub target: LocationId,
-    /// Legacy field — ignored at runtime; travel time is calculated from coordinates.
-    #[serde(default, skip_serializing)]
-    pub traversal_minutes: Option<u16>,
     /// Prose description of the path (e.g., "a narrow boreen lined with hawthorn").
     pub path_description: String,
     /// Optional weather hazard tag that gates or slows this edge when the
@@ -302,57 +299,49 @@ impl WorldGraph {
         let stripped = strip_articles(&lower);
         let do_article_strip = stripped != lower;
 
-        // Track best deterministic match: (priority_level, location_id).
-        // Lower level number = higher priority.
-        let mut best: Option<(u8, LocationId)> = None;
-        // Track best fuzzy match as fallback (level 5).
+        let mut best: Option<(MatchLevel, LocationId)> = None;
         let mut best_fuzzy: Option<(f64, LocationId)> = None;
 
         for (id, loc) in &self.locations {
-            // Lowercase name once per location (was repeated up to 8× across separate scans)
             let loc_lower = loc.name.to_lowercase();
 
-            // Level 1: Exact name match — can't be beaten, return immediately
             if loc_lower == lower {
                 return Some(*id);
             }
 
-            // Lowercase aliases once per location
             let aliases_lower: Vec<String> = loc.aliases.iter().map(|a| a.to_lowercase()).collect();
 
-            // Determine this location's best matching priority level
             let level = if aliases_lower.contains(&lower) {
-                1 // Level 1b: Exact alias
+                MatchLevel::ExactAlias
             } else if loc_lower.contains(&lower) {
-                2 // Level 2: Query in name
+                MatchLevel::QueryInName
             } else if aliases_lower.iter().any(|a| a.contains(&lower)) {
-                3 // Level 2b: Query in alias
+                MatchLevel::QueryInAlias
             } else if lower.contains(loc_lower.as_str()) {
-                4 // Level 3: Name in query
+                MatchLevel::NameInQuery
             } else if aliases_lower.iter().any(|a| lower.contains(a.as_str())) {
-                5 // Level 3b: Alias in query
+                MatchLevel::AliasInQuery
             } else if do_article_strip {
                 let loc_stripped = strip_articles(&loc_lower);
                 if loc_stripped.contains(&stripped) || stripped.contains(loc_stripped.as_str()) {
-                    6 // Level 4: Article-stripped name
+                    MatchLevel::ArticleName
                 } else if aliases_lower.iter().any(|a| {
                     let a_stripped = strip_articles(a);
                     a_stripped.contains(&stripped) || stripped.contains(a_stripped.as_str())
                 }) {
-                    7 // Level 4b: Article-stripped alias
+                    MatchLevel::ArticleAlias
                 } else {
-                    u8::MAX // No deterministic match
+                    MatchLevel::None
                 }
             } else {
-                u8::MAX // No deterministic match
+                MatchLevel::None
             };
 
-            if level < u8::MAX {
+            if level != MatchLevel::None {
                 if best.as_ref().is_none_or(|(best_lvl, _)| level < *best_lvl) {
                     best = Some((level, *id));
                 }
             } else {
-                // Level 5: Jaro-Winkler fuzzy — computed using already-lowercased strings
                 let name_score = jaro_winkler(&loc_lower, &stripped);
                 let alias_score = aliases_lower
                     .iter()
@@ -435,44 +424,7 @@ impl WorldGraph {
     /// Returns `None` if no path exists. The returned path includes
     /// both the start and end locations.
     pub fn shortest_path(&self, from: LocationId, to: LocationId) -> Option<Vec<LocationId>> {
-        if from == to {
-            return Some(vec![from]);
-        }
-        if !self.locations.contains_key(&from) || !self.locations.contains_key(&to) {
-            return None;
-        }
-
-        let mut visited = HashSet::new();
-        let mut queue = VecDeque::new();
-        let mut predecessors: HashMap<LocationId, LocationId> = HashMap::new();
-
-        visited.insert(from);
-        queue.push_back(from);
-
-        while let Some(current) = queue.pop_front() {
-            for (neighbor_id, _) in self.neighbors(current) {
-                if !visited.contains(&neighbor_id) {
-                    visited.insert(neighbor_id);
-                    predecessors.insert(neighbor_id, current);
-
-                    if neighbor_id == to {
-                        // Reconstruct path
-                        let mut path = vec![to];
-                        let mut node = to;
-                        while let Some(&pred) = predecessors.get(&node) {
-                            path.push(pred);
-                            node = pred;
-                        }
-                        path.reverse();
-                        return Some(path);
-                    }
-
-                    queue.push_back(neighbor_id);
-                }
-            }
-        }
-
-        None
+        self.shortest_path_filtered(from, to, |_, _, _| true)
     }
 
     /// Calculates travel time in game minutes between two locations
@@ -587,6 +539,19 @@ impl Default for WorldGraph {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Priority level for name matching, ordered from best match to worst.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum MatchLevel {
+    ExactAlias,
+    QueryInName,
+    QueryInAlias,
+    NameInQuery,
+    AliasInQuery,
+    ArticleName,
+    ArticleAlias,
+    None,
 }
 
 /// Strips common English articles from the beginning of a string.
@@ -835,6 +800,55 @@ mod tests {
     fn test_shortest_path_nonexistent() {
         let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
         assert!(graph.shortest_path(LocationId(1), LocationId(99)).is_none());
+    }
+
+    #[test]
+    fn test_shortest_path_filtered_empty_filter() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        assert!(
+            graph
+                .shortest_path_filtered(LocationId(1), LocationId(2), |_, _, _| false)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_shortest_path_filtered_same_location() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let path = graph
+            .shortest_path_filtered(LocationId(1), LocationId(1), |_, _, _| false)
+            .unwrap();
+        assert_eq!(path, vec![LocationId(1)]);
+    }
+
+    #[test]
+    fn test_shortest_path_filtered_nonexistent_target() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        assert!(
+            graph
+                .shortest_path_filtered(LocationId(1), LocationId(99), |_, _, _| true)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_shortest_path_filtered_only_target_edges() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        // Only allow edges that end at the target (id 2).
+        let path = graph
+            .shortest_path_filtered(LocationId(1), LocationId(2), |_, to, _| to == LocationId(2))
+            .unwrap();
+        assert_eq!(path, vec![LocationId(1), LocationId(2)]);
+    }
+
+    #[test]
+    fn test_shortest_path_filtered_always_true_matches_unfiltered() {
+        let graph = WorldGraph::load_from_str(test_graph_json()).unwrap();
+        let unfiltered = graph.shortest_path(LocationId(2), LocationId(4)).unwrap();
+        let filtered = graph
+            .shortest_path_filtered(LocationId(2), LocationId(4), |_, _, _| true)
+            .unwrap();
+        assert_eq!(unfiltered, filtered);
     }
 
     #[test]

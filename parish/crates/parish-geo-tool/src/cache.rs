@@ -50,20 +50,6 @@ impl ResponseCache {
         Ok(())
     }
 
-    /// Clears all cached entries.
-    #[allow(dead_code)] // Public API for manual cache management
-    pub fn clear(&self) -> Result<()> {
-        if self.cache_dir.exists() {
-            for entry in std::fs::read_dir(&self.cache_dir)? {
-                let entry = entry?;
-                if entry.path().extension().is_some_and(|e| e == "json") {
-                    std::fs::remove_file(entry.path())?;
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// Returns the file path for a cache key.
     fn key_path(&self, key: &str) -> PathBuf {
         // Sanitize key: replace non-alphanumeric chars with underscores
@@ -102,19 +88,6 @@ mod tests {
 
         let result = cache.get("nonexistent").unwrap();
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_cache_clear() {
-        let dir = tempfile::tempdir().unwrap();
-        let cache = ResponseCache::new(dir.path()).unwrap();
-
-        cache.put("key1", "value1").unwrap();
-        cache.put("key2", "value2").unwrap();
-        cache.clear().unwrap();
-
-        assert!(cache.get("key1").unwrap().is_none());
-        assert!(cache.get("key2").unwrap().is_none());
     }
 
     #[test]

@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 
 use parish_core::world::LocationId;
-use parish_core::world::graph::{Connection, LocationData, WorldGraph};
+use parish_core::world::graph::{LocationData, WorldGraph};
 
 use super::descriptions::DescriptionSource;
 use super::osm_model::haversine_distance;
@@ -144,86 +144,6 @@ pub fn determine_id_offset(merge_path: Option<&Path>, explicit_offset: Option<u3
     Ok(1)
 }
 
-/// Creates connections between curated and nearby generated locations.
-///
-/// Adds bidirectional connections between curated locations and the closest
-/// generated locations within `max_distance_m`.
-#[allow(dead_code)] // Public API for curated-to-generated linking (future use)
-pub fn connect_curated_to_generated(locations: &mut [TrackedLocation], max_distance_m: f64) {
-    // Collect indices and coordinates for generated locations with valid coords
-    let gen_indices: Vec<(usize, f64, f64)> = locations
-        .iter()
-        .enumerate()
-        .filter(|(_, loc)| loc.description_source != DescriptionSource::Curated && loc.lat != 0.0)
-        .map(|(i, loc)| (i, loc.lat, loc.lon))
-        .collect();
-
-    if gen_indices.is_empty() {
-        return;
-    }
-
-    // For each curated location, find closest generated locations
-    let curated_indices: Vec<usize> = locations
-        .iter()
-        .enumerate()
-        .filter(|(_, loc)| loc.description_source == DescriptionSource::Curated)
-        .map(|(i, _)| i)
-        .collect();
-
-    let mut new_connections: Vec<(usize, usize, String, String)> = Vec::new();
-
-    for &ci in &curated_indices {
-        let cur = &locations[ci];
-        // Find closest generated location (even if curated lacks coords, skip)
-        if cur.lat == 0.0 && cur.lon == 0.0 {
-            continue;
-        }
-
-        for &(gi, glat, glon) in &gen_indices {
-            let dist = haversine_distance(cur.lat, cur.lon, glat, glon);
-            if dist <= max_distance_m {
-                let to_name = locations[gi].data.name.clone();
-                let from_name = locations[ci].data.name.clone();
-
-                // Check if connection already exists
-                let already_connected = locations[ci]
-                    .data
-                    .connections
-                    .iter()
-                    .any(|c| c.target == locations[gi].data.id);
-
-                if !already_connected {
-                    new_connections.push((
-                        ci,
-                        gi,
-                        format!("toward {to_name}"),
-                        format!("toward {from_name}"),
-                    ));
-                }
-            }
-        }
-    }
-
-    // Apply connections (bidirectional)
-    for (ci, gi, fwd_desc, rev_desc) in new_connections {
-        let gen_id = locations[gi].data.id;
-        let cur_id = locations[ci].data.id;
-
-        locations[ci].data.connections.push(Connection {
-            target: gen_id,
-            traversal_minutes: None,
-            path_description: fwd_desc,
-            hazard: Default::default(),
-        });
-        locations[gi].data.connections.push(Connection {
-            target: cur_id,
-            traversal_minutes: None,
-            path_description: rev_desc,
-            hazard: Default::default(),
-        });
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -343,5 +263,122 @@ mod tests {
     fn test_determine_id_offset_explicit() {
         let offset = determine_id_offset(None, Some(100)).unwrap();
         assert_eq!(offset, 100);
+    }
+
+    #[test]
+    fn test_merge_remaps_generated_connection_targets() {
+        let curated = vec![make_tracked(
+            1,
+            "Church",
+            DescriptionSource::Curated,
+            53.5,
+            -8.0,
+        )];
+
+        // Generated locations with connections to each other
+        let mut gen_a = make_tracked(100, "Pub A", DescriptionSource::Template, 53.6, -8.0);
+        let mut gen_b = make_tracked(101, "Pub B", DescriptionSource::Template, 53.7, -8.0);
+        gen_a
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: parish_core::world::LocationId(101),
+                path_description: "to B".to_string(),
+                hazard: Default::default(),
+            });
+        gen_b
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: parish_core::world::LocationId(100),
+                path_description: "to A".to_string(),
+                hazard: Default::default(),
+            });
+
+        let generated = vec![gen_a, gen_b];
+        let result = merge_locations(curated, generated, 50.0);
+
+        assert_eq!(result.len(), 3); // Church + Pub A + Pub B
+        // Generated IDs should be remapped from 100,101 → 2,3
+        let pub_a = result.iter().find(|l| l.data.name == "Pub A").unwrap();
+        let pub_b = result.iter().find(|l| l.data.name == "Pub B").unwrap();
+        assert_eq!(pub_a.data.id, parish_core::world::LocationId(2));
+        assert_eq!(pub_b.data.id, parish_core::world::LocationId(3));
+
+        // Connection targets should also be remapped
+        assert_eq!(pub_a.data.connections.len(), 1);
+        assert_eq!(
+            pub_a.data.connections[0].target,
+            parish_core::world::LocationId(3)
+        );
+        assert_eq!(pub_b.data.connections.len(), 1);
+        assert_eq!(
+            pub_b.data.connections[0].target,
+            parish_core::world::LocationId(2)
+        );
+    }
+
+    #[test]
+    fn test_determine_id_offset_from_existing_file() {
+        use parish_core::world::graph::{Connection, GeoKind, LocationData};
+        use serde::Serialize;
+
+        #[derive(Serialize)]
+        struct TempWorldFile {
+            locations: Vec<LocationData>,
+        }
+
+        let file = TempWorldFile {
+            locations: vec![
+                LocationData {
+                    id: parish_core::world::LocationId(5),
+                    name: "Old Church".to_string(),
+                    description_template: "A church.".to_string(),
+                    indoor: false,
+                    public: true,
+                    lat: 53.5,
+                    lon: -8.0,
+                    connections: vec![Connection {
+                        target: parish_core::world::LocationId(12),
+                        path_description: "to pub".to_string(),
+                        hazard: Default::default(),
+                    }],
+                    associated_npcs: vec![],
+                    mythological_significance: None,
+                    aliases: vec![],
+                    geo_kind: GeoKind::Real,
+                    relative_to: None,
+                    geo_source: None,
+                },
+                LocationData {
+                    id: parish_core::world::LocationId(12),
+                    name: "Old Pub".to_string(),
+                    description_template: "A pub.".to_string(),
+                    indoor: false,
+                    public: true,
+                    lat: 53.6,
+                    lon: -8.0,
+                    connections: vec![Connection {
+                        target: parish_core::world::LocationId(5),
+                        path_description: "to church".to_string(),
+                        hazard: Default::default(),
+                    }],
+                    associated_npcs: vec![],
+                    mythological_significance: None,
+                    aliases: vec![],
+                    geo_kind: GeoKind::Real,
+                    relative_to: None,
+                    geo_source: None,
+                },
+            ],
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("existing.json");
+        let json = serde_json::to_string(&file).unwrap();
+        std::fs::write(&path, json).unwrap();
+
+        let offset = determine_id_offset(Some(&path), None).unwrap();
+        assert_eq!(offset, 13); // max(5,12) + 1
     }
 }

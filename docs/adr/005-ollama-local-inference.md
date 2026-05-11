@@ -76,10 +76,28 @@ See inference-pipeline.md for current throughput ranges per model and cloud-prov
 - **Cloud APIs (OpenAI, Anthropic, etc.)**: Low integration effort but introduces latency, ongoing cost (potentially significant at hundreds of calls per session), privacy concerns, and requires internet connectivity. Fundamentally incompatible with the offline-first design goal.
 - **No LLM (traditional game AI)**: Eliminates inference complexity entirely but loses the core innovation. NPC behavior would be limited to state machines and scripted responses, producing the same predictable interactions as traditional text adventures.
 - **GGML/GGUF direct loading in Rust**: Possible via `llm` or `candle` crates, but these are less mature than Ollama for production use and would require managing the full inference stack.
+- **vLLM / TGI for continuous batching**: Considered as a serve-time runtime when the [Gemma 4 Rundale training plan](../design/gemma4-rundale-training-plan.md) revisited K=4 best-of rejection sampling. Both runtimes support `n=K` continuous batching at ~250–400 ms total vs Ollama's serial ~1.6 s for the same K. **Rejected for v1**: vLLM consumes HF safetensors (not GGUF), is heavier than Ollama on the same hardware, and would require re-baselining VRAM budgets across all four tiers. The Rundale rejection sampler instead adopts the Background-lane critic pattern (`docs/design/ai-techniques/03-dialogue-quality-loops.md` §7+§8), keeping Ollama as the single inference runtime.
+
+## Specialist Models
+
+Specialist fine-tunes (e.g. `gemma4-rundale:9b` from the [training plan](../design/gemma4-rundale-training-plan.md)) drop into the same Tier 1 slot via Ollama with no runtime change — they ship as q4_K_M GGUFs and are wired through the existing `[provider.dialogue]` block. Two feature flags gate behavior, both default-on per CLAUDE.md rule 6:
+
+- `rundale-dialect-model` — gates the Rundale-specific Hiberno-English system prompt.
+- `inference-rejection-sampler` — gates the Background-lane best-of-K critic.
+
+## Escape Hatch (revisit trigger)
+
+If the Background-lane critic produces visible flicker in playtest (the silent bubble replacement happens *after* the player has begun reading and the swap is jarring), reopen this ADR and amend to allow vLLM/TGI as the dialogue-tier runtime. Trigger criteria:
+
+- Playtest reports of bubble-swap flicker on more than ~10 % of turns.
+- Critic wall-clock 95th-percentile exceeds 1500 ms regularly (i.e. the cap is fired routinely, so the rejection sampler is silently no-op'd most of the time).
+- Either condition obliges a written reassessment, not an ad-hoc switch.
 
 ## Related
 
 - [docs/design/inference-pipeline.md](../design/inference-pipeline.md)
+- [docs/design/gemma4-rundale-training-plan.md](../design/gemma4-rundale-training-plan.md) — specialist Hiberno-English fine-tune; first consumer of the Background-lane critic pattern
+- [docs/design/ai-techniques/03-dialogue-quality-loops.md](../design/ai-techniques/03-dialogue-quality-loops.md) — Background-lane critic (§7) and Stage-3 rejection sampler (§8)
 - [ADR-002: Cognitive Level-of-Detail Tiers](002-cognitive-lod-tiers.md)
 - [ADR-006: Natural Language Input](006-natural-language-input.md)
 - [ADR-008: Structured JSON LLM Output](008-structured-json-llm-output.md)

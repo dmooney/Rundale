@@ -1,17 +1,44 @@
-//! LLM inference pipeline for OpenAI-compatible providers.
-//!
-//! Manages a request queue (Tokio mpsc channel), routes requests
-//! to the configured LLM provider (Ollama, LM Studio, OpenRouter, etc.),
-//! and returns responses via oneshot channels.
+//! LLM inference pipeline: queue, rate-limit, and dispatch to any provider
+//! (OpenAI-compatible / Anthropic Messages API / offline Simulator).
 
 pub mod anthropic_client;
 pub mod client;
+pub(crate) mod client_base;
 pub mod inference_client;
 pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
 pub(crate) mod utf8_stream;
+pub mod validate;
+
+/// Result of processing a single SSE line.
+pub(crate) enum SseResult {
+    /// Continue reading more lines.
+    Continue,
+    /// Stream is complete.
+    Done,
+    /// An error event was received mid-stream.
+    Error(String),
+}
+
+/// Strips Markdown JSON code fences (`` ```json `` or `` ``` ``) from a string.
+pub(crate) fn strip_json_fence(raw: &str) -> &str {
+    let t = raw.trim();
+    if let Some(inner) = t.strip_prefix("```json") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    if let Some(inner) = t.strip_prefix("```") {
+        return inner
+            .trim_start_matches('\n')
+            .trim_end_matches("```")
+            .trim();
+    }
+    t
+}
 
 pub use anthropic_client::AnthropicClient;
 pub use inference_client::{
@@ -622,6 +649,26 @@ impl AnyClient {
     }
 }
 
+/// Wraps an inference future with a timeout, producing a consistent error
+/// message so the caller doesn't repeat the match+format pattern.
+async fn inference_with_timeout<F, T>(
+    future: F,
+    timeout: std::time::Duration,
+    timeout_secs: u64,
+    model: &str,
+    label: &str,
+) -> Result<T, ParishError>
+where
+    F: std::future::Future<Output = Result<T, ParishError>>,
+{
+    match tokio::time::timeout(timeout, future).await {
+        Ok(result) => result,
+        Err(_) => Err(ParishError::Inference(format!(
+            "{label} timed out after {timeout_secs}s (model={model})",
+        ))),
+    }
+}
+
 /// Spawns the inference worker task.
 ///
 /// The worker pulls requests from three priority lanes using `tokio::select!`
@@ -672,8 +719,7 @@ pub fn spawn_inference_worker(
 
             let result = match (request.token_tx, request.json_mode) {
                 (Some(token_tx), true) => {
-                    match tokio::time::timeout(
-                        streaming_timeout,
+                    inference_with_timeout(
                         client.generate_stream_json(
                             &request.model,
                             &request.prompt,
@@ -682,19 +728,15 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        streaming_timeout,
+                        timeout_config.streaming_timeout_secs,
+                        &request.model,
+                        "streaming (json) inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "streaming (json) inference timed out after {}s (model={})",
-                            timeout_config.streaming_timeout_secs, request.model
-                        ))),
-                    }
                 }
                 (Some(token_tx), false) => {
-                    match tokio::time::timeout(
-                        streaming_timeout,
+                    inference_with_timeout(
                         client.generate_stream(
                             &request.model,
                             &request.prompt,
@@ -703,19 +745,15 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        streaming_timeout,
+                        timeout_config.streaming_timeout_secs,
+                        &request.model,
+                        "streaming inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "streaming inference timed out after {}s (model={})",
-                            timeout_config.streaming_timeout_secs, request.model
-                        ))),
-                    }
                 }
                 (None, _) => {
-                    match tokio::time::timeout(
-                        blocking_timeout,
+                    inference_with_timeout(
                         client.generate(
                             &request.model,
                             &request.prompt,
@@ -723,15 +761,12 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        blocking_timeout,
+                        timeout_config.timeout_secs,
+                        &request.model,
+                        "inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "inference timed out after {}s (model={})",
-                            timeout_config.timeout_secs, request.model
-                        ))),
-                    }
                 }
             };
 
@@ -1110,6 +1145,43 @@ mod tests {
         let clients = InferenceClients::new(base, "qwen3:14b".to_string(), HashMap::new());
         let (_client, model) = clients.intent_client();
         assert_eq!(model, "qwen3:14b");
+    }
+
+    #[test]
+    fn test_inference_clients_reaction_falls_back_to_base() {
+        use parish_config::InferenceCategory;
+        use std::collections::HashMap;
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let cloud = AnyClient::open_ai(OpenAiClient::new(
+            "https://openrouter.ai/api",
+            Some("sk-test"),
+        ));
+        let mut overrides = HashMap::new();
+        overrides.insert(InferenceCategory::Dialogue, (cloud, "gpt-4".to_string()));
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
+        let (_client, model) = clients.reaction_client();
+        assert_eq!(model, "qwen3:14b");
+    }
+
+    #[test]
+    fn test_inference_clients_reaction_uses_override() {
+        use parish_config::InferenceCategory;
+        use std::collections::HashMap;
+
+        let base = AnyClient::open_ai(OpenAiClient::new("http://localhost:11434", None));
+        let reaction = AnyClient::open_ai(OpenAiClient::new(
+            "https://openrouter.ai/api",
+            Some("sk-reaction"),
+        ));
+        let mut overrides = HashMap::new();
+        overrides.insert(
+            InferenceCategory::Reaction,
+            (reaction, "claude-sonnet-4".to_string()),
+        );
+        let clients = InferenceClients::new(base, "qwen3:14b".to_string(), overrides);
+        let (_client, model) = clients.reaction_client();
+        assert_eq!(model, "claude-sonnet-4");
     }
 
     #[test]

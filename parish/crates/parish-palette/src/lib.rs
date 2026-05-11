@@ -151,10 +151,15 @@ const KEYFRAMES: [Keyframe; 7] = [
     },
 ];
 
+/// Converts an f32 to a u8, clamping to [0, 255] and rounding to nearest.
+fn f32_to_u8_clamped(v: f32) -> u8 {
+    v.round().clamp(0.0, 255.0) as u8
+}
+
 /// Linearly interpolates a single byte channel.
 fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
     let v = a as f32 + (b as f32 - a as f32) * t;
-    v.round().clamp(0.0, 255.0) as u8
+    f32_to_u8_clamped(v)
 }
 
 /// Linearly interpolates between two colors.
@@ -221,8 +226,7 @@ fn interpolated_palette(hour: u32, minute: u32) -> RawPalette {
         }
     }
 
-    // Fallback (shouldn't be reached)
-    KEYFRAMES[0].palette
+    unreachable!("frac={} should always be covered by a keyframe range", frac)
 }
 
 /// Computes the luminance of an RGB color (ITU-R BT.601).
@@ -263,14 +267,14 @@ fn ensure_color_contrast(fg: RawColor, bg: RawColor, min_contrast: f32) -> RawCo
     // Scale fg channels to hit target luminance, preserving relative proportions.
     if fg_lum < 1.0 {
         // fg is near-black; just return a gray at target luminance
-        let v = target_lum.round().clamp(0.0, 255.0) as u8;
+        let v = f32_to_u8_clamped(target_lum);
         return RawColor::new(v, v, v);
     }
 
     let scale = target_lum / fg_lum;
-    let r = (fg.r as f32 * scale).round().clamp(0.0, 255.0) as u8;
-    let g = (fg.g as f32 * scale).round().clamp(0.0, 255.0) as u8;
-    let b = (fg.b as f32 * scale).round().clamp(0.0, 255.0) as u8;
+    let r = f32_to_u8_clamped(fg.r as f32 * scale);
+    let g = f32_to_u8_clamped(fg.g as f32 * scale);
+    let b = f32_to_u8_clamped(fg.b as f32 * scale);
     RawColor::new(r, g, b)
 }
 
@@ -293,7 +297,11 @@ fn ensure_contrast(palette: &mut RawPalette) {
 ///
 /// Same pipeline as [`compute_palette`] but reads contrast thresholds from
 /// `config` instead of hardcoded defaults.
-pub fn compute_palette_with_config(hour: u32, minute: u32, config: &PaletteConfig) -> RawPalette {
+pub(crate) fn compute_palette_with_config(
+    hour: u32,
+    minute: u32,
+    config: &PaletteConfig,
+) -> RawPalette {
     let mut palette = interpolated_palette(hour, minute);
     ensure_contrast_with_config(&mut palette, config);
     palette
@@ -518,12 +526,6 @@ mod tests {
                 assert_ne!(p.fg, p.bg, "fg equals bg at {hour}:{minute:02}");
             }
         }
-    }
-
-    #[test]
-    fn test_compute_palette_produces_valid_colors() {
-        let p = compute_palette(12, 0);
-        assert_ne!(p.bg, RawColor::new(0, 0, 0));
     }
 
     #[test]

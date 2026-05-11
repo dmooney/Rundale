@@ -54,7 +54,6 @@ pub enum InputResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json;
 
     #[test]
     fn test_intent_kind_deserialize() {
