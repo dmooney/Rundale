@@ -3,12 +3,14 @@
 
 pub mod anthropic_client;
 pub mod client;
+pub(crate) mod client_base;
 pub mod inference_client;
 pub mod openai_client;
 pub mod rate_limit;
 pub mod setup;
 pub mod simulator;
 pub(crate) mod utf8_stream;
+pub mod validate;
 
 /// Result of processing a single SSE line.
 pub(crate) enum SseResult {
@@ -647,6 +649,26 @@ impl AnyClient {
     }
 }
 
+/// Wraps an inference future with a timeout, producing a consistent error
+/// message so the caller doesn't repeat the match+format pattern.
+async fn inference_with_timeout<F, T>(
+    future: F,
+    timeout: std::time::Duration,
+    timeout_secs: u64,
+    model: &str,
+    label: &str,
+) -> Result<T, ParishError>
+where
+    F: std::future::Future<Output = Result<T, ParishError>>,
+{
+    match tokio::time::timeout(timeout, future).await {
+        Ok(result) => result,
+        Err(_) => Err(ParishError::Inference(format!(
+            "{label} timed out after {timeout_secs}s (model={model})",
+        ))),
+    }
+}
+
 /// Spawns the inference worker task.
 ///
 /// The worker pulls requests from three priority lanes using `tokio::select!`
@@ -697,8 +719,7 @@ pub fn spawn_inference_worker(
 
             let result = match (request.token_tx, request.json_mode) {
                 (Some(token_tx), true) => {
-                    match tokio::time::timeout(
-                        streaming_timeout,
+                    inference_with_timeout(
                         client.generate_stream_json(
                             &request.model,
                             &request.prompt,
@@ -707,19 +728,15 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        streaming_timeout,
+                        timeout_config.streaming_timeout_secs,
+                        &request.model,
+                        "streaming (json) inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "streaming (json) inference timed out after {}s (model={})",
-                            timeout_config.streaming_timeout_secs, request.model
-                        ))),
-                    }
                 }
                 (Some(token_tx), false) => {
-                    match tokio::time::timeout(
-                        streaming_timeout,
+                    inference_with_timeout(
                         client.generate_stream(
                             &request.model,
                             &request.prompt,
@@ -728,19 +745,15 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        streaming_timeout,
+                        timeout_config.streaming_timeout_secs,
+                        &request.model,
+                        "streaming inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "streaming inference timed out after {}s (model={})",
-                            timeout_config.streaming_timeout_secs, request.model
-                        ))),
-                    }
                 }
                 (None, _) => {
-                    match tokio::time::timeout(
-                        blocking_timeout,
+                    inference_with_timeout(
                         client.generate(
                             &request.model,
                             &request.prompt,
@@ -748,15 +761,12 @@ pub fn spawn_inference_worker(
                             request.max_tokens,
                             request.temperature,
                         ),
+                        blocking_timeout,
+                        timeout_config.timeout_secs,
+                        &request.model,
+                        "inference",
                     )
                     .await
-                    {
-                        Ok(inner) => inner,
-                        Err(_) => Err(ParishError::Inference(format!(
-                            "inference timed out after {}s (model={})",
-                            timeout_config.timeout_secs, request.model
-                        ))),
-                    }
                 }
             };
 

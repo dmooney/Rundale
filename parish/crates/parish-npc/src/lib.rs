@@ -387,6 +387,16 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
     - RAISE EMOTIONAL STAKES: Go deeper emotionally rather than introducing new plot elements.\n\
     - MAKE THE PLAYER SHINE: Endow the player with qualities and create openings for them to react.\n";
 
+/// Example JSON response block injected into the Tier 1 system prompt
+/// to demonstrate the expected output format to the LLM.
+const EXAMPLE_RESPONSE_BLOCK: &str = "\
+Example response:\n\
+{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
+Will ye have a drop of something to warm the bones?\", \
+\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
+\"internal_thought\": \"New face around here\", \
+\"language_hints\": []}";
+
 /// Builds the Tier 1 system prompt for an NPC.
 ///
 /// Combines the NPC's identity, personality, occupation, and current
@@ -438,14 +448,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         - \"language_hints\": array of any secondary-language words you used, each with:\n\
           - \"word\": the word as written\n\
           - \"pronunciation\": phonetic guide in English\n\
-          - \"meaning\": English translation\n\
-        \n\
-        Example response:\n\
-        {{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
-        Will ye have a drop of something to warm the bones?\", \
-        \"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
-        \"internal_thought\": \"New face around here\", \
-        \"language_hints\": []}}",
+          - \"meaning\": English translation\n",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -459,6 +462,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         improv_section = improv_section,
     );
 
+    prompt.push_str(EXAMPLE_RESPONSE_BLOCK);
     prompt.push_str("\n\n");
     prompt.push_str(&language_directive(language));
     prompt
@@ -1129,18 +1133,18 @@ mod tests {
                     name: "Brigid Murphy".to_string(),
                     occupation: "Weaver".to_string(),
                     personality: "Steady and observant".to_string(),
-                    intelligence_tag: "INT[V3 A4 E4 P5 W4 C3]".to_string(),
+                    intelligence_prose: "Sharp-minded and perceptive.".to_string(),
                     mood: "thoughtful".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
                 NpcSnapshot {
                     id: NpcId(7),
                     name: "Seamus Fahey".to_string(),
                     occupation: "Blacksmith".to_string(),
                     personality: "Blunt and loyal".to_string(),
-                    intelligence_tag: "INT[V2 A3 E2 P5 W3 C2]".to_string(),
+                    intelligence_prose: "Plain-spoken and blunt.".to_string(),
                     mood: "tired".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
             ],
         };

@@ -1,35 +1,26 @@
-//! Default `SessionStore` + `IdentityStore` + `SessionRegistry` implementations.
+//! Default `SessionStore` + `IdentityStore` implementations.
 //!
 //! [`DbSessionStore`] is now defined in `parish_core::session_store` so that
 //! all three runtimes (server, Tauri, CLI) can use it without depending on
 //! `parish-server`.  Re-exported here for backward compatibility with server
 //! internal code.
 //!
-//! [`SqliteIdentityStore`] and [`SqliteSessionRegistry`] remain here because
-//! they use server-only helpers (`is_valid_session_id`, direct rusqlite
-//! access for sessions/oauth tables).
+//! [`SqliteIdentityStore`] uses server-only helpers (direct rusqlite access
+//! for sessions/oauth tables).  The canonical [`SessionRegistry`] is the
+//! concrete type in [`crate::session::SessionRegistry`], which combines an
+//! in-memory `DashMap` with the same `sessions.db` SQLite file.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use dashmap::DashMap;
-
-use parish_core::identity::{IdentityStore, SessionRegistry as SessionRegistryTrait};
+use parish_core::identity::IdentityStore;
 #[cfg(test)]
 use parish_core::session_store::{BoxFuture, SessionStore, SnapshotId};
 
 /// Re-export so existing server code continues to compile without change.
 pub use parish_core::session_store::DbSessionStore;
 
-// ── Helpers (used by SqliteIdentityStore and SqliteSessionRegistry) ───────────
-
-fn now_unix() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
+// ── Helpers (used by SqliteIdentityStore) ──────────────────────────────────────
 
 fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339()
@@ -45,10 +36,6 @@ fn lock_db(mutex: &Mutex<rusqlite::Connection>) -> MutexGuard<'_, rusqlite::Conn
 // ── SqliteIdentityStore ───────────────────────────────────────────────────────
 
 /// Shared reference-counted SQLite connection for the identity/session DB.
-///
-/// Re-used by both [`SqliteIdentityStore`] and [`SqliteSessionRegistry`] so
-/// they both operate on the same `sessions.db` file, preserving the existing
-/// schema and zero-migration contract from #615.
 pub type SharedConn = Arc<Mutex<rusqlite::Connection>>;
 
 /// [`IdentityStore`] backed by the `oauth_accounts` table in `sessions.db`.
@@ -127,206 +114,11 @@ impl IdentityStore for SqliteIdentityStore {
     }
 }
 
-// ── SqliteSessionRegistry ─────────────────────────────────────────────────────
+// ── Schema migration ───────────────────────────────────────────────────────────
 
-/// [`SessionRegistry`] backed by the `sessions` table in `sessions.db`.
-///
-/// The in-memory `DashMap<session_id, Arc<SessionEntry>>` is kept on the
-/// concrete [`crate::session::SessionStore`] struct (the server-side God
-/// struct), not here, because `SessionEntry` carries non-persistent state
-/// (JoinHandles, CancellationTokens) that does not belong behind a storage
-/// trait.
-pub struct SqliteSessionRegistry {
-    conn: SharedConn,
-    /// Last-active Unix timestamps (seconds) for the in-memory eviction check.
-    /// Mirrors `AtomicU64` on `SessionEntry` but at the registry level for
-    /// `cleanup_stale`.
-    last_active: DashMap<String, u64>,
-}
-
-impl SqliteSessionRegistry {
-    pub fn new(conn: SharedConn) -> Self {
-        Self {
-            conn,
-            last_active: DashMap::new(),
-        }
-    }
-}
-
-impl SessionRegistryTrait for SqliteSessionRegistry {
-    fn lookup(&self, session_id: &str) -> bool {
-        let db = lock_db(&self.conn);
-        db.query_row("SELECT 1 FROM sessions WHERE id = ?1", [session_id], |_| {
-            Ok(())
-        })
-        .is_ok()
-    }
-
-    fn register(&self, session_id: &str) {
-        let now = now_iso();
-        let db = lock_db(&self.conn);
-        if let Err(e) = db.execute(
-            "INSERT OR IGNORE INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
-            rusqlite::params![session_id, now],
-        ) {
-            tracing::warn!(session_id = %session_id, error = %e, "SqliteSessionRegistry: register failed");
-        }
-        self.last_active.insert(session_id.to_string(), now_unix());
-    }
-
-    fn touch(&self, session_id: &str) {
-        let now_str = now_iso();
-        let db = lock_db(&self.conn);
-        if let Err(e) = db.execute(
-            "UPDATE sessions SET last_active = ?1 WHERE id = ?2",
-            rusqlite::params![now_str, session_id],
-        ) {
-            tracing::warn!(session_id = %session_id, error = %e, "SqliteSessionRegistry: touch failed");
-        }
-        self.last_active.insert(session_id.to_string(), now_unix());
-    }
-
-    fn cleanup_stale(&self, max_age: Duration) {
-        let cutoff = now_unix().saturating_sub(max_age.as_secs());
-        self.last_active.retain(|_, ts| *ts >= cutoff);
-    }
-
-    fn evict_idle(&self, saves_root: &Path, max_age: Duration) -> usize {
-        use crate::session::is_valid_session_id;
-
-        let cutoff_secs = now_unix().saturating_sub(max_age.as_secs());
-        let cutoff = match chrono::DateTime::<chrono::Utc>::from_timestamp(cutoff_secs as i64, 0) {
-            Some(dt) => dt.to_rfc3339(),
-            None => {
-                tracing::warn!(
-                    cutoff_secs = cutoff_secs,
-                    "SqliteSessionRegistry::evict_idle: cutoff out of range, skipping"
-                );
-                return 0;
-            }
-        };
-
-        // Collect expired IDs and delete their DB rows in a single transaction.
-        let expired_ids: Vec<String> = {
-            let db = lock_db(&self.conn);
-            let mut collected = Vec::new();
-            let select_result = (|| -> rusqlite::Result<()> {
-                let mut stmt = db.prepare("SELECT id FROM sessions WHERE last_active < ?1")?;
-                let mut rows = stmt.query([&cutoff])?;
-                while let Some(row) = rows.next()? {
-                    collected.push(row.get::<_, String>(0)?);
-                }
-                Ok(())
-            })();
-            if let Err(e) = select_result {
-                tracing::warn!(error = %e, "SqliteSessionRegistry::evict_idle: DB read failed");
-                return 0;
-            }
-            if !collected.is_empty() {
-                let tx_result = (|| -> rusqlite::Result<()> {
-                    let tx = db.unchecked_transaction()?;
-                    let placeholders = vec!["?"; collected.len()].join(",");
-                    let params: Vec<&dyn rusqlite::ToSql> = collected
-                        .iter()
-                        .map(|s| s as &dyn rusqlite::ToSql)
-                        .collect();
-                    let sql = format!("DELETE FROM sessions WHERE id IN ({placeholders})");
-                    tx.execute(&sql, params.as_slice())?;
-                    let oauth_sql =
-                        format!("DELETE FROM oauth_accounts WHERE session_id IN ({placeholders})");
-                    tx.execute(&oauth_sql, params.as_slice())?;
-                    tx.commit()
-                })();
-                if let Err(e) = tx_result {
-                    tracing::warn!(error = %e, "SqliteSessionRegistry::evict_idle: DB delete failed");
-                    return 0;
-                }
-            }
-            collected
-        };
-
-        if expired_ids.is_empty() {
-            return 0;
-        }
-
-        // Best-effort filesystem cleanup with the same security guards as the
-        // original `purge_expired_disk_sessions` (#595, #482).
-        let canonical_saves_root = match saves_root.canonicalize() {
-            Ok(p) => p,
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "SqliteSessionRegistry::evict_idle: cannot canonicalize saves_root, skipping fs cleanup"
-                );
-                return expired_ids.len();
-            }
-        };
-
-        for id in &expired_ids {
-            if !is_valid_session_id(id) {
-                tracing::warn!(
-                    session_id = %id,
-                    "SqliteSessionRegistry::evict_idle: rejected unsafe session ID, skipping fs remove"
-                );
-                continue;
-            }
-
-            let session_dir = saves_root.join(id);
-            if !session_dir.exists() {
-                continue;
-            }
-
-            let canonical_dir = match session_dir.canonicalize() {
-                Ok(p) => p,
-                Err(e) => {
-                    tracing::warn!(
-                        session_id = %id,
-                        error = %e,
-                        "SqliteSessionRegistry::evict_idle: cannot canonicalize session dir, skipping"
-                    );
-                    continue;
-                }
-            };
-            if !canonical_dir.starts_with(&canonical_saves_root) {
-                tracing::warn!(
-                    session_id = %id,
-                    path = %canonical_dir.display(),
-                    saves_root = %canonical_saves_root.display(),
-                    "SqliteSessionRegistry::evict_idle: path escapes saves root, skipping"
-                );
-                continue;
-            }
-
-            match std::fs::remove_dir_all(&session_dir) {
-                Ok(()) => tracing::info!(
-                    session_id = %id,
-                    path = %session_dir.display(),
-                    "SqliteSessionRegistry::evict_idle: removed saves directory"
-                ),
-                Err(e) => tracing::warn!(
-                    session_id = %id,
-                    path = %session_dir.display(),
-                    error = %e,
-                    "SqliteSessionRegistry::evict_idle: failed to remove saves directory"
-                ),
-            }
-        }
-
-        expired_ids.len()
-    }
-}
-
-// ── open_sessions_db ──────────────────────────────────────────────────────────
-
-/// Opens (or creates) `saves/sessions.db`, runs schema migrations, and
-/// returns a shared `Arc<Mutex<Connection>>` that [`SqliteIdentityStore`] and
-/// [`SqliteSessionRegistry`] both share.
-///
-/// This is the single place where the identity/session schema is defined,
-/// preserving the existing table layout so no migration is needed.
-pub fn open_sessions_db(saves_dir: &Path) -> rusqlite::Result<SharedConn> {
-    let db_path = saves_dir.join("sessions.db");
-    let conn = rusqlite::Connection::open(&db_path)?;
+/// Creates the `sessions` and `oauth_accounts` tables if they don't exist,
+/// then applies any idempotent ALTER TABLE migrations for schema evolution.
+pub fn initialize_sessions_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sessions (
             id           TEXT PRIMARY KEY,
@@ -341,10 +133,20 @@ pub fn open_sessions_db(saves_dir: &Path) -> rusqlite::Result<SharedConn> {
             PRIMARY KEY (provider, provider_user_id)
         );",
     )?;
-    // Idempotent migration: add display_name to existing DBs.
     let _ = conn.execute_batch(
         "ALTER TABLE oauth_accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
     );
+    Ok(())
+}
+
+// ── open_sessions_db ──────────────────────────────────────────────────────────
+
+/// Opens (or creates) `saves/sessions.db`, runs [`initialize_sessions_schema`],
+/// and returns a shared `Arc<Mutex<Connection>>` for [`SqliteIdentityStore`].
+pub fn open_sessions_db(saves_dir: &Path) -> rusqlite::Result<SharedConn> {
+    let db_path = saves_dir.join("sessions.db");
+    let conn = rusqlite::Connection::open(&db_path)?;
+    initialize_sessions_schema(&conn)?;
     Ok(Arc::new(Mutex::new(conn)))
 }
 
@@ -628,51 +430,6 @@ mod tests {
         let store = SqliteIdentityStore::new(conn);
         assert_eq!(store.lookup_by_provider("google", "nobody"), None);
         assert_eq!(store.get_account("no_session"), None);
-    }
-
-    // ── SqliteSessionRegistry round-trip ──────────────────────────────────────
-
-    #[test]
-    fn session_registry_register_and_exists() {
-        let tmp = tempfile::tempdir().unwrap();
-        let conn = open_sessions_db(tmp.path()).unwrap();
-        let reg = SqliteSessionRegistry::new(conn);
-
-        assert!(!reg.lookup("sess_xyz"));
-        reg.register("sess_xyz");
-        assert!(reg.lookup("sess_xyz"));
-    }
-
-    #[test]
-    fn session_registry_touch_updates_timestamp() {
-        let tmp = tempfile::tempdir().unwrap();
-        let conn = open_sessions_db(tmp.path()).unwrap();
-        let reg = SqliteSessionRegistry::new(Arc::clone(&conn));
-
-        reg.register("sess_touch");
-        // back-date the row
-        {
-            let db = conn.lock().unwrap();
-            db.execute(
-                "UPDATE sessions SET last_active = '2000-01-01T00:00:00Z' WHERE id = ?1",
-                rusqlite::params!["sess_touch"],
-            )
-            .unwrap();
-        }
-        reg.touch("sess_touch");
-        let last_active: String = {
-            let db = conn.lock().unwrap();
-            db.query_row(
-                "SELECT last_active FROM sessions WHERE id = ?1",
-                rusqlite::params!["sess_touch"],
-                |r| r.get(0),
-            )
-            .unwrap()
-        };
-        assert!(
-            last_active.as_str() > "2000-01-01",
-            "touch must update last_active beyond the backdated value"
-        );
     }
 
     // ── DbSessionStore round-trip ─────────────────────────────────────────────

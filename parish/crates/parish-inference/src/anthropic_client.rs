@@ -17,14 +17,15 @@
 
 use crate::SseResult;
 use crate::TOKEN_CHANNEL_CAPACITY;
-use crate::openai_client::build_client_or_fallback;
+use crate::client_base::ClientBase;
 use crate::rate_limit::InferenceRateLimiter;
 use crate::strip_json_fence;
 use parish_config::InferenceConfig;
 use parish_types::ParishError;
+use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::sync::LazyLock;
 use tokio::sync::mpsc;
 use tracing;
 
@@ -51,16 +52,8 @@ const DEFAULT_MAX_TOKENS: u32 = 4096;
 /// outbound request; when `None`, requests are unlimited.
 #[derive(Clone)]
 pub struct AnthropicClient {
-    /// HTTP client with default timeout for non-streaming requests.
-    client: reqwest::Client,
-    /// HTTP client with longer timeout for streaming requests.
-    streaming_client: reqwest::Client,
-    /// Base URL (e.g. `https://api.anthropic.com`).
-    base_url: String,
-    /// API key — sent in the `x-api-key` header. Required in practice.
-    api_key: Option<String>,
-    /// Optional outbound request rate limiter. `None` means unlimited.
-    rate_limiter: Option<InferenceRateLimiter>,
+    /// Shared HTTP client state (fields, builder methods, rate limiter).
+    pub(crate) base: ClientBase,
 }
 
 impl AnthropicClient {
@@ -81,60 +74,44 @@ impl AnthropicClient {
         api_key: Option<&str>,
         config: &InferenceConfig,
     ) -> Self {
-        let client =
-            build_client_or_fallback(Duration::from_secs(config.timeout_secs), "Anthropic");
-        let streaming_client = build_client_or_fallback(
-            Duration::from_secs(config.streaming_timeout_secs),
-            "Anthropic streaming",
-        );
-
-        // Normalise: strip trailing `/` and an optional trailing `/v1` so
-        // users can set either `https://api.anthropic.com` or
-        // `https://api.anthropic.com/v1` without the endpoint being
-        // doubled when we append `/v1/messages`.
-        let normalized = {
-            let trimmed = base_url.trim_end_matches('/');
-            trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
-        };
-
         Self {
-            client,
-            streaming_client,
-            base_url: normalized,
-            api_key: api_key.map(|s| s.to_string()),
-            rate_limiter: None,
+            base: ClientBase::new(
+                base_url,
+                api_key,
+                "Anthropic",
+                "Anthropic streaming",
+                config,
+            ),
         }
     }
 
     /// Attaches an outbound rate limiter, returning the modified client.
-    pub fn with_rate_limit(mut self, limiter: InferenceRateLimiter) -> Self {
-        self.rate_limiter = Some(limiter);
-        self
+    pub fn with_rate_limit(self, limiter: InferenceRateLimiter) -> Self {
+        Self {
+            base: self.base.with_rate_limit(limiter),
+        }
     }
 
     /// Convenience: attach a rate limiter only if `limiter` is `Some`.
     pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
-        match limiter {
-            Some(l) => self.with_rate_limit(l),
-            None => self,
+        Self {
+            base: self.base.maybe_with_rate_limit(limiter),
         }
     }
 
     /// Returns whether this client has a rate limiter attached.
     pub fn has_rate_limiter(&self) -> bool {
-        self.rate_limiter.is_some()
+        self.base.has_rate_limiter()
     }
 
     /// Returns the base URL of this client.
     pub fn base_url(&self) -> &str {
-        &self.base_url
+        self.base.base_url()
     }
 
     /// Awaits a free slot in the limiter (no-op if unlimited).
     async fn acquire_slot(&self) {
-        if let Some(rl) = &self.rate_limiter {
-            rl.acquire().await;
-        }
+        self.base.acquire_slot().await
     }
 
     /// Builds a `MessagesRequest` from the generic `generate*` args.
@@ -167,7 +144,7 @@ impl AnthropicClient {
     /// Applies Anthropic's required headers to a request.
     fn apply_headers(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         let req = req.header("anthropic-version", ANTHROPIC_VERSION);
-        match &self.api_key {
+        match &self.base.api_key {
             Some(key) => req.header("x-api-key", key),
             None => req,
         }
@@ -182,8 +159,8 @@ impl AnthropicClient {
         &self,
         body: &MessagesRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
-        let url = format!("{}/v1/messages", self.base_url);
-        let req = self.apply_headers(self.client.post(&url).json(body));
+        let url = format!("{}/v1/messages", self.base.base_url);
+        let req = self.apply_headers(self.base.client.post(&url).json(body));
         let response = req
             .send()
             .await
@@ -321,10 +298,22 @@ fn isolate_system_for_json(system: Option<&str>) -> String {
 ///
 /// Sentinels use square brackets so they are visible in logs but not parseable
 /// as XML tags by the model.
-const STRUCTURAL_TAGS: &[(&[u8], &str)] = &[
-    (b"caller_system", "[/caller_system]"),
-    (b"engine_instruction", "[/engine_instruction]"),
+const STRUCTURAL_TAGS: &[(&str, &str)] = &[
+    ("caller_system", "[/caller_system]"),
+    ("engine_instruction", "[/engine_instruction]"),
 ];
+
+/// Regex matching any XML-lax close-tag variant of a structural tag name.
+/// Matches `<` + optional whitespace + `/` + optional whitespace + tag name
+/// (case-insensitive) + optional whitespace + `>`.
+static STRUCTURAL_CLOSE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    let parts: Vec<String> = STRUCTURAL_TAGS
+        .iter()
+        .map(|(name, _)| regex::escape(name))
+        .collect();
+    let pattern = format!("(?i)<\\s*/\\s*({})\\s*>", parts.join("|"));
+    Regex::new(&pattern).expect("invalid structural close-tag regex")
+});
 
 /// Rewrites every close-tag variant of any structural tag to the inert
 /// bracketed sentinel (codex P1 on #458/#564/#599).
@@ -334,76 +323,21 @@ const STRUCTURAL_TAGS: &[(&[u8], &str)] = &[
 /// `</ caller_system>`, and `</CALLER_SYSTEM>` are all equivalent.
 /// Replacing only the exact lowercase no-whitespace form would still let
 /// an attacker break out of the wrapper with any of the other variants.
+///
+/// Replaces the matched tag with the corresponding bracketed sentinel
+/// (e.g. `[/caller_system]`) so the injected close-tag is visible in logs
+/// but not parseable as XML by the model.
 fn neutralise_structural_tags(input: &str) -> String {
-    // Walk the string looking for `</`-prefixed sequences that resolve to
-    // any structural close tag, regardless of intervening ASCII whitespace
-    // around the tag name and the `/`. On a match, emit the sentinel; on
-    // anything else, emit the original character.
-    let bytes = input.as_bytes();
-    let mut out = String::with_capacity(input.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'<'
-            && let Some((consumed, sentinel)) = match_structural_close_at(bytes, i)
-        {
-            out.push_str(sentinel);
-            i += consumed;
-            continue;
-        }
-        // Push this one char, advancing by its UTF-8 byte width so we
-        // don't split a codepoint.
-        let c = input[i..].chars().next().expect("bounds-checked above");
-        out.push(c);
-        i += c.len_utf8();
-    }
-    out
-}
-
-/// If `bytes[start..]` begins with a close-tag for any structural tag in any
-/// XML-lax variant, returns `(bytes_consumed, sentinel_str)`.  Returns `None`
-/// otherwise.
-fn match_structural_close_at(bytes: &[u8], start: usize) -> Option<(usize, &'static str)> {
-    let mut i = start;
-    // `<`
-    if bytes.get(i) != Some(&b'<') {
-        return None;
-    }
-    i += 1;
-    i = skip_ascii_ws(bytes, i);
-    // `/`
-    if bytes.get(i) != Some(&b'/') {
-        return None;
-    }
-    i += 1;
-    i = skip_ascii_ws(bytes, i);
-
-    // Try each structural tag name (case-insensitive).
-    for &(tag, sentinel) in STRUCTURAL_TAGS {
-        if i + tag.len() > bytes.len() {
-            continue;
-        }
-        let matches = tag
-            .iter()
-            .enumerate()
-            .all(|(j, tb)| bytes[i + j].eq_ignore_ascii_case(tb));
-        if !matches {
-            continue;
-        }
-        let after_name = skip_ascii_ws(bytes, i + tag.len());
-        if bytes.get(after_name) == Some(&b'>') {
-            return Some((after_name + 1 - start, sentinel));
-        }
-    }
-    None
-}
-
-fn skip_ascii_ws(bytes: &[u8], mut i: usize) -> usize {
-    while let Some(&b) = bytes.get(i)
-        && b.is_ascii_whitespace()
-    {
-        i += 1;
-    }
-    i
+    STRUCTURAL_CLOSE_RE
+        .replace_all(input, |caps: &regex::Captures| {
+            let matched = caps.get(1).map_or("", |m| m.as_str());
+            STRUCTURAL_TAGS
+                .iter()
+                .find(|(name, _)| matched.eq_ignore_ascii_case(name))
+                .map(|(_, sentinel)| *sentinel)
+                .expect("captured tag name must match a structural tag")
+        })
+        .into_owned()
 }
 
 // --- Streaming ----------------------------------------------------------
@@ -463,8 +397,8 @@ impl AnthropicClient {
         self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, true, max_tokens, temperature);
 
-        let url = format!("{}/v1/messages", self.base_url);
-        let req = self.apply_headers(self.streaming_client.post(&url).json(&body));
+        let url = format!("{}/v1/messages", self.base.base_url);
+        let req = self.apply_headers(self.base.streaming_client.post(&url).json(&body));
         let response = req
             .send()
             .await

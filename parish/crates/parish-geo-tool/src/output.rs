@@ -241,4 +241,27 @@ mod tests {
         let locations = make_tracked_locations();
         print_summary(&locations); // Just verify it doesn't panic
     }
+
+    #[test]
+    fn test_validate_output_fails_on_invalid_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.json");
+        std::fs::write(&path, "not json").unwrap();
+        let result = validate_output(&path);
+        assert!(result.is_err(), "validation should fail for invalid JSON");
+    }
+
+    #[test]
+    fn test_validate_output_fails_on_broken_connections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.json");
+        // Write a parish file with a connection target that doesn't exist
+        let bad_data = r#"{"locations":[{"id":1,"name":"A","description_template":"A.","indoor":false,"public":true,"lat":53.0,"lon":-8.0,"connections":[{"target":99,"path_description":"nowhere","hazard":null}],"associated_npcs":[],"mythological_significance":null,"aliases":[],"geo_kind":"Real","relative_to":null,"geo_source":null}]}"#;
+        std::fs::write(&path, bad_data).unwrap();
+        let result = validate_output(&path);
+        assert!(
+            result.is_err(),
+            "validation should fail for broken connections"
+        );
+    }
 }

@@ -5,13 +5,12 @@
 //! available hardware, and automatic model pulling.
 
 use crate::AnyClient;
-use crate::client::OllamaProcess;
 use crate::openai_client::{OpenAiClient, build_client_or_fallback};
 use parish_config::{InferenceConfig, Provider, ProviderConfig};
 use parish_types::ParishError;
 use reqwest::StatusCode;
 use serde::Deserialize;
-use std::process::Command;
+use std::process::{Child, Command};
 use std::time::Duration;
 
 /// GPU vendor detected on the system.
@@ -85,6 +84,150 @@ impl std::fmt::Display for ModelConfig {
             "{} ({}, ~{}MB VRAM)",
             self.model_name, self.tier_label, self.vram_required_mb
         )
+    }
+}
+
+/// Manages an Ollama server process started by Parish.
+///
+/// If Ollama was not already running when the game started, this struct
+/// holds the child process handle. When dropped, it kills the process
+/// to clean up. If Ollama was already running, this is a no-op wrapper.
+pub struct OllamaProcess {
+    child: Option<Child>,
+}
+
+impl OllamaProcess {
+    /// Creates a no-op process handle (for non-Ollama providers).
+    pub fn none() -> Self {
+        Self { child: None }
+    }
+
+    /// Checks if Ollama is reachable. If not, starts `ollama serve` in the
+    /// background and waits for it to become ready (up to 30 seconds).
+    ///
+    /// The optional `gpu_env` parameter allows injecting environment variables
+    /// into the spawned process (e.g. `OLLAMA_VULKAN=1` for AMD GPUs on Windows).
+    /// These are only applied when Parish starts Ollama itself; if Ollama is
+    /// already running, the caller should restart it manually to change env vars.
+    ///
+    /// Returns an `OllamaProcess` that will stop the server on drop if
+    /// we started it.
+    pub async fn ensure_running(
+        base_url: &str,
+        gpu_env: Option<&[(String, String)]>,
+    ) -> Result<Self, ParishError> {
+        if Self::is_reachable(base_url).await {
+            tracing::info!("Ollama already running at {}", base_url);
+            return Ok(Self { child: None });
+        }
+
+        tracing::info!("Ollama not detected, starting ollama serve...");
+
+        let mut cmd = Command::new("ollama");
+        cmd.arg("serve")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+
+        if let Some(env_vars) = gpu_env {
+            for (key, value) in env_vars {
+                cmd.env(key, value);
+            }
+        }
+
+        let child = cmd.spawn().map_err(|e| {
+            ParishError::Inference(format!(
+                "failed to start ollama serve: {}. Is ollama installed?",
+                e
+            ))
+        })?;
+
+        // Wait for Ollama to become reachable
+        let mut ready = false;
+        for i in 0..60 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if Self::is_reachable(base_url).await {
+                tracing::info!("Ollama ready after ~{}ms", (i + 1) * 500);
+                ready = true;
+                break;
+            }
+        }
+
+        if !ready {
+            return Err(ParishError::Inference(
+                "ollama serve started but did not become reachable within 30s".to_string(),
+            ));
+        }
+
+        Ok(Self { child: Some(child) })
+    }
+
+    /// Returns whether we started the Ollama process (vs. it was already running).
+    pub fn was_started_by_us(&self) -> bool {
+        self.child.is_some()
+    }
+
+    /// Checks if the Ollama API is reachable by hitting the root endpoint.
+    async fn is_reachable(base_url: &str) -> bool {
+        // Use the shared builder helper so a failing reqwest build falls
+        // back to a default client instead of panicking (#98).
+        let client = build_client_or_fallback(Duration::from_secs(2), "Ollama reachability probe");
+        client.get(base_url).send().await.is_ok()
+    }
+
+    /// Stops the Ollama process if we started it.
+    ///
+    /// On Windows, uses `taskkill /F /T /PID` to kill the entire process
+    /// tree, ensuring GPU worker processes are also terminated and VRAM
+    /// is released. On other platforms, uses the standard `kill()`.
+    pub fn stop(&mut self) {
+        if let Some(ref mut child) = self.child {
+            tracing::info!("Stopping Ollama server...");
+
+            #[cfg(target_os = "windows")]
+            {
+                let pid_arg = pid_string(child.id());
+                let args = taskkill_args(&pid_arg);
+                let _ = Command::new("taskkill")
+                    .args(args)
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status();
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = child.kill();
+            }
+
+            let _ = child.wait();
+            self.child = None;
+        }
+    }
+}
+
+/// Builds the `taskkill` argument list used by [`OllamaProcess::stop`] on
+/// Windows. Force-kill (`/F`) the entire process tree (`/T`) for the given
+/// `/PID`, releasing GPU worker VRAM that orphans otherwise hold. Returned as
+/// `&str` slices so the call site can pass them straight to `Command::args`.
+///
+/// Pure (no `Command` invocation), cross-platform, and total — so the
+/// invariant "we always pass `/F /T /PID <pid>`" can be regression-tested
+/// without spawning processes or running on Windows. (TD-015)
+#[cfg(any(target_os = "windows", test))]
+fn taskkill_args(pid_arg: &str) -> [&str; 4] {
+    ["/F", "/T", "/PID", pid_arg]
+}
+
+/// Formats a Windows process ID for the `taskkill /PID` argument.
+/// Pure helper paired with [`taskkill_args`] for test isolation. (TD-015)
+#[cfg(any(target_os = "windows", test))]
+fn pid_string(pid: u32) -> String {
+    pid.to_string()
+}
+
+impl Drop for OllamaProcess {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
@@ -1249,6 +1392,29 @@ mod tests {
         assert_eq!(GpuVendor::Amd.to_string(), "AMD");
         assert_eq!(GpuVendor::AppleSilicon.to_string(), "Apple Silicon (Metal)");
         assert_eq!(GpuVendor::CpuOnly.to_string(), "CPU-only");
+    }
+
+    /// Regression guard for TD-015 — Windows `taskkill` argument vector.
+    ///
+    /// `OllamaProcess::stop` on Windows force-kills the entire process tree so
+    /// orphan GPU workers release VRAM. Drift in this argv (e.g. dropping `/T`
+    /// or `/F`) would silently leak GPU memory across restarts. The Command
+    /// invocation itself is platform-locked, but the argv is pure and tested
+    /// here on every host.
+    #[test]
+    fn taskkill_args_are_force_tree_kill_with_pid() {
+        let pid = pid_string(4242);
+        assert_eq!(pid, "4242");
+        assert_eq!(taskkill_args(&pid), ["/F", "/T", "/PID", "4242"]);
+    }
+
+    /// PIDs at the u32 boundary must still format without panicking — a defensive
+    /// check since Windows can recycle PIDs into the upper range under load.
+    #[test]
+    fn taskkill_args_handle_u32_max_pid() {
+        let pid = pid_string(u32::MAX);
+        assert_eq!(pid, "4294967295");
+        assert_eq!(taskkill_args(&pid), ["/F", "/T", "/PID", "4294967295"]);
     }
 
     #[test]

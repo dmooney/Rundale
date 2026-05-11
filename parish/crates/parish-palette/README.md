@@ -11,11 +11,17 @@ The palette logic is presentation-layer infrastructure shared by every UI surfac
 ## Pipeline
 
 ```
-parish-config::PaletteConfig (tuning) ──► parish-palette::compute_palette() ──► RawPalette
-                                                                                    │
-                                                                                    ▼
-                                                              parish-core::ipc::types::ThemePalette
-                                                              (CSS-hex wire format → frontend)
+parish-config::PaletteConfig (tuning) ──► parish-palette::compute_palette()
+                                                     │
+                                                     ▼
+                                          parish-palette::compute_palette_with_config()
+                                                     │
+                                                     ▼
+                                               RawPalette
+                                                     │
+                                                     ▼
+                               parish-core::ipc::types::ThemePalette
+                               (CSS-hex wire format → frontend)
 ```
 
 The `From<RawPalette> for ThemePalette` impl lives in the IPC types module; this crate stays free of any wire format.

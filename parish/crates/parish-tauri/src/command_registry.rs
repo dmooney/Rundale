@@ -30,6 +30,9 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     "get_demo_config",
     "get_demo_context",
     "get_llm_player_action",
+    // ── screenshot commands (player-triggered, MCP-readable) ──────────────
+    "save_screenshot",
+    "get_latest_screenshot",
     // ── editor commands ───────────────────────────────────────────────────
     "editor_list_mods",
     "editor_open_mod",

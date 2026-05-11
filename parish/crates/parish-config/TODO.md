@@ -2,7 +2,7 @@
 
 ## Open
 
-*(none — all actionable items resolved)*
+*(none)*
 
 ## In Progress
 
@@ -19,12 +19,21 @@
 | TD-006 | Stale Docs | P3 | `README.md` | Added `presets` module to the module listing. |
 | TD-007 | Stale Docs | P3 | `src/engine.rs:277` | Fixed comment referencing outdated import path `parish-types::time` → `parish_types`. |
 | TD-008 | Dead Code | P3 | `src/lib.rs:10`, `src/presets.rs:20` | Removed `pub type PresetModels` type alias and its re-export; inlined return type on `preset_models()`. No downstream consumers existed. |
+| TD-005 | Config | P2 | `src/engine.rs:26, 33-34`, `parish-cli/src/main.rs:248`, `parish-server/src/lib.rs:463`, `parish-tauri/src/lib.rs:690` | `load_engine_config` now takes `&Path` (not `Option<&Path>`). Added `resolve_config_path` helper that walks up from a startup-resolved dir. All three call sites resolve the config path at startup. |
+| TD-009 | Manifest Hygiene | P2 | `Cargo.toml:15` | Removed unused `thiserror` dependency. The crate already uses `parish_types::ParishError` exclusively. |
+| TD-010 | Dead Code | P2 | `src/engine.rs:407-409, 426` | Removed unused `NpcConfig.two_pass_dialogue` field and its default. No downstream consumers existed. |
+| TD-011 | Dead Code | P3 | `src/engine.rs:706-708, 719-721` | Removed unused `PersistenceConfig.journal_compaction_threshold` field, default function, and example.toml entry. `PersistenceConfig` is now an intentionally empty placeholder struct. |
+| TD-012 | Weak Tests | P2 | `src/engine.rs` | Added TOML deserialization tests for `EncounterConfig`, `PaletteConfig`, `WorldConfig`, `PersistenceConfig`, `InferenceConfig`, and `MapConfig` (full and partial variants where applicable). |
+| TD-013 | Weak Tests | P2 | `src/provider.rs:177, 195, 234-262, 357` | Added unit tests for `Provider::api_key_env_var`, `Provider::is_configured_in_env`, `ProviderConfig::provider_display`, `InferenceCategory::name`, `InferenceCategory::from_name`, and `InferenceCategory::env_prefix`. |
+| TD-014 | Weak Tests | P3 | `src/provider.rs:78-94` | Added `test_provider_all_exhaustive` verifying every variant is listed in `Provider::ALL` via an exhaustive match, plus length check. |
 
 ## Follow-up
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-005 | Config | P2 | `src/engine.rs:26, 33-34` | `load_engine_config(None)` falls back to CWD-relative `Path::new("parish.toml")`, violating Rule 9. Fix requires changing callers in `parish-cli`, `parish-server`, and `parish-tauri` to resolve the path at startup and pass `Some(path)` — out of scope for this crate-only pass. |
+*(none)*
+
+## Progress log
+
+- 2026-05-11 — Closed TD-009 through TD-014. All open items in parish-config TODO are now resolved. `cargo clippy -p parish-config` clean; `cargo test -p parish-config` 109 passed.
 
 ## Discovery scan (2026-05-07)
 

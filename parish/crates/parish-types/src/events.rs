@@ -5,7 +5,7 @@
 //! independently observe world state mutations without tight coupling.
 //!
 //! Events are named [`GameEvent`] (not `WorldEvent`) to avoid collision
-//! with the persistence journal's [`WorldEvent`](crate::persistence::journal::WorldEvent).
+//! with the persistence journal's `WorldEvent`.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -312,5 +312,60 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"NpcDeparted\""));
+    }
+
+    #[test]
+    fn test_event_bus_overflow() {
+        let bus = EventBus::new();
+        let mut rx = bus.subscribe();
+
+        for i in 0..BUS_CAPACITY + 10 {
+            bus.publish(GameEvent::MoodChanged {
+                npc_id: NpcId(1),
+                new_mood: format!("mood {}", i),
+                timestamp: test_timestamp(),
+            });
+        }
+
+        let mut count = 0;
+        loop {
+            match rx.try_recv() {
+                Ok(_) => count += 1,
+                Err(broadcast::error::TryRecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        assert_eq!(count, BUS_CAPACITY);
+    }
+
+    #[test]
+    fn test_event_bus_lag() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let bus = EventBus::new();
+            let mut rx = bus.subscribe();
+
+            bus.publish(GameEvent::MoodChanged {
+                npc_id: NpcId(1),
+                new_mood: "first".to_string(),
+                timestamp: test_timestamp(),
+            });
+            let _ = rx.recv().await.unwrap();
+
+            for i in 0..BUS_CAPACITY + 10 {
+                bus.publish(GameEvent::MoodChanged {
+                    npc_id: NpcId(1),
+                    new_mood: format!("mood {}", i),
+                    timestamp: test_timestamp(),
+                });
+            }
+
+            let result = rx.recv().await;
+            assert!(
+                matches!(result, Err(broadcast::error::RecvError::Lagged(_))),
+                "expected Lagged error, got {:?}",
+                result
+            );
+        });
     }
 }

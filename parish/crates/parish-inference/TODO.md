@@ -2,15 +2,7 @@
 
 ## Open
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-003 | Duplication | P2 | `src/openai_client.rs:47-59`, `src/anthropic_client.rs:51-62` | Both client structs share identical field layout, constructors, rate-limiter builder methods. Extract shared base struct or builder trait. |
-| TD-004 | Duplication | P2 | `src/openai_client.rs` | `generate_stream` and `generate_stream_json` share ~30 lines of identical streaming-loop boilerplate. |
-| TD-011 | Weak Tests | P2 | `src/rate_limit.rs` | No integration test verifies `generate()` blocks when limiter exhausted. Unit tests cover mechanism. |
-| TD-015 | Weak Tests | P3 | `src/client.rs:362-370` | `OllamaProcess::stop` Windows `taskkill` has zero coverage. Needs Command mock abstraction. |
-| TD-020 | Complexity | P2 | `src/lib.rs:642-787` | `spawn_inference_worker` ~145 lines with repeated timeout+error-construction logic. |
-| TD-021 | Complexity | P2 | `src/anthropic_client.rs:335-396` | Hand-rolled byte-level XML tag parser. |
-| TD-023 | Duplication | P2 | `src/client.rs:268-388` | `OllamaProcess` belongs in `setup.rs`, not `client.rs`. |
+*(none)*
 
 ## In Progress
 
@@ -36,10 +28,17 @@
 | TD-018 | 2026-05-07 | Declared `inference-client-trait` and `inference-response-cache` feature flags in `Cargo.toml` `[features]`. |
 | TD-019 | 2026-05-07 | Updated `generate_stream` doc to reference configurable `streaming_timeout_secs`. |
 | TD-022 | 2026-05-07 | Refactored `select_model_for_vram` to table-driven lookup with `ModelTier` static slice. |
+| TD-011 | 2026-05-07 | Added wiremock-based integration test `test_generate_blocks_when_rate_limiter_exhausted` in `openai_client.rs` verifying `generate()` blocks when rate limiter is exhausted. |
+| TD-023 | 2026-05-07 | Moved `OllamaProcess` from `client.rs` to `setup.rs` (logical home for server lifecycle). Re-exported from `client.rs` for backward compatibility. Updated all imports. |
+| TD-003 | 2026-05-07 | Extracted `ClientBase` struct from identical field layout/constructors in `OpenAiClient` and `AnthropicClient`. `src/client_base.rs` holds shared fields (`client`, `streaming_client`, `base_url`, `api_key`, `rate_limiter`) plus builder methods (`with_rate_limit`, `maybe_with_rate_limit`, `has_rate_limiter`, `acquire_slot`, `base_url`). Each client now embeds `base: ClientBase`. |
+| TD-004 | 2026-05-07 | Extracted shared `read_sse_stream` free function and `OpenAiClient::stream_response` helper from the ~30-line identical streaming loop in `generate_stream` / `generate_stream_json`. |
+| TD-020 | 2026-05-07 | Extracted `inference_with_timeout` helper to eliminate triple-repeated timeout+duration+error-construction pattern in `spawn_inference_worker`. Reduced function from ~146 to ~116 lines. |
+| TD-021 | 2026-05-07 | Replaced hand-rolled byte-level XML tag parser (`neutralise_structural_tags`, `match_structural_close_at`, `skip_ascii_ws`) with `regex`-based replacement using `LazyLock<Regex>` compiled from `STRUCTURAL_TAGS`. Removed ~68 lines of byte-walking code. |
+| TD-015 | 2026-05-08 | Extracted pure helpers `taskkill_args(pid_arg) -> [&str; 4]` and `pid_string(pid)` from `OllamaProcess::stop`. Added 2 cross-platform unit tests (`taskkill_args_are_force_tree_kill_with_pid`, `taskkill_args_handle_u32_max_pid`) that pin the `/F /T /PID <pid>` invariant without needing a Windows host or a Command mock. The `Command::new("taskkill")` invocation itself remains platform-locked but is now a thin shim around tested data. |
 | TD-024 | 2026-05-11 | Deleted dead `OllamaClient`, `GenerateRequest`, `GenerateResponse` and their tests from `client.rs` and `tests/http_mock_tests.rs`. |
 | TD-025 | 2026-05-11 | Removed unused `inference-client-trait` and `inference-response-cache` feature flags from `Cargo.toml`; updated docs in `inference_client.rs` and `parish-server/src/state.rs`. |
 | TD-026 | 2026-05-11 | Removed stale `OllamaClient` doc comment about 30-second timeout (code deleted in TD-024). |
 | TD-027 | 2026-05-11 | Updated `README.md` key modules list to include `anthropic_client`, `inference_client`, `utf8_stream` and corrected `client` description. |
 | TD-028 | 2026-05-11 | Added four unit tests for `submit_json` async helper in `lib.rs`. |
-| TD-029 | 2026-05-11 | Fixed OpenAI trailing-buffer SSE error propagation in `generate_stream` and `generate_stream_json` to match Anthropic pattern. |
+| TD-029 | 2026-05-11 | Fixed OpenAI trailing-buffer SSE error propagation in `read_sse_stream` to match Anthropic pattern. |
 | TD-030 | 2026-05-11 | Tightened `ChatCompletionChunk`, `StreamChoice`, and `Delta` visibility from `pub(crate)` to private in `openai_client.rs`.

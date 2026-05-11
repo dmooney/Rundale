@@ -33,6 +33,9 @@ jobs:
   agent-check:
     name: Agent proof gate
     runs-on: ubuntu-latest
+    # Dependabot bumps Cargo.lock / Cargo.toml without touching engine logic.
+    # The proof gate has no useful signal there and would block every bump.
+    if: github.actor != 'dependabot[bot]'
     defaults:
       run:
         working-directory: ${{ github.workspace }}

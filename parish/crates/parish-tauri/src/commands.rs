@@ -221,6 +221,100 @@ pub async fn get_setup_snapshot(
         .clone())
 }
 
+// ── BYOK onboarding commands ─────────────────────────────────────────────────
+
+fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::ByokContext<'a> {
+    parish_core::ipc::byok::ByokContext {
+        config: &state.config,
+        inference_config: &state.inference_config,
+        inference_log: state.inference_log.clone(),
+        slots: parish_core::game_loop::inference::InferenceSlots {
+            client: &state.client,
+            worker_handle: &state.worker_handle,
+            inference_queue: &state.inference_queue,
+        },
+        secrets: std::sync::Arc::clone(&state.secret_store),
+        user_config_dir: state.user_config_dir.as_path(),
+    }
+}
+
+/// Validates an unsaved provider/key combination by issuing a tiny live
+/// request. Used by the BYOK wizard before saving.
+#[tauri::command]
+pub async fn validate_provider_config(
+    args: parish_core::ipc::byok::ValidateProviderConfigArgs,
+) -> Result<parish_core::inference::validate::ValidationOutcome, String> {
+    Ok(parish_core::ipc::byok::handle_validate_provider_config(args).await)
+}
+
+/// Persists a BYOK config (keychain + parish.toml), updates GameConfig, and
+/// rebuilds the inference worker. Emits a fresh `setup-done` so the overlay
+/// dismisses.
+#[tauri::command]
+pub async fn set_provider_config(
+    args: parish_core::ipc::byok::SetProviderConfigArgs,
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let state_arc = state.inner().clone();
+    parish_core::ipc::byok::handle_set_provider_config(args, byok_ctx(&state_arc))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    {
+        let mut s = state_arc
+            .setup_status
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
+        s.clear_needs_onboarding();
+    }
+    crate::record_setup_done(&state_arc, true, String::new());
+    let _ = app.emit(
+        crate::events::EVENT_SETUP_DONE,
+        crate::events::SetupDonePayload {
+            success: true,
+            error: String::new(),
+        },
+    );
+    Ok(())
+}
+
+/// Returns the current effective provider config for the settings panel.
+/// Never returns the API key itself — only `has_api_key`/`has_env_key` flags.
+#[tauri::command]
+pub async fn get_provider_config(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<parish_core::ipc::byok::GetProviderConfigResult, String> {
+    Ok(parish_core::ipc::byok::handle_get_provider_config(&state.config).await)
+}
+
+/// Wipes the keychain entry for the active provider and clears parish.toml.
+#[tauri::command]
+pub async fn clear_provider_config(state: tauri::State<'_, Arc<AppState>>) -> Result<(), String> {
+    let state_arc = state.inner().clone();
+    parish_core::ipc::byok::handle_clear_provider_config(byok_ctx(&state_arc))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Returns `{provider_id: has_env_key}` for every known provider so the BYOK
+/// wizard can show the env-detected hint on the picked provider, not just the
+/// current one.
+#[tauri::command]
+pub async fn list_byok_env_keys() -> Result<std::collections::BTreeMap<String, bool>, String> {
+    Ok(parish_core::ipc::byok::handle_list_env_keys())
+}
+
+/// Returns `{provider_id: {dialogue, simulation, intent, reaction}}` — the
+/// wizard uses this so its prefill matches what fill_missing_models_from_presets
+/// will actually install for the other tiers.
+#[tauri::command]
+pub async fn list_preset_models()
+-> Result<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>, String>
+{
+    Ok(parish_core::ipc::byok::handle_list_preset_models())
+}
+
 /// Processes player text input: classification → movement, look, or NPC conversation.
 ///
 /// Movement and look results are resolved synchronously. NPC conversations
@@ -232,20 +326,33 @@ pub async fn submit_input(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    do_submit_input(state.inner(), &app, text, addressed_to.unwrap_or_default()).await
+}
+
+/// Internal submit-input implementation shared with the MCP bridge.
+///
+/// Mirrors the Tauri command body but takes plain `&Arc<AppState>` /
+/// `&tauri::AppHandle` so the `mcp_bridge` Axum handler can drive the same
+/// dispatcher against the same live AppState the desktop window observes.
+pub(crate) async fn do_submit_input(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    text: String,
+    addressed_to: Vec<String>,
+) -> Result<(), String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
-    let addressed_to = addressed_to.unwrap_or_default();
     validate_addressed_to(&addressed_to)?;
 
-    touch_player_activity(&state).await;
+    touch_player_activity(state).await;
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
-            handle_system_command(cmd, &state, &app).await;
+            handle_system_command(cmd, state, app).await;
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -256,14 +363,14 @@ pub async fn submit_input(
             let raw_for_reactions = raw.clone();
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, addressed_to, state.clone(), app.clone()).await;
+            handle_game_input(raw, addressed_to, state, app.clone()).await;
             // Generate NPC reactions to the player's message in the background.
             emit_npc_reactions(
                 &player_msg_id,
                 &raw_for_reactions,
                 reaction_location,
-                &state,
-                &app,
+                state,
+                app,
             );
         }
     }
@@ -287,16 +394,27 @@ pub fn validate_input_text(raw: &str) -> Result<String, String> {
     Ok(trimmed)
 }
 
+/// Maximum number of NPC chips a single `submit_input` may carry. Validated
+/// in [`validate_addressed_to`] and reused by `handle_game_input` to bound
+/// `Vec::with_capacity` calls (#933 — CodeQL `rust/uncontrolled-allocation-size`).
+pub(crate) const MAX_ADDRESSED_TO: usize = 10;
+
+/// Upper bound for the merged `addressed_to + mentions` target list. Sized
+/// generously above the realistic combined total — `addressed_to` is capped
+/// at [`MAX_ADDRESSED_TO`] and `mentions.names.len()` is bounded by NPCs in
+/// the world — so the allocation is guaranteed-small regardless of input.
+pub(crate) const MAX_TARGETS: usize = 64;
+
 /// Validates the `addressed_to` list from the `submit_input` command.
 ///
 /// Rules (mode-parity with the server path in `parish-server`):
-/// - At most **10** entries (prevents unbounded NPC-chip spam).
+/// - At most [`MAX_ADDRESSED_TO`] entries (prevents unbounded NPC-chip spam).
 /// - Each name is at most **100** characters.
 ///
 /// Returns `Err(String)` with a user-visible message on any violation.
 pub fn validate_addressed_to(addressed_to: &[String]) -> Result<(), String> {
-    if addressed_to.len() > 10 {
-        return Err("Too many addressees (max 10).".to_string());
+    if addressed_to.len() > MAX_ADDRESSED_TO {
+        return Err(format!("Too many addressees (max {MAX_ADDRESSED_TO})."));
     }
     if addressed_to.iter().any(|name| name.len() > 100) {
         return Err("Addressee name too long (max 100 characters).".to_string());
@@ -385,10 +503,15 @@ async fn handle_system_command(
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
-async fn handle_game_input(
+///
+/// Takes plain `&Arc<AppState>` (not `tauri::State<...>`) so the body can be
+/// called from non-Tauri-extractor contexts — namely the `mcp_bridge` Axum
+/// handlers, which share the same live AppState as the desktop window. The
+/// Tauri callsite passes `state.inner()`.
+pub(crate) async fn handle_game_input(
     raw: String,
     addressed_to: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     // Resolve the intent client and model (Intent category override, or base).
@@ -458,7 +581,7 @@ async fn handle_game_input(
 
     if is_move {
         if let Some(target) = move_target {
-            handle_movement(&target, &state, &app).await;
+            handle_movement(&target, state, &app).await;
         } else {
             let _ = app.emit(
                 EVENT_TEXT_LOG,
@@ -475,7 +598,7 @@ async fn handle_game_input(
     }
 
     if is_look {
-        handle_look(&state, &app).await;
+        handle_look(state, &app).await;
         return;
     }
 
@@ -488,7 +611,11 @@ async fn handle_game_input(
     // intent parser classifies it as Talk. An empty `raw` still produces the
     // "say something first" prompt, which is correct for bare "talk to X".
     if is_talk && let Some(target) = talk_target {
-        let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + 1);
+        // Pre-allocate at the validated upper bound. Using the constant
+        // directly (rather than `addressed_to.len() + 1`) keeps the
+        // allocation size independent of user-controlled values for
+        // CodeQL's `rust/uncontrolled-allocation-size` query (#933).
+        let mut targets: Vec<String> = Vec::with_capacity(MAX_ADDRESSED_TO + 1);
         for name in addressed_to {
             if !targets.iter().any(|t| t == &name) {
                 targets.push(name);
@@ -511,7 +638,10 @@ async fn handle_game_input(
     // inline @mentions that aren't already in the chip set. Deduping happens
     // in `resolve_npc_targets` via `find_by_name`, which matches both real
     // and display names.
-    let mut targets: Vec<String> = Vec::with_capacity(addressed_to.len() + mentions.names.len());
+    // See note above. Pre-allocate at the fixed upper bound so the
+    // allocation argument is a constant — independent of any user-controlled
+    // input — and CodeQL's data-flow analyzer can see that.
+    let mut targets: Vec<String> = Vec::with_capacity(MAX_TARGETS);
     for name in addressed_to {
         if !targets.iter().any(|t| t == &name) {
             targets.push(name);
@@ -767,7 +897,7 @@ async fn set_conversation_running(state: &Arc<AppState>, running: bool) {
 async fn handle_npc_conversation(
     raw: String,
     target_names: Vec<String>,
-    state: tauri::State<'_, Arc<AppState>>,
+    state: &Arc<AppState>,
     app: tauri::AppHandle,
 ) {
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
@@ -793,9 +923,9 @@ async fn handle_npc_conversation(
         Some(cancel)
     };
 
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
     parish_core::game_loop::handle_npc_conversation(&ctx, raw, target_names, spawn_loading).await;
-    emit_world_update(&state, &app).await;
+    emit_world_update(state, &app).await;
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
@@ -945,6 +1075,19 @@ pub async fn load_branch(
     branch_id: i64,
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
+) -> Result<(), String> {
+    do_load_branch(state.inner(), &app, file_path, branch_id).await
+}
+
+/// Internal load-branch implementation shared with the MCP bridge.
+///
+/// Takes plain `&Arc<AppState>` / `&tauri::AppHandle` so it can be called
+/// from non-Tauri-extractor contexts (e.g. `mcp_bridge::load_branch_route`).
+pub async fn do_load_branch(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    file_path: String,
+    branch_id: i64,
 ) -> Result<(), String> {
     use parish_core::persistence::SaveFileLock;
 
@@ -1185,6 +1328,146 @@ pub async fn get_save_state(state: tauri::State<'_, Arc<AppState>>) -> Result<Sa
         branch_id: *branch_id,
         branch_name: branch_name.clone(),
     })
+}
+
+// ── Screenshot capture (player-triggered, MCP-readable) ──────────────────────
+
+/// Metadata describing the most-recently-saved screenshot.
+///
+/// The image is written to `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`
+/// by the Svelte frontend (which calls `html-to-image` and posts the resulting
+/// `data:image/png;base64,...` URL to the `save_screenshot` command). Once
+/// written, the absolute path is cached on `AppState::latest_screenshot_path`
+/// so the `parish_latest_screenshot` MCP tool can report it without scanning
+/// the directory.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ScreenshotInfo {
+    /// Absolute filesystem path to the PNG.
+    pub path: String,
+    /// ISO-8601 UTC timestamp the file was written (`YYYY-MM-DDTHH:MM:SSZ`).
+    pub taken_at: String,
+    /// Size of the PNG payload in bytes.
+    pub size_bytes: u64,
+}
+
+/// Decodes a `data:image/png;base64,...` URL into the raw PNG byte payload.
+///
+/// Returns `Err` if the URL is malformed, has the wrong MIME type, or the
+/// base64 segment fails to decode.
+pub fn decode_data_url_png(data_url: &str) -> Result<Vec<u8>, String> {
+    use base64::Engine as _;
+    const PREFIX: &str = "data:image/png;base64,";
+    let b64 = data_url
+        .strip_prefix(PREFIX)
+        .ok_or_else(|| format!("expected data URL to start with `{PREFIX}`"))?;
+    base64::engine::general_purpose::STANDARD
+        .decode(b64.as_bytes())
+        .map_err(|e| format!("base64 decode failed: {e}"))
+}
+
+/// Writes the decoded PNG bytes under `<saves_dir>/screenshots/parish-<ISO>.png`
+/// and returns the [`ScreenshotInfo`] metadata for the newly created file.
+///
+/// Pure on `(saves_dir, png_bytes, now)` — no AppState, no Tauri handle — so
+/// it can be unit-tested in isolation. The `now` callback returns the UTC
+/// timestamp used both in the filename and the response (it is parameterised
+/// so tests can pin the value).
+pub fn write_screenshot_to_disk(
+    saves_dir: &std::path::Path,
+    png_bytes: &[u8],
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<ScreenshotInfo, String> {
+    let dir = saves_dir.join("screenshots");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| format!("failed to create {}: {e}", dir.display()))?;
+
+    // Filenames must be filesystem-safe on every platform we support, so use
+    // `-` instead of `:` in the time component. `format!("{:?}", ts)` would
+    // include sub-second precision plus the trailing `Z`; we keep the stem
+    // tidy by formatting with the second-precision strftime template.
+    let stem = now.format("parish-%Y-%m-%dT%H-%M-%SZ").to_string();
+    let path = dir.join(format!("{stem}.png"));
+
+    std::fs::write(&path, png_bytes)
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+
+    let size_bytes = png_bytes.len() as u64;
+    let path_string = path.to_string_lossy().to_string();
+    let taken_at = now.format("%Y-%m-%dT%H:%M:%SZ").to_string();
+    Ok(ScreenshotInfo {
+        path: path_string,
+        taken_at,
+        size_bytes,
+    })
+}
+
+/// Internal save-screenshot implementation shared with the MCP bridge / web
+/// route. Decodes the `data_url`, writes the PNG, and updates
+/// [`AppState::latest_screenshot_path`].
+pub(crate) async fn do_save_screenshot(
+    state: &Arc<AppState>,
+    data_url: String,
+) -> Result<ScreenshotInfo, String> {
+    let bytes = decode_data_url_png(&data_url)?;
+    let info = write_screenshot_to_disk(&state.saves_dir, &bytes, chrono::Utc::now())?;
+    *state.latest_screenshot_path.lock().await = Some(std::path::PathBuf::from(&info.path));
+    Ok(info)
+}
+
+/// Internal latest-screenshot reader shared with the MCP bridge / web route.
+///
+/// Re-stat`s the file each call so a screenshot deleted out from under the
+/// session is reported as missing rather than reused indefinitely.
+pub(crate) async fn do_get_latest_screenshot(
+    state: &Arc<AppState>,
+) -> Result<Option<ScreenshotInfo>, String> {
+    let Some(path) = state.latest_screenshot_path.lock().await.clone() else {
+        return Ok(None);
+    };
+    // Use tokio::fs::metadata so the stat call doesn't block the async
+    // executor under load (this handler may be invoked from the MCP bridge
+    // while other Tokio tasks are waiting on the same worker thread).
+    let metadata = match tokio::fs::metadata(&path).await {
+        Ok(m) => m,
+        Err(_) => return Ok(None),
+    };
+    let modified = metadata
+        .modified()
+        .map_err(|e| format!("stat({}): {e}", path.display()))?;
+    let taken_at = chrono::DateTime::<chrono::Utc>::from(modified)
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    Ok(Some(ScreenshotInfo {
+        path: path.to_string_lossy().to_string(),
+        taken_at,
+        size_bytes: metadata.len(),
+    }))
+}
+
+/// Persists a screenshot captured by the frontend.
+///
+/// `data_url` is a `data:image/png;base64,...` string produced by
+/// `html-to-image` in the Svelte UI. The PNG is decoded and written to
+/// `<saves_dir>/screenshots/parish-<ISO-timestamp>.png`; the resulting path
+/// is cached on [`AppState::latest_screenshot_path`] so the MCP
+/// `parish_latest_screenshot` tool can read it back without rescanning.
+#[tauri::command]
+pub async fn save_screenshot(
+    data_url: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<ScreenshotInfo, String> {
+    do_save_screenshot(&state, data_url).await
+}
+
+/// Reads metadata for the most recently captured screenshot, if any.
+///
+/// Returns `Ok(None)` when no screenshot has been captured this session, or
+/// when the cached path no longer exists on disk.
+#[tauri::command]
+pub async fn get_latest_screenshot(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<Option<ScreenshotInfo>, String> {
+    do_get_latest_screenshot(&state).await
 }
 
 /// Formats branch list as text for the /branches command.
@@ -1932,6 +2215,7 @@ mod cmd_tests {
             transport,
             data_dir: data_dir.clone(),
             saves_dir,
+            latest_screenshot_path: Mutex::new(None),
             worker_handle: Mutex::new(None),
             editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
             save_lock: Mutex::new(None),
@@ -1943,6 +2227,8 @@ mod cmd_tests {
             demo_config: DemoConfig::default(),
             shutdown_token,
             session_store,
+            user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+            secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
         })
     }
 
@@ -2173,5 +2459,107 @@ mod cmd_tests {
             "location name should be populated"
         );
         assert_eq!(snapshot.location_name, "Kilteevan Village");
+    }
+
+    // ── Screenshot helpers ────────────────────────────────────────────────
+
+    /// A 1×1 transparent PNG, as the smallest valid payload to round-trip.
+    const ONE_PIXEL_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
+    fn one_pixel_data_url() -> String {
+        format!("data:image/png;base64,{ONE_PIXEL_PNG_B64}")
+    }
+
+    #[test]
+    fn decode_data_url_png_accepts_well_formed_url() {
+        let bytes = decode_data_url_png(&one_pixel_data_url()).unwrap();
+        // PNG magic header is 8 bytes starting with 0x89 'P' 'N' 'G'.
+        assert_eq!(&bytes[..4], &[0x89, b'P', b'N', b'G']);
+    }
+
+    #[test]
+    fn decode_data_url_png_rejects_wrong_prefix() {
+        let err = decode_data_url_png("data:image/jpeg;base64,xxxx").unwrap_err();
+        assert!(err.contains("data:image/png;base64,"), "got: {err}");
+    }
+
+    #[test]
+    fn decode_data_url_png_rejects_invalid_base64() {
+        let err = decode_data_url_png("data:image/png;base64,***not-base64***").unwrap_err();
+        assert!(err.contains("base64 decode failed"), "got: {err}");
+    }
+
+    #[test]
+    fn write_screenshot_to_disk_creates_file_and_reports_size() {
+        let tmp = tempfile::tempdir().unwrap();
+        let bytes = decode_data_url_png(&one_pixel_data_url()).unwrap();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-05-09T12:34:56Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let info = write_screenshot_to_disk(tmp.path(), &bytes, now).unwrap();
+
+        let path = std::path::PathBuf::from(&info.path);
+        assert!(path.exists(), "PNG should be written to {}", info.path);
+        assert!(
+            info.path.ends_with("parish-2026-05-09T12-34-56Z.png"),
+            "filename should embed the timestamp; got {}",
+            info.path
+        );
+        assert_eq!(info.size_bytes, bytes.len() as u64);
+        assert_eq!(info.taken_at, "2026-05-09T12:34:56Z");
+
+        // The directory was auto-created.
+        assert!(tmp.path().join("screenshots").is_dir());
+    }
+
+    #[tokio::test]
+    async fn do_save_screenshot_round_trips_through_app_state() {
+        // Override saves_dir to a fresh tempdir so the test is hermetic
+        // (otherwise the screenshot would land under the workspace `saves/`
+        // dir and pollute later runs).
+        let tmp = tempfile::tempdir().unwrap();
+        let mut state = test_app_state();
+        let s = std::sync::Arc::get_mut(&mut state)
+            .expect("test_app_state must hand back a unique Arc");
+        s.saves_dir = tmp.path().to_path_buf();
+
+        let info = do_save_screenshot(&state, one_pixel_data_url())
+            .await
+            .expect("screenshot should save");
+
+        assert!(std::path::PathBuf::from(&info.path).exists());
+
+        // The latest_screenshot_path is now populated.
+        let latest = state.latest_screenshot_path.lock().await.clone();
+        assert_eq!(
+            latest.map(|p| p.to_string_lossy().to_string()),
+            Some(info.path.clone()),
+        );
+
+        // get_latest_screenshot reads the same file back.
+        let read_back = do_get_latest_screenshot(&state)
+            .await
+            .expect("read back must succeed")
+            .expect("a screenshot should be cached");
+        assert_eq!(read_back.path, info.path);
+        assert_eq!(read_back.size_bytes, info.size_bytes);
+    }
+
+    #[tokio::test]
+    async fn do_get_latest_screenshot_returns_none_when_unset() {
+        let state = test_app_state();
+        let info = do_get_latest_screenshot(&state).await.unwrap();
+        assert!(info.is_none(), "no screenshot taken yet → None");
+    }
+
+    #[tokio::test]
+    async fn do_get_latest_screenshot_returns_none_when_file_missing() {
+        let mut state = test_app_state();
+        let s = std::sync::Arc::get_mut(&mut state).unwrap();
+        // Point at a path that doesn't exist on disk.
+        *s.latest_screenshot_path.get_mut() =
+            Some(std::path::PathBuf::from("/no/such/parish-screenshot.png"));
+        let info = do_get_latest_screenshot(&state).await.unwrap();
+        assert!(info.is_none(), "missing file on disk → None");
     }
 }
