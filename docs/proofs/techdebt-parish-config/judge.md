@@ -1,13 +1,10 @@
 Verdict: sufficient
 Technical debt: clear
 
-Seven of eight TODO.md items resolved with concrete changes:
-- Removed unused dependency (dotenvy)
-- Eliminated dual-source-of-truth for defaults across 10 structs
-- Added 7 new unit tests covering previously untested TOML deserialization paths
-- Removed dead public type alias with no downstream consumers
-- Updated stale docs and comments
+Six TODO.md items resolved with concrete, behavior-safe changes:
+- Removed unused dependency (thiserror)
+- Removed two dead config fields with zero downstream consumers (`two_pass_dialogue`, `journal_compaction_threshold`)
+- Added 14 new unit tests covering previously untested TOML deserialization paths and public provider/category methods
+- Added exhaustive match test for `Provider::ALL` ensuring all enum variants are represented
 
-One item (TD-005, CWD-relative path resolution) deferred as follow-up since it requires changes in three sibling crates.
-
-All checks pass: fmt, clippy -D warnings, 88/88 tests, witness scan. Proof bundle includes transcript of changes.
+All checks pass: fmt clean, clippy clean, 109/109 tests. Proof bundle includes transcript of changes.

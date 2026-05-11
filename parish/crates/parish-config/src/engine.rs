@@ -403,10 +403,6 @@ pub struct NpcConfig {
     /// NPC arrival reaction tuning.
     #[serde(default)]
     pub reactions: ReactionConfig,
-    /// Whether to use two-pass dialogue generation (pre-pass validates
-    /// which people the NPC intends to reference before generating dialogue).
-    #[serde(default)]
-    pub two_pass_dialogue: bool,
 }
 
 impl Default for NpcConfig {
@@ -423,7 +419,6 @@ impl Default for NpcConfig {
             relationship_labels: RelationshipLabelConfig::default(),
             reaction_context_count: default_reaction_context_count(),
             reactions: ReactionConfig::default(),
-            two_pass_dialogue: false,
         }
     }
 }
@@ -699,26 +694,12 @@ fn default_fuzzy_threshold() -> f64 {
 // ---------------------------------------------------------------------------
 
 /// Persistence / save system tuning parameters.
-#[derive(Debug, Deserialize, Clone)]
-pub struct PersistenceConfig {
-    /// Maximum journal entries per branch before automatic compaction.
-    ///
-    /// Reserved for future use — compaction is not yet implemented.
-    #[serde(default = "default_journal_compaction_threshold")]
-    pub journal_compaction_threshold: usize,
-}
-
-impl Default for PersistenceConfig {
-    fn default() -> Self {
-        Self {
-            journal_compaction_threshold: default_journal_compaction_threshold(),
-        }
-    }
-}
-
-fn default_journal_compaction_threshold() -> usize {
-    1000
-}
+///
+/// Currently empty — reserved for future save-system knobs (e.g. compaction,
+/// autosnap interval). The `[engine.persistence]` table is accepted for
+/// backward compatibility but has no effect.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct PersistenceConfig {}
 
 // ---------------------------------------------------------------------------
 // Map
@@ -900,7 +881,8 @@ mod tests {
         assert_eq!(cfg.npc.memory_capacity, 20);
         assert!((cfg.palette.min_fg_bg_contrast - 80.0).abs() < f32::EPSILON);
         assert!((cfg.world.fuzzy_threshold - 0.82).abs() < f64::EPSILON);
-        assert_eq!(cfg.persistence.journal_compaction_threshold, 1000);
+        // PersistenceConfig is intentionally empty (TD-011)
+        let _ = cfg.persistence;
     }
 
     #[test]
@@ -968,9 +950,10 @@ memory_capacity = 30
     }
 
     #[test]
-    fn test_persistence_config_defaults() {
+    fn test_persistence_config_default() {
         let cfg = PersistenceConfig::default();
-        assert_eq!(cfg.journal_compaction_threshold, 1000);
+        // Intentionally empty struct (TD-011); just verify it constructs.
+        let _ = cfg;
     }
 
     #[test]
@@ -1307,5 +1290,128 @@ max_reactions = 5
         assert!((cfg.night_penalty - 0.05).abs() < f64::EPSILON);
         assert_eq!(cfg.llm_timeout_secs, 10);
         assert_eq!(cfg.max_reactions, 5);
+    }
+
+    #[test]
+    fn test_encounter_config_deserialize_from_toml() {
+        let toml_str = r#"
+dawn = 0.30
+morning = 0.25
+midday = 0.20
+afternoon = 0.15
+dusk = 0.10
+night = 0.05
+midnight = 0.02
+"#;
+        let cfg: EncounterConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.dawn - 0.30).abs() < f64::EPSILON);
+        assert!((cfg.morning - 0.25).abs() < f64::EPSILON);
+        assert!((cfg.midday - 0.20).abs() < f64::EPSILON);
+        assert!((cfg.afternoon - 0.15).abs() < f64::EPSILON);
+        assert!((cfg.dusk - 0.10).abs() < f64::EPSILON);
+        assert!((cfg.night - 0.05).abs() < f64::EPSILON);
+        assert!((cfg.midnight - 0.02).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_encounter_config_deserialize_partial() {
+        let toml_str = "dawn = 0.10";
+        let cfg: EncounterConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.dawn - 0.10).abs() < f64::EPSILON);
+        assert!((cfg.morning - 0.25).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_palette_config_deserialize_from_toml() {
+        let toml_str = r#"
+min_fg_bg_contrast = 90.0
+min_muted_bg_contrast = 50.0
+"#;
+        let cfg: PaletteConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.min_fg_bg_contrast - 90.0).abs() < f32::EPSILON);
+        assert!((cfg.min_muted_bg_contrast - 50.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_palette_config_deserialize_partial() {
+        let toml_str = "min_fg_bg_contrast = 70.0";
+        let cfg: PaletteConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.min_fg_bg_contrast - 70.0).abs() < f32::EPSILON);
+        assert!((cfg.min_muted_bg_contrast - 45.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_world_config_deserialize_from_toml() {
+        let toml_str = "fuzzy_threshold = 0.90";
+        let cfg: WorldConfig = toml::from_str(toml_str).unwrap();
+        assert!((cfg.fuzzy_threshold - 0.90).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_persistence_config_deserialize_from_toml() {
+        let cfg: PersistenceConfig = toml::from_str("").unwrap();
+        // Intentionally empty struct (TD-011); just verify it parses.
+        let _ = cfg;
+    }
+
+    #[test]
+    fn test_inference_config_deserialize_from_toml() {
+        let toml_str = r#"
+timeout_secs = 45
+streaming_timeout_secs = 600
+reachability_timeout_secs = 15
+model_download_timeout_secs = 7200
+force_model_redownload = true
+model_loading_timeout_secs = 600
+log_capacity = 100
+"#;
+        let cfg: InferenceConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.timeout_secs, 45);
+        assert_eq!(cfg.streaming_timeout_secs, 600);
+        assert_eq!(cfg.reachability_timeout_secs, 15);
+        assert_eq!(cfg.model_download_timeout_secs, 7200);
+        assert!(cfg.force_model_redownload);
+        assert_eq!(cfg.model_loading_timeout_secs, 600);
+        assert_eq!(cfg.log_capacity, 100);
+        assert!(cfg.rate_limits.default.is_none());
+    }
+
+    #[test]
+    fn test_inference_config_deserialize_partial() {
+        let toml_str = "timeout_secs = 60";
+        let cfg: InferenceConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.timeout_secs, 60);
+        assert_eq!(cfg.streaming_timeout_secs, 300);
+    }
+
+    #[test]
+    fn test_map_config_deserialize_from_toml() {
+        let toml_str = r#"
+default_tile_source = "osm"
+
+[tile_sources.osm]
+label = "OpenStreetMap"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+tile_size = 256
+minzoom = 0
+maxzoom = 19
+attribution = "© OpenStreetMap contributors"
+raster_saturation = -0.4
+raster_opacity = 0.85
+tms = false
+"#;
+        let cfg: MapConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(cfg.default_tile_source, "osm");
+        assert_eq!(cfg.tile_sources.len(), 1);
+        let osm = &cfg.tile_sources["osm"];
+        assert_eq!(osm.label, "OpenStreetMap");
+        assert_eq!(osm.url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+        assert_eq!(osm.tile_size, 256);
+        assert_eq!(osm.minzoom, 0);
+        assert_eq!(osm.maxzoom, 19);
+        assert_eq!(osm.attribution, "© OpenStreetMap contributors");
+        assert!((osm.raster_saturation - (-0.4)).abs() < f32::EPSILON);
+        assert!((osm.raster_opacity - 0.85).abs() < f32::EPSILON);
+        assert!(!osm.tms);
     }
 }
