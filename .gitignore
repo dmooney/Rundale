@@ -32,3 +32,13 @@ gha-creds-*.json
 # Local configuration — may contain API keys (Gemini, Ollama, etc.)
 # See parish.example.toml for the expected structure.
 parish.toml
+
+# Bundled vllm-mlx Python venv produced by `just build-vllm-mlx-bundle`.
+# Contents are large (~250 MB) and built fresh per release. The empty
+# parent dir (with a .gitkeep) is tracked so tauri-build's resource
+# glob doesn't reject dev runs that skip the bundle step.
+parish/dist/vllm-mlx/python-runtime/
+parish/dist/vllm-mlx/venv/
+parish/dist/cpython-*.tar.zst
+parish/dist/vllm-mlx-bundle.tar.zst
+parish/dist/vllm-mlx-bundle.tar.zst.sha256
