@@ -53,6 +53,7 @@ use crate::setup::SetupProgress;
 pub struct HfModelDownloader {
     progress: Arc<dyn SetupProgress>,
     cache_dir: Option<PathBuf>,
+    endpoint: Option<String>,
     http: reqwest::Client,
 }
 
@@ -63,6 +64,7 @@ impl HfModelDownloader {
         Self {
             progress,
             cache_dir: None,
+            endpoint: None,
             http: reqwest::Client::builder()
                 .user_agent("parish-inference/hf-downloader")
                 .build()
@@ -75,6 +77,15 @@ impl HfModelDownloader {
     /// are visible to it.
     pub fn with_cache_dir(mut self, cache_dir: PathBuf) -> Self {
         self.cache_dir = Some(cache_dir);
+        self
+    }
+
+    /// Overrides the HuggingFace Hub endpoint. Production uses the
+    /// default (`https://huggingface.co`). Tests point this at a
+    /// wiremock server so the two-pass manifest + download flow can
+    /// be exercised without network egress.
+    pub fn with_endpoint(mut self, endpoint: String) -> Self {
+        self.endpoint = Some(endpoint);
         self
     }
 
@@ -95,6 +106,9 @@ impl HfModelDownloader {
         let mut builder = hf_hub::api::tokio::ApiBuilder::from_env().with_progress(false);
         if let Some(dir) = &self.cache_dir {
             builder = builder.with_cache_dir(dir.clone());
+        }
+        if let Some(endpoint) = &self.endpoint {
+            builder = builder.with_endpoint(endpoint.clone());
         }
         let api = builder
             .build()
