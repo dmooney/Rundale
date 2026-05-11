@@ -111,25 +111,25 @@ struct MessageContent {
 
 /// A single SSE chunk from a streaming response.
 #[derive(Deserialize, Debug)]
-pub(crate) struct ChatCompletionChunk {
+struct ChatCompletionChunk {
     #[serde(default)]
-    pub(crate) choices: Vec<StreamChoice>,
+    choices: Vec<StreamChoice>,
 }
 
 /// A single choice in a streaming chunk.
 #[derive(Deserialize, Debug)]
-pub(crate) struct StreamChoice {
+struct StreamChoice {
     #[serde(default)]
-    pub(crate) delta: Delta,
+    delta: Delta,
     #[serde(default)]
-    pub(crate) finish_reason: Option<String>,
+    finish_reason: Option<String>,
 }
 
 /// Delta content in a streaming chunk.
 #[derive(Deserialize, Debug, Default)]
-pub(crate) struct Delta {
+struct Delta {
     #[serde(default)]
-    pub(crate) content: Option<String>,
+    content: Option<String>,
 }
 
 impl OpenAiClient {
@@ -309,7 +309,11 @@ impl OpenAiClient {
         line_buf.push_str(&decoder.flush());
         let remaining = line_buf.trim();
         if !remaining.is_empty() {
-            process_sse_line(remaining, &token_tx, &mut accumulated);
+            match process_sse_line(remaining, &token_tx, &mut accumulated) {
+                SseResult::Continue => {}
+                SseResult::Done => return Ok(accumulated),
+                SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
+            }
         }
 
         Ok(accumulated)
@@ -368,7 +372,11 @@ impl OpenAiClient {
         line_buf.push_str(&decoder.flush());
         let remaining = line_buf.trim();
         if !remaining.is_empty() {
-            process_sse_line(remaining, &token_tx, &mut accumulated);
+            match process_sse_line(remaining, &token_tx, &mut accumulated) {
+                SseResult::Continue => {}
+                SseResult::Done => return Ok(accumulated),
+                SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
+            }
         }
 
         Ok(accumulated)
