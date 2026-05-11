@@ -1453,4 +1453,105 @@ mod tests {
             resp2.error
         );
     }
+
+    // ── submit_json tests (TD-028) ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn submit_json_deserializes_valid_json() {
+        let (itx, mut irx) = mpsc::channel::<InferenceRequest>(4);
+        let (btx, _brx) = mpsc::channel::<InferenceRequest>(4);
+        let (batx, _batrx) = mpsc::channel::<InferenceRequest>(4);
+        let queue = InferenceQueue::new(itx, btx, batx);
+
+        tokio::spawn(async move {
+            if let Some(req) = irx.recv().await {
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: r#"{"hello":"world"}"#.to_string(),
+                    error: None,
+                });
+            }
+        });
+
+        #[derive(serde::Deserialize, Debug)]
+        struct Greeting {
+            hello: String,
+        }
+
+        let result: Result<Greeting, ParishError> =
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+        assert!(result.is_ok(), "expected ok, got: {:?}", result.err());
+        assert_eq!(result.unwrap().hello, "world");
+    }
+
+    #[tokio::test]
+    async fn submit_json_propagates_worker_error() {
+        let (itx, mut irx) = mpsc::channel::<InferenceRequest>(4);
+        let (btx, _brx) = mpsc::channel::<InferenceRequest>(4);
+        let (batx, _batrx) = mpsc::channel::<InferenceRequest>(4);
+        let queue = InferenceQueue::new(itx, btx, batx);
+
+        tokio::spawn(async move {
+            if let Some(req) = irx.recv().await {
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: String::new(),
+                    error: Some("model exploded".to_string()),
+                });
+            }
+        });
+
+        let result: Result<serde_json::Value, ParishError> =
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+        let err = result.expect_err("should error");
+        assert!(
+            err.to_string().contains("model exploded"),
+            "expected 'model exploded' in error, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn submit_json_fails_on_malformed_json() {
+        let (itx, mut irx) = mpsc::channel::<InferenceRequest>(4);
+        let (btx, _brx) = mpsc::channel::<InferenceRequest>(4);
+        let (batx, _batrx) = mpsc::channel::<InferenceRequest>(4);
+        let queue = InferenceQueue::new(itx, btx, batx);
+
+        tokio::spawn(async move {
+            if let Some(req) = irx.recv().await {
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: "not json".to_string(),
+                    error: None,
+                });
+            }
+        });
+
+        let result: Result<serde_json::Value, ParishError> =
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+        let err = result.expect_err("should error");
+        assert!(
+            err.to_string().contains("JSON parse failed"),
+            "expected JSON parse error, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn submit_json_fails_when_queue_closed() {
+        let (itx, _irx) = mpsc::channel::<InferenceRequest>(4);
+        let (btx, _brx) = mpsc::channel::<InferenceRequest>(4);
+        let (batx, _batrx) = mpsc::channel::<InferenceRequest>(4);
+        let queue = InferenceQueue::new(itx, btx, batx);
+        drop(_irx);
+        drop(_brx);
+        drop(_batrx);
+
+        let result: Result<serde_json::Value, ParishError> =
+            submit_json(&queue, InferencePriority::Interactive, "m", "p", None).await;
+        let err = result.expect_err("should error");
+        assert!(
+            err.to_string().contains("queue send failed"),
+            "expected queue send error, got: {err}"
+        );
+    }
 }

@@ -38,5 +38,34 @@ cargo clippy -p parish-inference -- -D warnings: clean
 cargo fmt --check: clean
 ```
 
+## Phase 2 — TD-024 through TD-030
+
+### Dead Code Removal
+- TD-024: Deleted dead `OllamaClient`, `GenerateRequest`, `GenerateResponse` and their tests from `client.rs` and `tests/http_mock_tests.rs`. Collapsed `client.rs` to the single `pub use crate::setup::OllamaProcess` re-export.
+- TD-026: Removed stale `OllamaClient` doc comment about 30-second timeout (code deleted in TD-024).
+
+### Config Cleanup
+- TD-025: Removed unused `inference-client-trait` and `inference-response-cache` feature flags from `Cargo.toml`; updated module docs in `inference_client.rs` and `parish-server/src/state.rs`.
+
+### Documentation
+- TD-027: Updated `README.md` key modules list to include `anthropic_client`, `inference_client`, `utf8_stream` and corrected `setup` description.
+
+### Weak Tests Added
+- TD-028: Added four unit tests for `submit_json` async helper in `lib.rs` (success path, error path, JSON parse failure, missing response channel).
+
+### Bug Fix
+- TD-029: Fixed OpenAI trailing-buffer SSE error propagation in `read_sse_stream` to match Anthropic pattern — `SseResult::Error` now returns `Err(ParishError::Inference(msg))` instead of being silently dropped.
+
+### Visibility Hardening
+- TD-030: Tightened `ChatCompletionChunk`, `StreamChoice`, and `Delta` visibility from `pub(crate)` to private in `openai_client.rs`.
+
+## Test Output
+
+```
+cargo test -p parish-inference: 233 passed (unit) + 6 ignored + 0 doc-tests
+cargo clippy -p parish-inference --all-targets -- -D warnings: clean
+cargo fmt --check: clean
+```
+
 ## Residual Items
-- TD-003, TD-004, TD-011, TD-015, TD-020, TD-021, TD-023: Left open for follow-up (risky refactors or require external abstractions).
+- All 30 TODO items resolved. No remaining open debt in parish-inference.
