@@ -389,6 +389,12 @@ pub struct AppState {
     /// Latest provider-bootstrap status for the startup overlay. Uses a
     /// standard mutex because setup progress callbacks are synchronous.
     pub setup_status: std::sync::Mutex<SetupStatusSnapshot>,
+    /// Idempotency guard for `do_start_local_inference_setup` — a second
+    /// `/api/start-local-inference` POST while the first is still
+    /// downloading would otherwise race the bootstrap pipeline. Set on
+    /// entry, cleared on exit (success or error). UI / MCP callers see a
+    /// busy error and the in-flight wizard keeps running.
+    pub wizard_in_flight: std::sync::atomic::AtomicBool,
     /// Demo / auto-player configuration. Read-only after startup.
     pub demo_config: DemoConfig,
     /// Cancellation token — cancelled during app shutdown to stop background ticks
@@ -1106,6 +1112,7 @@ pub fn run() {
         runtime_processes: Mutex::new(parish_core::inference::client::RuntimeProcesses::none()),
         inference_config: engine_config.inference, // (#417) store TOML-configured timeouts
         setup_status: std::sync::Mutex::new(SetupStatusSnapshot::default()),
+        wizard_in_flight: std::sync::atomic::AtomicBool::new(false),
         language_settings,
         config: Mutex::new(game_config),
         demo_config,
