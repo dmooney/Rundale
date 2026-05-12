@@ -332,6 +332,13 @@ pub struct OnboardingOptions {
 pub async fn get_onboarding_options(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<OnboardingOptions, String> {
+    Ok(do_get_onboarding_options(state.inner()).await)
+}
+
+/// Internal helper shared with `mcp_bridge::onboarding_options`. Takes
+/// `&Arc<AppState>` so the MCP route can call it without the Tauri
+/// `State<'_, _>` wrapper.
+pub(crate) async fn do_get_onboarding_options(state: &Arc<AppState>) -> OnboardingOptions {
     use parish_core::config::Provider;
 
     let cfg = state.config.lock().await;
@@ -342,11 +349,11 @@ pub async fn get_onboarding_options(
         model: Some(cfg.model_name.clone()),
     };
     drop(cfg);
-    let choice = crate::setup::onboarding_choice_for_platform(state.inner(), &provider_config);
+    let choice = crate::setup::onboarding_choice_for_platform(state, &provider_config);
     let ram_gb = parish_core::config::unified_memory_bytes()
         .map(|b| b / (1024 * 1024 * 1024))
         .unwrap_or(0);
-    Ok(OnboardingOptions { choice, ram_gb })
+    OnboardingOptions { choice, ram_gb }
 }
 
 /// Selection submitted from `LocalInferenceFork`. `two-slot` runs the
@@ -371,11 +378,23 @@ pub async fn start_local_inference_setup(
     state: tauri::State<'_, Arc<AppState>>,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    do_start_local_inference_setup(state.inner(), &app, args).await
+}
+
+/// Internal worker for the local-inference setup flow, shared with the MCP
+/// bridge route so an MCP client can drive the same wizard the desktop UI
+/// uses. Takes plain `&Arc<AppState>` + `&AppHandle` to sidestep the Tauri
+/// `State` wrapper that the `#[tauri::command]` shim provides.
+pub(crate) async fn do_start_local_inference_setup(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    args: LocalSetupArgs,
+) -> Result<(), String> {
     use parish_core::inference::hf_downloader::HfModelDownloader;
     use parish_core::inference::setup::SetupProgress;
     use std::sync::Arc as StdArc;
 
-    let state_arc = state.inner().clone();
+    let state_arc = state.clone();
 
     let two_slot = match args.variant.as_str() {
         "two-slot" => true,
