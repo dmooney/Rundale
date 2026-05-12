@@ -20,8 +20,21 @@ use crate::world::{LocationId, WorldState};
 
 use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, WorldSnapshot};
 
+/// Convert a chrono weekday to its English name.
+pub(crate) fn weekday_name(wd: chrono::Weekday) -> &'static str {
+    match wd {
+        chrono::Weekday::Mon => "Monday",
+        chrono::Weekday::Tue => "Tuesday",
+        chrono::Weekday::Wed => "Wednesday",
+        chrono::Weekday::Thu => "Thursday",
+        chrono::Weekday::Fri => "Friday",
+        chrono::Weekday::Sat => "Saturday",
+        chrono::Weekday::Sun => "Sunday",
+    }
+}
+
 /// Builds a [`WorldSnapshot`] from the current world state.
-pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> WorldSnapshot {
+pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
     let now = world.clock.now();
     let hour = now.hour() as u8;
     let minute = now.minute() as u8;
@@ -37,16 +50,7 @@ pub fn snapshot_from_world(world: &WorldState, _transport: &TransportMode) -> Wo
         loc.description.clone()
     };
 
-    let day_of_week = match now.weekday() {
-        chrono::Weekday::Mon => "Monday",
-        chrono::Weekday::Tue => "Tuesday",
-        chrono::Weekday::Wed => "Wednesday",
-        chrono::Weekday::Thu => "Thursday",
-        chrono::Weekday::Fri => "Friday",
-        chrono::Weekday::Sat => "Saturday",
-        chrono::Weekday::Sun => "Sunday",
-    }
-    .to_string();
+    let day_of_week = weekday_name(now.weekday()).to_string();
 
     WorldSnapshot {
         location_name: loc.name.clone(),
@@ -641,7 +645,9 @@ pub fn prepare_npc_conversation_turn(
     })
 }
 
-/// Backward-compatible single-target helper retained for older callers.
+/// Single-target convenience wrapper around [`prepare_npc_conversation_turn`].
+///
+/// Used by headless CLI and other callers that address exactly one NPC.
 pub fn prepare_npc_conversation(
     world: &WorldState,
     npc_manager: &mut NpcManager,
@@ -795,8 +801,7 @@ mod tests {
     #[test]
     fn snapshot_from_default_world() {
         let world = WorldState::new();
-        let transport = TransportMode::walking();
-        let snap = snapshot_from_world(&world, &transport);
+        let snap = snapshot_from_world(&world);
         assert!(!snap.location_name.is_empty());
         assert!(snap.hour <= 23);
         assert!(snap.minute <= 59);
@@ -808,7 +813,7 @@ mod tests {
         let mut world = WorldState::new();
         world.clock.inference_pause();
 
-        let snap = snapshot_from_world(&world, &TransportMode::walking());
+        let snap = snapshot_from_world(&world);
 
         assert!(!snap.paused);
         assert!(snap.inference_paused);
