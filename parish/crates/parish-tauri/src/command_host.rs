@@ -247,11 +247,9 @@ impl SystemCommandHost for TauriCommandHost {
         let app = self.app.clone();
         Box::pin(async move {
             let world = state.world.lock().await;
-            let transport = state.transport.default_mode();
             let npc_manager = state.npc_manager.lock().await;
             let snapshot = crate::commands::get_world_snapshot_inner(
                 &world,
-                transport,
                 Some(&npc_manager),
                 &state.pronunciations,
             );

@@ -642,24 +642,6 @@ impl GameMod {
 /// Replaces each `{key}` with the corresponding value from the provided
 /// key-value pairs. Unknown placeholders are left as-is.
 ///
-/// # Examples
-///
-/// ```ignore
-/// let result = interpolate_template(
-///     "Hello, {name}! You are {age} years old.",
-///     &[("name", "Séamas"), ("age", "42")],
-/// );
-/// assert_eq!(result, "Hello, Séamas! You are 42 years old.");
-/// ```
-pub fn interpolate_template(template: &str, vars: &[(&str, &str)]) -> String {
-    let mut result = template.to_string();
-    for (key, value) in vars {
-        let placeholder = format!("{{{}}}", key);
-        result = result.replace(&placeholder, value);
-    }
-    result
-}
-
 /// Creates a [`crate::world::WorldState`] from a loaded [`GameMod`].
 ///
 /// Bridges [`GameMod`] (which lives in `parish-core`) and
@@ -768,8 +750,13 @@ pub fn discover_mods_in(mods_root: &Path) -> Result<DiscoveredMods, ParishError>
 /// 2. Walks up from the current working directory searching for a `mods/`
 ///    directory.
 ///
-/// Per AGENTS.md rule #8, prefer the env-var path in production and packaged
-/// builds; the cwd-walk is the development fallback.
+/// # Rule 9 warning
+///
+/// AGENTS.md rule 9 forbids resolving runtime paths from the cwd. The
+/// cwd-walk below is a **development fallback only**. Production and packaged
+/// builds must set `PARISH_MODS_DIR` so this walk is never reached.
+///
+/// See [`LocalDiskModSource::with_root`] for the explicit-path API.
 pub(crate) fn find_mods_root() -> Option<PathBuf> {
     if let Some(explicit) = std::env::var_os("PARISH_MODS_DIR") {
         let p = PathBuf::from(explicit);
@@ -1109,33 +1096,6 @@ default_accent = "#112233"
         assert_eq!(e.note, "invented 1876");
     }
 
-    #[test]
-    fn test_interpolate_template() {
-        let result = interpolate_template(
-            "Hello, {name}! You are a {occupation}.",
-            &[("name", "Séamas"), ("occupation", "publican")],
-        );
-        assert_eq!(result, "Hello, Séamas! You are a publican.");
-    }
-
-    #[test]
-    fn test_interpolate_template_missing_key() {
-        let result = interpolate_template("Hello, {name}! Age: {age}", &[("name", "Aoife")]);
-        assert_eq!(result, "Hello, Aoife! Age: {age}");
-    }
-
-    #[test]
-    fn test_interpolate_template_no_placeholders() {
-        let result = interpolate_template("No placeholders here.", &[("key", "value")]);
-        assert_eq!(result, "No placeholders here.");
-    }
-
-    #[test]
-    fn test_interpolate_template_empty() {
-        let result = interpolate_template("", &[("key", "value")]);
-        assert_eq!(result, "");
-    }
-
     // -- Pronunciation tests --------------------------------------------------
 
     /// Build a test mod that includes a pronunciations.json file.
@@ -1264,7 +1224,7 @@ tier2_system = "prompts/tier2_system.txt"
             assert!(!gm.manifest.meta.name.is_empty());
             assert!(gm.world_path().is_absolute());
             assert!(gm.npcs_path().is_absolute());
-            // The kilteevan mod should have pronunciation data
+            // The rundale mod should have pronunciation data
             assert!(
                 !gm.pronunciations.is_empty(),
                 "default mod should have pronunciation entries"

@@ -627,16 +627,7 @@ pub fn build_debug_snapshot(
 /// Builds clock debug info from world state.
 fn build_clock_debug(world: &WorldState) -> ClockDebug {
     let now = world.clock.now();
-    let day_of_week = match now.weekday() {
-        chrono::Weekday::Mon => "Monday",
-        chrono::Weekday::Tue => "Tuesday",
-        chrono::Weekday::Wed => "Wednesday",
-        chrono::Weekday::Thu => "Thursday",
-        chrono::Weekday::Fri => "Friday",
-        chrono::Weekday::Sat => "Saturday",
-        chrono::Weekday::Sun => "Sunday",
-    }
-    .to_string();
+    let day_of_week = crate::ipc::handlers::weekday_name(now.weekday()).to_string();
 
     ClockDebug {
         game_time: format!(
