@@ -203,11 +203,6 @@ impl SaveFileLock {
         })
     }
 
-    /// Returns `true` if this lock protects the given save file path.
-    pub fn covers_path(&self, save_path: &Path) -> bool {
-        self.lock_path == Self::lock_path_for(save_path)
-    }
-
     /// Returns the lock file path for a given save file path.
     pub fn lock_path_for(save_path: &Path) -> PathBuf {
         let mut p = save_path.as_os_str().to_os_string();
@@ -492,19 +487,6 @@ mod tests {
             !lock_path.exists(),
             "file removed only after the last guard (lock3) drops"
         );
-    }
-
-    #[test]
-    fn test_covers_path() {
-        let dir = tempfile::tempdir().unwrap();
-        let save_a = dir.path().join("a.db");
-        let save_b = dir.path().join("b.db");
-        fs::write(&save_a, b"").unwrap();
-        fs::write(&save_b, b"").unwrap();
-
-        let lock = SaveFileLock::try_acquire(&save_a).unwrap();
-        assert!(lock.covers_path(&save_a));
-        assert!(!lock.covers_path(&save_b));
     }
 
     #[test]
