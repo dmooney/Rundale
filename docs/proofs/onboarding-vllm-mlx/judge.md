@@ -182,10 +182,15 @@ Closed out the local-inference-on-Mac scope:
    the Tier 2 contract through simulator, and the intent
    word-boundary fix can't silently regress.
 
-The one Tier 3 race that fires on the first world-tick post-boot
-remains; it surfaces once per launch and the engine recovers
-without intervention. Tracked as low-priority follow-up; doesn't
-block ship.
+The one Tier 3 race that fired on the first world-tick post-boot
+in the fourth probe turned out not to be a race — the simulator's
+JSON-detection shim matched "Respond with a JSON" / "JSON object"
+but not the Tier 3 prompt's "Respond with JSON" (no "a") + literal
+`{"updates":[…]}` schema. Added the missing markers (`"Respond with
+JSON"`, `"\"updates\":"`, `"\"npc_id\":"`) plus a pinning test
+case. The four shipping gaps the audit flagged — Tier 3 boot
+parse-fail, vllm-mlx graceful shutdown on Cmd+Q, dev-mode fallback
+probe, and flag discoverability — are all closed.
 
 ## What this verdict does NOT cover
 

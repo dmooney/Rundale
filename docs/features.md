@@ -148,6 +148,16 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 - `/flag list` — List flags (same as above)
 - `/flag enable <name>` / `/flag disable <name>` — Toggle a specific flag
 
+Known engine flags (all **default-on**; disable to opt out):
+- `period-map-tiles` — `/map <id>` tile-source switching.
+- `local-inference-onboarding` — first-run wizard that downloads bundled
+  vllm-mlx + Qwen weights on macOS, or routes to BYOK on other hosts.
+  Disable to skip the wizard entirely and force startup to use
+  whatever `PARISH_*` env vars / `parish.toml` already configure.
+- `inference-rejection-sampler` / `rundale-dialect-model` — see
+  `docs/design/gemma4-rundale-training-plan.md`.
+- `night-visions` — see `docs/design/night-visions.md`.
+
 **Provider Configuration (base):**
 - `/provider [name]` — Show or set the base LLM provider
 - `/model [name]` — Show or set the base model
