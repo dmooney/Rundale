@@ -15,7 +15,6 @@ tracing       = { workspace = true }
 chrono        = { workspace = true }
 strsim        = { workspace = true }
 rand          = { workspace = true }
-tokio         = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 toml = { workspace = true }
