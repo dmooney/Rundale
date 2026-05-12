@@ -8,11 +8,17 @@
 	 * bundled portable Python + Qwen2.5 4-bit weights pre-fetched
 	 * over the existing setup-progress event surface.
 	 *
-	 * `choice = local-recommended` (Mac ≥ 16 GB): recommend the
-	 * two-slot 14B + 1.5B loadout.
-	 * `choice = local-low-mem`   (Mac < 16 GB): offer small-slot
-	 * only (1.5B everywhere) with an honest "limited quality"
-	 * warning so the user can pick BYOK without surprise.
+	 * Variant selection is driven by `ramGb`, not `choice`:
+	 *   - `ramGb >= 24` → `two-slot` (Qwen 14B Dialogue + 1.5B
+	 *     small slot). 14B 4-bit needs ~12-14 GB resident with KV
+	 *     cache; adding the 1.5B + the OS + Tauri/webview pushes
+	 *     total working set to ~20-24 GB. A 16 GB Mac runs out of
+	 *     unified memory mid-load.
+	 *   - `ramGb < 24`  → `small-only` (1.5B everywhere). Fits in
+	 *     ~4 GB resident; OK on any 16 GB+ Mac.
+	 *
+	 * `choice = local-low-mem` (Mac < 16 GB) drives the warning
+	 * copy that nudges the user toward BYOK before they commit.
 	 */
 	import ByokOnboarding from './ByokOnboarding.svelte';
 	import {
@@ -34,10 +40,13 @@
 	let mode: 'fork' | 'byok' | 'local-confirming' = $state('fork');
 	let localError = $state('');
 
-	// Reactive so it tracks `choice` if the prop ever changes (Svelte 5
-	// state_referenced_locally requires deriving rather than snapshotting).
+	// Reactive so it tracks `ramGb` if the prop ever changes. The
+	// two-slot loadout's working set is ~20-24 GB once the 14B is
+	// resident (weights + KV cache + activations) plus the 1.5B and
+	// host overhead; below that we ship the small-slot-only variant
+	// even though `choice` says local is recommended.
 	const variant: LocalSetupArgs['variant'] = $derived(
-		choice === 'local-low-mem' ? 'small-only' : 'two-slot'
+		ramGb >= 24 ? 'two-slot' : 'small-only'
 	);
 
 	async function pickLocal() {
@@ -66,12 +75,21 @@
 
 		<div class="local-fork__cards">
 			<button class="local-fork__card" onclick={pickLocal} type="button">
-				{#if choice === 'local-low-mem'}
+				{#if variant === 'small-only'}
 					<h2>Run locally (limited)</h2>
 					<p class="local-fork__blurb">
-						Below 16 GB unified memory the small model handles
-						everything. Dialogue quality drops noticeably —
-						consider BYOK for the best experience.
+						{#if choice === 'local-low-mem'}
+							Below 16 GB unified memory the small model handles
+							everything. Dialogue quality drops noticeably —
+							consider BYOK for the best experience.
+						{:else}
+							Your Mac has under 24 GB unified memory, so we
+							run the small (1.5B) model only. The 14B
+							dialogue tier needs ~24 GB to hold weights + KV
+							cache without swapping. Quality drops noticeably
+							versus the two-slot loadout — consider BYOK if
+							that matters.
+						{/if}
 					</p>
 					<p class="local-fork__detail">
 						Downloads ~1.3 GB of weights, then runs offline. No
