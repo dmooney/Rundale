@@ -2,19 +2,7 @@
 
 ## Open
 
-| ID | Category | Severity | Summary |
-|----|----------|----------|---------|
-| TD-015 | Bug / Stale Logic | P2 | `journal_bridge::to_journal_event` (`journal_bridge.rs:41-54`) maps both `GameEvent::NpcArrived` and `GameEvent::NpcDeparted` to `WorldEvent::NpcMoved { from: location, to: location }`. The "best approximation" comment notes the data is lost; the resulting journal row is a no-op on replay (`journal.rs:183-188` sets `npc.location = to`, which equals `from`), so crash recovery silently drops every arrival/departure. Either drop the conversion (return `None`) or extend `WorldEvent` to carry the actual movement, and add a regression test. |
-| TD-016 | Rule 9 Violation / API | P2 | `picker::ensure_saves_dir()` (`picker.rs:116-118`) returns a cwd-relative `PathBuf::from("saves")` and is still the entry-point used by `parish-cli/src/headless.rs:290` and `parish-server/src/lib.rs:393` (out of scope to fix, but in-scope to deprecate). Per CLAUDE.md rule 9, callers must resolve runtime paths from explicit config; mark this fn `#[deprecated(note = "use resolve_project_saves_dir")]` and/or remove it once external callers migrate. |
-| TD-017 | Dead / Unused Public API | P3 | `journal_bridge::to_journal_event` and `journal_bridge::drain_events` (`journal_bridge.rs:16,67`) have no callers outside the crate's own tests (verified via `rg` across the workspace). Either wire them into the snapshot/save path or downgrade the visibility (`pub(crate)`) / delete. |
-| TD-018 | Dead / Unused Public API | P3 | `picker::PickerChoice` (enum, `picker.rs:62`) and `picker::read_picker_choice` (`picker.rs:427`) are only consumed by `run_picker` inside this file. No external callers. Downgrade to `pub(crate)` (or inline) — keeping them `pub` is a misleading API surface. |
-| TD-019 | Dead / Unused Public API | P3 | `lock::SaveFileLock::covers_path` (`lock.rs:207`) has no callers outside its own unit test. Either remove it or document the intended consumer. |
-| TD-020 | Test Hygiene / Race | P2 | `picker::tests::test_ensure_saves_dir_creates_directory` (`picker.rs:748-757`) mutates the process-wide `current_dir()` without holding the `env_test_lock` used by sibling tests. Cargo runs unit tests in parallel threads → flaky races with any test that reads cwd or env. Either gate it under the same lock or rewrite to call `ensure_saves_dir_at(tmp.path().join("saves"))` and avoid `set_current_dir` entirely. |
-| TD-021 | Inconsistent Logging | P3 | `picker::ensure_saves_dir_at` (`picker.rs:101-103`) uses `eprintln!` / `println!` for the legacy save-file migration, while every other warning in the crate uses `tracing::warn!` / `tracing::info!` (e.g. `picker.rs:89,196`, `lock.rs:154,246`, `database.rs:30`, `journal.rs:208,222`). Switch to `tracing` for consistency and so the migration message survives `--quiet` / non-tty runtimes. |
-| TD-022 | Weak Tests | P3 | `journal::replay_journal` treats `WorldEvent::DialogueOccurred` as a deliberate no-op (`journal.rs:228`), but no test asserts that the world state is unchanged after replaying one. Add `test_replay_dialogue_occurred_is_noop` so the contract is locked in (otherwise a future "let's persist dialogue too" change silently regresses). |
-| TD-023 | Stale Doc Comment | P3 | `picker.rs:84-86` doc-comments `ensure_saves_dir_at` as performing "the one-time migration of the legacy `parish_saves.db`" — the migration is now multi-year-old and the legacy file does not exist in fresh installs. Either delete the migration block (and shorten the doc) or move the migration code behind a feature flag/one-shot-on-upgrade marker so the cwd-side-effect doesn't run on every startup. |
-
-
+*(none — all items resolved)*
 
 ## In Progress
 
@@ -38,3 +26,16 @@
 | TD-012 | Complexity | P2 | Split `GameSnapshot::restore()` into `restore_clock`, `restore_world_locations`, `restore_npcs` private helpers. |
 | TD-013 | Complexity | P2 | Extracted `apply_player_moved` and `apply_memory_added` helpers from `replay_journal`. |
 | TD-014 | Stale Docs | P2 | Added `tracing::warn!` on the `Err(_) => continue` path in `discover_saves` in `picker.rs`. |
+| TD-015 | Bug/Stale Logic | P2 | Dropped `NpcArrived`/`NpcDeparted` conversion in `journal_bridge.rs`; they now map to `None` (informational only). Updated tests. |
+| TD-016 | Rule 9 Violation | P2 | Deprecated `ensure_saves_dir()` with `#[deprecated]`; migrated callers in `parish-server` and `parish-cli` to `resolve_project_saves_dir`. |
+| TD-017 | Dead API | P2 | Downgraded `journal_bridge::to_journal_event` and `drain_events` visibility from `pub` to `pub(crate)`. |
+| TD-018 | Dead API | P2 | Downgraded `picker::PickerChoice` and `read_picker_choice` visibility from `pub` to `pub(crate)`. |
+| TD-019 | Dead API | P2 | Removed `lock::SaveFileLock::covers_path` and its test (`test_covers_path`). |
+| TD-020 | Test Hygiene | P2 | Fixed `test_ensure_saves_dir_creates_directory` to acquire `env_test_lock` before mutating `current_dir`. |
+| TD-021 | Inconsistent Logging | P2 | Switched `ensure_saves_dir_at` `eprintln`/`println` to `tracing::warn!`/`tracing::info!`. |
+| TD-022 | Weak Tests | P2 | Added `test_replay_dialogue_occurred_is_noop` in `journal.rs`. |
+| TD-023 | Stale Doc Comment | P2 | Fixed `ensure_saves_dir_at` doc comment to describe idempotent migration instead of one-time migration. |
+
+## Progress Log
+
+- **2026-05-12**: Resolved TD-015 through TD-023. All changes verified with `cargo fmt`, `cargo clippy`, and `cargo test -p parish-persistence`. Dependent crates (`parish-core`, `parish-cli`, `parish-server`) checked clean.

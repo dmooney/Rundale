@@ -410,6 +410,23 @@ mod tests {
     }
 
     #[test]
+    fn test_replay_dialogue_occurred_is_noop() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let time_before = world.clock.now();
+        let events = vec![WorldEvent::DialogueOccurred {
+            npc_id: NpcId(1),
+            player_said: "Hello".to_string(),
+            npc_said: "Good day".to_string(),
+        }];
+        replay_journal(&mut world, &mut npcs, &events);
+        // No state changes — DialogueOccurred is informational only.
+        assert_eq!(world.player_location, LocationId(1));
+        assert_eq!(world.clock.now(), time_before);
+        assert!(npcs.all_npcs().next().is_none());
+    }
+
+    #[test]
     fn test_replay_rejects_negative_clock_advance() {
         // Regression: #344 — a corrupted journal row with a negative
         // `minutes` must not move the clock backward.
