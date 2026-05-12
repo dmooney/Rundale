@@ -416,7 +416,10 @@ mod tests {
 
         assert_eq!(engine.current(), Weather::Storm);
         assert_eq!(engine.since(), forced_time);
-        assert_eq!(engine.last_check_hour(), Some(forced_time.timestamp() / 3600));
+        assert_eq!(
+            engine.last_check_hour(),
+            Some(forced_time.timestamp() / 3600)
+        );
 
         // A tick at the same hour should be skipped
         let mut rng = StdRng::seed_from_u64(42);
