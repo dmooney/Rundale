@@ -59,7 +59,7 @@ pub struct SaveBranchDisplay {
 
 /// Result of the player's choice in the save picker.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PickerChoice {
+pub(crate) enum PickerChoice {
     /// Player chose an existing save file (index into the save list).
     Existing(usize),
     /// Player chose to start a new game.
@@ -81,9 +81,13 @@ pub struct SaveFileInfo {
     pub locked: bool,
 }
 
-/// Ensures the saves directory exists at `saves_dir` and runs the one-time
-/// migration of the legacy `parish_saves.db` (alongside the directory) into
-/// it. Returns the same path back for chaining.
+/// Ensures the saves directory exists at `saves_dir`.
+///
+/// Also performs an idempotent migration of a legacy `parish_saves.db`
+/// located in the parent of `saves_dir` into `saves_dir` as the first
+/// numbered save file. The migration only runs when the target path does
+/// not already exist, so repeated calls are safe.
+/// Returns the same path back for chaining.
 pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
     if let Err(e) = std::fs::create_dir_all(&saves_dir) {
         tracing::warn!(path = %saves_dir.display(), error = %e, "failed to create saves directory");
@@ -98,9 +102,9 @@ pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
         let target = saves_dir.join(format!("{}{:03}.{}", SAVE_PREFIX, 1, SAVE_EXT));
         if !target.exists() {
             if let Err(e) = std::fs::rename(&legacy, &target) {
-                eprintln!("Warning: Could not migrate {}: {}", legacy.display(), e);
+                tracing::warn!(path = %legacy.display(), target = %target.display(), error = %e, "could not migrate legacy save file");
             } else {
-                println!("Migrated save file to {}", target.display());
+                tracing::info!(path = %target.display(), "migrated legacy save file");
             }
         }
     }
@@ -113,6 +117,10 @@ pub fn ensure_saves_dir_at(saves_dir: PathBuf) -> PathBuf {
 /// Prefer [`resolve_project_saves_dir`] for new callers — it returns an
 /// absolute path anchored at a deliberate startup-time location and does not
 /// depend on the cwd at the time of the call.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use resolve_project_saves_dir instead — it obeys Rule 9 by resolving from an explicit startup-time path rather than the cwd."
+)]
 pub fn ensure_saves_dir() -> PathBuf {
     ensure_saves_dir_at(PathBuf::from(SAVES_DIR))
 }
@@ -424,7 +432,7 @@ pub fn display_picker(saves: &[SaveFileInfo]) {
 ///
 /// Returns `Ok(PickerChoice)` on valid input, or an error message string
 /// for invalid input.
-pub fn read_picker_choice(saves: &[SaveFileInfo]) -> Result<PickerChoice, String> {
+pub(crate) fn read_picker_choice(saves: &[SaveFileInfo]) -> Result<PickerChoice, String> {
     use std::io::{BufRead, Write};
     print!("Choose [1-{}, N]: ", saves.len());
     std::io::stdout().flush().ok();
@@ -745,7 +753,9 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)] // Tests the deprecated shim itself.
     fn test_ensure_saves_dir_creates_directory() {
+        let _gate = env_test_lock();
         let original_dir = std::env::current_dir().unwrap();
         let tmp = TempDir::new().unwrap();
         std::env::set_current_dir(tmp.path()).unwrap();

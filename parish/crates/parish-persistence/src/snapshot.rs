@@ -351,24 +351,22 @@ impl GameSnapshot {
     /// speeds or falling back to a custom factor.
     fn restore_clock(snapshot: &ClockSnapshot) -> parish_types::GameClock {
         use parish_types::{GameClock, GameSpeed};
-        let mut clock = GameClock::new(snapshot.game_time);
-        if snapshot.paused {
-            clock.pause();
-        }
         let speed = GameSpeed::ALL
             .iter()
             .copied()
             .find(|s| (s.factor() - snapshot.speed_factor).abs() < 0.01);
-        if let Some(s) = speed {
-            clock.set_speed(s);
-            clock
-        } else {
-            let mut clock = GameClock::with_speed(snapshot.game_time, snapshot.speed_factor);
-            if snapshot.paused {
-                clock.pause();
+        let mut clock = match speed {
+            Some(s) => {
+                let mut c = GameClock::new(snapshot.game_time);
+                c.set_speed(s);
+                c
             }
-            clock
+            None => GameClock::with_speed(snapshot.game_time, snapshot.speed_factor),
+        };
+        if snapshot.paused {
+            clock.pause();
         }
+        clock
     }
 
     /// Back-fills the legacy `locations` map from the graph and inserts a

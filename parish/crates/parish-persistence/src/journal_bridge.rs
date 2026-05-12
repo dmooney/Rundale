@@ -5,7 +5,9 @@
 //! for the persistence journal. This allows the journal to record
 //! crash-recoverable mutations from the higher-level game events.
 
+#[cfg(test)]
 use crate::journal::WorldEvent;
+#[cfg(test)]
 use parish_types::GameEvent;
 
 /// Converts a game event into a persistence journal event, if applicable.
@@ -13,7 +15,8 @@ use parish_types::GameEvent;
 /// Not all game events map to journal events. Returns `None` for events
 /// that are informational and don't represent a state mutation that needs
 /// to be replayed during crash recovery.
-pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
+#[cfg(test)]
+pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
     match event {
         GameEvent::DialogueOccurred {
             npc_id, summary, ..
@@ -38,25 +41,15 @@ pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
             npc_b: *npc_b,
             delta: *delta,
         }),
-        GameEvent::NpcArrived {
-            npc_id, location, ..
-        } => Some(WorldEvent::NpcMoved {
-            npc_id: *npc_id,
-            from: *location, // best approximation — arrival doesn't track origin
-            to: *location,
-        }),
-        GameEvent::NpcDeparted {
-            npc_id, location, ..
-        } => Some(WorldEvent::NpcMoved {
-            npc_id: *npc_id,
-            from: *location,
-            to: *location, // departure doesn't track destination
-        }),
         GameEvent::WeatherChanged { new_weather, .. } => Some(WorldEvent::WeatherChanged {
             new_weather: new_weather.clone(),
         }),
-        // Festival and life events are informational — no state mutation to replay
-        GameEvent::FestivalStarted { .. } | GameEvent::LifeEvent { .. } => None,
+        // Festival, life events, and NPC arrival/departure are informational —
+        // no state mutation that needs crash-recovery replay.
+        GameEvent::FestivalStarted { .. }
+        | GameEvent::LifeEvent { .. }
+        | GameEvent::NpcArrived { .. }
+        | GameEvent::NpcDeparted { .. } => None,
     }
 }
 
@@ -64,7 +57,10 @@ pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
 ///
 /// This is meant to be called periodically (e.g., during snapshot) to
 /// flush queued events to persistence. Returns all convertible events.
-pub fn drain_events(rx: &mut tokio::sync::broadcast::Receiver<GameEvent>) -> Vec<WorldEvent> {
+#[cfg(test)]
+pub(crate) fn drain_events(
+    rx: &mut tokio::sync::broadcast::Receiver<GameEvent>,
+) -> Vec<WorldEvent> {
     let mut journal_events = Vec::new();
     while let Ok(event) = rx.try_recv() {
         if let Some(je) = to_journal_event(&event) {
@@ -173,13 +169,22 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_arrived_converts() {
+    fn test_npc_arrived_returns_none() {
         let event = GameEvent::NpcArrived {
             npc_id: NpcId(5),
             location: LocationId(10),
             timestamp: test_time(),
         };
-        let journal = to_journal_event(&event).unwrap();
-        assert_eq!(journal.event_type(), "NpcMoved");
+        assert!(to_journal_event(&event).is_none());
+    }
+
+    #[test]
+    fn test_npc_departed_returns_none() {
+        let event = GameEvent::NpcDeparted {
+            npc_id: NpcId(5),
+            location: LocationId(10),
+            timestamp: test_time(),
+        };
+        assert!(to_journal_event(&event).is_none());
     }
 }
