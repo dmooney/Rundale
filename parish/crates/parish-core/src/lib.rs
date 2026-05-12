@@ -20,6 +20,7 @@ pub mod ipc;
 pub mod loading;
 pub mod mod_source;
 pub mod prompts;
+pub mod secret_store;
 pub mod session_store;
 pub mod tile_cache;
 

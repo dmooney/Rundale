@@ -48,7 +48,8 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::session::{
-    CachedResponse, GlobalState, IDEMPOTENCY_TTL, IdempotencyKey, get_or_create_session,
+    CachedResponse, GlobalState, IDEMPOTENCY_TTL, IdempotencyCache, IdempotencyKey,
+    get_or_create_session,
 };
 
 // ── Request-ID header name (stable, #621) ───────────────────────────────────
@@ -436,40 +437,10 @@ pub async fn idempotency_middleware(
         .insert(IdempotencyKeyExt(idem_key.clone()));
 
     // Check for a cached response.
+    if let Some(response) =
+        try_replay_from_cache(&global.idempotency_cache, &cache_key, &idem_key).await
     {
-        let mut cache = global.idempotency_cache.lock().await;
-        if let Some(cached) = cache.get(&cache_key) {
-            let age = Instant::now().duration_since(cached.inserted_at);
-            if age <= IDEMPOTENCY_TTL {
-                // Replay the cached response.
-                let status = StatusCode::from_u16(cached.status)
-                    .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-                let body_bytes = cached.body.clone();
-                let content_type = cached.content_type.clone();
-
-                tracing::debug!(
-                    idempotency_key = %idem_key,
-                    status = %status,
-                    age_secs = age.as_secs(),
-                    "idempotency_middleware: replaying cached response"
-                );
-
-                let mut builder = axum::http::Response::builder().status(status);
-                if let Some(ref ct) = content_type
-                    && let Ok(hv) = HeaderValue::from_str(ct)
-                {
-                    builder = builder.header(header::CONTENT_TYPE, hv);
-                }
-                if let Ok(hv) = HeaderValue::from_str(&idem_key) {
-                    builder = builder.header(&IDEMPOTENCY_KEY_HEADER, hv);
-                }
-                return builder
-                    .body(Body::from(body_bytes))
-                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
-            }
-            // Entry expired — remove it so a fresh execution is cached below.
-            cache.pop(&cache_key);
-        }
+        return response;
     }
 
     // Forward to the handler and capture the response.
@@ -478,48 +449,97 @@ pub async fn idempotency_middleware(
 
     // Only cache successful responses.
     if status.is_success() {
-        let (mut parts, body) = response.into_parts();
-
-        // Buffer the body (cap at 1 MiB to guard against unexpectedly large
-        // responses slipping into the cache).
-        match to_bytes(body, 1024 * 1024).await {
-            Ok(bytes) => {
-                let content_type = parts
-                    .headers
-                    .get(header::CONTENT_TYPE)
-                    .and_then(|v| v.to_str().ok())
-                    .map(str::to_string);
-
-                let entry = CachedResponse {
-                    status: status.as_u16(),
-                    body: bytes.to_vec(),
-                    content_type,
-                    inserted_at: Instant::now(),
-                };
-                global
-                    .idempotency_cache
-                    .lock()
-                    .await
-                    .put(cache_key, entry.clone());
-
-                // Echo the key back in the response header.
-                if let Ok(hv) = HeaderValue::from_str(&idem_key) {
-                    parts.headers.insert(&IDEMPOTENCY_KEY_HEADER, hv);
-                }
-
-                axum::http::Response::from_parts(parts, Body::from(entry.body))
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "idempotency_middleware: failed to buffer response body — skipping cache"
-                );
-                // Return an error; we can't reconstruct the original body.
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
-        }
+        cache_successful_response(&global.idempotency_cache, response, &idem_key, cache_key).await
     } else {
         response
+    }
+}
+
+/// Checks the LRU cache for a non-expired entry and returns the replayed
+/// response if one exists, removing expired entries along the way.
+async fn try_replay_from_cache(
+    cache: &IdempotencyCache,
+    cache_key: &IdempotencyKey,
+    idem_key: &str,
+) -> Option<Response> {
+    let mut guard: tokio::sync::MutexGuard<'_, lru::LruCache<IdempotencyKey, CachedResponse>> =
+        cache.lock().await;
+    let cached = guard.get(cache_key)?;
+    let age = Instant::now().duration_since(cached.inserted_at);
+    if age > IDEMPOTENCY_TTL {
+        // Entry expired — remove it so a fresh execution is cached below.
+        guard.pop(cache_key);
+        return None;
+    }
+
+    let status = StatusCode::from_u16(cached.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let body_bytes = cached.body.clone();
+    let content_type = cached.content_type.clone();
+
+    tracing::debug!(
+        idempotency_key = %idem_key,
+        status = %status,
+        age_secs = age.as_secs(),
+        "idempotency_middleware: replaying cached response"
+    );
+
+    let mut builder = axum::http::Response::builder().status(status);
+    if let Some(ref ct) = content_type
+        && let Ok(hv) = HeaderValue::from_str(ct)
+    {
+        builder = builder.header(header::CONTENT_TYPE, hv);
+    }
+    if let Ok(hv) = HeaderValue::from_str(idem_key) {
+        builder = builder.header(&IDEMPOTENCY_KEY_HEADER, hv);
+    }
+    Some(
+        builder
+            .body(Body::from(body_bytes))
+            .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response()),
+    )
+}
+
+/// Buffers a successful response body (capped at 1 MiB), stores it in the
+/// LRU cache, and returns the reconstructed response with the idempotency
+/// key echoed in the header.
+async fn cache_successful_response(
+    cache: &IdempotencyCache,
+    response: Response,
+    idem_key: &str,
+    cache_key: IdempotencyKey,
+) -> Response {
+    let (mut parts, body) = response.into_parts();
+
+    match to_bytes(body, 1024 * 1024).await {
+        Ok(bytes) => {
+            let content_type = parts
+                .headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+
+            let entry = CachedResponse {
+                status: parts.status.as_u16(),
+                body: bytes.to_vec(),
+                content_type,
+                inserted_at: Instant::now(),
+            };
+            cache.lock().await.put(cache_key, entry.clone());
+
+            // Echo the key back in the response header.
+            if let Ok(hv) = HeaderValue::from_str(idem_key) {
+                parts.headers.insert(&IDEMPOTENCY_KEY_HEADER, hv);
+            }
+
+            axum::http::Response::from_parts(parts, Body::from(entry.body))
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                "idempotency_middleware: failed to buffer response body — skipping cache"
+            );
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

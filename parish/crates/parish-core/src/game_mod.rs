@@ -12,6 +12,7 @@ use crate::error::ParishError;
 use crate::ipc::ThemePalette;
 use crate::npc::LanguageHint;
 use crate::world::transport::TransportConfig;
+use parish_types::AnachronismEntry;
 
 // ---------------------------------------------------------------------------
 // Manifest types (parsed from mod.toml)
@@ -160,22 +161,6 @@ pub struct PromptTemplates {
     pub tier1_context: String,
     /// Tier-2 system prompt text.
     pub tier2_system: String,
-}
-
-/// A single anachronism term entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnachronismEntry {
-    /// The anachronistic term or phrase.
-    pub term: String,
-    /// Category of anachronism (e.g. "technology", "slang").
-    #[serde(default)]
-    pub category: Option<String>,
-    /// Earliest year this concept existed.
-    #[serde(default)]
-    pub origin_year: Option<u32>,
-    /// Brief note explaining why the term is anachronistic.
-    #[serde(default, alias = "reason")]
-    pub note: String,
 }
 
 /// Anachronism detection data loaded from JSON.

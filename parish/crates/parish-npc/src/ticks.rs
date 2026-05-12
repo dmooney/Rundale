@@ -9,8 +9,7 @@ use chrono::{DateTime, Utc};
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response, Tier3Response, Tier3Update};
 use crate::{
-    LanguageSettings, Npc, NpcId, NpcStreamResponse, build_named_action_line, build_tier1_context,
-    build_tier1_system_prompt,
+    LanguageSettings, Npc, NpcId, NpcStreamResponse, build_tier1_context, build_tier1_system_prompt,
 };
 use parish_config::{NpcConfig, RelationshipLabelConfig};
 use parish_inference::InferencePriority;
@@ -34,12 +33,14 @@ pub struct NpcSnapshot {
     pub occupation: String,
     /// Personality summary.
     pub personality: String,
-    /// Compact intelligence tag for prompt injection (e.g. `INT[V3 A4 E2 P5 W4 C3]`).
-    pub intelligence_tag: String,
+    /// Natural-language description of how this NPC thinks and speaks
+    /// (from `Intelligence::prompt_guidance`). Empty for an all-3s profile.
+    pub intelligence_prose: String,
     /// Current mood.
     pub mood: String,
-    /// Relationship summaries with other NPCs at this location.
-    pub relationship_context: String,
+    /// Natural-language relationship summary
+    /// (e.g. "friendly with Mary McKenna, cool toward Sean Doyle"). May be empty.
+    pub relationship_summary: String,
 }
 
 /// A group of NPC snapshots at a single location, for Tier 2 processing.
@@ -73,10 +74,67 @@ pub fn relationship_label(strength: f64) -> &'static str {
     relationship_label_with_config(strength, &RelationshipLabelConfig::default())
 }
 
+/// Returns the natural preposition that follows a relationship label.
+///
+/// e.g. `"friendly"` -> `"with"`, `"hostile"` -> `"toward"`.
+fn relationship_preposition(label: &str) -> &'static str {
+    match label {
+        "very close" | "cool" | "hostile" => "to",
+        "friendly" | "acquainted" | "strained" => "with",
+        _ => "with",
+    }
+}
+
+/// Formats a list of (peer_id, strength) relationships as a natural-language phrase.
+///
+/// Resolves peer ids to names via `npc_names` (falling back to "someone" for
+/// unknown ids) and maps each strength to a verbal label via
+/// `relationship_label_with_config`. The conventional player id `NpcId(0)` is
+/// rendered as "the newcomer" to match the Tier 1 dialogue convention (see
+/// `interlocutor_block`). Returns an empty string for an empty list.
+///
+/// Example output: `"friendly with Mary McKenna, cool to Sean Doyle"`.
+pub fn format_relationships_natural(
+    rels: &[(NpcId, f64)],
+    npc_names: &std::collections::HashMap<NpcId, String>,
+    cfg: &RelationshipLabelConfig,
+) -> String {
+    rels.iter()
+        .map(|(id, strength)| {
+            let name = if id.0 == 0 {
+                "the newcomer"
+            } else {
+                npc_names.get(id).map(|s| s.as_str()).unwrap_or("someone")
+            };
+            let label = relationship_label_with_config(*strength, cfg);
+            let prep = relationship_preposition(label);
+            format!("{label} {prep} {name}")
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// Builds an enhanced system prompt for Tier 1 interactions using the given config.
 ///
 /// Extends the base system prompt with relationship summaries (using real names)
 /// and knowledge entries for richer, more contextual NPC dialogue.
+#[cfg(test)]
+pub(crate) fn build_enhanced_system_prompt(
+    npc: &Npc,
+    improv: bool,
+    language: &LanguageSettings,
+    npc_names: &std::collections::HashMap<NpcId, String>,
+) -> String {
+    build_enhanced_system_prompt_with_config(
+        npc,
+        improv,
+        language,
+        &NpcConfig::default(),
+        npc_names,
+        None,
+    )
+}
+
 pub fn build_enhanced_system_prompt_with_config(
     npc: &Npc,
     improv: bool,
@@ -138,26 +196,6 @@ pub fn build_enhanced_system_prompt_with_config(
     }
 
     prompt
-}
-
-/// Builds an enhanced system prompt for Tier 1 interactions.
-///
-/// Extends the base system prompt with relationship summaries and
-/// knowledge entries for richer, more contextual NPC dialogue.
-pub fn build_enhanced_system_prompt(
-    npc: &Npc,
-    improv: bool,
-    language: &LanguageSettings,
-    npc_names: &std::collections::HashMap<NpcId, String>,
-) -> String {
-    build_enhanced_system_prompt_with_config(
-        npc,
-        improv,
-        language,
-        &NpcConfig::default(),
-        npc_names,
-        None,
-    )
 }
 
 /// Interlocutor label — who the NPC is speaking with.
@@ -328,7 +366,8 @@ pub fn build_enhanced_context_with_config(
 ///
 /// Extends the base context with the NPC's recent memories and
 /// information about other NPCs present at the same location.
-pub fn build_enhanced_context(
+#[cfg(test)]
+pub(crate) fn build_enhanced_context(
     npc: &Npc,
     world: &WorldState,
     player_input: &str,
@@ -348,7 +387,7 @@ pub fn build_enhanced_context(
     );
     // Player's current input last — everything above is context for this moment
     context.push_str("\n\n");
-    context.push_str(&build_named_action_line(player_input, None));
+    context.push_str(&crate::build_named_action_line(player_input, None));
     context
 }
 
@@ -414,7 +453,8 @@ pub fn apply_tier1_response_with_config(
 /// entry recording the interaction.
 ///
 /// Returns a list of debug event strings (e.g. mood changes, memory commits).
-pub fn apply_tier1_response(
+#[cfg(test)]
+pub(crate) fn apply_tier1_response(
     npc: &mut Npc,
     response: &NpcStreamResponse,
     player_input: &str,
@@ -498,10 +538,23 @@ pub fn build_tier2_prompt(
         .npcs
         .iter()
         .map(|snap| {
-            format!(
-                "- {} ({}), mood: {}, {}",
-                snap.name, snap.occupation, snap.mood, snap.intelligence_tag
-            )
+            let mut line = format!(
+                "- [{id}] {name}, {occupation}. Currently {mood}.",
+                id = snap.id.0,
+                name = snap.name,
+                occupation = snap.occupation,
+                mood = snap.mood,
+            );
+            if !snap.intelligence_prose.is_empty() {
+                line.push(' ');
+                line.push_str(&snap.intelligence_prose);
+            }
+            if !snap.relationship_summary.is_empty() {
+                line.push(' ');
+                line.push_str(&snap.relationship_summary);
+                line.push('.');
+            }
+            line
         })
         .collect();
 
@@ -516,15 +569,14 @@ pub fn build_tier2_prompt(
         Location: {location}\n\
         Time: {time}\n\
         Weather: {weather}.{weather_commentary}\n\n\
-        Characters present:\n{characters}\n\n\
-        Generate a brief (1-2 sentence) summary of what these characters are doing \
-        and saying to each other. Include any mood changes or relationship shifts.\n\n\
-        Respond with a JSON object:\n\
-        {{\n\
-          \"summary\": \"Brief description of the interaction\",\n\
-          \"mood_changes\": [{{\"npc_id\": <id>, \"new_mood\": \"<mood>\"}}],\n\
-          \"relationship_changes\": [{{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}}]\n\
-        }}",
+        Dramatis personae (id in brackets — reuse these in your JSON):\n\
+        {characters}\n\n\
+        Write a 1-2 sentence summary of what they are doing and saying to each \
+        other. Note any mood changes or relationship shifts.\n\n\
+        Respond with JSON, using the bracketed ids:\n\
+        {{\"summary\":\"...\",\n\
+         \"mood_changes\":[{{\"npc_id\":<id>,\"new_mood\":\"...\"}}],\n\
+         \"relationship_changes\":[{{\"from\":<id>,\"to\":<id>,\"delta\":<-0.1..0.1>}}]}}",
         location = group.location_name,
         time = time_desc,
         weather = weather,
@@ -536,37 +588,49 @@ pub fn build_tier2_prompt(
     prompt
 }
 
+/// Returns the top-N strongest relationships (by absolute strength) in a
+/// stable order: by |strength| descending, then by NpcId ascending as a
+/// tie-breaker so iteration order over the underlying HashMap doesn't leak.
+fn top_relationships(npc: &Npc, n: usize) -> Vec<(NpcId, f64)> {
+    let mut rels: Vec<(NpcId, f64)> = npc
+        .relationships
+        .iter()
+        .map(|(id, rel)| (*id, rel.strength))
+        .collect();
+    rels.sort_by(|(a_id, a_s), (b_id, b_s)| {
+        b_s.abs()
+            .partial_cmp(&a_s.abs())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a_id.0.cmp(&b_id.0))
+    });
+    rels.truncate(n);
+    rels
+}
+
 /// Creates an `NpcSnapshot` from a live NPC for Tier 2 background inference.
 ///
 /// The snapshot is a lightweight owned copy that can be passed to a background
-/// task without holding a lock on the `NpcManager`.
-pub fn npc_snapshot_from_npc(npc: &Npc) -> NpcSnapshot {
-    let intel = &npc.intelligence;
-    let intelligence_tag = format!(
-        "INT[V{} A{} E{} P{} W{} C{}]",
-        intel.verbal,
-        intel.analytical,
-        intel.emotional,
-        intel.practical,
-        intel.wisdom,
-        intel.creative,
-    );
-
-    let relationship_context: Vec<String> = npc
-        .relationships
-        .iter()
-        .take(3)
-        .map(|(target_id, rel)| format!("NPC {} ({:.1})", target_id.0, rel.strength))
-        .collect();
+/// task without holding a lock on the `NpcManager`. Peer names are resolved
+/// at snapshot time so the snapshot is self-contained — the prompt builder
+/// does not need access to the name map.
+pub fn npc_snapshot_from_npc(
+    npc: &Npc,
+    npc_names: &std::collections::HashMap<NpcId, String>,
+) -> NpcSnapshot {
+    let rels = top_relationships(npc, 3);
 
     NpcSnapshot {
         id: npc.id,
         name: npc.name.clone(),
         occupation: npc.occupation.clone(),
         personality: npc.personality.clone(),
-        intelligence_tag,
+        intelligence_prose: npc.intelligence.prompt_guidance(),
         mood: npc.mood.clone(),
-        relationship_context: relationship_context.join(", "),
+        relationship_summary: format_relationships_natural(
+            &rels,
+            npc_names,
+            &RelationshipLabelConfig::default(),
+        ),
     }
 }
 
@@ -706,7 +770,8 @@ pub fn apply_tier2_event_with_config(
 /// for all participating NPCs.
 ///
 /// Returns debug event strings describing what happened.
-pub fn apply_tier2_event(
+#[cfg(test)]
+pub(crate) fn apply_tier2_event(
     event: &Tier2Event,
     npcs: &mut std::collections::HashMap<NpcId, Npc>,
     game_time: chrono::DateTime<Utc>,
@@ -795,8 +860,12 @@ pub struct Tier3Snapshot {
     pub mood: String,
     /// Deflated summary or last activity.
     pub context: String,
-    /// Relationship summaries for prompt injection.
-    pub relationship_context: String,
+    /// Compact intelligence adjectives (from `Intelligence::adjective_summary`).
+    /// Empty for an all-3s profile.
+    pub intelligence_adjectives: String,
+    /// Natural-language relationship summary
+    /// (e.g. "friendly with Mary McKenna"). May be empty.
+    pub relationship_summary: String,
 }
 
 /// Builds a Tier 3 batch prompt for a set of NPC snapshots.
@@ -813,46 +882,53 @@ pub fn build_tier3_prompt(
     let npc_summaries: Vec<String> = snapshots
         .iter()
         .map(|snap| {
+            let traits = if snap.intelligence_adjectives.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", snap.intelligence_adjectives)
+            };
+            let rel_line = if snap.relationship_summary.is_empty() {
+                String::new()
+            } else {
+                format!("\n  {}.", snap.relationship_summary)
+            };
             let context_line = if snap.context.is_empty() {
                 String::new()
             } else {
-                format!("\nRecent: {}", snap.context)
-            };
-            let rel_line = if snap.relationship_context.is_empty() {
-                String::new()
-            } else {
-                format!("\nRelationships: {}", snap.relationship_context)
+                format!("\n  Recent: {}", snap.context)
             };
             format!(
-                "NPC {id} \"{name}\" ({occupation}, age {age}): At {location}. Mood: {mood}.{context}{rels}",
+                "- [{id}] {name}, {age}, {occupation} — at {location}, {mood}{traits}.{rels}{context}",
                 id = snap.id.0,
                 name = snap.name,
-                occupation = snap.occupation,
                 age = snap.age,
+                occupation = snap.occupation,
                 location = snap.location_name,
                 mood = snap.mood,
-                context = context_line,
+                traits = traits,
                 rels = rel_line,
+                context = context_line,
             )
         })
         .collect();
 
     let mut prompt = format!(
-        "You are simulating background NPC activity in a rural Irish parish in 1820.\n\
-        Given the following NPCs and their current states, simulate {hours} hours of activity.\n\
-        The weather is {weather}. The season is {season}. The time is {time}.\n\n\
-        Return a JSON object with an \"updates\" array. Each update has:\n\
-        - npc_id (integer)\n\
-        - mood (string, one word)\n\
-        - activity_summary (string, 1 sentence)\n\
-        - new_location (integer or null)\n\
-        - relationship_changes (array of {{\"from\": <id>, \"to\": <id>, \"delta\": <-0.1 to 0.1>}})\n\n\
-        NPCs:\n{npcs}",
+        "You are simulating background NPC activity in a rural Irish parish in 1820. \
+        Simulate {hours} hours of activity for the people below. \
+        The weather is {weather}, the season is {season}, the time is {time}.\n\n\
+        NPCs (id in brackets — reuse these in your JSON):\n\
+        {npcs}\n\n\
+        For each NPC, return one update describing their mood, what they did, \
+        whether they moved, and any relationship shifts. Respond with JSON, \
+        using the bracketed ids:\n\
+        {{\"updates\":[{{\"npc_id\":<id>,\"mood\":\"...\",\"activity_summary\":\"...\",\
+        \"new_location\":<id|null>,\
+        \"relationship_changes\":[{{\"from\":<id>,\"to\":<id>,\"delta\":<-0.1..0.1>}}]}}]}}",
         hours = hours,
         weather = weather,
         season = season,
         time = time_desc,
-        npcs = npc_summaries.join("\n\n"),
+        npcs = npc_summaries.join("\n"),
     );
 
     prompt.push_str("\n\n");
@@ -861,7 +937,14 @@ pub fn build_tier3_prompt(
 }
 
 /// Creates a Tier 3 snapshot from an NPC, resolving location names from the graph.
-pub fn tier3_snapshot_from_npc(npc: &Npc, graph: &WorldGraph) -> Tier3Snapshot {
+///
+/// Peer names are resolved at snapshot time via `npc_names` so the snapshot is
+/// self-contained — the prompt builder does not need access to the name map.
+pub fn tier3_snapshot_from_npc(
+    npc: &Npc,
+    graph: &WorldGraph,
+    npc_names: &std::collections::HashMap<NpcId, String>,
+) -> Tier3Snapshot {
     let location_name = graph
         .get(npc.location)
         .map(|d| d.name.clone())
@@ -875,12 +958,7 @@ pub fn tier3_snapshot_from_npc(npc: &Npc, graph: &WorldGraph) -> Tier3Snapshot {
         String::new()
     };
 
-    let relationship_context: Vec<String> = npc
-        .relationships
-        .iter()
-        .take(3)
-        .map(|(target_id, rel)| format!("NPC {} ({:.1})", target_id.0, rel.strength))
-        .collect();
+    let rels = top_relationships(npc, 3);
 
     Tier3Snapshot {
         id: npc.id,
@@ -891,7 +969,12 @@ pub fn tier3_snapshot_from_npc(npc: &Npc, graph: &WorldGraph) -> Tier3Snapshot {
         location_name,
         mood: npc.mood.clone(),
         context,
-        relationship_context: relationship_context.join(", "),
+        intelligence_adjectives: npc.intelligence.adjective_summary(),
+        relationship_summary: format_relationships_natural(
+            &rels,
+            npc_names,
+            &RelationshipLabelConfig::default(),
+        ),
     }
 }
 
@@ -1072,37 +1155,17 @@ fn truncate_for_memory(s: &str, max_len: usize) -> String {
 mod tests {
     use super::*;
     use crate::NpcMetadata;
-    use crate::memory::{LongTermMemory, ShortTermMemory};
-    use crate::types::{MoodChange, NpcState, Relationship, RelationshipChange, RelationshipKind};
+    use crate::types::{MoodChange, Relationship, RelationshipChange, RelationshipKind};
     use chrono::TimeZone;
     use std::collections::HashMap;
 
     fn make_test_npc(id: u32, name: &str, location: u32) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: name.to_string(),
-            brief_description: format!("a test NPC named {}", name),
-            age: 40,
-            occupation: "Test".to_string(),
-            personality: "Friendly".to_string(),
-            intelligence: crate::types::Intelligence::default(),
-            location: LocationId(location),
-            mood: "calm".to_string(),
-            home: Some(LocationId(location)),
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::default(),
-            deflated_summary: None,
-            reaction_log: crate::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        let mut npc = crate::test_helpers::make_test_npc(id, location);
+        npc.name = name.to_string();
+        npc.brief_description = format!("a test NPC named {}", name);
+        npc.age = 40;
+        npc.personality = "Friendly".to_string();
+        npc
     }
 
     #[test]
@@ -1220,18 +1283,18 @@ mod tests {
                     name: "Padraig".to_string(),
                     occupation: "Publican".to_string(),
                     personality: "Warm".to_string(),
-                    intelligence_tag: "INT[V3 A3 E4 P4 W5 C4]".to_string(),
+                    intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                     mood: "content".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: "friendly with Tommy".to_string(),
                 },
                 NpcSnapshot {
                     id: NpcId(5),
                     name: "Tommy".to_string(),
                     occupation: "Retired Farmer".to_string(),
                     personality: "Storyteller".to_string(),
-                    intelligence_tag: "INT[V4 A2 E3 P4 W5 C5]".to_string(),
+                    intelligence_prose: "Well-spoken and brilliantly creative.".to_string(),
                     mood: "reflective".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
             ],
         };
@@ -1239,11 +1302,17 @@ mod tests {
         let lang = LanguageSettings::english_only();
         let prompt = build_tier2_prompt(&group, "Evening", "Overcast", &lang);
         assert!(prompt.contains("Darcy's Pub"));
-        assert!(prompt.contains("Padraig (Publican)"));
-        assert!(prompt.contains("Tommy (Retired Farmer)"));
+        assert!(prompt.contains("Dramatis personae"));
+        assert!(prompt.contains("[1] Padraig, Publican"));
+        assert!(prompt.contains("[5] Tommy, Retired Farmer"));
+        assert!(prompt.contains("Currently content"));
+        assert!(prompt.contains("Perceptive, wise"));
+        assert!(prompt.contains("friendly with Tommy"));
         assert!(prompt.contains("Evening"));
         assert!(prompt.contains("Overcast"));
         assert!(prompt.contains("summary"));
+        // No more cryptic encoding
+        assert!(!prompt.contains("INT["));
     }
 
     #[test]
@@ -1613,9 +1682,9 @@ mod tests {
                 name: "Padraig".to_string(),
                 occupation: "Publican".to_string(),
                 personality: "Warm".to_string(),
-                intelligence_tag: "INT[V3 A3 E4 P4 W5 C4]".to_string(),
+                intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                 mood: "content".to_string(),
-                relationship_context: String::new(),
+                relationship_summary: String::new(),
             }],
         };
 
@@ -1666,18 +1735,18 @@ mod tests {
                     name: "Padraig".to_string(),
                     occupation: "Publican".to_string(),
                     personality: "Warm".to_string(),
-                    intelligence_tag: "INT[V3]".to_string(),
+                    intelligence_prose: String::new(),
                     mood: "calm".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
                 NpcSnapshot {
                     id: NpcId(2),
                     name: "Tommy".to_string(),
                     occupation: "Farmer".to_string(),
                     personality: "Gruff".to_string(),
-                    intelligence_tag: "INT[V2]".to_string(),
+                    intelligence_prose: "Plain-spoken.".to_string(),
                     mood: "tired".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
             ],
         };
@@ -1802,7 +1871,8 @@ mod tests {
                 location_name: "Darcy's Pub".to_string(),
                 mood: "content".to_string(),
                 context: "Served drinks all evening.".to_string(),
-                relationship_context: "NPC 2 (0.5)".to_string(),
+                intelligence_adjectives: "wise, quick-witted".to_string(),
+                relationship_summary: "friendly with Tommy".to_string(),
             },
             Tier3Snapshot {
                 id: NpcId(3),
@@ -1813,24 +1883,25 @@ mod tests {
                 location_name: "O'Brien's Farm".to_string(),
                 mood: "worried".to_string(),
                 context: String::new(),
-                relationship_context: String::new(),
+                intelligence_adjectives: String::new(),
+                relationship_summary: String::new(),
             },
         ];
 
         let lang = LanguageSettings::english_only();
         let prompt = build_tier3_prompt(&snapshots, "Morning", "Overcast", "Spring", 24, &lang);
-        assert!(prompt.contains("simulate 24 hours"));
+        assert!(prompt.contains("Simulate 24 hours"));
         assert!(prompt.contains("Overcast"));
         assert!(prompt.contains("Spring"));
         assert!(prompt.contains("Morning"));
-        assert!(prompt.contains("NPC 1 \"Padraig\""));
-        assert!(prompt.contains("Publican, age 58"));
+        assert!(prompt.contains("[1] Padraig, 58, Publican"));
         assert!(prompt.contains("Darcy's Pub"));
-        assert!(prompt.contains("Served drinks all evening."));
-        assert!(prompt.contains("NPC 3 \"Bridget\""));
-        assert!(prompt.contains("Farmer, age 35"));
-        // NPC with no context should not have "Recent:" line
-        assert!(prompt.contains("Mood: worried."));
+        assert!(prompt.contains("(wise, quick-witted)"));
+        assert!(prompt.contains("friendly with Tommy"));
+        assert!(prompt.contains("Recent: Served drinks all evening."));
+        assert!(prompt.contains("[3] Bridget, 35, Farmer"));
+        // No more raw NPC-id encoding
+        assert!(!prompt.contains("NPC 1 \""));
         // JSON format instructions
         assert!(prompt.contains("npc_id"));
         assert!(prompt.contains("activity_summary"));
@@ -1849,7 +1920,8 @@ mod tests {
                 location_name: "Test".to_string(),
                 mood: "calm".to_string(),
                 context: String::new(),
-                relationship_context: String::new(),
+                intelligence_adjectives: String::new(),
+                relationship_summary: String::new(),
             })
             .collect();
 
@@ -1970,7 +2042,7 @@ mod tests {
         npc.last_activity = Some("Tended bar all evening.".to_string());
 
         let graph = WorldGraph::new();
-        let snap = tier3_snapshot_from_npc(&npc, &graph);
+        let snap = tier3_snapshot_from_npc(&npc, &graph, &HashMap::new());
 
         assert_eq!(snap.id, NpcId(1));
         assert_eq!(snap.name, "Padraig");
@@ -1991,7 +2063,7 @@ mod tests {
         });
 
         let graph = WorldGraph::new();
-        let snap = tier3_snapshot_from_npc(&npc, &graph);
+        let snap = tier3_snapshot_from_npc(&npc, &graph, &HashMap::new());
 
         assert_eq!(snap.context, "Chatted with Tommy.");
     }
@@ -2000,7 +2072,7 @@ mod tests {
     fn test_tier3_snapshot_from_npc_no_context() {
         let npc = make_test_npc(1, "Padraig", 2);
         let graph = WorldGraph::new();
-        let snap = tier3_snapshot_from_npc(&npc, &graph);
+        let snap = tier3_snapshot_from_npc(&npc, &graph, &HashMap::new());
 
         assert_eq!(snap.context, "");
     }
@@ -2154,5 +2226,149 @@ mod tests {
             Some(crate::memory::MemoryKind::SpokeWithNpc(PADRAIG)),
             "Tommy's memory should reference Padraig, not himself"
         );
+    }
+
+    // ── natural-language helpers for background sim prompts ──────────────
+
+    #[test]
+    fn test_format_relationships_natural_empty() {
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let cfg = RelationshipLabelConfig::default();
+        assert_eq!(format_relationships_natural(&[], &names, &cfg), "");
+    }
+
+    #[test]
+    fn test_format_relationships_natural_known_names() {
+        let names: HashMap<NpcId, String> = [
+            (NpcId(2), "Mary McKenna".to_string()),
+            (NpcId(3), "Sean Doyle".to_string()),
+        ]
+        .into_iter()
+        .collect();
+        let cfg = RelationshipLabelConfig::default();
+        let out = format_relationships_natural(&[(NpcId(2), 0.5), (NpcId(3), -0.3)], &names, &cfg);
+        assert!(out.contains("Mary McKenna"));
+        assert!(out.contains("Sean Doyle"));
+        // No raw NPC id
+        assert!(!out.contains("NPC 2"));
+        assert!(!out.contains("(0.5)"));
+    }
+
+    #[test]
+    fn test_format_relationships_natural_unknown_name_fallback() {
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let cfg = RelationshipLabelConfig::default();
+        let out = format_relationships_natural(&[(NpcId(99), 0.8)], &names, &cfg);
+        assert!(out.contains("someone"));
+    }
+
+    #[test]
+    fn test_format_relationships_natural_player_rendered_as_newcomer() {
+        // NpcId(0) is the conventional player id. The player is never in
+        // npc_names (the map is built from NpcManager NPCs), so the natural
+        // fallback would be "someone" — but the prompt reads better with the
+        // Tier 1 convention of "the newcomer".
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let cfg = RelationshipLabelConfig::default();
+        let out = format_relationships_natural(&[(NpcId(0), 0.9)], &names, &cfg);
+        assert!(out.contains("the newcomer"));
+        assert!(!out.contains("someone"));
+    }
+
+    #[test]
+    fn test_top_relationships_sorted_by_absolute_strength() {
+        // Iteration over `npc.relationships` (a HashMap) is non-deterministic.
+        // top_relationships must surface the strongest |strength| values in a
+        // stable order so the prompt is reproducible across runs.
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        use crate::types::{Relationship, RelationshipKind};
+        npc.relationships
+            .insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.3));
+        npc.relationships
+            .insert(NpcId(3), Relationship::new(RelationshipKind::Enemy, -0.9));
+        npc.relationships
+            .insert(NpcId(4), Relationship::new(RelationshipKind::Neighbor, 0.1));
+        npc.relationships
+            .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.6));
+
+        let top = top_relationships(&npc, 3);
+        assert_eq!(top.len(), 3);
+        // |0.9| > |0.6| > |0.3| > |0.1| — bottom one (NpcId 4) is dropped.
+        assert_eq!(top[0].0, NpcId(3));
+        assert_eq!(top[1].0, NpcId(5));
+        assert_eq!(top[2].0, NpcId(2));
+    }
+
+    #[test]
+    fn test_top_relationships_tiebreaks_by_id() {
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        use crate::types::{Relationship, RelationshipKind};
+        // Three relationships at identical |strength| — order must still be
+        // deterministic (ascending NpcId).
+        npc.relationships
+            .insert(NpcId(7), Relationship::new(RelationshipKind::Friend, 0.5));
+        npc.relationships
+            .insert(NpcId(3), Relationship::new(RelationshipKind::Friend, -0.5));
+        npc.relationships
+            .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.5));
+
+        let top = top_relationships(&npc, 3);
+        assert_eq!(top[0].0, NpcId(3));
+        assert_eq!(top[1].0, NpcId(5));
+        assert_eq!(top[2].0, NpcId(7));
+    }
+
+    #[test]
+    fn test_npc_snapshot_uses_prose_not_codes() {
+        // npc_snapshot_from_npc should produce natural prose, not INT[...] codes.
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        npc.intelligence = crate::types::Intelligence::new(4, 3, 5, 3, 3, 3);
+        let names: HashMap<NpcId, String> = HashMap::new();
+
+        let snap = npc_snapshot_from_npc(&npc, &names);
+
+        assert!(!snap.intelligence_prose.is_empty());
+        assert!(!snap.intelligence_prose.contains("INT["));
+        // Specific phrasing from prompt_guidance for high verbal / high emotional.
+        assert!(snap.intelligence_prose.contains("Well-spoken"));
+        assert!(snap.intelligence_prose.contains("Reads people like a book"));
+    }
+
+    #[test]
+    fn test_tier3_snapshot_uses_adjectives_not_codes() {
+        let mut npc = make_test_npc(1, "Padraig", 2);
+        npc.intelligence = crate::types::Intelligence::new(5, 3, 3, 3, 4, 3);
+        let graph = WorldGraph::new();
+        let names: HashMap<NpcId, String> = HashMap::new();
+
+        let snap = tier3_snapshot_from_npc(&npc, &graph, &names);
+
+        assert!(!snap.intelligence_adjectives.contains("INT["));
+        assert_eq!(snap.intelligence_adjectives, "eloquent, wise");
+    }
+
+    #[test]
+    fn test_tier2_prompt_omits_intelligence_when_average() {
+        // An average NPC contributes no intelligence prose — the line should
+        // still be valid without trailing whitespace.
+        let group = Tier2Group {
+            location: LocationId(2),
+            location_name: "Darcy's Pub".to_string(),
+            npcs: vec![NpcSnapshot {
+                id: NpcId(1),
+                name: "Padraig".to_string(),
+                occupation: "Publican".to_string(),
+                personality: "Warm".to_string(),
+                intelligence_prose: String::new(),
+                mood: "content".to_string(),
+                relationship_summary: String::new(),
+            }],
+        };
+        let lang = LanguageSettings::english_only();
+        let prompt = build_tier2_prompt(&group, "Morning", "Clear", &lang);
+        // Line ends with the mood and a period, no trailing spaces.
+        assert!(prompt.contains("Currently content."));
+        // No mention of relationship summary line.
+        assert!(!prompt.contains("friendly with"));
     }
 }

@@ -95,16 +95,15 @@ mod tests {
     use parish_types::LocationId;
     use parish_types::NpcId;
 
-    fn test_location() -> LocationData {
+    fn loc(name: &str, template: &str, npcs: Vec<NpcId>) -> LocationData {
         LocationData {
             id: LocationId(1),
-            name: "Test Place".to_string(),
-            description_template:
-                "A place at {time}. Weather: {weather}. People here: {npcs_present}.".to_string(),
+            name: name.to_string(),
+            description_template: template.to_string(),
             indoor: false,
             public: true,
             connections: vec![],
-            associated_npcs: vec![NpcId(1)],
+            associated_npcs: npcs,
             mythological_significance: None,
             lat: 0.0,
             lon: 0.0,
@@ -113,6 +112,14 @@ mod tests {
             relative_to: None,
             geo_source: None,
         }
+    }
+
+    fn test_location() -> LocationData {
+        loc(
+            "Test Place",
+            "A place at {time}. Weather: {weather}. People here: {npcs_present}.",
+            vec![NpcId(1)],
+        )
     }
 
     #[test]
@@ -173,23 +180,8 @@ mod tests {
 
     #[test]
     fn test_render_no_placeholders() {
-        let loc = LocationData {
-            id: LocationId(1),
-            name: "Plain".to_string(),
-            description_template: "A plain description with no placeholders.".to_string(),
-            indoor: false,
-            public: true,
-            connections: vec![],
-            associated_npcs: vec![],
-            mythological_significance: None,
-            lat: 0.0,
-            lon: 0.0,
-            aliases: vec![],
-            geo_kind: GeoKind::Fictional,
-            relative_to: None,
-            geo_source: None,
-        };
-        let result = render_description(&loc, TimeOfDay::Morning, "Clear", &[]);
+        let data = loc("Plain", "A plain description with no placeholders.", vec![]);
+        let result = render_description(&data, TimeOfDay::Morning, "Clear", &[]);
         assert_eq!(result, "A plain description with no placeholders.");
     }
 

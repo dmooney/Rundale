@@ -16,7 +16,9 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use tower_sessions::Session;
 
-use crate::middleware::{SESSION_COOKIE, TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY};
+use crate::middleware::{
+    SESSION_COOKIE, TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY, extract_cookie_value,
+};
 use crate::session::{GlobalState, get_or_create_session};
 
 // ── Request / response types ──────────────────────────────────────────────────
@@ -65,14 +67,7 @@ pub async fn login_google(State(global): State<Arc<GlobalState>>) -> Response {
         cfg.base_url.trim_end_matches('/')
     );
 
-    let url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code\
-         &scope=openid%20email%20profile&state={}",
-        GOOGLE_AUTH_URL,
-        urlenccode(&cfg.client_id),
-        urlenccode(&redirect_uri),
-        urlenccode(&csrf_state),
-    );
+    let url = build_google_auth_url(cfg, &csrf_state, &redirect_uri);
 
     let state_cookie = format!(
         "{}={}; HttpOnly; Secure; SameSite=Lax; Max-Age=600; Path=/",
@@ -150,66 +145,16 @@ pub async fn callback_google(
         "OAuth callback: resolving target session"
     );
 
-    let target_session_id = if let Some(existing) =
-        global.sessions.find_by_oauth("google", &provider_user_id)
+    let target_session_id = match resolve_oauth_link(
+        &global,
+        &provider_user_id,
+        &display_name,
+        current_session_id,
+    )
+    .await
     {
-        // Try to actually resolve the linked session.  If it comes back
-        // as `is_new` the session's save data is gone (e.g. different
-        // worktree, wiped saves/) and the middleware will overwrite
-        // whatever cookie we set.  Re-link to the caller's current
-        // session instead so the user isn't stuck in a login loop.
-        let (resolved_id, _, is_new) = match get_or_create_session(&global, Some(&existing)).await {
-            Ok(t) => t,
-            Err(_) => {
-                return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    [(header::RETRY_AFTER, "30")],
-                    "Server at capacity",
-                )
-                    .into_response();
-            }
-        };
-        if !is_new {
-            resolved_id
-        } else {
-            tracing::info!(
-                stale_session = %existing,
-                replacement = %resolved_id,
-                "OAuth: linked session unrestorable, re-linking"
-            );
-            let sid = match current_session_id.as_deref() {
-                Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                _ => resolved_id,
-            };
-            global
-                .sessions
-                .link_oauth("google", &provider_user_id, &sid, &display_name);
-            sid
-        }
-    } else {
-        // Link the current anonymous session to this Google account.
-        let sid = match current_session_id.as_deref() {
-            Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-            _ => {
-                let (new_id, _, _) = match get_or_create_session(&global, None).await {
-                    Ok(t) => t,
-                    Err(_) => {
-                        return (
-                            StatusCode::SERVICE_UNAVAILABLE,
-                            [(header::RETRY_AFTER, "30")],
-                            "Server at capacity",
-                        )
-                            .into_response();
-                    }
-                };
-                global.sessions.persist_new(&new_id);
-                new_id
-            }
-        };
-        global
-            .sessions
-            .link_oauth("google", &provider_user_id, &sid, &display_name);
-        sid
+        Ok(id) => id,
+        Err(response) => return response,
     };
 
     tracing::info!(
@@ -301,14 +246,7 @@ pub async fn login_google_tower(
         cfg.base_url.trim_end_matches('/')
     );
 
-    let url = format!(
-        "{}?client_id={}&redirect_uri={}&response_type=code\
-         &scope=openid%20email%20profile&state={}",
-        GOOGLE_AUTH_URL,
-        urlenccode(&cfg.client_id),
-        urlenccode(&redirect_uri),
-        urlenccode(&csrf_state),
-    );
+    let url = build_google_auth_url(cfg, &csrf_state, &redirect_uri);
 
     if let Err(e) = session
         .insert(TOWER_OAUTH_STATE_KEY, csrf_state.clone())
@@ -404,60 +342,16 @@ pub async fn callback_google_tower(
         "OAuth callback (tower): resolving target session"
     );
 
-    let target_session_id = if let Some(existing) =
-        global.sessions.find_by_oauth("google", &provider_user_id)
+    let target_session_id = match resolve_oauth_link(
+        &global,
+        &provider_user_id,
+        &display_name,
+        current_session_id,
+    )
+    .await
     {
-        let (resolved_id, _, is_new) = match get_or_create_session(&global, Some(&existing)).await {
-            Ok(t) => t,
-            Err(_) => {
-                return (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    [(header::RETRY_AFTER, "30")],
-                    "Server at capacity",
-                )
-                    .into_response();
-            }
-        };
-        if !is_new {
-            resolved_id
-        } else {
-            tracing::info!(
-                stale_session = %existing,
-                replacement = %resolved_id,
-                "OAuth (tower): linked session unrestorable, re-linking"
-            );
-            let sid = match current_session_id.as_deref() {
-                Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-                _ => resolved_id,
-            };
-            global
-                .sessions
-                .link_oauth("google", &provider_user_id, &sid, &display_name);
-            sid
-        }
-    } else {
-        let sid = match current_session_id.as_deref() {
-            Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
-            _ => {
-                let (new_id, _, _) = match get_or_create_session(&global, None).await {
-                    Ok(t) => t,
-                    Err(_) => {
-                        return (
-                            StatusCode::SERVICE_UNAVAILABLE,
-                            [(header::RETRY_AFTER, "30")],
-                            "Server at capacity",
-                        )
-                            .into_response();
-                    }
-                };
-                global.sessions.persist_new(&new_id);
-                new_id
-            }
-        };
-        global
-            .sessions
-            .link_oauth("google", &provider_user_id, &sid, &display_name);
-        sid
+        Ok(id) => id,
+        Err(response) => return response,
     };
 
     // Fix: cycle the session ID to prevent session fixation attacks (#364).
@@ -565,6 +459,85 @@ pub async fn get_auth_status(
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
+/// Resolves the target session ID for an OAuth callback: either reuses a
+/// previously-linked session or creates and links a new anonymous session.
+///
+/// Shared between the cookie-based and tower-sessions OAuth flows (TD-003).
+async fn resolve_oauth_link(
+    global: &Arc<GlobalState>,
+    provider_user_id: &str,
+    display_name: &str,
+    current_session_id: Option<String>,
+) -> Result<String, Response> {
+    let target_session_id = if let Some(existing) =
+        global.sessions.find_by_oauth("google", provider_user_id)
+    {
+        let (resolved_id, _, is_new) = match get_or_create_session(global, Some(&existing)).await {
+            Ok(t) => t,
+            Err(_) => {
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    [(header::RETRY_AFTER, "30")],
+                    "Server at capacity",
+                )
+                    .into_response());
+            }
+        };
+        if !is_new {
+            resolved_id
+        } else {
+            let sid = match current_session_id.as_deref() {
+                Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+                _ => resolved_id,
+            };
+            global
+                .sessions
+                .link_oauth("google", provider_user_id, &sid, display_name);
+            sid
+        }
+    } else {
+        let sid = match current_session_id.as_deref() {
+            Some(id) if global.sessions.exists_in_db(id) => id.to_string(),
+            _ => {
+                let (new_id, _, _) = match get_or_create_session(global, None).await {
+                    Ok(t) => t,
+                    Err(_) => {
+                        return Err((
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            [(header::RETRY_AFTER, "30")],
+                            "Server at capacity",
+                        )
+                            .into_response());
+                    }
+                };
+                global.sessions.persist_new(&new_id);
+                new_id
+            }
+        };
+        global
+            .sessions
+            .link_oauth("google", provider_user_id, &sid, display_name);
+        sid
+    };
+    Ok(target_session_id)
+}
+
+/// Builds the Google OAuth authorization URL with the given parameters.
+fn build_google_auth_url(
+    cfg: &crate::session::OAuthConfig,
+    csrf_state: &str,
+    redirect_uri: &str,
+) -> String {
+    format!(
+        "{}?client_id={}&redirect_uri={}&response_type=code\
+         &scope=openid%20email%20profile&state={}",
+        GOOGLE_AUTH_URL,
+        urlenccode(&cfg.client_id),
+        urlenccode(redirect_uri),
+        urlenccode(csrf_state),
+    )
+}
+
 /// Exchanges an authorization code for a Google access token.
 ///
 /// `token_url` is normally [`GOOGLE_TOKEN_URL`]; tests may substitute a
@@ -644,17 +617,7 @@ fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            for pair in cookies.split(';') {
-                let pair = pair.trim();
-                if let Some(rest) = pair.strip_prefix(name)
-                    && let Some(rest) = rest.strip_prefix('=')
-                {
-                    return Some(rest.trim().to_string());
-                }
-            }
-            None
-        })
+        .and_then(|cookies| extract_cookie_value(cookies, name))
 }
 
 /// Minimal percent-encoding for OAuth URL parameters.
@@ -684,10 +647,18 @@ mod tests {
     use wiremock::matchers::{body_string_contains, header as header_matcher, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    use crate::middleware::{TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY};
-    use crate::session::OAuthConfig;
+    use std::num::NonZeroUsize;
 
-    use super::{cookie_value, exchange_code, fetch_user_info, urlenccode};
+    use crate::middleware::{TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY};
+    use crate::session::{GlobalState, OAuthConfig, SessionRegistry};
+    use crate::session_store_impl::open_sessions_db;
+    use crate::state::UiConfigSnapshot;
+    use axum::extract::State;
+    use axum::http::StatusCode;
+    use axum::routing::get;
+    use tower::ServiceExt;
+
+    use super::{cookie_value, exchange_code, fetch_user_info, get_auth_status, urlenccode};
 
     // ── tower-sessions CSRF/session round-trip (#364) ─────────────────────────
 
@@ -976,10 +947,336 @@ mod tests {
         let userinfo_url = format!("{}/userinfo", server.uri());
         let result = fetch_user_info("expired-token", &userinfo_url).await;
 
-        // 401 body has no `sub` field — must be an error.
         assert!(
             result.is_err(),
             "expected Err for 401 response, got {result:?}"
         );
+    }
+
+    // ── TD-015: get_auth_status ─────────────────────────────────────────────
+
+    /// With no OAuth config and no session, `/api/auth/status` reports
+    /// `oauth_enabled: false, logged_in: false`.
+    #[tokio::test]
+    async fn auth_status_no_oauth_no_session() {
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        let saves_dir = dir.path().to_path_buf();
+        let sessions = SessionRegistry::open(&saves_dir).unwrap();
+        let identity_conn = open_sessions_db(&saves_dir).unwrap();
+        let identity_store: std::sync::Arc<dyn parish_core::identity::IdentityStore> =
+            std::sync::Arc::new(crate::session_store_impl::SqliteIdentityStore::new(
+                identity_conn,
+            ));
+
+        let data_dir = saves_dir.clone();
+        let tile_cache = parish_core::tile_cache::TileCache::new(
+            saves_dir.join("tile-cache"),
+            Default::default(),
+        );
+        let global = Arc::new(GlobalState {
+            sessions,
+            identity_store,
+            oauth_config: None,
+            data_dir: data_dir.clone(),
+            world_path: data_dir.join("world.json"),
+            saves_dir,
+            game_mod: None,
+            pronunciations: Vec::new(),
+            ui_config: UiConfigSnapshot {
+                hints_label: String::new(),
+                default_accent: String::new(),
+                splash_text: String::new(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                auto_pause_timeout_seconds: 60,
+            },
+            theme_palette: parish_core::game_mod::default_theme_palette(),
+            transport: parish_core::world::transport::TransportConfig::default(),
+            template_config: crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                max_follow_up_turns: 2,
+                idle_banter_after_secs: 25,
+                auto_pause_after_secs: 60,
+                category_provider: Default::default(),
+                category_model: Default::default(),
+                category_api_key: Default::default(),
+                category_base_url: Default::default(),
+                flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: Default::default(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
+            },
+            inference_config: parish_core::config::InferenceConfig::default(),
+            ollama_process: tokio::sync::Mutex::new(
+                parish_core::inference::client::OllamaProcess::none(),
+            ),
+            tile_cache,
+            idempotency_cache: tokio::sync::Mutex::new(lru::LruCache::new(
+                NonZeroUsize::new(1).unwrap(),
+            )),
+            max_concurrent_sessions: None,
+        });
+
+        let headers = HeaderMap::new();
+        let result = get_auth_status(State(global), headers, None).await;
+        assert!(
+            !result.oauth_enabled,
+            "oauth_enabled must be false when no OAuth config"
+        );
+        assert!(
+            !result.logged_in,
+            "logged_in must be false when no session linked"
+        );
+        assert_eq!(result.provider, None);
+        assert_eq!(result.display_name, None);
+    }
+
+    // ── TD-012: OAuth route integration tests ───────────────────────────────
+
+    /// Helper: builds a minimal GlobalState with an OAuth config for testing.
+    fn test_auth_global_state(enable_oauth: bool) -> Arc<GlobalState> {
+        use crate::session_store_impl::SqliteIdentityStore;
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        let saves_dir = dir.path().to_path_buf();
+        let sessions = SessionRegistry::open(&saves_dir).unwrap();
+        let identity_conn = open_sessions_db(&saves_dir).unwrap();
+        let identity_store: Arc<dyn parish_core::identity::IdentityStore> =
+            Arc::new(SqliteIdentityStore::new(identity_conn));
+        let tile_cache = parish_core::tile_cache::TileCache::new(
+            saves_dir.join("tile-cache"),
+            Default::default(),
+        );
+        Arc::new(GlobalState {
+            sessions,
+            identity_store,
+            oauth_config: if enable_oauth {
+                Some(OAuthConfig {
+                    client_id: "test-client".to_string(),
+                    client_secret: "test-secret".to_string(),
+                    base_url: "https://example.com".to_string(),
+                })
+            } else {
+                None
+            },
+            data_dir: saves_dir.clone(),
+            world_path: saves_dir.join("world.json"),
+            saves_dir,
+            game_mod: None,
+            pronunciations: Vec::new(),
+            ui_config: UiConfigSnapshot {
+                hints_label: String::new(),
+                default_accent: String::new(),
+                splash_text: String::new(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                auto_pause_timeout_seconds: 60,
+            },
+            theme_palette: parish_core::game_mod::default_theme_palette(),
+            transport: parish_core::world::transport::TransportConfig::default(),
+            template_config: crate::state::GameConfig {
+                provider_name: String::new(),
+                base_url: String::new(),
+                api_key: None,
+                model_name: String::new(),
+                cloud_provider_name: None,
+                cloud_model_name: None,
+                cloud_api_key: None,
+                cloud_base_url: None,
+                improv_enabled: false,
+                max_follow_up_turns: 2,
+                idle_banter_after_secs: 25,
+                auto_pause_after_secs: 60,
+                category_provider: Default::default(),
+                category_model: Default::default(),
+                category_api_key: Default::default(),
+                category_base_url: Default::default(),
+                flags: parish_core::config::FeatureFlags::default(),
+                category_rate_limit: Default::default(),
+                active_tile_source: String::new(),
+                tile_sources: Vec::new(),
+                reveal_unexplored_locations: false,
+            },
+            inference_config: parish_core::config::InferenceConfig::default(),
+            ollama_process: tokio::sync::Mutex::new(
+                parish_core::inference::client::OllamaProcess::none(),
+            ),
+            tile_cache,
+            idempotency_cache: tokio::sync::Mutex::new(lru::LruCache::new(
+                NonZeroUsize::new(1).unwrap(),
+            )),
+            max_concurrent_sessions: None,
+        })
+    }
+
+    /// `login_google` returns 404 when OAuth is not configured.
+    #[tokio::test]
+    async fn login_google_no_oauth_returns_404() {
+        let global = test_auth_global_state(false);
+        let app = axum::Router::new()
+            .route("/auth/login/google", get(super::login_google))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/login/google")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// `login_google` redirects to Google when OAuth is configured.
+    #[tokio::test]
+    async fn login_google_redirects_to_google() {
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/login/google", get(super::login_google))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/login/google")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        // 303 See Other = redirect.
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            location.starts_with("https://accounts.google.com/"),
+            "login must redirect to Google's auth URL"
+        );
+        assert!(
+            location.contains("client_id=test-client"),
+            "redirect URL must contain the client_id"
+        );
+    }
+
+    /// `login_google_tower` returns 404 when OAuth is not configured.
+    #[tokio::test]
+    async fn login_google_tower_no_oauth_returns_404() {
+        let session = fresh_tower_session();
+        let global = test_auth_global_state(false);
+        let app = axum::Router::new()
+            .route("/auth/login/google", get(super::login_google_tower))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/login/google")
+            .extension(session)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// `login_google_tower` redirects to Google when OAuth is configured.
+    #[tokio::test]
+    async fn login_google_tower_redirects_to_google() {
+        let session = fresh_tower_session();
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/login/google", get(super::login_google_tower))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/login/google")
+            .extension(session)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            location.starts_with("https://accounts.google.com/"),
+            "login_tower must redirect to Google's auth URL"
+        );
+    }
+
+    /// `logout` returns a redirect when OAuth is configured.
+    #[tokio::test]
+    async fn logout_returns_redirect() {
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/logout", get(super::logout))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/logout")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert_eq!(location, "/", "logout must redirect to /");
+    }
+
+    /// `logout_tower` returns a redirect when OAuth is configured.
+    #[tokio::test]
+    async fn logout_tower_returns_redirect() {
+        let session = fresh_tower_session();
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/logout", get(super::logout_tower))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/logout")
+            .extension(session)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert_eq!(location, "/", "logout_tower must redirect to /");
+    }
+
+    /// `callback_google` returns 400 when the `code` parameter is missing.
+    #[tokio::test]
+    async fn callback_google_missing_code_returns_400() {
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/callback/google", get(super::callback_google))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/callback/google")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// `callback_google_tower` returns 400 when the `code` parameter is missing.
+    #[tokio::test]
+    async fn callback_google_tower_missing_code_returns_400() {
+        let session = fresh_tower_session();
+        let global = test_auth_global_state(true);
+        let app = axum::Router::new()
+            .route("/auth/callback/google", get(super::callback_google_tower))
+            .with_state(global);
+        let req = axum::http::Request::builder()
+            .uri("/auth/callback/google")
+            .extension(session)
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 }

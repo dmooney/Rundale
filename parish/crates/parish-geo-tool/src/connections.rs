@@ -73,12 +73,12 @@ pub fn generate_connections(
             let road_dist = find_road_distance(&features[i], &features[j], &road_segments);
 
             let (desc, rev_desc) = if let Some((_, segment)) = road_dist {
-                let desc = generate_path_description(&segment, &features[i], &features[j]);
-                let rev_desc = generate_path_description(&segment, &features[j], &features[i]);
+                let desc = generate_path_description(&segment, &features[j]);
+                let rev_desc = generate_path_description(&segment, &features[i]);
                 (desc, rev_desc)
             } else {
-                let desc = generate_direct_description(&features[i], &features[j]);
-                let rev_desc = generate_direct_description(&features[j], &features[i]);
+                let desc = generate_direct_description(&features[j]);
+                let rev_desc = generate_direct_description(&features[i]);
                 (desc, rev_desc)
             };
 
@@ -217,7 +217,7 @@ fn along_road_distance(points: &[LatLon], idx_a: usize, idx_b: usize) -> f64 {
 }
 
 /// Generates a path description based on the road type.
-fn generate_path_description(segment: &RoadSegment, _from: &GeoFeature, to: &GeoFeature) -> String {
+fn generate_path_description(segment: &RoadSegment, to: &GeoFeature) -> String {
     let road_type_desc = match segment.highway_type.as_str() {
         "primary" | "secondary" => "the road",
         "tertiary" => "a country road",
@@ -237,7 +237,7 @@ fn generate_path_description(segment: &RoadSegment, _from: &GeoFeature, to: &Geo
 }
 
 /// Generates a description for a direct (off-road) connection.
-fn generate_direct_description(_from: &GeoFeature, to: &GeoFeature) -> String {
+fn generate_direct_description(to: &GeoFeature) -> String {
     format!("across the fields toward {}", to.name)
 }
 
@@ -325,14 +325,8 @@ fn ensure_connectivity(features: &[GeoFeature], connections: &mut Vec<GeneratedC
         connections.push(GeneratedConnection {
             from_idx: best_pair.0,
             to_idx: best_pair.1,
-            path_description: generate_direct_description(
-                &features[best_pair.0],
-                &features[best_pair.1],
-            ),
-            reverse_path_description: generate_direct_description(
-                &features[best_pair.1],
-                &features[best_pair.0],
-            ),
+            path_description: generate_direct_description(&features[best_pair.1]),
+            reverse_path_description: generate_direct_description(&features[best_pair.0]),
         });
     }
 }
@@ -445,10 +439,9 @@ mod tests {
             highway_type: "track".to_string(),
             name: None,
         };
-        let from = make_feature("Church", LocationType::Pub, 53.5, -8.0);
         let to = make_feature("Pub", LocationType::Pub, 53.5, -8.0);
 
-        let desc = generate_path_description(&segment, &from, &to);
+        let desc = generate_path_description(&segment, &to);
         assert!(desc.contains("rough track"));
         assert!(desc.contains("Pub"));
     }
@@ -460,10 +453,9 @@ mod tests {
             highway_type: "tertiary".to_string(),
             name: Some("Bog Road".to_string()),
         };
-        let from = make_feature("A", LocationType::Pub, 53.5, -8.0);
         let to = make_feature("B", LocationType::Pub, 53.5, -8.0);
 
-        let desc = generate_path_description(&segment, &from, &to);
+        let desc = generate_path_description(&segment, &to);
         assert!(desc.contains("Bog Road"));
     }
 }

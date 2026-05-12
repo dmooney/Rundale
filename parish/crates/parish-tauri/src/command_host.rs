@@ -196,6 +196,44 @@ impl SystemCommandHost for TauriCommandHost {
         Box::pin(async move { "Debug commands are not available in the GUI.".to_string() })
     }
 
+    fn reset_byok(&self) -> BoxFuture<'_, ()> {
+        let state = Arc::clone(&self.state);
+        let app = self.app.clone();
+        Box::pin(async move {
+            // Wipe keychain + parish.toml + GameConfig.api_key.
+            let ctx = parish_core::ipc::byok::ByokContext {
+                config: &state.config,
+                inference_config: &state.inference_config,
+                inference_log: state.inference_log.clone(),
+                slots: parish_core::game_loop::inference::InferenceSlots {
+                    client: &state.client,
+                    worker_handle: &state.worker_handle,
+                    inference_queue: &state.inference_queue,
+                },
+                secrets: Arc::clone(&state.secret_store),
+                user_config_dir: state.user_config_dir.as_path(),
+            };
+            let _ = parish_core::ipc::byok::handle_clear_provider_config(ctx).await;
+            // Also wipe the .onboarded sentinel so the gate fires next launch.
+            let marker = state
+                .user_config_dir
+                .join(parish_core::config::user_config::ONBOARDING_MARKER_FILENAME);
+            let _ = std::fs::remove_file(&marker);
+            // Flip the snapshot flag + tell the overlay to re-open.
+            {
+                let mut s = state.setup_status.lock().unwrap_or_else(|p| p.into_inner());
+                *s = crate::SetupStatusSnapshot::default();
+                s.record_needs_onboarding();
+            }
+            let _ = app.emit(
+                crate::events::EVENT_SETUP_NEEDS_ONBOARDING,
+                crate::events::SetupStatusPayload {
+                    message: "Re-opening provider picker".to_string(),
+                },
+            );
+        })
+    }
+
     fn emit_text_log(&self, msg: String, presentation: TextPresentation) {
         let payload = match presentation {
             TextPresentation::Tabular => text_log_typed("system", msg, "tabular"),

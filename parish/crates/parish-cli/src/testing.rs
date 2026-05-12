@@ -462,8 +462,12 @@ impl GameTestHarness {
         // tick_tier4 is sub-ms CPU work; runs inline inside the lock scope.
         let now = self.app.world.clock.now();
         if self.app.npc_manager.needs_tier4_tick(now) {
-            let tier4_ids: std::collections::HashSet<crate::npc::NpcId> =
-                self.app.npc_manager.tier4_npcs().into_iter().collect();
+            let tier4_ids: std::collections::HashSet<crate::npc::NpcId> = self
+                .app
+                .npc_manager
+                .npcs_in_tier(crate::npc::types::CogTier::Tier4)
+                .into_iter()
+                .collect();
             let t4_events = {
                 let mut tier4_refs: Vec<&mut crate::npc::Npc> = self
                     .app
@@ -509,33 +513,8 @@ impl GameTestHarness {
 
     /// Processes schedule events: debug log + player-visible text log messages.
     fn process_schedule_events(&mut self, events: &[crate::npc::manager::ScheduleEvent]) {
-        use crate::npc::manager::ScheduleEventKind;
-        let player_loc = self.app.world.player_location;
-
-        for event in events {
-            self.app.debug_event(event.debug_string());
-
-            let display = self
-                .app
-                .npc_manager
-                .get(event.npc_id)
-                .map(|n| self.app.npc_manager.display_name(n).to_string())
-                .unwrap_or_else(|| event.npc_name.clone());
-
-            match &event.kind {
-                ScheduleEventKind::Departed { from, .. } if *from == player_loc => {
-                    self.app.world.log(format!(
-                        "{} heads off down the road.",
-                        capitalize_first(&display)
-                    ));
-                }
-                ScheduleEventKind::Arrived { location, .. } if *location == player_loc => {
-                    self.app
-                        .world
-                        .log(format!("{} arrives.", capitalize_first(&display)));
-                }
-                _ => {}
-            }
+        for msg in crate::headless::process_schedule_events_generic(&mut self.app, events) {
+            self.app.world.log(msg);
         }
     }
 
@@ -674,6 +653,9 @@ impl GameTestHarness {
                 }
                 CommandEffect::ApplyTiles(..) => {
                     // No map in test harness; response text is returned below.
+                }
+                CommandEffect::ResetByok => {
+                    // No BYOK overlay in the test harness; response text is returned below.
                 }
             }
         }
