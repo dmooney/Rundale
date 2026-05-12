@@ -696,16 +696,23 @@ async fn restore_session(
         ));
     }
 
-    // Find the first (alphabetically) .db file.
+    // Select the most recently modified `.db` file.  In normal play there is
+    // only one save per session, but branching can create additional files.
+    // Using mtime rather than alphabetical order avoids restoring a stale
+    // branch when newer ones exist (#632).
     let db_path = {
-        let mut files: Vec<PathBuf> = std::fs::read_dir(&session_saves)
+        let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(&session_saves)
             .map_err(|e| e.to_string())?
             .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|ext| ext == "db"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "db"))
+            .filter_map(|e| {
+                let meta = e.metadata().ok()?;
+                let mtime = meta.modified().ok()?;
+                Some((e.path(), mtime))
+            })
             .collect();
-        files.sort();
-        files.into_iter().next().ok_or("no save files found")?
+        entries.sort_by_key(|b| std::cmp::Reverse(b.1));
+        entries.into_iter().next().ok_or("no save files found")?.0
     };
 
     // Load snapshot from the first branch.
