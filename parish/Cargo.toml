@@ -4,6 +4,7 @@ members = [
     "crates/parish-core",
     "crates/parish-server",
     "crates/parish-cli",
+    "crates/parish-mcp",
     "crates/parish-tauri",
     "crates/parish-geo-tool",
     "crates/parish-types",

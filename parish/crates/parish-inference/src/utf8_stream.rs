@@ -182,4 +182,12 @@ mod tests {
             r#"{"speaker":"Siobh\u00e1n","line":"Dia dhuit — fáilte"}"#
         );
     }
+
+    #[test]
+    fn valid_multibyte_then_invalid_bytes() {
+        // Valid 'é' (0xC3 0xA9) followed by invalid 0xFF and continuation 0x80.
+        // The decoder outputs 'é' then replacement chars for the invalid bytes.
+        let mut d = Utf8StreamDecoder::new();
+        assert_eq!(d.push(b"\xC3\xA9\xFF\x80"), "é\u{FFFD}\u{FFFD}");
+    }
 }

@@ -306,10 +306,8 @@ pub fn build_app_state(
         .unwrap_or_else(parish_core::npc::LanguageSettings::english_only);
 
     // Build the trait-erased inference client stack (#617).
-    // Feature flags are not yet loaded at this point (flags_path not read),
-    // so we default both inference-client-trait and inference-response-cache
-    // to on (the per-CLAUDE.md §6 default-on convention).  Routes/handlers
-    // that need the flag-gated behaviour should check flags at call time.
+    // Caching is enabled by default; callers can disable it by setting
+    // PARISH_INFERENCE_CACHE_CAPACITY=0.
     let inference_client = client.as_ref().map(|c| {
         let cache_capacity = parish_core::inference::cache_capacity_from_env();
         parish_core::inference::build_inference_client_stack(c.clone(), true, cache_capacity)

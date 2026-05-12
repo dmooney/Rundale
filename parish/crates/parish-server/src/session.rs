@@ -700,8 +700,9 @@ async fn restore_session(
     // only one save per session, but branching can create additional files.
     // Using mtime rather than alphabetical order avoids restoring a stale
     // branch when newer ones exist (#632).
-    let db_path = {
-        let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(&session_saves)
+    let saves_for_scan = session_saves.clone();
+    let db_path = tokio::task::spawn_blocking(move || -> Result<PathBuf, String> {
+        let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(&saves_for_scan)
             .map_err(|e| e.to_string())?
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension().is_some_and(|ext| ext == "db"))
@@ -712,8 +713,14 @@ async fn restore_session(
             })
             .collect();
         entries.sort_by_key(|b| std::cmp::Reverse(b.1));
-        entries.into_iter().next().ok_or("no save files found")?.0
-    };
+        entries
+            .into_iter()
+            .next()
+            .map(|(p, _)| p)
+            .ok_or_else(|| "no save files found".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
 
     // Load snapshot from the first branch.
     let db_path_clone = db_path.clone();

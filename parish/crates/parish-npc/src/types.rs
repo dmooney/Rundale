@@ -94,133 +94,192 @@ impl Intelligence {
     pub fn prompt_guidance(&self) -> String {
         let mut parts = Vec::new();
 
-        // Verbal — how they speak
-        match self.verbal {
-            1 => parts.push(
-                "Struggles to find words, speaks in halting fragments, \
-                 and often trails off mid-sentence.",
-            ),
-            2 => parts.push(
-                "Speaks plainly with a limited vocabulary, \
-                 preferring short familiar words over anything fancy.",
-            ),
-            4 => parts.push(
-                "Well-spoken with a good vocabulary, \
-                 able to express ideas clearly and persuasively.",
-            ),
-            5 => parts.push(
-                "Exceptionally eloquent — chooses words with precision, \
-                 turns a phrase beautifully, and commands attention when speaking.",
-            ),
-            _ => {}
+        fn push_guidance(parts: &mut Vec<&'static str>, value: u8, table: &[(u8, &'static str)]) {
+            if let Some((_, text)) = table.iter().find(|(v, _)| *v == value) {
+                parts.push(text);
+            }
         }
 
-        // Analytical — how they reason
-        match self.analytical {
-            1 => parts.push(
-                "Cannot follow even simple logical arguments; \
-                 easily confused by cause and effect.",
+        const VERBAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Struggles to find words, speaks in halting fragments, and often trails off mid-sentence.",
             ),
-            2 => parts.push(
-                "Thinks concretely and struggles with abstract reasoning; \
-                 takes things at face value.",
+            (
+                2,
+                "Speaks plainly with a limited vocabulary, preferring short familiar words over anything fancy.",
             ),
-            4 => parts.push(
-                "Sharp-minded, notices patterns and logical connections \
-                 that others miss.",
+            (
+                4,
+                "Well-spoken with a good vocabulary, able to express ideas clearly and persuasively.",
             ),
-            5 => parts.push(
-                "Brilliantly analytical — sees through deceptions, \
-                 connects distant facts, and reasons with piercing clarity.",
+            (
+                5,
+                "Exceptionally eloquent — chooses words with precision, turns a phrase beautifully, and commands attention when speaking.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.verbal, VERBAL);
 
-        // Emotional — how they read people
-        match self.emotional {
-            1 => parts.push(
-                "Oblivious to others' feelings, misreads the room constantly, \
-                 and blunders through social situations.",
+        const ANALYTICAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Cannot follow even simple logical arguments; easily confused by cause and effect.",
             ),
-            2 => parts.push(
-                "Blunt and socially clumsy; often says the wrong thing \
-                 without realising the effect.",
+            (
+                2,
+                "Thinks concretely and struggles with abstract reasoning; takes things at face value.",
             ),
-            4 => parts.push(
-                "Perceptive about people's feelings, picks up on mood shifts \
-                 and unspoken tensions.",
+            (
+                4,
+                "Sharp-minded, notices patterns and logical connections that others miss.",
             ),
-            5 => parts.push(
-                "Reads people like a book — catches every flicker of emotion, \
-                 hears what is left unsaid, and responds with deep empathy.",
+            (
+                5,
+                "Brilliantly analytical — sees through deceptions, connects distant facts, and reasons with piercing clarity.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.analytical, ANALYTICAL);
 
-        // Practical — common sense and resourcefulness
-        match self.practical {
-            1 => parts.push(
-                "Hopelessly impractical; overlooks obvious solutions \
-                 and fumbles with everyday tasks.",
+        const EMOTIONAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Oblivious to others' feelings, misreads the room constantly, and blunders through social situations.",
             ),
-            2 => parts.push(
-                "Not particularly handy or resourceful; \
-                 tends to overcomplicate simple problems.",
+            (
+                2,
+                "Blunt and socially clumsy; often says the wrong thing without realising the effect.",
             ),
-            4 => parts.push(
-                "Resourceful and sensible, always knows a practical fix \
-                 and wastes nothing.",
+            (
+                4,
+                "Perceptive about people's feelings, picks up on mood shifts and unspoken tensions.",
             ),
-            5 => parts.push(
-                "Extraordinarily resourceful — can fix, build, or improvise \
-                 a solution from whatever is at hand, with unfailing common sense.",
+            (
+                5,
+                "Reads people like a book — catches every flicker of emotion, hears what is left unsaid, and responds with deep empathy.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.emotional, EMOTIONAL);
 
-        // Wisdom — life experience and judgment
-        match self.wisdom {
-            1 => parts.push(
-                "Reckless and short-sighted, repeats the same mistakes \
-                 and never learns from experience.",
+        const PRACTICAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Hopelessly impractical; overlooks obvious solutions and fumbles with everyday tasks.",
             ),
-            2 => parts.push(
-                "Impulsive and prone to poor judgment; \
-                 acts first and thinks later.",
+            (
+                2,
+                "Not particularly handy or resourceful; tends to overcomplicate simple problems.",
             ),
-            4 => parts.push(
-                "Draws on hard-won life experience; \
-                 gives considered, measured advice.",
+            (
+                4,
+                "Resourceful and sensible, always knows a practical fix and wastes nothing.",
             ),
-            5 => parts.push(
-                "Deeply wise — decades of living have given a quiet authority, \
-                 a long view of things, and an instinct for what truly matters.",
+            (
+                5,
+                "Extraordinarily resourceful — can fix, build, or improvise a solution from whatever is at hand, with unfailing common sense.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.practical, PRACTICAL);
 
-        // Creative — imagination, wit, improvisation
-        match self.creative {
-            1 => parts.push(
-                "Completely literal-minded; humour, metaphor, \
-                 and imagination are foreign territory.",
+        const WISDOM: &[(u8, &str)] = &[
+            (
+                1,
+                "Reckless and short-sighted, repeats the same mistakes and never learns from experience.",
             ),
-            2 => parts.push(
-                "Unimaginative and humourless; sticks to the obvious \
-                 and rarely surprises.",
+            (
+                2,
+                "Impulsive and prone to poor judgment; acts first and thinks later.",
             ),
-            4 => parts.push(
-                "Quick-witted with a ready turn of phrase; \
-                 sees the funny side and thinks on the spot.",
+            (
+                4,
+                "Draws on hard-won life experience; gives considered, measured advice.",
             ),
-            5 => parts.push(
-                "Brilliantly creative — a natural storyteller whose wit, \
-                 vivid metaphors, and leaps of imagination light up any conversation.",
+            (
+                5,
+                "Deeply wise — decades of living have given a quiet authority, a long view of things, and an instinct for what truly matters.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.wisdom, WISDOM);
+
+        const CREATIVE: &[(u8, &str)] = &[
+            (
+                1,
+                "Completely literal-minded; humour, metaphor, and imagination are foreign territory.",
+            ),
+            (
+                2,
+                "Unimaginative and humourless; sticks to the obvious and rarely surprises.",
+            ),
+            (
+                4,
+                "Quick-witted with a ready turn of phrase; sees the funny side and thinks on the spot.",
+            ),
+            (
+                5,
+                "Brilliantly creative — a natural storyteller whose wit, vivid metaphors, and leaps of imagination light up any conversation.",
+            ),
+        ];
+        push_guidance(&mut parts, self.creative, CREATIVE);
 
         parts.join(" ")
+    }
+
+    /// Returns a compact comma-separated list of adjectives capturing only the
+    /// notable intelligence dimensions.
+    ///
+    /// For use in token-tight prompts (e.g. Tier 3 batch inference) where the
+    /// full `prompt_guidance` prose would balloon the input. Only dimensions
+    /// rated 1-2 or 4-5 contribute a single adjective each; average 3s are
+    /// skipped. Returns an empty string for an all-3s profile.
+    pub fn adjective_summary(&self) -> String {
+        let mut parts: Vec<&'static str> = Vec::new();
+        let dims = [
+            (
+                self.verbal,
+                "halting",
+                "plain-spoken",
+                "well-spoken",
+                "eloquent",
+            ),
+            (
+                self.analytical,
+                "muddled",
+                "concrete-minded",
+                "sharp",
+                "incisive",
+            ),
+            (
+                self.emotional,
+                "oblivious",
+                "blunt",
+                "perceptive",
+                "deeply empathetic",
+            ),
+            (
+                self.practical,
+                "impractical",
+                "ham-fisted",
+                "resourceful",
+                "endlessly resourceful",
+            ),
+            (self.wisdom, "reckless", "impulsive", "wise", "deeply wise"),
+            (
+                self.creative,
+                "literal-minded",
+                "unimaginative",
+                "quick-witted",
+                "brilliantly creative",
+            ),
+        ];
+        for (rating, w1, w2, w4, w5) in dims {
+            match rating {
+                1 => parts.push(w1),
+                2 => parts.push(w2),
+                4 => parts.push(w4),
+                5 => parts.push(w5),
+                _ => {}
+            }
+        }
+        parts.join(", ")
     }
 }
 
@@ -856,6 +915,45 @@ mod tests {
         let guidance = intel.prompt_guidance();
         assert!(guidance.contains("eloquent"));
         assert!(guidance.contains("impractical"));
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_average_is_empty() {
+        let intel = Intelligence::default();
+        assert_eq!(intel.adjective_summary(), "");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_high() {
+        let intel = Intelligence::new(5, 3, 3, 3, 3, 3);
+        assert_eq!(intel.adjective_summary(), "eloquent");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_low() {
+        let intel = Intelligence::new(3, 3, 3, 3, 3, 1);
+        assert_eq!(intel.adjective_summary(), "literal-minded");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_mixed_order_stable() {
+        // V4 A3 E5 P3 W2 C3 — adjectives appear in declaration order
+        // (verbal, analytical, emotional, practical, wisdom, creative).
+        let intel = Intelligence::new(4, 3, 5, 3, 2, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "well-spoken, deeply empathetic, impulsive"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_covers_all_bands() {
+        // V1 A2 E4 P5 W3 C3 — covers bands 1, 2, 4, 5; skips 3s.
+        let intel = Intelligence::new(1, 2, 4, 5, 3, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "halting, concrete-minded, perceptive, endlessly resourceful"
+        );
     }
 
     #[test]

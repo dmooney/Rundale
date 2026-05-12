@@ -1,9 +1,11 @@
-//! Parish core game-logic library.
+//! Parish orchestration layer.
 //!
-//! Contains all backend-agnostic game systems: world graph, NPC management,
-//! LLM inference pipeline, player input parsing, and persistence.
+//! Composes backend-agnostic leaf crates (`parish-world`, `parish-npc`,
+//! `parish-inference`, `parish-input`, `parish-persistence`) into shared
+//! game-loop, IPC, mod-loading, and session-management logic.
 //! Consumed by the CLI binary (headless), the Tauri desktop frontend,
-//! and the axum web server.
+//! and the axum web server. Leaf-crate ownership lives in the respective
+//! crates under `parish/crates/`.
 
 // Retained modules — IPC, orchestration glue, and mod loading
 pub mod debug_snapshot;
@@ -18,6 +20,7 @@ pub mod ipc;
 pub mod loading;
 pub mod mod_source;
 pub mod prompts;
+pub mod secret_store;
 pub mod session_store;
 pub mod tile_cache;
 

@@ -36,7 +36,9 @@ lru            = { workspace = true }
 tower-sessions = "0.15"
 
 [dev-dependencies]
-tempfile    = { workspace = true }
-serial_test = { workspace = true }
-wiremock    = { workspace = true }
-tower       = "0.5"
+tempfile          = { workspace = true }
+serial_test       = { workspace = true }
+wiremock          = { workspace = true }
+tower             = "0.5"
+tokio-tungstenite = "0.29"
+futures-util      = "0.3"

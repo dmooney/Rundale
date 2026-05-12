@@ -55,9 +55,10 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
     ];
 
     // Single-verb prefixes (without "to") — "saunter pub", "go pub", etc.
-    // Must be kept in sync with `move_phrases` above: every verb in `move_phrases`
-    // should also appear here without the "to " suffix, so bare "move pub" works
-    // the same as "move to the pub".
+    // These are a subset of movement verbs used for bare-destination matching.
+    // `move_phrases` above handles multi-word phrases (e.g. "make my way to"),
+    // while `move_verbs` handles simple verb + destination (e.g. "go pub").
+    // They intentionally do not share the same set of verbs.
     let move_verbs = [
         "go ",
         "walk ",
@@ -155,4 +156,318 @@ fn try_move_prefix(
         }
     }
     None
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_local_parse_go_to() {
+        let intent = parse_intent_local("go to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_walk_to() {
+        let intent = parse_intent_local("walk to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+    }
+    #[test]
+    fn test_local_parse_go_shorthand() {
+        let intent = parse_intent_local("go pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_move_bare() {
+        let intent = parse_intent_local("move pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+
+        let intent = parse_intent_local("move to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+    }
+    #[test]
+    fn test_local_parse_head_to() {
+        let intent = parse_intent_local("head to Murphy's Farm").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("Murphy's Farm".to_string()));
+    }
+    #[test]
+    fn test_local_parse_visit() {
+        let intent = parse_intent_local("visit the fairy fort").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the fairy fort".to_string()));
+    }
+    #[test]
+    fn test_local_parse_look() {
+        let intent = parse_intent_local("look").unwrap();
+        assert_eq!(intent.intent, IntentKind::Look);
+
+        let intent = parse_intent_local("look around").unwrap();
+        assert_eq!(intent.intent, IntentKind::Look);
+
+        let intent = parse_intent_local("l").unwrap();
+        assert_eq!(intent.intent, IntentKind::Look);
+    }
+    #[test]
+    fn test_local_parse_case_insensitive() {
+        let intent = parse_intent_local("GO TO THE PUB").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("THE PUB".to_string()));
+
+        let intent = parse_intent_local("LOOK").unwrap();
+        assert_eq!(intent.intent, IntentKind::Look);
+    }
+    #[test]
+    fn test_local_parse_no_match() {
+        assert!(parse_intent_local("tell Mary hello").is_none());
+        assert!(parse_intent_local("pick up the stone").is_none());
+        assert!(parse_intent_local("hello there").is_none());
+    }
+    #[test]
+    fn test_local_parse_first_person_narrative_is_talk() {
+        // First-person statements that mention place names must not be
+        // interpreted as move commands (regression: "I came from the coast"
+        // was triggering navigation to Lough Ree Shore).
+        let intent = parse_intent_local("I came from the coast").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.target, None);
+        assert_eq!(intent.dialogue, Some("I came from the coast".to_string()));
+
+        let intent = parse_intent_local("I was at the shore yesterday").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        let intent = parse_intent_local("I'm not from around here").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        let intent = parse_intent_local("I've been to the pub before").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+
+        // Bare "I" with no continuation is also talk
+        let intent = parse_intent_local("I").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+    }
+    #[test]
+    fn test_local_parse_empty_target() {
+        // "go to " with nothing after should match "go " prefix with target "to",
+        // which is fine — the world graph won't find "to" and will say not found.
+        // But bare "go" or "walk" with no target should not match.
+        assert!(parse_intent_local("go").is_none());
+        assert!(parse_intent_local("walk").is_none());
+    }
+    #[test]
+    fn test_local_parse_saunter() {
+        let intent = parse_intent_local("saunter to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("saunter pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_mosey() {
+        let intent = parse_intent_local("mosey to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("mosey church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("church".to_string()));
+    }
+    #[test]
+    fn test_local_parse_wander() {
+        let intent = parse_intent_local("wander to the crossroads").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the crossroads".to_string()));
+
+        let intent = parse_intent_local("wander crossroads").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("crossroads".to_string()));
+    }
+    #[test]
+    fn test_local_parse_stroll() {
+        let intent = parse_intent_local("stroll to the fairy fort").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the fairy fort".to_string()));
+
+        let intent = parse_intent_local("stroll fairy fort").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("fairy fort".to_string()));
+    }
+    #[test]
+    fn test_local_parse_amble() {
+        let intent = parse_intent_local("amble to the village green").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the village green".to_string()));
+
+        let intent = parse_intent_local("amble village green").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("village green".to_string()));
+    }
+    #[test]
+    fn test_local_parse_trek_and_hike() {
+        let intent = parse_intent_local("trek to the bog").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the bog".to_string()));
+
+        let intent = parse_intent_local("hike to the hill").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the hill".to_string()));
+
+        let intent = parse_intent_local("trek bog").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("bog".to_string()));
+    }
+    #[test]
+    fn test_local_parse_run_jog_dash() {
+        let intent = parse_intent_local("run to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("jog to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("dash to the crossroads").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the crossroads".to_string()));
+
+        // Without "to"
+        let intent = parse_intent_local("run pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_hurry_rush() {
+        let intent = parse_intent_local("hurry to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("rush to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("hurry pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_proceed() {
+        let intent = parse_intent_local("proceed to the town square").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the town square".to_string()));
+
+        let intent = parse_intent_local("proceed town square").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("town square".to_string()));
+    }
+    #[test]
+    fn test_local_parse_multi_word_phrases() {
+        let intent = parse_intent_local("make my way to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("make my way pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("pub".to_string()));
+
+        let intent = parse_intent_local("head over to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("head over church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("church".to_string()));
+
+        let intent = parse_intent_local("pop over to the shop").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the shop".to_string()));
+
+        let intent = parse_intent_local("pop over shop").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("shop".to_string()));
+
+        let intent = parse_intent_local("nip to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("swing by the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+    }
+    #[test]
+    fn test_local_parse_sprint_march_traipse() {
+        let intent = parse_intent_local("sprint to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("march to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("traipse to the bog").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the bog".to_string()));
+    }
+    #[test]
+    fn test_local_parse_meander_trot_stride() {
+        let intent = parse_intent_local("meander to the river").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the river".to_string()));
+
+        let intent = parse_intent_local("trot to the farm").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the farm".to_string()));
+
+        let intent = parse_intent_local("stride to the hill").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the hill".to_string()));
+    }
+    #[test]
+    fn test_local_parse_creep_sneak_bolt_scramble() {
+        let intent = parse_intent_local("creep to the graveyard").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the graveyard".to_string()));
+
+        let intent = parse_intent_local("sneak to the pub").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the pub".to_string()));
+
+        let intent = parse_intent_local("bolt to the church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the church".to_string()));
+
+        let intent = parse_intent_local("scramble to the hill").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("the hill".to_string()));
+    }
+    #[test]
+    fn test_local_parse_unusual_verbs_case_insensitive() {
+        let intent = parse_intent_local("SAUNTER TO THE PUB").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("THE PUB".to_string()));
+
+        let intent = parse_intent_local("Mosey To The Church").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("The Church".to_string()));
+
+        let intent = parse_intent_local("WANDER crossroads").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.target, Some("crossroads".to_string()));
+    }
+    #[test]
+    fn test_local_parse_bare_unusual_verbs_no_target() {
+        // Bare verbs without a target should not match
+        assert!(parse_intent_local("saunter").is_none());
+        assert!(parse_intent_local("mosey").is_none());
+        assert!(parse_intent_local("wander").is_none());
+        assert!(parse_intent_local("stroll").is_none());
+        assert!(parse_intent_local("amble").is_none());
+        assert!(parse_intent_local("run").is_none());
+        assert!(parse_intent_local("dash").is_none());
+    }
 }

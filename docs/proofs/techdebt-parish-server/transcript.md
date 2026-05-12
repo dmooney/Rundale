@@ -1,44 +1,56 @@
-Evidence type: gameplay transcript
+Evidence type: refactoring transcript
 
 ## Summary
 
-Resolved 15 of 20 TODO items in `parish/crates/parish-server/TODO.md`:
+Resolved 12 TODO items in `parish/crates/parish-server/TODO.md` (TD-021 through TD-032):
 
-**Duplication (5):**
-- TD-001: Unified cookie-value extraction (`cookie_value` delegates to `extract_cookie_value`)
-- TD-002: Extracted `build_google_auth_url()` helper for OAuth redirect URL
-- TD-003: Extracted `resolve_oauth_link()` helper shared by both OAuth callbacks
-- TD-004: Extracted `initialize_sessions_schema()` shared by `SessionRegistry::open()` and `open_sessions_db()`
-- TD-005: Extracted `inject_auth_context()` helper for the three auth paths in `cf_access_guard`
+**Manifest Hygiene (3):**
+- TD-021: Dropped unused `tower-http` `cors` feature from Cargo.toml
+- TD-022: Removed unused `tracing-opentelemetry` and `opentelemetry` deps from Cargo.toml
+- TD-023: Moved `tower` to `[dev-dependencies]` (only used in `#[cfg(test)]` modules)
 
-**Dead Code (1):**
-- TD-020: Deleted `SqliteSessionRegistry` struct, trait impl, and tests (unused in production)
+**Stale TODO (1):**
+- TD-024: Removed no-op `MemoryStore` cleanup task body in `lib.rs`; replaced with a comment explaining the 365-day expiry bound
 
-**Stale Docs (3):**
-- TD-017: Removed stale `Semaphore` comment in routes.rs
-- TD-018: Updated module doc in session_store_impl.rs
-- TD-019: Converted TODO comment to descriptive reference in lib.rs
+**Duplication (2):**
+- TD-025: Removed `google_account_for_session` from `SessionRegistry`; callers in `auth.rs` and `routes.rs` now use `global.identity_store.get_account`
+- TD-026: Extracted `finalize_session_entry` helper shared by `create_session` and `restore_session`
 
-**Weak Tests (6):**
-- TD-011: Replaced WS placeholder test with documentation clarifying coverage
-- TD-012: Added 8 router-level integration tests for OAuth routes
-- TD-013: Added `session_init_returns_token` test
-- TD-014: Added `metrics_returns_counter_in_plain_text` test
-- TD-015: Added `auth_status_no_oauth_no_session` test
-- TD-016: Added `ip_rate_limit_middleware_blocks_at_capacity` test
+**Naming (1):**
+- TD-027: Renamed `urlenccode` → `urlencode` across definition, call sites, and tests
+
+**Rule 9 Violation (1):**
+- TD-028: Switched `ensure_saves_dir()` → `resolve_project_saves_dir(&data_dir)` in `lib.rs`
+
+**Weak Tests (3):**
+- TD-029: Added `parse_tile_path` unit tests in `tile_routes.rs` (valid path, missing suffix, too few/many segments, invalid coords, empty source, negative)
+- TD-030: Added `react_to_message` tests (valid emoji → 200, invalid emoji → 400, injection snippet → 400)
+- TD-031: Added `get_npcs_here_returns_json_array` smoke test
+
+**Complexity/Hidden Bug (1):**
+- TD-032: Fixed `restore_session` to select the most recently modified `.db` file via `spawn_blocking` + `sort_by_key(mtime)` instead of alphabetically first; prevents stale-branch restores when multiple save files exist
 
 **Test results:**
 ```
-running 180 tests
-test result: ok. 180 passed; 0 failed
+cargo test -p parish-server
+running 191 unit + 46 integration tests
+test result: ok. 237 passed; 0 failed
 ```
 
 **Clippy:**
 ```
-cargo clippy -p parish-server -- -D warnings ... Finished
+cargo clippy -p parish-server --all-targets --all-features -- -D warnings
+Finished (0 errors, 0 warnings)
 ```
 
 **fmt:**
 ```
-cargo fmt --check ... (no output, clean)
+cargo fmt --all -- --check
+(no output, clean)
+```
+
+**Workspace:**
+```
+cargo check --workspace
+Finished (0 warnings)
 ```

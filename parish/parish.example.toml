@@ -105,9 +105,6 @@ min_muted_bg_contrast = 45.0
 [engine.world]
 fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location matching (0.0–1.0)
 
-[engine.persistence]
-journal_compaction_threshold = 1000  # Max journal entries before compaction (reserved)
-
 # ---------------------------------------------------------------------------
 # Map tile sources
 # ---------------------------------------------------------------------------

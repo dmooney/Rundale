@@ -54,32 +54,49 @@
 		onNpcReaction,
 		onTravelStart,
 		submitInput,
+		saveScreenshot,
 		disposeTransport
 	} from '$lib/ipc';
+	import { captureScreen } from '$lib/screenshot';
 	import { createAutoPauseTracker } from '$lib/auto-pause';
-	import { getStreamChunkDelayMs, takeNextStreamChunk } from '$lib/stream-pacing';
-	import type { LanguageHint } from '$lib/types';
+	import { createStreamManager } from '$lib/setup/stream-manager';
 
-	const AUTO_PAUSE_MS = 300_000;
+	/** Transient toast text shown after a screenshot is saved (or fails). */
+	let screenshotToast = $state<string | null>(null);
+	let screenshotToastTimer: ReturnType<typeof setTimeout> | null = null;
+	function flashScreenshotToast(message: string) {
+		screenshotToast = message;
+		if (screenshotToastTimer !== null) clearTimeout(screenshotToastTimer);
+		screenshotToastTimer = setTimeout(() => {
+			screenshotToast = null;
+			screenshotToastTimer = null;
+		}, 2500);
+	}
+
+	async function handleScreenshot() {
+		try {
+			const dataUrl = await captureScreen();
+			const info = await saveScreenshot(dataUrl);
+			flashScreenshotToast(`Screenshot saved: ${info.path}`);
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			flashScreenshotToast(`Screenshot failed: ${msg}`);
+		}
+	}
+
 	const MOUSEMOVE_THROTTLE_MS = 1000;
-	const STREAM_WAIT_FOR_WORD_MS = 70;
 
-	type PendingNpcTurn = {
-		turnId: number;
-		source: string;
-		messageId?: string;
-		buffer: string;
-		placeholderInserted: boolean;
-		complete: boolean;
-		pumpHandle: ReturnType<typeof setTimeout> | null;
-	};
-
-	// F5 toggle for save picker, F11 toggle for demo panel, F12 toggle for debug panel, M toggle for map
+	// F2 = capture screenshot, F5 toggle for save picker, F11 toggle for demo panel,
+	// F12 toggle for debug panel, M toggle for map
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape' && get(demoEnabled)) {
 			e.preventDefault();
 			stopDemo();
 			return;
+		}
+		if (e.key === 'F2') {
+			e.preventDefault();
+			void handleScreenshot();
 		}
 		if (e.key === 'F5') {
 			e.preventDefault();
@@ -131,42 +148,6 @@
 			};
 		}
 	});
-
-	function appendStreamToken(turnId: number, source: string, token: string, messageId?: string) {
-		textLog.update((log) => {
-			const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-			if (entryIndex >= 0) {
-				const current = log[entryIndex];
-				const nextEntry = {
-					...current,
-					id: current.id ?? messageId,
-					source,
-					content: current.content + token,
-					stream_turn_id: turnId,
-					streaming: true,
-					latest_chunk: token,
-					stream_chunk_id: (current.stream_chunk_id ?? 0) + 1
-				};
-				return [
-					...log.slice(0, entryIndex),
-					nextEntry,
-					...log.slice(entryIndex + 1)
-				];
-			}
-			return trimTextLog([
-				...log,
-				{
-					id: messageId,
-					source,
-					content: token,
-					stream_turn_id: turnId,
-					streaming: true,
-					latest_chunk: token,
-					stream_chunk_id: 1
-				}
-			]);
-		});
-	}
 
 	let mountCleanup: (() => void) | null = null;
 	let mobileMediaCleanup: (() => void) | null = null;
@@ -316,166 +297,7 @@
 			debugSnapshot.set(debugSnap);
 		} catch (_) {}
 
-		let pendingNpcTurns = new Map<number, PendingNpcTurn>();
-		let pendingStreamEndHints: LanguageHint[] | null = null;
-
-		function findPendingTurn(turnId: number) {
-			return pendingNpcTurns.get(turnId);
-		}
-
-		function queuePendingTurn(turnId: number, source: string, messageId?: string) {
-			const existing = findPendingTurn(turnId);
-			if (existing) {
-				existing.source = source;
-				existing.messageId = existing.messageId ?? messageId;
-				if (messageId && existing.placeholderInserted) {
-					textLog.update((log) => {
-						const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-						if (entryIndex < 0) return log;
-						return [
-							...log.slice(0, entryIndex),
-							{ ...log[entryIndex], id: log[entryIndex].id ?? messageId, source },
-							...log.slice(entryIndex + 1)
-						];
-					});
-				}
-				return existing;
-			}
-
-			const turn: PendingNpcTurn = {
-				turnId,
-				source,
-				messageId,
-				buffer: '',
-				placeholderInserted: false,
-				complete: false,
-				pumpHandle: null
-			};
-			pendingNpcTurns.set(turnId, turn);
-			return turn;
-		}
-
-		function ensureTurnEntry(turn: PendingNpcTurn) {
-			if (turn.placeholderInserted) return;
-
-			textLog.update((log) =>
-				trimTextLog([
-					...log,
-					{
-						id: turn.messageId,
-						source: turn.source,
-						content: '',
-						stream_turn_id: turn.turnId
-					}
-				])
-			);
-			turn.placeholderInserted = true;
-		}
-
-		function finalizeStreamingEntry(turnId: number) {
-			textLog.update((log) => {
-				const entryIndex = log.findIndex((entry) => entry.stream_turn_id === turnId);
-				if (entryIndex < 0) {
-					return log;
-				}
-
-				const entry = log[entryIndex];
-				if (entry.content === '') {
-					return [...log.slice(0, entryIndex), ...log.slice(entryIndex + 1)];
-				}
-
-				return [
-					...log.slice(0, entryIndex),
-					{
-						...entry,
-						streaming: false,
-						latest_chunk: undefined,
-						stream_chunk_id: undefined
-					},
-					...log.slice(entryIndex + 1)
-				];
-			});
-		}
-
-		function finishNpcStream(hints: LanguageHint[] = []) {
-			// Associate Irish hints with the last NPC message for inline highlighting
-			if (hints.length > 0) {
-				const log = get(textLog);
-				for (let i = log.length - 1; i >= 0; i--) {
-					if (log[i].id && log[i].source !== 'player' && log[i].source !== 'system') {
-						messageHints.update((m) => { m.set(log[i].id!, hints); return m; });
-						break;
-					}
-				}
-			}
-			languageHints.set(hints);
-			streamingActive.set(false);
-		}
-
-		function maybeFinishNpcStream() {
-			if (pendingStreamEndHints === null || pendingNpcTurns.size > 0) return;
-			finishNpcStream(pendingStreamEndHints);
-			pendingStreamEndHints = null;
-		}
-
-		function stopTurnPump(turn: PendingNpcTurn) {
-			if (turn.pumpHandle !== null) {
-				clearTimeout(turn.pumpHandle);
-				turn.pumpHandle = null;
-			}
-		}
-
-		function scheduleTurnPump(turn: PendingNpcTurn, delayMs: number) {
-			turn.pumpHandle = setTimeout(() => {
-				turn.pumpHandle = null;
-				pumpTurn(turn.turnId);
-			}, delayMs);
-		}
-
-		function finalizePendingTurn(turnId: number) {
-			const turn = findPendingTurn(turnId);
-			if (!turn) return;
-			stopTurnPump(turn);
-			finalizeStreamingEntry(turnId);
-			pendingNpcTurns.delete(turnId);
-			maybeFinishNpcStream();
-		}
-
-		function startTurnPumpIfNeeded(turn: PendingNpcTurn) {
-			if (turn.pumpHandle !== null) return;
-			pumpTurn(turn.turnId);
-		}
-
-		function pumpTurn(turnId: number) {
-			const turn = findPendingTurn(turnId);
-			if (!turn) return;
-
-			if (turn.buffer.length === 0) {
-				stopTurnPump(turn);
-				if (turn.complete) {
-					finalizePendingTurn(turnId);
-				}
-				return;
-			}
-
-			ensureTurnEntry(turn);
-
-			const { chunk, rest } = takeNextStreamChunk(turn.buffer, turn.complete);
-
-			if (chunk === null) {
-				scheduleTurnPump(turn, STREAM_WAIT_FOR_WORD_MS);
-				return;
-			}
-
-			turn.buffer = rest;
-			appendStreamToken(
-				turn.turnId,
-				turn.source,
-				chunk,
-				turn.messageId
-			);
-			scheduleTurnPump(turn, getStreamChunkDelayMs(chunk));
-		}
+		const sm = createStreamManager();
 
 		const listeners: Array<() => void> = [];
 		try {
@@ -498,7 +320,7 @@
 					payload.source !== 'system' &&
 					payload.stream_turn_id != null
 				) {
-					queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
+					sm.queuePendingTurn(payload.stream_turn_id, payload.source, payload.id);
 					return;
 				}
 
@@ -526,21 +348,21 @@
 			}));
 
 			listeners.push(await onStreamToken((payload) => {
-				const turn = queuePendingTurn(payload.turn_id, payload.source);
+				const turn = sm.queuePendingTurn(payload.turn_id, payload.source);
 				turn.buffer += payload.token;
-				startTurnPumpIfNeeded(turn);
+				sm.startTurnPumpIfNeeded(turn);
 			}));
 
 			listeners.push(await onStreamTurnEnd((payload) => {
-				const turn = findPendingTurn(payload.turn_id);
+				const turn = sm.findPendingTurn(payload.turn_id);
 				if (!turn) return;
 				turn.complete = true;
-				startTurnPumpIfNeeded(turn);
+				sm.startTurnPumpIfNeeded(turn);
 			}));
 
 			listeners.push(await onStreamEnd((payload) => {
-				pendingStreamEndHints = payload.hints;
-				maybeFinishNpcStream();
+				sm.setPendingEndHints(payload.hints);
+				sm.maybeFinishNpcStream();
 			}));
 
 			listeners.push(await onLoading((payload) => {
@@ -549,7 +371,7 @@
 					streamingActive.set(true);
 					if (payload.phrase) loadingPhrase.set(payload.phrase);
 					if (payload.color) loadingColor.set(payload.color);
-				} else if (pendingNpcTurns.size === 0 && pendingStreamEndHints === null) {
+				} else if (sm.pendingTurnCount() === 0 && !sm.hasPendingEndHints()) {
 					// Loading ended with no NPC stream in flight — clear immediately.
 					// When a stream IS in flight, the text pump is still dripping
 					// characters; finishNpcStream() clears streamingActive after the
@@ -622,7 +444,7 @@
 			window.removeEventListener('mousemove', onTrackerMousemove);
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			tracker.dispose();
-			pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
+			sm.dispose();
 			listeners.forEach((fn) => fn());
 		};
 	}
@@ -700,6 +522,10 @@
 {/if}
 <SavePicker />
 <SetupOverlay />
+
+{#if screenshotToast}
+	<div class="screenshot-toast" role="status" aria-live="polite">{screenshotToast}</div>
+{/if}
 
 <style>
 	.app-shell {
@@ -795,5 +621,28 @@
 			border-color: var(--color-accent);
 		}
 
+	}
+
+	/* ── Screenshot toast ── */
+	.screenshot-toast {
+		position: fixed;
+		bottom: 1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--color-panel-bg, rgba(20, 20, 20, 0.92));
+		color: var(--color-text, #f4f4f4);
+		border: 1px solid var(--color-border, #555);
+		padding: 0.55rem 1rem;
+		font-family: var(--font-display, sans-serif);
+		font-size: 0.75rem;
+		letter-spacing: 0.05em;
+		border-radius: 4px;
+		box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+		z-index: 1000;
+		max-width: min(80vw, 50rem);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		pointer-events: none;
 	}
 </style>

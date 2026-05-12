@@ -164,16 +164,6 @@ pub fn resolve_movement(
     }
 }
 
-/// Resolves a movement intent under the current weather.
-///
-/// Behaves like [`resolve_movement`] but routes around edges that are
-/// impassable in the current weather and applies per-edge speed
-/// multipliers for slowed edges. If every route to the destination is
-/// impassable, returns [`MovementResult::BlockedByWeather`] so the
-/// caller can explain the obstacle and let the player wait it out.
-///
-/// When `Weather::Clear` is passed (or the graph has no hazard tags),
-/// the result is identical to [`resolve_movement`].
 /// Computes weather-adjusted travel time and slowdown notes for a path.
 fn weather_adjusted_travel(
     path: &[LocationId],
@@ -251,6 +241,16 @@ fn blocked_or_fallback(
     }
 }
 
+/// Resolves a movement intent under the current weather.
+///
+/// Behaves like [`resolve_movement`] but routes around edges that are
+/// impassable in the current weather and applies per-edge speed
+/// multipliers for slowed edges. If every route to the destination is
+/// impassable, returns [`MovementResult::BlockedByWeather`] so the
+/// caller can explain the obstacle and let the player wait it out.
+///
+/// When `Weather::Clear` is passed (or the graph has no hazard tags),
+/// the result is identical to [`resolve_movement`].
 pub fn resolve_movement_with_weather(
     target: &str,
     graph: &WorldGraph,

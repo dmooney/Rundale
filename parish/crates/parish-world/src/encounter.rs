@@ -4,32 +4,10 @@
 //! Probability is ~20% per traversal, influenced by time of day.
 //!
 //! Encounter flavour text can come from hardcoded defaults (legacy) or from
-//! a mod's [`EncounterTable`](crate::game_mod::EncounterTable) data.
-
-use std::collections::HashMap;
+//! a mod's `EncounterTable` data.
 
 use parish_config::EncounterConfig;
-use parish_types::{NpcId, TimeOfDay};
-
-/// Encounter text table keyed by time-of-day label.
-///
-/// Loaded from a mod's `encounters.json` file. Used by
-/// [`check_encounter_with_table`] to provide mod-specific encounter text.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct EncounterTable {
-    /// Encounter flavour text keyed by time-of-day (e.g. "morning", "night").
-    #[serde(flatten)]
-    pub by_time: HashMap<String, String>,
-}
-
-/// An encounter event that occurs during travel.
-#[derive(Debug, Clone)]
-pub struct EncounterEvent {
-    /// The NPC involved, if any.
-    pub npc_id: Option<NpcId>,
-    /// A prose description of the encounter.
-    pub description: String,
-}
+use parish_types::TimeOfDay;
 
 /// Checks whether an encounter occurs during travel using default config.
 ///
@@ -39,8 +17,11 @@ pub struct EncounterEvent {
 ///
 /// The `roll` parameter is a value in `0.0..1.0` for testability
 /// (in production, pass `rand::random::<f64>()`).
-pub fn check_encounter(time_of_day: TimeOfDay, roll: f64) -> Option<EncounterEvent> {
-    check_encounter_with_config(time_of_day, roll, &EncounterConfig::default())
+pub fn check_encounter(time_of_day: TimeOfDay, roll: f64) -> Option<String> {
+    if roll >= encounter_threshold(time_of_day, &EncounterConfig::default()) {
+        return None;
+    }
+    Some(fallback_description(time_of_day).to_string())
 }
 
 /// Returns the encounter probability threshold for the given time of day.
@@ -54,52 +35,6 @@ fn encounter_threshold(time_of_day: TimeOfDay, config: &EncounterConfig) -> f64 
         TimeOfDay::Night => config.night,
         TimeOfDay::Midnight => config.midnight,
     }
-}
-
-/// Checks whether an encounter occurs during travel using the given config.
-///
-/// The config provides per-time-of-day probability thresholds. A random `roll`
-/// in `0.0..1.0` below the threshold triggers an encounter.
-pub fn check_encounter_with_config(
-    time_of_day: TimeOfDay,
-    roll: f64,
-    config: &EncounterConfig,
-) -> Option<EncounterEvent> {
-    if roll >= encounter_threshold(time_of_day, config) {
-        return None;
-    }
-
-    Some(EncounterEvent {
-        npc_id: None,
-        description: fallback_description(time_of_day).to_string(),
-    })
-}
-
-/// Checks whether an encounter occurs during travel, using a mod-provided
-/// [`EncounterTable`] for flavour text instead of hardcoded strings.
-///
-/// Falls back to a generic description if the table has no entry for the
-/// current time of day.
-pub fn check_encounter_with_table(
-    time_of_day: TimeOfDay,
-    roll: f64,
-    table: &EncounterTable,
-) -> Option<EncounterEvent> {
-    if roll >= encounter_threshold(time_of_day, &EncounterConfig::default()) {
-        return None;
-    }
-
-    let key = format!("{}", time_of_day).to_lowercase();
-    let description = table
-        .by_time
-        .get(&key)
-        .cloned()
-        .unwrap_or_else(|| fallback_description(time_of_day).to_string());
-
-    Some(EncounterEvent {
-        npc_id: None,
-        description,
-    })
 }
 
 /// Returns the period-appropriate fallback description for the given time of day.
@@ -155,9 +90,8 @@ mod tests {
 
     #[test]
     fn test_encounter_has_description() {
-        let event = check_encounter(TimeOfDay::Dawn, 0.0).unwrap();
-        assert!(!event.description.is_empty());
-        assert!(event.npc_id.is_none()); // Phase 2: no specific NPC yet
+        let desc = check_encounter(TimeOfDay::Dawn, 0.0).unwrap();
+        assert!(!desc.is_empty());
     }
 
     #[test]
@@ -188,102 +122,8 @@ mod tests {
             TimeOfDay::Midnight,
         ];
         for time in &times {
-            let event = check_encounter(*time, 0.0).unwrap();
-            assert!(
-                !event.description.is_empty(),
-                "No description for {:?}",
-                time
-            );
-        }
-    }
-
-    #[test]
-    fn test_encounter_with_table_uses_mod_text() {
-        use std::collections::HashMap;
-        let mut by_time = HashMap::new();
-        by_time.insert("morning".to_string(), "A shepherd passes.".to_string());
-        let table = EncounterTable { by_time };
-
-        let event = check_encounter_with_table(TimeOfDay::Morning, 0.1, &table).unwrap();
-        assert_eq!(event.description, "A shepherd passes.");
-        assert!(event.npc_id.is_none());
-    }
-
-    #[test]
-    fn test_encounter_with_table_fallback() {
-        use std::collections::HashMap;
-        let table = EncounterTable {
-            by_time: HashMap::new(),
-        };
-
-        // No entry for "dawn", should use fallback
-        let event = check_encounter_with_table(TimeOfDay::Dawn, 0.1, &table).unwrap();
-        assert!(!event.description.is_empty());
-    }
-
-    #[test]
-    fn test_encounter_with_table_respects_threshold() {
-        use std::collections::HashMap;
-        let table = EncounterTable {
-            by_time: HashMap::new(),
-        };
-        // Roll above threshold should return None
-        assert!(check_encounter_with_table(TimeOfDay::Morning, 0.5, &table).is_none());
-    }
-
-    #[test]
-    fn test_encounter_with_config_custom_thresholds() {
-        let config = EncounterConfig {
-            dawn: 0.50,
-            morning: 0.50,
-            midday: 0.50,
-            afternoon: 0.50,
-            dusk: 0.50,
-            night: 0.50,
-            midnight: 0.50,
-        };
-        // Roll of 0.4 is below 0.50 — should trigger for all times
-        assert!(check_encounter_with_config(TimeOfDay::Midnight, 0.4, &config).is_some());
-        assert!(check_encounter_with_config(TimeOfDay::Night, 0.4, &config).is_some());
-        // Roll of 0.6 is above 0.50 — should not trigger
-        assert!(check_encounter_with_config(TimeOfDay::Dawn, 0.6, &config).is_none());
-    }
-
-    #[test]
-    fn test_encounter_with_config_zero_thresholds() {
-        let config = EncounterConfig {
-            dawn: 0.0,
-            morning: 0.0,
-            midday: 0.0,
-            afternoon: 0.0,
-            dusk: 0.0,
-            night: 0.0,
-            midnight: 0.0,
-        };
-        // No encounters should ever trigger with zero thresholds
-        assert!(check_encounter_with_config(TimeOfDay::Morning, 0.0, &config).is_none());
-    }
-
-    #[test]
-    fn test_encounter_with_config_delegates_from_default() {
-        // check_encounter should produce the same result as check_encounter_with_config
-        // with default config
-        let config = EncounterConfig::default();
-        for roll in [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.50, 0.99] {
-            let times = [
-                TimeOfDay::Dawn,
-                TimeOfDay::Morning,
-                TimeOfDay::Midday,
-                TimeOfDay::Afternoon,
-                TimeOfDay::Dusk,
-                TimeOfDay::Night,
-                TimeOfDay::Midnight,
-            ];
-            for time in &times {
-                let a = check_encounter(*time, roll).is_some();
-                let b = check_encounter_with_config(*time, roll, &config).is_some();
-                assert_eq!(a, b, "Mismatch for {:?} at roll {}", time, roll);
-            }
+            let desc = check_encounter(*time, 0.0).unwrap();
+            assert!(!desc.is_empty(), "No description for {:?}", time);
         }
     }
 

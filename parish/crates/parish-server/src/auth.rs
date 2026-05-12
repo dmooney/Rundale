@@ -767,8 +767,6 @@ mod tests {
         assert_eq!(urlencode("é"), "%C3%A9");
     }
 
-
-
     /// `cookie_value` must return `None` when no `Cookie` header is present.
     #[test]
     fn cookie_value_no_cookie_header_returns_none() {
