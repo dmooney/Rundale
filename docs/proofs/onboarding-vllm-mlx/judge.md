@@ -120,6 +120,43 @@ smith). Truncated mid-word at the 80-token cap — expected for the
 `evidence.md`. To support readback from outside the Tauri webview,
 a new `GET /api/transcript` route was added to `mcp_bridge`.
 
+## Third probe — three shipping blockers fixed
+
+The second probe exposed three real issues that would have broken
+the "click one button, play the game" promise. The third probe
+(2026-05-12) drove the fixes:
+
+1. **Wizard now spawns vllm-mlx serve without a relaunch.** The
+   wizard previously emitted `setup-done` with the engine still
+   inert — no python process, no inference queue, no world tick.
+   Fixed by running the same post-gate bootstrap pipeline `run()`
+   does on a returning user. Verified: clean profile → POST
+   `/api/start-local-inference` → `curl :8001/v1/models` returns
+   in 3 s with the bundled python serving Qwen1.5B.
+
+2. **Multi-turn dialogue confirmed against the small-only
+   loadout.** Three exchanges with NPCs at Kilteevan Village
+   produced two distinct in-character replies (Peig at greeting,
+   Fr. Declan at the sick-mother prompt). The middle turn echoed
+   the first via vllm-mlx prefix-cache convergence — a 1.5B
+   limit, not an engine bug.
+
+3. **Tier 2 / Tier 3 JSON-parse storm silenced.** Sim+Reaction
+   categories now route to the in-process simulator; the
+   simulator's `generate_stream_with_format` now detects
+   JSON-shaped asks and streams a generic JSON object whose
+   `#[serde(default)]`-compatible fields parse cleanly as
+   `Tier2Response` / `Tier3Update`. A latent
+   `intent_json_for` word-boundary bug surfaced by the routing
+   work is also fixed and pinned by a unit test. Intent stays on
+   vllm-mlx because `parse_intent`'s `Unknown` fallback is a
+   safer default than the simulator's keyword-match. Log diff:
+   12+ parse failures per 30 s on the previous probe; zero on
+   this one.
+
+Saved to `transcript-peig-fr-declan.json`; full transcript in
+`evidence.md`.
+
 ## What this verdict does NOT cover
 
 Apple Developer codesigning + notarization are out of scope —

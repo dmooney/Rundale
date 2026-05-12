@@ -296,3 +296,83 @@ A new MCP route — `GET /api/transcript` — was added in the same
 session so the local conversation ring-buffer is readable from
 outside the Tauri webview; the dialogue stream emits Svelte events
 that Playwright/MCP can't tap directly.
+
+## Three follow-up fixes — wizard now produces a playable game
+
+The first follow-up probe shipped the wizard but exposed three
+shipping blockers. A third probe (2026-05-12) drove them out:
+
+### 1. Wizard now spawns vllm-mlx without a relaunch
+
+`do_start_local_inference_setup` used to write the saved
+`parish.toml` + emit `setup-done`, but never called
+`bootstrap_inference_provider` — so the user saw "ready", clicked
+through, and the engine sat with no spawned `vllm_mlx.cli serve`,
+no inference queue, no world tick. Only a manual app restart
+re-entered `run()` and picked up the saved config.
+
+The fix runs the same post-gate bootstrap pipeline `run()` does on
+a returning user (bootstrap → init_inference_queue →
+init_persistence → spawn_event_bus_fanin →
+spawn_world_tick → spawn_inactivity_tick → spawn_debug_tick →
+spawn_autosave_tick) so the wizard hands back a fully-live game.
+
+Verified: a clean `PARISH_USER_CONFIG_DIR` profile, a single POST
+to `/api/start-local-inference`, and `curl 127.0.0.1:8001/v1/models`
+reports the bundled python serving Qwen1.5B inside 3 seconds —
+no restart.
+
+### 2. Multi-turn dialogue against the 1.5B small-only loadout
+
+```
+You: Good morning, Peig. Fine day, isn't it?
+Peig Hannigan: Good morning, friend. Fine day, indeed. And yourself? What brings you to Kilteevan?
+You: What news of the village this morning?
+Peig Hannigan: Good morning, friend. Fine day, indeed. …
+You: My mother has the cough something terrible. Have you any remedy?
+Fr. Declan Tierney: Good morning, brother. Fine weather indeed. Perhaps you are here to seek the aid of a doctor? … if you are looking for a remedy, I may have something that might help your mother. …
+```
+
+The middle turn shows the 1.5B at its limit — prefix-cache hits
+make near-identical prompts repeat near-identical replies. The
+third turn proves the dialogue tier is actually re-deciding
+content on materially different player input (sick-mother prompt
+elicits a specific remedy response from the priest who has just
+arrived at the village). Saved to `transcript-peig-fr-declan.json`.
+
+### 3. Tier 2 / Tier 3 JSON-parse storm silenced
+
+On the small-only loadout the 1.5B can't reliably hold the strict
+JSON schema Tier 2 (Simulation) and Tier 3 (Reaction) expect, so
+the prior probe's logs flooded with one parse failure every 1–2
+seconds across every nearby location. The fix routes Sim+Reaction
+to the in-process simulator (Intent stays on vllm-mlx — see why
+below) AND fixes a latent simulator bug where
+`AnyClient::Simulator::generate_stream_with_format` ignored
+`response_format` and streamed plain Markov text into a JSON
+parser. The simulator now detects JSON-shaped asks (via system
+prompt keywords plus the `Respond with a JSON` boilerplate Tier 2
+uses) and streams a generic JSON object with
+`#[serde(default)]`-compatible fields, so `Tier2Response` parses
+to an "uneventful tick" instead of erroring.
+
+Intent stays on vllm-mlx because the simulator's `intent_json_for`
+matches verb prefixes via `starts_with("go")` without a word
+boundary, so "Good morning" gets classified as `Move`-to-"od
+morning" and the actual dialogue path never fires. That latent
+bug is also fixed (regression test in
+`parish-inference/src/simulator.rs::intent_json_for_requires_word_boundary_on_move_verbs`),
+so a future small-only loadout can route Intent to the simulator
+without re-introducing the regression — but until then,
+parse_intent's `Unknown` fallback (which trickles down into
+`handle_npc_conversation` regardless) is a safer default.
+
+Log diff from the previous probe (same wizard, same player input):
+
+```
+before: 12+ "Tier 2 inference failed at <loc>: Tier 2 JSON parse
+        failed: expected value at line 1 column 1" per 30 s
+after:  0 Tier 2 JSON parse failures; "Tier 2 cancelled
+        mid-stream" entries when sim_cancel preempts a tick on
+        player input (expected behaviour).
+```

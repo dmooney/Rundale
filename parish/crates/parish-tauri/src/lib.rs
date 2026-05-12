@@ -1226,7 +1226,7 @@ pub fn run() {
 
 /// Reads configuration from `parish.toml` (if present) and `PARISH_*` env vars
 /// into a [`ProviderConfig`] plus the display strings that populate [`GameConfig`].
-fn provider_config_from_env(
+pub(crate) fn provider_config_from_env(
     user_config_dir: &std::path::Path,
 ) -> (ProviderConfig, String, String, Option<String>) {
     let mut config =

@@ -181,10 +181,21 @@ fn target_length(system: Option<&str>) -> usize {
 fn intent_json_for(prompt: &str) -> String {
     let lower = prompt.trim().to_lowercase();
 
+    // Match a verb prefix only at a word boundary — `starts_with("go")`
+    // alone matches "good morning" and routes greetings into the
+    // movement path with a nonsense target. Require either an exact
+    // single-word command (`"go"`) or the verb followed by whitespace.
+    let begins_with_word = |word: &str| -> bool {
+        lower == word
+            || lower
+                .strip_prefix(word)
+                .is_some_and(|rest| rest.starts_with(char::is_whitespace))
+    };
+
     // Movement
     let move_words = ["go", "walk", "head", "move", "travel", "run", "wander"];
     for mw in move_words {
-        if lower.starts_with(mw) {
+        if begins_with_word(mw) {
             let target = lower
                 .trim_start_matches(mw)
                 .trim_start_matches(|c: char| !c.is_alphanumeric())
@@ -201,7 +212,7 @@ fn intent_json_for(prompt: &str) -> String {
     }
 
     // Look
-    if lower.starts_with("look") || lower == "l" || lower.starts_with("examine") {
+    if lower == "l" || begins_with_word("look") || begins_with_word("examine") {
         return r#"{"intent":"look","target":null,"dialogue":null}"#.to_string();
     }
 
@@ -210,7 +221,7 @@ fn intent_json_for(prompt: &str) -> String {
         "talk", "say", "tell", "ask", "greet", "hello", "hi", "hiya", "howya",
     ];
     for tw in talk_words {
-        if lower.starts_with(tw) {
+        if begins_with_word(tw) {
             return format!(
                 r#"{{"intent":"talk","target":null,"dialogue":"{}"}}"#,
                 prompt.trim().replace('"', "\\\"")
@@ -501,5 +512,21 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.intent.as_deref(), Some("move"));
+    }
+
+    #[test]
+    fn intent_json_for_requires_word_boundary_on_move_verbs() {
+        // Regression — "go" used to match anything starting with those two
+        // letters via bare `starts_with`, so a greeting like
+        // "Good morning, Peig" got classified as `move`-to-"od morning"
+        // and the actual dialogue path never fired.
+        assert!(intent_json_for("Good morning, Peig").contains(r#""intent":"unknown""#));
+        assert!(intent_json_for("How are you keeping?").contains(r#""intent":"unknown""#));
+        assert!(intent_json_for("Run-of-the-mill thing").contains(r#""intent":"unknown""#));
+
+        // Real movement commands still classify as move.
+        assert!(intent_json_for("go to the pub").contains(r#""intent":"move""#));
+        assert!(intent_json_for("walk south").contains(r#""intent":"move""#));
+        assert!(intent_json_for("go").contains(r#""intent":"move""#));
     }
 }
