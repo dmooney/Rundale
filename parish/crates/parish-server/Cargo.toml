@@ -11,13 +11,10 @@ parish-core    = { workspace = true }
 parish-palette = { workspace = true }
 axum           = { version = "0.8", features = ["ws"] }
 tokio          = { workspace = true }
-tower-http     = { version = "0.6", features = ["fs", "cors", "set-header"] }
-tower          = "0.5"
+tower-http     = { version = "0.6", features = ["fs", "set-header"] }
 serde          = { workspace = true }
 serde_json     = { workspace = true }
 tracing                 = { workspace = true }
-tracing-opentelemetry   = { workspace = true }
-opentelemetry           = { workspace = true }
 opentelemetry_sdk       = { workspace = true }
 opentelemetry-otlp      = { workspace = true }
 anyhow                  = { workspace = true }
@@ -42,3 +39,4 @@ tower-sessions = "0.15"
 tempfile    = { workspace = true }
 serial_test = { workspace = true }
 wiremock    = { workspace = true }
+tower       = "0.5"

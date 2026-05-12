@@ -3215,7 +3215,6 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "lru",
- "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parish-core",
@@ -3234,7 +3233,6 @@ dependencies = [
  "tower-http",
  "tower-sessions",
  "tracing",
- "tracing-opentelemetry",
  "uuid",
  "wiremock",
 ]
