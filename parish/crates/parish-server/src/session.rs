@@ -306,21 +306,6 @@ impl SessionRegistry {
         self.sessions.insert(session_id, entry);
     }
 
-    /// Returns the Google `(sub, display_name)` linked to `session_id`, if any.
-    ///
-    /// Used by `GET /api/auth/status` to check whether the session has a
-    /// linked Google account and what name to display.
-    pub fn google_account_for_session(&self, session_id: &str) -> Option<(String, String)> {
-        let db = self.db.lock().unwrap();
-        db.query_row(
-            "SELECT provider_user_id, display_name FROM oauth_accounts \
-             WHERE session_id = ?1 AND provider = 'google'",
-            rusqlite::params![session_id],
-            |row: &rusqlite::Row<'_>| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-        )
-        .ok()
-    }
-
     /// Removes sessions that have been idle longer than `max_age`.
     ///
     /// The sessions' background tick tasks are implicitly cancelled when
@@ -668,12 +653,22 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         session_store,
     );
 
-    if let Some(ref c) = client {
-        init_inference_queue(&app_state, c.clone()).await;
-    }
-
     if let Err(e) = init_session_save(&app_state, &session_saves).await {
         tracing::warn!("Session initial save failed: {}", e);
+    }
+
+    finalize_session_entry(app_state, client).await
+}
+
+/// Shared tail of session entry construction: starts the inference queue
+/// (if a client is configured), spawns background ticks, and returns the
+/// wrapped [`SessionEntry`].
+async fn finalize_session_entry(
+    app_state: Arc<AppState>,
+    client: Option<AnyClient>,
+) -> Arc<SessionEntry> {
+    if let Some(ref c) = client {
+        init_inference_queue(&app_state, c.clone()).await;
     }
 
     let shutdown_token = tokio_util::sync::CancellationToken::new();
@@ -793,15 +788,7 @@ async fn restore_session(
     *app_state.current_branch_id.lock().await = Some(branch_id);
     *app_state.current_branch_name.lock().await = Some(branch_name);
 
-    let shutdown_token = tokio_util::sync::CancellationToken::new();
-    let handles = spawn_session_ticks(Arc::clone(&app_state), shutdown_token.clone());
-
-    Ok(Arc::new(SessionEntry {
-        app_state,
-        last_active: AtomicU64::new(SessionRegistry::now_unix()),
-        _shutdown_token: shutdown_token,
-        _tick_handles: handles,
-    }))
+    Ok(finalize_session_entry(app_state, client).await)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1229,8 +1216,8 @@ mod tests {
     }
 
     /// Verifies that a fresh DB round-trips the Google OAuth link:
-    /// after `link_oauth`, both `find_by_oauth` and
-    /// `google_account_for_session` return the stored values.
+    /// after `link_oauth`, both `find_by_oauth` and the identity store's
+    /// `get_account` return the stored values.
     ///
     /// This is the exact flow the callback + status endpoint use, so if
     /// this test passes but the UI shows the user as signed out, the bug
@@ -1247,17 +1234,20 @@ mod tests {
             Some("sess_abc".to_string()),
             "find_by_oauth should return the linked session_id"
         );
+
+        let conn = crate::session_store_impl::open_sessions_db(tmp.path()).unwrap();
+        let store = crate::session_store_impl::SqliteIdentityStore::new(conn);
         assert_eq!(
-            reg.google_account_for_session("sess_abc"),
+            store.get_account("sess_abc"),
             Some(("sub_123".to_string(), "John Doe".to_string())),
-            "google_account_for_session should return (sub, display_name)"
+            "get_account should return (sub, display_name)"
         );
     }
 
     /// Verifies the migration from a pre-display_name schema to the
     /// current schema: opening a DB that was created with the old schema
     /// should add the `display_name` column, and subsequent link_oauth
-    /// + google_account_for_session calls should work end-to-end.
+    /// + identity-store `get_account` calls should work end-to-end.
     #[test]
     fn oauth_link_round_trips_on_migrated_db() {
         let tmp = tempfile::tempdir().unwrap();
@@ -1292,9 +1282,12 @@ mod tests {
         // Re-open through SessionRegistry — this should ADD COLUMN display_name.
         let reg = SessionRegistry::open(tmp.path()).unwrap();
 
+        let conn = crate::session_store_impl::open_sessions_db(tmp.path()).unwrap();
+        let store = crate::session_store_impl::SqliteIdentityStore::new(conn);
+
         // Legacy row has empty display_name (default).
         assert_eq!(
-            reg.google_account_for_session("legacy_sess"),
+            store.get_account("legacy_sess"),
             Some(("legacy_sub".to_string(), String::new())),
         );
 
@@ -1302,7 +1295,7 @@ mod tests {
         reg.persist_new("sess_new");
         reg.link_oauth("google", "sub_new", "sess_new", "Jane Doe");
         assert_eq!(
-            reg.google_account_for_session("sess_new"),
+            store.get_account("sess_new"),
             Some(("sub_new".to_string(), "Jane Doe".to_string())),
         );
     }

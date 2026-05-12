@@ -491,7 +491,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
     // ── Saves directory ───────────────────────────────────────────────────────
-    let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&data_dir);
 
     // ── Session registry ──────────────────────────────────────────────────────
     let sessions = SessionRegistry::open(&saves_dir)
@@ -813,39 +813,16 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
         use tower_sessions::cookie::time::Duration as CookieDuration;
         use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
 
-        // MemoryStore does not implement `ExpiredDeletion`, so expired entries
-        // are only filtered on read (via `is_active`).  Spawn a background
-        // task that drops entries whose `expiry_date` has passed so the store
-        // doesn't grow without bound over long-running deployments.
-        // The store is wrapped in Arc so both the layer and the task share it.
+        // `MemoryStore` does not implement `ExpiredDeletion`, so expired
+        // entries are only filtered on read (via `is_active`).  There is no
+        // background cleanup task because the backing map is not publicly
+        // accessible.  Instead we rely on the 365-day `Expiry` set by
+        // `SessionManagerLayer` below to bound memory growth.
+        //
+        // TODO: replace `MemoryStore` with a store that implements
+        // `ExpiredDeletion` (e.g. `tower-sessions-sqlx-store`) if
+        // long-running deployments reveal significant memory pressure.
         let session_store = std::sync::Arc::new(MemoryStore::default());
-        {
-            let store = std::sync::Arc::clone(&session_store);
-            tokio::spawn(async move {
-                const CLEANUP_INTERVAL: Duration = Duration::from_secs(5 * 60);
-                loop {
-                    tokio::time::sleep(CLEANUP_INTERVAL).await;
-                    // `tower_sessions::MemoryStore` wraps an
-                    // `Arc<Mutex<HashMap<Id, Record>>>`.  The backing map is
-                    // not publicly accessible, so we cannot iterate and drop
-                    // expired entries directly.  Instead we rely on the fact
-                    // that `SessionManagerLayer` already sets a 365-day
-                    // `Expiry` on every session, bounding the worst-case leak
-                    // to one year of inactive sessions.
-                    //
-                    // TODO: replace `MemoryStore` with a store that implements
-                    // `ExpiredDeletion` (e.g. `tower-sessions-sqlx-store`) if
-                    // long-running deployments reveal significant memory
-                    // pressure from stale tower-sessions entries.
-                    let _ = &store; // keep Arc alive; nothing to clean up yet
-                    tracing::debug!(
-                        "tower-sessions MemoryStore cleanup tick \
-                         (no-op: MemoryStore filters on read, \
-                         sessions expire in 365 days)"
-                    );
-                }
-            });
-        }
         let session_layer = SessionManagerLayer::new((*session_store).clone())
             .with_name(middleware::SESSION_COOKIE)
             .with_secure(true)

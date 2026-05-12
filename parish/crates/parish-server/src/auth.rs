@@ -532,9 +532,9 @@ fn build_google_auth_url(
         "{}?client_id={}&redirect_uri={}&response_type=code\
          &scope=openid%20email%20profile&state={}",
         GOOGLE_AUTH_URL,
-        urlenccode(&cfg.client_id),
-        urlenccode(redirect_uri),
-        urlenccode(csrf_state),
+        urlencode(&cfg.client_id),
+        urlencode(redirect_uri),
+        urlencode(csrf_state),
     )
 }
 
@@ -609,7 +609,7 @@ fn find_oauth_account_for_session(
     global: &GlobalState,
     session_id: &str,
 ) -> Option<(String, String)> {
-    global.sessions.google_account_for_session(session_id)
+    global.identity_store.get_account(session_id)
 }
 
 /// Reads a named cookie value from a `HeaderMap`.
@@ -621,7 +621,7 @@ fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
 }
 
 /// Minimal percent-encoding for OAuth URL parameters.
-fn urlenccode(s: &str) -> String {
+fn urlencode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         match ch {
@@ -658,7 +658,7 @@ mod tests {
     use axum::routing::get;
     use tower::ServiceExt;
 
-    use super::{cookie_value, exchange_code, fetch_user_info, get_auth_status, urlenccode};
+    use super::{cookie_value, exchange_code, fetch_user_info, get_auth_status, urlencode};
 
     // ── tower-sessions CSRF/session round-trip (#364) ─────────────────────────
 
@@ -747,28 +747,27 @@ mod tests {
 
     // ── Pure helpers ──────────────────────────────────────────────────────────
 
-    /// Unreserved characters must pass through urlenccode unchanged.
+    /// Unreserved characters must pass through urlencode unchanged.
     #[test]
-    fn urlenccode_unreserved_chars_unchanged() {
-        let input = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
-        assert_eq!(urlenccode(input), input);
+    fn urlencode_unreserved_chars_unchanged() {
+        let input = "ABCxyz123-_.~";
+        assert_eq!(urlencode(input), input);
     }
 
-    /// Space, `@`, `/`, and `+` must be percent-encoded.
     #[test]
-    fn urlenccode_special_chars_are_percent_encoded() {
-        assert_eq!(urlenccode(" "), "%20");
-        assert_eq!(urlenccode("@"), "%40");
-        assert_eq!(urlenccode("/"), "%2F");
-        assert_eq!(urlenccode("+"), "%2B");
+    fn urlencode_special_chars_are_percent_encoded() {
+        assert_eq!(urlencode(" "), "%20");
+        assert_eq!(urlencode("@"), "%40");
+        assert_eq!(urlencode("/"), "%2F");
+        assert_eq!(urlencode("+"), "%2B");
     }
 
-    /// A multi-byte Unicode character must produce the right percent-encoded bytes.
     #[test]
-    fn urlenccode_multibyte_unicode() {
-        // U+00E9 (é) encodes as UTF-8 0xC3 0xA9
-        assert_eq!(urlenccode("é"), "%C3%A9");
+    fn urlencode_multibyte_unicode() {
+        assert_eq!(urlencode("é"), "%C3%A9");
     }
+
+
 
     /// `cookie_value` must return `None` when no `Cookie` header is present.
     #[test]

@@ -221,7 +221,7 @@ pub async fn get_debug_snapshot(
         categories,
         configured_providers: parish_core::debug_snapshot::build_configured_providers(),
     };
-    let linked = global.sessions.google_account_for_session(&session_id.0);
+    let linked = global.identity_store.get_account(&session_id.0);
     let auth = AuthDebug {
         oauth_enabled: global.oauth_config.is_some(),
         logged_in: linked.is_some(),
