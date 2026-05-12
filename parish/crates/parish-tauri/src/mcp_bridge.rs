@@ -100,6 +100,13 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/submit-byok", post(submit_byok))
         .route("/api/byok-env-keys", get(byok_env_keys))
         .route("/api/preset-models", get(preset_models))
+        // ── Local-inference onboarding (vllm-mlx fork) ────────────────────
+        // GET returns the same fork-variant + RAM data the Svelte
+        // `LocalInferenceFork` reads on mount. POST drives the same
+        // download + provider-config path the desktop button triggers,
+        // so an MCP client can run the full first-run flow headless.
+        .route("/api/onboarding-options", get(onboarding_options))
+        .route("/api/start-local-inference", post(start_local_inference))
         .with_state(bridge)
 }
 
@@ -380,6 +387,35 @@ pub(crate) async fn do_submit_byok(
         "base_url": snapshot.base_url,
         "has_api_key": snapshot.has_api_key,
     }))
+}
+
+// ── Local-inference onboarding routes ───────────────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub(crate) struct StartLocalInferenceBody {
+    pub(crate) variant: String,
+}
+
+async fn onboarding_options(State(b): State<BridgeState>) -> Json<serde_json::Value> {
+    let opts = crate::commands::do_get_onboarding_options(&b.state).await;
+    Json(serde_json::to_value(&opts).unwrap_or(serde_json::json!({})))
+}
+
+async fn start_local_inference(
+    State(b): State<BridgeState>,
+    Json(body): Json<StartLocalInferenceBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    crate::commands::do_start_local_inference_setup(
+        &b.state,
+        &b.app,
+        crate::commands::LocalSetupArgs {
+            variant: body.variant,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 // ── error mapping ───────────────────────────────────────────────────────────
