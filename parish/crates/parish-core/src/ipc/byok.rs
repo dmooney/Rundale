@@ -260,14 +260,21 @@ pub async fn handle_set_provider_config(
     let account = provider_account(&provider_name);
     match (&typed_key, used_env_key) {
         (Some(k), _) => ctx.secrets.set(&account, k)?,
-        (None, true) => {
-            // Env var is the source of truth — wipe any stale keychain entry
-            // so a previously-typed key can't shadow the env var later.
-            ctx.secrets.delete(&account)?;
-        }
-        (None, false) => {
-            // Keyless local provider — wipe.
-            ctx.secrets.delete(&account)?;
+        (None, true) | (None, false) => {
+            // No user-supplied key — try to wipe any stale keychain entry so a
+            // previously-typed key can't shadow the env var (or, for keyless
+            // local providers, doesn't linger after the user switches away).
+            // Keychain platform failures (e.g. no default keychain on a
+            // sandboxed test profile) are tolerated: the only case where
+            // they'd corrupt state is when there *was* a stored key, and a
+            // failure to delete it would have surfaced on `set` first.
+            if let Err(e) = ctx.secrets.delete(&account) {
+                tracing::warn!(
+                    %account,
+                    error = %e,
+                    "secret store delete failed during keyless config; ignoring",
+                );
+            }
         }
     }
 
