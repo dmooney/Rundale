@@ -137,6 +137,46 @@ async fn tier2_multi_npc_with_mood_and_relationship_changes() {
     assert!((event.relationship_changes[0].delta - 0.1).abs() < f64::EPSILON);
 }
 
+/// Regression — when the wizard's `small-only` variant routes Tier 2 to
+/// the in-process simulator, the simulator must produce a string the
+/// `Tier2Response` parser accepts. Without the
+/// `AnyClient::Simulator::generate_stream_with_format` JSON-detection
+/// shim landed alongside the `small-only` routing change, the simulator
+/// streamed plain Markov text into a JSON parser and Tier 2 ticks
+/// flooded the log with a parse failure every 5 game-seconds (one per
+/// nearby location). This test pins the contract: feed the simulator
+/// the actual prompt `build_tier2_prompt` produces and verify the
+/// returned event has the right shape rather than an Inference error.
+#[tokio::test]
+async fn tier2_through_simulator_parses_as_empty_event() {
+    let client = AnyClient::simulator();
+    let group = two_npc_group();
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(
+        &client,
+        "sim",
+        &group,
+        "Afternoon",
+        "Clear",
+        &lang,
+        None,
+    )
+    .await;
+
+    let event = event.expect(
+        "simulator-routed Tier 2 must produce a parseable event (not a JSON parse failure)",
+    );
+    assert_eq!(event.location, LocationId(2));
+    assert_eq!(event.participants, vec![NpcId(1), NpcId(2)]);
+    // The simulator can't actually reason about NPC interactions, so the
+    // parse fills `Tier2Response` fields from `#[serde(default)]`. The
+    // contract we care about is that the parser DOESN'T fail: tier2_event
+    // exists, fields are well-formed (any string / any empty vec is OK).
+    let _ = event.summary;
+    let _ = event.mood_changes;
+    let _ = event.relationship_changes;
+}
+
 #[tokio::test]
 async fn tier2_http_error_returns_none() {
     let server = MockServer::start().await;

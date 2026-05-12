@@ -556,6 +556,7 @@ mod tests {
             ),
             inference_config: parish_core::config::InferenceConfig::default(),
             setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
+            wizard_in_flight: std::sync::atomic::AtomicBool::new(false),
             language_settings: parish_core::npc::LanguageSettings::english_only(),
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),

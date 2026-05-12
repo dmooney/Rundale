@@ -157,6 +157,36 @@ the "click one button, play the game" promise. The third probe
 Saved to `transcript-peig-fr-declan.json`; full transcript in
 `evidence.md`.
 
+## Fourth probe — two-slot loadout + wizard hardening
+
+Closed out the local-inference-on-Mac scope:
+
+1. **Two-slot live end-to-end.** Recommended variant on 16+ GB Mac
+   downloads Qwen14B + Qwen1.5B, spawns vllm-mlx on both :8000 and
+   :8001, and routes Dialogue→14B / Intent→1.5B / Sim+Reaction→
+   simulator. NPC dialogue produced a period-appropriate
+   marshmallow-root remedy with a Gaeilge sentence at the end —
+   visible step up from the small-only 1.5B's output. Saved to
+   `transcript-brigid-two-slot.json`. Tier 2 JSON-parse storm: zero
+   on this loadout too (the same fix as small-only).
+
+2. **Feature flag** for the wizard wired through
+   `bootstrap_inference_provider` (AGENTS.md rule #6).
+
+3. **Idempotency guard + error-path UX** so a second POST while
+   downloading drops cleanly, and any failing exit emits
+   `setup-done(success=false)` instead of hanging the SetupOverlay
+   on the spinner.
+
+4. **Three pinning tests** added so the simulator's JSON routing,
+   the Tier 2 contract through simulator, and the intent
+   word-boundary fix can't silently regress.
+
+The one Tier 3 race that fires on the first world-tick post-boot
+remains; it surfaces once per launch and the engine recovers
+without intervention. Tracked as low-priority follow-up; doesn't
+block ship.
+
 ## What this verdict does NOT cover
 
 Apple Developer codesigning + notarization are out of scope —

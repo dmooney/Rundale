@@ -397,6 +397,54 @@ pub(crate) async fn do_start_local_inference_setup(
     app: &tauri::AppHandle,
     args: LocalSetupArgs,
 ) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    // Idempotency guard — a second POST while the first is still running
+    // would race the bootstrap pipeline, double-spawn vllm-mlx serve, and
+    // produce undefined behaviour for the inference queue. Drop the
+    // duplicate with a busy error; the in-flight wizard keeps running.
+    // RAII guard restores the flag on every exit path.
+    struct WizardGuard<'a>(&'a std::sync::atomic::AtomicBool);
+    impl<'a> Drop for WizardGuard<'a> {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::Release);
+        }
+    }
+    if state
+        .wizard_in_flight
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Err("local-inference setup already in progress".to_string());
+    }
+    let _guard = WizardGuard(&state.wizard_in_flight);
+
+    // Error-path UX (#?) — every failing exit emits a `setup-done` with
+    // success=false + the error message, so the SetupOverlay drops out of
+    // the "Downloading…" spinner and the user sees what went wrong
+    // (network blip, disk full, vllm-mlx spawn failure). Without this the
+    // wizard hangs on the spinner forever and the user has to restart the
+    // app to see anything. The inner `result` is also returned to the
+    // caller so the MCP / Tauri shim can pass it back over the wire.
+    let inner = do_start_local_inference_setup_inner(state, app, args).await;
+    if let Err(ref e) = inner {
+        crate::record_setup_done(state, false, e.clone());
+        let _ = app.emit(
+            crate::events::EVENT_SETUP_DONE,
+            crate::events::SetupDonePayload {
+                success: false,
+                error: e.clone(),
+            },
+        );
+    }
+    inner
+}
+
+async fn do_start_local_inference_setup_inner(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    args: LocalSetupArgs,
+) -> Result<(), String> {
     use parish_core::inference::hf_downloader::HfModelDownloader;
     use parish_core::inference::setup::SetupProgress;
     use std::sync::Arc as StdArc;
@@ -474,13 +522,32 @@ pub(crate) async fn do_start_local_inference_setup(
         parish_core::config::user_config::CategoryOverride,
     > = std::collections::BTreeMap::new();
     if two_slot {
-        for cat_name in ["simulation", "reaction", "intent"] {
+        // Intent stays on the small slot (1.5B) — fast classification
+        // doesn't need 14B and parse_intent's `Unknown` fallback handles
+        // any JSON parse failures (falls through to handle_npc_conversation
+        // as dialogue).
+        category_overrides.insert(
+            "intent".to_string(),
+            parish_core::config::user_config::CategoryOverride {
+                provider: Some("vllm-mlx".to_string()),
+                base_url: Some("http://localhost:8001".to_string()),
+                model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
+            },
+        );
+        // Sim + Reaction route to the simulator: the 1.5B can't reliably
+        // hold strict JSON for Tier 2 / Tier 3, and the resulting parse
+        // failures flooded the log every 5 game-seconds. The simulator
+        // returns valid `Tier2Response` / `Tier3Update` shapes (all
+        // `#[serde(default)]`), so ticks succeed as "uneventful" and the
+        // 1.5B is reserved for intent + the deterministic schedule logic
+        // handles NPC motion. The 14B big slot stays free for dialogue.
+        for cat_name in ["simulation", "reaction"] {
             category_overrides.insert(
                 cat_name.to_string(),
                 parish_core::config::user_config::CategoryOverride {
-                    provider: Some("vllm-mlx".to_string()),
-                    base_url: Some("http://localhost:8001".to_string()),
-                    model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
+                    provider: Some("simulator".to_string()),
+                    base_url: None,
+                    model: None,
                 },
             );
         }
@@ -2480,6 +2547,7 @@ mod cmd_tests {
             runtime_processes: Mutex::new(parish_core::inference::client::RuntimeProcesses::none()),
             inference_config: parish_core::config::InferenceConfig::default(),
             setup_status: std::sync::Mutex::new(crate::SetupStatusSnapshot::default()),
+            wizard_in_flight: std::sync::atomic::AtomicBool::new(false),
             language_settings: parish_core::npc::LanguageSettings::english_only(),
             config: Mutex::new(game_config),
             demo_config: DemoConfig::default(),

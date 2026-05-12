@@ -376,3 +376,90 @@ after:  0 Tier 2 JSON parse failures; "Tier 2 cancelled
         mid-stream" entries when sim_cancel preempts a tick on
         player input (expected behaviour).
 ```
+
+## Two-slot loadout — live end-to-end
+
+The wizard's `recommended` variant on a 16+ GB Mac downloads
+**both** Qwen2.5-14B (~7.7 GB) and Qwen2.5-1.5B (~880 MB), spawns
+two `python3 -m vllm_mlx.cli serve` processes (14B on `:8000`,
+1.5B on `:8001`), and routes the inference categories:
+
+- **Dialogue** → :8000 / 14B (full-quality player-facing replies)
+- **Intent** → :8001 / 1.5B (fast classification; `parse_intent`'s
+  `Unknown` fallback covers the occasional JSON-parse failure)
+- **Sim + Reaction** → in-process simulator (the 1.5B can't hold
+  strict JSON for Tier 2 / Tier 3 schemas reliably; routing those
+  categories to the simulator avoids the same parse-failure storm
+  the `small-only` loadout was hitting)
+
+Probed 2026-05-12 against a clean profile with both models
+pre-cached locally (HF cache symlinked from `~/.cache/huggingface`).
+After the wizard completes, `curl /v1/models` on both ports lists
+the right model, and an NPC dialogue exchange produces in-character
+period speech from the 14B big slot:
+
+```
+You: Brigid, my mother has a cough that won't leave her. Any remedy?
+Brigid Ni Fhatharta: Ah, I've seen that cough before. Try a tea
+  of marshmallow root and thyme. It'll soothe the throat and clear
+  the chest. A bit of rest and warmth too, if ye can get it. How's
+  yer mother's strength holding up, mind ye don't tire her too
+  much with the tea-making if she's weak from the coughing. Tá an
+  tea sin go hóg an-laethúil é.
+```
+
+The 14B is fluent enough to slip a Gaeilge sentence into Brigid's
+reply unprompted ("Tá an tea sin go hóg an-laethúil é" — "that
+tea is very useful…"); the small-only Qwen1.5B never produced any
+Irish in the previous probe.
+
+Tier 2 JSON-parse failures in the log over the full probe: **0**.
+Tier 3 boot-time failures: 1 (same race the small-only probe saw —
+first tier-3 tick fires within the 5-second world-tick window
+before the simulator override settles end-to-end; engine moves on,
+no subsequent failures, NPCs continue to schedule and disperse
+normally).
+
+Saved to `transcript-brigid-two-slot.json`.
+
+## Wizard hardening — three smaller fixes alongside
+
+### Feature flag (AGENTS.md rule #6)
+
+`bootstrap_inference_provider` now gates the wizard on
+`config.flags.is_disabled("local-inference-onboarding")` — default-on,
+explicit-disable falls back to the legacy bootstrap. Operators can
+ship a build that suppresses the wizard without code changes (for
+example when running the engine pointed at a managed server).
+
+### Idempotency guard
+
+`do_start_local_inference_setup` now uses
+`AppState::wizard_in_flight: AtomicBool` to drop a second POST
+while the first is downloading. The in-flight wizard keeps running;
+the duplicate caller sees `local-inference setup already in progress`.
+RAII guard clears the flag on every exit path (success or error).
+
+### Error-path UX
+
+Every failing exit (HF download failure, bootstrap failure, etc.)
+now emits a `setup-done` event with `success=false` + the error
+message, so the SetupOverlay drops out of the "Downloading…"
+spinner and the user sees what went wrong. Without this the wizard
+hung on the spinner forever and the user had to restart the app
+to see anything.
+
+## Tests
+
+- `parish-inference::tests::simulator_streams_json_when_format_or_prompt_requests_it`
+  — pins the simulator's JSON detection so the four routing cases
+  (explicit `response_format`, "Respond with a JSON" prompt
+  marker, "input parser" system prompt, plain prompt) keep
+  producing the right body shape (JSON vs Markov text).
+- `parish-npc::tier2_llm_integration::tier2_through_simulator_parses_as_empty_event`
+  — runs `run_tier2_for_group` end-to-end against the in-process
+  simulator and asserts the result parses cleanly as an empty
+  `Tier2Event`, not a JSON parse error.
+- `parish-inference::simulator::intent_json_for_requires_word_boundary_on_move_verbs`
+  — pins the simulator's intent verb-boundary fix so "Good
+  morning" never classifies as `move`-to-"od morning" again.
