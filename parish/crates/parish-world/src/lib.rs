@@ -32,7 +32,7 @@ use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
 
 /// Maximum number of entries kept in the backend text log, matching the
-/// frontend cap (`MAX_TEXT_LOG_SIZE` in `apps/ui/src/stores/game.ts`).
+/// frontend cap (`MAX_TEXT_LOG_SIZE` in `parish/apps/ui/src/stores/game.ts`).
 const MAX_TEXT_LOG: usize = 500;
 
 /// Central game state container.
