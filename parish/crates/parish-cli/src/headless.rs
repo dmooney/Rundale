@@ -183,7 +183,7 @@ pub async fn run_headless(
     app.npc_manager.assign_tiers(&app.world, &[]);
 
     // Initialize persistence — Papers Please-style save picker
-    let saves_dir = crate::persistence::picker::ensure_saves_dir();
+    let saves_dir = crate::persistence::picker::resolve_project_saves_dir_from_cwd();
     // Wire SessionStore — single-user CLI uses session_id = "" (#696 slice 8).
     app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
         saves_dir.clone(),

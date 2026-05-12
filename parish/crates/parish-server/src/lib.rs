@@ -488,7 +488,7 @@ pub async fn run_server(port: u16, data_dir: PathBuf, static_dir: PathBuf) -> an
     config.flags = FeatureFlags::load_from_file(&flags_path);
 
     // ── Saves directory ───────────────────────────────────────────────────────
-    let saves_dir = parish_core::persistence::picker::ensure_saves_dir();
+    let saves_dir = parish_core::persistence::picker::resolve_project_saves_dir(&data_dir);
 
     // ── Session registry ──────────────────────────────────────────────────────
     let sessions = SessionRegistry::open(&saves_dir)
