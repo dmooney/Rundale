@@ -53,8 +53,7 @@ use crate::state::{AppState, SaveState, SetupStatusSnapshot};
 pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> Json<WorldSnapshot> {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
-    let transport = state.transport.default_mode();
-    let mut snapshot = parish_core::ipc::snapshot_from_world(&world, transport);
+    let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
     snapshot.name_hints =
         parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
     Json(snapshot)
@@ -384,8 +383,7 @@ async fn touch_player_activity(state: &Arc<AppState>) {
 async fn emit_world_update(state: &Arc<AppState>) {
     let world = state.world.lock().await;
     let npc_manager = state.npc_manager.lock().await;
-    let transport = state.transport.default_mode();
-    let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+    let mut ws = parish_core::ipc::snapshot_from_world(&world);
     ws.name_hints =
         parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
     state
@@ -1077,8 +1075,7 @@ async fn restore_snapshot_and_emit(
         snapshot.restore(&mut world, &mut npc_manager);
         npc_manager.assign_tiers(&world, &[]);
 
-        let transport = state.transport.default_mode();
-        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        let mut ws = parish_core::ipc::snapshot_from_world(&world);
         ws.name_hints =
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         drop(npc_manager);

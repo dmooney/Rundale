@@ -115,11 +115,9 @@ async fn health() -> &'static str {
 
 async fn world_snapshot(State(b): State<BridgeState>) -> Json<WorldSnapshot> {
     let world = b.state.world.lock().await;
-    let transport = b.state.transport.default_mode();
     let npc_manager = b.state.npc_manager.lock().await;
     let snap = crate::commands::get_world_snapshot_inner(
         &world,
-        transport,
         Some(&npc_manager),
         &b.state.pronunciations,
     );

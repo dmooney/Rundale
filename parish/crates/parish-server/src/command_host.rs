@@ -222,8 +222,7 @@ impl SystemCommandHost for AppStateCommandHost {
         Box::pin(async move {
             let world = self.state.world.lock().await;
             let npc_manager = self.state.npc_manager.lock().await;
-            let transport = self.state.transport.default_mode();
-            let mut ws = snapshot_from_world(&world, transport);
+            let mut ws = snapshot_from_world(&world);
             ws.name_hints = compute_name_hints(&world, &npc_manager, &self.state.pronunciations);
             self.state
                 .event_bus

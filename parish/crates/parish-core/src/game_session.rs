@@ -625,6 +625,16 @@ mod tests {
     }
 
     #[test]
+    fn apply_movement_already_here() {
+        let Some((mut world, mut mgr, templates, transport)) = setup() else {
+            return;
+        };
+        let loc = world.current_location().name.clone();
+        let effects = apply_movement(&mut world, &mut mgr, &templates, &loc, &transport);
+        assert!(!effects.messages.is_empty());
+    }
+
+    #[test]
     fn apply_movement_not_found_produces_message() {
         let Some((mut world, mut mgr, templates, transport)) = setup() else {
             return;
@@ -664,6 +674,15 @@ mod tests {
         assert_eq!(world.player_location, neighbor_id);
         // Log should contain narration + look text
         assert!(world.text_log.len() >= 2);
+    }
+
+    #[test]
+    fn apply_arrival_reactions_does_not_panic() {
+        let Some((mut world, mut mgr, templates, _)) = setup() else {
+            return;
+        };
+        let config = ReactionConfig::default();
+        apply_arrival_reactions(&mut world, &mut mgr, &templates, &config);
     }
 
     /// Verifies that stream_reaction_texts calls emit_text_log once per reaction

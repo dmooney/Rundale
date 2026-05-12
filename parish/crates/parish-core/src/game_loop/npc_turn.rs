@@ -303,6 +303,70 @@ pub async fn run_npc_turn(
     Some(TurnOutcome { line, hints })
 }
 
+/// Runs an autonomous NPC conversation chain for up to `chain_cap` turns.
+///
+/// Picks the next speaker via [`autonomous::pick_next_speaker`], drives each
+/// turn through [`run_npc_turn`], and updates the shared conversation state.
+///
+/// # Arguments
+///
+/// Argument count is high because this helper replaces two near-identical
+/// inline loops that each referenced the same set of local variables.
+/// Grouping into a struct would add indirection without improving clarity.
+#[allow(clippy::too_many_arguments)]
+async fn run_autonomous_chain(
+    ctx: &GameLoopContext<'_>,
+    queue: &InferenceQueue,
+    model: &str,
+    chain_cap: usize,
+    transcript: &mut Vec<ConversationLine>,
+    combined_hints: &mut Vec<crate::npc::IrishWordHint>,
+    spoken_this_chain: &mut Vec<NpcId>,
+    last_speaker: &mut Option<NpcId>,
+    targets: &[NpcId],
+    prompt: &str,
+    spawn_loading: impl Fn() -> Option<CancellationToken>,
+) {
+    for _ in 0..chain_cap {
+        let next_speaker_id = {
+            let world = ctx.world.lock().await;
+            let npc_manager = ctx.npc_manager.lock().await;
+            let candidates: Vec<&crate::npc::Npc> = npc_manager.npcs_at(world.player_location);
+            autonomous::pick_next_speaker(&candidates, *last_speaker, spoken_this_chain, targets)
+                .map(|npc| npc.id)
+        };
+
+        let Some(speaker_id) = next_speaker_id else {
+            break;
+        };
+
+        let Some(outcome) = run_npc_turn(
+            ctx,
+            queue,
+            model,
+            speaker_id,
+            prompt,
+            transcript,
+            false,
+            &spawn_loading,
+        )
+        .await
+        else {
+            break;
+        };
+
+        combined_hints.extend(outcome.hints);
+        if let Some(line) = outcome.line {
+            transcript.push(line.clone());
+            let mut conversation = ctx.conversation.lock().await;
+            conversation.push_line(line);
+            conversation.last_spoken_at = std::time::Instant::now();
+        }
+        spoken_this_chain.push(speaker_id);
+        *last_speaker = Some(speaker_id);
+    }
+}
+
 /// Routes input to one or more NPCs at the player's location, or shows an idle
 /// message when no NPCs are present.
 ///
@@ -441,44 +505,20 @@ pub async fn handle_npc_conversation(
 
     // Phase 2: autonomous chain via bystander-aware heuristic.
     let chain_cap = max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS);
-    for _ in 0..chain_cap {
-        let next_speaker_id = {
-            let world = ctx.world.lock().await;
-            let npc_manager = ctx.npc_manager.lock().await;
-            let candidates: Vec<&crate::npc::Npc> = npc_manager.npcs_at(world.player_location);
-            autonomous::pick_next_speaker(&candidates, last_speaker, &spoken_this_chain, &targets)
-                .map(|npc| npc.id)
-        };
-
-        let Some(speaker_id) = next_speaker_id else {
-            break;
-        };
-
-        let Some(outcome) = run_npc_turn(
-            ctx,
-            &queue,
-            &model,
-            speaker_id,
-            "listens while the nearby conversation continues",
-            &transcript,
-            false,
-            || None, // no loading animation for autonomous follow-up turns
-        )
-        .await
-        else {
-            break;
-        };
-
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = ctx.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(speaker_id);
-        last_speaker = Some(speaker_id);
-    }
+    run_autonomous_chain(
+        ctx,
+        &queue,
+        &model,
+        chain_cap,
+        &mut transcript,
+        &mut combined_hints,
+        &mut spoken_this_chain,
+        &mut last_speaker,
+        &targets,
+        "listens while the nearby conversation continues",
+        || None,
+    )
+    .await;
 
     {
         let mut world = ctx.world.lock().await;
@@ -585,44 +625,20 @@ pub async fn run_idle_banter(
     }
 
     let chain_cap = max_follow_up_turns.min(autonomous::MAX_CHAIN_TURNS);
-    for _ in 0..chain_cap {
-        let next_speaker_id = {
-            let world = ctx.world.lock().await;
-            let npc_manager = ctx.npc_manager.lock().await;
-            let candidates: Vec<&crate::npc::Npc> = npc_manager.npcs_at(world.player_location);
-            autonomous::pick_next_speaker(&candidates, last_speaker, &spoken_this_chain, &[])
-                .map(|npc| npc.id)
-        };
-
-        let Some(speaker_id) = next_speaker_id else {
-            break;
-        };
-
-        let Some(outcome) = run_npc_turn(
-            ctx,
-            &queue,
-            &model,
-            speaker_id,
-            "answers the nearby remark and keeps the local chatter going",
-            &transcript,
-            false,
-            || None,
-        )
-        .await
-        else {
-            break;
-        };
-
-        combined_hints.extend(outcome.hints);
-        if let Some(line) = outcome.line {
-            transcript.push(line.clone());
-            let mut conversation = ctx.conversation.lock().await;
-            conversation.push_line(line);
-            conversation.last_spoken_at = std::time::Instant::now();
-        }
-        spoken_this_chain.push(speaker_id);
-        last_speaker = Some(speaker_id);
-    }
+    run_autonomous_chain(
+        ctx,
+        &queue,
+        &model,
+        chain_cap,
+        &mut transcript,
+        &mut combined_hints,
+        &mut spoken_this_chain,
+        &mut last_speaker,
+        &[],
+        "answers the nearby remark and keeps the local chatter going",
+        || None,
+    )
+    .await;
 
     {
         let mut world = ctx.world.lock().await;
