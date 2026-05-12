@@ -2,22 +2,7 @@
 
 ## Open
 
-| ID | Category | Severity | Location | Description |
-|----|----------|----------|----------|-------------|
-| TD-021 | Manifest Hygiene | P2 | `Cargo.toml:14` | `tower-http` is built with the `cors` feature, but no `tower_http::cors::*` symbol (CorsLayer, AllowOrigin, etc.) is referenced anywhere in `src/` or `tests/`. Drop the feature so cargo doesn't compile a CORS layer that ships in every binary but is never wired up. |
-| TD-022 | Manifest Hygiene | P2 | `Cargo.toml:19-21` | `tracing-opentelemetry` and the bare `opentelemetry` crate are listed as dependencies, but no source file imports them — `src/tracing_setup.rs` only uses `opentelemetry_otlp` and `opentelemetry_sdk`. Either delete both deps or wire the `OpenTelemetryLayer` mentioned in the `tracing_setup` module doc (line 13) into the subscriber stack. |
-| TD-023 | Manifest Hygiene | P2 | `Cargo.toml:15` | The top-level `tower = "0.5"` dep is consumed only via `tower::ServiceExt` inside `#[cfg(test)]` modules (`auth.rs:659`, `lib.rs:1577`, `routes.rs:1462`, `middleware.rs:571`). It should move to `[dev-dependencies]` so production builds don't include the `ServiceExt` trait surface. |
-| TD-024 | Stale TODO | P3 | `src/lib.rs:585-588` | The `tower-sessions MemoryStore` cleanup task carries a `TODO: replace MemoryStore with a store that implements ExpiredDeletion` comment plus a no-op `let _ = &store;` keep-alive line and a 5-minute debug-log tick that does nothing. Either implement the SQL-backed store or convert the TODO into a tracked issue link and remove the no-op task body so a reader doesn't read 25 lines that all do nothing. |
-| TD-025 | Duplication | P2 | `src/session.rs:313` and `src/session_store_impl.rs:94` | `SessionRegistry::google_account_for_session` and `SqliteIdentityStore::get_account` execute the exact same SQL (`SELECT provider_user_id, display_name FROM oauth_accounts WHERE session_id = ?1 AND provider = 'google'`) against the same `sessions.db`. The IdentityStore trait method is the canonical surface; `google_account_for_session` should delegate via `global.identity_store.get_account(...)` instead of re-implementing the query in the registry. |
-| TD-026 | Duplication | P2 | `src/session.rs:624-688` and `src/session.rs:692-805` | `create_session` (65 lines) and `restore_session` (114 lines) both end with the same ~50-line boilerplate: `build_session_client` + `build_session_cloud_client` + `DbSessionStore::new` + `build_app_state(...)` with identical 14 arguments + `init_inference_queue` + `spawn_session_ticks` + `Arc::new(SessionEntry { ... })`. Extract a `finalize_session_entry(global, session_id, world, npc_manager, session_saves) -> Arc<SessionEntry>` helper so the only diverging code is snapshot-load vs world-init. |
-| TD-027 | Naming | P3 | `src/auth.rs:624` (and call sites at 535-537, 661, 752-769) | Helper `urlenccode` is a typo of `urlencode` (double `c`). Rename to `urlencode` (or `percent_encode`); the function is private to the module so the rename is a one-shot edit plus updating the test imports. |
-| TD-028 | Rule 9 Violation | P2 | `src/lib.rs:393` | `let saves_dir = parish_core::persistence::picker::ensure_saves_dir();` calls the cwd-relative `PathBuf::from("saves")` variant. CLAUDE.md rule 9 mandates explicit-config resolution and `parish-persistence/TODO.md:8` already flags this exact call site. Switch to `resolve_project_saves_dir(&data_dir)` — `data_dir` is already a function argument to `run_server`, so no plumbing change is needed. |
-| TD-029 | Weak Tests | P2 | `src/tile_routes.rs` (entire file) | The 83-line `get_tile` handler has zero unit or integration tests despite parsing untrusted path components (`source_id/z/x/y.png`), enforcing path-traversal protection via the source-id allow-list (line 52-61), and proxying to a network cache. No test exists in `tests/*.rs` either. Add at least: malformed path → 400, unknown source_id → 404, valid source_id with cache miss path mocked, `.png` suffix stripping. |
-| TD-030 | Weak Tests | P2 | `src/routes.rs:666-695` | `react_to_message` validates the emoji against `reactions::reaction_description`, rejects snippet-injection chars via `parish_core::game_loop::is_snippet_injection_char`, and mutates `npc.reaction_log`. None of these branches has a router-level test in `tests/*.rs`. Add coverage for: invalid emoji → 400, injection char in `message_snippet` → 400, happy path → 200 with reaction recorded. |
-| TD-031 | Weak Tests | P3 | `src/routes.rs:88-92` | `get_npcs_here` has no test in `src/routes.rs` `#[cfg(test)]` or `tests/*.rs`. Trivial wrapper, but the `npcs_at(player_location)` slice exposed to the UI is security-relevant (per-session isolation) and should have at least a smoke test. |
-| TD-032 | Complexity / Hidden Bug | P2 | `src/session.rs:704-714` | `restore_session` reads the **alphabetically first** `.db` file in `saves/<session_id>/` and treats it as the canonical save (`files.sort(); files.into_iter().next()`). When a session ever has multiple save files (e.g. after `new_save_file` is called and the user reloads, or after a manual paste of a backup), restoration silently picks the wrong file. Behaviour is undocumented in the function header and untested. Either document the invariant ("only one .db per session") or use `SessionRegistry`/`save_path` metadata to pick the active file deterministically. |
-
-
+*(none — all items resolved)*
 
 ## In Progress
 
@@ -29,7 +14,7 @@
 |----|----------|----------|----------|-------------|
 | TD-001 | Duplication | P2 | `src/auth.rs`, `src/middleware.rs` | `cookie_value()` now delegates to `extract_cookie_value()` from middleware, eliminating the duplicated `split(';')` → `strip_prefix` loop. |
 | TD-002 | Duplication | P2 | `src/auth.rs` | Extracted `build_google_oauth_url()` helper used by both `login_google` and `login_google_tower`. |
-| TD-003 | Duplication | P2 | `src/auth.rs` | Extracted `resolve_oauth_session()` helper used by both `callback_google` and `callback_google_tower`. The only per-caller code is CSRF state storage (cookie vs tower-sessions) and response construction. |
+| TD-003 | Duplication | P2 | `src/auth.rs` | Extracted `resolve_oauth_session()` helper used by both `callback_google` and `callback_google_tower`. |
 | TD-004 | Duplication | P2 | `src/session.rs`, `src/session_store_impl.rs` | Extracted `apply_session_schema()` helper in session_store_impl.rs, called by both `SessionRegistry::open()` and `open_sessions_db()`. |
 | TD-005 | Duplication | P3 | `src/lib.rs` | Extracted `make_auth_context()` helper used by all three `cf_access_guard` auth paths (loopback bypass, JWT success, debug fallback). |
 | TD-006 | Complexity | P2 | `src/lib.rs` | `run_server` broken into separable constructor steps: `handle_dotenv`, `resolve_world_path`, `run_llm_bootstrap`, `resolve_splash_and_theme`, `resolve_engine_and_ui_config`, `open_session_components`, `check_ws_signing_key_warning`, `init_tile_cache`, `resolve_admission_control`, `spawn_session_cleanup_background_task`, `build_ip_rate_limiter_state`, `should_use_tower_sessions`. Router build remains inline. |
@@ -37,21 +22,34 @@
 | TD-008 | Complexity | P2 | `src/session.rs` | `purge_expired_disk_sessions` extracted into `collect_and_delete_expired_ids` (nested method) and `cleanup_expired_session_dirs` (free function). |
 | TD-009 | Complexity | P3 | `src/routes.rs` | `load_branch` extracted into `validate_and_acquire_lock`, `load_branch_snapshot`, and `restore_snapshot_and_emit`. |
 | TD-010 | Complexity | P2 | `src/middleware.rs` | `idempotency_middleware` cache branches extracted into `try_replay_from_cache` and `cache_successful_response`. |
-| TD-017 | Stale Docs | P3 | `src/routes.rs` | Removed stale "Semaphore is used by..." comment — `Semaphore` is not imported or used in that file. |
-| TD-018 | Stale Docs | P3 | `src/session_store_impl.rs` | Updated module doc to clarify why a separate `session::SessionRegistry` exists alongside `SqliteIdentityStore`, and noted that `SqliteSessionRegistry` was a previous trait-based attempt that has been removed. |
-| TD-019 | Stale Docs | P3 | `src/auth.rs`, `tests/security_headers.rs` | Replaced TODO comment about replacing `'unsafe-inline'` in CSP `script-src` with a deferred-design note referencing #543. |
-| TD-020 | Dead Code | P2 | `src/session.rs`, `src/session_store_impl.rs` | Removed `SqliteSessionRegistry` struct and all its method implementations, unit tests, and dead imports. The canonical `session::SessionRegistry` is the only production registry. |
-| TD-013 | Weak Tests | P2 | `tests/session_init.rs` | Added 2 integration tests for `POST /api/session-init`: happy path (valid HMAC token round-trips through `SessionToken::validate_full`) and missing AuthContext (500). |
-| TD-014 | Weak Tests | P2 | `src/lib.rs` | Added unit tests for `GET /metrics` — verifies Prometheus format structure and counter value reflection. |
-| TD-015 | Weak Tests | P2 | `tests/auth_status.rs` | Added 3 integration tests for `GET /api/auth/status`: no auth (logged_out), Extension&lt;SessionId&gt; path (logged_out), cookie fallback path (logged_out). |
-| TD-016 | Weak Tests | P3 | `src/lib.rs` | Added functional tests for `ip_rate_limit_middleware` — 3 tests: within quota (200), exceeding quota (429), loopback bypass in debug builds (200). |
-| TD-011 | Weak Tests | P1 | `src/ws.rs`, `tests/ws_integration.rs` | Extracted `validate_ws_upgrade()` from `ws_handler` — 7 unit-style tests for token validation (`?token=` missing/invalid/valid, loopback bypass, AuthContext injection), plus 1 real TCP message-forwarding test via `tokio-tungstenite`. |
-| TD-012 | Weak Tests | P1 | `tests/oauth_integration.rs` | 12 router-level integration tests for all 6 OAuth route handlers (legacy + tower-sessions variants): 404 when unconfigured, 303 redirect when configured, missing code → 400, CSRF mismatch → 400, provider error → redirect, logout → 303 with new cookie. |
+| TD-011 | Weak Tests | P1 | `src/ws.rs`, `tests/ws_integration.rs` | Extracted `validate_ws_upgrade()` from `ws_handler`; 7 unit-style tests plus 1 real TCP message-forwarding test via tokio-tungstenite. |
+| TD-012 | Weak Tests | P1 | `tests/oauth_integration.rs` | 12 router-level integration tests for all 6 OAuth route handlers (legacy + tower-sessions variants). |
+| TD-013 | Weak Tests | P2 | `tests/session_init.rs` | Added 2 integration tests for `POST /api/session-init`. |
+| TD-014 | Weak Tests | P2 | `src/lib.rs` | Added unit tests for `GET /metrics`. |
+| TD-015 | Weak Tests | P2 | `tests/auth_status.rs` | Added 3 integration tests for `GET /api/auth/status`. |
+| TD-016 | Weak Tests | P3 | `src/lib.rs` | Added 3 functional tests for `ip_rate_limit_middleware`. |
+| TD-017 | Stale Docs | P3 | `src/routes.rs` | Removed stale `Semaphore` comment. |
+| TD-018 | Stale Docs | P3 | `src/session_store_impl.rs` | Updated module doc to clarify `SqliteSessionRegistry` is removed and `session::SessionRegistry` is canonical. |
+| TD-019 | Stale Docs | P3 | `src/lib.rs` | Converted `TODO:` to descriptive comment referencing issue #543. |
+| TD-020 | Dead Code | P2 | `src/session_store_impl.rs` | Deleted `SqliteSessionRegistry` struct, trait impl, and associated tests. |
+| TD-021 | Manifest Hygiene | P3 | `Cargo.toml` | Dropped unused `tower-http` `cors` feature. |
+| TD-022 | Manifest Hygiene | P3 | `Cargo.toml` | Removed unused `tracing-opentelemetry` and `opentelemetry` deps. |
+| TD-023 | Manifest Hygiene | P3 | `Cargo.toml` | Moved `tower` to dev-dependencies (only used in tests). |
+| TD-024 | Stale TODO | P2 | `src/lib.rs` | Removed no-op `MemoryStore` cleanup task body; replaced with a comment explaining the 365-day expiry bound. |
+| TD-025 | Duplication | P2 | `src/session.rs` `src/auth.rs` `src/routes.rs` | Removed `google_account_for_session` from `SessionRegistry`; callers now use `identity_store.get_account`. Updated tests. |
+| TD-026 | Duplication | P2 | `src/session.rs` | Extracted `finalize_session_entry` helper shared by `create_session` and `restore_session`. |
+| TD-027 | Naming | P3 | `src/auth.rs` | Renamed `urlenccode` to `urlencode` across definition, call sites, and tests. |
+| TD-028 | Rule 9 Violation | P2 | `src/lib.rs` | Switched `ensure_saves_dir()` to `resolve_project_saves_dir(&data_dir)`. |
+| TD-029 | Weak Tests | P2 | `src/tile_routes.rs` | Added `parse_tile_path` unit tests (valid, missing suffix, too few/many segments, invalid coords, empty source, negative). |
+| TD-030 | Weak Tests | P2 | `src/routes.rs` | Added `react_to_message` tests for valid emoji, invalid emoji, and injection snippet. |
+| TD-031 | Weak Tests | P2 | `src/routes.rs` | Added `get_npcs_here_returns_json_array` test. |
+| TD-032 | Complexity/Hidden Bug | P2 | `src/session.rs` | Fixed `restore_session` to select the most recently modified `.db` file instead of alphabetically first. |
 
-### Progress Log
+## Progress Log
 
-- **2026-05-07**: Phase 1.1 — resolved TD-017 through TD-020 (stale docs + dead code). Removed `SqliteSessionRegistry` (~180 lines dead code), cleaned up CMS docs, comments, and dead imports. All 168 unit tests, 15 integration suites pass; clippy clean with `-D warnings`.
-- **2026-05-07**: Phase 1.2 — resolved TD-013 through TD-016 (weak tests). Added 10 new tests: 2 for `POST /api/session-init` (session_init.rs), 2 for `GET /metrics` (lib.rs), 3 for `GET /api/auth/status` (auth_status.rs), and 3 for `ip_rate_limit_middleware` (lib.rs). Total: 173 unit tests + 15 integration suites (63 tests); clippy clean with `-D warnings`.
-- **2026-05-07**: Phase 1.3 — resolved TD-001 through TD-005 (duplication extractions). Extracted `build_google_oauth_url()`, `resolve_oauth_session()`, `apply_session_schema()`, and `make_auth_context()` helpers; `cookie_value()` now delegates to `extract_cookie_value()`. All 173 unit tests + 15 integration suites (63 tests) pass; clippy clean with `-D warnings`.
-- **2026-05-07**: Phase 3.1 — resolved TD-006 through TD-010 (parish-server complexity). Extracted 10 helpers from `run_server` (env, world-path, LLM, splash/theme, engine/UI, session components, WS key, tile cache, admission control, cleanup task, rate limiter, tower-sessions check). Decomposed `spawn_session_ticks` into 3 sub-functions, `purge_expired_disk_sessions` into 2 helpers, `load_branch` into 3 helpers, and `idempotency_middleware` cache logic into 2 helpers. All 168 unit tests + 15 integration suites (63 tests) pass; clippy clean with `-D warnings`.
-- **2026-05-07**: Phase 4.1 — resolved TD-011 and TD-012 (WebSocket + OAuth weak tests). Extracted `validate_ws_upgrade()` from `ws_handler` for direct token-validation testing. Added 8 WS integration tests (7 `validate_ws_upgrade` + 1 real TCP message forwarding via tokio-tungstenite) and 12 OAuth router-level tests covering all 6 handlers (legacy + tower-sessions variants). All 168 unit tests + 17 integration suites (83 tests) pass; clippy clean with `-D warnings`.
+- **2026-05-07**: Phase 1.1 — resolved TD-017 through TD-020 (stale docs + dead code).
+- **2026-05-07**: Phase 1.2 — resolved TD-013 through TD-016 (weak tests).
+- **2026-05-07**: Phase 1.3 — resolved TD-001 through TD-005 (duplication extractions).
+- **2026-05-07**: Phase 3.1 — resolved TD-006 through TD-010 (complexity).
+- **2026-05-07**: Phase 4.1 — resolved TD-011 and TD-012 (WebSocket + OAuth weak tests).
+- **2026-05-12**: Resolved TD-021 through TD-032. All changes verified with `cargo fmt`, `cargo clippy -p parish-server`, `cargo test -p parish-server`, and `cargo check --workspace`.

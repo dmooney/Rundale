@@ -1,4 +1,4 @@
 Verdict: sufficient
 Technical debt: clear
 
-All 15 completed items are pure refactoring, dead code deletion, or test additions with no behavior change. Remaining 5 items (TD-006 through TD-010) are complexity refactors deferred to a dedicated pass. Test count increased from 170 to 180. All gates pass (fmt, clippy, tests).
+All 12 items (TD-021 through TD-032) are manifest hygiene, duplication removal, naming fixes, dead-code deletion, weak-test additions, and one hidden-bug fix (TD-032: restore_session now picks most-recently-modified save instead of alphabetically first). No gameplay behaviour changed. Test count increased from ~191 to 237 (unit + integration). All gates pass (fmt, clippy, tests, workspace check).
