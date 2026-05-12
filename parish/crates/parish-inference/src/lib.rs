@@ -2002,4 +2002,102 @@ mod tests {
             "expected queue send error, got: {err}"
         );
     }
+
+    /// Regression — `AnyClient::Simulator::generate_stream_with_format` used
+    /// to dispatch unconditionally to the Markov text stream, so any caller
+    /// that expected a JSON shape (Tier 2/3 sim+reaction prompts, intent
+    /// parser) saw a parse error every tick on the `small-only` loadout.
+    /// Now: any JSON-shaped ask (response_format set, or a "JSON" /
+    /// "input parser" / "Respond with a JSON" marker in the system or user
+    /// prompt) streams a generic JSON object whose fields are wide enough
+    /// for `Tier2Response`, `Tier3Update`, and the dialogue
+    /// `NpcStreamResponse` (all `#[serde(default)]`), so the worst case is
+    /// an "uneventful tick" rather than a parse failure.
+    #[tokio::test]
+    async fn simulator_streams_json_when_format_or_prompt_requests_it() {
+        use tokio::sync::mpsc;
+
+        let sim = AnyClient::simulator();
+
+        // Helper: drive `generate_stream_with_format` and collect the chunks
+        // the simulator pushed into `token_tx` (the streaming side) AND the
+        // assembled return string (which is what the worker assembles for the
+        // queue's response payload).
+        async fn drive(
+            client: &AnyClient,
+            prompt: &str,
+            system: Option<&str>,
+            response_format: Option<ResponseFormat>,
+        ) -> (Vec<String>, String) {
+            let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+            let stream_fut = client.generate_stream_with_format(
+                "sim",
+                prompt,
+                system,
+                tx,
+                response_format,
+                Some(120),
+                None,
+            );
+            let drain = tokio::spawn(async move {
+                let mut chunks = Vec::new();
+                while let Some(t) = rx.recv().await {
+                    chunks.push(t);
+                }
+                chunks
+            });
+            let assembled = stream_fut.await.expect("stream future");
+            let chunks = drain.await.unwrap_or_default();
+            (chunks, assembled)
+        }
+
+        // Case 1 — response_format explicitly set: must stream JSON.
+        let (_, body1) = drive(
+            &sim,
+            "fly some text",
+            None,
+            Some(ResponseFormat::JsonObject),
+        )
+        .await;
+        assert!(
+            body1.contains("\"dialogue\""),
+            "explicit JsonObject should stream the dialogue-shaped JSON, got: {body1}"
+        );
+
+        // Case 2 — Tier 2 / Tier 3 sim prompts ask for JSON in the user
+        // prompt body.  Marker is "Respond with a JSON" (Tier 2) or a bare
+        // "JSON object" mention.
+        let (_, body2) = drive(
+            &sim,
+            "You are simulating background interactions. … Respond with a JSON object …",
+            None,
+            None,
+        )
+        .await;
+        assert!(
+            body2.starts_with('{') && body2.contains("\"dialogue\""),
+            "Tier 2 prompt should still stream JSON (no response_format set), got: {body2}"
+        );
+
+        // Case 3 — intent parser system prompt triggers JSON path even without
+        // a response_format hint.
+        let (_, body3) = drive(
+            &sim,
+            "go to the pub",
+            Some("You are a text adventure input parser. …"),
+            None,
+        )
+        .await;
+        assert!(
+            body3.starts_with('{'),
+            "intent-parser system prompt should stream JSON, got: {body3}"
+        );
+
+        // Case 4 — plain dialogue with no JSON ask: legacy Markov text path.
+        let (_, body4) = drive(&sim, "Tell me a story.", None, None).await;
+        assert!(
+            !body4.starts_with('{'),
+            "plain prompt should still produce text, got: {body4}"
+        );
+    }
 }

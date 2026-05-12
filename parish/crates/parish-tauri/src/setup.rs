@@ -221,8 +221,17 @@ pub(crate) async fn bootstrap_inference_provider(
     // BYOK gate: if the user has never picked a provider AND no PARISH_/CLI
     // override is in effect AND no standard env-var key is set, render the
     // onboarding fork instead of running the (Ollama-shaped) bootstrap path.
+    //
+    // AGENTS.md rule #6 — gated by `local-inference-onboarding`. Default-on;
+    // explicit-disable falls back to the legacy Ollama-shaped bootstrap so
+    // operators can ship a build that suppresses the wizard without code
+    // changes (e.g. when running the engine pointed at a managed server).
+    let onboarding_enabled = {
+        let cfg = state.config.lock().await;
+        !cfg.flags.is_disabled("local-inference-onboarding")
+    };
     let choice = onboarding_choice_for_platform(state, provider_config);
-    if choice.needs_user_choice() {
+    if onboarding_enabled && choice.needs_user_choice() {
         let progress = TauriProgress {
             app: handle.clone(),
             state: Arc::clone(state),
