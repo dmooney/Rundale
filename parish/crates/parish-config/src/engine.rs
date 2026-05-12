@@ -785,7 +785,7 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             // (`/tiles/{source_id}/{z}/{x}/{y}.png`) rather than NLS S3
             // directly (issue #360).  The proxy caches tiles on disk and
             // the browser never needs to reach `mapseries-tilesets.s3.amazonaws.com`.
-            url: "/tiles/roscommon1/{z}/{x}/{y}.png".to_string(),
+            url: "/tiles/historic/{z}/{x}/{y}.png".to_string(),
             tile_size: 256,
             minzoom: 1,
             maxzoom: 17,
@@ -1039,13 +1039,10 @@ memory_capacity = 30
         // client never hits NLS S3 directly.  The URL is now a same-origin
         // relative path rather than an absolute S3 URL.
         assert!(
-            historic.url.starts_with("/tiles/"),
-            "Historic 6\" tiles are proxied through the local server (issue #360); got: {}",
+            historic.url.starts_with("/tiles/historic/"),
+            "Historic 6\" tiles are proxied through the local server under the registered \
+             tile source id (issue #360); got: {}",
             historic.url
-        );
-        assert!(
-            historic.url.contains("roscommon1"),
-            "Historic ships with the Roscommon 1st-edition NLS tileset (issue #360 tracks whole-island)"
         );
         assert_eq!(historic.maxzoom, 17, "NLS serves 6-inch up to z=17");
     }
