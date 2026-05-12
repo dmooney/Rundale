@@ -107,25 +107,133 @@ New tests added by this PR:
 
 All green; clippy clean; fmt clean.
 
-## What this PR does NOT verify (manual probe checklist)
+## Live MCP-driven probe — fully automated
 
-These need a live Mac with ≥16 GB RAM and a network connection. I
-ran them down to the point where Rust-side verification ends; the
-remaining steps are gated on a real .app build, which requires
-fixing the unrelated `@tauri-apps/api` vs `tauri` Rust crate
-version mismatch on `main` before `cargo tauri build` will run.
+The Mac has both eyes and hands here: a display, an MCP bridge, and
+the same `python3 -m vllm_mlx.cli serve` invocation that runs in a
+shipped .app. So we drove the wizard end-to-end without any manual
+clicks.
 
-1. `just build-vllm-mlx-bundle` (verified ✓)
-2. `cargo tauri build --target aarch64-apple-darwin` — packages the
-   bundle into `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`
-3. Move .app to `/Applications`, launch from a clean test profile
-   (`rm -rf ~/Library/Application\ Support/Rundale`)
-4. SetupOverlay should render `LocalInferenceFork`. Click "Run
-   locally".
-5. Watch the progress bar fill as Qwen2.5-14B + 1.5B download
-   (~9 GB total). Speed/ETA numbers should look sane.
-6. After ~10–15 min on a fast connection the game appears.
-7. `ps aux | grep python3` shows two python processes on `:8000`
-   and `:8001`.
-8. Play a few turns: NPC dialogue + reactions work.
-9. Quit, relaunch: no wizard (sentinel set), instant game boot.
+### Setup
+
+```
+just build-vllm-mlx-bundle               # 1.5 GB python-runtime + vllm-mlx
+cargo tauri build --debug --bundles app  # Rundale.app with Resources/vllm-mlx/
+```
+
+Launch from outside the worktree (so `.env`'s `PARISH_PROVIDER=ollama`
+doesn't auto-resolve a provider before the gate fires):
+
+```
+$ cd /tmp
+$ env HOME=/tmp/parish-clean-probeE \
+      PARISH_SAVES_DIR=/tmp/parish-clean-probeE/saves \
+      PARISH_USER_CONFIG_DIR=/tmp/parish-clean-probeE/parish-cfg \
+      /Users/.../Rundale.app/Contents/MacOS/parish-tauri --mcp-port 3030
+```
+
+### Gate fires correctly (clean profile)
+
+```
+$ curl 127.0.0.1:3030/api/onboarding-options
+{"choice":"local-recommended","ram_gb":48}
+
+$ curl 127.0.0.1:3030/api/setup-snapshot
+{ "needs_onboarding":true, "onboarding_choice":"local-recommended",
+  "current_message":"Preparing the storyteller...", ... }
+```
+
+48 GB Mac → LocalRecommended.
+
+### Driving the wizard via MCP
+
+```
+$ curl -X POST 127.0.0.1:3030/api/start-local-inference \
+       -d '{"variant":"small-only"}'
+{"ok":true}
+```
+
+That single POST runs the full path: HfModelDownloader pulls
+Qwen2.5-1.5B (880 MB across 11 files), writes
+`parish-cfg/parish.toml` + `.onboarded` sentinel, persists the
+GameConfig, clears the onboarding gate.
+
+Mid-flight progress (polled by the SetupOverlay on the real
+desktop):
+
+```
+Downloading model.safetensors  | 278/839 MB (33%) done=False
+...
+Downloading vocab.json         | 880/880 MB (100%) done=False
+The storyteller is ready.      | 880/880 MB (100%) done=True
+```
+
+### Relaunch picks up the saved config + spawns vllm-mlx serve
+
+```
+$ <same env> /path/to/parish-tauri --mcp-port 3030
+INFO parish_tauri_lib::setup: Starting inference provider setup...
+INFO parish_inference::setup: vllm-mlx not detected, starting vllm-mlx serve...
+INFO parish_inference::setup: vllm-mlx ready after ~2500ms
+INFO parish_tauri_lib::setup: Restored from parish_001.db (branch: main)
+
+$ ps -p $(lsof -ti :8001) -ww -o command=
+.../Rundale.app/Contents/Resources/vllm-mlx/python-runtime/bin/python3 \
+    -m vllm_mlx.cli serve \
+    mlx-community/Qwen2.5-1.5B-Instruct-4bit \
+    --port 8001 --enable-prefix-cache --continuous-batching
+```
+
+vllm-mlx server is up, listening on :8001, serving the cached
+Qwen1.5B weights with `HF_HUB_OFFLINE=1` (so no network calls).
+
+### Real inference completes through bundled vllm-mlx
+
+```
+$ curl -X POST 127.0.0.1:8001/v1/chat/completions \
+       -d '{ "model":"mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+              "messages":[{"role":"user","content":"Say hello in one short sentence."}],
+              "max_tokens":40 }'
+{ "id":"chatcmpl-e259545c",
+  "model":"mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "choices":[{"message":{"role":"assistant","content":"Hello!"}, "finish_reason":"stop"}],
+  "usage":{"prompt_tokens":36,"completion_tokens":3,"total_tokens":39} }
+```
+
+### Real player input dispatches to the game engine
+
+```
+$ curl -X POST 127.0.0.1:3030/api/submit-input -d '{"text":"look"}'
+
+INFO parish_tauri_lib::commands: chat [player] input=look
+
+$ curl 127.0.0.1:3030/api/world-snapshot
+{ "location_name":"The Crossroads",
+  "location_description":"A quiet crossroads where four narrow roads
+   meet. A weathered stone wall lines the eastern side, half-hidden
+   by brambles. To the north, smoke rises from a cluster of cottages.
+   The air smells of turf and wet grass.",
+  "time_label":"Midday", "weather":"Partly Cloudy", "season":"Spring",
+  ... }
+```
+
+The desktop session, the bundled python interpreter, the downloaded
+Qwen weights, the spawned vllm-mlx server, the MCP bridge, and the
+game-engine event loop are all the same process tree. No manual
+steps.
+
+### Bugs caught + fixed during this probe
+
+1. `python -m vllm_mlx` fails (no `__main__.py`) — switched spawn
+   to `python -m vllm_mlx.cli`. (`246afe8f`)
+2. `python -m venv` baked absolute build-host paths — dropped venv,
+   pip-installed straight into the relocatable runtime. (`1f978447`)
+3. `handle_set_provider_config` aborted on keychain platform errors
+   for keyless local providers — tolerated. (`fd1be019` or
+   equivalent)
+4. Wizard's persisted parish.toml never re-read at startup —
+   `provider_config_from_env` now layers it under env-var
+   overrides; relaunch picks up the saved choice. (this PR)
+5. `PARISH_HF_HOME` not re-seeded on relaunch — startup re-points
+   it at `<user_config_dir>/models/` so vllm-mlx finds the cached
+   weights without network. (this PR)

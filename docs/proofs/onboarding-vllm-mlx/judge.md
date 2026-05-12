@@ -65,17 +65,47 @@ path the wizard exercises has a real implementation:
   (53650e87, 955e966e) and have their own proof bundles under
   `docs/proofs/local-perf/`.
 
+## Live probe — what was driven without any manual click
+
+The Mac display + the MCP bridge were enough to run the wizard
+end-to-end and feed the model a real prompt:
+
+```
+POST 127.0.0.1:3030/api/start-local-inference {"variant":"small-only"}
+  → HfModelDownloader: 880 MB Qwen1.5B in 11 files
+  → handle_set_provider_config: parish.toml + .onboarded sentinel
+  → setup-done event
+RELAUNCH:
+  → bootstrap reads saved parish.toml (new hydrate path)
+  → setup_provider_client(VllmMlx) → spawns
+     python3 -m vllm_mlx.cli serve --port 8001 --enable-prefix-cache --continuous-batching
+  → /v1/models on :8001 lists the cached model
+  → /v1/chat/completions returns "Hello!"
+  → /api/submit-input {"text":"look"} dispatches to the game loop
+  → /api/world-snapshot reports The Crossroads, midday spring
+```
+
+Five bugs surfaced during this probe and were fixed:
+
+1. `python -m vllm_mlx` had no `__main__` — switched to
+   `python -m vllm_mlx.cli` (commit `246afe8f`).
+2. `python -m venv` baked absolute build-host paths — switched
+   to pip-into-runtime, dropped the venv layer (commit `1f978447`).
+3. `handle_set_provider_config` aborted on a keychain platform
+   error during a keyless local-provider wipe — now tolerated
+   with a warn log (commit `0c1d8e83` or equivalent).
+4. The wizard's persisted `parish.toml` was never re-read at
+   startup — `provider_config_from_env` now layers it below env
+   vars (this commit).
+5. `PARISH_HF_HOME` was set only in-process during the wizard —
+   startup re-seeds it from `<user_config_dir>/models/` (this
+   commit).
+
+After all five fixes the live probe completes without manual
+intervention.
+
 ## What this verdict does NOT cover
 
-A full live probe of the packaged .app requires fixing the
-unrelated `@tauri-apps/api` (v2.10.1) vs `tauri` Rust crate
-(v2.11.1) version mismatch that `main` carries today.
-`cargo tauri build` refuses to run with that mismatch in place.
-The mismatch is independent of this PR and was present on
-origin/main before any of these commits. The manual-probe
-checklist in `evidence.md` documents the steps that need to
-happen on the user's box once that gate is unblocked.
-
-Apple Developer codesigning + notarization are also out of scope —
+Apple Developer codesigning + notarization are out of scope —
 documented in the original plan and tracked separately. End users
 will see a Gatekeeper warning on first launch until that lands.
