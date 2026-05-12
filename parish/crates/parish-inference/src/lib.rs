@@ -859,8 +859,25 @@ impl AnyClient {
                     .await
             }
             Self::Simulator(c) => {
-                c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
-                    .await
+                // When the caller expects JSON (either schema or json_mode),
+                // the Markov stream the simulator would otherwise produce
+                // never parses and the caller logs a JSON-parse error every
+                // tick. Route those calls through the simulator's existing
+                // JSON-stream path, which emits a generic JSON object whose
+                // fields are wide enough for the Tier 2 / Tier 3 / reaction
+                // structs (all use `#[serde(default)]`), so the worst case
+                // is an "uneventful tick" rather than a hard parse failure.
+                let wants_json = response_format.is_some()
+                    || prompt.contains("Respond with a JSON")
+                    || prompt.contains("JSON object")
+                    || system.is_some_and(|s| s.contains("JSON") || s.contains("input parser"));
+                if wants_json {
+                    c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
+                        .await
+                } else {
+                    c.generate_stream(model, prompt, system, token_tx, max_tokens, temperature)
+                        .await
+                }
             }
         }
     }

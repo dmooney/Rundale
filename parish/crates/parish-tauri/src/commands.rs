@@ -477,6 +477,32 @@ pub(crate) async fn do_start_local_inference_setup(
                 },
             );
         }
+    } else {
+        // small-only variant: 1.5B can't reliably hold the strict JSON
+        // schema Tier 2 (Simulation) and Tier 3 (Reaction) expect, and
+        // the resulting parse-failure storm both floods logs and starves
+        // the model slot Tier 1 needs for the dialogue stream. Route
+        // those categories to the in-process simulator so the
+        // living-world ticks stay quiet and every cycle of the 1.5B is
+        // spent on player-facing dialogue.
+        //
+        // Intent stays on vllm-mlx: parse_intent's failure path returns
+        // `Unknown` which falls through to `handle_npc_conversation`,
+        // i.e. a bad JSON parse still ends up routing player input as
+        // dialogue. The simulator's intent_json_for matches verb
+        // prefixes by `starts_with(mw)` without a word boundary, so
+        // "Good morning" gets classified as `Move`-to-"od morning" and
+        // the actual conversation never fires.
+        for cat_name in ["simulation", "reaction"] {
+            category_overrides.insert(
+                cat_name.to_string(),
+                parish_core::config::user_config::CategoryOverride {
+                    provider: Some("simulator".to_string()),
+                    base_url: None,
+                    model: None,
+                },
+            );
+        }
     }
 
     let set_args = parish_core::ipc::byok::SetProviderConfigArgs {
@@ -490,7 +516,8 @@ pub(crate) async fn do_start_local_inference_setup(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Clear the onboarding gate, emit setup-done — mirrors the BYOK path.
+    // Clear the onboarding gate so the bootstrap path below doesn't
+    // bail out on the `onboarding_choice_for_platform` check.
     {
         let mut s = state_arc
             .setup_status
@@ -498,14 +525,32 @@ pub(crate) async fn do_start_local_inference_setup(
             .unwrap_or_else(|p| p.into_inner());
         s.clear_needs_onboarding();
     }
-    crate::record_setup_done(&state_arc, true, String::new());
-    let _ = app.emit(
-        crate::events::EVENT_SETUP_DONE,
-        crate::events::SetupDonePayload {
-            success: true,
-            error: String::new(),
-        },
-    );
+
+    // Run the same post-gate startup pipeline run() executes when the
+    // bootstrap completes cleanly on a returning user. Without this,
+    // the wizard would write the config + emit setup-done but the
+    // vllm-mlx serve process never spawns, no inference queue exists,
+    // and the world / autosave ticks never start — leaving the game
+    // visibly "ready" but functionally inert until a manual relaunch.
+    let (provider_config, _, _, _) = crate::provider_config_from_env(&state_arc.user_config_dir);
+    let inference_config_clone = state_arc.inference_config.clone();
+    let bootstrapped = crate::setup::bootstrap_inference_provider(
+        app,
+        &state_arc,
+        &provider_config,
+        &inference_config_clone,
+    )
+    .await;
+    if !bootstrapped {
+        return Err("inference bootstrap failed after wizard".to_string());
+    }
+    crate::setup::init_inference_queue(&state_arc).await;
+    crate::setup::init_persistence(app, &state_arc).await;
+    crate::setup::spawn_event_bus_fanin(&state_arc).await;
+    crate::setup::spawn_world_tick(app.clone(), Arc::clone(&state_arc));
+    crate::setup::spawn_inactivity_tick(app.clone(), Arc::clone(&state_arc));
+    crate::setup::spawn_debug_tick(app.clone(), Arc::clone(&state_arc));
+    crate::setup::spawn_autosave_tick(Arc::clone(&state_arc));
     Ok(())
 }
 
