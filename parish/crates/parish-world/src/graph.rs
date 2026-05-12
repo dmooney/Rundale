@@ -934,7 +934,7 @@ mod tests {
                     "description_template": "A",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 99, "traversal_minutes": 5, "path_description": "path"}]
+                    "connections": [{"target": 99, "path_description": "path"}]
                 }
             ]
         }"#;
@@ -954,7 +954,7 @@ mod tests {
                     "description_template": "A",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 2, "traversal_minutes": 5, "path_description": "path"}]
+                    "connections": [{"target": 2, "path_description": "path"}]
                 },
                 {
                     "id": 2,
@@ -962,7 +962,7 @@ mod tests {
                     "description_template": "B",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "path"}]
+                    "connections": [{"target": 1, "path_description": "path"}]
                 },
                 {
                     "id": 3,
@@ -970,7 +970,7 @@ mod tests {
                     "description_template": "C",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "path"}]
+                    "connections": [{"target": 1, "path_description": "path"}]
                 }
             ]
         }"#;
@@ -1010,7 +1010,7 @@ mod tests {
                     "description_template": "A",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "loop"}]
+                    "connections": [{"target": 1, "path_description": "loop"}]
                 },
                 {
                     "id": 1,
@@ -1018,7 +1018,7 @@ mod tests {
                     "description_template": "B",
                     "indoor": false,
                     "public": true,
-                    "connections": [{"target": 1, "traversal_minutes": 5, "path_description": "loop"}]
+                    "connections": [{"target": 1, "path_description": "loop"}]
                 }
             ]
         }"#;
