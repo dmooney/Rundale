@@ -762,6 +762,8 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
         TileSourceConfig {
             label: "OpenStreetMap".to_string(),
             url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png".to_string(),
+            // OSM is fetched directly by the browser; no server-side proxying.
+            upstream_url: String::new(),
             tile_size: 256,
             minzoom: 0,
             maxzoom: 19,
@@ -785,11 +787,15 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
             //
             // Terms: CC-BY-SA 3.0 per https://maps.nls.uk/copyright.html.
             //
-            // The URL template points at the parish-server tile proxy
-            // (`/tiles/{source_id}/{z}/{x}/{y}.png`) rather than NLS S3
-            // directly (issue #360).  The proxy caches tiles on disk and
-            // the browser never needs to reach `mapseries-tilesets.s3.amazonaws.com`.
-            url: "/tiles/roscommon1/{z}/{x}/{y}.png".to_string(),
+            // `url` is the same-origin proxy path the browser hits (issue #360);
+            // `upstream_url` is the absolute NLS S3 URL the server-side
+            // tile cache fetches from on a miss. The path segment after
+            // `/tiles/` must match the registering key so `tile_routes`'s
+            // validator accepts the request (PR #955).
+            url: "/tiles/historic/{z}/{x}/{y}.png".to_string(),
+            upstream_url:
+                "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
+                    .to_string(),
             tile_size: 256,
             minzoom: 1,
             maxzoom: 17,
@@ -810,11 +816,25 @@ pub struct TileSourceConfig {
     /// Human-readable label displayed in `/map` listings.
     #[serde(default)]
     pub label: String,
-    /// XYZ URL template (e.g. `https://…/{z}/{x}/{y}.png`). Empty string
-    /// means the source is registered but not yet configured; the frontend
-    /// falls back to a flat background.
+    /// XYZ URL template the **frontend** uses to fetch tiles (e.g.
+    /// `https://…/{z}/{x}/{y}.png`, or a same-origin proxy path like
+    /// `/tiles/historic/{z}/{x}/{y}.png`). Empty string means the source is
+    /// registered but not yet configured; the frontend falls back to a flat
+    /// background.
     #[serde(default)]
     pub url: String,
+    /// Upstream XYZ URL template the **server-side tile cache** fetches from
+    /// on a cache miss (must be absolute, e.g.
+    /// `https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png`).
+    /// Empty string means this source isn't proxied — the frontend's `url`
+    /// is expected to be an absolute upstream URL the browser hits directly
+    /// (the OSM case), and the tile-proxy route will refuse to serve it.
+    ///
+    /// Kept distinct from `url` because the two represent different layers:
+    /// `url` is what MapLibre fetches, `upstream_url` is what `reqwest` fetches
+    /// on the server. Conflating them is what caused PR #955.
+    #[serde(default)]
+    pub upstream_url: String,
     /// Tile edge length in pixels. 256 for classic OSM-style sources.
     #[serde(default = "default_tile_size")]
     pub tile_size: u32,
@@ -1034,24 +1054,56 @@ memory_capacity = 30
         assert!(cfg.tile_sources.contains_key("historic"));
         let osm = &cfg.tile_sources["osm"];
         assert_eq!(osm.url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+        assert!(
+            osm.upstream_url.is_empty(),
+            "OSM is fetched directly by the browser; no server-side proxying"
+        );
         assert_eq!(osm.tile_size, 256);
         assert_eq!(osm.maxzoom, 19);
         assert!(!osm.tms);
         let historic = &cfg.tile_sources["historic"];
         assert!(!historic.tms, "NLS serves standard XYZ, not TMS");
         // Since issue #360, tiles are proxied through the local server so the
-        // client never hits NLS S3 directly.  The URL is now a same-origin
-        // relative path rather than an absolute S3 URL.
+        // client never hits NLS S3 directly.  `url` is the same-origin proxy
+        // path the browser hits; `upstream_url` is the absolute NLS S3 URL
+        // the server-side cache fetches from on a miss (PR #955).
         assert!(
-            historic.url.starts_with("/tiles/"),
-            "Historic 6\" tiles are proxied through the local server (issue #360); got: {}",
+            historic.url.starts_with("/tiles/historic/"),
+            "Historic 6\" tiles are proxied through the local server under the registered \
+             tile source id (issue #360); got: {}",
             historic.url
         );
         assert!(
-            historic.url.contains("roscommon1"),
-            "Historic ships with the Roscommon 1st-edition NLS tileset (issue #360 tracks whole-island)"
+            historic
+                .upstream_url
+                .starts_with("https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/"),
+            "Historic 6\" upstream_url must point at the NLS Roscommon 1st-edition \
+             S3 path so the server-side cache can fetch tiles on a miss; got: {}",
+            historic.upstream_url
         );
         assert_eq!(historic.maxzoom, 17, "NLS serves 6-inch up to z=17");
+    }
+
+    /// Pins the invariant that broke in PR #955: when a tile source's `url` is
+    /// a same-origin proxy path (`/tiles/<seg>/{z}/{x}/{y}.png`), its first
+    /// path segment must match the registering `tile_sources` key, because
+    /// `parish-server`'s tile-proxy route validates that segment against the
+    /// registered ids and 404s on mismatch.
+    #[test]
+    fn proxy_path_segment_matches_registered_source_id() {
+        let cfg = MapConfig::default();
+        for (id, src) in &cfg.tile_sources {
+            let Some(rest) = src.url.strip_prefix("/tiles/") else {
+                continue;
+            };
+            let seg = rest.split('/').next().unwrap_or("");
+            assert_eq!(
+                seg, id,
+                "tile source {id:?} should use its own id as the proxy path segment, \
+                 not {seg:?}; otherwise the tile-proxy route handler would 404 every \
+                 request and the cache lookup would happen under the wrong key"
+            );
+        }
     }
 
     #[test]
@@ -1072,6 +1124,7 @@ memory_capacity = 30
             TileSourceConfig {
                 label: "Custom".to_string(),
                 url: "https://example.com/{z}/{x}/{y}.png".to_string(),
+                upstream_url: String::new(),
                 tile_size: 256,
                 minzoom: 0,
                 maxzoom: 18,
