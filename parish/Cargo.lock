@@ -3276,7 +3276,6 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "lru",
- "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "parish-core",
@@ -3296,7 +3295,6 @@ dependencies = [
  "tower-http",
  "tower-sessions",
  "tracing",
- "tracing-opentelemetry",
  "uuid",
  "wiremock",
 ]
@@ -3357,7 +3355,6 @@ dependencies = [
  "serde",
  "serde_json",
  "strsim",
- "tokio",
  "toml 0.8.2",
  "tracing",
 ]
