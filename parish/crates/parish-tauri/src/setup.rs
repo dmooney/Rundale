@@ -409,10 +409,8 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
 
             // Emit a fresh world snapshot to the frontend.
             {
-                let transport = state.transport.default_mode();
                 let snapshot = crate::commands::get_world_snapshot_inner(
                     &world,
-                    transport,
                     Some(&npc_mgr),
                     &state.pronunciations,
                 );
