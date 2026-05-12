@@ -22,7 +22,7 @@ function historic(): TileSource {
 		id: 'historic',
 		label: 'Historic 6"',
 		// Tiles are now proxied through the local server (issue #360).
-		url: '/tiles/roscommon1/{z}/{x}/{y}.png',
+		url: '/tiles/historic/{z}/{x}/{y}.png',
 		tile_size: 256,
 		minzoom: 0,
 		maxzoom: 15,
