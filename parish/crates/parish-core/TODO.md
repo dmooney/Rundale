@@ -36,6 +36,14 @@
 | TD-010 | 2026-05-07 | Removed dead variable assignments (`let _ = target; let _ = start;`) from `apply_movement_already_here` test |
 | TD-013 | 2026-05-07 | Updated `SessionStore` trait doc to acknowledge single-user `session_id = ""` convention alongside multi-user UUID v4 convention |
 | TD-014 | 2026-05-07 | Updated `lib.rs` module doc to accurately describe parish-core as orchestration layer that composes leaf crates, not the owner of leaf-crate systems |
+| TD-015 | 2026-05-12 | Deleted dead `interpolate_template` public API and its 4 tests from `game_mod.rs` |
+| TD-016 | 2026-05-12 | Updated stale test comment `kilteevan mod` -> `rundale mod` in `game_mod.rs` |
+| TD-017 | 2026-05-12 | Extracted `weekday_name` helper in `ipc/handlers.rs`, deduplicated from `snapshot_from_world` and `build_clock_debug` |
+| TD-018 | 2026-05-12 | Moved `peek_mod_id` into `Err` arm in `load_setting_mod_sync`, eliminating `let _ = setting_id;` suppression |
+| TD-019 | 2026-05-12 | Dropped dead `_transport` parameter from `snapshot_from_world`; updated all cross-crate call sites in `parish-tauri`, `parish-server`, and internal callers |
+| TD-020 | 2026-05-12 | Fixed `prepare_npc_conversation` doc to describe it as active single-target convenience wrapper used by headless CLI |
+| TD-021 | 2026-05-12 | Extracted `run_autonomous_chain` helper from Phase 2 chain in `npc_turn.rs`, replacing duplicated loop in `run_idle_banter` |
+| TD-022 | 2026-05-12 | Added Rule 9 warning docs to `find_mods_root` and `LocalDiskModSource::new`, noting cwd-walk is dev fallback only |
 
 ## Follow-up
 
