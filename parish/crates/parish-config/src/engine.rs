@@ -1047,6 +1047,28 @@ memory_capacity = 30
         assert_eq!(historic.maxzoom, 17, "NLS serves 6-inch up to z=17");
     }
 
+    /// Pins the invariant that broke in PR #955: when a tile source's `url` is
+    /// a same-origin proxy path (`/tiles/<seg>/{z}/{x}/{y}.png`), its first
+    /// path segment must match the registering `tile_sources` key, because
+    /// `parish-server`'s tile-proxy route validates that segment against the
+    /// registered ids and 404s on mismatch.
+    #[test]
+    fn proxy_path_segment_matches_registered_source_id() {
+        let cfg = MapConfig::default();
+        for (id, src) in &cfg.tile_sources {
+            let Some(rest) = src.url.strip_prefix("/tiles/") else {
+                continue;
+            };
+            let seg = rest.split('/').next().unwrap_or("");
+            assert_eq!(
+                seg, id,
+                "tile source {id:?} should use its own id as the proxy path segment, \
+                 not {seg:?}; otherwise the tile-proxy route handler would 404 every \
+                 request and the cache lookup would happen under the wrong key"
+            );
+        }
+    }
+
     #[test]
     fn test_engine_config_includes_map_defaults() {
         let cfg = EngineConfig::default();
