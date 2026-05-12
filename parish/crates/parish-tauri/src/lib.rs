@@ -892,8 +892,35 @@ pub fn run() {
     let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
     let engine_config = parish_core::config::load_engine_config(&engine_config_path);
 
-    // Read provider config from env vars (optional).
-    let (provider_config, provider_name, base_url, api_key) = provider_config_from_env();
+    // Resolve the per-user config dir up-front so provider_config_from_env can
+    // hydrate from the BYOK / local-inference wizard's persisted
+    // `~/Library/Application Support/Parish/parish.toml`. Storing the result
+    // here means AppState reuses the same path later (#771: resolve once at
+    // startup, never re-probe from a request handler).
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+
+    // Re-seed PARISH_HF_HOME on relaunch so VllmMlxProcess::ensure_running
+    // forwards the correct HF cache root to the spawned `python3 -m
+    // vllm_mlx.cli serve …`. start_local_inference_setup wrote it last
+    // session; we just need to re-point at the same `<user_config_dir>/models`
+    // here so the cached weights are visible without re-downloading.
+    if std::env::var_os("PARISH_HF_HOME").is_none() {
+        let hf_home = user_config_dir.join("models");
+        if hf_home.is_dir() {
+            // SAFETY: same convention as the VLLM_MLX_BIN set_var below —
+            // run before any background tasks spawn.
+            unsafe {
+                std::env::set_var("PARISH_HF_HOME", &hf_home);
+            }
+        }
+    }
+
+    // Read provider config from env vars (optional). Layers, last-wins:
+    //   1. saved user config (`<user_config_dir>/parish.toml`)
+    //   2. `PARISH_PROVIDER` / `PARISH_BASE_URL` / `PARISH_MODEL` env vars
+    //   3. provider's standard API-key env var (e.g. `ANTHROPIC_API_KEY`)
+    let (provider_config, provider_name, base_url, api_key) =
+        provider_config_from_env(&user_config_dir);
     let cloud_env = build_cloud_client_from_env(&engine_config.inference);
 
     // Clone inference config before it is moved into AppState so the async
@@ -1025,10 +1052,10 @@ pub fn run() {
     // Cancellation token for graceful background-task shutdown (#104).
     let shutdown_token = CancellationToken::new();
 
-    // Resolve the per-user config dir once at startup (Rule 9). Hydrate
-    // GameConfig.api_key from the keychain if the standard provider env var
-    // wasn't already set — keychain ranks below env vars but above defaults.
-    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    // Hydrate GameConfig.api_key from the keychain if the standard provider
+    // env var wasn't already set — keychain ranks below env vars but above
+    // defaults. (`user_config_dir` was resolved up-front above so the saved
+    // wizard config could feed provider_config_from_env.)
     let secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore> =
         std::sync::Arc::new(keychain::KeyringSecretStore::new());
     if game_config.api_key.is_none()
@@ -1199,8 +1226,10 @@ pub fn run() {
 
 /// Reads configuration from `parish.toml` (if present) and `PARISH_*` env vars
 /// into a [`ProviderConfig`] plus the display strings that populate [`GameConfig`].
-fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>) {
-    let config =
+fn provider_config_from_env(
+    user_config_dir: &std::path::Path,
+) -> (ProviderConfig, String, String, Option<String>) {
+    let mut config =
         parish_core::config::resolve_config(None, &Default::default()).unwrap_or_else(|e| {
             tracing::warn!(
                 "Failed to resolve configuration: {}; falling back to defaults",
@@ -1213,6 +1242,24 @@ fn provider_config_from_env() -> (ProviderConfig, String, String, Option<String>
                 model: None,
             }
         });
+
+    // Layer below env: hydrate from the wizard-persisted
+    // `<user_config_dir>/parish.toml` (written by
+    // `handle_set_provider_config`). When the user hasn't pinned anything
+    // via env/CLI/project-root TOML, resolve_config returns the
+    // Simulator default — only in that case do we substitute the saved
+    // wizard choice so a returning user lands back on vllm-mlx without
+    // re-doing onboarding. PARISH_PROVIDER and friends still win.
+    if matches!(config.provider, parish_core::config::Provider::Simulator)
+        && let Ok(user_cfg) = parish_core::config::user_config::load_user_config(user_config_dir)
+        && let Some(provider_str) = user_cfg.provider.as_deref()
+        && let Ok(saved_provider) = parish_core::config::Provider::from_str_loose(provider_str)
+    {
+        let saved_default_base = saved_provider.default_base_url().to_string();
+        config.provider = saved_provider;
+        config.base_url = user_cfg.base_url.clone().unwrap_or(saved_default_base);
+        config.model = user_cfg.model.clone();
+    }
 
     let provider_name = config.provider_display();
     let base_url = config.base_url.clone();
