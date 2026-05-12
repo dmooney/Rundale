@@ -80,6 +80,7 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/map", get(map))
         .route("/api/npcs-here", get(npcs_here))
         .route("/api/save-state", get(save_state))
+        .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
         // ── writes ───────────────────────────────────────────────────────────
         .route("/api/submit-input", post(submit_input))
@@ -177,6 +178,25 @@ async fn npcs_here(State(b): State<BridgeState>) -> Json<Vec<NpcInfo>> {
     let world = b.state.world.lock().await;
     let npc_manager = b.state.npc_manager.lock().await;
     Json(parish_core::ipc::build_npcs_here(&world, &npc_manager))
+}
+
+#[derive(serde::Serialize)]
+struct TranscriptLine {
+    speaker: String,
+    text: String,
+}
+
+async fn transcript(State(b): State<BridgeState>) -> Json<Vec<TranscriptLine>> {
+    let conv = b.state.conversation.lock().await;
+    let lines = conv
+        .transcript
+        .iter()
+        .map(|l| TranscriptLine {
+            speaker: l.speaker.clone(),
+            text: l.text.clone(),
+        })
+        .collect();
+    Json(lines)
 }
 
 async fn save_state(State(b): State<BridgeState>) -> Json<SaveState> {

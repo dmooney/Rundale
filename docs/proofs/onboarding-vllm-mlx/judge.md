@@ -104,6 +104,22 @@ Five bugs surfaced during this probe and were fixed:
 After all five fixes the live probe completes without manual
 intervention.
 
+## Follow-up probe — live NPC dialogue through bundled vllm-mlx
+
+A second clean-profile probe (2026-05-12) drove the full first-run
+flow against a fresh save and walked the player into an NPC
+exchange to prove the dialogue tier — not just `/v1/chat/completions`
+in isolation — is wired through the spawned vllm-mlx serve. After
+relaunch, time advanced to 11:09 AM, Tommy O'Brien arrived at the
+Crossroads (matching his `npcs.json` schedule), and the player's
+"Good day to you, Tommy. What brings you out…?" produced an
+in-character reply citing another real NPC (Colm Gallagher, the
+smith). Truncated mid-word at the 80-token cap — expected for the
+1.5B small-only variant. Saved to
+`transcript-tommy.json`; full transcript reproduced in
+`evidence.md`. To support readback from outside the Tauri webview,
+a new `GET /api/transcript` route was added to `mcp_bridge`.
+
 ## What this verdict does NOT cover
 
 Apple Developer codesigning + notarization are out of scope —
