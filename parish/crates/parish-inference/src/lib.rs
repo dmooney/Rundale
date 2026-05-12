@@ -869,7 +869,10 @@ impl AnyClient {
                 // is an "uneventful tick" rather than a hard parse failure.
                 let wants_json = response_format.is_some()
                     || prompt.contains("Respond with a JSON")
+                    || prompt.contains("Respond with JSON")
                     || prompt.contains("JSON object")
+                    || prompt.contains("\"updates\":")
+                    || prompt.contains("\"npc_id\":")
                     || system.is_some_and(|s| s.contains("JSON") || s.contains("input parser"));
                 if wants_json {
                     c.generate_stream_json(model, prompt, system, token_tx, max_tokens, temperature)
@@ -2093,11 +2096,28 @@ mod tests {
             "intent-parser system prompt should stream JSON, got: {body3}"
         );
 
-        // Case 4 — plain dialogue with no JSON ask: legacy Markov text path.
-        let (_, body4) = drive(&sim, "Tell me a story.", None, None).await;
+        // Case 4 — Tier 3 prompt (build_tier3_prompt) uses "Respond with
+        // JSON" (no "a") and embeds a `{"updates":[…]}` schema. Regression:
+        // before the "Respond with JSON" + `"updates":` markers landed, this
+        // fell through to Markov and the Tier 3 batch parser logged a parse
+        // failure on every world-tick post-boot.
+        let (_, body_t3) = drive(
+            &sim,
+            r#"You are simulating background NPC activity. Respond with JSON, using the bracketed ids: {"updates":[{"npc_id":1,"mood":"…"}]}"#,
+            None,
+            None,
+        )
+        .await;
         assert!(
-            !body4.starts_with('{'),
-            "plain prompt should still produce text, got: {body4}"
+            body_t3.starts_with('{'),
+            "Tier 3 prompt must stream JSON (regression — boot-time parse storm), got: {body_t3}"
+        );
+
+        // Case 5 — plain dialogue with no JSON ask: legacy Markov text path.
+        let (_, body5) = drive(&sim, "Tell me a story.", None, None).await;
+        assert!(
+            !body5.starts_with('{'),
+            "plain prompt should still produce text, got: {body5}"
         );
     }
 }

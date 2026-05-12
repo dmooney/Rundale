@@ -420,11 +420,8 @@ tea is very useful…"); the small-only Qwen1.5B never produced any
 Irish in the previous probe.
 
 Tier 2 JSON-parse failures in the log over the full probe: **0**.
-Tier 3 boot-time failures: 1 (same race the small-only probe saw —
-first tier-3 tick fires within the 5-second world-tick window
-before the simulator override settles end-to-end; engine moves on,
-no subsequent failures, NPCs continue to schedule and disperse
-normally).
+Tier 3 boot-time failures: 1 (root cause now identified — see
+"Tier 3 boot-time race — fixed" below).
 
 Saved to `transcript-brigid-two-slot.json`.
 
@@ -455,12 +452,64 @@ spinner and the user sees what went wrong. Without this the wizard
 hung on the spinner forever and the user had to restart the app
 to see anything.
 
+## Final-round fixes
+
+### Tier 3 boot-time race — fixed
+
+The "one Tier 3 parse failure per launch" the four-probe judge
+flagged as low-priority follow-up is not a race — it was a missed
+marker in the simulator's JSON-detection shim. `build_tier3_prompt`
+says **"Respond with JSON"** (no "a") and embeds a `{"updates":[…]}`
+schema, but the shim only matched **"Respond with a JSON"** and
+**"JSON object"**. The Tier 3 prompt fell through to the Markov
+text path and `serde_json::from_str::<Tier3Response>` failed once
+per launch (only once because Tier 3 fires at most every 24 game
+hours per NPC; the boot-time tick is the first call). Added two
+markers — `"Respond with JSON"` and the literal schema fragments
+`"\"updates\":"` / `"\"npc_id\":"` — and a regression case in the
+existing simulator-routing test so this can't silently regress.
+
+### Bundled vllm-mlx graceful shutdown — wired
+
+`tauri::Builder::run` now branches into a
+`.build(...)?.run(|app, event| ...)` form so we can hook
+`RunEvent::ExitRequested`. The handler `block_on`'s a
+`runtime_processes.lock().await; rp.stop()`, killing every
+bundled `python -m vllm_mlx.cli serve` child while the tokio
+runtime is still alive. Drop on `AppState` still fires as the
+catch-all path, but on Cmd+Q the runtime is torn down before
+the managed-state Arc actually drops, leaving the ~12 GB-resident
+14B server orphaned to launchd. The explicit ExitRequested hook
+closes that window.
+
+### Feature flag documented in `docs/features.md`
+
+`local-inference-onboarding` (and the other engine flags) now
+listed under `## Player Input → Feature Flags` so a developer
+reading the feature catalog finds it without having to grep the
+source. Default-on; disable via `/flag disable
+local-inference-onboarding` to skip the wizard entirely and force
+startup to use whatever `PARISH_*` env vars / `parish.toml`
+already configure.
+
+### Dev-mode fallback — verified
+
+A dev build (`cargo tauri dev`, no bundle in `Contents/Resources`)
+falls through to the existing `VLLM_MLX_BIN` env / PATH lookup.
+`resolve_bundled_vllm_mlx_paths` returns `None`,
+`VLLM_MLX_BIN` stays unset, and `VllmMlxProcess::ensure_running`
+spawns `vllm-mlx serve …` from PATH (`/Users/<user>/.local/bin/vllm-mlx`
+on a typical `uv tool install vllm-mlx` dev box). The error
+message at `parish-inference/src/setup.rs:372` already directs
+the user to `uv tool install vllm-mlx` if PATH also misses.
+
 ## Tests
 
 - `parish-inference::tests::simulator_streams_json_when_format_or_prompt_requests_it`
-  — pins the simulator's JSON detection so the four routing cases
+  — pins the simulator's JSON detection so the five routing cases
   (explicit `response_format`, "Respond with a JSON" prompt
-  marker, "input parser" system prompt, plain prompt) keep
+  marker, "input parser" system prompt, Tier 3 prompt with
+  "Respond with JSON" + `"updates":` schema, plain prompt) keep
   producing the right body shape (JSON vs Markov text).
 - `parish-npc::tier2_llm_integration::tier2_through_simulator_parses_as_empty_event`
   — runs `run_tier2_for_group` end-to-end against the in-process

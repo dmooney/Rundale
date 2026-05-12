@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -1225,8 +1225,24 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Parish application");
+        .build(tauri::generate_context!())
+        .expect("error while running Parish application")
+        .run(move |app, event| {
+            // Graceful shutdown of bundled vllm-mlx children. Drop already
+            // calls stop() when AppState finally drops, but on Cmd+Q the
+            // tokio runtime can be torn down before that fires, leaving
+            // ~2-4 GB resident python processes orphaned to launchd. Hook
+            // ExitRequested so we kill them while the runtime is still
+            // alive enough to wait().
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state: tauri::State<'_, Arc<AppState>> = app.state();
+                let state = Arc::clone(&state);
+                tauri::async_runtime::block_on(async move {
+                    let mut rp = state.runtime_processes.lock().await;
+                    rp.stop();
+                });
+            }
+        });
 }
 
 // ── Client initialisation from env ───────────────────────────────────────────
