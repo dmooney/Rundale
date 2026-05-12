@@ -152,16 +152,8 @@ async fn tier2_through_simulator_parses_as_empty_event() {
     let client = AnyClient::simulator();
     let group = two_npc_group();
     let lang = LanguageSettings::english_only();
-    let event = run_tier2_for_group(
-        &client,
-        "sim",
-        &group,
-        "Afternoon",
-        "Clear",
-        &lang,
-        None,
-    )
-    .await;
+    let event =
+        run_tier2_for_group(&client, "sim", &group, "Afternoon", "Clear", &lang, None).await;
 
     let event = event.expect(
         "simulator-routed Tier 2 must produce a parseable event (not a JSON parse failure)",
