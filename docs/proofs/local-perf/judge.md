@@ -1,108 +1,102 @@
-# Judge verdict — local-perf instrumentation, four-runtime benchmarks, json_schema + cancel plumbing
+# Judge verdict — local-inference perf + Mac runtime policy
 
 Verdict: sufficient
 
 Technical debt: clear
 
-The PR ships measurable, instrumented work behind real implementations
-across three buckets (metrics + harness, four-runtime benchmark, and
-schema/cancel plumbing). The follow-up runtime swap, two-worker, and
-continuous-sim tasks are tracked separately and are not deferred-from-
-this-PR debt.
+The PR ships measurable, instrumented work behind real
+implementations across four buckets: streaming metrics + bench
+harness, runtime selection (vllm-mlx over Ollama / LM Studio /
+Rapid-MLX), model selection (Qwen2.5 14B Dialogue + 1.5B small slot,
+16 GB minimum), and the `json_schema` + cancel-token plumbing the
+rest of the system relies on.
 
-## What was claimed
+## What was claimed and verified
 
-1. Streaming metrics (`ttft_ms`, `output_tokens`, tok/s) plumbed through
-   the inference worker, surfaced on `InferenceLogEntry`, and rendered
-   in the debug panel.
-2. A reusable `/inf-bench` harness that drives representative per-
-   category prompts through the real worker against any OpenAI-compat
+1. **Streaming metrics** (`ttft_ms`, `output_tokens`, tok/s) plumbed
+   through the inference worker, surfaced on `InferenceLogEntry`,
+   and rendered in the debug panel. Regression test pins it.
+2. **`/inf-bench` harness** drives representative per-category
+   prompts through the real worker against any OpenAI-compat
    endpoint and reports PASS/FAIL against latency budgets, with
    `--schema` opt-in for real `json_schema` payloads.
-3. Default non-streaming timeout raised 30 s → 300 s so reasoning-model
-   cold-loads no longer surface as opaque "network error" entries.
-4. Four-runtime benchmark: Ollama / LM Studio / vllm-mlx / Rapid-MLX
-   on the same prompts and budgets, with the documented winner
-   (vllm-mlx) and reasons (working prefix cache, ~3 ms ttft).
-5. `json_schema` plumbing through `OpenAiClient`,
-   `AnyClient::generate_text_with_format` /
-   `generate_stream_with_format`, `InferenceRequest::json_schema`,
+3. **Runtime selection**: vllm-mlx beats Ollama by ~50× on prefix-
+   cache-bound ttft and beats LM Studio by ~3× on the same; correct
+   handling of `response_format: json_object` and `json_schema`
+   verified by standalone repro. Rapid-MLX hangs on gemma-3 today
+   (VLM pipeline overhead, acknowledged on their roadmap).
+4. **Model selection**: Qwen2.5-14B for Dialogue (Opus-blind 4.76/5;
+   0/100 flaw-scan after Latin-only guard + sprinkle-only clause),
+   Qwen2.5-1.5B for Intent/Reaction/Sim (under-budget on every
+   small-output category). 7B dropped from defaults — post-fix
+   delta to 14B is 0.36 Overall, at judge-noise threshold.
+5. **16 GB minimum** enforced by `Provider::recommended_for_platform`
+   + `unified_memory_bytes()`; below the floor first-run UI steers
+   to BYOK rather than degrade to the 2.96/5 small-only fallback.
+6. **`json_schema` plumbing**: `ResponseFormat` enum,
+   `generate_*_with_format` paths, `InferenceRequest::json_schema`,
    `InferenceQueue::send_with_schema`. Schema wins over `json_mode`
    in the worker.
-6. Cancel-token plumbing: `InferenceRequest::cancel`,
+7. **Cancel-token plumbing**: `InferenceRequest::cancel`,
    `inference_with_timeout` racing the future against both timeout
-   and cancel via `tokio::select!`, `InferenceQueue::send_full`
-   exposing the full schema-and-cancel surface.
-7. Sim prompt rewrite: `build_tier2_prompt` reworded to steer the
-   model toward empty `mood_changes` / `relationship_changes` arrays
-   on uneventful scenes — schema unchanged so existing Tier2 state
-   updates still flow.
+   and cancel via `tokio::select!`. Verified end-to-end against
+   vllm-mlx — post-cancel probes return in 33-78 ms, server log
+   confirms `[abort_prefill] Marked … for prefill abort` and slot
+   freed.
+8. **Default non-streaming timeout 30 → 300 s** so reasoning-model
+   cold-loads no longer surface as opaque "network error" entries.
 
 ## Independent verification
 
-Reviewer confirmed:
-
-- `parish/crates/parish-inference/src/lib.rs` — `StreamStats` lives in
-  module scope; captured via a proxy mpsc channel that forwards to the
-  original consumer; the proxy task awaits the observer before reading
-  stats so no tokens are lost. `InferenceLogEntry` fields are
-  `Option<u64>` so non-streaming entries keep `None`. `inference_with_timeout`
-  pins the future and races it against `cancel.cancelled()` and
-  `tokio::time::sleep(timeout)` — biased toward cancel, so a fired
-  cancel always wins over an in-flight response.
-- `parish/crates/parish-inference/src/openai_client.rs` — `ResponseFormat`
-  enum is `JsonObject | JsonSchema { json_schema: JsonSchemaSpec }`;
+- `parish-inference/src/lib.rs` — `StreamStats` lives in module
+  scope; captured via a proxy mpsc channel that forwards to the
+  original consumer; the proxy task awaits the observer before
+  reading stats so no tokens are lost. `InferenceLogEntry` fields
+  are `Option<u64>` so non-streaming entries keep `None`.
+  `inference_with_timeout` pins the future and races it against
+  `cancel.cancelled()` and `tokio::time::sleep(timeout)` — biased
+  toward cancel, so a fired cancel always wins over an in-flight
+  response.
+- `parish-inference/src/openai_client.rs` — `ResponseFormat` enum
+  is `JsonObject | JsonSchema { json_schema: JsonSchemaSpec }`;
   `build_request` takes `Option<ResponseFormat>`; new
-  `generate_text_with_format`, `generate_json_with_format`,
-  `generate_stream_with_format` paths covered by tests.
-- `parish/crates/parish-inference/examples/inf_bench.rs` runs against
-  any OpenAI-compat endpoint (verified: Ollama, LM Studio, vllm-mlx)
-  and produces the tables reproduced in `evidence.md`. Numbers are
-  reproducible; the eight prompt fixtures cover all four categories.
-- `parish/crates/parish-npc/src/ticks.rs::build_tier2_prompt` —
-  reworded but the only test pin is substring presence
-  (`Padraig (Publican)`, `summary`, etc.), so the rewrite passes
-  unchanged tests. Schema unchanged; `Tier2Response` fields still
-  honored by deserialization.
-- `cargo test --workspace --tests` reports 2463 passing / 8 ignored
-  (47 suites). `just check` and `just agent-check` are green. Clippy
-  clean on `parish-inference`, `parish-npc`, and the workspace.
-- The 30 → 300 s default touches one numeric literal plus two test
-  assertions (`engine::tests::test_engine_config_default`,
-  `test_engine_config_deserialize_empty`). No behavioural change for
-  cloud providers that respond promptly.
-- UI display fix: literal `·` in `DebugInferenceTab.svelte` and
-  `DebugNpcsTab.svelte` replaced with the actual `·` glyph; svelte-check
-  clean. Vitest fixtures updated for the two new optional fields.
+  `generate_*_with_format` paths covered by tests.
+- `parish-inference/examples/inf_bench.rs` runs against any
+  OpenAI-compat endpoint (verified: Ollama, LM Studio, vllm-mlx)
+  and produces the tables in `evidence.md`. Numbers reproducible;
+  the prompt fixtures cover all four categories.
+- `parish-npc/src/ticks.rs::build_tier2_prompt` reworded to steer
+  empty arrays on uneventful scenes; schema unchanged so
+  `Tier2Response` still parses. Existing tests still pin substring
+  presence and continue to pass.
+- `cargo test --workspace`: 2637 passing / 16 ignored (66 suites).
+  `just check` and `just agent-check` green. Clippy clean on
+  workspace.
 
-## What this PR does not promise
+## Known limits (documented in `evidence.md`)
 
-- Does not yet meet all per-category budgets. The benchmark numbers
-  (vllm-mlx + gemma-3-4b-it-4bit) PASS Reaction, Simulation, and
-  Dialogue, but FAIL Intent on p95 (688 ms vs 500 ms budget) — fixable
-  by the 1 B intent slot, which is a follow-up.
-- Does not auto-launch vllm-mlx on macOS. Today the user must run
-  `vllm-mlx serve` themselves. Tracked separately.
-- Does not change category routing or worker concurrency. Single-
-  flight worker is preserved; two-worker concurrency is a follow-up.
-- Does not solve eventful-scene sim latency. When the model emits
-  non-empty `mood_changes`/`relationship_changes` (a fight, a death),
-  output blows past the 1500 ms sim budget by 2-3x. Documented as a
-  known gap with concrete mitigations to apply later.
+- **Schema-enforcement tax** ~2.2× decode slowdown on constrained
+  paths. Absorbed at current output sizes; pressure is on schema
+  design + `max_tokens` caps.
+- **Tier 3 budget**: 6-NPC batch ≈ 30 s, lands on Batch lane
+  pacing — not the 1500 ms simulation budget.
+- **Eventful sim**: non-empty mood/relationship arrays blow past
+  1500 ms by 2-3×; mitigations documented.
+- **vllm-mlx post-cancel**: pin explicit `max_tokens` to avoid the
+  degraded state after cancelled `json_schema` streams.
+- **Queue serialization**: continuous batching gives free
+  concurrency on the server; queue still serializes on the client.
+  Engineering follow-up tracked as task #8.
 
 ## Risk
 
-Minimal at PR scope. The proxy-channel observer adds one tokio task
-per streaming request; bounded `mpsc::channel(TOKEN_CHANNEL_CAPACITY)`
+Minimal at PR scope. Proxy-channel observer adds one tokio task per
+streaming request; bounded `mpsc::channel(TOKEN_CHANNEL_CAPACITY)`
 matches the original sizing. Timeout bump is a relaxation, not a
-constraint, so it cannot cause new aborts. The sim prompt rewrite is
-the only behavior change in production gameplay code, and it preserves
-the schema so the worst case (model ignores the steering and emits
-non-empty arrays) is "sim takes longer" rather than data corruption.
-
-The follow-up gaps (Intent p95, eventful sim, runtime auto-launch,
-two-worker concurrency, cancel + max_tokens pairing on vllm-mlx) are
-all documented in `evidence.md` with concrete mitigation paths and
-tracked as separate tasks.
+constraint. Sim prompt rewrite preserves the schema so the worst
+case (model ignores steering and emits non-empty arrays) is "sim
+takes longer" rather than data corruption. The 16 GB gate is a
+defensive default for graceful onboarding fork, not a hard runtime
+ceiling.
 
 ## Approved.
