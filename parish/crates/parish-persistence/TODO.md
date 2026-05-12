@@ -26,3 +26,16 @@
 | TD-012 | Complexity | P2 | Split `GameSnapshot::restore()` into `restore_clock`, `restore_world_locations`, `restore_npcs` private helpers. |
 | TD-013 | Complexity | P2 | Extracted `apply_player_moved` and `apply_memory_added` helpers from `replay_journal`. |
 | TD-014 | Stale Docs | P2 | Added `tracing::warn!` on the `Err(_) => continue` path in `discover_saves` in `picker.rs`. |
+| TD-015 | Bug/Stale Logic | P2 | Dropped `NpcArrived`/`NpcDeparted` conversion in `journal_bridge.rs`; they now map to `None` (informational only). Updated tests. |
+| TD-016 | Rule 9 Violation | P2 | Deprecated `ensure_saves_dir()` with `#[deprecated]`; migrated callers in `parish-server` and `parish-cli` to `resolve_project_saves_dir`. |
+| TD-017 | Dead API | P2 | Downgraded `journal_bridge::to_journal_event` and `drain_events` visibility from `pub` to `pub(crate)`. |
+| TD-018 | Dead API | P2 | Downgraded `picker::PickerChoice` and `read_picker_choice` visibility from `pub` to `pub(crate)`. |
+| TD-019 | Dead API | P2 | Removed `lock::SaveFileLock::covers_path` and its test (`test_covers_path`). |
+| TD-020 | Test Hygiene | P2 | Fixed `test_ensure_saves_dir_creates_directory` to acquire `env_test_lock` before mutating `current_dir`. |
+| TD-021 | Inconsistent Logging | P2 | Switched `ensure_saves_dir_at` `eprintln`/`println` to `tracing::warn!`/`tracing::info!`. |
+| TD-022 | Weak Tests | P2 | Added `test_replay_dialogue_occurred_is_noop` in `journal.rs`. |
+| TD-023 | Stale Doc Comment | P2 | Fixed `ensure_saves_dir_at` doc comment to describe idempotent migration instead of one-time migration. |
+
+## Progress Log
+
+- **2026-05-12**: Resolved TD-015 through TD-023. All changes verified with `cargo fmt`, `cargo clippy`, and `cargo test -p parish-persistence`. Dependent crates (`parish-core`, `parish-cli`, `parish-server`) checked clean.
