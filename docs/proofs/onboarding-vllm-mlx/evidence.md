@@ -237,3 +237,62 @@ steps.
 5. `PARISH_HF_HOME` not re-seeded on relaunch — startup re-points
    it at `<user_config_dir>/models/` so vllm-mlx finds the cached
    weights without network. (this PR)
+
+## Live NPC dialogue through the bundled runtime
+
+Second clean-profile probe (2026-05-12) drove the full first-run
+flow against a different save and walked the player into an NPC
+exchange to prove the dialogue tier — not just `/v1/chat/completions`
+in isolation — is wired through the spawned vllm-mlx serve.
+
+```
+$ env HOME=/tmp/parish-clean-peig-… \
+      PARISH_SAVES_DIR=…/saves \
+      PARISH_USER_CONFIG_DIR=…/parish-cfg \
+      PARISH_MODS_DIR=/path/to/repo/mods \
+      Rundale.app/Contents/MacOS/parish-tauri --mcp-port 3030
+
+$ curl 127.0.0.1:3030/api/onboarding-options
+  → {"choice":"local-recommended","ram_gb":48}
+$ curl -X POST 127.0.0.1:3030/api/start-local-inference \
+       -d '{"variant":"small-only"}'
+  → cache-hit (HF_HOME from earlier probe), done in <2 s
+$ curl -X POST 127.0.0.1:3030/api/new-game   → fresh save written
+```
+
+After relaunch (`vllm-mlx ready after ~3000ms`, save restored), the
+game lands at Kilteevan Village 8:00 AM Friday. NPC schedules in
+`mods/rundale/npcs.json` route Tommy O'Brien (Retired Farmer) to
+the Crossroads at 11:00 AM — verified by walking the player there:
+
+```
+$ curl -X POST 127.0.0.1:3030/api/submit-input -d '{"text":"go to The Crossroads"}'
+  → game time advances to 11:09 AM, player at The Crossroads
+$ curl 127.0.0.1:3030/api/npcs-here
+  → [{"real_name":"Tommy O'Brien","occupation":"Retired Farmer", … }]
+
+$ curl -X POST 127.0.0.1:3030/api/submit-input \
+       -d '{"text":"Good day to you, Tommy. What brings you out to the Crossroads at this hour?",
+            "addressed_to":["Tommy O'\''Brien"]}'
+
+$ curl 127.0.0.1:3030/api/transcript
+[
+  {"speaker":"You",         "text":"Good day to you, Tommy. What brings you out to the Crossroads at this hour?"},
+  {"speaker":"Tommy O'Brien","text":"Good day to ye, sir. I am here to see Colm Gallagher for a smithing job. He's hammering on a metalworki…"}
+]
+```
+
+In-character: 1820 rural Hiberno-English ("Good day to ye, sir"),
+references another real NPC (Colm Gallagher, the village smith,
+defined a few hundred lines up in `npcs.json`). Reply truncated
+mid-word at the small-slot's 80-token cap — expected behaviour for
+the 1.5B Qwen on the small-only variant; the proof here is that
+the dialogue tier reached the bundled server and streamed a
+context-aware response, not that the 1.5B writes Booker-prize prose.
+
+Saved transcript: `docs/proofs/onboarding-vllm-mlx/transcript-tommy.json`.
+
+A new MCP route — `GET /api/transcript` — was added in the same
+session so the local conversation ring-buffer is readable from
+outside the Tauri webview; the dialogue stream emits Svelte events
+that Playwright/MCP can't tap directly.
