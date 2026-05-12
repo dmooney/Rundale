@@ -40,6 +40,9 @@ pub const EVENT_SETUP_STATUS: &str = "setup-status";
 pub const EVENT_SETUP_PROGRESS: &str = "setup-progress";
 /// Event emitted when bootstrap finishes (success or failure).
 pub const EVENT_SETUP_DONE: &str = "setup-done";
+/// Event emitted on first launch when no provider is configured. The frontend
+/// renders the BYOK fork screen instead of the Ollama download spinner.
+pub const EVENT_SETUP_NEEDS_ONBOARDING: &str = "setup-needs-onboarding";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;

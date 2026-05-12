@@ -498,9 +498,6 @@ mod tests {
         for &t in &times {
             for &s in &seasons {
                 for &w in &weathers {
-                    // Use seed=0 which gives roll=0, guaranteed trigger
-                    let rng = rand::rngs::StdRng::seed_from_u64(0);
-                    let prob = (super::base_prob(t) + super::weather_mod(w)).clamp(0.0, 1.0);
                     // Just test the pool lookup doesn't panic
                     let lines = match t {
                         TimeOfDay::Dawn => super::dawn_lines(s, w),
@@ -512,8 +509,6 @@ mod tests {
                         TimeOfDay::Midnight => super::midnight_lines(s, w),
                     };
                     assert!(!lines.is_empty(), "No lines for {t:?}/{s:?}/{w:?}");
-                    let _ = prob;
-                    let _ = rng;
                 }
             }
         }

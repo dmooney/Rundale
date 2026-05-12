@@ -4,15 +4,10 @@
 //! Adjacent-state transitions only — no jumping from Clear to Storm.
 //! Minimum 2 game-hours between transitions to prevent rapid flipping.
 
-use std::collections::VecDeque;
-
 use chrono::{DateTime, Utc};
 use rand::Rng;
 
 use parish_types::{Season, Weather};
-
-/// Maximum number of weather transitions to retain in history.
-const HISTORY_CAPACITY: usize = 10;
 
 /// Minimum duration in game-hours before a weather transition is allowed.
 const DEFAULT_MIN_DURATION_HOURS: f64 = 2.0;
@@ -97,8 +92,6 @@ pub struct WeatherEngine {
     min_duration_hours: f64,
     /// Game-hour of the last transition check (to avoid multiple checks per hour).
     last_check_hour: Option<i64>,
-    /// Ring buffer of recent weather transitions: (timestamp, new_weather).
-    history: VecDeque<(DateTime<Utc>, Weather)>,
 }
 
 impl WeatherEngine {
@@ -109,20 +102,12 @@ impl WeatherEngine {
             since: start_time,
             min_duration_hours: DEFAULT_MIN_DURATION_HOURS,
             last_check_hour: None,
-            history: VecDeque::with_capacity(HISTORY_CAPACITY),
         }
     }
 
     /// Returns the current weather.
     pub fn current(&self) -> Weather {
         self.current
-    }
-
-    /// Returns the history of weather transitions (newest last).
-    ///
-    /// Each entry is `(timestamp, new_weather)` recorded when a transition fired.
-    pub fn history(&self) -> &VecDeque<(DateTime<Utc>, Weather)> {
-        &self.history
     }
 
     /// Returns how long the current weather has persisted (game-hours).
@@ -154,10 +139,6 @@ impl WeatherEngine {
         self.current = weather;
         self.since = now;
         self.last_check_hour = Some(now.timestamp() / 3600);
-        if self.history.len() >= HISTORY_CAPACITY {
-            self.history.pop_front();
-        }
-        self.history.push_back((now, weather));
     }
 
     /// Ticks the weather engine. Returns `Some(new_weather)` if a
@@ -190,12 +171,6 @@ impl WeatherEngine {
         let new_weather = self.compute_transition(season, rng)?;
         self.current = new_weather;
         self.since = now;
-        self.last_check_hour = Some(current_hour);
-        // Record transition in history ring buffer
-        if self.history.len() >= HISTORY_CAPACITY {
-            self.history.pop_front();
-        }
-        self.history.push_back((now, new_weather));
         Some(new_weather)
     }
 
@@ -429,5 +404,27 @@ mod tests {
             }
         }
         assert!(transitioned, "Should find a seed that triggers transition");
+    }
+
+    #[test]
+    fn test_force_changes_state_and_arms_last_check_hour() {
+        let start = time_at(8);
+        let mut engine = WeatherEngine::new(Weather::Clear, start);
+
+        let forced_time = time_at(10);
+        engine.force(Weather::Storm, forced_time);
+
+        assert_eq!(engine.current(), Weather::Storm);
+        assert_eq!(engine.since(), forced_time);
+        assert_eq!(
+            engine.last_check_hour(),
+            Some(forced_time.timestamp() / 3600)
+        );
+
+        // A tick at the same hour should be skipped
+        let mut rng = StdRng::seed_from_u64(42);
+        let result = engine.tick(forced_time, Season::Spring, &mut rng);
+        assert!(result.is_none(), "tick should skip the just-forced hour");
+        assert_eq!(engine.current(), Weather::Storm);
     }
 }

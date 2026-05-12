@@ -118,215 +118,222 @@ pub fn resolve_category_configs(
     cli_categories: &CliCategoryOverrides,
     cli_cloud: &CliCloudOverrides,
 ) -> Result<HashMap<InferenceCategory, CategoryConfig>, ParishError> {
-    let toml_cfg = load_toml(config_path)?;
+    let toml_cfg = match config_path {
+        Some(path) => read_toml_config(path)?,
+        None => TomlConfig::default(),
+    };
     let mut result = HashMap::new();
 
     for category in InferenceCategory::ALL {
-        // Get the TOML override for this category
-        let toml_override = match category {
-            InferenceCategory::Dialogue => toml_cfg.provider.dialogue.clone(),
-            InferenceCategory::Simulation => toml_cfg.provider.simulation.clone(),
-            InferenceCategory::Intent => toml_cfg.provider.intent.clone(),
-            InferenceCategory::Reaction => toml_cfg.provider.reaction.clone(),
-        };
-
-        // Get CLI overrides for this category
-        let cli_override = cli_categories.categories.get(category.name());
-
-        // Check if there are any overrides at all for this category
-        let has_toml = toml_override.as_ref().is_some_and(|t| {
-            t.name.is_some() || t.base_url.is_some() || t.api_key.is_some() || t.model.is_some()
-        });
-        let has_env = env_non_empty(&format!("{}_PROVIDER", category.env_prefix())).is_some()
-            || env_non_empty(&format!("{}_BASE_URL", category.env_prefix())).is_some()
-            || env_non_empty(&format!("{}_MODEL", category.env_prefix())).is_some();
-        let has_cli = cli_override
-            .is_some_and(|c| c.provider.is_some() || c.base_url.is_some() || c.model.is_some());
-
-        // For dialogue: also check legacy [cloud] config
-        let has_legacy_cloud = category == InferenceCategory::Dialogue
-            && (toml_cfg.cloud.name.is_some()
-                || toml_cfg.cloud.base_url.is_some()
-                || toml_cfg.cloud.api_key.is_some()
-                || toml_cfg.cloud.model.is_some()
-                || env_non_empty("PARISH_CLOUD_PROVIDER").is_some()
-                || env_non_empty("PARISH_CLOUD_BASE_URL").is_some()
-                || env_non_empty("PARISH_CLOUD_MODEL").is_some()
-                || cli_cloud.provider.is_some()
-                || cli_cloud.base_url.is_some()
-                || cli_cloud.model.is_some());
-
-        if !has_toml && !has_env && !has_cli && !has_legacy_cloud {
-            continue;
+        if let Some(cfg) =
+            resolve_single_category(&toml_cfg, category, base, cli_categories, cli_cloud)?
+        {
+            result.insert(category, cfg);
         }
-
-        // Start with no API key — it is resolved per-provider after the provider
-        // is known. Inheriting base.api_key would leak the base provider's key
-        // to a category that resolves to a different provider.
-        let mut provider_str: Option<String> = None;
-        let mut cat_base_url: Option<String> = None;
-        let mut cat_api_key: Option<String> = None;
-        let mut cat_model: Option<String> = base.model.clone();
-
-        // Layer 1: Legacy [cloud] for dialogue (lowest priority override)
-        if category == InferenceCategory::Dialogue {
-            if let Some(ref name) = toml_cfg.cloud.name {
-                provider_str = Some(name.clone());
-            }
-            if let Some(ref url) = toml_cfg.cloud.base_url {
-                cat_base_url = Some(url.clone());
-            }
-            if let Some(ref key) = toml_cfg.cloud.api_key {
-                cat_api_key = Some(key.clone());
-            }
-            if let Some(ref m) = toml_cfg.cloud.model {
-                cat_model = Some(m.clone());
-            }
-            // Legacy cloud env vars
-            if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") {
-                provider_str = Some(val);
-            }
-            if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
-                cat_base_url = Some(val);
-            }
-            if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
-                cat_model = Some(val);
-            }
-            // Legacy cloud CLI flags
-            if let Some(ref val) = cli_cloud.provider {
-                provider_str = Some(val.clone());
-            }
-            if let Some(ref val) = cli_cloud.base_url {
-                cat_base_url = Some(val.clone());
-            }
-            if let Some(ref val) = cli_cloud.model {
-                cat_model = Some(val.clone());
-            }
-        }
-
-        // Layer 2: TOML [provider.<category>] overrides legacy cloud
-        if let Some(ref toml_ov) = toml_override {
-            if let Some(ref name) = toml_ov.name {
-                provider_str = Some(name.clone());
-            }
-            if let Some(ref url) = toml_ov.base_url {
-                cat_base_url = Some(url.clone());
-            }
-            if let Some(ref key) = toml_ov.api_key {
-                cat_api_key = Some(key.clone());
-            }
-            if let Some(ref m) = toml_ov.model {
-                cat_model = Some(m.clone());
-            }
-        }
-
-        // Layer 3: Per-category env vars (provider, base_url, model — no API_KEY)
-        let prefix = category.env_prefix();
-        if let Some(val) = env_non_empty(&format!("{prefix}_PROVIDER")) {
-            provider_str = Some(val);
-        }
-        if let Some(val) = env_non_empty(&format!("{prefix}_BASE_URL")) {
-            cat_base_url = Some(val);
-        }
-        if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) {
-            cat_model = Some(val);
-        }
-
-        // Layer 4: Per-category CLI flags
-        if let Some(cli_ov) = cli_override {
-            if let Some(ref val) = cli_ov.provider {
-                provider_str = Some(val.clone());
-            }
-            if let Some(ref val) = cli_ov.base_url {
-                cat_base_url = Some(val.clone());
-            }
-            if let Some(ref val) = cli_ov.model {
-                cat_model = Some(val.clone());
-            }
-        }
-
-        // Resolve provider early — needed before looking up the key env var.
-        let provider = match &provider_str {
-            Some(s) => Provider::from_str_loose(s)?,
-            None => base.provider.clone(),
-        };
-
-        // Layer 5: Standard provider API key env var (e.g. ANTHROPIC_API_KEY).
-        // Overrides TOML api_key; key is always bound to the provider that owns it.
-        if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
-            cat_api_key = Some(val);
-        }
-
-        // Resolve base URL: if overridden use that, else use provider default or base
-        let resolved_base_url = match cat_base_url {
-            Some(url) if !url.is_empty() => url,
-            _ => {
-                if provider_str.is_some() {
-                    provider.default_base_url().to_string()
-                } else {
-                    base.base_url.clone()
-                }
-            }
-        };
-
-        let cat_api_key = cat_api_key.filter(|s| !s.is_empty());
-        let cat_model = cat_model.filter(|s| !s.is_empty());
-
-        // Fall back to the provider's preset for this role if no model set.
-        let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
-
-        // Validate
-        if provider.requires_api_key() && cat_api_key.is_none() {
-            let hint = provider
-                .api_key_env_var()
-                .unwrap_or("the provider API key env var");
-            return Err(ParishError::Config(format!(
-                "{} {:?} provider requires an API key. Set {}.",
-                category.name(),
-                provider,
-                hint
-            )));
-        }
-        if provider == Provider::Custom && resolved_base_url.is_empty() {
-            return Err(ParishError::Config(format!(
-                "{} custom provider requires a base_url. Set {}_BASE_URL or --{}-base-url.",
-                category.name(),
-                prefix,
-                category.name()
-            )));
-        }
-
-        result.insert(
-            category,
-            CategoryConfig {
-                provider,
-                base_url: resolved_base_url,
-                api_key: cat_api_key,
-                model: cat_model,
-            },
-        );
     }
 
     Ok(result)
 }
 
+/// Returns the TOML category override for the given category.
+fn category_toml_override(
+    toml_cfg: &TomlConfig,
+    cat: InferenceCategory,
+) -> Option<&TomlCategoryOverride> {
+    match cat {
+        InferenceCategory::Dialogue => toml_cfg.provider.dialogue.as_ref(),
+        InferenceCategory::Simulation => toml_cfg.provider.simulation.as_ref(),
+        InferenceCategory::Intent => toml_cfg.provider.intent.as_ref(),
+        InferenceCategory::Reaction => toml_cfg.provider.reaction.as_ref(),
+    }
+}
+
+/// Checks whether the given category has any override from TOML, env, CLI, or
+/// legacy cloud config.
+fn category_has_overrides(
+    toml_cfg: &TomlConfig,
+    category: InferenceCategory,
+    cli_override: Option<&CliOverrides>,
+    cli_cloud: &CliCloudOverrides,
+) -> bool {
+    let toml_override = category_toml_override(toml_cfg, category);
+    let has_toml = toml_override.is_some_and(|t| {
+        t.name.is_some() || t.base_url.is_some() || t.api_key.is_some() || t.model.is_some()
+    });
+    let has_env = env_non_empty(&format!("{}_PROVIDER", category.env_prefix())).is_some()
+        || env_non_empty(&format!("{}_BASE_URL", category.env_prefix())).is_some()
+        || env_non_empty(&format!("{}_MODEL", category.env_prefix())).is_some();
+    let has_cli = cli_override
+        .is_some_and(|c| c.provider.is_some() || c.base_url.is_some() || c.model.is_some());
+
+    let has_legacy_cloud = category == InferenceCategory::Dialogue
+        && (toml_cfg.cloud.name.is_some()
+            || toml_cfg.cloud.base_url.is_some()
+            || toml_cfg.cloud.api_key.is_some()
+            || toml_cfg.cloud.model.is_some()
+            || env_non_empty("PARISH_CLOUD_PROVIDER").is_some()
+            || env_non_empty("PARISH_CLOUD_BASE_URL").is_some()
+            || env_non_empty("PARISH_CLOUD_MODEL").is_some()
+            || cli_cloud.provider.is_some()
+            || cli_cloud.base_url.is_some()
+            || cli_cloud.model.is_some());
+
+    has_toml || has_env || has_cli || has_legacy_cloud
+}
+
+/// Resolves configuration for a single inference category by applying the
+/// 5 override layers. Returns `None` if there are no overrides for this category.
+fn resolve_single_category(
+    toml_cfg: &TomlConfig,
+    category: InferenceCategory,
+    base: &ProviderConfig,
+    cli_categories: &CliCategoryOverrides,
+    cli_cloud: &CliCloudOverrides,
+) -> Result<Option<CategoryConfig>, ParishError> {
+    let toml_override = category_toml_override(toml_cfg, category).cloned();
+    let cli_override = cli_categories.categories.get(category.name());
+
+    if !category_has_overrides(toml_cfg, category, cli_override, cli_cloud) {
+        return Ok(None);
+    }
+
+    let mut provider_str: Option<String> = None;
+    let mut cat_base_url: Option<String> = None;
+    let mut cat_api_key: Option<String> = None;
+    let mut cat_model: Option<String> = base.model.clone();
+
+    // Layer 1: Legacy [cloud] for dialogue (lowest priority override)
+    if category == InferenceCategory::Dialogue {
+        if let Some(ref name) = toml_cfg.cloud.name {
+            provider_str = Some(name.clone());
+        }
+        if let Some(ref url) = toml_cfg.cloud.base_url {
+            cat_base_url = Some(url.clone());
+        }
+        if let Some(ref key) = toml_cfg.cloud.api_key {
+            cat_api_key = Some(key.clone());
+        }
+        if let Some(ref m) = toml_cfg.cloud.model {
+            cat_model = Some(m.clone());
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_PROVIDER") {
+            provider_str = Some(val);
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_BASE_URL") {
+            cat_base_url = Some(val);
+        }
+        if let Some(val) = env_non_empty("PARISH_CLOUD_MODEL") {
+            cat_model = Some(val);
+        }
+        if let Some(ref val) = cli_cloud.provider {
+            provider_str = Some(val.clone());
+        }
+        if let Some(ref val) = cli_cloud.base_url {
+            cat_base_url = Some(val.clone());
+        }
+        if let Some(ref val) = cli_cloud.model {
+            cat_model = Some(val.clone());
+        }
+    }
+
+    // Layer 2: TOML [provider.<category>] overrides legacy cloud
+    if let Some(ref toml_ov) = toml_override {
+        if let Some(ref name) = toml_ov.name {
+            provider_str = Some(name.clone());
+        }
+        if let Some(ref url) = toml_ov.base_url {
+            cat_base_url = Some(url.clone());
+        }
+        if let Some(ref key) = toml_ov.api_key {
+            cat_api_key = Some(key.clone());
+        }
+        if let Some(ref m) = toml_ov.model {
+            cat_model = Some(m.clone());
+        }
+    }
+
+    // Layer 3: Per-category env vars
+    let prefix = category.env_prefix();
+    if let Some(val) = env_non_empty(&format!("{prefix}_PROVIDER")) {
+        provider_str = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{prefix}_BASE_URL")) {
+        cat_base_url = Some(val);
+    }
+    if let Some(val) = env_non_empty(&format!("{prefix}_MODEL")) {
+        cat_model = Some(val);
+    }
+
+    // Layer 4: Per-category CLI flags
+    if let Some(cli_ov) = cli_override {
+        if let Some(ref val) = cli_ov.provider {
+            provider_str = Some(val.clone());
+        }
+        if let Some(ref val) = cli_ov.base_url {
+            cat_base_url = Some(val.clone());
+        }
+        if let Some(ref val) = cli_ov.model {
+            cat_model = Some(val.clone());
+        }
+    }
+
+    // Resolve provider before the API key check
+    let provider = match &provider_str {
+        Some(s) => Provider::from_str_loose(s)?,
+        None => base.provider.clone(),
+    };
+
+    // Layer 5: Standard provider API key env var
+    if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
+        cat_api_key = Some(val);
+    }
+
+    let resolved_base_url = match cat_base_url {
+        Some(url) if !url.is_empty() => url,
+        _ => {
+            if provider_str.is_some() {
+                provider.default_base_url().to_string()
+            } else {
+                base.base_url.clone()
+            }
+        }
+    };
+
+    let cat_api_key = cat_api_key.filter(|s| !s.is_empty());
+    let cat_model = cat_model.filter(|s| !s.is_empty());
+    let cat_model = cat_model.or_else(|| provider.preset_model(category).map(String::from));
+
+    if provider.requires_api_key() && cat_api_key.is_none() {
+        let hint = provider
+            .api_key_env_var()
+            .unwrap_or("the provider API key env var");
+        return Err(ParishError::Config(format!(
+            "{} {:?} provider requires an API key. Set {}.",
+            category.name(),
+            provider,
+            hint
+        )));
+    }
+    if provider == Provider::Custom && resolved_base_url.is_empty() {
+        return Err(ParishError::Config(format!(
+            "{} custom provider requires a base_url. Set {}_BASE_URL or --{}-base-url.",
+            category.name(),
+            prefix,
+            category.name()
+        )));
+    }
+
+    Ok(Some(CategoryConfig {
+        provider,
+        base_url: resolved_base_url,
+        api_key: cat_api_key,
+        model: cat_model,
+    }))
+}
+
 /// Returns the value of an environment variable if it exists and is non-empty.
 fn env_non_empty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
-}
-
-/// Loads the TOML config from the given path or default location.
-fn load_toml(config_path: Option<&Path>) -> Result<TomlConfig, ParishError> {
-    if let Some(path) = config_path {
-        read_toml_config(path)
-    } else {
-        let cwd_path = Path::new("parish.toml");
-        if cwd_path.exists() {
-            read_toml_config(cwd_path)
-        } else {
-            Ok(TomlConfig::default())
-        }
-    }
 }
 
 /// Reads and parses a TOML config file (with per-category provider fields).

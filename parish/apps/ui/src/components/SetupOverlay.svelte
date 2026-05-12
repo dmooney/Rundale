@@ -6,32 +6,46 @@
 		onSetupStatus,
 		onSetupProgress,
 		onSetupDone,
+		onSetupNeedsOnboarding,
 		type SetupSnapshot,
 		type SetupStatusPayload,
 		type SetupProgressPayload,
 		type SetupDonePayload
 	} from '$lib/ipc';
 	import { LONG_WAIT_MESSAGES } from '$lib/setupWaitMessages';
+	import ByokFork from './ByokFork.svelte';
+	import {
+		formatBytes,
+		formatDuration,
+		formatElapsed,
+		formatDownloadStats,
+		RATE_SAMPLE_WINDOW_MS,
+		RATE_UPDATE_INTERVAL_MS,
+		MIN_RATE_SAMPLE_SPAN_MS,
+		RATE_NEW_SAMPLE_WEIGHT
+	} from '$lib/setup/download-rate';
+	import {
+		INITIAL_SETUP_MESSAGE,
+		SETUP_START_MESSAGE,
+		SETUP_HISTORY_LIMIT,
+		compactSetupMessages,
+		formatSetupStatusMessage,
+		sentenceBreakParts,
+		isLongSetupWaitMessage
+	} from '$lib/setup/setup-messages';
+	import {
+		readSetupCompleteFlag,
+		readSetupActivity,
+		markSetupComplete as markSetupCompleteStorage,
+		clearSetupComplete as clearSetupCompleteStorage,
+		persistSetupActivity as persistSetupActivityStorage,
+		clearSetupActivity,
+		type StoredSetupActivity
+	} from '$lib/setup/storage';
 
 	const tauri = isTauri();
-	const INITIAL_SETUP_MESSAGE = 'Preparing the storyteller...';
-	const SETUP_COMPLETE_SESSION_KEY = 'rundale-setup-complete';
-	const SETUP_ACTIVITY_SESSION_KEY = 'rundale-setup-activity';
-	const SETUP_START_MESSAGE = 'Starting inference provider setup...';
-	const SETUP_HISTORY_LIMIT = 80;
-	const RATE_SAMPLE_WINDOW_MS = 30_000;
-	const RATE_UPDATE_INTERVAL_MS = 750;
-	const MIN_RATE_SAMPLE_SPAN_MS = 750;
-	const RATE_NEW_SAMPLE_WEIGHT = 0.15;
 	const WAIT_MESSAGE_FIRST_DELAY_MS = 2_500;
 	const WAIT_MESSAGE_INTERVAL_MS = 7_000;
-
-	type StoredSetupActivity = {
-		currentPhrase: string;
-		messages: string[];
-		completed: number;
-		total: number;
-	};
 
 	let setupComplete = readSetupCompleteFlag();
 	const initialActivity = setupComplete ? null : readSetupActivity();
@@ -56,88 +70,31 @@
 	let longSetupWaitActive = false;
 	let receivedLiveSetupEvent = false;
 	let receivedSetupDone = false;
+	let needsOnboarding = $state(false);
 
 	let downloadPct = $derived(
 		downloadTotal > 0 ? Math.min(100, (downloadCompleted / downloadTotal) * 100) : null
 	);
-	let downloadStatsText = $derived(formatDownloadStats());
+	let downloadStatsText = $derived(
+		formatDownloadStats(downloadCompleted, downloadTotal, downloadSpeedBps, downloadEtaSeconds)
+	);
 	let visibleMessages = $derived(messages.length > 0 ? messages : [INITIAL_SETUP_MESSAGE]);
 
 	let cleanupFns: Array<() => void> = [];
 
-	function readSetupCompleteFlag() {
-		try {
-			return sessionStorage.getItem(SETUP_COMPLETE_SESSION_KEY) === 'true';
-		} catch {
-			return false;
-		}
-	}
-
-	function readSetupActivity(): StoredSetupActivity | null {
-		try {
-			const raw = sessionStorage.getItem(SETUP_ACTIVITY_SESSION_KEY);
-			if (!raw) return null;
-			const parsed = JSON.parse(raw) as Partial<StoredSetupActivity>;
-			const storedMessages = Array.isArray(parsed.messages)
-				? parsed.messages.filter((message): message is string => typeof message === 'string')
-				: [];
-			const displayMessages = storedMessages.map(formatSetupStatusMessage);
-			return {
-				currentPhrase:
-					typeof parsed.currentPhrase === 'string'
-						? formatSetupStatusMessage(parsed.currentPhrase)
-						: displayMessages.at(-1) ?? INITIAL_SETUP_MESSAGE,
-				messages: compactSetupMessages(displayMessages),
-				completed: typeof parsed.completed === 'number' ? parsed.completed : 0,
-				total: typeof parsed.total === 'number' ? parsed.total : 0
-			};
-		} catch {
-			return null;
-		}
-	}
-
 	function markSetupComplete() {
 		setupComplete = true;
-		try {
-			sessionStorage.setItem(SETUP_COMPLETE_SESSION_KEY, 'true');
-		} catch {
-			// Ignore storage failures; the backend snapshot is still authoritative.
-		}
-		clearSetupActivity();
+		markSetupCompleteStorage();
 	}
 
 	function clearSetupComplete() {
 		setupComplete = false;
-		try {
-			sessionStorage.removeItem(SETUP_COMPLETE_SESSION_KEY);
-		} catch {
-			// Ignore storage failures; this only affects remount flash suppression.
-		}
+		clearSetupCompleteStorage();
 	}
 
 	function persistSetupActivity() {
 		if (setupComplete) return;
-		try {
-			sessionStorage.setItem(
-				SETUP_ACTIVITY_SESSION_KEY,
-				JSON.stringify({
-					currentPhrase,
-					messages,
-					completed: downloadCompleted,
-					total: downloadTotal
-				})
-			);
-		} catch {
-			// Ignore storage failures; this only preserves activity across remounts.
-		}
-	}
-
-	function clearSetupActivity() {
-		try {
-			sessionStorage.removeItem(SETUP_ACTIVITY_SESSION_KEY);
-		} catch {
-			// Ignore storage failures.
-		}
+		persistSetupActivityStorage(currentPhrase, messages, downloadCompleted, downloadTotal);
 	}
 
 	function clearHideTimer() {
@@ -152,79 +109,6 @@
 			clearTimeout(waitMessageTimer);
 			waitMessageTimer = null;
 		}
-	}
-
-	function compactSetupMessages(nextMessages: string[]) {
-		return nextMessages
-			.filter((message) => message.trim().length > 0)
-			.slice(-SETUP_HISTORY_LIMIT);
-	}
-
-	function formatSetupStatusMessage(message: string) {
-		const trimmed = message.trim();
-		if (message === SETUP_START_MESSAGE) {
-			return 'Opening the parish ledger (starting inference provider setup)...';
-		}
-		if (trimmed === 'pulling manifest') {
-			return 'Reading the storyteller\'s table of contents (Ollama: pulling manifest). The first download can take a few minutes.';
-		}
-		if (trimmed === 'verifying sha256 digest') {
-			return 'Checking the wax seals (Ollama: verifying sha256 digest)...';
-		}
-		if (trimmed === 'writing manifest') {
-			return 'Filing the table of contents in the parish ledger (Ollama: writing manifest)...';
-		}
-		if (trimmed === 'success') {
-			return 'The parcels are in order (Ollama: success).';
-		}
-
-		const forced = message.match(/^Forcing a fresh download of '(.+)'\.$/);
-		if (forced) {
-			return `A clean slate it is: forcing a fresh download of '${forced[1]}'. This big fetch is a one-time thing unless you force it again.`;
-		}
-
-		const clearing = message.match(/^Clearing the local copy of '(.+)' before fetching it again\.\.\.$/);
-		if (clearing) {
-			return `Sweeping out the old local copy of '${clearing[1]}' before fetching it again...`;
-		}
-
-		const removed = message.match(/^Local copy of '(.+)' removed\. Fetching a fresh copy\.\.\.$/);
-		if (removed) {
-			return `The old '${removed[1]}' copy has left the parish. Fetching a fresh one now...`;
-		}
-
-		const missing = message.match(/^No local copy of '(.+)' was present\. Fetching it now\.\.\.$/);
-		if (missing) {
-			return `No local copy of '${missing[1]}' turned up in the ledger. Fetching it now...`;
-		}
-
-		const fetching = message.match(/^Fetching the storyteller's book of tales \('(.+)'\)\.\.\.$/);
-		if (fetching) {
-			return `Fetching the storyteller's book of tales ('${fetching[1]}'). This is the big one-time model download; later starts should be much quicker...`;
-		}
-
-		return message;
-	}
-
-	function sentenceBreakParts(message: string) {
-		const parts = message.split(/(?<=\.)\s+/).filter((part) => part.length > 0);
-		return parts.map((text, index) => ({
-			text,
-			breakAfter: index < parts.length - 1
-		}));
-	}
-
-	function isLongSetupWaitMessage(message: string) {
-		const lower = message.toLowerCase();
-		return (
-			lower.includes('pulling manifest') ||
-			lower.includes('book of tales') ||
-			lower.includes('fresh download') ||
-			lower.includes('fresh copy') ||
-			lower.includes('one-time model download') ||
-			lower.includes('local copy') ||
-			lower.includes('download')
-		);
 	}
 
 	function mergeSetupMessages(snapshotMessages: string[]) {
@@ -428,6 +312,16 @@
 			return;
 		}
 
+		// BYOK fork: if the gate fired before our event listener mounted,
+		// recover the state from the snapshot rather than falling through to
+		// the spinner UI.
+		if (snapshot.needs_onboarding) {
+			clearSetupComplete();
+			needsOnboarding = true;
+			showSetupOverlay();
+			return;
+		}
+
 		const rawSnapshotMessages =
 			snapshot.messages.length > 0
 				? snapshot.messages
@@ -482,49 +376,6 @@
 		scrollMessages();
 	}
 
-	function formatElapsed(seconds: number) {
-		const mins = Math.floor(seconds / 60);
-		const secs = seconds % 60;
-		return `${mins}:${secs.toString().padStart(2, '0')}`;
-	}
-
-	function formatBytes(bytes: number) {
-		const units = ['B', 'KB', 'MB', 'GB'];
-		let value = Math.max(0, bytes);
-		let unitIndex = 0;
-		while (value >= 1024 && unitIndex < units.length - 1) {
-			value /= 1024;
-			unitIndex += 1;
-		}
-		const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
-		return `${value.toFixed(digits)} ${units[unitIndex]}`;
-	}
-
-	function formatDuration(seconds: number) {
-		const totalSeconds = Math.max(0, Math.round(seconds));
-		const mins = Math.floor(totalSeconds / 60);
-		const secs = totalSeconds % 60;
-		if (mins >= 60) {
-			const hours = Math.floor(mins / 60);
-			const restMins = mins % 60;
-			return `${hours}h ${restMins}m`;
-		}
-		return `${mins}:${secs.toString().padStart(2, '0')}`;
-	}
-
-	function formatDownloadStats() {
-		if (downloadTotal <= 0) return '';
-
-		const parts = [`${formatBytes(downloadCompleted)} of ${formatBytes(downloadTotal)}`];
-		if (downloadSpeedBps !== null && downloadSpeedBps > 0) {
-			parts.push(`${formatBytes(downloadSpeedBps)}/s`);
-		}
-		if (downloadEtaSeconds !== null) {
-			parts.push(`${formatDuration(downloadEtaSeconds)} left`);
-		}
-		return parts.join(' • ');
-	}
-
 	onMount(async () => {
 		if (!tauri) return;
 
@@ -532,7 +383,7 @@
 			elapsedSeconds += 1;
 		}, 1000);
 
-		const [statusCleanup, progressCleanup, doneCleanup] = await Promise.all([
+		const [statusCleanup, progressCleanup, doneCleanup, onboardingCleanup] = await Promise.all([
 			onSetupStatus((p: SetupStatusPayload) => {
 				receivedLiveSetupEvent = true;
 				if (setupComplete) clearSetupComplete();
@@ -548,10 +399,18 @@
 			onSetupDone((p: SetupDonePayload) => {
 				receivedLiveSetupEvent = true;
 				receivedSetupDone = true;
+				if (p.success) {
+					needsOnboarding = false;
+				}
 				applySetupDone(p.success, p.error);
+			}),
+			onSetupNeedsOnboarding(() => {
+				if (setupComplete) clearSetupComplete();
+				needsOnboarding = true;
+				showSetupOverlay();
 			})
 		]);
-		cleanupFns.push(statusCleanup, progressCleanup, doneCleanup);
+		cleanupFns.push(statusCleanup, progressCleanup, doneCleanup, onboardingCleanup);
 
 		try {
 			const snapshot = await getSetupSnapshot();
@@ -579,6 +438,11 @@
 
 {#if visible}
 	<div class="setup-overlay" class:fading>
+		{#if needsOnboarding}
+			<div class="setup-box setup-box--byok">
+				<ByokFork onComplete={() => (needsOnboarding = false)} />
+			</div>
+		{:else}
 		<div class="setup-box">
 			<h1 class="game-title">Rundale</h1>
 
@@ -691,6 +555,7 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 	</div>
 {/if}
 
@@ -710,6 +575,22 @@
 	.setup-overlay.fading {
 		opacity: 0;
 		pointer-events: none;
+	}
+
+	.setup-box--byok {
+		background: var(--color-bg);
+		max-width: none;
+		min-width: 0;
+		min-height: 0;
+		padding: 0;
+		display: block;
+		/* Allow the wizard to scroll when the "Other providers" expander
+		   pushes content past the viewport height. align-items: center on
+		   the parent overlay clips overflow without this. */
+		max-height: 100vh;
+		max-height: 100dvh;
+		overflow-y: auto;
+		width: 100%;
 	}
 
 	.setup-box {

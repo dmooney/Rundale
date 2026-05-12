@@ -65,6 +65,10 @@ const FORBIDDEN_FOR_BACKEND_AGNOSTIC: &[&str] = &[
     "leptos",
     "yew",
     "dioxus",
+    // OS keychain — desktop-only secret storage. Backend-agnostic crates use
+    // the `parish_core::secret_store::SecretStore` trait; the keyring-backed
+    // impl lives in `parish-tauri`.
+    "keyring",
 ];
 
 #[test]

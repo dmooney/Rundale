@@ -13,15 +13,15 @@ reqwest       = { workspace = true, features = ["json", "stream"] }
 tokio         = { workspace = true }
 serde         = { workspace = true }
 serde_json    = { workspace = true }
-anyhow        = { workspace = true }
+
 tracing       = { workspace = true }
 chrono        = { workspace = true }
 governor      = { workspace = true }
 lru           = { workspace = true }
 uuid          = { workspace = true }
+regex         = { workspace = true }
 async-trait   = { workspace = true }
 
 [dev-dependencies]
 wiremock           = { workspace = true }
-tracing-test       = { workspace = true }
 tracing-subscriber = { workspace = true }

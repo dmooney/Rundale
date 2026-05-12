@@ -255,6 +255,98 @@ describe('DebugPanel', () => {
 		});
 	});
 
+	describe('Weather tab (index 3)', () => {
+		it('renders weather engine details', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot());
+			debugTab.set(3);
+			const { container } = render(DebugPanel);
+			expect(container.textContent).toContain('Weather Engine');
+			expect(container.textContent).toContain('Clear');
+			expect(container.textContent).toContain('1820-03-15 06:00');
+			expect(container.textContent).toContain('3.00h');
+			expect(container.textContent).toContain('Last check hour');
+			expect(container.textContent).toContain('8');
+		});
+
+		it('shows "(never)" when last_check_hour is null', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot({
+				weather: {
+					current: 'Rain',
+					since: '1820-03-15 08:00',
+					duration_hours: 1.0,
+					min_duration_hours: 0.5,
+					last_check_hour: null
+				}
+			}));
+			debugTab.set(3);
+			const { container } = render(DebugPanel);
+			expect(container.textContent).toContain('(never)');
+		});
+	});
+
+	describe('Gossip tab (index 4)', () => {
+		it('shows "(no gossip)" when gossip list is empty', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot());
+			debugTab.set(4);
+			const { getByText } = render(DebugPanel);
+			expect(getByText('(no gossip)')).toBeTruthy();
+		});
+
+		it('renders gossip items when present', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot({
+				gossip: {
+					item_count: 2,
+					items: [
+						{ id: 1, content: 'The harvest looks promising.', source_name: 'Brigid', known_by: ['Brigid', 'Seamus'], distortion_level: 0, timestamp: '09:00' },
+						{ id: 2, content: 'Rent collector was seen on the road.', source_name: 'Padraig', known_by: ['Padraig'], distortion_level: 2, timestamp: '09:30' }
+					]
+				}
+			}));
+			debugTab.set(4);
+			const { container, getByText } = render(DebugPanel);
+			expect(getByText(/The harvest looks promising/)).toBeTruthy();
+			expect(getByText(/Rent collector was seen/)).toBeTruthy();
+			expect(container.textContent).toContain('[distortion 2]');
+			expect(container.textContent).toContain('Brigid');
+		});
+	});
+
+	describe('Conversations tab (index 5)', () => {
+		it('shows "(no exchanges)" when conversation log is empty', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot());
+			debugTab.set(5);
+			const { getByText } = render(DebugPanel);
+			expect(getByText('(no exchanges)')).toBeTruthy();
+		});
+
+		it('renders conversation exchanges when present', () => {
+			debugVisible.set(true);
+			debugSnapshot.set(makeSnapshot({
+				conversations: {
+					exchange_count: 1,
+					exchanges: [{
+						timestamp: '09:15',
+						speaker_id: 1,
+						location_name: 'Village Green',
+						player_input: 'Good day to you.',
+						speaker_name: 'Brigid',
+						npc_dialogue: 'And a good day to yourself, stranger.'
+					}]
+				}
+			}));
+			debugTab.set(5);
+			const { getByText } = render(DebugPanel);
+			expect(getByText(/Good day to you/)).toBeTruthy();
+			expect(getByText(/Brigid/)).toBeTruthy();
+			expect(getByText(/good day to yourself/)).toBeTruthy();
+		});
+	});
+
 	describe('Events tab (index 6)', () => {
 		it('shows "(no game events captured)" when event bus is empty', () => {
 			debugVisible.set(true);

@@ -387,6 +387,16 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
     - RAISE EMOTIONAL STAKES: Go deeper emotionally rather than introducing new plot elements.\n\
     - MAKE THE PLAYER SHINE: Endow the player with qualities and create openings for them to react.\n";
 
+/// Example JSON response block injected into the Tier 1 system prompt
+/// to demonstrate the expected output format to the LLM.
+const EXAMPLE_RESPONSE_BLOCK: &str = "\
+Example response:\n\
+{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
+Will ye have a drop of something to warm the bones?\", \
+\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
+\"internal_thought\": \"New face around here\", \
+\"language_hints\": []}";
+
 /// Builds the Tier 1 system prompt for an NPC.
 ///
 /// Combines the NPC's identity, personality, occupation, and current
@@ -438,14 +448,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         - \"language_hints\": array of any secondary-language words you used, each with:\n\
           - \"word\": the word as written\n\
           - \"pronunciation\": phonetic guide in English\n\
-          - \"meaning\": English translation\n\
-        \n\
-        Example response:\n\
-        {{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
-        Will ye have a drop of something to warm the bones?\", \
-        \"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
-        \"internal_thought\": \"New face around here\", \
-        \"language_hints\": []}}",
+          - \"meaning\": English translation\n",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -459,28 +462,10 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         improv_section = improv_section,
     );
 
+    prompt.push_str(EXAMPLE_RESPONSE_BLOCK);
     prompt.push_str("\n\n");
     prompt.push_str(&language_directive(language));
     prompt
-}
-
-/// Builds the action line for an NPC prompt from raw player input.
-///
-/// Detects `*emote*` syntax (input fully wrapped in asterisks) and
-/// formats it as a physical action. All other input is treated as speech.
-pub fn build_action_line(player_input: &str) -> String {
-    if let Some(inner) = player_input
-        .strip_prefix('*')
-        .and_then(|s| s.strip_suffix('*'))
-        .filter(|inner| !inner.is_empty() && !inner.contains('*'))
-    {
-        return format!(
-            "The newcomer performs an action: {inner}\n\
-            (The newcomer is emoting rather than speaking. \
-            Respond to their physical action naturally.)"
-        );
-    }
-    format!("The newcomer says: \"{player_input}\"")
 }
 
 /// Builds the action line for an NPC prompt, using the player's name if the NPC knows it.
@@ -573,101 +558,6 @@ pub fn validate_mentioned_people(
     hallucinated
 }
 
-/// Response type for the reference extraction pre-pass.
-#[derive(Debug, Clone, Deserialize)]
-struct ReferencePrePassResponse {
-    #[serde(default)]
-    names: Vec<String>,
-}
-
-/// Asks a small/fast model which people from the roster an NPC would
-/// naturally reference when responding to the player's input.
-///
-/// Returns validated names (filtered against the roster). Used as the
-/// first pass of two-pass dialogue generation to prevent hallucinated names.
-pub async fn extract_intended_references(
-    client: &parish_inference::AnyClient,
-    model: &str,
-    npc_name: &str,
-    player_input: &str,
-    known_roster: &[(NpcId, String, String)],
-) -> Vec<String> {
-    if known_roster.is_empty() {
-        return Vec::new();
-    }
-
-    let roster_list: Vec<String> = known_roster
-        .iter()
-        .map(|(_, name, occ)| format!("{} ({})", name, occ))
-        .collect();
-    let roster_str = roster_list.join(", ");
-
-    let prompt = format!(
-        "You are {npc_name}. A newcomer says: \"{player_input}\"\n\
-        People you know: {roster_str}\n\n\
-        Which of these people would you naturally mention in your reply? \
-        Return a JSON object: {{\"names\": [\"Name1\", \"Name2\"]}} \
-        or {{\"names\": []}} if none."
-    );
-
-    match client
-        .generate_json::<ReferencePrePassResponse>(model, &prompt, None, Some(100), None)
-        .await
-    {
-        Ok(resp) => {
-            // Filter against roster to be safe
-            resp.names
-                .into_iter()
-                .filter(|name: &String| {
-                    let lower = name.to_lowercase();
-                    known_roster.iter().any(|(_, rn, _)| {
-                        let rl = rn.to_lowercase();
-                        rl == lower
-                            || rl
-                                .split_whitespace()
-                                .next()
-                                .is_some_and(|first| first == lower)
-                    })
-                })
-                .collect()
-        }
-        Err(e) => {
-            tracing::warn!("Reference pre-pass failed: {e}");
-            Vec::new()
-        }
-    }
-}
-
-/// Formats validated references as a context injection for the main dialogue prompt.
-pub fn format_reference_hint(validated_names: &[String]) -> String {
-    if validated_names.is_empty() {
-        "You don't need to mention anyone specific in your response.".to_string()
-    } else {
-        format!(
-            "People you may reference in your response: {}",
-            validated_names.join(", ")
-        )
-    }
-}
-
-/// Returns the full name of a calendar month (1–12).
-fn month_name(month: u32) -> &'static str {
-    match month {
-        1 => "January",
-        2 => "February",
-        3 => "March",
-        4 => "April",
-        5 => "May",
-        6 => "June",
-        7 => "July",
-        8 => "August",
-        9 => "September",
-        10 => "October",
-        11 => "November",
-        _ => "December",
-    }
-}
-
 /// Builds the Tier 1 context prompt for an NPC interaction.
 ///
 /// Renders the location description template (substituting `{time}`,
@@ -691,7 +581,7 @@ pub fn build_tier1_context(world: &WorldState) -> String {
         "{day_of_week} {day} {month} {year} | {hour:02}:{minute:02} | {season}",
         day_of_week = now.format("%A"),
         day = now.day(),
-        month = month_name(now.month()),
+        month = now.format("%B"),
         year = now.year(),
         hour = now.hour(),
         minute = now.minute(),
@@ -785,10 +675,10 @@ mod tests {
     }
 
     #[test]
-    fn test_build_action_line_emote() {
-        let line = build_action_line("*tips hat*");
+    fn test_build_named_action_line_emote() {
+        let line = build_named_action_line("*tips hat*", None);
         assert!(
-            line.contains("performs an action: tips hat"),
+            line.contains("The newcomer performs an action: tips hat"),
             "emote should strip asterisks and use action phrasing"
         );
         assert!(
@@ -798,15 +688,15 @@ mod tests {
     }
 
     #[test]
-    fn test_build_action_line_normal_input() {
-        let line = build_action_line("hello there");
+    fn test_build_named_action_line_normal_input() {
+        let line = build_named_action_line("hello there", None);
         assert!(line.contains("The newcomer says: \"hello there\""));
         assert!(!line.contains("performs an action"));
     }
 
     #[test]
-    fn test_build_action_line_partial_asterisks() {
-        let line = build_action_line("*incomplete");
+    fn test_build_named_action_line_partial_asterisks() {
+        let line = build_named_action_line("*incomplete", None);
         assert!(line.contains("The newcomer says: \"*incomplete\""));
     }
 
@@ -1147,18 +1037,18 @@ mod tests {
                     name: "Brigid Murphy".to_string(),
                     occupation: "Weaver".to_string(),
                     personality: "Steady and observant".to_string(),
-                    intelligence_tag: "INT[V3 A4 E4 P5 W4 C3]".to_string(),
+                    intelligence_prose: "Sharp-minded and perceptive.".to_string(),
                     mood: "thoughtful".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
                 NpcSnapshot {
                     id: NpcId(7),
                     name: "Seamus Fahey".to_string(),
                     occupation: "Blacksmith".to_string(),
                     personality: "Blunt and loyal".to_string(),
-                    intelligence_tag: "INT[V2 A3 E2 P5 W3 C2]".to_string(),
+                    intelligence_prose: "Plain-spoken and blunt.".to_string(),
                     mood: "tired".to_string(),
-                    relationship_context: String::new(),
+                    relationship_summary: String::new(),
                 },
             ],
         };

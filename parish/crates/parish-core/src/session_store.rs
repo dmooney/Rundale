@@ -58,10 +58,13 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send +
 ///
 /// # Session ID convention
 ///
-/// `session_id` is a UUID v4 string (`xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`)
-/// across all implementations. The concrete server implementation resolves it
-/// to a save directory path on disk; other implementations may use it as a
-/// primary key in a remote store.
+/// Multi-user runtimes (server) use a UUID v4 string
+/// (`xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`) so each session maps to its own
+/// subdirectory under `saves_dir`.
+///
+/// Single-user runtimes (Tauri, CLI) pass `""` because `saves_dir.join("")`
+/// resolves to `saves_dir` itself, matching the flat `saves/parish_NNN.db`
+/// layout used by both. See [`DbSessionStore`] for details.
 pub trait SessionStore: Send + Sync + 'static {
     // ── Snapshots ─────────────────────────────────────────────────────────────
 

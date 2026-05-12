@@ -32,7 +32,7 @@ use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
 
 /// Maximum number of entries kept in the backend text log, matching the
-/// frontend cap (`MAX_TEXT_LOG_SIZE` in `apps/ui/src/stores/game.ts`).
+/// frontend cap (`MAX_TEXT_LOG_SIZE` in `parish/apps/ui/src/stores/game.ts`).
 const MAX_TEXT_LOG: usize = 500;
 
 /// Central game state container.
@@ -106,18 +106,27 @@ impl WorldState {
         locations.insert(crossroads_id, crossroads);
 
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
+        Self::init(clock, crossroads_id, locations, WorldGraph::new())
+    }
+
+    fn init(
+        clock: GameClock,
+        player_location: LocationId,
+        locations: HashMap<LocationId, Location>,
+        graph: WorldGraph,
+    ) -> Self {
+        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
         Self {
             clock,
-            player_location: crossroads_id,
+            player_location,
             locations,
-            graph: WorldGraph::new(),
+            graph,
             weather: Weather::Clear,
             weather_engine,
             text_log: Vec::new(),
             event_bus: EventBus::new(),
-            visited_locations: HashSet::from([crossroads_id]),
+            visited_locations: HashSet::from([player_location]),
             edge_traversals: HashMap::new(),
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
@@ -135,44 +144,10 @@ impl WorldState {
         use chrono::{TimeZone, Utc};
 
         let graph = WorldGraph::load_from_file(path)?;
-
-        let mut locations = HashMap::new();
-        for loc_id in graph.location_ids() {
-            if let Some(data) = graph.get(loc_id) {
-                locations.insert(
-                    loc_id,
-                    Location {
-                        id: loc_id,
-                        name: data.name.clone(),
-                        description: data.description_template.clone(),
-                        indoor: data.indoor,
-                        public: data.public,
-                        lat: data.lat,
-                        lon: data.lon,
-                    },
-                );
-            }
-        }
-
+        let locations = graph_to_legacy_locations(&graph);
         let clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap());
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
-        Ok(Self {
-            clock,
-            player_location: start_location,
-            locations,
-            graph,
-            weather: Weather::Clear,
-            weather_engine,
-            text_log: Vec::new(),
-            event_bus: EventBus::new(),
-            visited_locations: HashSet::from([start_location]),
-            edge_traversals: HashMap::new(),
-            gossip_network: GossipNetwork::new(),
-            conversation_log: ConversationLog::new(),
-            player_name: None,
-            tick_generation: 0,
-        })
+        Ok(Self::init(clock, start_location, locations, graph))
     }
 
     /// Creates a world state from mod parameters.
@@ -186,24 +161,7 @@ impl WorldState {
         start_date_rfc3339: &str,
     ) -> Result<Self, ParishError> {
         let graph = WorldGraph::load_from_file(world_path)?;
-
-        let mut locations = HashMap::new();
-        for loc_id in graph.location_ids() {
-            if let Some(data) = graph.get(loc_id) {
-                locations.insert(
-                    loc_id,
-                    Location {
-                        id: loc_id,
-                        name: data.name.clone(),
-                        description: data.description_template.clone(),
-                        indoor: data.indoor,
-                        public: data.public,
-                        lat: data.lat,
-                        lon: data.lon,
-                    },
-                );
-            }
-        }
+        let locations = graph_to_legacy_locations(&graph);
 
         let start_dt = chrono::DateTime::parse_from_rfc3339(start_date_rfc3339)
             .map(|dt| dt.with_timezone(&chrono::Utc))
@@ -217,24 +175,8 @@ impl WorldState {
             });
 
         let clock = GameClock::new(start_dt);
-        let weather_engine = WeatherEngine::new(Weather::Clear, clock.now());
 
-        Ok(Self {
-            clock,
-            player_location: start_location,
-            locations,
-            graph,
-            weather: Weather::Clear,
-            weather_engine,
-            text_log: Vec::new(),
-            event_bus: EventBus::new(),
-            visited_locations: HashSet::from([start_location]),
-            edge_traversals: HashMap::new(),
-            gossip_network: GossipNetwork::new(),
-            conversation_log: ConversationLog::new(),
-            player_name: None,
-            tick_generation: 0,
-        })
+        Ok(Self::init(clock, start_location, locations, graph))
     }
 
     /// Marks a location as visited for the fog-of-war map.
@@ -296,6 +238,29 @@ impl Default for WorldState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Builds the legacy `locations` map from a `WorldGraph` for backward
+/// compatibility with NPC context building and UI snapshots.
+fn graph_to_legacy_locations(graph: &WorldGraph) -> HashMap<LocationId, Location> {
+    let mut locations = HashMap::new();
+    for loc_id in graph.location_ids() {
+        if let Some(data) = graph.get(loc_id) {
+            locations.insert(
+                loc_id,
+                Location {
+                    id: loc_id,
+                    name: data.name.clone(),
+                    description: data.description_template.clone(),
+                    indoor: data.indoor,
+                    public: data.public,
+                    lat: data.lat,
+                    lon: data.lon,
+                },
+            );
+        }
+    }
+    locations
 }
 
 #[cfg(test)]
@@ -420,5 +385,120 @@ mod tests {
         let mut world = WorldState::new();
         world.player_location = LocationId(999);
         let _ = world.current_location();
+    }
+
+    #[test]
+    fn increment_tick_generation_increments() {
+        let mut world = WorldState::new();
+        assert_eq!(world.tick_generation, 0);
+        world.increment_tick_generation();
+        assert_eq!(world.tick_generation, 1);
+    }
+
+    #[test]
+    fn increment_tick_generation_wraps_on_overflow() {
+        let mut world = WorldState::new();
+        world.tick_generation = u64::MAX;
+        world.increment_tick_generation();
+        assert_eq!(world.tick_generation, 0);
+    }
+
+    #[test]
+    fn from_parish_file_loads_graph_and_sets_location() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_parish_file.json");
+        std::fs::write(&path, json).unwrap();
+        let world = WorldState::from_parish_file(&path, LocationId(1)).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(world.player_location, LocationId(1));
+        assert!(world.graph.get(LocationId(1)).is_some());
+        assert!(world.graph.get(LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn from_mod_params_parses_start_date() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_mod_params.json");
+        std::fs::write(&path, json).unwrap();
+        let world =
+            WorldState::from_mod_params(&path, LocationId(2), "1820-03-20T08:00:00Z").unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(world.player_location, LocationId(2));
+        let now = world.clock.now();
+        let expected = chrono::DateTime::parse_from_rfc3339("1820-03-20T08:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let diff = (now - expected).num_seconds().abs();
+        assert!(diff < 5, "Clock start date off by {}s", diff);
+    }
+
+    #[test]
+    fn from_mod_params_fallback_on_bad_date() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_mod_params_bad.json");
+        std::fs::write(&path, json).unwrap();
+        let world = WorldState::from_mod_params(&path, LocationId(1), "not-a-date").unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let now = world.clock.now();
+        let utc_now = chrono::Utc::now();
+        let diff = (now - utc_now).num_seconds().abs();
+        assert!(diff < 5, "Fallback date off by {}s", diff);
     }
 }

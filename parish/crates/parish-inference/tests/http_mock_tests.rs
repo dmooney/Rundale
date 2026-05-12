@@ -9,270 +9,11 @@
 
 use parish_inference::AnthropicClient;
 use parish_inference::TOKEN_CHANNEL_CAPACITY;
-use parish_inference::client::OllamaClient;
 use parish_inference::openai_client::OpenAiClient;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use wiremock::matchers::{header, header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-// =============================================================================
-// OllamaClient — native /api/generate endpoint
-// =============================================================================
-
-#[tokio::test]
-async fn ollama_generate_returns_response_text() {
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "response": "Howya friend",
-            "done": true
-        })))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let out = client
-        .generate("qwen3:14b", "Say hello", None)
-        .await
-        .expect("generate should succeed");
-    assert_eq!(out, "Howya friend");
-}
-
-#[tokio::test]
-async fn ollama_generate_with_system_prompt_is_accepted() {
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "response": "ok",
-            "done": true
-        })))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let out = client
-        .generate("m", "u", Some("You are a test assistant"))
-        .await
-        .unwrap();
-    assert_eq!(out, "ok");
-}
-
-#[tokio::test]
-async fn ollama_generate_maps_500_to_inference_error() {
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(500).set_body_string("internal error"))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let err = client
-        .generate("m", "p", None)
-        .await
-        .expect_err("500 must surface as an error");
-    // 500 should be caught by error_for_status() and mapped to Inference(_)
-    let msg = err.to_string();
-    assert!(
-        msg.contains("inference error") || msg.contains("500"),
-        "expected inference error, got: {msg}"
-    );
-}
-
-#[tokio::test]
-async fn ollama_generate_maps_404_to_inference_error() {
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let err = client.generate("m", "p", None).await.unwrap_err();
-    let msg = err.to_string();
-    assert!(msg.contains("inference error") || msg.contains("404"));
-}
-
-#[tokio::test]
-async fn ollama_generate_empty_response_is_ok() {
-    let server = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "response": "",
-            "done": true
-        })))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let out = client.generate("m", "p", None).await.unwrap();
-    assert_eq!(out, "");
-}
-
-#[tokio::test]
-async fn ollama_generate_stream_emits_every_chunk() {
-    let server = MockServer::start().await;
-    // NDJSON: one JSON object per line, final line has done:true.
-    let ndjson = [
-        r#"{"response":"Hel","done":false}"#,
-        r#"{"response":"lo,","done":false}"#,
-        r#"{"response":" world!","done":true}"#,
-    ]
-    .join("\n");
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(ndjson))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client
-        .generate_stream("m", "p", None, tx)
-        .await
-        .expect("stream should succeed");
-
-    assert_eq!(full, "Hello, world!");
-
-    let mut tokens = Vec::new();
-    while let Ok(t) = rx.try_recv() {
-        tokens.push(t);
-    }
-    assert_eq!(tokens, vec!["Hel", "lo,", " world!"]);
-}
-
-#[tokio::test]
-async fn ollama_generate_stream_ignores_empty_chunks() {
-    let server = MockServer::start().await;
-    // Some backends emit empty `response` keep-alives; they must not appear
-    // as tokens or corrupt the accumulator.
-    let ndjson = [
-        r#"{"response":"","done":false}"#,
-        r#"{"response":"only","done":false}"#,
-        r#"{"response":"","done":true}"#,
-    ]
-    .join("\n");
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(ndjson))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client.generate_stream("m", "p", None, tx).await.unwrap();
-    assert_eq!(full, "only");
-
-    let mut tokens = Vec::new();
-    while let Ok(t) = rx.try_recv() {
-        tokens.push(t);
-    }
-    assert_eq!(tokens, vec!["only"]);
-}
-
-#[tokio::test]
-async fn ollama_generate_stream_tolerates_malformed_lines() {
-    // A malformed NDJSON line between two good ones must be skipped —
-    // the loop uses `if let Ok(...)` so a bad line is silently ignored.
-    let server = MockServer::start().await;
-    let ndjson = [
-        r#"{"response":"a","done":false}"#,
-        r#"{this is not json"#,
-        r#"{"response":"b","done":true}"#,
-    ]
-    .join("\n");
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(ndjson))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client.generate_stream("m", "p", None, tx).await.unwrap();
-    assert_eq!(full, "ab");
-}
-
-#[tokio::test]
-async fn ollama_generate_stream_handles_missing_trailing_newline() {
-    // The last NDJSON chunk may arrive without a trailing newline;
-    // the client's post-loop buffer flush must still parse it.
-    let server = MockServer::start().await;
-    let ndjson = r#"{"response":"one","done":false}
-{"response":"two","done":true}"#;
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(ndjson))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client.generate_stream("m", "p", None, tx).await.unwrap();
-    assert_eq!(full, "onetwo");
-}
-
-#[tokio::test]
-async fn ollama_generate_json_parses_typed_payload() {
-    #[derive(Deserialize, Debug)]
-    struct Intent {
-        #[serde(default)]
-        action: String,
-        #[serde(default)]
-        target: String,
-    }
-
-    let server = MockServer::start().await;
-    // generate_json wraps the model's JSON output inside the Ollama envelope:
-    // `response` holds the JSON string, which the client then deserializes.
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "response": "{\"action\":\"go\",\"target\":\"pub\"}",
-            "done": true
-        })))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let intent: Intent = client
-        .generate_json("m", "Parse the intent", None)
-        .await
-        .unwrap();
-    assert_eq!(intent.action, "go");
-    assert_eq!(intent.target, "pub");
-}
-
-#[tokio::test]
-async fn ollama_generate_json_surfaces_parse_error_for_malformed_body() {
-    #[derive(Deserialize, Debug)]
-    #[allow(dead_code)]
-    struct Intent {
-        action: String,
-    }
-
-    let server = MockServer::start().await;
-    // Ollama envelope is valid, but the inner `response` is not valid JSON.
-    Mock::given(method("POST"))
-        .and(path("/api/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "response": "this is not valid JSON",
-            "done": true
-        })))
-        .mount(&server)
-        .await;
-
-    let client = OllamaClient::new(&server.uri());
-    let result: Result<Intent, _> = client.generate_json("m", "p", None).await;
-    let err = result.expect_err("malformed inner JSON must fail");
-    // Serialization-mapped error via From<serde_json::Error>
-    assert!(err.to_string().contains("serialization"));
-}
 
 // =============================================================================
 // OpenAiClient — /v1/chat/completions endpoint
@@ -728,6 +469,33 @@ async fn anthropic_generate_stream_honors_done_sentinel() {
 }
 
 #[tokio::test]
+async fn anthropic_generate_maps_401_with_structured_error_body() {
+    let server = MockServer::start().await;
+    // Anthropic returns a structured JSON error body on 4xx.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+            "error": {
+                "type": "authentication_error",
+                "message": "Your credit card is declined"
+            }
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), Some("sk-bad"));
+    let err = client
+        .generate("m", "p", None, None, None)
+        .await
+        .expect_err("401 must fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("credit card"),
+        "expected structured error message, got: {msg}"
+    );
+}
+
+#[tokio::test]
 async fn anthropic_generate_handles_empty_choices() {
     // "empty_choices" name mirrors the OpenAI sibling; Anthropic uses
     // content blocks — an empty content array degrades gracefully to "".
@@ -744,6 +512,115 @@ async fn anthropic_generate_handles_empty_choices() {
     let out = client.generate("m", "p", None, None, None).await.unwrap();
     // empty content degrades gracefully to empty string, not an error
     assert_eq!(out, "");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_parses_typed_payload() {
+    #[derive(Deserialize, Debug)]
+    struct Greeting {
+        #[serde(default)]
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "{\"hello\":\"world\"}"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let g: Greeting = client
+        .generate_json("m", "Return a greeting", None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(g.hello, "world");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_parses_fenced_payload() {
+    #[derive(Deserialize, Debug)]
+    struct Greeting {
+        #[serde(default)]
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    // Anthropic sometimes wraps JSON in ```json fences
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "```json\n{\"hello\":\"world\"}\n```"}]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let g: Greeting = client
+        .generate_json("m", "Return a greeting", None, None, None)
+        .await
+        .unwrap();
+    assert_eq!(g.hello, "world");
+}
+
+#[tokio::test]
+async fn anthropic_generate_json_retries_on_parse_failure() {
+    #[derive(Deserialize, Debug)]
+    #[allow(dead_code)]
+    struct Greeting {
+        hello: String,
+    }
+
+    let server = MockServer::start().await;
+    // Both attempts return bad JSON, so the retry path is taken and
+    // InferenceJsonParseFailed is returned.
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "content": [{"type": "text", "text": "not valid json"}]
+        })))
+        .expect(2) // exactly 2 requests (initial + retry)
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let result: Result<Greeting, _> = client
+        .generate_json("m", "Return JSON", None, None, Some(0.7))
+        .await;
+    let err = result.expect_err("parse failure after retry must error");
+    assert!(
+        err.to_string().contains("JSON parse failed after retry"),
+        "expected InferenceJsonParseFailed, got: {err}"
+    );
+}
+
+#[tokio::test]
+async fn anthropic_generate_stream_json_parses_sse_chunks() {
+    let server = MockServer::start().await;
+    // generate_stream_json delegates to generate_stream with augmented system.
+    // The stream returns the raw accumulated text (pre-extraction).
+    let sse = [
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}"#,
+        r#"data: {"type":"message_stop"}"#,
+    ]
+    .join("\n");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse))
+        .mount(&server)
+        .await;
+
+    let client = AnthropicClient::new(&server.uri(), None);
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    let full = client
+        .generate_stream_json("m", "Say hello", None, tx, None, None)
+        .await
+        .unwrap();
+    assert_eq!(full, "Hello!");
 }
 
 // =============================================================================

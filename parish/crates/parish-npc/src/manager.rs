@@ -33,21 +33,26 @@ pub use crate::tier_assign::TierTransition;
 /// Also tracks which NPCs have been introduced to the player. Before
 /// introduction, NPCs are referred to by a brief anonymous description
 /// (e.g., "a priest") rather than by name.
+/// Scheduling state for a single cognitive tier.
+#[derive(Debug, Clone, Default)]
+pub struct TierTickState {
+    /// Game time of the last tick for this tier (None if never ticked).
+    pub last_game_time: Option<DateTime<Utc>>,
+    /// Whether a tick for this tier is currently in-flight.
+    pub in_flight: bool,
+}
+
 pub struct NpcManager {
     /// All NPCs keyed by their unique id.
     npcs: HashMap<NpcId, Npc>,
     /// Current cognitive tier assignment for each NPC.
     tier_assignments: HashMap<NpcId, CogTier>,
-    /// Game time of the last Tier 2 tick (None if never ticked).
-    last_tier2_game_time: Option<DateTime<Utc>>,
-    /// Whether a Tier 2 background inference is currently in-flight.
-    tier2_in_flight: bool,
-    /// Game time of the last Tier 3 tick (None if never ticked).
-    last_tier3_game_time: Option<DateTime<Utc>>,
-    /// Whether a Tier 3 batch inference is currently in-flight.
-    tier3_in_flight: bool,
-    /// Game time of the last Tier 4 tick (None if never ticked).
-    last_tier4_game_time: Option<DateTime<Utc>>,
+    /// Scheduling state for Tier 2.
+    tier2_state: TierTickState,
+    /// Scheduling state for Tier 3.
+    tier3_state: TierTickState,
+    /// Scheduling state for Tier 4.
+    tier4_state: TierTickState,
     /// Set of NPC ids that have introduced themselves to the player.
     introduced_npcs: HashSet<NpcId>,
     /// Set of NPC ids that know the player's name.
@@ -72,11 +77,9 @@ impl NpcManager {
         Self {
             npcs: HashMap::new(),
             tier_assignments: HashMap::new(),
-            last_tier2_game_time: None,
-            tier2_in_flight: false,
-            last_tier3_game_time: None,
-            tier3_in_flight: false,
-            last_tier4_game_time: None,
+            tier2_state: TierTickState::default(),
+            tier3_state: TierTickState::default(),
+            tier4_state: TierTickState::default(),
             introduced_npcs: HashSet::new(),
             npcs_who_know_player_name: HashSet::new(),
             recent_tier4_events: VecDeque::with_capacity(crate::tier4::RING_BUFFER_CAPACITY),
@@ -310,38 +313,11 @@ impl NpcManager {
         self.tier_assignments.get(&id).copied()
     }
 
-    /// Returns the ids of all NPCs assigned to Tier 1.
-    pub fn tier1_npcs(&self) -> Vec<NpcId> {
+    /// Returns the ids of all NPCs assigned to the given cognitive tier.
+    pub fn npcs_in_tier(&self, tier: CogTier) -> Vec<NpcId> {
         self.tier_assignments
             .iter()
-            .filter(|(_, tier)| **tier == CogTier::Tier1)
-            .map(|(id, _)| *id)
-            .collect()
-    }
-
-    /// Returns the ids of all NPCs assigned to Tier 2.
-    pub fn tier2_npcs(&self) -> Vec<NpcId> {
-        self.tier_assignments
-            .iter()
-            .filter(|(_, tier)| **tier == CogTier::Tier2)
-            .map(|(id, _)| *id)
-            .collect()
-    }
-
-    /// Returns the ids of all NPCs assigned to Tier 3.
-    pub fn tier3_npcs(&self) -> Vec<NpcId> {
-        self.tier_assignments
-            .iter()
-            .filter(|(_, tier)| **tier == CogTier::Tier3)
-            .map(|(id, _)| *id)
-            .collect()
-    }
-
-    /// Returns the ids of all NPCs assigned to Tier 4.
-    pub fn tier4_npcs(&self) -> Vec<NpcId> {
-        self.tier_assignments
-            .iter()
-            .filter(|(_, tier)| **tier == CogTier::Tier4)
+            .filter(|(_, t)| **t == tier)
             .map(|(id, _)| *id)
             .collect()
     }
@@ -374,7 +350,7 @@ impl NpcManager {
         current_game_time: DateTime<Utc>,
         config: &CognitiveTierConfig,
     ) -> bool {
-        match self.last_tier2_game_time {
+        match self.tier2_state.last_game_time {
             None => true,
             Some(last) => {
                 current_game_time.signed_duration_since(last).num_minutes()
@@ -385,22 +361,22 @@ impl NpcManager {
 
     /// Returns the game time of the last Tier 2 tick, if any.
     pub fn last_tier2_game_time(&self) -> Option<DateTime<Utc>> {
-        self.last_tier2_game_time
+        self.tier2_state.last_game_time
     }
 
     /// Records that a Tier 2 tick has been performed at the given game time.
     pub fn record_tier2_tick(&mut self, time: DateTime<Utc>) {
-        self.last_tier2_game_time = Some(time);
+        self.tier2_state.last_game_time = Some(time);
     }
 
     /// Returns whether a Tier 2 tick is currently in-flight.
     pub fn tier2_in_flight(&self) -> bool {
-        self.tier2_in_flight
+        self.tier2_state.in_flight
     }
 
     /// Sets whether a Tier 2 tick is currently in-flight.
     pub fn set_tier2_in_flight(&mut self, in_flight: bool) {
-        self.tier2_in_flight = in_flight;
+        self.tier2_state.in_flight = in_flight;
     }
 
     /// Returns whether enough game time has elapsed for a Tier 3 tick.
@@ -415,7 +391,7 @@ impl NpcManager {
         current_game_time: DateTime<Utc>,
         config: &CognitiveTierConfig,
     ) -> bool {
-        match self.last_tier3_game_time {
+        match self.tier3_state.last_game_time {
             None => true,
             Some(last) => {
                 current_game_time.signed_duration_since(last).num_hours()
@@ -426,22 +402,22 @@ impl NpcManager {
 
     /// Returns the game time of the last Tier 3 tick, if any.
     pub fn last_tier3_game_time(&self) -> Option<DateTime<Utc>> {
-        self.last_tier3_game_time
+        self.tier3_state.last_game_time
     }
 
     /// Records that a Tier 3 tick has been performed at the given game time.
     pub fn record_tier3_tick(&mut self, time: DateTime<Utc>) {
-        self.last_tier3_game_time = Some(time);
+        self.tier3_state.last_game_time = Some(time);
     }
 
     /// Returns whether a Tier 3 tick is currently in-flight.
     pub fn tier3_in_flight(&self) -> bool {
-        self.tier3_in_flight
+        self.tier3_state.in_flight
     }
 
     /// Sets whether a Tier 3 tick is currently in-flight.
     pub fn set_tier3_in_flight(&mut self, in_flight: bool) {
-        self.tier3_in_flight = in_flight;
+        self.tier3_state.in_flight = in_flight;
     }
 
     /// Returns whether enough game time has elapsed for a Tier 4 tick.
@@ -456,7 +432,7 @@ impl NpcManager {
         current_game_time: DateTime<Utc>,
         config: &CognitiveTierConfig,
     ) -> bool {
-        match self.last_tier4_game_time {
+        match self.tier4_state.last_game_time {
             None => true,
             Some(last) => {
                 current_game_time.signed_duration_since(last).num_days()
@@ -467,12 +443,12 @@ impl NpcManager {
 
     /// Returns the game time of the last Tier 4 tick, if any.
     pub fn last_tier4_game_time(&self) -> Option<DateTime<Utc>> {
-        self.last_tier4_game_time
+        self.tier4_state.last_game_time
     }
 
     /// Records that a Tier 4 tick has been performed at the given game time.
     pub fn record_tier4_tick(&mut self, time: DateTime<Utc>) {
-        self.last_tier4_game_time = Some(time);
+        self.tier4_state.last_game_time = Some(time);
     }
 
     /// Returns the ring buffer of recent Tier 4 life-event descriptions (newest last).
@@ -1021,12 +997,14 @@ mod tests {
         mgr.set_tier3_in_flight(true);
         assert!(!mgr.needs_tier3_tick(now) || mgr.tier3_in_flight());
 
-        let tier3_ids = mgr.tier3_npcs();
+        let tier3_ids = mgr.npcs_in_tier(CogTier::Tier3);
         assert!(!tier3_ids.is_empty());
+        let npc_names: std::collections::HashMap<_, _> =
+            mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
         let snapshots: Vec<_> = tier3_ids
             .iter()
             .filter_map(|id| mgr.get(*id))
-            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph))
+            .map(|npc| tier3_snapshot_from_npc(npc, &world.graph, &npc_names))
             .collect();
         assert!(!snapshots.is_empty());
 
@@ -1058,7 +1036,7 @@ mod tests {
         let now = chrono::Utc.with_ymd_and_hms(1820, 6, 1, 12, 0, 0).unwrap();
         assert!(mgr.needs_tier4_tick(now));
 
-        let tier4_ids: HashSet<NpcId> = mgr.tier4_npcs().into_iter().collect();
+        let tier4_ids: HashSet<NpcId> = mgr.npcs_in_tier(CogTier::Tier4).into_iter().collect();
         let events = {
             let mut tier4_refs: Vec<&mut Npc> = mgr
                 .npcs_mut()

@@ -27,7 +27,7 @@ use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 
 use parish_core::identity::IdentityStore;
 
-use crate::session_store_impl::DbSessionStore;
+use crate::session_store_impl::{DbSessionStore, initialize_sessions_schema};
 use crate::state::{AppState, UiConfigSnapshot, build_app_state};
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -180,24 +180,7 @@ impl SessionRegistry {
     pub fn open(saves_dir: &Path) -> rusqlite::Result<Self> {
         let db_path = saves_dir.join("sessions.db");
         let conn = rusqlite::Connection::open(&db_path)?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS sessions (
-                id           TEXT PRIMARY KEY,
-                created_at   TEXT NOT NULL,
-                last_active  TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS oauth_accounts (
-                provider         TEXT NOT NULL,
-                provider_user_id TEXT NOT NULL,
-                session_id       TEXT NOT NULL,
-                display_name     TEXT NOT NULL DEFAULT '',
-                PRIMARY KEY (provider, provider_user_id)
-            );",
-        )?;
-        // Idempotent migration: add display_name to existing DBs that predate this column.
-        let _ = conn.execute_batch(
-            "ALTER TABLE oauth_accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
-        );
+        initialize_sessions_schema(&conn)?;
         Ok(Self {
             sessions: DashMap::new(),
             db: std::sync::Mutex::new(conn),

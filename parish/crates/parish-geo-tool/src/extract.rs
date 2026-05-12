@@ -77,133 +77,141 @@ pub fn extract_features(response: &OverpassResponse) -> Vec<GeoFeature> {
     features
 }
 
+fn classify_historic(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let historic = tags.get("historic")?;
+    match historic.as_str() {
+        "ring_fort" | "rath" | "cashel" | "crannog" => Some(LocationType::RingFort),
+        "standing_stone" | "ogham_stone" | "stone_circle" | "megalith" => {
+            Some(LocationType::StandingStone)
+        }
+        "holy_well" => Some(LocationType::Well),
+        "castle" | "ruins" | "monument" => Some(LocationType::Ruin),
+        _ => Some(LocationType::Other),
+    }
+}
+
+fn classify_amenity(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let amenity = tags.get("amenity")?;
+    match amenity.as_str() {
+        "pub" | "bar" | "restaurant" => Some(LocationType::Pub),
+        "place_of_worship" => Some(LocationType::Church),
+        "school" => Some(LocationType::School),
+        "post_office" => Some(LocationType::PostOffice),
+        "grave_yard" => Some(LocationType::Graveyard),
+        _ => None,
+    }
+}
+
+fn classify_building(
+    tags: &std::collections::HashMap<String, String>,
+    element: &OsmElement,
+) -> Option<LocationType> {
+    let building = tags.get("building")?;
+    match building.as_str() {
+        "church" | "chapel" | "cathedral" => Some(LocationType::Church),
+        "farm" | "farmhouse" | "barn" => Some(LocationType::Farm),
+        _ => {
+            if element.name().is_some() {
+                Some(LocationType::Other)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn classify_natural(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let natural = tags.get("natural")?;
+    match natural.as_str() {
+        "water" => Some(LocationType::Waterside),
+        "wetland" => Some(LocationType::Bog),
+        "wood" => Some(LocationType::Woodland),
+        "peak" | "hill" => Some(LocationType::Hill),
+        "spring" => Some(LocationType::Well),
+        _ => None,
+    }
+}
+
+fn classify_waterway(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let waterway = tags.get("waterway")?;
+    match waterway.as_str() {
+        "river" | "stream" | "canal" => Some(LocationType::Waterside),
+        _ => None,
+    }
+}
+
+fn classify_landuse(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let landuse = tags.get("landuse")?;
+    match landuse.as_str() {
+        "farmyard" | "farmland" => Some(LocationType::Farm),
+        "cemetery" => Some(LocationType::Graveyard),
+        _ => None,
+    }
+}
+
+fn classify_man_made(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let man_made = tags.get("man_made")?;
+    match man_made.as_str() {
+        "bridge" => Some(LocationType::Bridge),
+        "kiln" => Some(LocationType::LimeKiln),
+        "watermill" | "windmill" => Some(LocationType::Mill),
+        "pier" | "quay" => Some(LocationType::Harbour),
+        _ => None,
+    }
+}
+
+fn classify_place(tags: &std::collections::HashMap<String, String>) -> Option<LocationType> {
+    let place = tags.get("place")?;
+    match place.as_str() {
+        "hamlet" | "village" | "isolated_dwelling" | "locality" | "townland" | "town" => {
+            Some(LocationType::NamedPlace)
+        }
+        _ => None,
+    }
+}
+
 /// Classifies an OSM element into a game-relevant location type.
 ///
 /// Returns `None` if the element doesn't map to any game-relevant type.
 pub fn classify_element(element: &OsmElement) -> Option<LocationType> {
     let tags = &element.tags;
 
-    // Historic features (highest priority — most game-relevant)
-    if let Some(historic) = tags.get("historic") {
-        return match historic.as_str() {
-            "ring_fort" | "rath" | "cashel" | "crannog" => Some(LocationType::RingFort),
-            "standing_stone" | "ogham_stone" | "stone_circle" | "megalith" => {
-                Some(LocationType::StandingStone)
+    classify_historic(tags)
+        .or_else(|| classify_amenity(tags))
+        .or_else(|| classify_building(tags, element))
+        .or_else(|| {
+            if tags.contains_key("shop") {
+                Some(LocationType::Shop)
+            } else {
+                None
             }
-            "holy_well" => Some(LocationType::Well),
-            "castle" | "ruins" | "monument" => Some(LocationType::Ruin),
-            _ => Some(LocationType::Other),
-        };
-    }
-
-    // Amenities
-    if let Some(amenity) = tags.get("amenity") {
-        return match amenity.as_str() {
-            "pub" | "bar" | "restaurant" => Some(LocationType::Pub),
-            "place_of_worship" => Some(LocationType::Church),
-            "school" => Some(LocationType::School),
-            "post_office" => Some(LocationType::PostOffice),
-            "grave_yard" => Some(LocationType::Graveyard),
-            _ => None,
-        };
-    }
-
-    // Buildings
-    if let Some(building) = tags.get("building") {
-        return match building.as_str() {
-            "church" | "chapel" | "cathedral" => Some(LocationType::Church),
-            "farm" | "farmhouse" | "barn" => Some(LocationType::Farm),
-            _ => {
-                // Named buildings are worth keeping
-                if element.name().is_some() {
-                    Some(LocationType::Other)
-                } else {
-                    None
-                }
+        })
+        .or_else(|| classify_natural(tags))
+        .or_else(|| classify_waterway(tags))
+        .or_else(|| classify_landuse(tags))
+        .or_else(|| classify_man_made(tags))
+        .or_else(|| {
+            if tags.get("craft").is_some_and(|v| v == "blacksmith") {
+                return Some(LocationType::Forge);
             }
-        };
-    }
-
-    // Shops
-    if tags.contains_key("shop") {
-        return Some(LocationType::Shop);
-    }
-
-    // Natural features
-    if let Some(natural) = tags.get("natural") {
-        return match natural.as_str() {
-            "water" => Some(LocationType::Waterside),
-            "wetland" => Some(LocationType::Bog),
-            "wood" => Some(LocationType::Woodland),
-            "peak" | "hill" => Some(LocationType::Hill),
-            "spring" => Some(LocationType::Well),
-            _ => None,
-        };
-    }
-
-    // Waterways
-    if let Some(waterway) = tags.get("waterway") {
-        return match waterway.as_str() {
-            "river" | "stream" | "canal" => Some(LocationType::Waterside),
-            _ => None,
-        };
-    }
-
-    // Land use
-    if let Some(landuse) = tags.get("landuse") {
-        return match landuse.as_str() {
-            "farmyard" | "farmland" => Some(LocationType::Farm),
-            "cemetery" => Some(LocationType::Graveyard),
-            _ => None,
-        };
-    }
-
-    // Man-made features
-    if let Some(man_made) = tags.get("man_made") {
-        return match man_made.as_str() {
-            "bridge" => Some(LocationType::Bridge),
-            "kiln" => Some(LocationType::LimeKiln),
-            "watermill" | "windmill" => Some(LocationType::Mill),
-            "pier" | "quay" => Some(LocationType::Harbour),
-            _ => None,
-        };
-    }
-
-    // Craft
-    if let Some(craft) = tags.get("craft")
-        && craft == "blacksmith"
-    {
-        return Some(LocationType::Forge);
-    }
-
-    // Ford
-    if tags.get("ford").is_some_and(|v| v == "yes") {
-        return Some(LocationType::Bridge); // Fords serve similar role as bridges
-    }
-
-    // Places
-    if let Some(place) = tags.get("place") {
-        return match place.as_str() {
-            "hamlet" | "village" | "isolated_dwelling" | "locality" | "townland" | "town" => {
-                Some(LocationType::NamedPlace)
+            if tags.get("ford").is_some_and(|v| v == "yes") {
+                return Some(LocationType::Bridge);
             }
-            _ => None,
-        };
-    }
-
-    // Leisure / tourism
-    if tags
-        .get("leisure")
-        .is_some_and(|v| v == "harbour" || v == "marina")
-    {
-        return Some(LocationType::Harbour);
-    }
-
-    if tags.get("tourism").is_some_and(|v| v == "hotel") {
-        return Some(LocationType::Pub); // Inns in 1820
-    }
-
-    None
+            None
+        })
+        .or_else(|| classify_place(tags))
+        .or_else(|| {
+            if tags
+                .get("leisure")
+                .is_some_and(|v| v == "harbour" || v == "marina")
+            {
+                return Some(LocationType::Harbour);
+            }
+            if tags.get("tourism").is_some_and(|v| v == "hotel") {
+                return Some(LocationType::Pub);
+            }
+            None
+        })
 }
 
 /// Generates a name for a feature from OSM tags or its location type.
@@ -293,7 +301,7 @@ fn deduplicate_by_proximity(features: &mut Vec<GeoFeature>, threshold_meters: f6
 /// A junction is a node that appears in 3 or more ways (roads meeting at a point).
 /// These make natural location nodes in the world graph.
 pub fn extract_crossroads(road_response: &OverpassResponse) -> Vec<GeoFeature> {
-    let mut node_count: HashMap<i64, usize> = HashMap::new();
+    let mut node_ways: HashMap<i64, HashSet<i64>> = HashMap::new();
     let mut node_coords: HashMap<i64, (f64, f64)> = HashMap::new();
 
     for element in &road_response.elements {
@@ -301,29 +309,29 @@ pub fn extract_crossroads(road_response: &OverpassResponse) -> Vec<GeoFeature> {
             continue;
         }
 
-        // Count how many roads each node belongs to
+        // Count unique ways each node belongs to (deduplicate repeated nodes within one way)
         if let Some(ref geometry) = element.geometry {
-            // Use geometry nodes
-            for (i, point) in geometry.iter().enumerate() {
-                // We need node IDs from the `nodes` array
-                if let Some(ref nodes) = element.nodes
-                    && i < nodes.len()
-                {
-                    *node_count.entry(nodes[i]).or_insert(0) += 1;
-                    node_coords.insert(nodes[i], (point.lat, point.lon));
+            if let Some(ref nodes) = element.nodes {
+                let mut seen = HashSet::new();
+                for (i, point) in geometry.iter().enumerate() {
+                    if i < nodes.len() && seen.insert(nodes[i]) {
+                        node_ways.entry(nodes[i]).or_default().insert(element.id);
+                        node_coords.insert(nodes[i], (point.lat, point.lon));
+                    }
                 }
             }
         } else if let Some(ref nodes) = element.nodes {
-            for &node_id in nodes {
-                *node_count.entry(node_id).or_insert(0) += 1;
+            let unique_nodes: HashSet<i64> = nodes.iter().copied().collect();
+            for node_id in unique_nodes {
+                node_ways.entry(node_id).or_default().insert(element.id);
             }
         }
     }
 
-    // Nodes appearing in 3+ ways are junctions
+    // Nodes belonging to 3+ unique ways are junctions
     let mut crossroads = Vec::new();
-    for (node_id, count) in &node_count {
-        if *count >= 3 {
+    for (node_id, ways) in &node_ways {
+        if ways.len() >= 3 {
             if let Some(&(lat, lon)) = node_coords.get(node_id) {
                 crossroads.push(GeoFeature {
                     osm_id: *node_id,
@@ -351,7 +359,7 @@ pub fn extract_crossroads(road_response: &OverpassResponse) -> Vec<GeoFeature> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::osm_model::OsmElement;
+    use crate::osm_model::{LatLon, OsmElement};
 
     fn make_element(tags: Vec<(&str, &str)>) -> OsmElement {
         let mut tag_map = HashMap::new();
@@ -533,5 +541,370 @@ mod tests {
         // Second element is a named pub → kept
         assert_eq!(features.len(), 1);
         assert_eq!(features[0].name, "The Local");
+    }
+
+    #[test]
+    fn test_extract_features_filters_no_coords() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![OsmElement {
+                element_type: "node".to_string(),
+                id: 1,
+                lat: None,
+                lon: None,
+                center: None,
+                tags: {
+                    let mut t = HashMap::new();
+                    t.insert("amenity".to_string(), "pub".to_string());
+                    t.insert("name".to_string(), "Nowhere Pub".to_string());
+                    t
+                },
+                nodes: None,
+                geometry: None,
+                members: None,
+            }],
+        };
+
+        let features = extract_features(&response);
+        assert!(
+            features.is_empty(),
+            "element with no coords should be filtered"
+        );
+    }
+
+    #[test]
+    fn test_extract_features_filters_unclassifiable() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![OsmElement {
+                element_type: "node".to_string(),
+                id: 1,
+                lat: Some(53.5),
+                lon: Some(-8.0),
+                center: None,
+                tags: {
+                    let mut t = HashMap::new();
+                    t.insert("highway".to_string(), "secondary".to_string());
+                    t.insert("name".to_string(), "Main Road".to_string());
+                    t
+                },
+                nodes: None,
+                geometry: None,
+                members: None,
+            }],
+        };
+
+        let features = extract_features(&response);
+        // highway=secondary → classify_element returns None → filtered
+        assert!(
+            features.is_empty(),
+            "unclassifiable element should be filtered"
+        );
+    }
+
+    #[test]
+    fn test_extract_features_deduplicates_osm_ids() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "node".to_string(),
+                    id: 1,
+                    lat: Some(53.5),
+                    lon: Some(-8.0),
+                    center: None,
+                    tags: {
+                        let mut t = HashMap::new();
+                        t.insert("amenity".to_string(), "pub".to_string());
+                        t.insert("name".to_string(), "The Local".to_string());
+                        t
+                    },
+                    nodes: None,
+                    geometry: None,
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "node".to_string(),
+                    id: 1, // Duplicate OSM id
+                    lat: Some(53.5),
+                    lon: Some(-8.0),
+                    center: None,
+                    tags: {
+                        let mut t = HashMap::new();
+                        t.insert("amenity".to_string(), "pub".to_string());
+                        t.insert("name".to_string(), "The Local".to_string());
+                        t
+                    },
+                    nodes: None,
+                    geometry: None,
+                    members: None,
+                },
+            ],
+        };
+
+        let features = extract_features(&response);
+        assert_eq!(features.len(), 1);
+    }
+
+    // ── extract_crossroads tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_crossroads_empty_roads() {
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![],
+        };
+        let crossroads = extract_crossroads(&response);
+        assert!(crossroads.is_empty());
+    }
+
+    #[test]
+    fn test_extract_crossroads_two_way_junction_not_crossroads() {
+        // Two ways sharing one node — only 2 unique ways, not a crossroads.
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 100,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![1, 2]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.5,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                    ]),
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 200,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 3]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.502,
+                            lon: -8.0,
+                        },
+                    ]),
+                    members: None,
+                },
+            ],
+        };
+        let crossroads = extract_crossroads(&response);
+        assert!(
+            crossroads.is_empty(),
+            "2-way junction should not be a crossroads"
+        );
+    }
+
+    #[test]
+    fn test_extract_crossroads_three_way_junction() {
+        // Three ways meeting at node 2 — a proper crossroads.
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 100,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![1, 2]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.5,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                    ]),
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 200,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 3]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.502,
+                            lon: -8.0,
+                        },
+                    ]),
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 300,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 4]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.001,
+                        },
+                    ]),
+                    members: None,
+                },
+            ],
+        };
+        let crossroads = extract_crossroads(&response);
+        assert_eq!(
+            crossroads.len(),
+            1,
+            "3-way junction should produce one crossroads"
+        );
+        assert_eq!(crossroads[0].osm_id, 2);
+        assert_eq!(crossroads[0].name, "A Crossroads");
+        assert_eq!(crossroads[0].location_type, LocationType::Crossroads);
+    }
+
+    #[test]
+    fn test_extract_crossroads_deduplicates_repeated_node_in_same_way() {
+        // A way looping back on itself: node 2 appears twice in the same way.
+        // If we counted appearances, node 2 would have count 2 from this single way.
+        // With 2 such ways sharing node 2, appearances = 4 but unique ways = 2.
+        // We should NOT produce a crossroads (unique ways = 2).
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 100,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![1, 2, 3, 2]), // node 2 repeated
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.5,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.502,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                    ]),
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 200,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 4]),
+                    geometry: Some(vec![
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.0,
+                        },
+                        LatLon {
+                            lat: 53.501,
+                            lon: -8.001,
+                        },
+                    ]),
+                    members: None,
+                },
+            ],
+        };
+        let crossroads = extract_crossroads(&response);
+        assert!(
+            crossroads.is_empty(),
+            "repeated node in same way should not inflate way count"
+        );
+    }
+
+    #[test]
+    fn test_extract_crossroads_without_geometry() {
+        // Ways with nodes but no geometry — crossroads should still be found
+        // but skipped due to missing coordinates.
+        let response = OverpassResponse {
+            version: Some(0.6),
+            elements: vec![
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 100,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![1, 2]),
+                    geometry: None,
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 200,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 3]),
+                    geometry: None,
+                    members: None,
+                },
+                OsmElement {
+                    element_type: "way".to_string(),
+                    id: 300,
+                    lat: None,
+                    lon: None,
+                    center: None,
+                    tags: HashMap::new(),
+                    nodes: Some(vec![2, 4]),
+                    geometry: None,
+                    members: None,
+                },
+            ],
+        };
+        let crossroads = extract_crossroads(&response);
+        // No geometry means no coordinates, so crossroads are skipped
+        assert!(
+            crossroads.is_empty(),
+            "crossroads without geometry coords should be skipped"
+        );
     }
 }

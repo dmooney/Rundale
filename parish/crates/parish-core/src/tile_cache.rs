@@ -168,6 +168,8 @@ impl TileCache {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn make_cache(dir: &TempDir) -> TileCache {
         let mut templates = HashMap::new();
@@ -175,6 +177,12 @@ mod tests {
             "roscommon1".to_string(),
             "https://example.com/{z}/{x}/{y}.png".to_string(),
         );
+        TileCache::new(dir.path().to_path_buf(), templates)
+    }
+
+    fn make_cache_with_url(dir: &TempDir, url: &str) -> TileCache {
+        let mut templates = HashMap::new();
+        templates.insert("roscommon1".to_string(), url.to_string());
         TileCache::new(dir.path().to_path_buf(), templates)
     }
 
@@ -189,5 +197,74 @@ mod tests {
             .join("500")
             .join("350.png");
         assert!(path.to_str().unwrap().contains("roscommon1/10/500/350.png"));
+    }
+
+    #[tokio::test]
+    async fn get_unknown_source_returns_config_error() {
+        let dir = TempDir::new().unwrap();
+        let cache = make_cache(&dir);
+        let err = cache
+            .get("nonexistent_source", 10, 500, 350)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ParishError::Config(_)));
+        assert!(err.to_string().contains("not registered"));
+    }
+
+    #[tokio::test]
+    async fn get_empty_source_returns_config_error() {
+        let dir = TempDir::new().unwrap();
+        let cache = make_cache(&dir);
+        let err = cache.get("", 10, 500, 350).await.unwrap_err();
+        assert!(matches!(err, ParishError::Config(_)));
+        assert!(err.to_string().contains("unsafe"));
+    }
+
+    #[tokio::test]
+    async fn get_unsafe_source_returns_config_error() {
+        let dir = TempDir::new().unwrap();
+        let cache = make_cache(&dir);
+        let err = cache.get("../etc/passwd", 10, 500, 350).await.unwrap_err();
+        assert!(matches!(err, ParishError::Config(_)));
+        assert!(err.to_string().contains("unsafe"));
+    }
+
+    #[tokio::test]
+    async fn get_cache_miss_fetches_from_upstream_then_hit_reads_disk() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/10/500/350.png"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"tile-data"))
+            .mount(&mock_server)
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let upstream_url = format!("{}/{{z}}/{{x}}/{{y}}.png", mock_server.uri());
+        let cache = make_cache_with_url(&dir, &upstream_url);
+
+        // Cache miss: fetches from upstream
+        let data = cache.get("roscommon1", 10, 500, 350).await.unwrap();
+        assert_eq!(data, b"tile-data");
+
+        // Cache hit: reads from disk (no mock server needed — it was already persisted)
+        let data = cache.get("roscommon1", 10, 500, 350).await.unwrap();
+        assert_eq!(data, b"tile-data");
+    }
+
+    #[tokio::test]
+    async fn get_upstream_failure_returns_network_error() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/10/500/350.png"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let upstream_url = format!("{}/{{z}}/{{x}}/{{y}}.png", mock_server.uri());
+        let cache = make_cache_with_url(&dir, &upstream_url);
+
+        let err = cache.get("roscommon1", 10, 500, 350).await.unwrap_err();
+        assert!(matches!(err, ParishError::Network(_)));
     }
 }

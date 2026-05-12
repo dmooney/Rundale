@@ -54,6 +54,10 @@ agent-check:
 verify:
     cd parish && just verify
 
+# Run the full Rundale dialect-model training pipeline on RunPod (provisions pod, runs SFT + DPO + dialect oracle, packages GGUF, runs /prove, tears down). See docs/design/gemma4-rundale-training-plan.md
+train-rundale-dialect:
+    uv run --project training python training/scripts/orchestrate.py
+
 # Run all Rust tests
 test:
     cd parish && just test
@@ -107,3 +111,13 @@ notices:
 # Audit dependencies for security vulnerabilities
 audit:
     cd parish && just audit
+
+# ─── Release ────────────────────────────────────────────────────────────────
+
+# Bump versions, commit, and tag a release locally. See docs/release.md.
+release VERSION:
+    cd parish && just release {{VERSION}}
+
+# Dry-run the release: show would-be diffs without writing or tagging.
+release-dry-run VERSION:
+    cd parish && just release-dry-run {{VERSION}}

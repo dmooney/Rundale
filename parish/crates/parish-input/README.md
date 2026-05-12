@@ -11,6 +11,7 @@ intent-resolution prompts for downstream game systems.
 
 - Parse slash commands (save/load/status/provider/map/theme/etc.).
 - Route natural-language input toward inference-backed intent parsing.
+- Extract `@mention` targets (e.g. `@Padraig Darcy`) from player input for addressed dialogue.
 - Return typed command/intent values for orchestration layers.
 
 ## Notes

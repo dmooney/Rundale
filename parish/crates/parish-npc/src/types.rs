@@ -94,133 +94,192 @@ impl Intelligence {
     pub fn prompt_guidance(&self) -> String {
         let mut parts = Vec::new();
 
-        // Verbal — how they speak
-        match self.verbal {
-            1 => parts.push(
-                "Struggles to find words, speaks in halting fragments, \
-                 and often trails off mid-sentence.",
-            ),
-            2 => parts.push(
-                "Speaks plainly with a limited vocabulary, \
-                 preferring short familiar words over anything fancy.",
-            ),
-            4 => parts.push(
-                "Well-spoken with a good vocabulary, \
-                 able to express ideas clearly and persuasively.",
-            ),
-            5 => parts.push(
-                "Exceptionally eloquent — chooses words with precision, \
-                 turns a phrase beautifully, and commands attention when speaking.",
-            ),
-            _ => {}
+        fn push_guidance(parts: &mut Vec<&'static str>, value: u8, table: &[(u8, &'static str)]) {
+            if let Some((_, text)) = table.iter().find(|(v, _)| *v == value) {
+                parts.push(text);
+            }
         }
 
-        // Analytical — how they reason
-        match self.analytical {
-            1 => parts.push(
-                "Cannot follow even simple logical arguments; \
-                 easily confused by cause and effect.",
+        const VERBAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Struggles to find words, speaks in halting fragments, and often trails off mid-sentence.",
             ),
-            2 => parts.push(
-                "Thinks concretely and struggles with abstract reasoning; \
-                 takes things at face value.",
+            (
+                2,
+                "Speaks plainly with a limited vocabulary, preferring short familiar words over anything fancy.",
             ),
-            4 => parts.push(
-                "Sharp-minded, notices patterns and logical connections \
-                 that others miss.",
+            (
+                4,
+                "Well-spoken with a good vocabulary, able to express ideas clearly and persuasively.",
             ),
-            5 => parts.push(
-                "Brilliantly analytical — sees through deceptions, \
-                 connects distant facts, and reasons with piercing clarity.",
+            (
+                5,
+                "Exceptionally eloquent — chooses words with precision, turns a phrase beautifully, and commands attention when speaking.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.verbal, VERBAL);
 
-        // Emotional — how they read people
-        match self.emotional {
-            1 => parts.push(
-                "Oblivious to others' feelings, misreads the room constantly, \
-                 and blunders through social situations.",
+        const ANALYTICAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Cannot follow even simple logical arguments; easily confused by cause and effect.",
             ),
-            2 => parts.push(
-                "Blunt and socially clumsy; often says the wrong thing \
-                 without realising the effect.",
+            (
+                2,
+                "Thinks concretely and struggles with abstract reasoning; takes things at face value.",
             ),
-            4 => parts.push(
-                "Perceptive about people's feelings, picks up on mood shifts \
-                 and unspoken tensions.",
+            (
+                4,
+                "Sharp-minded, notices patterns and logical connections that others miss.",
             ),
-            5 => parts.push(
-                "Reads people like a book — catches every flicker of emotion, \
-                 hears what is left unsaid, and responds with deep empathy.",
+            (
+                5,
+                "Brilliantly analytical — sees through deceptions, connects distant facts, and reasons with piercing clarity.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.analytical, ANALYTICAL);
 
-        // Practical — common sense and resourcefulness
-        match self.practical {
-            1 => parts.push(
-                "Hopelessly impractical; overlooks obvious solutions \
-                 and fumbles with everyday tasks.",
+        const EMOTIONAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Oblivious to others' feelings, misreads the room constantly, and blunders through social situations.",
             ),
-            2 => parts.push(
-                "Not particularly handy or resourceful; \
-                 tends to overcomplicate simple problems.",
+            (
+                2,
+                "Blunt and socially clumsy; often says the wrong thing without realising the effect.",
             ),
-            4 => parts.push(
-                "Resourceful and sensible, always knows a practical fix \
-                 and wastes nothing.",
+            (
+                4,
+                "Perceptive about people's feelings, picks up on mood shifts and unspoken tensions.",
             ),
-            5 => parts.push(
-                "Extraordinarily resourceful — can fix, build, or improvise \
-                 a solution from whatever is at hand, with unfailing common sense.",
+            (
+                5,
+                "Reads people like a book — catches every flicker of emotion, hears what is left unsaid, and responds with deep empathy.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.emotional, EMOTIONAL);
 
-        // Wisdom — life experience and judgment
-        match self.wisdom {
-            1 => parts.push(
-                "Reckless and short-sighted, repeats the same mistakes \
-                 and never learns from experience.",
+        const PRACTICAL: &[(u8, &str)] = &[
+            (
+                1,
+                "Hopelessly impractical; overlooks obvious solutions and fumbles with everyday tasks.",
             ),
-            2 => parts.push(
-                "Impulsive and prone to poor judgment; \
-                 acts first and thinks later.",
+            (
+                2,
+                "Not particularly handy or resourceful; tends to overcomplicate simple problems.",
             ),
-            4 => parts.push(
-                "Draws on hard-won life experience; \
-                 gives considered, measured advice.",
+            (
+                4,
+                "Resourceful and sensible, always knows a practical fix and wastes nothing.",
             ),
-            5 => parts.push(
-                "Deeply wise — decades of living have given a quiet authority, \
-                 a long view of things, and an instinct for what truly matters.",
+            (
+                5,
+                "Extraordinarily resourceful — can fix, build, or improvise a solution from whatever is at hand, with unfailing common sense.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.practical, PRACTICAL);
 
-        // Creative — imagination, wit, improvisation
-        match self.creative {
-            1 => parts.push(
-                "Completely literal-minded; humour, metaphor, \
-                 and imagination are foreign territory.",
+        const WISDOM: &[(u8, &str)] = &[
+            (
+                1,
+                "Reckless and short-sighted, repeats the same mistakes and never learns from experience.",
             ),
-            2 => parts.push(
-                "Unimaginative and humourless; sticks to the obvious \
-                 and rarely surprises.",
+            (
+                2,
+                "Impulsive and prone to poor judgment; acts first and thinks later.",
             ),
-            4 => parts.push(
-                "Quick-witted with a ready turn of phrase; \
-                 sees the funny side and thinks on the spot.",
+            (
+                4,
+                "Draws on hard-won life experience; gives considered, measured advice.",
             ),
-            5 => parts.push(
-                "Brilliantly creative — a natural storyteller whose wit, \
-                 vivid metaphors, and leaps of imagination light up any conversation.",
+            (
+                5,
+                "Deeply wise — decades of living have given a quiet authority, a long view of things, and an instinct for what truly matters.",
             ),
-            _ => {}
-        }
+        ];
+        push_guidance(&mut parts, self.wisdom, WISDOM);
+
+        const CREATIVE: &[(u8, &str)] = &[
+            (
+                1,
+                "Completely literal-minded; humour, metaphor, and imagination are foreign territory.",
+            ),
+            (
+                2,
+                "Unimaginative and humourless; sticks to the obvious and rarely surprises.",
+            ),
+            (
+                4,
+                "Quick-witted with a ready turn of phrase; sees the funny side and thinks on the spot.",
+            ),
+            (
+                5,
+                "Brilliantly creative — a natural storyteller whose wit, vivid metaphors, and leaps of imagination light up any conversation.",
+            ),
+        ];
+        push_guidance(&mut parts, self.creative, CREATIVE);
 
         parts.join(" ")
+    }
+
+    /// Returns a compact comma-separated list of adjectives capturing only the
+    /// notable intelligence dimensions.
+    ///
+    /// For use in token-tight prompts (e.g. Tier 3 batch inference) where the
+    /// full `prompt_guidance` prose would balloon the input. Only dimensions
+    /// rated 1-2 or 4-5 contribute a single adjective each; average 3s are
+    /// skipped. Returns an empty string for an all-3s profile.
+    pub fn adjective_summary(&self) -> String {
+        let mut parts: Vec<&'static str> = Vec::new();
+        let dims = [
+            (
+                self.verbal,
+                "halting",
+                "plain-spoken",
+                "well-spoken",
+                "eloquent",
+            ),
+            (
+                self.analytical,
+                "muddled",
+                "concrete-minded",
+                "sharp",
+                "incisive",
+            ),
+            (
+                self.emotional,
+                "oblivious",
+                "blunt",
+                "perceptive",
+                "deeply empathetic",
+            ),
+            (
+                self.practical,
+                "impractical",
+                "ham-fisted",
+                "resourceful",
+                "endlessly resourceful",
+            ),
+            (self.wisdom, "reckless", "impulsive", "wise", "deeply wise"),
+            (
+                self.creative,
+                "literal-minded",
+                "unimaginative",
+                "quick-witted",
+                "brilliantly creative",
+            ),
+        ];
+        for (rating, w1, w2, w4, w5) in dims {
+            match rating {
+                1 => parts.push(w1),
+                2 => parts.push(w2),
+                4 => parts.push(w4),
+                5 => parts.push(w5),
+                _ => {}
+            }
+        }
+        parts.join(", ")
     }
 }
 
@@ -336,40 +395,6 @@ pub struct ScheduleEntry {
     /// neighbors gathering for storytelling and music.
     #[serde(default)]
     pub cuaird: bool,
-}
-
-/// An NPC's daily schedule.
-///
-/// Contains a list of time-slot entries defining where the NPC goes
-/// throughout the day. Entries should cover all 24 hours without gaps.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct DailySchedule {
-    /// Schedule entries sorted by start_hour.
-    pub entries: Vec<ScheduleEntry>,
-}
-
-impl DailySchedule {
-    /// Returns the schedule entry active at the given hour.
-    ///
-    /// Handles overnight wraparound: an entry with `start_hour > end_hour`
-    /// (e.g. 22–06) is active when `hour >= start_hour OR hour <= end_hour`.
-    ///
-    /// Returns `None` if no entry covers the hour (schedule gap).
-    pub fn entry_at(&self, hour: u8) -> Option<&ScheduleEntry> {
-        self.entries.iter().find(|e| {
-            if e.start_hour <= e.end_hour {
-                hour >= e.start_hour && hour <= e.end_hour
-            } else {
-                // Overnight: e.g. 22–06
-                hour >= e.start_hour || hour <= e.end_hour
-            }
-        })
-    }
-
-    /// Returns the desired location at the given hour.
-    pub fn location_at(&self, hour: u8) -> Option<LocationId> {
-        self.entry_at(hour).map(|e| e.location)
-    }
 }
 
 /// A single variant of an NPC's schedule, optionally scoped to a season and/or day type.
@@ -489,8 +514,8 @@ pub enum NpcState {
 /// Higher tiers use more compute-intensive inference:
 /// - Tier 1: Full LLM (per player interaction)
 /// - Tier 2: Lighter LLM (every 5 game-minutes for nearby NPCs)
-/// - Tier 3: Batch inference (daily, for distant NPCs — future)
-/// - Tier 4: Rules engine only (seasonal — future)
+/// - Tier 3: Batch inference (daily, for distant NPCs)
+/// - Tier 4: Rules engine only (seasonal, for faraway NPCs)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CogTier {
     /// Full-fidelity inference — same location as player.
@@ -630,94 +655,112 @@ mod tests {
 
     #[test]
     fn test_schedule_entry_at() {
-        let schedule = DailySchedule {
-            entries: vec![
-                ScheduleEntry {
-                    start_hour: 6,
-                    end_hour: 11,
-                    location: LocationId(2),
-                    activity: "opening the pub".to_string(),
-                    cuaird: false,
-                },
-                ScheduleEntry {
-                    start_hour: 12,
-                    end_hour: 22,
-                    location: LocationId(2),
-                    activity: "tending bar".to_string(),
-                    cuaird: false,
-                },
-                ScheduleEntry {
-                    start_hour: 23,
-                    end_hour: 5,
-                    location: LocationId(1),
-                    activity: "sleeping".to_string(),
-                    cuaird: false,
-                },
-            ],
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![
+                    ScheduleEntry {
+                        start_hour: 6,
+                        end_hour: 11,
+                        location: LocationId(2),
+                        activity: "opening the pub".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 12,
+                        end_hour: 22,
+                        location: LocationId(2),
+                        activity: "tending bar".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 23,
+                        end_hour: 5,
+                        location: LocationId(1),
+                        activity: "sleeping".to_string(),
+                        cuaird: false,
+                    },
+                ],
+            }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
-        let entry = schedule.entry_at(8).unwrap();
+        let entry = schedule.entry_at(8, season, day).unwrap();
         assert_eq!(entry.activity, "opening the pub");
 
-        let entry = schedule.entry_at(15).unwrap();
+        let entry = schedule.entry_at(15, season, day).unwrap();
         assert_eq!(entry.activity, "tending bar");
 
         // Overnight entry (23-5): hours 23 and 3 should both match.
-        let entry = schedule.entry_at(23).unwrap();
+        let entry = schedule.entry_at(23, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
 
-        let entry = schedule.entry_at(3).unwrap();
+        let entry = schedule.entry_at(3, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
 
         // Hour 6 is the start of "opening the pub", not covered by the overnight entry.
-        let entry = schedule.entry_at(6).unwrap();
+        let entry = schedule.entry_at(6, season, day).unwrap();
         assert_eq!(entry.activity, "opening the pub");
 
         // Hour 5 is covered by the overnight sleeping entry (end_hour=5).
-        let entry = schedule.entry_at(5).unwrap();
+        let entry = schedule.entry_at(5, season, day).unwrap();
         assert_eq!(entry.activity, "sleeping");
     }
 
     #[test]
     fn test_schedule_entry_at_overnight_only() {
         // A schedule with a single overnight entry (22–06).
-        let schedule = DailySchedule {
-            entries: vec![ScheduleEntry {
-                start_hour: 22,
-                end_hour: 6,
-                location: LocationId(1),
-                activity: "sleeping".to_string(),
-                cuaird: false,
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![ScheduleEntry {
+                    start_hour: 22,
+                    end_hour: 6,
+                    location: LocationId(1),
+                    activity: "sleeping".to_string(),
+                    cuaird: false,
+                }],
             }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
         // Hours in the evening portion (after midnight rollover)
-        assert!(schedule.entry_at(22).is_some());
-        assert!(schedule.entry_at(23).is_some());
+        assert!(schedule.entry_at(22, season, day).is_some());
+        assert!(schedule.entry_at(23, season, day).is_some());
         // Hours in the early-morning portion (before end_hour)
-        assert!(schedule.entry_at(0).is_some());
-        assert!(schedule.entry_at(3).is_some());
-        assert!(schedule.entry_at(6).is_some());
+        assert!(schedule.entry_at(0, season, day).is_some());
+        assert!(schedule.entry_at(3, season, day).is_some());
+        assert!(schedule.entry_at(6, season, day).is_some());
         // Hour 7 is outside the range
-        assert!(schedule.entry_at(7).is_none());
-        assert!(schedule.entry_at(12).is_none());
-        assert!(schedule.entry_at(21).is_none());
+        assert!(schedule.entry_at(7, season, day).is_none());
+        assert!(schedule.entry_at(12, season, day).is_none());
+        assert!(schedule.entry_at(21, season, day).is_none());
     }
 
     #[test]
     fn test_schedule_location_at() {
-        let schedule = DailySchedule {
-            entries: vec![ScheduleEntry {
-                start_hour: 8,
-                end_hour: 17,
-                location: LocationId(3),
-                activity: "teaching".to_string(),
-                cuaird: false,
+        let schedule = SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![ScheduleEntry {
+                    start_hour: 8,
+                    end_hour: 17,
+                    location: LocationId(3),
+                    activity: "teaching".to_string(),
+                    cuaird: false,
+                }],
             }],
         };
+        let season = Season::Summer;
+        let day = DayType::Weekday;
 
-        assert_eq!(schedule.location_at(10), Some(LocationId(3)));
-        assert_eq!(schedule.location_at(20), None);
+        assert_eq!(schedule.location_at(10, season, day), Some(LocationId(3)));
+        assert_eq!(schedule.location_at(20, season, day), None);
     }
 
     #[test]
@@ -872,6 +915,45 @@ mod tests {
         let guidance = intel.prompt_guidance();
         assert!(guidance.contains("eloquent"));
         assert!(guidance.contains("impractical"));
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_average_is_empty() {
+        let intel = Intelligence::default();
+        assert_eq!(intel.adjective_summary(), "");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_high() {
+        let intel = Intelligence::new(5, 3, 3, 3, 3, 3);
+        assert_eq!(intel.adjective_summary(), "eloquent");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_single_low() {
+        let intel = Intelligence::new(3, 3, 3, 3, 3, 1);
+        assert_eq!(intel.adjective_summary(), "literal-minded");
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_mixed_order_stable() {
+        // V4 A3 E5 P3 W2 C3 — adjectives appear in declaration order
+        // (verbal, analytical, emotional, practical, wisdom, creative).
+        let intel = Intelligence::new(4, 3, 5, 3, 2, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "well-spoken, deeply empathetic, impulsive"
+        );
+    }
+
+    #[test]
+    fn test_intelligence_adjective_summary_covers_all_bands() {
+        // V1 A2 E4 P5 W3 C3 — covers bands 1, 2, 4, 5; skips 3s.
+        let intel = Intelligence::new(1, 2, 4, 5, 3, 3);
+        assert_eq!(
+            intel.adjective_summary(),
+            "halting, concrete-minded, perceptive, endlessly resourceful"
+        );
     }
 
     #[test]

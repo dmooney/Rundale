@@ -12,7 +12,7 @@ NPC systems, UI snapshots, and persistence.
 - `graph` and `geo` — location graph structure and geographic helpers.
 - `movement` and `transport` — travel rules and path interaction.
 - `weather` — weather transitions tied to game time.
-- `description`, `encounter`, `palette` — text and presentation helpers.
+- `description`, `encounter`, `session`, `wayfarers`, `weather_travel` — text and presentation helpers.
 
 ## Primary type
 
