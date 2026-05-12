@@ -865,11 +865,19 @@ async fn init_tile_cache(
             "Could not create tile cache dir — tile proxy will fail on first miss"
         );
     }
+    // Only sources with a non-empty `upstream_url` are served through the
+    // proxy; the cache's url_templates is keyed by source id so requests for
+    // un-proxied sources (e.g. OSM, which the browser fetches directly) are
+    // rejected by `TileCache::get` before any disk or upstream I/O happens.
+    // `cfg.url` is the *frontend* URL (often a same-origin proxy path);
+    // `cfg.upstream_url` is the absolute URL `reqwest` fetches from. They
+    // are deliberately separate — see PR #955.
     let tile_url_templates: std::collections::HashMap<String, String> = engine_config
         .map
         .tile_sources
         .iter()
-        .map(|(id, cfg)| (id.clone(), cfg.url.clone()))
+        .filter(|(_, cfg)| !cfg.upstream_url.is_empty())
+        .map(|(id, cfg)| (id.clone(), cfg.upstream_url.clone()))
         .collect();
     let cache = parish_core::tile_cache::TileCache::new(tile_cache_dir.clone(), tile_url_templates);
     tracing::info!(dir = %tile_cache_dir.display(), "Tile cache initialised");

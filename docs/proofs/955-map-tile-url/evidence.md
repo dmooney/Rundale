@@ -1,81 +1,119 @@
-# Proof Evidence — PR #955: align historic tile source URL with registered source id
+# Proof Evidence — PR #955: split frontend URL from upstream URL on tile sources
 
 Evidence type: gameplay transcript
 
 ## What broke
 
-The historic tile source was registered under the key `"historic"` in
-`default_tile_sources()` (`parish-config/src/engine.rs`), but the same entry's
-`url` template hardcoded `/tiles/roscommon1/{z}/{x}/{y}.png`.
+Two conflated bugs in `parish-config`'s default historic tile source kept
+the map blank for every fresh install:
 
-The tile-proxy route handler at
-`parish/crates/parish-server/src/tile_routes.rs:52-60` parses the first path
-segment as the `source_id` and validates it against the registered tile-source
-keys before forwarding to `TileCache`. With the broken URL, every browser tile
-request looked like
+1. **404 on every browser request.** The historic source was registered
+   under the key `"historic"` in `default_tile_sources()`
+   (`parish-config/src/engine.rs`), but its `url` template hardcoded
+   `/tiles/roscommon1/{z}/{x}/{y}.png`. The tile-proxy route handler at
+   `parish/crates/parish-server/src/tile_routes.rs:52-60` parses the first
+   path segment as the `source_id` and validates it against the registered
+   tile-source keys. With the broken URL, every request looked like
 
-    GET /tiles/roscommon1/10/500/350.png
+       GET /tiles/roscommon1/10/500/350.png
 
-and the handler short-circuited with `StatusCode::NOT_FOUND` because the only
-registered ids were `historic` and `osm`. The map stayed blank for every user
-who selected the historic source (the default).
+   and the handler short-circuited with `StatusCode::NOT_FOUND` because the
+   only registered ids were `historic` and `osm`.
+
+2. **502 on every cache miss, even with #1 fixed.** `init_tile_cache`
+   (`parish/crates/parish-server/src/lib.rs:868-873`) populated
+   `TileCache.url_templates` from the same `cfg.url` field. The single
+   `url` field was being asked to do two incompatible jobs: be a
+   same-origin proxy path the browser hits, AND be an absolute upstream
+   URL the server-side `reqwest::get` fetches from on a cache miss. Even
+   after fixing the path segment, `reqwest::get("/tiles/historic/...")`
+   would error because the URL is relative. Since there is no tile
+   pre-seeding mechanism anywhere in the tree, this means a fresh user
+   would never load a single historic tile.
+
+Spotted by gemini-code-assist's review of the first cut of this PR.
 
 ## What changed in this PR
 
-- `parish/crates/parish-config/src/engine.rs:788` — URL template
-  `/tiles/roscommon1/{z}/{x}/{y}.png` → `/tiles/historic/{z}/{x}/{y}.png`,
-  so the path segment matches the registry key.
-- `parish/crates/parish-config/src/engine.rs` — re-anchored the existing
-  `test_map_config_default_has_both_sources` assertion off the literal string
-  `"roscommon1"` and onto the invariant
-  `historic.url.starts_with("/tiles/historic/")`.
-- `parish/crates/parish-config/src/engine.rs` — added a new
-  `proxy_path_segment_matches_registered_source_id` test that pins the
-  invariant generically: every same-origin tile URL's first path segment
-  must equal its registering key.
-- `parish/apps/ui/src/stores/tiles.test.ts:25` — updated the frontend
-  fixture URL to match.
+### Layer split — `TileSourceConfig`
+
+Added an `upstream_url` field to `TileSourceConfig`
+(`parish/crates/parish-config/src/engine.rs`). `url` is now exclusively
+the URL the **frontend** hits; `upstream_url` is the URL the
+**server-side cache** fetches from on a miss. The two layers can now
+diverge cleanly:
+
+| Source     | `url` (browser → server)                       | `upstream_url` (server → upstream)                                                  |
+|------------|------------------------------------------------|-------------------------------------------------------------------------------------|
+| `historic` | `/tiles/historic/{z}/{x}/{y}.png`              | `https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png`         |
+| `osm`      | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | _(empty — OSM is fetched directly by the browser)_                                |
+
+### Cache wiring
+
+`init_tile_cache` (`parish-server/src/lib.rs:868-880`) now builds
+`url_templates` from `upstream_url`, and filters out entries whose
+`upstream_url` is empty. Sources without an `upstream_url` (like OSM)
+are simply absent from the cache map, so any stray `/tiles/osm/...`
+request is rejected by `TileCache::get` with `not registered` before
+any I/O.
+
+### Tests
+
+- `engine.rs:test_map_config_default_has_both_sources` re-anchored: now
+  asserts `historic.url.starts_with("/tiles/historic/")` AND
+  `historic.upstream_url.starts_with("https://mapseries-tilesets…/os/roscommon1/")`,
+  pinning both layers.
+- `engine.rs:proxy_path_segment_matches_registered_source_id` — new
+  invariant test: for any same-origin tile URL
+  (`/tiles/<seg>/{z}/{x}/{y}.png`), the first path segment must equal the
+  registering key.
+- `tiles.test.ts` fixture URL updated.
 
 ## Request-flow demonstration
 
-Before the fix, the same-origin request the browser produces against the
-default historic source:
+Before, on a fresh install:
 
 ```
 GET /tiles/roscommon1/10/500/350.png
- → parish-server tile_routes::get_tile
-   → source_id = "roscommon1"
-   → known = [("historic", _), ("osm", _)].iter().any(|(id,_)| id == "roscommon1")
-   → known == false
+ → tile_routes::get_tile
+   → source_id "roscommon1" not in registered keys ("historic", "osm")
    → 404 "unknown tile source"
 ```
 
-After the fix:
+After the surface fix only (still bad — Gemini's flag):
 
 ```
-GET /tiles/historic/10/500/350.png
- → parish-server tile_routes::get_tile
-   → source_id = "historic"
-   → known = true
-   → TileCache::get("historic", 10, 500, 350)
-     → cache hit:  read tile_cache/historic/10/500/350.png  → 200 image/png
-     → cache miss: fetch upstream from url_templates["historic"], persist, serve
+GET /tiles/historic/10/500/350.png       (validates OK)
+ → TileCache::get("historic", ...)
+   → cache miss
+   → reqwest::get("/tiles/historic/...")
+     → URL is not absolute → error
+   → 502
+```
+
+After this PR:
+
+```
+GET /tiles/historic/10/500/350.png       (validates OK)
+ → TileCache::get("historic", ...)
+   → cache miss
+   → reqwest::get("https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/10/500/350.png")
+     → 200 image/png
+   → persist to tile_cache/historic/10/500/350.png
+   → 200 image/png
 ```
 
 ## Test transcript
 
 ```
-$ cargo test -p parish-config --lib -- proxy_path_segment test_map_config_default
-running 2 tests
-test engine::tests::test_map_config_default_has_both_sources ... ok
-test engine::tests::proxy_path_segment_matches_registered_source_id ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 108 filtered out
-```
-
-```
 $ cargo test -p parish-config --lib
 test result: ok. 110 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+```
+$ cargo build -p parish-server
+   Compiling parish-server v0.1.0
+    Finished `dev` profile [unoptimized + debuginfo] target(s)
 ```
 
 ```
@@ -84,14 +122,12 @@ Test Files  1 passed (1)
      Tests  6 passed (6)
 ```
 
-## Known follow-up (not in this PR)
+## Out-of-scope follow-ups
 
-`init_tile_cache` (`parish-server/src/lib.rs:868-873`) populates
-`TileCache.url_templates` from the same `url` field. After this PR, the
-historic entry's `url` is a same-origin relative path, so
-`reqwest::get("/tiles/historic/...")` on a cache miss will error with
-"URL is not absolute" and return 502. Cached tiles serve fine because they
-short-circuit before the upstream fetch. A separate `upstream_url` field
-(or routing layer that knows the NLS S3 path) is needed to make cold-cache
-historic tiles work end to end. The OSM source is unaffected — its `url`
-is already an absolute upstream URL.
+- Route handler currently still validates against all `tile_sources` keys
+  (including OSM). A `/tiles/osm/...` request would pass route validation
+  and then 502 from `TileCache::get`. Better to 404 earlier — file a
+  follow-up to validate against the proxied subset only.
+- CSP `connect-src` correctly excludes NLS S3 because the browser never
+  hits it directly (only the server does, via `reqwest`). No CSP change
+  needed.
