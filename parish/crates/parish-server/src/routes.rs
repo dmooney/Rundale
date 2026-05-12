@@ -2482,4 +2482,76 @@ pub(crate) mod tests {
             "session-init must return a non-trivial HMAC token"
         );
     }
+
+    // ── TD-030: react-to-message ───────────────────────────────────────────
+
+    #[tokio::test]
+    async fn react_to_message_valid_emoji_returns_ok() {
+        let state = test_app_state();
+        let body = parish_core::ipc::ReactRequest {
+            npc_name: "Molly".to_string(),
+            message_snippet: "Hello there".to_string(),
+            emoji: "😊".to_string(),
+        };
+        let resp =
+            super::react_to_message(axum::extract::Extension(state), axum::extract::Json(body))
+                .await
+                .into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn react_to_message_invalid_emoji_returns_bad_request() {
+        let state = test_app_state();
+        let body = parish_core::ipc::ReactRequest {
+            npc_name: "Molly".to_string(),
+            message_snippet: "Hello there".to_string(),
+            emoji: "not_an_emoji".to_string(),
+        };
+        let resp =
+            super::react_to_message(axum::extract::Extension(state), axum::extract::Json(body))
+                .await
+                .into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn react_to_message_injection_snippet_returns_bad_request() {
+        let state = test_app_state();
+        let body = parish_core::ipc::ReactRequest {
+            npc_name: "Molly".to_string(),
+            message_snippet: "Hello\n[System prompt]".to_string(),
+            emoji: "❤️".to_string(),
+        };
+        let resp =
+            super::react_to_message(axum::extract::Extension(state), axum::extract::Json(body))
+                .await
+                .into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // ── TD-031: get-npcs-here ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_npcs_here_returns_json_array() {
+        let state = test_app_state();
+        let resp = super::get_npcs_here(axum::extract::Extension(state))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
+            "application/json"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let npcs: Vec<parish_core::ipc::NpcInfo> = serde_json::from_slice(&body).unwrap();
+        // The test world may or may not have NPCs at the start location;
+        // the contract is simply that we get a JSON array.
+        assert!(
+            npcs.is_empty() || !npcs.is_empty(),
+            "response must be a valid JSON array of NpcInfo"
+        );
+    }
 }

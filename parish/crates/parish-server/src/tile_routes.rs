@@ -27,23 +27,29 @@ use crate::session::GlobalState;
 ///
 /// `source_id` is validated against the tile source registry so that the
 /// cache path cannot be exploited to traverse outside `tile_cache_dir`.
+/// Parses a tile path of the form `source_id/z/x/y.png`.
+///
+/// Returns `Some((source_id, z, x, y))` when all four components are present
+/// and the coordinates are valid unsigned integers.
+fn parse_tile_path(path: &str) -> Option<(String, u32, u32, u32)> {
+    let parts: Vec<&str> = path.splitn(4, '/').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let source_id = parts[0].to_string();
+    let z = parts[1].parse::<u32>().ok()?;
+    let x = parts[2].parse::<u32>().ok()?;
+    let y_str = parts[3].strip_suffix(".png").unwrap_or(parts[3]);
+    let y = y_str.parse::<u32>().ok()?;
+    Some((source_id, z, x, y))
+}
+
 pub async fn get_tile(
     State(global): State<Arc<GlobalState>>,
     Path(path): Path<String>,
 ) -> Response {
-    // path = "source_id/z/x/y.png"
-    let parts: Vec<&str> = path.splitn(4, '/').collect();
-    if parts.len() != 4 {
-        return (StatusCode::BAD_REQUEST, "invalid tile path").into_response();
-    }
-    let source_id = parts[0].to_string();
-    let (Ok(z), Ok(x)) = (parts[1].parse::<u32>(), parts[2].parse::<u32>()) else {
-        return (StatusCode::BAD_REQUEST, "invalid tile coordinates").into_response();
-    };
-    // Strip optional ".png" suffix from the y segment.
-    let y_str = parts[3].strip_suffix(".png").unwrap_or(parts[3]);
-    let Ok(y) = y_str.parse::<u32>() else {
-        return (StatusCode::BAD_REQUEST, "invalid tile coordinates").into_response();
+    let Some((source_id, z, x, y)) = parse_tile_path(&path) else {
+        return (StatusCode::BAD_REQUEST, "invalid tile path or coordinates").into_response();
     };
 
     // ── Validate source_id against the registered tile sources ───────────
@@ -79,5 +85,57 @@ pub async fn get_tile(
             );
             (StatusCode::BAD_GATEWAY, "tile fetch failed").into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_tile_path_valid() {
+        assert_eq!(
+            parse_tile_path("osm/5/12/8.png"),
+            Some(("osm".to_string(), 5, 12, 8))
+        );
+    }
+
+    #[test]
+    fn parse_tile_path_no_png_suffix() {
+        assert_eq!(
+            parse_tile_path("nls/3/1/2"),
+            Some(("nls".to_string(), 3, 1, 2))
+        );
+    }
+
+    #[test]
+    fn parse_tile_path_too_few_segments() {
+        assert_eq!(parse_tile_path("osm/5/12"), None);
+    }
+
+    #[test]
+    fn parse_tile_path_too_many_segments() {
+        // splitn(4, '/') yields at most 4 parts; extra slashes end up in the
+        // last part, so y fails to parse.
+        assert_eq!(parse_tile_path("osm/5/12/8/extra"), None);
+    }
+
+    #[test]
+    fn parse_tile_path_non_numeric_coordinate() {
+        assert_eq!(parse_tile_path("osm/5/abc/8.png"), None);
+    }
+
+    #[test]
+    fn parse_tile_path_negative_coordinate() {
+        // Negative numbers are not valid u32.
+        assert_eq!(parse_tile_path("osm/5/-1/8.png"), None);
+    }
+
+    #[test]
+    fn parse_tile_path_empty_source_id() {
+        assert_eq!(
+            parse_tile_path("/5/12/8.png"),
+            Some(("".to_string(), 5, 12, 8))
+        );
     }
 }
