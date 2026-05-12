@@ -104,6 +104,14 @@ impl LocalDiskModSource {
     /// 1. `PARISH_MODS_DIR` env var.
     /// 2. cwd-walk searching for a `mods/` directory.
     ///
+    /// # Rule 9 warning
+    ///
+    /// AGENTS.md rule 9 forbids resolving runtime paths from the cwd. The
+    /// cwd-walk is a **development fallback only**. Production and packaged
+    /// builds must set `PARISH_MODS_DIR` so the walk is never reached.
+    ///
+    /// Prefer [`Self::with_root`] for explicit path resolution.
+    ///
     /// Returns `Err` when no `mods/` directory can be located.  Callers that
     /// want a graceful fallback (no mod installed) should treat the error as
     /// `None` rather than hard-failing.
@@ -195,17 +203,16 @@ pub fn load_setting_mod_sync() -> Option<ModBundle> {
     let source = LocalDiskModSource::new().ok()?;
     let root = source.root.clone();
     let discovered = discover_mods_in(&root).ok()?;
-    let setting_id = peek_mod_id(&discovered.setting).unwrap_or_else(|| "unknown".into());
     match GameMod::load(&discovered.setting) {
         Ok(gm) => {
             tracing::info!(
                 "Loaded game mod '{}' via LocalDiskModSource (sync)",
                 gm.manifest.meta.name
             );
-            let _ = setting_id; // suppress unused warning; id is available for logging above
             Some(gm)
         }
         Err(e) => {
+            let setting_id = peek_mod_id(&discovered.setting).unwrap_or_else(|| "unknown".into());
             tracing::warn!("Failed to load setting mod '{}': {}", setting_id, e);
             None
         }
