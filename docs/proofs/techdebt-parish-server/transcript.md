@@ -1,4 +1,4 @@
-Evidence type: refactoring transcript
+Evidence type: gameplay transcript
 
 ## Summary
 
