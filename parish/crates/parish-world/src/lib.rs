@@ -386,4 +386,119 @@ mod tests {
         world.player_location = LocationId(999);
         let _ = world.current_location();
     }
+
+    #[test]
+    fn increment_tick_generation_increments() {
+        let mut world = WorldState::new();
+        assert_eq!(world.tick_generation, 0);
+        world.increment_tick_generation();
+        assert_eq!(world.tick_generation, 1);
+    }
+
+    #[test]
+    fn increment_tick_generation_wraps_on_overflow() {
+        let mut world = WorldState::new();
+        world.tick_generation = u64::MAX;
+        world.increment_tick_generation();
+        assert_eq!(world.tick_generation, 0);
+    }
+
+    #[test]
+    fn from_parish_file_loads_graph_and_sets_location() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_parish_file.json");
+        std::fs::write(&path, json).unwrap();
+        let world = WorldState::from_parish_file(&path, LocationId(1)).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(world.player_location, LocationId(1));
+        assert!(world.graph.get(LocationId(1)).is_some());
+        assert!(world.graph.get(LocationId(2)).is_some());
+    }
+
+    #[test]
+    fn from_mod_params_parses_start_date() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_mod_params.json");
+        std::fs::write(&path, json).unwrap();
+        let world =
+            WorldState::from_mod_params(&path, LocationId(2), "1820-03-20T08:00:00Z").unwrap();
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(world.player_location, LocationId(2));
+        let now = world.clock.now();
+        let expected = chrono::DateTime::parse_from_rfc3339("1820-03-20T08:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let diff = (now - expected).num_seconds().abs();
+        assert!(diff < 5, "Clock start date off by {}s", diff);
+    }
+
+    #[test]
+    fn from_mod_params_fallback_on_bad_date() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 1, "path_description": "path"}]
+                }
+            ]
+        }"#;
+        let path = std::env::temp_dir().join("parish_world_test_from_mod_params_bad.json");
+        std::fs::write(&path, json).unwrap();
+        let world = WorldState::from_mod_params(&path, LocationId(1), "not-a-date").unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let now = world.clock.now();
+        let utc_now = chrono::Utc::now();
+        let diff = (now - utc_now).num_seconds().abs();
+        assert!(diff < 5, "Fallback date off by {}s", diff);
+    }
 }
