@@ -158,8 +158,7 @@ pub fn apply_movement(
 
             // Check for a travel encounter now that the clock has advanced.
             let encounter_msg =
-                check_encounter(world.clock.time_of_day(), dice::DiceRoll::roll().value())
-                    .map(|ev| ev.description);
+                check_encounter(world.clock.time_of_day(), dice::DiceRoll::roll().value());
 
             // Reassign NPC cognitive tiers
             let tier_transitions = npc_manager.assign_tiers(world, &[]);
