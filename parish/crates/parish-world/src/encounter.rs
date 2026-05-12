@@ -4,7 +4,7 @@
 //! Probability is ~20% per traversal, influenced by time of day.
 //!
 //! Encounter flavour text can come from hardcoded defaults (legacy) or from
-//! a mod's [`EncounterTable`](crate::game_mod::EncounterTable) data.
+//! a mod's `EncounterTable` data.
 
 use std::collections::HashMap;
 
