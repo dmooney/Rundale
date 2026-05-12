@@ -33,6 +33,22 @@
 | TD-018 | Stale Docs | P3 | `src/session_store_impl.rs:1-9` | Updated module doc to clarify `SqliteSessionRegistry` is removed and `session::SessionRegistry` is canonical. |
 | TD-019 | Stale Docs | P3 | `src/lib.rs:104-107` | Converted `TODO:` to descriptive comment referencing issue #543. |
 | TD-020 | Dead Code | P2 | `src/session_store_impl.rs:139-317` | Deleted `SqliteSessionRegistry` struct, trait impl, and associated tests. |
+| TD-021 | Manifest Hygiene | P3 | `Cargo.toml` | Dropped unused `tower-http` `cors` feature. |
+| TD-022 | Manifest Hygiene | P3 | `Cargo.toml` | Removed unused `tracing-opentelemetry` and `opentelemetry` deps. |
+| TD-023 | Manifest Hygiene | P3 | `Cargo.toml` | Moved `tower` to dev-dependencies (only used in tests). |
+| TD-024 | Stale TODO | P2 | `src/lib.rs` | Removed no-op `MemoryStore` cleanup task body; replaced with a comment. |
+| TD-025 | Duplication | P2 | `src/session.rs` `src/auth.rs` `src/routes.rs` | Removed `google_account_for_session` from `SessionRegistry`; callers now use `identity_store.get_account`. Updated tests. |
+| TD-026 | Duplication | P2 | `src/session.rs` | Extracted `finalize_session_entry` helper shared by `create_session` and `restore_session`. |
+| TD-027 | Naming | P3 | `src/auth.rs` | Renamed `urlenccode` to `urlencode` across definition, call sites, and tests. |
+| TD-028 | Rule 9 Violation | P2 | `src/lib.rs` | Switched `ensure_saves_dir()` to `resolve_project_saves_dir(&data_dir)`. |
+| TD-029 | Weak Tests | P2 | `src/tile_routes.rs` | Added `parse_tile_path` unit tests (valid, missing suffix, too few/many segments, invalid coords, empty source, negative). |
+| TD-030 | Weak Tests | P2 | `src/routes.rs` | Added `react_to_message` tests for valid emoji, invalid emoji, and injection snippet. |
+| TD-031 | Weak Tests | P2 | `src/routes.rs` | Added `get_npcs_here_returns_json_array` test. |
+| TD-032 | Complexity/Hidden Bug | P2 | `src/session.rs` | Fixed `restore_session` to select the most recently modified `.db` file instead of alphabetically first, with explanatory comment. |
+
+## Progress log
+
+- **2026-05-12** — Resolved TD-021 through TD-032. All changes verified with `cargo fmt`, `cargo clippy -p parish-server`, `cargo test -p parish-server`, and `cargo check --workspace`.
 
 ## Follow-up
 
