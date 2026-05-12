@@ -11,7 +11,13 @@ a progress bar visible to the user. The companion PR adds:
   Python runtime with vllm-mlx pre-installed.
 - A three-way SetupOverlay fork: local-recommended (Mac ≥16 GB),
   local-low-mem (Mac <16 GB), BYOK-only (elsewhere or after a prior
-  successful onboarding).
+  successful onboarding). The wizard then picks the actual variant
+  from live RAM: `ramGb >= 24` → two-slot (14B + 1.5B), otherwise
+  small-only (1.5B everywhere). The 14B 4-bit weights + KV cache +
+  activations + 1.5B + host overhead is a ~20-24 GB working set;
+  16 GB Macs OOM on the two-slot loadout, so the recommended fork
+  on a 16-23 GB Mac still ships the small-only variant with an
+  honest "consider BYOK" warning.
 
 ## Bundle build — end-to-end
 

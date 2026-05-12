@@ -242,13 +242,19 @@ impl Provider {
     /// Returns the recommended local provider for the current platform.
     ///
     /// - **macOS, 16 GB+ unified memory** → [`Provider::VllmMlx`].
-    ///   The MLX runtime is the native Apple Silicon path; the two-slot
-    ///   Qwen loadout (Qwen2.5-14B Dialogue + Qwen2.5-1.5B small slot,
-    ///   ~9.3 GB resident) needs at least 16 GB of unified memory.
+    ///   The MLX runtime is the native Apple Silicon path. 16 GB is
+    ///   the floor for the *small-only* loadout (1.5B everywhere,
+    ///   ~4 GB resident with KV cache + host overhead). The
+    ///   *two-slot* loadout (14B Dialogue + 1.5B small slot) needs
+    ///   ~24 GB once weights + KV cache + activations are resident;
+    ///   the wizard's first-run UI decides between the two variants
+    ///   from the live `ram_gb` reading rather than baking the
+    ///   threshold into this function.
     /// - **macOS, < 16 GB unified memory** → [`Provider::Simulator`].
-    ///   The local two-slot loadout won't fit; first-run UI should
-    ///   detect this and route the user into BYOK (OpenRouter,
-    ///   Anthropic, Google) instead of degrading the local tier.
+    ///   Even the small-only loadout would have to fight the OS for
+    ///   memory; first-run UI should route the user into BYOK
+    ///   (OpenRouter, Anthropic, Google) instead of degrading the
+    ///   local tier.
     /// - **Linux / Windows** → [`Provider::Ollama`]. Mature GPU stack
     ///   (CUDA on NVIDIA, ROCm on AMD), auto-install, auto-pull.
     ///
