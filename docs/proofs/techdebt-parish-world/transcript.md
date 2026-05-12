@@ -2,26 +2,30 @@ Evidence type: gameplay transcript
 
 ## Summary
 
-Resolved 11 TODO.md items in `parish/crates/parish-world/`:
+Resolved all 14 remaining TODO.md items in `parish/crates/parish-world/` (TD-012 through TD-025):
 
-### Dead Code & Config (TD-008, TD-009, TD-010, TD-011)
-- Removed unused `traversal_minutes` field from `Connection` struct
-- Removed unused `anyhow` and `thiserror` dependencies
-- Moved `toml` to `[dev-dependencies]` (test-only usage)
-- Fixed README.md module list (removed `palette`, added `session`, `wayfarers`, `weather_travel`)
+### Stale Tests & Docs (TD-012, TD-013, TD-020, TD-025)
+- Removed `"traversal_minutes": 5` from six validation-test JSON fixtures in `graph.rs`
+- Fixed broken intra-doc link in `encounter.rs` module doc
+- Re-attached orphaned doc comment for `resolve_movement_with_weather` in `movement.rs`
+- Fixed broken cross-reference path in `lib.rs` doc comment
 
-### Duplication (TD-001, TD-002, TD-003, TD-004)
-- `shortest_path` now delegates to `shortest_path_filtered` with always-true closure
-- Extracted `WorldState::init()` and `graph_to_legacy_locations()` to share field init across constructors
-- Extracted `encounter_threshold()` to share TimeOfDay→threshold mapping
-- Extracted `resolve_target()` to share find-by-name + AlreadyHere guard
+### Config/Cargo (TD-014)
+- Dropped unused `tokio` dependency from `Cargo.toml`
 
-### Complexity (TD-005, TD-006)
-- Replaced magic `u8::MAX` sentinel with a `MatchLevel` enum with `Ord` derive
-- Extracted `weather_adjusted_travel()` and `blocked_or_fallback()` from `resolve_movement_with_weather`
+### Dead Code & Duplication (TD-015, TD-016, TD-021, TD-022)
+- Removed unused `WeatherEngine::history()` getter, internal `history` field, `HISTORY_CAPACITY`, and redundant `last_check_hour` re-assignment
+- Removed unused encounter APIs (`check_encounter_with_config`, `check_encounter_with_table`, `EncounterTable`, `EncounterEvent`) and simplified `check_encounter` to return `Option<String>`
+- Updated caller in `parish-core/src/game_session.rs`
 
-### Tests (TD-007)
-- Added 5 direct unit tests for `shortest_path_filtered`: empty filter, same-location, nonexistent target, target-only edges, identity with unfiltered
+### Weak Tests (TD-017, TD-023, TD-024)
+- Added unit tests for `increment_tick_generation` (normal + wrapping overflow)
+- Added unit test for `WeatherEngine::force` (state change, `since` reset, `last_check_hour` arming)
+- Added unit tests for `from_parish_file` and `from_mod_params` constructors, including RFC 3339 fallback on bad date input
+
+### Test Helpers (TD-018, TD-019)
+- Extracted `loc()` test helper in `description.rs` to remove 17-line `LocationData` repetition
+- Removed dead `rng` and `prob` variables from `wayfarers.rs` test
 
 ## Test Output
 
@@ -33,5 +37,5 @@ test result: ok. 152 passed; 0 failed; 0 ignored
 ## Clippy Output
 
 ```
-cargo clippy -p parish-world -- -D warnings: clean (no warnings)
+cargo clippy -p parish-world --all-targets --all-features: clean (no warnings)
 ```
