@@ -145,12 +145,7 @@ async fn reload_live_world_from_disk(
         // Graph was replaced wholesale — discard the cached BFS distances so
         // the next assign_tiers call recomputes from the new topology.
         npc_manager.invalidate_bfs_cache();
-        get_world_snapshot_inner(
-            &world,
-            state.transport.default_mode(),
-            Some(&npc_manager),
-            &state.pronunciations,
-        )
+        get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations)
     };
 
     let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);

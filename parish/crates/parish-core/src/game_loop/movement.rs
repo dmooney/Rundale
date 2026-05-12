@@ -229,7 +229,7 @@ pub async fn handle_movement(
         let snapshot = {
             let world = ctx.world.lock().await;
             let npc_manager = ctx.npc_manager.lock().await;
-            let mut ws = snapshot_from_world(&world, transport);
+            let mut ws = snapshot_from_world(&world);
             ws.name_hints = compute_name_hints(&world, &npc_manager, ctx.pronunciations);
             ws
         };

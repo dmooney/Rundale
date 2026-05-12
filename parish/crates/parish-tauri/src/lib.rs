@@ -1229,10 +1229,8 @@ pub fn run() {
 
                         // Emit a fresh world snapshot to the frontend.
                         {
-                            let transport = state_tick.transport.default_mode();
                             let snapshot = crate::commands::get_world_snapshot_inner(
                                 &world,
-                                transport,
                                 Some(&npc_mgr),
                                 &state_tick.pronunciations,
                             );

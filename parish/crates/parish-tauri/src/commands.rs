@@ -13,7 +13,6 @@ use parish_core::input::{InputResult, classify_input, parse_intent};
 use parish_core::ipc::{compute_name_hints, text_log, text_log_typed};
 use parish_core::npc::reactions;
 use parish_core::world::LocationId;
-use parish_core::world::transport::TransportMode;
 // DEFAULT_START_LOCATION — no longer used directly; handled by load_fresh_world_and_npcs (#696).
 use tauri::Emitter;
 
@@ -40,11 +39,10 @@ async fn debug_event_timestamp(state: &Arc<AppState>) -> String {
 /// NPC manager and pronunciation data are provided.
 pub fn get_world_snapshot_inner(
     world: &parish_core::world::WorldState,
-    transport: &TransportMode,
     npc_manager: Option<&parish_core::npc::manager::NpcManager>,
     pronunciations: &[parish_core::game_mod::PronunciationEntry],
 ) -> WorldSnapshot {
-    let mut snapshot = snapshot_from_world(world, transport);
+    let mut snapshot = snapshot_from_world(world);
     if let Some(npc_mgr) = npc_manager {
         snapshot.name_hints = compute_name_hints(world, npc_mgr, pronunciations);
     }
@@ -53,11 +51,8 @@ pub fn get_world_snapshot_inner(
 
 /// Converts a core [`parish_core::ipc::WorldSnapshot`] into the Tauri-specific
 /// [`WorldSnapshot`] (which includes additional fields like `name_hints`).
-fn snapshot_from_world(
-    world: &parish_core::world::WorldState,
-    transport: &TransportMode,
-) -> WorldSnapshot {
-    let core = parish_core::ipc::snapshot_from_world(world, transport);
+fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot {
+    let core = parish_core::ipc::snapshot_from_world(world);
     WorldSnapshot {
         location_name: core.location_name,
         location_description: core.location_description,
@@ -86,10 +81,8 @@ pub async fn get_world_snapshot(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<WorldSnapshot, String> {
     let world = state.world.lock().await;
-    let transport = state.transport.default_mode();
     let npc_manager = state.npc_manager.lock().await;
-    let snapshot =
-        get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
+    let snapshot = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
     Ok(snapshot)
 }
 
@@ -361,10 +354,8 @@ async fn touch_player_activity(state: &Arc<AppState>) {
 
 async fn emit_world_update(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let world = state.world.lock().await;
-    let transport = state.transport.default_mode();
     let npc_manager = state.npc_manager.lock().await;
-    let snapshot =
-        get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
+    let snapshot = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
     let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
 }
 
@@ -715,12 +706,7 @@ async fn handle_movement(target: &str, state: &Arc<AppState>, app: &tauri::AppHa
 
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
-        let snapshot = get_world_snapshot_inner(
-            &world,
-            &transport,
-            Some(&npc_manager),
-            &state.pronunciations,
-        );
+        let snapshot = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
         let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
     }
 }
@@ -993,8 +979,7 @@ pub async fn load_branch(
         .unwrap_or_default();
 
     // Emit updated state to frontend (compute name hints before dropping locks)
-    let transport = state.transport.default_mode();
-    let ws = get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
+    let ws = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
     drop(npc_manager);
     let _ = app.emit(EVENT_WORLD_UPDATE, ws);
     let _ = app.emit(
@@ -2164,10 +2149,8 @@ mod cmd_tests {
     async fn get_world_snapshot_inner_returns_start_location() {
         let state = test_app_state();
         let world = state.world.lock().await;
-        let transport = state.transport.default_mode();
         let npc_manager = state.npc_manager.lock().await;
-        let snapshot =
-            get_world_snapshot_inner(&world, transport, Some(&npc_manager), &state.pronunciations);
+        let snapshot = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
         assert!(
             !snapshot.location_name.is_empty(),
             "location name should be populated"

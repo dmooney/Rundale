@@ -560,8 +560,7 @@ async fn reload_live_world_from_disk(state: &Arc<AppState>) -> Result<(), String
         // Graph was replaced wholesale — discard the cached BFS distances so
         // the next assign_tiers call recomputes from the new topology.
         npc_manager.invalidate_bfs_cache();
-        let transport = state.transport.default_mode();
-        let mut ws = parish_core::ipc::snapshot_from_world(&world, transport);
+        let mut ws = parish_core::ipc::snapshot_from_world(&world);
         ws.name_hints =
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         ws

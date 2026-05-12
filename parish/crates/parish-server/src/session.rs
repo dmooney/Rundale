@@ -975,8 +975,7 @@ fn spawn_session_ticks(
                 {
                     let world = s.world.lock().await;
                     let npc_manager = s.npc_manager.lock().await;
-                    let transport = s.transport.default_mode();
-                    let mut snap = parish_core::ipc::snapshot_from_world(&world, transport);
+                    let mut snap = parish_core::ipc::snapshot_from_world(&world);
                     snap.name_hints = parish_core::ipc::compute_name_hints(
                         &world,
                         &npc_manager,

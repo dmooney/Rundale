@@ -188,7 +188,7 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     {
         let world = p.world.lock().await;
         let npc_manager = p.npc_manager.lock().await;
-        let mut ws = snapshot_from_world(&world, p.default_transport);
+        let mut ws = snapshot_from_world(&world);
         ws.name_hints = compute_name_hints(&world, &npc_manager, p.pronunciations);
         p.emitter.emit_event(
             "world-update",
