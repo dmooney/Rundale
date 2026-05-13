@@ -95,7 +95,7 @@ def load_judge(judge_id: str, suite: str) -> dict:
     path = _BENCH_DIR / suite / f"{judge_id}.json"
     if not path.exists():
         raise FileNotFoundError(f"judge config not found: {path}")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def judge_invoker(judge: dict, tracker: CostTracker):
@@ -309,7 +309,7 @@ def main() -> None:
 
     _PROOFS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = _PROOFS_DIR / f"run_{slug(target.model)}_{args.slice}_{utc_stamp()}.json"
-    out_path.write_text(json.dumps(out, indent=2, default=str) + "\n")
+    out_path.write_text(json.dumps(out, indent=2, default=str) + "\n", encoding="utf-8")
     print(f"wrote {out_path}")
 
 

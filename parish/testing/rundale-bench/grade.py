@@ -98,11 +98,12 @@ def _validate(value: Any, schema: dict, path: str = "$") -> list[str]:
             if key in props:
                 errors.extend(_validate(val, props[key], f"{path}.{key}"))
 
-    if t == "array" and isinstance(value, list):
-        item_schema = schema.get("items")
-        if item_schema:
-            for i, item in enumerate(value):
-                errors.extend(_validate(item, item_schema, f"{path}[{i}]"))
+    if (t == "array" or (isinstance(t, list) and "array" in t and isinstance(value, list))):
+        if isinstance(value, list):
+            item_schema = schema.get("items")
+            if item_schema:
+                for i, item in enumerate(value):
+                    errors.extend(_validate(item, item_schema, f"{path}[{i}]"))
 
     return errors
 
@@ -228,25 +229,27 @@ def grade_dialogue(reply: str, judge: dict, invoke: Callable[..., dict]) -> dict
         "Reply to judge — score the candidate label `Model X` only:\n\n"
         f"Model X: {reply}\n"
     )
+    nl = _non_latin(reply)
     try:
         scores = invoke(judge["rubric"], user, schema)
+        if not isinstance(scores, dict):
+            raise ValueError(f"judge returned non-dict: {type(scores).__name__}")
+        return {
+            "character": int(scores.get("character") or 0),
+            "authenticity": int(scores.get("authenticity") or 0),
+            "language": int(scores.get("language") or 0),
+            "responsiveness": int(scores.get("responsiveness") or 0),
+            "craft": int(scores.get("craft") or 0),
+            "overall": float(scores.get("overall") or 0.0),
+            "non_latin_chars": nl,
+        }
     except Exception as e:
         return {
             "character": 0, "authenticity": 0, "language": 0,
             "responsiveness": 0, "craft": 0, "overall": 0.0,
-            "non_latin_chars": _non_latin(reply),
+            "non_latin_chars": nl,
             "error": str(e),
         }
-    nl = _non_latin(reply)
-    return {
-        "character": int(scores.get("character", 0)),
-        "authenticity": int(scores.get("authenticity", 0)),
-        "language": int(scores.get("language", 0)),
-        "responsiveness": int(scores.get("responsiveness", 0)),
-        "craft": int(scores.get("craft", 0)),
-        "overall": float(scores.get("overall", 0.0)),
-        "non_latin_chars": nl,
-    }
 
 
 def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., dict]) -> dict:
@@ -272,18 +275,20 @@ def grade_reaction(reply: str, persona: str, judge: dict, invoke: Callable[..., 
     user = f"Persona: {persona}\n\nReply: {reply}\n"
     try:
         scores = invoke(judge["rubric"], user, schema)
+        if not isinstance(scores, dict):
+            raise ValueError(f"judge returned non-dict: {type(scores).__name__}")
+        ic = int(scores.get("in_character") or 0)
+        return {
+            "schema_valid": True, "in_character": ic,
+            "length_ok": length_ok, "non_latin_chars": nl,
+            "score": ic / 5.0,
+        }
     except Exception as e:
         return {
             "schema_valid": True, "in_character": 0,
             "length_ok": length_ok, "non_latin_chars": nl,
             "score": 0.0, "error": str(e),
         }
-    ic = int(scores.get("in_character", 0))
-    return {
-        "schema_valid": True, "in_character": ic,
-        "length_ok": length_ok, "non_latin_chars": nl,
-        "score": ic / 5.0,
-    }
 
 
 def grade_simulation(reply: Any, schema: dict, judge: dict, invoke: Callable[..., dict]) -> dict:
@@ -306,7 +311,9 @@ def grade_simulation(reply: Any, schema: dict, judge: dict, invoke: Callable[...
     user = f"Output to judge: {json.dumps(parsed)}"
     try:
         scores = invoke(judge["rubric"], user, judge_schema)
+        if not isinstance(scores, dict):
+            raise ValueError(f"judge returned non-dict: {type(scores).__name__}")
+        pl = int(scores.get("plausibility") or 0)
+        return {"schema_valid": True, "plausibility": pl, "score": pl / 5.0}
     except Exception as e:
         return {"schema_valid": True, "plausibility": 0, "score": 0.0, "error": str(e)}
-    pl = int(scores.get("plausibility", 0))
-    return {"schema_valid": True, "plausibility": pl, "score": pl / 5.0}
