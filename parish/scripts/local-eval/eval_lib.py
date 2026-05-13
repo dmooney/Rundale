@@ -225,18 +225,29 @@ def load_slice(
     *,
     version: str = "v1",
     tier: Optional[str] = None,
+    split: str = "dev",
     verify: bool = True,
 ) -> list[dict]:
     """Load a frozen rundale-bench slice as a list of records.
 
     `slice_name` is the basename without extension (e.g. `"dialogue"`).
     `tier`, if set, filters records to that tier (e.g. `"core"`, `"extended"`).
+    `split` selects `dev` (the visible 80%) or `holdout` (the sealed 20% at
+    `<slice>.holdout.jsonl`). Holdout exists so model picks can be defended
+    against contamination — production leaderboard scores come from
+    holdout, while local debugging targets dev.
     `verify` (default true) hashes the slice file against the version's
     `MANIFEST.json` and raises `RuntimeError` on mismatch — the freezing
     contract is that the bytes on disk match what was committed.
     """
     suite_dir = BENCH_ROOT / version
-    slice_path = suite_dir / f"{slice_name}.jsonl"
+    if split == "dev":
+        slice_filename = f"{slice_name}.jsonl"
+    elif split == "holdout":
+        slice_filename = f"{slice_name}.holdout.jsonl"
+    else:
+        raise ValueError(f"split must be 'dev' or 'holdout', got {split!r}")
+    slice_path = suite_dir / slice_filename
     if not slice_path.exists():
         raise FileNotFoundError(f"rundale-bench slice not found: {slice_path}")
 
@@ -244,11 +255,17 @@ def load_slice(
     if verify:
         manifest_path = suite_dir / "MANIFEST.json"
         manifest = json.loads(manifest_path.read_text())
-        expected = manifest["slices"][f"{slice_name}.jsonl"]["sha256"]
+        slices_meta = manifest.get("slices", {})
+        if slice_filename not in slices_meta:
+            raise RuntimeError(
+                f"rundale-bench/{version}/MANIFEST.json missing entry for "
+                f"{slice_filename}. Rebuild via build_manifest.py."
+            )
+        expected = slices_meta[slice_filename]["sha256"]
         actual = hashlib.sha256(raw).hexdigest()
         if actual != expected:
             raise RuntimeError(
-                f"rundale-bench/{version}/{slice_name}.jsonl sha256 mismatch: "
+                f"rundale-bench/{version}/{slice_filename} sha256 mismatch: "
                 f"manifest={expected} disk={actual}. Re-run the manifest builder "
                 f"if the change is intentional and bump the version if frozen=true."
             )

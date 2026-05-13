@@ -1,0 +1,18 @@
+{
+  "judge_id": "judge_reaction_v1",
+  "model": "claude-sonnet-4-6",
+  "base_url": "https://api.anthropic.com/v1",
+  "api_key_env": "PARISH_ANTHROPIC_API_KEY",
+  "temperature": 0,
+  "seed": null,
+  "rubric": "You are an impartial judge scoring a brief in-character first-encounter line for a non-player character in rural Ireland, 1820. Score the reply 1-5 on whether it reads as period-appropriate, in-character, and natural for the given persona greeting a newcomer (5 = best). Penalise modern vocabulary, anachronisms, scene description, or out-of-character voice. The 'persona' field describes the role; the reply must sound like THAT person, not a generic Irish farmer.\n\nOutput ONLY a JSON object: {\"in_character\": <int 1-5>}. No prose.",
+  "rubric_sha256": "1c7c1d07223647979968ebb8a70017aba50f89674daa210960a09f7a897d2211",
+  "axes": [
+    "in_character"
+  ],
+  "score_range": [
+    1,
+    5
+  ],
+  "snapshot_date": "2026-05-13"
+}

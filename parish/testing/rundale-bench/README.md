@@ -6,21 +6,63 @@ Spec + roadmap: [`docs/plans/rundale-bench.md`](../../../docs/plans/rundale-benc
 
 ## Status
 
-`v1-dev` — in-development. Phase 1 of the rollout (dataset freeze) is in progress; the dataset is **not** yet frozen. Once Phase 7 completes, `MANIFEST.json::frozen` flips to `true` and the repo is tagged `rundale-bench-v1.0`. Any change after that ships under a new version.
+`v1-dev` — in-development. Phases 1-7 of the rollout have landed structurally but the dataset is intentionally undersized (155 prompts total vs the plan's 1100 target). The framework is complete and produces measured per-slice scores; freeze (`MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0`) waits until the corpus is grown to the planned size and the leaderboard has at least three independently-evaluated targets (one frontier cloud, one open-weight, one local MLX) on the holdout split.
+
+| Phase | Status | Notes |
+|---|---|---|
+| 1 — Dataset freeze | landed | dialogue slice frozen with sha256-verified loader |
+| 2 — Intent + grader | landed | 30 records (target 200); deterministic Jaccard grader; 70% label match on `gpt-oss-120b:free` smoke |
+| 3 — Dialogue extend + pinned judge | landed (partial corpus) | 50 records added (target 400); `judge_v1` pinned at Claude Sonnet 4.6 with rubric_sha256 |
+| 4 — Reaction + sim slices | landed (partial corpus) | 30 + 30 + 15 records (target 200 + 200 + 100); `judge_reaction_v1`, `judge_sim_v1` pinned |
+| 5 — Holdout split | landed | deterministic id-hash split; `core` tier preserved in dev; encryption deferred to v1.0 freeze |
+| 6 — Leaderboard | landed (seed row only) | append-only table; one seed row pre-split; needs broader sweep |
+| 7 — v1.0 freeze | deferred | requires corpus growth + 3+ leaderboard rows before tag |
 
 ## Layout
 
 ```
 parish/testing/rundale-bench/
-├── README.md           — this file
+├── README.md                   — this file
+├── build_manifest.py           — rebuild MANIFEST.json after dataset edits
+├── split_holdout.py            — deterministic dev/holdout split (20% via SHA-256 of id)
+├── grade.py                    — graders (intent, schema, dialogue, reaction, simulation)
+├── rundale_bench.py            — single-entry orchestrator
+├── test_grade.py               — unit tests; run via `python3 test_grade.py`
 └── v1/
-    ├── MANIFEST.json   — slice hashes + Merkle root (sha256-of-concatenated-sha256s, filenames sorted)
-    ├── dialogue.jsonl  — 100 prompts for the Dialogue slice (5 core + 95 extended)
-    ├── intent.jsonl    — (Phase 2) 200 prompts with gold intent labels
-    ├── reaction.jsonl  — (Phase 3)
-    ├── tier2-sim.jsonl — (Phase 4)
-    └── tier3-sim.jsonl — (Phase 4)
+    ├── MANIFEST.json           — slice hashes + Merkle root
+    ├── dialogue.jsonl          — 150 dialogue records (Phase 1 + Phase 3 extension)
+    ├── dialogue.holdout.jsonl  — 20% sealed-by-convention holdout
+    ├── intent.jsonl            — 30 records with JSON gold labels (Phase 2)
+    ├── intent.holdout.jsonl
+    ├── reaction.jsonl          — 30 records, persona-varied first encounters (Phase 4)
+    ├── reaction.holdout.jsonl
+    ├── tier2-sim.jsonl         — 30 records, short-scene JSON simulation (Phase 4)
+    ├── tier2-sim.holdout.jsonl
+    ├── tier3-sim.jsonl         — 15 records, 6+ hour NPC batch JSON (Phase 4)
+    ├── tier3-sim.holdout.jsonl
+    ├── judge_v1.json           — pinned LLM judge for dialogue (rubric_sha256-verified)
+    ├── judge_reaction_v1.json  — pinned judge for reaction in-character score
+    └── judge_sim_v1.json       — pinned judge for sim plausibility
 ```
+
+## Running the bench
+
+```sh
+# One slice on a target's dev split:
+python3 parish/testing/rundale-bench/rundale_bench.py \
+    --target 'openai/gpt-oss-120b:free@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' \
+    --suite v1 --slice intent --split dev --limit 30
+
+# Full sweep — every slice, dev split:
+python3 parish/testing/rundale-bench/rundale_bench.py \
+    --target '<spec>' --suite v1 --slice all --split dev
+
+# Holdout (gates leaderboard submission):
+python3 parish/testing/rundale-bench/rundale_bench.py \
+    --target '<spec>' --suite v1 --slice all --split holdout
+```
+
+Outputs land in `docs/proofs/rundale-bench/run_<target>_<slice>_<UTC>.json`. Append a row to `docs/proofs/rundale-bench/leaderboard.md` for each holdout sweep.
 
 ## Slice record schema
 
