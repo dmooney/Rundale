@@ -1,13 +1,39 @@
 #!/usr/bin/env python3
-"""Run 100 dialogue prompts through Qwen2.5-7B; flag non-Latin script leakage."""
-import json
-import re
-import unicodedata
-import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+"""Run N dialogue prompts through one target; flag non-Latin script leakage.
 
-MODEL = "mlx-community/Qwen2.5-14B-Instruct-4bit"
-PORT = 8000
+Target is a `model@base_url[#env:VAR]` spec (see `eval_lib.parse_target`).
+Default reproduces the macOS vllm-mlx large-slot run.
+
+Examples::
+
+    # default vllm-mlx large slot (Qwen2.5-14B on :8000)
+    python3 flaw_scan.py
+
+    # cloud: Claude Sonnet 4.6 via Anthropic's OpenAI-compat endpoint
+    python3 flaw_scan.py \\
+        --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' \\
+        --output docs/proofs/local-perf/dialogue_flaw_scan_sonnet.md \\
+        --prompts 25
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from eval_lib import CostTracker, Target, call_chat, parse_target  # noqa: E402
+
+DEFAULT_TARGET = "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1"
+DEFAULT_OUTPUT = (
+    Path(__file__).resolve().parents[3]
+    / "docs"
+    / "proofs"
+    / "local-perf"
+    / "dialogue_flaw_scan.md"
+)
 
 SYSTEM = (
     "You are Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. "
@@ -15,8 +41,8 @@ SYSTEM = (
     "You have known the player's family for years.\n\n"
     "LANGUAGE: Speak in en-IE (Hiberno-English). "
     "Use spelling, idioms, and conventions appropriate to en-IE. "
-    "Never use en-US spellings such as \"color\", \"realize\", \"favor\", "
-    "\"neighbor\", or \"-ize\" verb endings — use the en-IE form. "
+    'Never use en-US spellings such as "color", "realize", "favor", '
+    '"neighbor", or "-ize" verb endings — use the en-IE form. '
     "Where a native speaker would naturally code-switch, sprinkle words and "
     "short phrases from ga-IE (Irish Gaeilge) into your dialogue. "
     "Use ONLY en-IE and ga-IE. "
@@ -134,42 +160,18 @@ PROMPTS = [
     "My grandfather is dying. How long should I sit with him?",
     "What was the worst winter you ever lived through?",
 ]
-PROMPTS = PROMPTS[:100]
-assert len(PROMPTS) == 100, len(PROMPTS)
+assert len(PROMPTS) >= 100, len(PROMPTS)
 
 
-def call(prompt):
-    body = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": False,
-        "temperature": 0.7,
-    }
-    req = urllib.request.Request(
-        f"http://localhost:{PORT}/v1/chat/completions",
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.load(resp)["choices"][0]["message"]["content"]
-
-
-# Map character → unicode script (e.g. "Latin", "Cyrillic", "Han", "Hiragana")
-def chars_by_script(text):
-    bad = {}  # script -> set of chars
+def chars_by_script(text: str) -> dict[str, set[str]]:
+    bad: dict[str, set[str]] = {}
     for c in text:
         if c.isspace() or not c.isprintable():
             continue
         try:
-            name = unicodedata.name(c)
+            unicodedata.name(c)
         except ValueError:
             continue
-        # First word of the name is usually the script for letters.
-        # Better: use unicodedata.category + range.
         cp = ord(c)
         script = None
         if 0x0400 <= cp <= 0x04FF or 0x0500 <= cp <= 0x052F:
@@ -195,12 +197,11 @@ def chars_by_script(text):
     return bad
 
 
-def flaws(text):
-    found = []
+def flaws(text: str) -> list[str]:
+    found: list[str] = []
     by_script = chars_by_script(text)
     for script, chars in by_script.items():
         found.append(f"{script}({''.join(sorted(chars))})")
-    # Additional flaw signals
     if not text.strip():
         found.append("empty")
     if len(text) > 800:
@@ -208,53 +209,76 @@ def flaws(text):
     return found
 
 
-def run_one(idx, prompt):
+def run_one(idx: int, prompt: str, target: Target) -> tuple[int, str, str, list[str], dict]:
     try:
-        out = call(prompt)
+        out, usage = call_chat(target, SYSTEM, prompt, max_tokens=200)
     except Exception as e:
-        return idx, prompt, "", [f"error:{e}"]
-    return idx, prompt, out, flaws(out)
+        return idx, prompt, "", [f"error:{e}"], {}
+    return idx, prompt, out, flaws(out), usage
 
 
-def main():
-    results = []
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futs = [pool.submit(run_one, i, p) for i, p in enumerate(PROMPTS, 1)]
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--target", default=DEFAULT_TARGET,
+                    help=f"Target spec (default: {DEFAULT_TARGET})")
+    ap.add_argument("--output", default=str(DEFAULT_OUTPUT),
+                    help=f"Markdown report path (default: {DEFAULT_OUTPUT})")
+    ap.add_argument("--prompts", type=int, default=100,
+                    help="Number of prompts to run (default: 100, max: %d)" % len(PROMPTS))
+    ap.add_argument("--workers", type=int, default=4,
+                    help="Concurrent requests (default: 4; lower for rate-limited cloud)")
+    args = ap.parse_args()
+
+    target = parse_target(args.target)
+    n_prompts = min(args.prompts, len(PROMPTS))
+    selected = PROMPTS[:n_prompts]
+
+    print(f"target: {target.model} @ {target.base_url}")
+    print(f"running {n_prompts} prompts with {args.workers} workers")
+
+    tracker = CostTracker()
+    results: list[tuple[int, str, str, list[str], dict]] = []
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futs = [pool.submit(run_one, i, p, target) for i, p in enumerate(selected, 1)]
         for fut in as_completed(futs):
-            idx, prompt, out, fs = fut.result()
-            results.append((idx, prompt, out, fs))
+            idx, prompt, out, fs, usage = fut.result()
+            tracker.record(target, usage)
+            results.append((idx, prompt, out, fs, usage))
             tag = " ".join(fs) if fs else "ok"
             print(f"[{idx:3d}] {tag}")
     results.sort()
     flawed = [r for r in results if r[3]]
     print()
-    print(f"=== {len(flawed)}/{len(results)} ({len(flawed) * 100 / len(results):.0f}%) flagged ===")
-    for idx, prompt, out, fs in flawed:
+    print(f"=== {len(flawed)}/{len(results)} ({len(flawed) * 100 / max(1, len(results)):.0f}%) flagged ===")
+    for idx, prompt, out, fs, _u in flawed:
         print(f"\n#{idx}  flaws: {fs}")
         print(f"  Q: {prompt}")
         print(f"  A: {out.strip()[:400]}")
-    out_path = "/Users/dmooney/Rundale/.claude/worktrees/piped-imagining-meerkat/docs/proofs/local-perf/dialogue_flaw_scan_14b.md"
+    print(f"\ncost: {tracker.summary()}")
+
     lines = [
-        "# Dialogue flaw scan — 100 prompts on Qwen2.5-7B-Instruct-4bit\n",
-        f"\nFlagged {len(flawed)}/{len(results)} ({len(flawed) * 100 / len(results):.0f}%) for non-Latin script leakage or empty/over-long output.\n",
+        f"# Dialogue flaw scan — {n_prompts} prompts on `{target.label()}`\n",
+        f"\nTarget: `{target.model}` at `{target.base_url}`.\n",
+        f"\nFlagged {len(flawed)}/{len(results)} ({len(flawed) * 100 / max(1, len(results)):.0f}%) for non-Latin script leakage or empty/over-long output.\n",
+        f"\nRun cost: {tracker.summary()}.\n",
         "\n## Flagged samples\n",
     ]
     if flawed:
-        for idx, prompt, out, fs in flawed:
+        for idx, prompt, out, fs, _u in flawed:
             lines.append(f"\n### #{idx} — {', '.join(fs)}\n")
             lines.append(f"**Prompt:** {prompt}\n")
             lines.append(f"\n**Output:**\n> {out.strip().replace(chr(10), chr(10) + '> ')}\n")
     else:
         lines.append("\n_None._\n")
-    lines.append("\n## All 100 prompts + responses\n")
-    for idx, prompt, out, fs in results:
+    lines.append(f"\n## All {n_prompts} prompts + responses\n")
+    for idx, prompt, out, fs, _u in results:
         tag = " ⚠ " + " ".join(fs) if fs else ""
         lines.append(f"\n### #{idx}{tag}\n")
         lines.append(f"**Q:** {prompt}\n")
         lines.append(f"\n**A:** {out.strip()}\n")
-    with open(out_path, "w") as f:
-        f.write("".join(lines))
-    print(f"\nwrote {out_path}")
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.output).write_text("".join(lines))
+    print(f"\nwrote {args.output}")
 
 
 if __name__ == "__main__":
