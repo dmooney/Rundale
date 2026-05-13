@@ -264,7 +264,7 @@ def load_slice(
     raw = slice_path.read_bytes()
     if verify:
         manifest_path = suite_dir / "MANIFEST.json"
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         slices_meta = manifest.get("slices", {})
         if slice_filename not in slices_meta:
             raise RuntimeError(
@@ -280,7 +280,7 @@ def load_slice(
                 f"if the change is intentional and bump the version if frozen=true."
             )
 
-    records = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line]
+    records = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
     if tier is not None:
         records = [r for r in records if r.get("tier") == tier]
     return records

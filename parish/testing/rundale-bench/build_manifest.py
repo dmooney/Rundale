@@ -33,9 +33,10 @@ def build(version: str) -> dict:
     entries: dict[str, dict] = {}
     for name in slices:
         data = (suite_dir / name).read_bytes()
+        records = sum(1 for line in data.decode("utf-8").splitlines() if line.strip())
         entries[name] = {
             "sha256": hashlib.sha256(data).hexdigest(),
-            "records": data.decode("utf-8").count("\n"),
+            "records": records,
             "bytes": len(data),
         }
 
@@ -45,7 +46,7 @@ def build(version: str) -> dict:
     manifest_path = suite_dir / "MANIFEST.json"
     frozen = False
     if manifest_path.exists():
-        existing = json.loads(manifest_path.read_text())
+        existing = json.loads(manifest_path.read_text(encoding="utf-8"))
         frozen = bool(existing.get("frozen"))
         if frozen and existing.get("merkle_root_sha256") != merkle:
             raise SystemExit(
@@ -66,7 +67,7 @@ def build(version: str) -> dict:
             "version."
         ),
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {manifest_path}")
     print(f"merkle_root_sha256: {merkle}")
     for name, e in entries.items():
