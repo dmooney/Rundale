@@ -1,0 +1,25 @@
+{"id": "intent-0001", "tier": "core", "persona": "intent-parser", "prompt": "go to the pub", "gold": {"intent": "move", "target": "the pub", "dialogue": null}}
+{"id": "intent-0002", "tier": "core", "persona": "intent-parser", "prompt": "tell Padraig I saw his cow wandering near the bog", "gold": {"intent": "talk", "target": "Padraig", "dialogue": "I saw his cow wandering near the bog"}}
+{"id": "intent-0003", "tier": "core", "persona": "intent-parser", "prompt": "look around", "gold": {"intent": "look", "target": null, "dialogue": null}}
+{"id": "intent-0004", "tier": "core", "persona": "intent-parser", "prompt": "pick up the stone", "gold": {"intent": "interact", "target": "the stone", "dialogue": null}}
+{"id": "intent-0005", "tier": "core", "persona": "intent-parser", "prompt": "examine the brooch", "gold": {"intent": "examine", "target": "the brooch", "dialogue": null}}
+{"id": "intent-0006", "tier": "core", "persona": "intent-parser", "prompt": "agus mar sin", "gold": {"intent": "unknown", "target": null, "dialogue": null}}
+{"id": "intent-0007", "tier": "core", "persona": "intent-parser", "prompt": "I came from the coast yesterday", "gold": {"intent": "talk", "target": null, "dialogue": "I came from the coast yesterday"}}
+{"id": "intent-0008", "tier": "core", "persona": "intent-parser", "prompt": "walk to Brigid's cottage", "gold": {"intent": "move", "target": "Brigid's cottage", "dialogue": null}}
+{"id": "intent-0009", "tier": "core", "persona": "intent-parser", "prompt": "ask Niamh about her father", "gold": {"intent": "talk", "target": "Niamh", "dialogue": "about her father"}}
+{"id": "intent-0010", "tier": "core", "persona": "intent-parser", "prompt": "open the door", "gold": {"intent": "interact", "target": "the door", "dialogue": null}}
+{"id": "intent-0011", "tier": "extended", "persona": "intent-parser", "prompt": "head down to the bog", "gold": {"intent": "move", "target": "the bog", "dialogue": null}}
+{"id": "intent-0013", "tier": "extended", "persona": "intent-parser", "prompt": "take me to Darcy's Pub", "gold": {"intent": "move", "target": "Darcy's Pub", "dialogue": null}}
+{"id": "intent-0015", "tier": "extended", "persona": "intent-parser", "prompt": "return to my own cottage", "gold": {"intent": "move", "target": "my own cottage", "dialogue": null}}
+{"id": "intent-0017", "tier": "extended", "persona": "intent-parser", "prompt": "my grandfather walked to Galway every spring", "gold": {"intent": "talk", "target": null, "dialogue": "my grandfather walked to Galway every spring"}}
+{"id": "intent-0019", "tier": "extended", "persona": "intent-parser", "prompt": "greet Tommy Maguire", "gold": {"intent": "talk", "target": "Tommy Maguire", "dialogue": null}}
+{"id": "intent-0020", "tier": "extended", "persona": "intent-parser", "prompt": "ask the publican for a pint", "gold": {"intent": "talk", "target": "the publican", "dialogue": "for a pint"}}
+{"id": "intent-0022", "tier": "extended", "persona": "intent-parser", "prompt": "look at the hearth", "gold": {"intent": "look", "target": "the hearth", "dialogue": null}}
+{"id": "intent-0023", "tier": "extended", "persona": "intent-parser", "prompt": "survey the bog", "gold": {"intent": "look", "target": "the bog", "dialogue": null}}
+{"id": "intent-0024", "tier": "extended", "persona": "intent-parser", "prompt": "check the sky for rain", "gold": {"intent": "look", "target": "the sky", "dialogue": null}}
+{"id": "intent-0025", "tier": "extended", "persona": "intent-parser", "prompt": "watch the road for travellers", "gold": {"intent": "look", "target": "the road", "dialogue": null}}
+{"id": "intent-0026", "tier": "extended", "persona": "intent-parser", "prompt": "inspect the milk pail", "gold": {"intent": "examine", "target": "the milk pail", "dialogue": null}}
+{"id": "intent-0027", "tier": "extended", "persona": "intent-parser", "prompt": "read the inscription on the cross", "gold": {"intent": "examine", "target": "the inscription on the cross", "dialogue": null}}
+{"id": "intent-0028", "tier": "extended", "persona": "intent-parser", "prompt": "pick up the iron horseshoe", "gold": {"intent": "interact", "target": "the iron horseshoe", "dialogue": null}}
+{"id": "intent-0029", "tier": "extended", "persona": "intent-parser", "prompt": "latch the barn door", "gold": {"intent": "interact", "target": "the barn door", "dialogue": null}}
+{"id": "intent-0030", "tier": "extended", "persona": "intent-parser", "prompt": "sláinte mhaith chugat", "gold": {"intent": "unknown", "target": null, "dialogue": null}}

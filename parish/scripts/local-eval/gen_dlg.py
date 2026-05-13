@@ -10,7 +10,7 @@ Usage::
     python3 gen_dlg.py 'mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1' /tmp/cand_a.txt
 
     # cloud
-    python3 gen_dlg.py 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' /tmp/cand_b.txt
+    python3 gen_dlg.py 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' /tmp/cand_b.txt
 """
 from __future__ import annotations
 

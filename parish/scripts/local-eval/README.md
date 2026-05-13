@@ -44,7 +44,7 @@ Set the relevant `PARISH_*_API_KEY` env var (matches Parish runtime
 conventions) and reference it in the target spec via `#env:VAR`:
 
 ```sh
-export PARISH_ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=sk-ant-...
 export PARISH_GROQ_API_KEY=gsk-...
 export PARISH_OPENAI_API_KEY=sk-...
 ```
@@ -58,11 +58,11 @@ python3 parish/scripts/local-eval/gen_samples.py
 # Cross-provider: Groq small slot, Claude large slot
 python3 parish/scripts/local-eval/gen_samples.py \
     --small 'llama-3.1-8b-instant@https://api.groq.com/openai/v1#env:PARISH_GROQ_API_KEY' \
-    --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY'
+    --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY'
 
 # Cloud flaw scan, lower concurrency to stay under rate limits
 python3 parish/scripts/local-eval/flaw_scan.py \
-    --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' \
+    --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' \
     --prompts 25 --workers 2
 
 # Blind dialogue sample for one target (used by /eval-dialogue)
