@@ -40,6 +40,30 @@ The 0.54 delta is well above the ±0.3 noise floor stated in the plan and demons
 
 The judge swap from Sonnet 4.6 → Qwen3-235B was made to keep judge cost negligible (~\$0.0003/call vs ~\$0.002/call) and to consolidate API key surface on OpenRouter. Qwen3-235B is the current pinned default in `judge_v1.json`; the Sonnet snapshot is retained in the leaderboard as a calibration row, not as a benchmark contender.
 
+## ELO standings — dialogue slice (`--mode elo`)
+
+The absolute 5-axis rubric saturates near the ceiling (gpt-oss-120b scored 4.82/5 on its own — no headroom for stronger models to differentiate). Pairwise ELO replaces it for ranking decisions. Each match: judge picks A / B / tie between two candidate replies on the same prompt, with A/B position randomized per match to absorb first-position bias. ELO starts at 1500, K=32 initially (drops to 16 after 50+ matches/candidate), bootstrapped CI via 500 resamples.
+
+| Date (UTC)       | Targets   | Prompts | Matches | Judge                          | Cost    | Run file |
+|------------------|-----------|---------|---------|--------------------------------|---------|---|
+| 2026-05-13 22:15 | 3 (smoke) | 10      | 30      | judge_pairwise_v1 (qwen3-235b) | $0.0013 | `elo_20260513T221506Z.json` |
+
+### Standings (single smoke run — illustrative, not authoritative)
+
+| Rank | Target                                       | ELO    | 5/95 CI           | Matches |
+|------|----------------------------------------------|--------|-------------------|---------|
+| 1    | qwen/qwen3-235b-a22b-2507                    | 1646.2 | 1598.6 – 1694.0   | 20      |
+| 2    | openai/gpt-oss-120b:free                     | 1497.1 | 1437.0 – 1561.2   | 20      |
+| 3    | mistralai/mistral-small-24b-instruct-2501    | 1356.6 | 1306.3 – 1399.8   | 20      |
+
+~290 ELO spread across three candidates with **non-overlapping CIs between Qwen and Mistral** — discrimination the absolute rubric was crushing. GPT-oss-120b lands middle.
+
+### Caveats for ELO rows
+
+- **Judge is also a competitor.** Qwen3-235B is the judge AND the top-ranked target here. Same-family bias is plausible. Re-run with a deepseek/* or anthropic/* judge before quoting the top of the table in a preset decision.
+- **N=10 prompts is below the comfort floor.** Plan calls for 25-prompt minimum; this is a smoke. Re-run at 25-50 prompts before treating ELO numbers as authoritative.
+- **Bootstrap CI uses i.i.d. resampling of matches**, which understates uncertainty when matches are correlated by prompt. A prompt-level bootstrap would give wider, more honest bounds.
+
 ## Reading the leaderboard
 
 A row at the top of its slice means: best measured `metric` for the largest representative N. Beware:
