@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
-"""Generate dialogue samples from a vllm-mlx model on identical prompts.
+"""Generate the canonical 5-prompt dialogue sample for one target.
 
-Usage:
-  python3 gen_dlg.py <model> <output_path>
+Used by the `/eval-dialogue` skill to score candidate models blind-judge.
+Target is a `model@base_url[#env:VAR]` spec (see `eval_lib.parse_target`).
+
+Usage::
+
+    # local vllm-mlx
+    python3 gen_dlg.py 'mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1' /tmp/cand_a.txt
+
+    # cloud
+    python3 gen_dlg.py 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' /tmp/cand_b.txt
 """
-import json
-import sys
-import urllib.request
+from __future__ import annotations
 
-MODEL = sys.argv[1]
-OUT = sys.argv[2]
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from eval_lib import CostTracker, call_chat, parse_target  # noqa: E402
 
 SYSTEM = (
     "You are Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. "
@@ -27,45 +37,26 @@ PROMPTS = [
 ]
 
 
-def call(prompt: str) -> str:
-    body = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        "stream": True,
-        "max_tokens": 120,
-        "temperature": 0.7,
-    }
-    req = urllib.request.Request(
-        "http://localhost:8000/v1/chat/completions",
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    chunks = []
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        for line in resp:
-            line = line.decode("utf-8").strip()
-            if not line.startswith("data: "):
-                continue
-            data_part = line[len("data: "):]
-            if data_part == "[DONE]":
-                break
-            try:
-                obj = json.loads(data_part)
-                delta = obj["choices"][0].get("delta", {}).get("content")
-                if delta:
-                    chunks.append(delta)
-            except Exception:
-                pass
-    return "".join(chunks)
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("target", help="Target spec: 'model@base_url[#env:VAR]'")
+    ap.add_argument("output", help="Output path for the transcript")
+    args = ap.parse_args()
 
+    target = parse_target(args.target)
+    out_path = Path(args.output)
 
-with open(OUT, "w") as f:
-    f.write(f"=== Model: {MODEL} ===\n")
+    tracker = CostTracker()
+    lines = [f"=== Target: {target.model} @ {target.base_url} ===\n"]
     for p in PROMPTS:
-        text = call(p).strip()
-        f.write(f"\nPROMPT: {p}\nREPLY:  {text}\n")
-print(f"wrote {OUT}")
+        text, usage = call_chat(target, SYSTEM, p, max_tokens=200)
+        tracker.record(target, usage)
+        lines.append(f"\nPROMPT: {p}\nREPLY:  {text.strip()}\n")
+    lines.append(f"\n=== Cost: {tracker.summary()} ===\n")
+    out_path.write_text("".join(lines))
+    print(f"wrote {out_path}")
+    print(f"cost: {tracker.summary()}")
+
+
+if __name__ == "__main__":
+    main()
