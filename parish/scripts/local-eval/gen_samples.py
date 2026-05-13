@@ -2,15 +2,42 @@
 """Generate 2 production-faithful samples per inference category.
 
 Mirrors the prompts from `parish/crates/parish-inference/examples/inf_bench.rs`.
-Hits the two-slot vllm-mlx loadout:
-  Intent / Reaction / Simulation → :8001 (Qwen2.5-1.5B-Instruct-4bit)
-  Dialogue                        → :8000 (Qwen2.5-7B-Instruct-4bit)
-"""
-import json
-import urllib.request
 
-SMALL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
-LARGE = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+Two targets — `small` and `large` — handle Intent/Reaction/Simulation and
+Dialogue respectively. Each target is a `model@base_url[#env:VAR]` spec
+(see `eval_lib.parse_target`). Defaults reproduce the original two-slot
+Apple Silicon vllm-mlx loadout.
+
+Examples::
+
+    # default vllm-mlx two-slot loadout
+    python3 gen_samples.py
+
+    # cross-provider: Groq small slot, Claude large slot
+    python3 gen_samples.py \\
+        --small 'llama-3.1-8b-instant@https://api.groq.com/openai/v1#env:PARISH_GROQ_API_KEY' \\
+        --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' \\
+        --output docs/proofs/local-perf/category_samples_xprovider.md
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from eval_lib import CostTracker, Target, call_chat, parse_target  # noqa: E402
+
+DEFAULT_SMALL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit@http://localhost:8001/v1"
+DEFAULT_LARGE = "mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1"
+DEFAULT_OUTPUT = (
+    Path(__file__).resolve().parents[3]
+    / "docs"
+    / "proofs"
+    / "local-perf"
+    / "category_samples.md"
+)
 
 INTENT_SYS = (
     "You are a text adventure input parser. Given the player's natural language input, "
@@ -193,86 +220,68 @@ DIALOGUE_SYS = (
 )
 
 
-def call(port, model, system, user, schema=None, max_tokens=None):
-    msgs = []
-    if system:
-        msgs.append({"role": "system", "content": system})
-    msgs.append({"role": "user", "content": user})
-    body = {"model": model, "messages": msgs, "stream": False, "temperature": 0.7}
-    if max_tokens:
-        body["max_tokens"] = max_tokens
-    if schema:
-        body["response_format"] = {"type": "json_schema", "json_schema": schema}
-    req = urllib.request.Request(
-        f"http://localhost:{port}/v1/chat/completions",
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        data = json.load(resp)
-    return data["choices"][0]["message"]["content"]
-
-
-def pretty_json(text):
-    """Try to re-emit JSON as pretty-printed; fall back to raw on parse fail."""
+def pretty_json(text: str) -> str:
     try:
         return json.dumps(json.loads(text), indent=2)
     except Exception:
         return text
 
 
-cases = [
-    # Intent x 2
-    ("Intent", 1, "small", SMALL, INTENT_SYS,
-     "go to the pub", INTENT_SCHEMA, None),
-    ("Intent", 2, "small", SMALL, INTENT_SYS,
-     "tell Padraig I saw his cow wandering near the bog", INTENT_SCHEMA, None),
-
-    # Reaction x 2
-    ("Reaction", 1, "small", SMALL, REACTION_SYS,
-     "A newcomer has just arrived at Darcy's Pub. It is evening, Clear.\n"
-     "You have not met this person before. You are working here as the Publican. "
-     "Introduce yourself briefly.", None, 100),
-    ("Reaction", 2, "small", SMALL, REACTION_SYS,
-     "A newcomer has just arrived at Darcy's Pub. It is morning, Light Rain.\n"
-     "You have met this person before.", None, 100),
-
-    # Simulation x 2 (Tier 2 + Tier 3)
-    ("Simulation (Tier 2)", 1, "small", SMALL, None, TIER2_USER, TIER2_SCHEMA, 200),
-    ("Simulation (Tier 3 batch)", 2, "small", SMALL, None, TIER3_USER, TIER3_SCHEMA, 600),
-
-    # Dialogue x 2
-    ("Dialogue", 1, "large", LARGE, DIALOGUE_SYS,
-     "I've been having trouble sleeping. The dreams keep coming back.", None, None),
-    ("Dialogue", 2, "large", LARGE, DIALOGUE_SYS,
-     "What do you know about the old Cailleach who lives near the fairy fort?",
-     None, None),
-]
+def cases(small: Target, large: Target) -> list[tuple]:
+    """Returns (category, n, slot_label, target, system, user, schema, max_tokens)."""
+    return [
+        ("Intent", 1, "small", small, INTENT_SYS, "go to the pub", INTENT_SCHEMA, None),
+        ("Intent", 2, "small", small, INTENT_SYS,
+         "tell Padraig I saw his cow wandering near the bog", INTENT_SCHEMA, None),
+        ("Reaction", 1, "small", small, REACTION_SYS,
+         "A newcomer has just arrived at Darcy's Pub. It is evening, Clear.\n"
+         "You have not met this person before. You are working here as the Publican. "
+         "Introduce yourself briefly.", None, 100),
+        ("Reaction", 2, "small", small, REACTION_SYS,
+         "A newcomer has just arrived at Darcy's Pub. It is morning, Light Rain.\n"
+         "You have met this person before.", None, 100),
+        ("Simulation (Tier 2)", 1, "small", small, None, TIER2_USER, TIER2_SCHEMA, 200),
+        ("Simulation (Tier 3 batch)", 2, "small", small, None, TIER3_USER, TIER3_SCHEMA, 600),
+        ("Dialogue", 1, "large", large, DIALOGUE_SYS,
+         "I've been having trouble sleeping. The dreams keep coming back.", None, None),
+        ("Dialogue", 2, "large", large, DIALOGUE_SYS,
+         "What do you know about the old Cailleach who lives near the fairy fort?", None, None),
+    ]
 
 
-def main():
-    out_lines = ["# Inference category samples (May 2026)\n"]
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--small", default=DEFAULT_SMALL,
+                    help=f"Target for Intent/Reaction/Simulation (default: {DEFAULT_SMALL})")
+    ap.add_argument("--large", default=DEFAULT_LARGE,
+                    help=f"Target for Dialogue (default: {DEFAULT_LARGE})")
+    ap.add_argument("--output", default=str(DEFAULT_OUTPUT),
+                    help=f"Markdown report path (default: {DEFAULT_OUTPUT})")
+    args = ap.parse_args()
+
+    small = parse_target(args.small)
+    large = parse_target(args.large)
+
+    out_lines = ["# Inference category samples\n"]
     out_lines.append(
-        "Production-faithful prompts mirroring "
-        "`parish-inference/examples/inf_bench.rs`. Two-slot Apple Silicon "
-        "loadout: small slot = `mlx-community/Qwen2.5-1.5B-Instruct-4bit` "
-        "on :8001 (Intent, Reaction, Simulation); large slot = "
-        "`mlx-community/Qwen2.5-7B-Instruct-4bit` on :8000 (Dialogue). "
-        "Generated via `/tmp/gen_samples.py`.\n"
+        f"Targets — small: `{small.model}` at `{small.base_url}` "
+        f"(Intent/Reaction/Simulation); large: `{large.model}` at "
+        f"`{large.base_url}` (Dialogue).\n"
     )
+
+    tracker = CostTracker()
     last_cat = None
-    for cat, n, slot, model, sys_p, user, schema, mt in cases:
-        port = 8000 if slot == "large" else 8001
-        print(f"# {cat} #{n} on :{port} {model}")
+    for cat, n, slot_label, target, sys_p, user, schema, mt in cases(small, large):
+        print(f"# {cat} #{n} ({slot_label}) {target.model}")
         try:
-            output = call(port, model, sys_p, user, schema, mt)
+            output, usage = call_chat(target, sys_p, user, schema=schema, max_tokens=mt)
+            tracker.record(target, usage)
         except Exception as e:
             output = f"ERROR: {e}"
         if cat != last_cat:
             out_lines.append(f"\n## {cat}\n")
             last_cat = cat
-        out_lines.append(f"### Sample {n}  (slot: {slot}, model: `{model.split('/')[-1]}`)\n")
+        out_lines.append(f"### Sample {n}  (slot: {slot_label}, model: `{target.label()}`)\n")
         if sys_p:
             out_lines.append("**System prompt:**\n")
             out_lines.append("```\n" + sys_p.strip() + "\n```\n")
@@ -284,10 +293,12 @@ def main():
             out_lines.append("```json\n" + rendered + "\n```\n")
         else:
             out_lines.append("> " + rendered.replace("\n", "\n> ") + "\n")
-    out_path = "/Users/dmooney/Rundale/.claude/worktrees/piped-imagining-meerkat/docs/proofs/local-perf/category_samples.md"
-    with open(out_path, "w") as f:
-        f.write("\n".join(out_lines))
-    print(f"wrote {out_path}")
+
+    out_lines.append(f"\n---\n\n_Run cost: {tracker.summary()}._\n")
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.output).write_text("\n".join(out_lines))
+    print(f"wrote {args.output}")
+    print(f"cost: {tracker.summary()}")
 
 
 if __name__ == "__main__":
