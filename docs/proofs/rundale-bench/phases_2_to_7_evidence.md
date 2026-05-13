@@ -31,7 +31,7 @@ Result: `label_match_rate=0.700, mean_score=0.676` on 30 records, 12.8 min wall 
   - `rubric_sha256 = 1dcb5da5e0a6c1c322812b231e318604ff41a46f0a2eb71761c187071e0709e6`
 - `grade.py::verify_judge_rubric` — computes `sha256(judge["rubric"])` and compares against `judge["rubric_sha256"]`. Raises `RuntimeError` on drift. Called from every judge-backed grader before any LLM invocation, so silent rubric edits become a hard failure rather than a quiet score change.
 
-Reproducibility delta measurement deferred — running the full dialogue slice twice through `judge_v1` would cost ~$0.50 per repetition (Sonnet 4.6 input+output for 150 prompts × 2 judge axes), and the `PARISH_ANTHROPIC_API_KEY` is not in the local `.env`. The contract is in place; measurement lands when the first holdout sweep runs in CI.
+Reproducibility delta measurement deferred — running the full dialogue slice twice through `judge_v1` would cost ~$0.50 per repetition (Sonnet 4.6 input+output for 150 prompts × 2 judge axes), and the `ANTHROPIC_API_KEY` is not in the local `.env`. The contract is in place; measurement lands when the first holdout sweep runs in CI.
 
 ## Phase 4 — reaction + sim slices + hybrid graders
 
@@ -102,4 +102,4 @@ Tagging `v1.0` at this corpus size would lock in a benchmark that can't distingu
 
 - Corpus authoring is the bottleneck. Without 1000+ in-character prompts, the benchmark can't surface deltas <3 percentage points reliably.
 - The plan envisaged authoring via parallel sub-agents per phase. In practice, sub-agents could not operate in sibling worktree paths (permission scoping), so all work landed sequentially in one branch. Documented in the session transcript; no code change required.
-- Reproducibility delta on the dialogue judge couldn't be measured without `PARISH_ANTHROPIC_API_KEY` available in `.env`. Pending.
+- Reproducibility delta on the dialogue judge couldn't be measured without `ANTHROPIC_API_KEY` available in `.env`. Pending.

@@ -16,7 +16,7 @@ Examples::
     # cross-provider: Groq small slot, Claude large slot
     python3 gen_samples.py \\
         --small 'llama-3.1-8b-instant@https://api.groq.com/openai/v1#env:PARISH_GROQ_API_KEY' \\
-        --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' \\
+        --large 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' \\
         --output docs/proofs/local-perf/category_samples_xprovider.md
 """
 from __future__ import annotations

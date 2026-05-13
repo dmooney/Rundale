@@ -48,7 +48,7 @@ Verdict: sufficient (corpus partial). Technical debt: clear.
 
 `dialogue.jsonl` extended 100 → 150 (target 500). `judge_v1.json` pins Claude Sonnet 4.6 as the dialogue judge with `temperature=0` and `rubric_sha256=1dcb5da5e0a6c1c322812b231e318604ff41a46f0a2eb71761c187071e0709e6`. `verify_judge_rubric` aborts the grader on any silent rubric edit — tested in `test_judge_rubric_tamper_detected` and `test_dialogue_rubric_tamper_blocks_call`. Sonnet over Opus chosen for cost — 5-axis 1-5 scoring is well within Sonnet's capability and 5× cheaper.
 
-Known limit: reproducibility delta not yet measured (no `PARISH_ANTHROPIC_API_KEY` in `.env`). Contract is in place; first holdout CI run gates that measurement.
+Known limit: reproducibility delta not yet measured (no `ANTHROPIC_API_KEY` in `.env`). Contract is in place; first holdout CI run gates that measurement.
 
 ## Phase 4 — reaction + sim slices + hybrid graders
 

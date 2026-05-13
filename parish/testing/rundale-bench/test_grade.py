@@ -28,7 +28,7 @@ def _judge_fixture(rubric: str = "test rubric") -> dict:
         "judge_id": "test_judge",
         "model": "claude-sonnet-4-6",
         "base_url": "https://api.anthropic.com/v1",
-        "api_key_env": "PARISH_ANTHROPIC_API_KEY",
+        "api_key_env": "ANTHROPIC_API_KEY",
         "temperature": 0,
         "rubric": rubric,
         "rubric_sha256": hashlib.sha256(rubric.encode()).hexdigest(),

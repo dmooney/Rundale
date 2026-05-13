@@ -21,11 +21,24 @@ python3 parish/testing/rundale-bench/rundale_bench.py \
 
 ## Phase 6 seed rows
 
-| Date (UTC)         | Target                                              | Slice  | Split   | Records | Metric                            | $/run | Harness SHA |
-|--------------------|-----------------------------------------------------|--------|---------|---------|------------------------------------|--------|--------------|
-| 2026-05-13 18:32   | openai/gpt-oss-120b:free @ openrouter.ai           | intent | dev     | 30      | label_match=0.700, mean_score=0.676 | $0.00  | 9dab39ee… |
+| Date (UTC)         | Target                                              | Slice    | Split | Records | Metric                                            | $/run  | Judge                                | Harness SHA |
+|--------------------|-----------------------------------------------------|----------|-------|---------|----------------------------------------------------|--------|--------------------------------------|--------------|
+| 2026-05-13 18:32   | openai/gpt-oss-120b:free @ openrouter.ai           | intent   | dev   | 30 (pre-split) | label_match=0.700, mean_score=0.676           | $0.00  | n/a (deterministic)                  | 9dab39ee… |
+| 2026-05-13 20:47   | openai/gpt-oss-120b:free @ openrouter.ai           | dialogue | dev   | 5       | overall=4.28 (char 4.0 / auth 4.0 / lang 5.0 / resp 4.4 / craft 4.2) | $0.012 | claude-sonnet-4-6                    | (pre-judge-swap) |
+| 2026-05-13 21:01   | openai/gpt-oss-120b:free @ openrouter.ai           | dialogue | dev   | 5       | overall=4.82 (char 4.8 / auth 5.0 / lang 5.0 / resp 4.8 / craft 4.6) | ~$0.0003 | qwen/qwen3-235b-a22b-2507 (OpenRouter) | post-judge-swap |
 
-Pre-rundale-bench-v1.0, only dev rows exist (holdout scoring CI lands in Phase 7). The above row was produced before the holdout split was applied (`9dab39ee` ships the un-split slices); future re-runs against the same target will operate on the 25-record dev slice and the 5-record holdout slice respectively.
+Pre-rundale-bench-v1.0, only dev rows exist (holdout scoring CI lands in Phase 7). The first row was produced before the holdout split was applied (`9dab39ee` ships the un-split slices); future re-runs against the same target will operate on the 25-record dev slice and the 5-record holdout slice respectively.
+
+### Judge calibration note
+
+The two dialogue rows above scored the **same five replies from the same target** but with different judges:
+
+- `claude-sonnet-4-6` → overall **4.28**
+- `qwen/qwen3-235b-a22b-2507` → overall **4.82**
+
+The 0.54 delta is well above the ±0.3 noise floor stated in the plan and demonstrates that **judge model is a benchmark dimension**, not just a configuration knob. Until reproducibility is established across at least two independently-run sweeps with the same judge pin, leaderboard rows are not directly comparable across the `Judge` column. Production rankings should fix one judge per slice-version and re-score historical targets when the judge pin rotates.
+
+The judge swap from Sonnet 4.6 → Qwen3-235B was made to keep judge cost negligible (~\$0.0003/call vs ~\$0.002/call) and to consolidate API key surface on OpenRouter. Qwen3-235B is the current pinned default in `judge_v1.json`; the Sonnet snapshot is retained in the leaderboard as a calibration row, not as a benchmark contender.
 
 ## Reading the leaderboard
 
@@ -40,9 +53,9 @@ A row at the top of its slice means: best measured `metric` for the largest repr
 
 Targets to seed once API keys are available — these are the Parish `Provider::preset_models()` picks that the benchmark is meant to defend:
 
-- `claude-opus-4-7@anthropic.com#env:PARISH_ANTHROPIC_API_KEY` — dialogue tier
-- `claude-sonnet-4-6@anthropic.com#env:PARISH_ANTHROPIC_API_KEY` — sim tier
-- `claude-haiku-4-5@anthropic.com#env:PARISH_ANTHROPIC_API_KEY` — intent tier
+- `claude-opus-4-7@anthropic.com#env:ANTHROPIC_API_KEY` — dialogue tier
+- `claude-sonnet-4-6@anthropic.com#env:ANTHROPIC_API_KEY` — sim tier
+- `claude-haiku-4-5@anthropic.com#env:ANTHROPIC_API_KEY` — intent tier
 - `gpt-5.5@openai.com#env:PARISH_OPENAI_API_KEY`, `gpt-5.4-mini`, `gpt-5.4-nano`
 - `gemini-2.5-pro@googleapis.com#env:PARISH_GOOGLE_API_KEY`, `gemini-2.5-flash`
 - `openai/gpt-oss-120b:free@openrouter.ai#env:OPENROUTER_API_KEY` (this row + holdout variant)

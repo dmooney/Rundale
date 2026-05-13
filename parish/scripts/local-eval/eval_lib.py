@@ -170,6 +170,16 @@ COSTS: dict[str, Tuple[float, float]] = {
     "grok-4.20-reasoning": (0.0, 0.0),
     "grok-4.20-non-reasoning": (0.0, 0.0),
     "grok-4.1-fast-non-reasoning": (0.0, 0.0),
+    # OpenRouter paid (verified 2026-05-13 via OpenRouter /api/v1/models)
+    "qwen/qwen3-235b-a22b-2507": (0.07, 0.10),
+    "deepseek/deepseek-v3.2": (0.25, 0.38),
+    "mistralai/mistral-small-24b-instruct-2501": (0.05, 0.08),
+    "google/gemini-2.5-flash-lite": (0.10, 0.40),
+    # OpenRouter free (rate-limited upstream; $0 per call)
+    "openai/gpt-oss-120b:free": (0.0, 0.0),
+    "openai/gpt-oss-20b:free": (0.0, 0.0),
+    "qwen/qwen3-next-80b-a3b-instruct:free": (0.0, 0.0),
+    "meta-llama/llama-3.3-70b-instruct:free": (0.0, 0.0),
     # Local (free)
     "mlx-community/Qwen2.5-1.5B-Instruct-4bit": (0.0, 0.0),
     "mlx-community/Qwen2.5-7B-Instruct-4bit": (0.0, 0.0),
