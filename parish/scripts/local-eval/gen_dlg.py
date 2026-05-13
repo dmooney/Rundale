@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from eval_lib import CostTracker, call_chat, parse_target  # noqa: E402
+from eval_lib import CostTracker, call_chat, load_slice, parse_target  # noqa: E402
 
 SYSTEM = (
     "You are Brigid O'Brien, a 42-year-old midwife in rural Ireland, 1820. "
@@ -28,13 +28,11 @@ SYSTEM = (
     "Stay in character. Speak in 1-3 sentences. Do not use modern language."
 )
 
-PROMPTS = [
-    "I have been having trouble sleeping. The dreams keep coming back.",
-    "What do you know about the old Cailleach who lives near the fairy fort?",
-    "My mother is taken with a bad cough. Is there anything you can give her?",
-    "They say a stranger arrived in the village. Have you heard?",
-    "I lost a sheep last night. Could it be more than a wolf?",
-]
+# Core 5-prompt set drawn from the frozen rundale-bench v1 dialogue slice.
+# Edit parish/testing/rundale-bench/v1/dialogue.jsonl (tier=core) and rebuild
+# MANIFEST.json to change them.
+PROMPTS = [r["prompt"] for r in load_slice("dialogue", version="v1", tier="core")]
+assert len(PROMPTS) == 5, f"core tier must have 5 prompts, has {len(PROMPTS)}"
 
 
 def main() -> None:

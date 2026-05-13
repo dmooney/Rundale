@@ -1,0 +1,14 @@
+{
+  "suite": "rundale-bench",
+  "version": "v1-dev",
+  "frozen": false,
+  "merkle_root_sha256": "b2adfb38834b760ba5ec33abd11eac4207fd700e777a64eca46293bf05c647e9",
+  "slices": {
+    "dialogue.jsonl": {
+      "sha256": "aa7265e93813a16536f97cbc8488e0b83f309963b19cb79dda2b44d9fcba008a",
+      "records": 100,
+      "bytes": 13780
+    }
+  },
+  "notes": "Dataset is in v1-dev (in-development). Once Phase 7 of the rollout ships, this file is frozen by flipping frozen=true and tagging the repo rundale-bench-v1.0. Any change after that ships under a new version."
+}
