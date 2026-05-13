@@ -23,12 +23,14 @@ return 0.0 so the framework keeps working without prices.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Tuple
 
 
@@ -207,3 +209,51 @@ class CostTracker:
             f"{self.prompt_tokens:,} in + {self.completion_tokens:,} out tokens, "
             f"~${self.usd:.4f}"
         )
+
+
+# ---------------------------------------------------------------------------
+# rundale-bench dataset loader
+# ---------------------------------------------------------------------------
+
+# Resolve <repo>/parish/testing/rundale-bench from this file's location:
+# parish/scripts/local-eval/eval_lib.py -> parents[2] is <repo>/parish.
+BENCH_ROOT = Path(__file__).resolve().parents[2] / "testing" / "rundale-bench"
+
+
+def load_slice(
+    slice_name: str,
+    *,
+    version: str = "v1",
+    tier: Optional[str] = None,
+    verify: bool = True,
+) -> list[dict]:
+    """Load a frozen rundale-bench slice as a list of records.
+
+    `slice_name` is the basename without extension (e.g. `"dialogue"`).
+    `tier`, if set, filters records to that tier (e.g. `"core"`, `"extended"`).
+    `verify` (default true) hashes the slice file against the version's
+    `MANIFEST.json` and raises `RuntimeError` on mismatch — the freezing
+    contract is that the bytes on disk match what was committed.
+    """
+    suite_dir = BENCH_ROOT / version
+    slice_path = suite_dir / f"{slice_name}.jsonl"
+    if not slice_path.exists():
+        raise FileNotFoundError(f"rundale-bench slice not found: {slice_path}")
+
+    raw = slice_path.read_bytes()
+    if verify:
+        manifest_path = suite_dir / "MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected = manifest["slices"][f"{slice_name}.jsonl"]["sha256"]
+        actual = hashlib.sha256(raw).hexdigest()
+        if actual != expected:
+            raise RuntimeError(
+                f"rundale-bench/{version}/{slice_name}.jsonl sha256 mismatch: "
+                f"manifest={expected} disk={actual}. Re-run the manifest builder "
+                f"if the change is intentional and bump the version if frozen=true."
+            )
+
+    records = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+    if tier is not None:
+        records = [r for r in records if r.get("tier") == tier]
+    return records
