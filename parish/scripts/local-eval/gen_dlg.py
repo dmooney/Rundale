@@ -14,6 +14,7 @@ Usage::
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -37,11 +38,13 @@ PROMPTS = [
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        print("usage: gen_dlg.py <target-spec> <output-path>", file=sys.stderr)
-        sys.exit(2)
-    target = parse_target(sys.argv[1])
-    out_path = Path(sys.argv[2])
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("target", help="Target spec: 'model@base_url[#env:VAR]'")
+    ap.add_argument("output", help="Output path for the transcript")
+    args = ap.parse_args()
+
+    target = parse_target(args.target)
+    out_path = Path(args.output)
 
     tracker = CostTracker()
     lines = [f"=== Target: {target.model} @ {target.base_url} ===\n"]

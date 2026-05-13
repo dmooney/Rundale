@@ -38,9 +38,13 @@ gpt-5.5@https://api.openai.com/v1#env:PARISH_OPENAI_API_KEY
 
 4. **Spawn local vllm-mlx processes** on consecutive ports starting at `:8000` for each *local* target. Use `--enable-prefix-cache --continuous-batching`. Save the pid for cleanup. Wait for `/v1/models` to respond before continuing (Monitor with an `until curl ... ; do sleep 2; done` loop). Skip this step entirely if every target is cloud.
 
-5. **Generate dialogue samples** for each target by calling:
+5. **Generate dialogue samples** for each target. First make a per-run temp dir so concurrent `/eval-dialogue` invocations don't collide on `/tmp/cand_*.txt`:
    ```sh
-   python3 parish/scripts/local-eval/gen_dlg.py '<target-spec>' /tmp/cand_<letter>.txt
+   RUN_DIR=$(mktemp -d -t eval-dialogue-XXXXXX)
+   ```
+   Then for each candidate:
+   ```sh
+   python3 parish/scripts/local-eval/gen_dlg.py '<target-spec>' "$RUN_DIR/cand_<letter>.txt"
    ```
    `gen_dlg.py` uses the canonical 5 prompts and writes a transcript plus a `=== Cost: ... ===` footer. Record the cost line per candidate.
 

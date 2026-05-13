@@ -129,7 +129,13 @@ def call_chat(
                 time.sleep(wait)
                 continue
             raise
-    text = data["choices"][0]["message"]["content"] or ""
+    try:
+        text = data["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError) as e:
+        raise ValueError(
+            f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "
+            f"Full response: {data}"
+        ) from e
     usage = data.get("usage") or {}
     return text, {
         "prompt_tokens": int(usage.get("prompt_tokens", 0)),
