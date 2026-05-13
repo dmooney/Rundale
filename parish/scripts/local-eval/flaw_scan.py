@@ -11,7 +11,7 @@ Examples::
 
     # cloud: Claude Sonnet 4.6 via Anthropic's OpenAI-compat endpoint
     python3 flaw_scan.py \\
-        --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY' \\
+        --target 'claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY' \\
         --output docs/proofs/local-perf/dialogue_flaw_scan_sonnet.md \\
         --prompts 25
 """

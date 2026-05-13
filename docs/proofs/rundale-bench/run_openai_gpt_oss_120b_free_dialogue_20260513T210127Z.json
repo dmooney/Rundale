@@ -1,0 +1,88 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "openai/gpt-oss-120b:free",
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "run_started_utc": "2026-05-13T20:59:06.320321+00:00",
+  "slices": {
+    "dialogue": {
+      "summary": {
+        "slice": "dialogue",
+        "records": 5,
+        "non_latin_rate": 0.0,
+        "character": 4.8,
+        "authenticity": 5.0,
+        "language": 5.0,
+        "responsiveness": 4.8,
+        "craft": 4.6,
+        "overall": 4.82
+      },
+      "results": [
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 4,
+          "overall": 4.8,
+          "non_latin_chars": {},
+          "id": "dialogue-0001",
+          "reply": "Ah, lass, steep a cup of mugwort tea and place a sprig beneath thy pillow, whilst a pinch of dried lavender is scattered \u2019round the bed; a warm bath of rosemary leaves ere you retire may quiet the restless spirit. If the dreams still haunt, a gentle poultice of comfrey on the chest before sleep oft steadies the mind. May the night bring you peace."
+        },
+        {
+          "character": 4,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 4,
+          "craft": 4,
+          "overall": 4.3,
+          "non_latin_chars": {},
+          "id": "dialogue-0002",
+          "reply": "Ah, the Cailleach o\u2019 the hill\u2011top cairn\u2014she\u2019s the ancient hag of stone and snow, said to shape the winter and turn the hills to barren. Folk say she dwells by the old fairy fort, where the wind howls through the standing stones, and she watches over the cold months, granting shelter to those who leave a loaf and milk upon her stone altar. Keep respect, and she may spare your cattle from the harsh frost."
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0003",
+          "reply": "Ah, a harsh cough can be eased with a draught of warm water steeped with fresh thyme and a spoon\u2011ful of honey, taken thrice a day; a slice of raw onion placed upon the chest at night may also draw out the phlegm. If she can bear it, a poultice of crushed nettles and a pinch of salt, moistened with milk, pressed to the throat will bring comfort. Should the cough persist beyond a week, send word and we\u2019ll seek a stronger herb."
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0004",
+          "reply": "Aye, a tall man with a soot\u2011black coat came in by the road last eve, askin\u2019 for a place to set his horse. He kept to himself, but the lads at the inn say he\u2019s a merchant from Dublin."
+        },
+        {
+          "character": 5,
+          "authenticity": 5,
+          "language": 5,
+          "responsiveness": 5,
+          "craft": 5,
+          "overall": 5.0,
+          "non_latin_chars": {},
+          "id": "dialogue-0005",
+          "reply": "Aye, wolves do roam the hills, but a lone sheep can also fall victim to a stray dog, a hungry fox, or even a sudden bout of lameness that sends it wandering off. Look for fresh tracks by the hedge and any signs of a bite; the shape of the prints will tell ye which beast took it. If the sheep\u2019s hide bears no claw marks, perhaps it simply strayed and met a cruel fall."
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 141.37265396118164,
+  "cost": {
+    "calls": 10,
+    "prompt_tokens": 2595,
+    "completion_tokens": 703,
+    "usd": 0.0
+  }
+}

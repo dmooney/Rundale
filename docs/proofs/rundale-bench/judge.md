@@ -34,4 +34,50 @@ The PR ships Phase 1 of the [rundale-bench plan](../../plans/rundale-bench.md): 
 
 Low. The change is a pure relocation of an existing prompt corpus into a hashed artifact, plus a verifying loader. No scoring change, no behavioural change. The largest concrete risk is path-resolution drift if `eval_lib.py` is later moved — `BENCH_ROOT` depends on the file's relative position in the tree, and would need to be re-validated. Mitigated by the smoke run that exercises `load_slice` from script imports.
 
+## Phase 2 — intent slice + deterministic grader
+
+Verdict: sufficient. Technical debt: clear.
+
+`intent.jsonl` (30 records, 10 core / 20 extended) covers all six intent labels including adversarial cases (past-tense place mentions = talk not move). `grade_intent` is a pure function — exact label-match × Jaccard on optional fields. A real smoke against `openai/gpt-oss-120b:free` returned `label_match_rate=0.700` on the pre-split 30-record slice, producing a usable signal at no cost. `rundale_bench.py` reuses the production `INTENT_SYS` system prompt verbatim, so the bench-time and runtime parsers see identical instructions. 22/22 grader unit tests pass.
+
+Known limit: corpus is undersized (target 200, actual 30). The grader is correct; the dataset needs growth before holdout scores stabilise.
+
+## Phase 3 — dialogue extension + pinned judge
+
+Verdict: sufficient (corpus partial). Technical debt: clear.
+
+`dialogue.jsonl` extended 100 → 150 (target 500). `judge_v1.json` pins Claude Sonnet 4.6 as the dialogue judge with `temperature=0` and `rubric_sha256=1dcb5da5e0a6c1c322812b231e318604ff41a46f0a2eb71761c187071e0709e6`. `verify_judge_rubric` aborts the grader on any silent rubric edit — tested in `test_judge_rubric_tamper_detected` and `test_dialogue_rubric_tamper_blocks_call`. Sonnet over Opus chosen for cost — 5-axis 1-5 scoring is well within Sonnet's capability and 5× cheaper.
+
+Known limit: reproducibility delta not yet measured (no `ANTHROPIC_API_KEY` in `.env`). Contract is in place; first holdout CI run gates that measurement.
+
+## Phase 4 — reaction + sim slices + hybrid graders
+
+Verdict: sufficient (corpus partial). Technical debt: clear.
+
+Three new slices (`reaction`, `tier2-sim`, `tier3-sim`) with hybrid graders: schema-validate + pinned-judge plausibility. Two new judge configs (`judge_reaction_v1`, `judge_sim_v1`), both Sonnet 4.6 at temperature 0 with `rubric_sha256` verification. Reaction varies 10 personas × 3 contexts. Sim slices vary scene/batch parameters across 10 base scenes × 3 variants + 5 batches × 3 variants. Schema validator is hand-rolled (no new dep), covers the JSON subset rundale-bench uses, tested across the failure modes.
+
+Known limit: corpus is undersized across all three slices (targets 200/200/100, actual 30/30/15). Plausibility signal at this N is noisy.
+
+## Phase 5 — holdout split
+
+Verdict: sufficient. Technical debt: clear.
+
+`split_holdout.py` produces deterministic dev/holdout via `sha256(id)` bottom-20%. Core tier preserved in dev so `gen_dlg.py` smoke keeps working. `eval_lib.load_slice` honours `split="dev"|"holdout"`, manifest tracks both files, loader verifies sha256 for the requested side. Effective holdout rates 10-17% (vs 20% target) due to core carve-out; at planned corpus sizes this slack closes to < 2 pp.
+
+Known limit: holdouts are plaintext-in-repo for v1-dev. Phase 7 freeze must age-encrypt them behind a CI-only key before public dataset release.
+
+## Phase 6 — leaderboard scaffold
+
+Verdict: sufficient (seed row only). Technical debt: clear.
+
+`leaderboard.md` ships append-only with submission rules (holdout-gated, re-run replaces tuple, `CostTracker`-sourced $, harness SHA pinned). One seed row from the pre-split intent smoke. Eligible-target backlog lists every `preset_models()` cloud + local pick.
+
+Known limit: needs multi-target sweep against holdout to be meaningfully populated. Out of scope for this PR (requires real cloud API keys + spend approval).
+
+## Phase 7 — freeze deferral
+
+Verdict: deferred (intentional). Technical debt: tracked in README status table.
+
+`MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0` not yet executed. Tagging at the current 155-prompt corpus would lock in a benchmark too small to distinguish frontier-vs-mid-tier models with confidence. The framework is complete; freeze blockers are corpus growth (≥1100 prompts) and three independent leaderboard rows on the holdout split. Each blocker is a follow-up commit, not a structural change.
+
 ## Approved.

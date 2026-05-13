@@ -1,0 +1,472 @@
+{
+  "suite": "v1",
+  "split": "dev",
+  "target": {
+    "model": "openai/gpt-oss-120b:free",
+    "base_url": "https://openrouter.ai/api/v1"
+  },
+  "run_started_utc": "2026-05-13T18:19:58.663262+00:00",
+  "slices": {
+    "intent": {
+      "summary": {
+        "slice": "intent",
+        "records": 30,
+        "label_match_rate": 0.7,
+        "mean_score": 0.6763888888888889
+      },
+      "results": [
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0001",
+          "pred": {
+            "dialogue": null,
+            "intent": "move",
+            "target": "the pub"
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0002",
+          "pred": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Padraig",
+            "dialogue": "I saw his cow wandering near the bog"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0003",
+          "pred": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0004",
+          "pred": {
+            "dialogue": null,
+            "intent": "interact",
+            "target": "the stone"
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the stone",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0005",
+          "pred": {
+            "dialogue": null,
+            "intent": "examine",
+            "target": "the brooch"
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the brooch",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0006",
+          "pred": {
+            "intent": "unknown",
+            "target": null,
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "unknown",
+            "target": null,
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0007",
+          "pred": {
+            "dialogue": "I came from the coast yesterday",
+            "intent": "talk",
+            "target": null
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I came from the coast yesterday"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0008",
+          "pred": {
+            "dialogue": null,
+            "intent": "move",
+            "target": "Brigid's cottage"
+          },
+          "gold": {
+            "intent": "move",
+            "target": "Brigid's cottage",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.0,
+          "score": 0.75,
+          "id": "intent-0009",
+          "pred": {
+            "dialogue": null,
+            "intent": "talk",
+            "target": "Niamh"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Niamh",
+            "dialogue": "about her father"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0010",
+          "pred": {
+            "dialogue": null,
+            "intent": "interact",
+            "target": "the door"
+          },
+          "gold": {
+            "intent": "interact",
+            "target": "the door",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0011",
+          "pred": {
+            "dialogue": null,
+            "intent": "move",
+            "target": "the bog"
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the bog",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0012",
+          "pred": {
+            "intent": "move",
+            "target": "the fairy fort",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the fairy fort",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0013",
+          "pred": {
+            "dialogue": null,
+            "intent": "move",
+            "target": "Darcy's Pub"
+          },
+          "gold": {
+            "intent": "move",
+            "target": "Darcy's Pub",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0014",
+          "pred": {
+            "dialogue": null,
+            "intent": "move",
+            "target": "the churchyard"
+          },
+          "gold": {
+            "intent": "move",
+            "target": "the churchyard",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0015",
+          "pred": {
+            "intent": "move",
+            "target": "my own cottage",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "move",
+            "target": "my own cottage",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0016",
+          "pred": {
+            "dialogue": "I was at the shore yesterday morning",
+            "intent": "talk",
+            "target": null
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "I was at the shore yesterday morning"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0017",
+          "pred": {
+            "dialogue": "my grandfather walked to Galway every spring",
+            "intent": "talk",
+            "target": null
+          },
+          "gold": {
+            "intent": "talk",
+            "target": null,
+            "dialogue": "my grandfather walked to Galway every spring"
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 0.6666666666666666,
+          "score": 0.9166666666666666,
+          "id": "intent-0018",
+          "pred": {
+            "dialogue": "the wake",
+            "intent": "talk",
+            "target": "Father Cathal"
+          },
+          "gold": {
+            "intent": "talk",
+            "target": "Father Cathal",
+            "dialogue": "about the wake"
+          }
+        },
+        {
+          "id": "intent-0019",
+          "error": "Invalid control character at: line 1 column 72 (char 71)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0020",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0021",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0022",
+          "pred": {
+            "dialogue": null,
+            "intent": "examine",
+            "target": "the hearth"
+          },
+          "gold": {
+            "intent": "look",
+            "target": "the hearth",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0023",
+          "pred": {
+            "intent": "examine",
+            "target": "the bog",
+            "dialogue": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": "the bog",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 0,
+          "target_jaccard": 0.5,
+          "dialogue_jaccard": 1.0,
+          "score": 0.0,
+          "id": "intent-0024",
+          "pred": {
+            "dialogue": null,
+            "intent": "examine",
+            "target": "sky"
+          },
+          "gold": {
+            "intent": "look",
+            "target": "the sky",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 0.0,
+          "dialogue_jaccard": 1.0,
+          "score": 0.75,
+          "id": "intent-0025",
+          "pred": {
+            "dialogue": null,
+            "intent": "look",
+            "target": null
+          },
+          "gold": {
+            "intent": "look",
+            "target": "the road",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 1.0,
+          "dialogue_jaccard": 1.0,
+          "score": 1.0,
+          "id": "intent-0026",
+          "pred": {
+            "dialogue": null,
+            "intent": "examine",
+            "target": "the milk pail"
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the milk pail",
+            "dialogue": null
+          }
+        },
+        {
+          "label_match": 1,
+          "target_jaccard": 0.5,
+          "dialogue_jaccard": 1.0,
+          "score": 0.875,
+          "id": "intent-0027",
+          "pred": {
+            "dialogue": null,
+            "intent": "examine",
+            "target": "the cross"
+          },
+          "gold": {
+            "intent": "examine",
+            "target": "the inscription on the cross",
+            "dialogue": null
+          }
+        },
+        {
+          "id": "intent-0028",
+          "error": "Expecting value: line 1 column 1 (char 0)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0029",
+          "error": "Expecting value: line 377 column 1 (char 2068)",
+          "score": 0.0,
+          "label_match": 0
+        },
+        {
+          "id": "intent-0030",
+          "error": "Invalid control character at: line 1 column 55 (char 54)",
+          "score": 0.0,
+          "label_match": 0
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 769.0546350479126,
+  "cost": {
+    "calls": 29,
+    "prompt_tokens": 12461,
+    "completion_tokens": 12090,
+    "usd": 0.0
+  }
+}

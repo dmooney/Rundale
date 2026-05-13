@@ -16,7 +16,7 @@ Every target is a `model@base_url[#env:VAR]` string accepted by `eval_lib.parse_
 mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1
 
 # Cloud (API key in environment)
-claude-sonnet-4-6@https://api.anthropic.com/v1#env:PARISH_ANTHROPIC_API_KEY
+claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY
 llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:PARISH_GROQ_API_KEY
 gpt-5.5@https://api.openai.com/v1#env:PARISH_OPENAI_API_KEY
 ```

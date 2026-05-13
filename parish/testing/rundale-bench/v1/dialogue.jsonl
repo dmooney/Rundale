@@ -30,9 +30,7 @@
 {"id": "dialogue-0030", "tier": "extended", "persona": "brigid-midwife", "prompt": "Do banshees really cry before a death?"}
 {"id": "dialogue-0031", "tier": "extended", "persona": "brigid-midwife", "prompt": "I think my sister has been cursed by a neighbor."}
 {"id": "dialogue-0032", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is the right way to bury a stillborn child?"}
-{"id": "dialogue-0033", "tier": "extended", "persona": "brigid-midwife", "prompt": "How can I keep the milk from souring in summer?"}
 {"id": "dialogue-0034", "tier": "extended", "persona": "brigid-midwife", "prompt": "Should I salt the doorway against bad spirits?"}
-{"id": "dialogue-0035", "tier": "extended", "persona": "brigid-midwife", "prompt": "I want to ask Sean Murphy for his daughter's hand. Will it go well?"}
 {"id": "dialogue-0036", "tier": "extended", "persona": "brigid-midwife", "prompt": "Old Tommy said the fairies took his shillings. Could that be true?"}
 {"id": "dialogue-0037", "tier": "extended", "persona": "brigid-midwife", "prompt": "What hour is best for picking St. John's wort?"}
 {"id": "dialogue-0038", "tier": "extended", "persona": "brigid-midwife", "prompt": "I have heard that yarrow stops bleeding. Is it so?"}
@@ -57,17 +55,14 @@
 {"id": "dialogue-0057", "tier": "extended", "persona": "brigid-midwife", "prompt": "I do not trust the new doctor in the town. He bleeds people for everything."}
 {"id": "dialogue-0058", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is willow bark good for?"}
 {"id": "dialogue-0059", "tier": "extended", "persona": "brigid-midwife", "prompt": "I have aches in every joint when it rains."}
-{"id": "dialogue-0060", "tier": "extended", "persona": "brigid-midwife", "prompt": "My eyes water and my chest is tight. Is it the hay?"}
 {"id": "dialogue-0061", "tier": "extended", "persona": "brigid-midwife", "prompt": "Could you read my palm?"}
 {"id": "dialogue-0062", "tier": "extended", "persona": "brigid-midwife", "prompt": "Was there ever a wise woman before you here?"}
 {"id": "dialogue-0063", "tier": "extended", "persona": "brigid-midwife", "prompt": "The thatcher fell off the roof. He breathes but he will not wake."}
 {"id": "dialogue-0064", "tier": "extended", "persona": "brigid-midwife", "prompt": "I have not bled in two moons."}
-{"id": "dialogue-0065", "tier": "extended", "persona": "brigid-midwife", "prompt": "My old dog will not eat. He just lies in the corner."}
 {"id": "dialogue-0066", "tier": "extended", "persona": "brigid-midwife", "prompt": "Tell me what a wake should look like."}
 {"id": "dialogue-0067", "tier": "extended", "persona": "brigid-midwife", "prompt": "Does honey heal more than just a sore throat?"}
 {"id": "dialogue-0068", "tier": "extended", "persona": "brigid-midwife", "prompt": "Why do they say iron keeps fairies away?"}
 {"id": "dialogue-0069", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is the proper way to greet a stranger in this parish?"}
-{"id": "dialogue-0070", "tier": "extended", "persona": "brigid-midwife", "prompt": "I cut my foot on a stone. There was a black mark on the wound this morning."}
 {"id": "dialogue-0071", "tier": "extended", "persona": "brigid-midwife", "prompt": "Mary's baby came too early. She is full of grief."}
 {"id": "dialogue-0072", "tier": "extended", "persona": "brigid-midwife", "prompt": "Tell me a story from when you were small."}
 {"id": "dialogue-0073", "tier": "extended", "persona": "brigid-midwife", "prompt": "Father Cathal said the bog water cures nothing. Yet my uncle swore by it."}
@@ -82,19 +77,57 @@
 {"id": "dialogue-0082", "tier": "extended", "persona": "brigid-midwife", "prompt": "The priest will not bury our cousin in the churchyard. What do we do?"}
 {"id": "dialogue-0083", "tier": "extended", "persona": "brigid-midwife", "prompt": "I have a wart on my hand that I cannot be rid of."}
 {"id": "dialogue-0084", "tier": "extended", "persona": "brigid-midwife", "prompt": "Does butter from a black cow really cure burns?"}
-{"id": "dialogue-0085", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is the leanan sídhe?"}
 {"id": "dialogue-0086", "tier": "extended", "persona": "brigid-midwife", "prompt": "Tell me of the night you delivered your first baby."}
-{"id": "dialogue-0087", "tier": "extended", "persona": "brigid-midwife", "prompt": "Do you ever fear the things you have seen?"}
 {"id": "dialogue-0088", "tier": "extended", "persona": "brigid-midwife", "prompt": "I want to learn to read the weather like you do."}
 {"id": "dialogue-0089", "tier": "extended", "persona": "brigid-midwife", "prompt": "What hours of the day do you keep?"}
-{"id": "dialogue-0090", "tier": "extended", "persona": "brigid-midwife", "prompt": "The river has risen high. Will it spill into the lower fields?"}
 {"id": "dialogue-0091", "tier": "extended", "persona": "brigid-midwife", "prompt": "I cannot stop trembling since the storm last week."}
 {"id": "dialogue-0092", "tier": "extended", "persona": "brigid-midwife", "prompt": "Who taught the herb wisdom before your mother?"}
 {"id": "dialogue-0093", "tier": "extended", "persona": "brigid-midwife", "prompt": "Has anyone been lost in the bog this year?"}
 {"id": "dialogue-0094", "tier": "extended", "persona": "brigid-midwife", "prompt": "My grandmother left me a brooch shaped like a knot. What does it mean?"}
-{"id": "dialogue-0095", "tier": "extended", "persona": "brigid-midwife", "prompt": "Are there proper words to bless a new house?"}
 {"id": "dialogue-0096", "tier": "extended", "persona": "brigid-midwife", "prompt": "Should I take chamomile or comfrey for a swollen ankle?"}
 {"id": "dialogue-0097", "tier": "extended", "persona": "brigid-midwife", "prompt": "Why is the well by the church called St. Bridget's?"}
-{"id": "dialogue-0098", "tier": "extended", "persona": "brigid-midwife", "prompt": "I keep hearing footsteps behind me at night when I walk home."}
 {"id": "dialogue-0099", "tier": "extended", "persona": "brigid-midwife", "prompt": "How do you bind a sprained wrist?"}
 {"id": "dialogue-0100", "tier": "extended", "persona": "brigid-midwife", "prompt": "Is it true a red string at the wrist keeps the fever away?"}
+{"id": "dialogue-0101", "tier": "extended", "persona": "brigid-midwife", "prompt": "My brother went off to America. I do not know if I will see him again."}
+{"id": "dialogue-0102", "tier": "extended", "persona": "brigid-midwife", "prompt": "The wedding party stopped at our door last night, full of drink and song."}
+{"id": "dialogue-0103", "tier": "extended", "persona": "brigid-midwife", "prompt": "Father Cathal asked me to attend Mass on Sunday but I have not been since the baby."}
+{"id": "dialogue-0105", "tier": "extended", "persona": "brigid-midwife", "prompt": "I cannot stop thinking of my dead sister. It has been ten years."}
+{"id": "dialogue-0106", "tier": "extended", "persona": "brigid-midwife", "prompt": "The matchmaker came for tea yesterday. She has a man in mind for me."}
+{"id": "dialogue-0107", "tier": "extended", "persona": "brigid-midwife", "prompt": "How does one make peace with a quarrelsome neighbour over a boundary stone?"}
+{"id": "dialogue-0108", "tier": "extended", "persona": "brigid-midwife", "prompt": "My uncle is shamed in the village for what his son did. Will it pass?"}
+{"id": "dialogue-0109", "tier": "extended", "persona": "brigid-midwife", "prompt": "Tell me of the time the parish was struck by famine, when you were a girl."}
+{"id": "dialogue-0110", "tier": "extended", "persona": "brigid-midwife", "prompt": "I have lost my temper with my husband three nights running."}
+{"id": "dialogue-0111", "tier": "extended", "persona": "brigid-midwife", "prompt": "My mother-in-law lives with us now and the cottage is too small for her bitterness."}
+{"id": "dialogue-0112", "tier": "extended", "persona": "brigid-midwife", "prompt": "The schoolmaster wants my daughter to go on with her reading. My husband will not have it."}
+{"id": "dialogue-0113", "tier": "extended", "persona": "brigid-midwife", "prompt": "There is a man from Sligo lodging at the inn who asks too many questions."}
+{"id": "dialogue-0114", "tier": "extended", "persona": "brigid-midwife", "prompt": "My eldest is courting a Protestant girl. Father Cathal would have me forbid it."}
+{"id": "dialogue-0115", "tier": "extended", "persona": "brigid-midwife", "prompt": "I dreamed of a coffin small enough for a child. Now I am afraid for the babe."}
+{"id": "dialogue-0116", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is best for an ague that comes and goes with the moon?"}
+{"id": "dialogue-0117", "tier": "extended", "persona": "brigid-midwife", "prompt": "My uncle has dropsy and his legs weep. Have you anything to ease it?"}
+{"id": "dialogue-0118", "tier": "extended", "persona": "brigid-midwife", "prompt": "The baby's gums are swollen. Should I rub them with whiskey or with chamomile?"}
+{"id": "dialogue-0119", "tier": "extended", "persona": "brigid-midwife", "prompt": "I cut myself with the reaping hook and the wound smells sour now."}
+{"id": "dialogue-0120", "tier": "extended", "persona": "brigid-midwife", "prompt": "Is comfrey root safe to take by mouth, or only as a poultice?"}
+{"id": "dialogue-0121", "tier": "extended", "persona": "brigid-midwife", "prompt": "My mother coughs blood in the morning. Is it the consumption?"}
+{"id": "dialogue-0122", "tier": "extended", "persona": "brigid-midwife", "prompt": "The blacksmith's apprentice was kicked by the mare. He cannot keep food down."}
+{"id": "dialogue-0124", "tier": "extended", "persona": "brigid-midwife", "prompt": "What plants do you keep for a poultice on a boil?"}
+{"id": "dialogue-0125", "tier": "extended", "persona": "brigid-midwife", "prompt": "Father Cathal has gout and limps to the altar. Would willow bark serve him?"}
+{"id": "dialogue-0126", "tier": "extended", "persona": "brigid-midwife", "prompt": "My baby will not nurse from one breast. The other runs hot to the touch."}
+{"id": "dialogue-0127", "tier": "extended", "persona": "brigid-midwife", "prompt": "How long should I steep mullein leaves for a tea against the wheezing?"}
+{"id": "dialogue-0129", "tier": "extended", "persona": "brigid-midwife", "prompt": "My grandmother cannot remember her grown children's names. Is it old age or something worse?"}
+{"id": "dialogue-0130", "tier": "extended", "persona": "brigid-midwife", "prompt": "What is the proper salve for a burn from the lime-pit?"}
+{"id": "dialogue-0132", "tier": "extended", "persona": "brigid-midwife", "prompt": "They say a banshee was heard near Maguire's cottage. Should I send word?"}
+{"id": "dialogue-0133", "tier": "extended", "persona": "brigid-midwife", "prompt": "Is it true the leanan sídhe takes the lives of poets she favours?"}
+{"id": "dialogue-0134", "tier": "extended", "persona": "brigid-midwife", "prompt": "My uncle would not pass the rath at sunset. He said the good people were within."}
+{"id": "dialogue-0135", "tier": "extended", "persona": "brigid-midwife", "prompt": "What charms are best for keeping the changelings from a cradle?"}
+{"id": "dialogue-0136", "tier": "extended", "persona": "brigid-midwife", "prompt": "I heard hoofbeats with no horse on the western road last night."}
+{"id": "dialogue-0137", "tier": "extended", "persona": "brigid-midwife", "prompt": "The cailleach is said to have walked through the parish during the famine year. Did your mother speak of it?"}
+{"id": "dialogue-0138", "tier": "extended", "persona": "brigid-midwife", "prompt": "My cattle would not drink from the trough this morning. Have they been overlooked?"}
+{"id": "dialogue-0139", "tier": "extended", "persona": "brigid-midwife", "prompt": "Is it true that whitethorn cut at Bealtaine brings misfortune to the cutter?"}
+{"id": "dialogue-0140", "tier": "extended", "persona": "brigid-midwife", "prompt": "What can be done if a child has been touched by the evil eye at a fair?"}
+{"id": "dialogue-0141", "tier": "extended", "persona": "brigid-midwife", "prompt": "The seanchaí said the Fianna sleep beneath Slievenamon. Do you believe it?"}
+{"id": "dialogue-0142", "tier": "extended", "persona": "brigid-midwife", "prompt": "I found a coin of strange make in the field. Should I bury it again?"}
+{"id": "dialogue-0143", "tier": "extended", "persona": "brigid-midwife", "prompt": "Should I sow the oats before or after St. Patrick's Day this year?"}
+{"id": "dialogue-0144", "tier": "extended", "persona": "brigid-midwife", "prompt": "The roof beam is sagging where the chimney passes through. How long can I leave it?"}
+{"id": "dialogue-0145", "tier": "extended", "persona": "brigid-midwife", "prompt": "Our hens have stopped laying. What feed do you give yours?"}
+{"id": "dialogue-0146", "tier": "extended", "persona": "brigid-midwife", "prompt": "The cow's tail is matted with burrs. She will not let me near her hind quarters."}
+{"id": "dialogue-0148", "tier": "extended", "persona": "brigid-midwife", "prompt": "We have not enough turf cut for the winter. Where is the closest bog we may go?"}
