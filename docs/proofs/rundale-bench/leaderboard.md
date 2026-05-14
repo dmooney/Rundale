@@ -124,6 +124,42 @@ Cached samples:
 
 (kimi-k2.5 unranked — 14/15 replies empty due to reasoning-model `content: null`.)
 
+### Re-judged with grok-4.3 (2026-05-14) — adds deepseek-v4-pro
+
+Re-judged every cached sample with `x-ai/grok-4.3` ($1.25/$2.50 per M, non-reasoning) to test sensitivity to the judge pick. Also added a fresh cache for `deepseek/deepseek-v4-pro` (deepseek's current flagship). All 193 judge calls succeeded; ~$0.40 total spend, ~43 min wall.
+
+| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
+|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
+| 1    | qwen/qwen3-max                               | flag  | 15 | 8.65  | 8.80 | 9.07 | 8.67 | 8.33 | 8.40  |
+| 2    | mistralai/mistral-large-2512                 | mid   | 15 | 8.61  | 8.60 | 9.00 | 8.60 | 8.53 | 8.33  |
+| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 14 | 8.59  | -    | -    | -    | -    | -     |
+| 4    | x-ai/grok-3-mini                             | mid   | 15 | 8.43  | 8.53 | 8.93 | 8.67 | 8.33 | 7.67  |
+| 5    | google/gemma-3-27b-it                        | cheap | 11 | 8.42  | -    | -    | -    | -    | -     |
+| 6    | google/gemini-2.5-flash                      | mid   | 15 | 8.16  | 8.00 | 8.80 | 8.00 | 8.27 | 7.73  |
+| 7    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.12  | 8.07 | 8.87 | 7.80 | 8.07 | 7.80  |
+| 8    | deepseek/deepseek-v3.2                       | cheap | 13 | 7.91  | -    | -    | -    | -    | -     |
+| 9    | deepseek/deepseek-v4-pro                     | flag  | 14 | 7.77  | 7.71 | 8.21 | 7.21 | 7.93 | 7.79  |
+| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 7.49  | -    | -    | -    | -    | -     |
+| 11   | openai/gpt-oss-120b                          | cheap | 13 | 7.12  | -    | -    | -    | -    | -     |
+| 12   | openai/gpt-4o-mini                           | mid   | 15 | 6.60  | 6.07 | 7.13 | 5.73 | 7.47 | 6.60  |
+| 13   | microsoft/phi-4                              | cheap | 13 | 6.29  | -    | -    | -    | -    | -     |
+
+Sample files:
+- `multiaxis_20260514T182859Z.json` — 6 cheap candidates (79 calls)
+- `multiaxis_20260514T184629Z.json` — 6 mid candidates (76 calls)
+- `multiaxis_20260514T184902Z.json` — qwen3-max (15 calls)
+- `multiaxis_20260514T185110Z.json` — deepseek-v4-pro (14 calls)
+
+Findings vs the mistral-large judge:
+
+- **2.36-point top-to-bottom spread** vs 0.81-point spread under mistral-large. Grok discriminates harder — better signal-to-noise.
+- **Top-3 cluster is robust.** qwen3-max + mistral-large + qwen3-235b within 0.06 of each other under both judges; cross-judge agreement says this trio is the genuine ceiling for this slice.
+- **deepseek-v4-pro WORSE than v3.2** (7.77 vs 7.91). New flagship release does not strictly improve. For 1820 Irish dialogue specifically, v3.2 wins. Treat as a single data point — could reflect heavier RLHF tuning toward reasoning/structure that hurts persona fidelity.
+- **grok-3-mini at #4 = judge-family bias.** grok-4.3 judging grok-3-mini is exactly the inflation pattern called out in the ELO caveats. Discount by ~0.3 mentally.
+- **gpt-4o-mini collapses to 6.60** (vs 8.27 under mistral-large). Stricter judge exposes gpt-4o-mini's weak character voice — biggest cross-judge gap of any candidate.
+
+Caveat: kimi-k2.6 was tried as judge first but failed at ~70% of calls — its reasoning tokens crowded out content emission, and per-call wall time was 29 s. Not viable as a judge until a content-only mode lands. The reasoning-fallback that landed in `eval_lib.py` (read `message.reasoning` when `message.content` is empty) helps for short replies but doesn't fix the JSON-schema-truncation problem.
+
 ### Flagship Chinese model probe — qwen3-max
 
 Ran the most expensive non-reasoning Chinese flagship through the same pipeline as a sanity check that the cheap tier wasn't simply easy to saturate. Result: **qwen3-max ties gemma-3-27b at 9.03 total and edges qwen3-235b by 0.03** — well inside the rubric noise floor.

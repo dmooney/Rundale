@@ -58,7 +58,7 @@ After the five axes, emit `total` as the unweighted mean of the five integer axe
 
 Output ONLY a JSON object: {"character":<0-10>, "authenticity":<0-10>, "language":<0-10>, "responsiveness":<0-10>, "craft":<0-10>, "total":<0.0-10.0>, "reason":"<one short sentence, ≤25 words>"}. No prose, no markdown."""
 
-_JUDGE_MAX_TOKENS = 2000
+_JUDGE_MAX_TOKENS = 8000
 
 
 def build_schema(axes: list[str]) -> dict:

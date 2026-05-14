@@ -132,7 +132,16 @@ def call_chat(
                 continue
             raise
     try:
-        text = data["choices"][0]["message"]["content"] or ""
+        msg = data["choices"][0]["message"]
+        text = msg.get("content") or ""
+        # Reasoning-class models (kimi-k2.6, kimi-k2-thinking, glm-4.7, etc.)
+        # sometimes return content="" with the actual answer in `reasoning`.
+        # This happens when max_tokens is consumed by reasoning before
+        # content is emitted. Fall back to reasoning rather than failing.
+        if not text.strip():
+            reasoning = msg.get("reasoning") or ""
+            if reasoning.strip():
+                text = reasoning
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(
             f"unexpected chat-completion response shape ({type(e).__name__}: {e}). "
