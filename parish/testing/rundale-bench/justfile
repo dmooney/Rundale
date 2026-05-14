@@ -1,0 +1,200 @@
+# rundale-bench task recipes
+#
+# Run from repo root, NOT this directory:
+#
+#     just -f parish/testing/rundale-bench/justfile <recipe> [args...]
+#
+# Most recipes load /Users/.../.env before invoking python so OPENROUTER_API_KEY
+# (and friends) reach the candidate / judge HTTP layer. Override via env var or
+# shell `export` if you keep credentials elsewhere.
+
+ENV_FILE := justfile_directory() / "../../../.env"
+BENCH := justfile_directory()
+SCRIPTS := BENCH / "../../scripts/local-eval"
+SAMPLES_DIR := justfile_directory() / "../../../docs/proofs/rundale-bench"
+
+# Bundled candidate fleets — re-cached as model lineup shifts.
+CHEAP_TARGETS := "--target 'qwen/qwen3-235b-a22b-2507@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'mistralai/mistral-small-24b-instruct-2501@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'google/gemma-3-27b-it@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'microsoft/phi-4@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'deepseek/deepseek-v3.2@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'openai/gpt-oss-120b@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY'"
+
+MID_TARGETS := "--target 'anthropic/claude-haiku-4.5@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'openai/gpt-4o-mini@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'google/gemini-2.5-flash@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'mistralai/mistral-large-2512@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'moonshotai/kimi-k2.5@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY' --target 'x-ai/grok-3-mini@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY'"
+
+# Default judge for offline rubric_lab runs. mistral-large-2512 is non-thinking,
+# 1–2 s per call, and lands $0.50/$1.50 per M. Override per-recipe with `judge=...`.
+JUDGE := "mistralai/mistral-large-2512"
+
+
+# Default — show the list.
+default:
+    @just --justfile {{ justfile() }} --list
+
+
+# ----------------------------------------------------------------------------
+# correctness gates
+# ----------------------------------------------------------------------------
+
+# Run the grade.py unit tests (no API calls).
+test:
+    python3 {{ BENCH }}/test_grade.py
+
+
+# Rebuild MANIFEST.json after any *.jsonl edit. Refuses to mutate a frozen suite.
+manifest version="v1":
+    python3 {{ BENCH }}/build_manifest.py {{ version }}
+
+
+# Re-run the holdout split (deterministic by SHA-256 of id; core tier preserved).
+split version="v1":
+    python3 {{ BENCH }}/split_holdout.py {{ version }}
+    python3 {{ BENCH }}/build_manifest.py {{ version }}
+
+
+# ----------------------------------------------------------------------------
+# absolute-mode probes (single target → per-slice scores)
+# ----------------------------------------------------------------------------
+
+# Quick intent smoke against any OpenAI-compatible target. No judge calls — grade
+# is deterministic on the gold labels.
+#
+#     just -f parish/testing/rundale-bench/justfile intent 'gpt-oss-120b:free@.../v1#env:OR_KEY'
+intent target limit="20":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice intent --limit {{ limit }}
+
+
+# Dialogue smoke (absolute 5-axis rubric). `judge=` flag overrides the default
+# qwen3-235b judge baked into judge_v1.json.
+dialogue target judge="judge_v1" limit="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice dialogue --judge {{ judge }} --limit {{ limit }}
+
+
+# Full slice sweep — every slice end-to-end. ~$0.05 on a free target.
+bench target judge="judge_v1" limit="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice all --judge {{ judge }} --limit {{ limit }}
+
+
+# ----------------------------------------------------------------------------
+# pairwise ELO mode (multi-target ranking)
+# ----------------------------------------------------------------------------
+
+# Direct in-bench ELO over the dialogue slice. Targets passed as a quoted
+# space-separated list of `model@url#env:VAR` specs. `--mode elo` regenerates
+# candidate replies on every call.
+#
+#     just -f .../justfile elo "spec_a spec_b spec_c" 10
+elo targets limit="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    args=""
+    for t in {{ targets }}; do args="$args --target '$t'"; done
+    eval python3 {{ BENCH }}/rundale_bench.py --mode elo $args --suite v1 --limit {{ limit }}
+
+
+# ----------------------------------------------------------------------------
+# cached-reply workflow (rubric iteration without re-querying candidates)
+# ----------------------------------------------------------------------------
+
+# Cache dialogue replies for the bundled cheap-tier fleet (qwen3-235b, mistral-
+# small-24b, gemma-3-27b, phi-4, deepseek-v3.2, gpt-oss-120b). 90 calls,
+# ~$0.001, ~3 minutes wall.
+cache-cheap prompts="15":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/cache_dialogue_replies.py {{ CHEAP_TARGETS }} --prompts {{ prompts }}
+
+
+# Same for the mid-tier fleet (claude-haiku-4.5, gpt-4o-mini, gemini-2.5-flash,
+# mistral-large, kimi-k2.5, grok-3-mini). 90 calls, ~$0.05.
+cache-mid prompts="15":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/cache_dialogue_replies.py {{ MID_TARGETS }} --prompts {{ prompts }}
+
+
+# Both fleets back-to-back — 12 candidates total, ~5 minutes, ~$0.05 spend.
+cache-all prompts="15": (cache-cheap prompts) (cache-mid prompts)
+
+
+# Custom cache. `targets=` is one or more `--target …` flags pre-quoted.
+#
+#     just -f .../justfile cache targets="--target 'a@u#env:K' --target 'b@u#env:K'"
+cache targets prompts="15":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 {{ BENCH }}/cache_dialogue_replies.py {{ targets }} --prompts {{ prompts }}
+
+
+# Pairwise rubric over cached samples. Zero candidate spend; judge cost only.
+# Defaults to the pinned pairwise rubric (`judge_pairwise_v1.json`) and the
+# mistral-large judge.
+elo-from-cache samples rubric=(BENCH / "v1" / "judge_pairwise_v1.json") judge=JUDGE output="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    # Extract `rubric` from a JSON config or treat as a plain-text rubric file.
+    if jq -e .rubric '{{ rubric }}' >/dev/null 2>&1; then
+        rubric_file=$(mktemp -t rubric-XXXXXX)
+        jq -r .rubric '{{ rubric }}' > "$rubric_file"
+    else
+        rubric_file='{{ rubric }}'
+    fi
+    out_flag=""
+    if [[ -n "{{ output }}" ]]; then out_flag="--output {{ output }}"; fi
+    python3 -u {{ BENCH }}/rubric_lab.py \
+        --samples '{{ samples }}' \
+        --rubric-file "$rubric_file" \
+        --mode pairwise \
+        --judge-model '{{ judge }}' \
+        $out_flag
+
+
+# Absolute rubric over cached samples. `axis_scale=10` for the 1-10 scale you
+# probably want; the legacy judge_v1 5-axis rubric expects scale 5.
+absolute-from-cache samples rubric axis_scale="10" judge=JUDGE output="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; source {{ ENV_FILE }}; set +a
+    out_flag=""
+    if [[ -n "{{ output }}" ]]; then out_flag="--output {{ output }}"; fi
+    python3 -u {{ BENCH }}/rubric_lab.py \
+        --samples '{{ samples }}' \
+        --rubric-file '{{ rubric }}' \
+        --mode absolute \
+        --axis-scale {{ axis_scale }} \
+        --judge-model '{{ judge }}' \
+        $out_flag
+
+
+# ----------------------------------------------------------------------------
+# convenience
+# ----------------------------------------------------------------------------
+
+# List every cached sample file under docs/proofs/rundale-bench/.
+list-samples:
+    @ls -1t {{ SAMPLES_DIR }}/dialogue_samples_*.json 2>/dev/null || echo "no cached samples yet"
+
+
+# Print the size + cost of every cached run.
+sample-stats:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for f in {{ SAMPLES_DIR }}/dialogue_samples_*.json; do
+        [ -f "$f" ] || continue
+        jq -r '
+            (.samples | length) as $n
+            | ([.samples[] | select(.error == null and ((.reply // "") | gsub("\\s"; "") | length > 0))] | length) as $ok
+            | "  \($n) samples (\($ok) ok / \($n - $ok) empty), \(.candidates | length) candidates, $\(.cost.usd // 0)"
+        ' "$f"
+        echo "    $(basename "$f")"
+    done
