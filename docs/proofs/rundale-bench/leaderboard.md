@@ -48,7 +48,7 @@ The absolute 5-axis rubric saturates near the ceiling (gpt-oss-120b scored 4.82/
 |------------------|-----------|---------|---------|--------------------------------|---------|---|
 | 2026-05-13 22:15 | 3 (smoke) | 10      | 30      | judge_pairwise_v1 (qwen3-235b) | $0.0013 | `elo_20260513T221506Z.json` |
 
-### Standings (single smoke run — illustrative, not authoritative)
+### Standings — 3-candidate smoke (qwen3-235b judge)
 
 | Rank | Target                                       | ELO    | 5/95 CI           | Matches |
 |------|----------------------------------------------|--------|-------------------|---------|
@@ -57,6 +57,39 @@ The absolute 5-axis rubric saturates near the ceiling (gpt-oss-120b scored 4.82/
 | 3    | mistralai/mistral-small-24b-instruct-2501    | 1356.6 | 1306.3 – 1399.8   | 20      |
 
 ~290 ELO spread across three candidates with **non-overlapping CIs between Qwen and Mistral** — discrimination the absolute rubric was crushing. GPT-oss-120b lands middle.
+
+### Standings — 12-candidate sweep, 2026-05-14 (mistral-large-2512 judge)
+
+Cached samples: `dialogue_samples_20260514T004513Z.json` (6 paid-cheap) + `dialogue_samples_20260514T005721Z.json` (6 mid-tier) → 12 candidates × 15 prompts. 816 pairwise matches over `judge_pairwise_v1` rubric judged by `mistralai/mistral-large-2512` ($0.50/$1.50 per M). ~22 minutes wall, < $0.10.
+
+| Rank | Target                                          | ELO    | Matches | Notes |
+|------|-------------------------------------------------|--------|---------|-------|
+| 1    | qwen/qwen3-235b-a22b-2507                       | 1898.9 | 149     |       |
+| 2    | anthropic/claude-haiku-4.5                      | 1768.4 | 149     | strong for cheap-tier ($1/$5) |
+| 3    | google/gemma-3-27b-it                           | 1705.0 | 149     |       |
+| 4    | mistralai/mistral-large-2512                    | 1682.6 | 149     | **same as judge — self-bias inflates this row** |
+| 5    | moonshotai/kimi-k2.5                            | 1622.8 | 11      | **only 11 matches — reasoning-model output empty for 14/15 prompts; row unreliable** |
+| 6    | x-ai/grok-3-mini                                | 1484.9 | 149     |       |
+| 7    | deepseek/deepseek-v3.2                          | 1473.3 | 149     |       |
+| 8    | openai/gpt-oss-120b                             | 1356.8 | 131     |       |
+| 9    | google/gemini-2.5-flash                         | 1340.9 | 149     |       |
+| 10   | mistralai/mistral-small-24b-instruct-2501       | 1305.2 | 149     |       |
+| 11   | openai/gpt-4o-mini                              | 1242.6 | 149     |       |
+| 12   | microsoft/phi-4                                 | 1118.6 | 149     | bottom by 124 points |
+
+780-point top-to-bottom spread. Findings:
+
+- **qwen3-235b dominant.** Top by 130 ELO over Claude Haiku 4.5 — but qwen3-235b is also the previous judge pin, so absorbed weight from the prior pairwise rubric's training of itself. Treat this row with the same suspicion as #4 (mistral-large self-bias).
+- **claude-haiku-4.5 punches above its tier.** Mid-cost ($1/$5 per M) but second-place on quality — strong candidate for the Dialogue preset.
+- **Cheap mistral-small at #10**, big mistral-large at #4. ~377-point gap within the same family — model size + capability matters, the family label doesn't.
+- **microsoft/phi-4 dead last** by 124 ELO; not a dialogue candidate worth pursuing for 1820 Irish.
+
+### Caveats
+
+- **Judge self-bias.** mistral-large at #4 against 11 cross-family competitors is suspect; comparable cross-judge runs (qwen judge / claude judge) should adjust this. Plan: re-run with a non-candidate judge (e.g. cohere/command-a) and average the two ranking tables.
+- **Reasoning-class models break the cache.** `moonshotai/kimi-k2.6` and `moonshotai/kimi-k2.5` both return `content: null` with all output in `reasoning` field — current `call_chat` only reads `content`, so their cached replies are empty. Same problem hit `z-ai/glm-4.7`. Until the cache supports `reasoning` fallback OR we exclude reasoning models, these candidates can't be ELO-ranked.
+- **Position-bias absorbed** by per-match A/B randomization (seed 0xe10 in rubric_lab.py); same approach as Chatbot Arena.
+- **N=15 prompts per candidate** is below the 25-prompt comfort floor. Larger prompt counts tighten the standings — bootstrap CI not computed in this rubric_lab run (only in the in-bench `--mode elo` path).
 
 ### Caveats for ELO rows
 

@@ -41,6 +41,7 @@ import itertools
 import json
 import random
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -52,6 +53,12 @@ from eval_lib import CostTracker, Target, call_chat  # noqa: E402
 
 def load_samples(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+# Reasoning-class judges (kimi-thinking, gemini-pro-thinking, etc.) need
+# enough budget to think AND emit the schema-conformant answer. 2000 is a
+# defensible default; tune per-judge via --judge-max-tokens if needed.
+_JUDGE_MAX_TOKENS = 2000
 
 
 def absolute_judge(rubric: str, reply: str, judge_target: Target, tracker: CostTracker, scale: int) -> dict:
@@ -67,8 +74,11 @@ def absolute_judge(rubric: str, reply: str, judge_target: Target, tracker: CostT
     }
     user = f"Reply to score: {reply}"
     try:
-        text, usage = call_chat(judge_target, rubric, user, schema=schema, temperature=0)
+        text, usage = call_chat(judge_target, rubric, user, schema=schema,
+                                temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
         tracker.record(judge_target, usage)
+        if not text:
+            raise ValueError("empty content (reasoning model truncated?)")
         out = json.loads(text)
         return {"score": int(out.get("score") or 0), "reason": str(out.get("reason", ""))[:200]}
     except Exception as e:
@@ -91,8 +101,11 @@ def pairwise_judge(rubric: str, a: str, b: str, prompt: str, judge_target: Targe
     }
     user = f"Player prompt: {prompt}\n\n=== Reply A ===\n{a}\n\n=== Reply B ===\n{b}\n"
     try:
-        text, usage = call_chat(judge_target, rubric, user, schema=schema, temperature=0)
+        text, usage = call_chat(judge_target, rubric, user, schema=schema,
+                                temperature=0, max_tokens=_JUDGE_MAX_TOKENS)
         tracker.record(judge_target, usage)
+        if not text:
+            raise ValueError("empty content (reasoning model truncated?)")
         out = json.loads(text)
         w = out.get("winner")
         if w not in ("A", "B", "tie"):
@@ -128,14 +141,18 @@ def main() -> None:
     if args.mode == "absolute":
         per_cand: dict[str, list[int]] = defaultdict(list)
         results: list[dict] = []
-        for s in data["samples"]:
-            if s.get("error"):
-                continue
+        eligible = [s for s in data["samples"] if not s.get("error") and s.get("reply")]
+        total = len(eligible)
+        for i, s in enumerate(eligible, 1):
             if args.limit and len(per_cand[s["candidate"]]) >= args.limit:
                 continue
+            t0 = time.time()
             r = absolute_judge(rubric, s["reply"], judge_target, tracker, args.axis_scale)
             per_cand[s["candidate"]].append(r["score"])
             results.append({"candidate": s["candidate"], "prompt_id": s["prompt_id"], **r})
+            dt = time.time() - t0
+            print(f"  [{i:4d}/{total}] {dt:5.1f}s  score={r.get('score','?'):>3}  "
+                  f"${tracker.usd:7.4f} cum  {s['candidate'][:40]:40s} {s['prompt_id']}", flush=True)
         print(f"\nabsolute mode — N={args.axis_scale}")
         print(f"{'candidate':50s}  n   mean   median   min   max")
         for cand in sorted(per_cand):
@@ -158,14 +175,23 @@ def main() -> None:
         match_count = {c: 0 for c in candidates}
         match_log = []
         rng = random.Random(0xe10)
+        total_matches = sum(len(g) * (len(g) - 1) // 2 for g in by_prompt.values() if len(g) >= 2)
+        match_i = 0
         for prompt_id, group in by_prompt.items():
             if len(group) < 2:
                 continue
             prompt_text = group[0]["prompt"]
             for sa, sb in itertools.combinations(group, 2):
+                match_i += 1
                 swap = rng.random() < 0.5
                 shown_a, shown_b = (sb, sa) if swap else (sa, sb)
+                t0 = time.time()
                 v = pairwise_judge(rubric, shown_a["reply"], shown_b["reply"], prompt_text, judge_target, tracker)
+                dt = time.time() - t0
+                err_tag = " ERR" if v.get("error") else ""
+                print(f"  [{match_i:4d}/{total_matches}] {dt:5.1f}s  winner={v.get('winner','?')}{err_tag}  "
+                      f"${tracker.usd:7.4f} cum  {prompt_id}  "
+                      f"{sa['candidate'][:25]:25s} vs {sb['candidate'][:25]:25s}", flush=True)
                 w = v["winner"]
                 if w == "tie":
                     score_a = 0.5
