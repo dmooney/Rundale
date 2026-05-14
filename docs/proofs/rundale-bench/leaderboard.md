@@ -97,6 +97,39 @@ Cached samples: `dialogue_samples_20260514T004513Z.json` (6 paid-cheap) + `dialo
 - **N=10 prompts is below the comfort floor.** Plan calls for 25-prompt minimum; this is a smoke. Re-run at 25-50 prompts before treating ELO numbers as authoritative.
 - **Bootstrap CI uses i.i.d. resampling of matches**, which understates uncertainty when matches are correlated by prompt. A prompt-level bootstrap would give wider, more honest bounds.
 
+## Multi-axis 0-10 standings (`score_multiaxis.py`)
+
+Per-axis grading complements ELO when you need *why* a candidate ranks where it does — character, authenticity, language, responsiveness, craft. Judge emits 5 integers + a total. Same 15 dialogue prompts, same dev split, same `mistral-large-2512` judge as the 12-candidate ELO sweep.
+
+Cached samples:
+- `dialogue_samples_20260514T004513Z.json` — 6 paid-cheap candidates → `multiaxis_20260514T172222Z.json` (88 calls, ~$0)
+- `dialogue_samples_20260514T005721Z.json` — 6 mid-tier candidates → `multiaxis_20260514T170413Z.json` (76 calls, ~$0)
+
+| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
+|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
+| 1    | google/gemma-3-27b-it                        | cheap | 15 | 9.03  | 9.20 | 9.60 | 8.73 | 8.60 | 9.00  |
+| 2    | qwen/qwen3-235b-a22b-2507                    | cheap | 15 | 9.00  | 9.33 | 9.67 | 8.47 | 8.53 | 9.00  |
+| 3    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.93  | 9.13 | 9.27 | 8.33 | 9.00 | 8.93  |
+| 4    | mistralai/mistral-large-2512                 | mid   | 15 | 8.88  | 9.07 | 9.27 | 8.40 | 8.67 | 9.00  |
+| 5    | x-ai/grok-3-mini                             | mid   | 15 | 8.84  | 9.00 | 9.00 | 8.87 | 8.73 | 8.60  |
+| 6    | google/gemini-2.5-flash                      | mid   | 15 | 8.81  | 8.93 | 9.20 | 8.40 | 8.53 | 9.00  |
+| 7    | deepseek/deepseek-v3.2                       | cheap | 15 | 8.59  | 8.73 | 9.27 | 8.00 | 8.20 | 8.73  |
+| 8    | openai/gpt-oss-120b                          | cheap | 13 | 8.55  | 8.85 | 9.23 | 8.15 | 8.00 | 8.54  |
+| 9    | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 8.32  | 8.33 | 8.67 | 7.80 | 8.33 | 8.47  |
+| 10   | microsoft/phi-4                              | cheap | 15 | 8.28  | 8.20 | 8.87 | 7.53 | 8.40 | 8.40  |
+| 11   | openai/gpt-4o-mini                           | mid   | 15 | 8.27  | 8.27 | 8.93 | 7.67 | 8.00 | 8.47  |
+| -    | moonshotai/kimi-k2.5                         | mid   | 1  | 9.00  | 9.00 | 10.00| 9.00 | 8.00 | 9.00  |
+
+(kimi-k2.5 unranked — 14/15 replies empty due to reasoning-model `content: null`.)
+
+Cross-rubric agreement: the 12-candidate ELO sweep also crowns qwen3-235b + claude-haiku-4.5 + gemma-3-27b at the top — three independent axes (pairwise vs multi-axis) converge on the same top tier. ELO ranks qwen #1 / haiku #2 / gemma #3; multi-axis ranks gemma #1 / qwen #2 / haiku #3 — order swaps within the top three, but the cluster is robust.
+
+### Caveats
+
+- **Same judge as ELO sweep** (`mistral-large-2512`) — mistral-large at #4 here is the same self-bias as in the ELO table.
+- **Saturation risk.** The 5-axis 0-10 rubric still discriminates (10.65-point top-to-bottom spread across 11 candidates), but the top three are within 0.10 of each other. Add stricter calibration anchors (8 vs 10 deltas) before treating sub-0.2 multi-axis gaps as signal.
+- **N=15 prompts** is below the 25-prompt comfort floor. Same caveat as ELO.
+
 ## Reading the leaderboard
 
 A row at the top of its slice means: best measured `metric` for the largest representative N. Beware:

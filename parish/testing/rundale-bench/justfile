@@ -10,6 +10,7 @@
 
 ENV_FILE := justfile_directory() / "../../../.env"
 BENCH := justfile_directory()
+REPO_ROOT := justfile_directory() / "../../.."
 SCRIPTS := BENCH / "../../scripts/local-eval"
 SAMPLES_DIR := justfile_directory() / "../../../docs/proofs/rundale-bench"
 
@@ -59,6 +60,7 @@ split version="v1":
 intent target limit="20":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice intent --limit {{ limit }}
 
@@ -68,6 +70,7 @@ intent target limit="20":
 dialogue target judge="judge_v1" limit="10":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice dialogue --judge {{ judge }} --limit {{ limit }}
 
@@ -76,6 +79,7 @@ dialogue target judge="judge_v1" limit="10":
 bench target judge="judge_v1" limit="10":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/rundale_bench.py --target '{{ target }}' --suite v1 --slice all --judge {{ judge }} --limit {{ limit }}
 
@@ -92,6 +96,7 @@ bench target judge="judge_v1" limit="10":
 elo targets limit="10":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     args=""
     for t in {{ targets }}; do args="$args --target '$t'"; done
@@ -108,6 +113,7 @@ elo targets limit="10":
 cache-cheap prompts="15":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/cache_dialogue_replies.py {{ CHEAP_TARGETS }} --prompts {{ prompts }}
 
@@ -117,6 +123,7 @@ cache-cheap prompts="15":
 cache-mid prompts="15":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/cache_dialogue_replies.py {{ MID_TARGETS }} --prompts {{ prompts }}
 
@@ -131,6 +138,7 @@ cache-all prompts="15": (cache-cheap prompts) (cache-mid prompts)
 cache targets prompts="15":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     python3 {{ BENCH }}/cache_dialogue_replies.py {{ targets }} --prompts {{ prompts }}
 
@@ -141,6 +149,7 @@ cache targets prompts="15":
 elo-from-cache samples rubric=(BENCH / "v1" / "judge_pairwise_v1.json") judge=JUDGE output="":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     # Extract `rubric` from a JSON config or treat as a plain-text rubric file.
     if jq -e .rubric '{{ rubric }}' >/dev/null 2>&1; then
@@ -164,6 +173,7 @@ elo-from-cache samples rubric=(BENCH / "v1" / "judge_pairwise_v1.json") judge=JU
 absolute-from-cache samples rubric axis_scale="10" judge=JUDGE output="":
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     set -a; source {{ ENV_FILE }}; set +a
     out_flag=""
     if [[ -n "{{ output }}" ]]; then out_flag="--output {{ output }}"; fi
@@ -174,6 +184,31 @@ absolute-from-cache samples rubric axis_scale="10" judge=JUDGE output="":
         --axis-scale {{ axis_scale }} \
         --judge-model '{{ judge }}' \
         $out_flag
+
+
+# Multi-axis 0-10 scoring over cached samples. Five axes (character /
+# authenticity / language / responsiveness / craft) + a judge-computed total.
+# Writes per-record scores + per-candidate aggregates to
+# docs/proofs/rundale-bench/multiaxis_<UTC>.json (auto-stamped).
+#
+#     just -f .../justfile multiaxis docs/proofs/rundale-bench/dialogue_samples_<ts>.json
+#
+# Recipe args are positional. To override judge or rubric pass them in order:
+#
+#     just -f .../justfile multiaxis SAMPLES JUDGE RUBRIC
+#
+# For a custom output path, run score_multiaxis.py directly with --output.
+multiaxis samples judge=JUDGE rubric="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    rubric_flag=""
+    if [[ -n "{{ rubric }}" ]]; then rubric_flag="--rubric-file {{ rubric }}"; fi
+    python3 -u {{ BENCH }}/score_multiaxis.py \
+        --samples '{{ samples }}' \
+        --judge-model '{{ judge }}' \
+        $rubric_flag
 
 
 # ----------------------------------------------------------------------------
@@ -189,6 +224,7 @@ list-samples:
 sample-stats:
     #!/usr/bin/env bash
     set -euo pipefail
+    cd "{{ REPO_ROOT }}"
     for f in {{ SAMPLES_DIR }}/dialogue_samples_*.json; do
         [ -f "$f" ] || continue
         jq -r '
