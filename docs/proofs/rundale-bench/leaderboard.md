@@ -104,23 +104,36 @@ Per-axis grading complements ELO when you need *why* a candidate ranks where it 
 Cached samples:
 - `dialogue_samples_20260514T004513Z.json` — 6 paid-cheap candidates → `multiaxis_20260514T172222Z.json` (88 calls, ~$0)
 - `dialogue_samples_20260514T005721Z.json` — 6 mid-tier candidates → `multiaxis_20260514T170413Z.json` (76 calls, ~$0)
+- `dialogue_samples_20260514T173823Z.json` — qwen3-max flagship → `multiaxis_20260514T174548Z.json` (15 calls, ~$0)
 
 | Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
 |------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
 | 1    | google/gemma-3-27b-it                        | cheap | 15 | 9.03  | 9.20 | 9.60 | 8.73 | 8.60 | 9.00  |
-| 2    | qwen/qwen3-235b-a22b-2507                    | cheap | 15 | 9.00  | 9.33 | 9.67 | 8.47 | 8.53 | 9.00  |
-| 3    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.93  | 9.13 | 9.27 | 8.33 | 9.00 | 8.93  |
-| 4    | mistralai/mistral-large-2512                 | mid   | 15 | 8.88  | 9.07 | 9.27 | 8.40 | 8.67 | 9.00  |
-| 5    | x-ai/grok-3-mini                             | mid   | 15 | 8.84  | 9.00 | 9.00 | 8.87 | 8.73 | 8.60  |
-| 6    | google/gemini-2.5-flash                      | mid   | 15 | 8.81  | 8.93 | 9.20 | 8.40 | 8.53 | 9.00  |
-| 7    | deepseek/deepseek-v3.2                       | cheap | 15 | 8.59  | 8.73 | 9.27 | 8.00 | 8.20 | 8.73  |
-| 8    | openai/gpt-oss-120b                          | cheap | 13 | 8.55  | 8.85 | 9.23 | 8.15 | 8.00 | 8.54  |
-| 9    | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 8.32  | 8.33 | 8.67 | 7.80 | 8.33 | 8.47  |
-| 10   | microsoft/phi-4                              | cheap | 15 | 8.28  | 8.20 | 8.87 | 7.53 | 8.40 | 8.40  |
-| 11   | openai/gpt-4o-mini                           | mid   | 15 | 8.27  | 8.27 | 8.93 | 7.67 | 8.00 | 8.47  |
+| 1    | qwen/qwen3-max                               | flag  | 15 | 9.03  | 9.27 | 9.47 | 8.60 | 8.80 | 9.00  |
+| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 15 | 9.00  | 9.33 | 9.67 | 8.47 | 8.53 | 9.00  |
+| 4    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.93  | 9.13 | 9.27 | 8.33 | 9.00 | 8.93  |
+| 5    | mistralai/mistral-large-2512                 | mid   | 15 | 8.88  | 9.07 | 9.27 | 8.40 | 8.67 | 9.00  |
+| 6    | x-ai/grok-3-mini                             | mid   | 15 | 8.84  | 9.00 | 9.00 | 8.87 | 8.73 | 8.60  |
+| 7    | google/gemini-2.5-flash                      | mid   | 15 | 8.81  | 8.93 | 9.20 | 8.40 | 8.53 | 9.00  |
+| 8    | deepseek/deepseek-v3.2                       | cheap | 15 | 8.59  | 8.73 | 9.27 | 8.00 | 8.20 | 8.73  |
+| 9    | openai/gpt-oss-120b                          | cheap | 13 | 8.55  | 8.85 | 9.23 | 8.15 | 8.00 | 8.54  |
+| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 8.32  | 8.33 | 8.67 | 7.80 | 8.33 | 8.47  |
+| 11   | microsoft/phi-4                              | cheap | 15 | 8.28  | 8.20 | 8.87 | 7.53 | 8.40 | 8.40  |
+| 12   | openai/gpt-4o-mini                           | mid   | 15 | 8.27  | 8.27 | 8.93 | 7.67 | 8.00 | 8.47  |
 | -    | moonshotai/kimi-k2.5                         | mid   | 1  | 9.00  | 9.00 | 10.00| 9.00 | 8.00 | 9.00  |
 
 (kimi-k2.5 unranked — 14/15 replies empty due to reasoning-model `content: null`.)
+
+### Flagship Chinese model probe — qwen3-max
+
+Ran the most expensive non-reasoning Chinese flagship through the same pipeline as a sanity check that the cheap tier wasn't simply easy to saturate. Result: **qwen3-max ties gemma-3-27b at 9.03 total and edges qwen3-235b by 0.03** — well inside the rubric noise floor.
+
+| Model           | Cost ($/M in / out) | Total | Delta vs qwen3-235b |
+|-----------------|----------------------|-------|---------------------|
+| qwen/qwen3-max  | $1.20 / $6.00        | 9.03  | +0.03               |
+| qwen/qwen3-235b | $0.07 / $0.30        | 9.00  | baseline            |
+
+~17× cost for ~0.03 score gain. For this slice (1820 Irish dialogue, 5-axis rubric judged by mistral-large-2512), the flagship buys nothing. Caveat: a flagship advantage may appear on harder slices (sim tier-3, long-context reaction tier) not covered here.
 
 Cross-rubric agreement: the 12-candidate ELO sweep also crowns qwen3-235b + claude-haiku-4.5 + gemma-3-27b at the top — three independent axes (pairwise vs multi-axis) converge on the same top tier. ELO ranks qwen #1 / haiku #2 / gemma #3; multi-axis ranks gemma #1 / qwen #2 / haiku #3 — order swaps within the top three, but the cluster is robust.
 

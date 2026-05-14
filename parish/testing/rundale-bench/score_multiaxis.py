@@ -130,9 +130,10 @@ def main() -> None:
         t0 = time.time()
         scored = score_one(rubric, s["reply"], judge_target, tracker, axes)
         dt = time.time() - t0
-        for a in axes:
-            per_cand[s["candidate"]][a].append(scored[a])
-        per_cand[s["candidate"]]["total"].append(scored["total"])
+        if not scored.get("error"):
+            for a in axes:
+                per_cand[s["candidate"]][a].append(scored[a])
+            per_cand[s["candidate"]]["total"].append(scored["total"])
         per_record.append({
             "candidate": s["candidate"],
             "prompt_id": s["prompt_id"],
