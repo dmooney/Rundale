@@ -131,6 +131,23 @@ def call_chat(
                 time.sleep(wait)
                 continue
             raise
+    # Some providers (e.g. xAI on grok-4.3) return capacity / rate-limit
+    # signals inside a 200 OK body as `{"error": {"code": 502, "message": ...}}`
+    # rather than via HTTP status. Retry those just like HTTP 502/503.
+    if isinstance(data, dict) and "choices" not in data and "error" in data:
+        err = data.get("error") or {}
+        err_code = err.get("code")
+        if err_code in (429, 502, 503) and attempt < max_retries:
+            wait = 2 ** attempt
+            attempt += 1
+            print(f"  [body-{err_code}] retry {attempt}/{max_retries} after {wait:.0f}s ({target.model})")
+            time.sleep(wait)
+            # Re-issue request — break out of retry block via continue analogue.
+            # Simplest: recurse. Recursion bounded by max_retries.
+            return call_chat(target, system, user, schema=schema, max_tokens=max_tokens,
+                             temperature=temperature, timeout=timeout,
+                             max_retries=max_retries - attempt)
+
     try:
         msg = data["choices"][0]["message"]
         text = msg.get("content") or ""
@@ -151,6 +168,107 @@ def call_chat(
     return text, {
         "prompt_tokens": int(usage.get("prompt_tokens", 0)),
         "completion_tokens": int(usage.get("completion_tokens", 0)),
+    }
+
+
+def call_chat_streaming(
+    target: Target,
+    system: Optional[str],
+    user: str,
+    *,
+    schema: Optional[dict] = None,
+    max_tokens: Optional[int] = None,
+    temperature: float = 0.7,
+    timeout: float = 180.0,
+) -> dict:
+    """Streaming chat-completion. Captures TTFT + tok/s alongside text.
+
+    Returns a dict::
+
+        {
+            "text": str,
+            "ttft_ms": int | None,           # time to first content delta
+            "total_ms": int,                 # request → stream-close
+            "completion_tokens": int | None, # from final usage line (if provided)
+            "prompt_tokens": int | None,
+            "tokens_per_second": float | None,
+        }
+
+    No retry — for perf measurement we want to see failure modes raw.
+    """
+    msgs: list[dict] = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": user})
+    body: dict = {
+        "model": target.model,
+        "messages": msgs,
+        "stream": True,
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        body["max_tokens"] = max_tokens
+    if schema is not None:
+        body["response_format"] = {"type": "json_schema", "json_schema": schema}
+    headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+    key = target.api_key()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    url = f"{target.base_url.rstrip('/')}/chat/completions"
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+
+    parts: list[str] = []
+    ttft_ms: Optional[int] = None
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    start = time.time()
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        for raw_line in resp:
+            line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+            if not line or not line.startswith("data:"):
+                continue
+            payload = line[5:].lstrip()
+            if payload == "[DONE]":
+                break
+            try:
+                evt = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            choices = evt.get("choices") or []
+            if choices:
+                delta = choices[0].get("delta") or {}
+                # Content takes precedence; reasoning fallback for thinking models.
+                chunk = delta.get("content") or delta.get("reasoning") or ""
+                if chunk:
+                    if ttft_ms is None:
+                        ttft_ms = int((time.time() - start) * 1000)
+                    parts.append(chunk)
+            usage = evt.get("usage")
+            if isinstance(usage, dict):
+                if "prompt_tokens" in usage:
+                    prompt_tokens = int(usage["prompt_tokens"])
+                if "completion_tokens" in usage:
+                    completion_tokens = int(usage["completion_tokens"])
+    total_ms = int((time.time() - start) * 1000)
+    text = "".join(parts)
+    tps: Optional[float] = None
+    if completion_tokens and ttft_ms is not None and total_ms > ttft_ms:
+        gen_seconds = (total_ms - ttft_ms) / 1000.0
+        if gen_seconds > 0:
+            tps = completion_tokens / gen_seconds
+    return {
+        "text": text,
+        "ttft_ms": ttft_ms,
+        "total_ms": total_ms,
+        "completion_tokens": completion_tokens,
+        "prompt_tokens": prompt_tokens,
+        "tokens_per_second": tps,
     }
 
 

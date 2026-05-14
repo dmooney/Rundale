@@ -160,6 +160,39 @@ Findings vs the mistral-large judge:
 
 Caveat: kimi-k2.6 was tried as judge first but failed at ~70% of calls — its reasoning tokens crowded out content emission, and per-call wall time was 29 s. Not viable as a judge until a content-only mode lands. The reasoning-fallback that landed in `eval_lib.py` (read `message.reasoning` when `message.content` is empty) helps for short replies but doesn't fix the JSON-schema-truncation problem.
 
+### gemma-4 + qwen-2.5 quality probe (grok-4.3 judge)
+
+Added two more candidates to test whether newer / different family lineages outperform the cheap-tier leader. Both scored worse:
+
+| Target                          | n  | Total | Char | Auth | Lang | Resp | Craft | Note |
+|---------------------------------|----|-------|------|------|------|------|-------|------|
+| google/gemma-3-27b-it (control) | 11 | 8.42  | -    | -    | -    | -    | -     | grok-judged baseline |
+| google/gemma-4-31b-it           | 15 | 8.19  | 8.00 | 8.67 | 7.67 | 8.40 | 8.20  | -0.23 vs gemma-3 |
+| qwen/qwen-2.5-72b-instruct      | 1  | 8.00  | -    | -    | -    | -    | -     | 14/15 provider 400s — unscorable |
+
+Headline: **gemma-4-31b-it scores 0.23 lower than gemma-3-27b** under the same judge. Newer release is not an upgrade for this slice — confirmed when combined with the perf table below (gemma-4 also slower).
+
+`qwen-2.5-72b-instruct` is effectively dead on OpenRouter right now — only 1 of 15 cache calls returned a usable reply (the rest hit "Provider returned error" 400s) and free-form JSON compliance was 10%. Re-route via a different provider or drop from the candidate list.
+
+## Latency & throughput probe (`bench_perf.py`)
+
+Streaming probe captures TTFT (time-to-first-content-token), total wall time, and tok/s per request. JSON-compliance is measured separately by asking the model to emit a 2-key object in two modes: free-form prompt and `response_format: json_schema`. 10 dialogue prompts × 10 + 10 JSON trials per candidate.
+
+| Candidate                                | TTFT p50 | Total p50 | tok/s p50 | JSON free | JSON schema |
+|------------------------------------------|----------|-----------|-----------|-----------|-------------|
+| **qwen/qwen3-235b-a22b-2507** (cheap)    | **363 ms** | **1696 ms** | **54.2** | 100%      | 100%        |
+| google/gemma-3-27b-it (cheap)            | 380 ms   | 2328 ms   | 37.9      | 100%      | 100%        |
+| google/gemma-4-31b-it                    | 1160 ms  | 3214 ms   | 21.9      | 100%      | 100%        |
+| qwen/qwen-2.5-72b-instruct (broken)      | 0 ms     | 5242 ms   | 0.0       | 10%       | 90%         |
+
+Evidence: `perf_20260514T202405Z.json`.
+
+Findings:
+- **qwen3-235b is the perf leader** — fastest TTFT, fastest total, highest tok/s, perfect JSON in both modes. Same model already topped the cheap-tier quality table. Strong default for the dialogue preset.
+- **gemma-4 is slower than gemma-3** — TTFT 3× worse (1160 ms vs 380 ms), tok/s ~half (21.9 vs 37.9). Combined with the -0.23 quality drop above, gemma-4 is a downgrade across both axes.
+- **qwen-2.5-72b** streaming all failed via OpenRouter routing; schema-mode worked 90% but free-form 10%. Different provider routing needed before this candidate is fairly evaluated.
+- **JSON-compliance is universally 100% on schema-enforced calls** for every working candidate — the `response_format` knob works. Free-form 100% across the board too on these short Q&A prompts (would expect drops on harder rubrics).
+
 ### Flagship Chinese model probe — qwen3-max
 
 Ran the most expensive non-reasoning Chinese flagship through the same pipeline as a sanity check that the cheap tier wasn't simply easy to saturate. Result: **qwen3-max ties gemma-3-27b at 9.03 total and edges qwen3-235b by 0.03** — well inside the rubric noise floor.

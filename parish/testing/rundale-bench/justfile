@@ -212,6 +212,33 @@ multiaxis samples judge=JUDGE rubric="":
 
 
 # ----------------------------------------------------------------------------
+# perf probes (ttft, tok/s, json compliance)
+# ----------------------------------------------------------------------------
+
+# Single-target perf probe — streams 10 dialogue prompts, 10 JSON free-form +
+# 10 JSON schema-enforced calls. Captures ttft_ms, tok/s, JSON parse rate.
+#
+#     just -f .../justfile perf 'qwen/qwen-2.5-72b-instruct@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY'
+perf target prompts="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 -u {{ BENCH }}/bench_perf.py --target '{{ target }}' --prompts {{ prompts }}
+
+
+# Perf probe over a pre-quoted target string (one or more `--target …` flags).
+#
+#     just -f .../justfile perf-many targets="--target 'a@u#env:K' --target 'b@u#env:K'"
+perf-many targets prompts="10":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    set -a; source {{ ENV_FILE }}; set +a
+    python3 -u {{ BENCH }}/bench_perf.py {{ targets }} --prompts {{ prompts }}
+
+
+# ----------------------------------------------------------------------------
 # convenience
 # ----------------------------------------------------------------------------
 
