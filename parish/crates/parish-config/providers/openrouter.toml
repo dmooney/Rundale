@@ -1,0 +1,19 @@
+id = "openrouter"
+display_name = "OpenRouter"
+aliases = ["open_router", "open-router"]
+kind = "openai-compat"
+default_base_url = "https://openrouter.ai/api"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "OPENROUTER_API_KEY"
+blurb = "One key, dozens of model providers."
+signup_url = "https://openrouter.ai/keys"
+featured = true
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "openai/gpt-oss-120b"
+simulation = "openai/gpt-oss-120b"
+intent = "openai/gpt-oss-120b"
+reaction = "openai/gpt-oss-120b"

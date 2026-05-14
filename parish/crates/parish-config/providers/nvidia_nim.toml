@@ -1,0 +1,19 @@
+id = "nvidia-nim"
+display_name = "NVIDIA NIM"
+aliases = ["nvidia_nim", "nvidianim", "nim", "nvidia"]
+kind = "openai-compat"
+default_base_url = "https://integrate.api.nvidia.com"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "NVIDIA_API_KEY"
+blurb = "NVIDIA-hosted OpenAI-compatible inference."
+signup_url = "https://build.nvidia.com"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "nvidia/nemotron-3-super-120b-a12b"
+simulation = "nvidia/nemotron-3-nano-30b-a3b"
+intent = "nvidia/nvidia-nemotron-nano-9b-v2"
+reaction = "nvidia/nemotron-3-nano-30b-a3b"
