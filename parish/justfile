@@ -99,8 +99,9 @@ clean:
 # Auto-detects a free dev port so multiple instances can run simultaneously.
 run:
     #!/usr/bin/env bash
+    set -euo pipefail
     eval "$(fnm env)"
-    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --silent)
+    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --loglevel error)
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -120,8 +121,9 @@ run:
 # Uses mods/rundale/demo-prompt.txt as the extra prompt.
 demo PAUSE="2" MAX_TURNS="":
     #!/usr/bin/env bash
+    set -euo pipefail
     eval "$(fnm env)"
-    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --silent)
+    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --loglevel error)
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
