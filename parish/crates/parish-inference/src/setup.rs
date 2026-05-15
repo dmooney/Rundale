@@ -1990,6 +1990,49 @@ mod tests {
         assert!(out.is_empty());
     }
 
+    #[tokio::test]
+    async fn test_setup_provider_client_simulator_skips_runtime_spawn() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::simulator(),
+            base_url: String::new(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        let result = setup_provider_client(&cfg, &[], &[], &inf, &progress).await;
+        match result {
+            Ok((_client, model, procs)) => {
+                assert_eq!(model, "simulator");
+                assert!(procs.vllm_mlx.is_empty());
+                assert!(procs.vllm.is_empty());
+            }
+            Err(e) => panic!("simulator setup must succeed, got: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_vllm_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::from_str_loose("vllm").unwrap(),
+            base_url: "http://localhost:8000".to_string(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("vllm provider without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("vllm provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
+    }
+
     /// Regression guard for the two-slot loadout: `ensure_slots` must spawn
     /// exactly one process per unique `(base_url, model)` tuple. If two
     /// category overrides point to the same slot, only one server is spawned.
