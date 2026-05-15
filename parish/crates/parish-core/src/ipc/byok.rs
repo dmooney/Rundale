@@ -217,15 +217,15 @@ pub async fn handle_set_provider_config(
 
     let provider_name = args.provider.to_lowercase();
 
-    // Providers with needs_base_url_from_user require an explicit base URL —
-    // the curated providers all carry their own default.
-    let base_url = match args.base_url.clone() {
-        None if provider.needs_base_url_from_user() => {
+    // Providers with needs_base_url_from_user require an explicit, non-empty
+    // base URL — check both None and "" since callers may send either.
+    let base_url = match args.base_url.as_deref() {
+        Some(s) if !s.trim().is_empty() => s.to_string(),
+        _ if provider.needs_base_url_from_user() => {
             return Err(ByokError::MissingBaseUrl {
                 provider: provider_name,
             });
         }
-        Some(s) if !s.trim().is_empty() => s,
         _ => provider.default_base_url().to_string(),
     };
 
