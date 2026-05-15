@@ -52,12 +52,15 @@ def build_data() -> dict:
                 "craft": _round(ag.get("craft_mean", 0.0)),
             })
 
+    # Keep only the latest perf measurement per candidate (perf files
+    # are timestamped; later runs supersede earlier smoke probes).
+    latest_perf: dict[str, dict] = {}
     for f in sorted(glob.glob(str(_BENCH / "perf_*.json"))):
         d = json.loads(Path(f).read_text(encoding="utf-8"))
         for cand, s in (d.get("per_target") or {}).items():
             if ":free" in cand:
                 continue
-            out["perf"].append({
+            latest_perf[cand] = {
                 "candidate": cand,
                 "file": Path(f).name,
                 "n_ok": s.get("n_ok", 0),
@@ -68,7 +71,8 @@ def build_data() -> dict:
                 "tps_p90": s.get("tokens_per_second_p90"),
                 "json_freeform": round((s["json_freeform"]["rate"] or 0) * 100, 1),
                 "json_schema": round((s["json_schema"]["rate"] or 0) * 100, 1),
-            })
+            }
+    out["perf"] = list(latest_perf.values())
 
     judged: dict[str, set[str]] = {}
     for q in out["quality"]:
