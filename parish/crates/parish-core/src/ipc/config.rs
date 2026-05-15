@@ -872,4 +872,86 @@ mod tests {
         let slots = cfg.vllm_mlx_extra_slots();
         assert!(slots.is_empty(), "base-equal slots must be skipped");
     }
+
+    #[test]
+    fn vllm_extra_slots_empty_when_no_overrides() {
+        let cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        let slots = cfg.vllm_extra_slots();
+        assert!(slots.is_empty(), "no overrides → no extra slots");
+    }
+
+    #[test]
+    fn vllm_extra_slots_emits_distinct_per_category_slot() {
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        for cat in [
+            InferenceCategory::Intent,
+            InferenceCategory::Reaction,
+            InferenceCategory::Simulation,
+        ] {
+            cfg.category_base_url
+                .insert(cat, "http://localhost:8001".to_string());
+            cfg.category_model
+                .insert(cat, "Qwen/Qwen2.5-1.5B-Instruct".to_string());
+        }
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 3);
+        for slot in &slots {
+            assert_eq!(slot.base_url, "http://localhost:8001");
+            assert_eq!(slot.model, "Qwen/Qwen2.5-1.5B-Instruct");
+        }
+    }
+
+    #[test]
+    fn vllm_extra_slots_skips_base_slot_when_base_is_vllm() {
+        let mut cfg = GameConfig {
+            provider_name: "vllm".to_string(),
+            base_url: "http://localhost:8000".to_string(),
+            model_name: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+            ..GameConfig::default()
+        };
+        cfg.category_base_url.insert(
+            InferenceCategory::Intent,
+            "http://localhost:8000".to_string(),
+        );
+        cfg.category_model.insert(
+            InferenceCategory::Intent,
+            "Qwen/Qwen2.5-14B-Instruct".to_string(),
+        );
+        let slots = cfg.vllm_extra_slots();
+        assert!(slots.is_empty(), "base-equal slots must be skipped");
+    }
+
+    #[test]
+    fn vllm_extra_slots_ignores_non_vllm_categories() {
+        let mut cfg = GameConfig {
+            provider_name: "ollama".to_string(),
+            base_url: "http://localhost:11434".to_string(),
+            model_name: "gemma3:4b".to_string(),
+            ..GameConfig::default()
+        };
+        // Intent → vllm, but Reaction stays ollama. Only the vllm one emits.
+        cfg.category_provider
+            .insert(InferenceCategory::Intent, "vllm".to_string());
+        cfg.category_base_url.insert(
+            InferenceCategory::Intent,
+            "http://localhost:8001".to_string(),
+        );
+        cfg.category_model.insert(
+            InferenceCategory::Intent,
+            "Qwen/Qwen2.5-1.5B-Instruct".to_string(),
+        );
+        let slots = cfg.vllm_extra_slots();
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].base_url, "http://localhost:8001");
+    }
 }

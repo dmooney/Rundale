@@ -1947,7 +1947,47 @@ mod tests {
     fn test_runtime_processes_none_is_no_op() {
         let mut p = RuntimeProcesses::none();
         assert!(p.vllm_mlx.is_empty());
-        p.stop(); // ollama no-op + vllm_mlx empty must not panic
+        assert!(p.vllm.is_empty());
+        p.stop(); // ollama no-op + vllm_mlx empty + vllm empty must not panic
+    }
+
+    #[test]
+    fn test_runtime_processes_default_matches_none() {
+        let p = RuntimeProcesses::default();
+        assert!(p.vllm_mlx.is_empty());
+        assert!(p.vllm.is_empty());
+    }
+
+    #[test]
+    fn test_vllm_process_none_is_no_op() {
+        let mut p = VllmProcess::none();
+        assert!(!p.was_started_by_us());
+        p.stop();
+    }
+
+    #[test]
+    fn test_vllm_slot_eq_and_hash() {
+        use std::collections::HashSet;
+        let a = VllmSlot {
+            base_url: "http://localhost:8001".to_string(),
+            model: "Qwen/Qwen2.5-1.5B-Instruct".to_string(),
+        };
+        let b = a.clone();
+        let c = VllmSlot {
+            base_url: "http://localhost:8000".to_string(),
+            model: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+        };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        let set: HashSet<_> = [a.clone(), b.clone(), c.clone()].iter().cloned().collect();
+        assert_eq!(set.len(), 2, "duplicate slot must dedup in the HashSet");
+    }
+
+    #[tokio::test]
+    async fn test_vllm_process_ensure_slots_empty_input() {
+        // No slots → no spawns, no errors.
+        let out = VllmProcess::ensure_slots(&[]).await.unwrap();
+        assert!(out.is_empty());
     }
 
     /// Regression guard for the two-slot loadout: `ensure_slots` must spawn
