@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>rundale-bench v1 — leaderboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a22;
+    --panel-2: #1e2330;
+    --border: #2a3142;
+    --text: #e6e9ef;
+    --muted: #8a93a6;
+    --accent: #6ee7b7;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --link: #7dd3fc;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --panel-2: #f1f3f7;
+      --border: #d6d9e1;
+      --text: #1c1f26;
+      --muted: #5b6373;
+      --accent: #047857;
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --link: #0369a1;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem clamp(1rem, 4vw, 4rem);
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.1rem; margin: 2.5rem 0 0.75rem; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 1.5rem; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem; margin: 1rem 0 0;
+  }
+  .stat {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  .stat .v { font-size: 1.5rem; font-weight: 600; color: var(--accent); }
+  .stat .k { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+  .controls input, .controls select {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.85rem;
+    font-family: inherit;
+  }
+  .controls input { min-width: 220px; }
+  table {
+    width: 100%; border-collapse: collapse; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    font-variant-numeric: tabular-nums; font-size: 0.85rem;
+  }
+  th, td {
+    text-align: left; padding: 0.45rem 0.75rem; border-bottom: 1px solid var(--border);
+  }
+  th {
+    background: var(--panel-2); font-weight: 600; cursor: pointer; user-select: none;
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  th:hover { color: var(--text); }
+  th.sorted-asc::after { content: " ▲"; color: var(--accent); }
+  th.sorted-desc::after { content: " ▼"; color: var(--accent); }
+  tr:last-child td { border-bottom: 0; }
+  tr:hover td { background: var(--panel-2); }
+  td.num { text-align: right; font-family: "SF Mono", "Menlo", "Consolas", monospace; }
+  td.cand { font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 0.82rem; }
+  td.judge { color: var(--muted); font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 0.78rem; }
+  .pill {
+    display: inline-block; padding: 0.05rem 0.4rem; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .p-good { background: rgba(110,231,183,0.15); color: var(--accent); }
+  .p-warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .p-bad  { background: rgba(248,113,113,0.15); color: var(--danger); }
+  .legend { color: var(--muted); font-size: 0.78rem; margin: 0.25rem 0 0; }
+  .coverage-grid { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .coverage-row { display: grid; grid-template-columns: 1.8fr repeat(3, 90px); background: var(--panel); padding: 0.45rem 0.75rem; align-items: center; }
+  .coverage-row.head { background: var(--panel-2); font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+  .coverage-row .cell { text-align: center; }
+  .check { color: var(--accent); }
+  .miss { color: var(--muted); opacity: 0.4; }
+  .unjudged-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.5rem; margin-top: 0.5rem;
+  }
+  .unjudged-item {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.5rem 0.75rem; font-family: "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 0.82rem;
+  }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.78rem; }
+  a { color: var(--link); }
+</style>
+</head>
+<body>
+
+<h1>rundale-bench v1 — leaderboard</h1>
+<p class="sub">Cached candidates judged on Rundale's 1820 Irish dialogue slice. Quality (5-axis 0-10 rubric), latency, throughput, JSON compliance.</p>
+
+<div class="grid">
+  <div class="stat"><div class="v" id="s-cached">–</div><div class="k">cached candidates</div></div>
+  <div class="stat"><div class="v" id="s-judged">–</div><div class="k">judged candidates</div></div>
+  <div class="stat"><div class="v" id="s-unjudged">–</div><div class="k">unjudged backlog</div></div>
+  <div class="stat"><div class="v" id="s-judges">–</div><div class="k">distinct judges</div></div>
+  <div class="stat"><div class="v" id="s-q">–</div><div class="k">quality rows</div></div>
+  <div class="stat"><div class="v" id="s-p">–</div><div class="k">perf rows</div></div>
+</div>
+
+<h2>Quality scores (5-axis 0-10 rubric)</h2>
+<p class="legend">Click headers to sort. Filter narrows on candidate or judge.</p>
+<div class="controls">
+  <input id="q-filter" placeholder="filter by candidate / judge…" oninput="renderQuality()">
+  <select id="q-judge" onchange="renderQuality()">
+    <option value="">all judges</option>
+  </select>
+</div>
+<table id="q-table">
+  <thead><tr>
+    <th data-k="candidate">candidate</th>
+    <th data-k="judge">judge</th>
+    <th data-k="n" class="num">n</th>
+    <th data-k="total" class="num">total</th>
+    <th data-k="character" class="num">char</th>
+    <th data-k="authenticity" class="num">auth</th>
+    <th data-k="language" class="num">lang</th>
+    <th data-k="responsiveness" class="num">resp</th>
+    <th data-k="craft" class="num">craft</th>
+  </tr></thead>
+  <tbody id="q-body"></tbody>
+</table>
+
+<h2>Perf probe (TTFT / tok/s / JSON compliance)</h2>
+<p class="legend">10 streaming dialogue prompts + 10 JSON free-form + 10 schema-enforced trials.</p>
+<table id="p-table">
+  <thead><tr>
+    <th data-k="candidate">candidate</th>
+    <th data-k="n_ok" class="num">n_ok</th>
+    <th data-k="ttft_p50" class="num">ttft p50</th>
+    <th data-k="ttft_p90" class="num">ttft p90</th>
+    <th data-k="total_p50" class="num">total p50</th>
+    <th data-k="tps_p50" class="num">tok/s p50</th>
+    <th data-k="tps_p90" class="num">tok/s p90</th>
+    <th data-k="json_freeform" class="num">json free</th>
+    <th data-k="json_schema" class="num">json schema</th>
+  </tr></thead>
+  <tbody id="p-body"></tbody>
+</table>
+
+<h2>Judge coverage</h2>
+<p class="legend">Which judges have scored each candidate. ✓ = at least one multiaxis run.</p>
+<div class="coverage-grid" id="cov-grid"></div>
+
+<h2>Unjudged backlog</h2>
+<p class="legend" id="unjudged-note"></p>
+<div class="unjudged-list" id="unjudged"></div>
+
+<footer>
+  Rendered statically from <code>multiaxis_*.json</code> + <code>perf_*.json</code> in <code>docs/proofs/rundale-bench/</code>.
+  Source repo: <a href="https://github.com/dmooney/Rundale">dmooney/Rundale</a>.
+</footer>
+
+<script type="application/json" id="bench-data">
+{"quality": [{"candidate": "anthropic/claude-haiku-4.5", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.93, "character": 9.13, "authenticity": 9.27, "language": 8.33, "responsiveness": 9.0, "craft": 8.93}, {"candidate": "openai/gpt-4o-mini", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.27, "character": 8.27, "authenticity": 8.93, "language": 7.67, "responsiveness": 8.0, "craft": 8.47}, {"candidate": "google/gemini-2.5-flash", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.81, "character": 8.93, "authenticity": 9.2, "language": 8.4, "responsiveness": 8.53, "craft": 9.0}, {"candidate": "mistralai/mistral-large-2512", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.88, "character": 9.07, "authenticity": 9.27, "language": 8.4, "responsiveness": 8.67, "craft": 9.0}, {"candidate": "moonshotai/kimi-k2.5", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 1, "total": 9.0, "character": 9.0, "authenticity": 10.0, "language": 9.0, "responsiveness": 8.0, "craft": 9.0}, {"candidate": "x-ai/grok-3-mini", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T170413Z.json", "n": 15, "total": 8.84, "character": 9.0, "authenticity": 9.0, "language": 8.87, "responsiveness": 8.73, "craft": 8.6}, {"candidate": "qwen/qwen3-235b-a22b-2507", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 9.0, "character": 9.33, "authenticity": 9.67, "language": 8.47, "responsiveness": 8.53, "craft": 9.0}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.32, "character": 8.33, "authenticity": 8.67, "language": 7.8, "responsiveness": 8.33, "craft": 8.47}, {"candidate": "google/gemma-3-27b-it", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 9.03, "character": 9.2, "authenticity": 9.6, "language": 8.73, "responsiveness": 8.6, "craft": 9.0}, {"candidate": "microsoft/phi-4", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.28, "character": 8.2, "authenticity": 8.87, "language": 7.53, "responsiveness": 8.4, "craft": 8.4}, {"candidate": "deepseek/deepseek-v3.2", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 15, "total": 8.59, "character": 8.73, "authenticity": 9.27, "language": 8.0, "responsiveness": 8.2, "craft": 8.73}, {"candidate": "openai/gpt-oss-120b", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T172222Z.json", "n": 13, "total": 8.55, "character": 8.85, "authenticity": 9.23, "language": 8.15, "responsiveness": 8.0, "craft": 8.54}, {"candidate": "qwen/qwen3-max", "judge": "mistralai/mistral-large-2512", "file": "multiaxis_20260514T174548Z.json", "n": 15, "total": 9.03, "character": 9.27, "authenticity": 9.47, "language": 8.6, "responsiveness": 8.8, "craft": 9.0}, {"candidate": "deepseek/deepseek-v4-pro", "judge": "moonshotai/kimi-k2.6", "file": "multiaxis_20260514T175833Z.json", "n": 4, "total": 5.8, "character": 6.0, "authenticity": 6.25, "language": 5.25, "responsiveness": 5.5, "craft": 6.0}, {"candidate": "deepseek/deepseek-v4-pro", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T180815Z.json", "n": 14, "total": 7.79, "character": 7.79, "authenticity": 8.21, "language": 7.21, "responsiveness": 7.79, "craft": 7.93}, {"candidate": "qwen/qwen3-235b-a22b-2507", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 14, "total": 8.59, "character": 8.79, "authenticity": 9.07, "language": 8.21, "responsiveness": 8.64, "craft": 8.21}, {"candidate": "mistralai/mistral-small-24b-instruct-2501", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 15, "total": 7.49, "character": 7.47, "authenticity": 7.8, "language": 7.0, "responsiveness": 8.2, "craft": 7.0}, {"candidate": "google/gemma-3-27b-it", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 11, "total": 8.42, "character": 8.27, "authenticity": 8.82, "language": 8.27, "responsiveness": 8.64, "craft": 8.09}, {"candidate": "microsoft/phi-4", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 6.29, "character": 5.69, "authenticity": 7.08, "language": 5.15, "responsiveness": 8.08, "craft": 5.46}, {"candidate": "deepseek/deepseek-v3.2", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 7.91, "character": 7.77, "authenticity": 8.69, "language": 6.92, "responsiveness": 7.92, "craft": 8.23}, {"candidate": "openai/gpt-oss-120b", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T182859Z.json", "n": 13, "total": 7.12, "character": 7.31, "authenticity": 8.31, "language": 5.92, "responsiveness": 7.54, "craft": 6.54}, {"candidate": "anthropic/claude-haiku-4.5", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.12, "character": 8.07, "authenticity": 8.87, "language": 7.8, "responsiveness": 8.07, "craft": 7.8}, {"candidate": "openai/gpt-4o-mini", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 6.6, "character": 6.07, "authenticity": 7.13, "language": 5.73, "responsiveness": 7.47, "craft": 6.6}, {"candidate": "google/gemini-2.5-flash", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.16, "character": 8.0, "authenticity": 8.8, "language": 8.0, "responsiveness": 8.27, "craft": 7.73}, {"candidate": "mistralai/mistral-large-2512", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.61, "character": 8.6, "authenticity": 9.0, "language": 8.6, "responsiveness": 8.53, "craft": 8.33}, {"candidate": "moonshotai/kimi-k2.5", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 1, "total": 8.8, "character": 9.0, "authenticity": 9.0, "language": 9.0, "responsiveness": 8.0, "craft": 9.0}, {"candidate": "x-ai/grok-3-mini", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184629Z.json", "n": 15, "total": 8.43, "character": 8.53, "authenticity": 8.93, "language": 8.67, "responsiveness": 8.33, "craft": 7.67}, {"candidate": "qwen/qwen3-max", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T184902Z.json", "n": 15, "total": 8.65, "character": 8.8, "authenticity": 9.07, "language": 8.67, "responsiveness": 8.33, "craft": 8.4}, {"candidate": "deepseek/deepseek-v4-pro", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T185110Z.json", "n": 14, "total": 7.77, "character": 7.71, "authenticity": 8.21, "language": 7.21, "responsiveness": 7.93, "craft": 7.79}, {"candidate": "google/gemma-4-31b-it", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T204402Z.json", "n": 15, "total": 8.19, "character": 8.0, "authenticity": 8.67, "language": 7.67, "responsiveness": 8.4, "craft": 8.2}, {"candidate": "qwen/qwen-2.5-72b-instruct", "judge": "x-ai/grok-4.3", "file": "multiaxis_20260514T204402Z.json", "n": 1, "total": 8.0, "character": 8.0, "authenticity": 9.0, "language": 8.0, "responsiveness": 7.0, "craft": 8.0}], "perf": [{"candidate": "google/gemma-4-31b-it", "file": "perf_20260514T201504Z.json", "n_ok": 3, "ttft_p50": 541, "ttft_p90": 5366, "total_p50": 3620, "tps_p50": 12.3, "tps_p90": 13.7, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "google/gemma-4-31b-it", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 1160, "ttft_p90": 2111, "total_p50": 3214, "tps_p50": 21.9, "tps_p90": 30.1, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "qwen/qwen-2.5-72b-instruct", "file": "perf_20260514T202405Z.json", "n_ok": 1, "ttft_p50": null, "ttft_p90": null, "total_p50": 5242, "tps_p50": null, "tps_p90": null, "json_freeform": 10.0, "json_schema": 90.0}, {"candidate": "google/gemma-3-27b-it", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 380, "ttft_p90": 766, "total_p50": 2328, "tps_p50": 37.9, "tps_p90": 48.5, "json_freeform": 100.0, "json_schema": 100.0}, {"candidate": "qwen/qwen3-235b-a22b-2507", "file": "perf_20260514T202405Z.json", "n_ok": 10, "ttft_p50": 363, "ttft_p90": 666, "total_p50": 1696, "tps_p50": 54.2, "tps_p90": 65.3, "json_freeform": 100.0, "json_schema": 100.0}], "coverage": {"amazon/nova-pro-v1": [], "anthropic/claude-haiku-4.5": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "anthropic/claude-opus-4.7": [], "anthropic/claude-sonnet-4.6": [], "deepseek/deepseek-v3.2": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "deepseek/deepseek-v4-pro": ["moonshotai/kimi-k2.6", "x-ai/grok-4.3"], "google/gemini-2.5-flash": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "google/gemini-2.5-pro": [], "google/gemma-3-27b-it": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "google/gemma-4-31b-it": ["x-ai/grok-4.3"], "meta-llama/llama-3.3-70b-instruct": [], "meta-llama/llama-4-maverick": [], "meta-llama/llama-4-scout": [], "microsoft/phi-4": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "mistralai/mistral-large-2512": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "mistralai/mistral-medium-3.1": [], "mistralai/mistral-small-24b-instruct-2501": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "moonshotai/kimi-k2.5": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "nousresearch/hermes-4-405b": [], "openai/gpt-4o-mini": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "openai/gpt-5.4": [], "openai/gpt-5.4-mini": [], "openai/gpt-5.5": [], "openai/gpt-oss-120b": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "qwen/qwen-2.5-72b-instruct": ["x-ai/grok-4.3"], "qwen/qwen3-235b-a22b-2507": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "qwen/qwen3-max": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "x-ai/grok-3-mini": ["mistralai/mistral-large-2512", "x-ai/grok-4.3"], "x-ai/grok-4.3": [], "z-ai/glm-4.6": []}, "unjudged": ["amazon/nova-pro-v1", "anthropic/claude-opus-4.7", "anthropic/claude-sonnet-4.6", "google/gemini-2.5-pro", "meta-llama/llama-3.3-70b-instruct", "meta-llama/llama-4-maverick", "meta-llama/llama-4-scout", "mistralai/mistral-medium-3.1", "nousresearch/hermes-4-405b", "openai/gpt-5.4", "openai/gpt-5.4-mini", "openai/gpt-5.5", "x-ai/grok-4.3", "z-ai/glm-4.6"]}
+</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("bench-data").textContent);
+const sortState = { q: { key: "total", dir: -1 }, p: { key: "tps_p50", dir: -1 } };
+
+function esc(s) {
+  if (s === null || s === undefined) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function el(tag, opts) {
+  const e = document.createElement(tag);
+  if (!opts) return e;
+  if (opts.className) e.className = opts.className;
+  if (opts.text !== undefined) e.textContent = opts.text;
+  if (opts.html !== undefined) e.innerHTML = opts.html;
+  return e;
+}
+
+function setText(id, value) { document.getElementById(id).textContent = String(value); }
+
+function badge(rate) {
+  const cls = rate >= 95 ? "p-good" : rate >= 70 ? "p-warn" : "p-bad";
+  const span = el("span", { className: "pill " + cls });
+  span.textContent = rate.toFixed(0) + "%";
+  return span;
+}
+
+function fmtNum(v, suffix) {
+  if (v === null || v === undefined) {
+    const s = el("span", { className: "miss" }); s.textContent = "–"; return s;
+  }
+  const t = document.createTextNode(v.toString() + (suffix || ""));
+  return t;
+}
+
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+function makeTd(cls) { const td = el("td"); if (cls) td.className = cls; return td; }
+
+function renderQuality() {
+  const tbody = document.getElementById("q-body");
+  const filter = document.getElementById("q-filter").value.toLowerCase();
+  const judgeSel = document.getElementById("q-judge").value;
+  let rows = DATA.quality.slice();
+  if (filter) rows = rows.filter(r => (r.candidate + " " + r.judge).toLowerCase().includes(filter));
+  if (judgeSel) rows = rows.filter(r => r.judge === judgeSel);
+  const { key, dir } = sortState.q;
+  rows.sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+  clear(tbody);
+  for (const r of rows) {
+    const tr = el("tr");
+    const tdC = makeTd("cand"); tdC.textContent = r.candidate; tr.appendChild(tdC);
+    const tdJ = makeTd("judge"); tdJ.textContent = r.judge; tr.appendChild(tdJ);
+    const tdN = makeTd("num"); tdN.textContent = r.n; tr.appendChild(tdN);
+    const tdT = makeTd("num"); const strong = el("strong"); strong.textContent = r.total.toFixed(2); tdT.appendChild(strong); tr.appendChild(tdT);
+    for (const k of ["character","authenticity","language","responsiveness","craft"]) {
+      const td = makeTd("num"); td.textContent = r[k].toFixed(2); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll("#q-table th").forEach(th => {
+    th.classList.toggle("sorted-asc", th.dataset.k === key && dir === 1);
+    th.classList.toggle("sorted-desc", th.dataset.k === key && dir === -1);
+  });
+}
+
+function renderPerf() {
+  const tbody = document.getElementById("p-body");
+  const rows = DATA.perf.slice();
+  const { key, dir } = sortState.p;
+  rows.sort((a, b) => {
+    const va = a[key] ?? -Infinity, vb = b[key] ?? -Infinity;
+    if (typeof va === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+  clear(tbody);
+  for (const r of rows) {
+    const tr = el("tr");
+    const tdC = makeTd("cand"); tdC.textContent = r.candidate; tr.appendChild(tdC);
+    const tdN = makeTd("num"); tdN.textContent = r.n_ok; tr.appendChild(tdN);
+    const cols = [
+      ["ttft_p50", " ms"], ["ttft_p90", " ms"], ["total_p50", " ms"],
+      ["tps_p50", ""], ["tps_p90", ""],
+    ];
+    for (const [k, suf] of cols) {
+      const td = makeTd("num"); td.appendChild(fmtNum(r[k], suf)); tr.appendChild(td);
+    }
+    const tdJF = makeTd("num"); tdJF.appendChild(badge(r.json_freeform)); tr.appendChild(tdJF);
+    const tdJS = makeTd("num"); tdJS.appendChild(badge(r.json_schema)); tr.appendChild(tdJS);
+    tbody.appendChild(tr);
+  }
+  document.querySelectorAll("#p-table th").forEach(th => {
+    th.classList.toggle("sorted-asc", th.dataset.k === key && dir === 1);
+    th.classList.toggle("sorted-desc", th.dataset.k === key && dir === -1);
+  });
+}
+
+function renderCoverage() {
+  const grid = document.getElementById("cov-grid");
+  const judges = ["mistralai/mistral-large-2512", "x-ai/grok-4.3", "moonshotai/kimi-k2.6"];
+  clear(grid);
+  const head = el("div", { className: "coverage-row head" });
+  head.appendChild(el("div", { text: "candidate" }));
+  for (const j of judges) head.appendChild(el("div", { className: "cell", text: j.split("/")[1] }));
+  grid.appendChild(head);
+  const cands = Object.keys(DATA.coverage).sort();
+  for (const c of cands) {
+    const judged = DATA.coverage[c];
+    const row = el("div", { className: "coverage-row" });
+    row.appendChild(el("div", { className: "cand", text: c }));
+    for (const j of judges) {
+      const cell = el("div", { className: "cell" });
+      const mark = el("span", { className: judged.includes(j) ? "check" : "miss", text: judged.includes(j) ? "✓" : "·" });
+      cell.appendChild(mark);
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function renderUnjudged() {
+  const list = document.getElementById("unjudged");
+  clear(list);
+  for (const c of DATA.unjudged) {
+    list.appendChild(el("div", { className: "unjudged-item", text: c }));
+  }
+  setText("unjudged-note",
+    DATA.unjudged.length + " cached candidates without a multiaxis score yet. Re-judge with score_multiaxis.py.");
+}
+
+function fillStats() {
+  setText("s-cached", Object.keys(DATA.coverage).length);
+  setText("s-judged", Object.keys(DATA.coverage).filter(c => DATA.coverage[c].length > 0).length);
+  setText("s-unjudged", DATA.unjudged.length);
+  const judges = new Set(DATA.quality.map(q => q.judge));
+  setText("s-judges", judges.size);
+  setText("s-q", DATA.quality.length);
+  setText("s-p", DATA.perf.length);
+  const sel = document.getElementById("q-judge");
+  [...judges].sort().forEach(j => {
+    const opt = el("option", { text: j });
+    opt.value = j;
+    sel.appendChild(opt);
+  });
+}
+
+document.querySelectorAll("#q-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortState.q.key === k) sortState.q.dir *= -1;
+    else { sortState.q.key = k; sortState.q.dir = (typeof DATA.quality[0]?.[k] === "number") ? -1 : 1; }
+    renderQuality();
+  });
+});
+document.querySelectorAll("#p-table th").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortState.p.key === k) sortState.p.dir *= -1;
+    else { sortState.p.key = k; sortState.p.dir = (typeof DATA.perf[0]?.[k] === "number") ? -1 : 1; }
+    renderPerf();
+  });
+});
+
+fillStats();
+renderQuality();
+renderPerf();
+renderCoverage();
+renderUnjudged();
+</script>
+
+</body>
+</html>

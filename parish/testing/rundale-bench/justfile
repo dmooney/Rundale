@@ -239,6 +239,19 @@ perf-many targets prompts="10":
 
 
 # ----------------------------------------------------------------------------
+# leaderboard page
+# ----------------------------------------------------------------------------
+
+# Regenerate the static HTML leaderboard from cached + judged data.
+# Output: docs/proofs/rundale-bench/leaderboard.html (open in any browser).
+leaderboard:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ REPO_ROOT }}"
+    python3 {{ BENCH }}/build_leaderboard_page.py
+
+
+# ----------------------------------------------------------------------------
 # convenience
 # ----------------------------------------------------------------------------
 
