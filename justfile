@@ -62,6 +62,10 @@ train-rundale-dialect:
 test:
     cd parish && just test
 
+# Run tests and generate coverage report
+coverage:
+    cd parish && just coverage
+
 # Witness-style deterministic scan for AI partial-completion markers
 witness-scan:
     cd parish && just witness-scan
@@ -107,6 +111,10 @@ parish-help:
 # Regenerate third-party notice files
 notices:
     cd parish && just notices
+
+# Check for outdated dependencies
+outdated:
+    cd parish && just outdated
 
 # Audit dependencies for security vulnerabilities
 audit:
