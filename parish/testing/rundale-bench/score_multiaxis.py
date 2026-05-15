@@ -91,7 +91,7 @@ def score_one(rubric: str, reply: str, judge_target: Target, tracker: CostTracke
         out = json.loads(text)
         scored = {a: int(out.get(a) or 0) for a in axes}
         scored["total"] = float(out.get("total") or 0.0)
-        scored["reason"] = str(out.get("reason", ""))[:200]
+        scored["reason"] = str(out.get("reason") or "")[:200]
         return scored
     except Exception as e:
         return {a: 0 for a in axes} | {"total": 0.0, "reason": "", "error": str(e)}

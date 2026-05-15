@@ -80,7 +80,7 @@ def absolute_judge(rubric: str, reply: str, judge_target: Target, tracker: CostT
         if not text:
             raise ValueError("empty content (reasoning model truncated?)")
         out = json.loads(text)
-        return {"score": int(out.get("score") or 0), "reason": str(out.get("reason", ""))[:200]}
+        return {"score": int(out.get("score") or 0), "reason": str(out.get("reason") or "")[:200]}
     except Exception as e:
         return {"score": 0, "reason": "", "error": str(e)}
 
@@ -110,7 +110,7 @@ def pairwise_judge(rubric: str, a: str, b: str, prompt: str, judge_target: Targe
         w = out.get("winner")
         if w not in ("A", "B", "tie"):
             raise ValueError(f"invalid winner: {w!r}")
-        return {"winner": w, "reason": str(out.get("reason", ""))[:200]}
+        return {"winner": w, "reason": str(out.get("reason") or "")[:200]}
     except Exception as e:
         return {"winner": "tie", "reason": "", "error": str(e)}
 

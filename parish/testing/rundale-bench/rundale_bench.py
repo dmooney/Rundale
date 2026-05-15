@@ -274,17 +274,34 @@ def _elo_update(rating_a: float, rating_b: float, score_a: float, k: float) -> t
     )
 
 
-def _bootstrap_ci(matches: list[tuple[str, str, float]], targets: list[str], k: float, iters: int = 500) -> dict:
-    """Bootstrap 5/95 percentile ratings by resampling matches with replacement."""
+def _bootstrap_ci(
+    matches: list[tuple[str, str, float]],
+    targets: list[str],
+    k_initial: float,
+    k_settled: float = 16.0,
+    settle_threshold: int = 50,
+    iters: int = 500,
+) -> dict:
+    """Bootstrap 5/95 percentile ratings by resampling matches with replacement.
+
+    Mirrors the main accumulator's dynamic K: K = k_initial until either
+    candidate in a match has at least `settle_threshold` matches under its
+    belt, then drops to k_settled. Using a constant K here understated CI
+    width for late matches (where the actual ratings move slowly).
+    """
     rng = random.Random(0xb1a40)
     all_ratings: dict[str, list[float]] = {t: [] for t in targets}
     for _ in range(iters):
         ratings = {t: 1500.0 for t in targets}
+        match_count = {t: 0 for t in targets}
         sample = [matches[rng.randrange(len(matches))] for _ in range(len(matches))]
         for a, b, score_a in sample:
+            k = k_initial if min(match_count[a], match_count[b]) < settle_threshold else k_settled
             new_a, new_b = _elo_update(ratings[a], ratings[b], score_a, k)
             ratings[a] = new_a
             ratings[b] = new_b
+            match_count[a] += 1
+            match_count[b] += 1
         for t in targets:
             all_ratings[t].append(ratings[t])
     ci = {}
@@ -312,19 +329,26 @@ def run_elo(targets: list[Target], tracker: CostTracker, args) -> dict:
     invoke = judge_invoker(judge, tracker)
 
     rng = random.Random(0xe10)
-    target_ids = [t.model for t in targets]
+    # Use `model@base_url` as the canonical id so two `--target` flags with
+    # the same model name but different providers / urls don't collide.
+    def _target_id(t: Target) -> str:
+        return f"{t.model}@{t.base_url}"
+    target_ids = [_target_id(t) for t in targets]
+    if len(set(target_ids)) != len(target_ids):
+        raise SystemExit(f"--target flags must be unique on model+base_url; got {target_ids}")
 
     # Reply cache: (target_id, prompt_id) -> (reply, error)
     replies: dict[tuple[str, str], tuple[str, Optional[str]]] = {}
     for t in targets:
+        tid = _target_id(t)
         for rec in records:
             try:
                 reply, usage = call_chat(t, DIALOGUE_SYS, rec["prompt"], max_tokens=200)
                 tracker.record(t, usage)
-                replies[(t.model, rec["id"])] = (reply, None)
+                replies[(tid, rec["id"])] = (reply, None)
             except Exception as e:
-                replies[(t.model, rec["id"])] = ("", str(e))
-        print(f"[elo] candidate replies ready: {t.model}")
+                replies[(tid, rec["id"])] = ("", str(e))
+        print(f"[elo] candidate replies ready: {tid}")
 
     matches: list[tuple[str, str, float]] = []  # (winner_id, loser_id, score_a-as-listed-first)
     match_log: list[dict] = []
@@ -337,7 +361,9 @@ def run_elo(targets: list[Target], tracker: CostTracker, args) -> dict:
             if err_a and err_b:
                 continue  # both failed; no signal
             if err_a:
-                matches.append((b, a, 0.0))  # a-listed-first lost
+                # Canonical (a, b, score_a) ordering. A errored → score_a=0
+                # (A loses, B gains). Earlier (b, a, 0.0) recorded B losing.
+                matches.append((a, b, 0.0))
                 match_log.append({"prompt": prompt_id, "a": a, "b": b, "winner": "B", "reason": f"A error: {err_a[:60]}"})
                 continue
             if err_b:

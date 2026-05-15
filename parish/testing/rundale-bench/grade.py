@@ -340,7 +340,7 @@ def grade_pairwise(
         winner = out.get("winner")
         if winner not in ("A", "B", "tie"):
             raise ValueError(f"judge returned invalid winner: {winner!r}")
-        return {"winner": winner, "reason": str(out.get("reason", ""))[:200]}
+        return {"winner": winner, "reason": str(out.get("reason") or "")[:200]}
     except Exception as e:
         return {"winner": "tie", "reason": "", "error": str(e)}
 
