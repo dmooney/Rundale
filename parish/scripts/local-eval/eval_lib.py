@@ -73,6 +73,25 @@ def parse_target(spec: str) -> Target:
     return Target(model=model.strip(), base_url=base_url.strip(), api_key_env=api_key_env)
 
 
+REASONING_MODEL_PREFIXES = (
+    "moonshotai/kimi-k2.5",
+    "moonshotai/kimi-k2.6",
+    "moonshotai/kimi-k2-thinking",
+    "z-ai/glm-4.7",
+    "openai/o1",
+    "openai/o3",
+    "openai/o4",
+    "anthropic/claude-opus-4.7",
+    "anthropic/claude-sonnet-4.6",
+    "deepseek/deepseek-r1",
+)
+
+
+def _is_reasoning_model(model_id: str) -> bool:
+    mid = model_id.lower()
+    return any(mid.startswith(p) for p in REASONING_MODEL_PREFIXES)
+
+
 def call_chat(
     target: Target,
     system: Optional[str],
@@ -83,12 +102,19 @@ def call_chat(
     temperature: float = 0.7,
     timeout: float = 180.0,
     max_retries: int = 4,
+    reasoning: Optional[dict] = None,
 ) -> Tuple[str, dict]:
     """POST a single chat-completion. Returns `(text, usage)`.
 
     Retries on HTTP 429 / 503 using the `Retry-After` header (capped at 60 s)
     or exponential backoff (1, 2, 4, 8 s). Free-tier OpenRouter upstream
     rate-limits in particular benefit from this.
+
+    `reasoning` is an OpenRouter-compatible dict passed through verbatim
+    (e.g. ``{"enabled": False}`` to disable thinking, ``{"max_tokens": 50}``
+    to cap it). When ``None`` AND the model is a known reasoning-class
+    model, we default to ``{"enabled": False}`` so cached replies are
+    the actual answer rather than truncated mid-thought.
     """
     msgs: list[dict] = []
     if system:
@@ -104,6 +130,10 @@ def call_chat(
         body["max_tokens"] = max_tokens
     if schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
+    if reasoning is not None:
+        body["reasoning"] = reasoning
+    elif _is_reasoning_model(target.model):
+        body["reasoning"] = {"enabled": False}
     headers = {"Content-Type": "application/json"}
     key = target.api_key()
     if key:

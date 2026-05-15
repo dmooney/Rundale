@@ -84,6 +84,36 @@ def build_data() -> dict:
 
     out["coverage"] = {c: sorted(judged.get(c, set())) for c in sorted(cached)}
     out["unjudged"] = sorted(cached - set(judged.keys()))
+
+    # Synthetic "average" judge: per-candidate mean across distinct judges,
+    # weighted equally. Only emit when a candidate has been judged by 2+ judges.
+    by_cand: dict[str, list[dict]] = {}
+    for q in out["quality"]:
+        by_cand.setdefault(q["candidate"], []).append(q)
+    averaged: list[dict] = []
+    for cand, rows in by_cand.items():
+        if len({r["judge"] for r in rows}) < 2:
+            continue
+        # Mean per axis across rows (one row per judge already).
+        def mean(key: str) -> float:
+            xs = [r[key] for r in rows if r.get(key) is not None]
+            return round(sum(xs) / len(xs), 2) if xs else 0.0
+        n_total = sum(r["n"] for r in rows)
+        averaged.append({
+            "candidate": cand,
+            "judge": "average",
+            "file": "(synthetic)",
+            "n": n_total,
+            "total": mean("total"),
+            "character": mean("character"),
+            "authenticity": mean("authenticity"),
+            "language": mean("language"),
+            "responsiveness": mean("responsiveness"),
+            "craft": mean("craft"),
+            "judge_count": len({r["judge"] for r in rows}),
+        })
+    averaged.sort(key=lambda r: -r["total"])
+    out["averaged"] = averaged
     return out
 
 
