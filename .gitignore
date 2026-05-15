@@ -44,3 +44,7 @@ parish/dist/cpython-*.tar.gz
 parish/dist/cpython-*.tar.zst
 parish/dist/vllm-mlx-bundle.tar.zst
 parish/dist/vllm-mlx-bundle.tar.zst.sha256
+
+# MCP backend runtime files (created by parish-mcp-backend.sh)
+parish/.parish-mcp-backend.log
+parish/.parish-mcp-backend.pid

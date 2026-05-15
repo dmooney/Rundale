@@ -1,22 +1,109 @@
 //! Provider configuration for LLM inference backends.
 //!
-//! Supports Simulator (offline, default), Ollama (local), LM Studio (local), vllm-mlx
-//! (local Apple Silicon), and several cloud providers: OpenRouter, OpenAI, Google (Gemini), Groq,
-//! xAI (Grok), Mistral, DeepSeek, Together AI, NVIDIA NIM, and Anthropic
-//! (Claude) via the native Messages API. A custom OpenAI-compatible
-//! endpoint is also available. Configuration is resolved from a TOML file,
-//! environment variables, and CLI flags (in that priority order).
+//! Providers are loaded at compile time from TOML files in
+//! `parish/crates/parish-config/providers/*.toml` via `build.rs`.
+//! The `ProviderRegistry` is initialised once via `OnceLock` and
+//! accessible through the `registry()` function.
 
 use parish_types::ParishError;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::Path;
+use std::sync::{Arc, OnceLock};
+
+// ── ProviderKind ─────────────────────────────────────────────────────────────
+
+/// Client-routing category. Controls which HTTP client (Anthropic
+/// Messages vs OpenAI-compat vs Simulator) is used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProviderKind {
+    Anthropic,
+    #[serde(rename = "openai-compat")]
+    OpenAiCompat,
+    /// Ollama, LM Studio, vLLM — OpenAI-compat on the wire but managed locally.
+    Local,
+    Simulator,
+}
+
+// ── ProviderPreset ────────────────────────────────────────────────────────────
+
+/// One named model configuration shipped with a provider.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ProviderPreset {
+    pub key: String,
+    pub label: String,
+    pub dialogue: Option<String>,
+    pub simulation: Option<String>,
+    pub intent: Option<String>,
+    pub reaction: Option<String>,
+}
+
+impl ProviderPreset {
+    pub fn model(&self, cat: InferenceCategory) -> Option<&str> {
+        match cat {
+            InferenceCategory::Dialogue => self.dialogue.as_deref(),
+            InferenceCategory::Simulation => self.simulation.as_deref(),
+            InferenceCategory::Intent => self.intent.as_deref(),
+            InferenceCategory::Reaction => self.reaction.as_deref(),
+        }
+    }
+}
+
+// ── ProviderMod ───────────────────────────────────────────────────────────────
+
+/// All data about one provider, deserialized from TOML.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ProviderMod {
+    pub id: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    pub kind: ProviderKind,
+    pub default_base_url: String,
+    #[serde(default)]
+    pub requires_api_key: bool,
+    #[serde(default)]
+    pub needs_base_url_from_user: bool,
+    #[serde(default = "default_true")]
+    pub requires_model: bool,
+    pub api_key_env_var: Option<String>,
+    pub blurb: Option<String>,
+    pub signup_url: Option<String>,
+    #[serde(default)]
+    pub featured: bool,
+    #[serde(default)]
+    pub presets: Vec<ProviderPreset>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl ProviderMod {
+    pub fn has_preset(&self) -> bool {
+        !self.presets.is_empty()
+    }
+
+    pub fn preset_model(&self, cat: InferenceCategory) -> Option<&str> {
+        self.presets.first()?.model(cat)
+    }
+
+    pub fn preset_models_array(&self) -> [Option<&str>; 4] {
+        let first = self.presets.first();
+        [
+            first.and_then(|p| p.dialogue.as_deref()),
+            first.and_then(|p| p.simulation.as_deref()),
+            first.and_then(|p| p.intent.as_deref()),
+            first.and_then(|p| p.reaction.as_deref()),
+        ]
+    }
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
 
 /// Returns the host's total physical memory in bytes, or `None` on
 /// platforms where we can't read it cheaply.
-///
-/// Used by [`Provider::recommended_for_platform`] to gate the macOS
-/// vllm-mlx recommendation behind the 16 GB minimum (the two-slot
-/// Qwen loadout is ~9.3 GB resident).
 pub fn unified_memory_bytes() -> Option<u64> {
     #[cfg(target_os = "macos")]
     {
@@ -37,264 +124,241 @@ pub fn unified_memory_bytes() -> Option<u64> {
     }
 }
 
-/// Default base URL for each provider.
-const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434";
-const DEFAULT_LMSTUDIO_URL: &str = "http://localhost:1234";
-const DEFAULT_OPENROUTER_URL: &str = "https://openrouter.ai/api";
-const DEFAULT_VLLM_MLX_URL: &str = "http://localhost:8000";
-const DEFAULT_OPENAI_URL: &str = "https://api.openai.com";
-const DEFAULT_GOOGLE_URL: &str = "https://generativelanguage.googleapis.com/v1beta/openai";
-const DEFAULT_GROQ_URL: &str = "https://api.groq.com/openai";
-const DEFAULT_XAI_URL: &str = "https://api.x.ai";
-const DEFAULT_MISTRAL_URL: &str = "https://api.mistral.ai";
-const DEFAULT_DEEPSEEK_URL: &str = "https://api.deepseek.com";
-const DEFAULT_TOGETHER_URL: &str = "https://api.together.xyz";
-const DEFAULT_NVIDIA_NIM_URL: &str = "https://integrate.api.nvidia.com";
-const DEFAULT_ANTHROPIC_URL: &str = "https://api.anthropic.com";
-
-/// Supported LLM provider backends.
-///
-/// All providers (except Simulator and Anthropic) use the OpenAI-compatible
-/// chat completions API (`/v1/chat/completions`). Simulator is the default.
-/// Ollama includes auto-start, GPU detection, and model pulling features.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum Provider {
-    /// Local Ollama server with auto-management.
-    Ollama,
-    /// Local LM Studio server.
-    LmStudio,
-    /// OpenRouter cloud gateway (requires API key).
-    OpenRouter,
-    /// Local vllm-mlx inference server for Apple Silicon
-    /// (OpenAI-compatible, requires model name).
-    VllmMlx,
-    /// OpenAI API (requires API key).
-    OpenAi,
-    /// Google Gemini via OpenAI-compatible endpoint (requires API key).
-    Google,
-    /// Groq cloud inference (requires API key).
-    Groq,
-    /// xAI Grok models (requires API key).
-    Xai,
-    /// Mistral AI (requires API key).
-    Mistral,
-    /// DeepSeek (requires API key).
-    DeepSeek,
-    /// Together AI (requires API key).
-    Together,
-    /// NVIDIA NIM cloud inference via the OpenAI-compatible
-    /// `/v1/chat/completions` endpoint (requires API key).
-    NvidiaNim,
-    /// Anthropic Claude via the native Messages API (requires API key).
-    ///
-    /// Unlike every other cloud provider, Anthropic does not use the
-    /// OpenAI `/v1/chat/completions` schema. Requests are routed through
-    /// the dedicated `AnthropicClient` (native `/v1/messages` with
-    /// `x-api-key` + `anthropic-version` headers).
-    Anthropic,
-    /// Any OpenAI-compatible endpoint (requires base_url).
-    Custom,
-    /// Built-in offline simulator — generates funny nonsense locally,
-    /// no network, no model download. Default when no provider is configured.
-    #[default]
-    Simulator,
-}
+/// A loaded provider configuration. Wraps `Arc<ProviderMod>` for
+/// cheap cloning and shared ownership.
+#[derive(Debug, Clone)]
+pub struct Provider(pub Arc<ProviderMod>);
 
 impl Provider {
-    /// All available providers.
-    pub const ALL: [Provider; 15] = [
-        Provider::Ollama,
-        Provider::LmStudio,
-        Provider::OpenRouter,
-        Provider::VllmMlx,
-        Provider::OpenAi,
-        Provider::Google,
-        Provider::Groq,
-        Provider::Xai,
-        Provider::Mistral,
-        Provider::DeepSeek,
-        Provider::Together,
-        Provider::NvidiaNim,
-        Provider::Anthropic,
-        Provider::Custom,
-        Provider::Simulator,
-    ];
-
-    /// Parses a provider name string (case-insensitive).
-    pub fn from_str_loose(s: &str) -> Result<Self, ParishError> {
-        match s.to_lowercase().as_str() {
-            "ollama" => Ok(Provider::Ollama),
-            "lmstudio" | "lm_studio" | "lm-studio" => Ok(Provider::LmStudio),
-            "openrouter" | "open_router" | "open-router" => Ok(Provider::OpenRouter),
-            "vllm-mlx" | "vllm_mlx" | "vllmmlx" | "vllm" => Ok(Provider::VllmMlx),
-            "openai" | "open_ai" | "open-ai" => Ok(Provider::OpenAi),
-            "google" | "gemini" => Ok(Provider::Google),
-            "groq" => Ok(Provider::Groq),
-            "xai" | "x-ai" | "grok" => Ok(Provider::Xai),
-            "mistral" => Ok(Provider::Mistral),
-            "deepseek" | "deep-seek" | "deep_seek" => Ok(Provider::DeepSeek),
-            "together" | "togetherai" | "together-ai" | "together_ai" => Ok(Provider::Together),
-            "nvidia-nim" | "nvidia_nim" | "nvidianim" | "nim" | "nvidia" => Ok(Provider::NvidiaNim),
-            "anthropic" | "claude" => Ok(Provider::Anthropic),
-            "custom" => Ok(Provider::Custom),
-            "simulator" | "sim" | "mock" => Ok(Provider::Simulator),
-            other => Err(ParishError::Config(format!(
-                "unknown provider '{}'. Expected: ollama, lmstudio, openrouter, vllm-mlx, openai, \
-                 google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, \
-                 simulator",
-                other
-            ))),
-        }
+    pub fn id(&self) -> &str {
+        &self.0.id
     }
-
-    /// Canonical lowercase id matching `Provider::from_str_loose`.
-    /// Stable wire-format identifier — used by the BYOK frontend and IPC.
-    pub fn id(&self) -> &'static str {
-        match self {
-            Provider::Ollama => "ollama",
-            Provider::LmStudio => "lmstudio",
-            Provider::OpenRouter => "openrouter",
-            Provider::VllmMlx => "vllmmlx",
-            Provider::OpenAi => "openai",
-            Provider::Google => "google",
-            Provider::Groq => "groq",
-            Provider::Xai => "xai",
-            Provider::Mistral => "mistral",
-            Provider::DeepSeek => "deepseek",
-            Provider::Together => "together",
-            Provider::NvidiaNim => "nvidia-nim",
-            Provider::Anthropic => "anthropic",
-            Provider::Custom => "custom",
-            Provider::Simulator => "simulator",
-        }
+    pub fn kind(&self) -> ProviderKind {
+        self.0.kind
     }
-
-    /// Returns the default base URL for this provider.
-    pub fn default_base_url(&self) -> &'static str {
-        match self {
-            Provider::Ollama => DEFAULT_OLLAMA_URL,
-            Provider::LmStudio => DEFAULT_LMSTUDIO_URL,
-            Provider::OpenRouter => DEFAULT_OPENROUTER_URL,
-            Provider::VllmMlx => DEFAULT_VLLM_MLX_URL,
-            Provider::OpenAi => DEFAULT_OPENAI_URL,
-            Provider::Google => DEFAULT_GOOGLE_URL,
-            Provider::Groq => DEFAULT_GROQ_URL,
-            Provider::Xai => DEFAULT_XAI_URL,
-            Provider::Mistral => DEFAULT_MISTRAL_URL,
-            Provider::DeepSeek => DEFAULT_DEEPSEEK_URL,
-            Provider::Together => DEFAULT_TOGETHER_URL,
-            Provider::NvidiaNim => DEFAULT_NVIDIA_NIM_URL,
-            Provider::Anthropic => DEFAULT_ANTHROPIC_URL,
-            Provider::Custom => "",
-            Provider::Simulator => "",
-        }
+    pub fn default_base_url(&self) -> &str {
+        &self.0.default_base_url
     }
-
-    /// Whether this provider requires an API key.
     pub fn requires_api_key(&self) -> bool {
-        matches!(
-            self,
-            Provider::OpenRouter
-                | Provider::OpenAi
-                | Provider::Google
-                | Provider::Groq
-                | Provider::Xai
-                | Provider::Mistral
-                | Provider::DeepSeek
-                | Provider::Together
-                | Provider::NvidiaNim
-                | Provider::Anthropic
-        )
+        self.0.requires_api_key
     }
-
-    /// Whether this provider requires an explicit model name
-    /// (no auto-detection available).
+    pub fn needs_base_url_from_user(&self) -> bool {
+        self.0.needs_base_url_from_user
+    }
     pub fn requires_model(&self) -> bool {
-        !matches!(self, Provider::Ollama | Provider::Simulator)
+        self.0.requires_model
+    }
+    pub fn api_key_env_var(&self) -> Option<&str> {
+        self.0.api_key_env_var.as_deref()
+    }
+    pub fn presets(&self) -> &[ProviderPreset] {
+        &self.0.presets
+    }
+    pub fn has_preset(&self) -> bool {
+        self.0.has_preset()
+    }
+    pub fn preset_model(&self, cat: InferenceCategory) -> Option<&str> {
+        self.0.preset_model(cat)
+    }
+    /// Returns `[dialogue, simulation, intent, reaction]` from the first preset.
+    pub fn preset_models(&self) -> [Option<&str>; 4] {
+        self.0.preset_models_array()
+    }
+    pub fn display_name(&self) -> &str {
+        &self.0.display_name
     }
 
-    /// The well-known environment variable that carries this provider's API key.
-    ///
-    /// Returns `None` for local providers (Ollama, LM Studio, vllm-mlx, Simulator)
-    /// and `Custom` — Custom provider keys must be set via TOML `api_key`.
-    ///
-    /// The returned name is the standard, provider-issued variable (e.g.
-    /// `ANTHROPIC_API_KEY`) so users who already have it in their shell do not
-    /// need to duplicate it under a `PARISH_` prefix.
-    ///
-    /// When adding a new provider, add a branch here AND update `.env.example`.
-    pub fn api_key_env_var(&self) -> Option<&'static str> {
-        match self {
-            Provider::Anthropic => Some("ANTHROPIC_API_KEY"),
-            Provider::OpenAi => Some("OPENAI_API_KEY"),
-            Provider::OpenRouter => Some("OPENROUTER_API_KEY"),
-            Provider::Google => Some("GOOGLE_API_KEY"),
-            Provider::Groq => Some("GROQ_API_KEY"),
-            Provider::Xai => Some("XAI_API_KEY"),
-            Provider::Mistral => Some("MISTRAL_API_KEY"),
-            Provider::DeepSeek => Some("DEEPSEEK_API_KEY"),
-            Provider::Together => Some("TOGETHER_API_KEY"),
-            Provider::NvidiaNim => Some("NVIDIA_API_KEY"),
-            _ => None,
-        }
-    }
-
-    /// Returns the recommended local provider for the current platform.
-    ///
-    /// - **macOS, 16 GB+ unified memory** → [`Provider::VllmMlx`].
-    ///   The MLX runtime is the native Apple Silicon path. 16 GB is
-    ///   the floor for the *small-only* loadout (1.5B everywhere,
-    ///   ~4 GB resident with KV cache + host overhead). The
-    ///   *two-slot* loadout (14B Dialogue + 1.5B small slot) needs
-    ///   ~24 GB once weights + KV cache + activations are resident;
-    ///   the wizard's first-run UI decides between the two variants
-    ///   from the live `ram_gb` reading rather than baking the
-    ///   threshold into this function.
-    /// - **macOS, < 16 GB unified memory** → [`Provider::Simulator`].
-    ///   Even the small-only loadout would have to fight the OS for
-    ///   memory; first-run UI should route the user into BYOK
-    ///   (OpenRouter, Anthropic, Google) instead of degrading the
-    ///   local tier.
-    /// - **Linux / Windows** → [`Provider::Ollama`]. Mature GPU stack
-    ///   (CUDA on NVIDIA, ROCm on AMD), auto-install, auto-pull.
-    ///
-    /// First-run setup flows use this to pre-select the right provider
-    /// for the host. Existing TOML / env / CLI configuration always
-    /// wins — this is only consulted when no provider has been chosen.
-    pub fn recommended_for_platform() -> Self {
-        if cfg!(target_os = "macos") {
-            if unified_memory_bytes().unwrap_or(0) >= 16 * 1_073_741_824 {
-                Provider::VllmMlx
-            } else {
-                // Below 16 GB: don't ship a degraded local default.
-                // Simulator keeps the app usable while the UI prompts
-                // for a BYOK cloud key.
-                Provider::Simulator
-            }
-        } else {
-            Provider::Ollama
-        }
-    }
-
-    /// Returns true if this provider is ready to be used (either local, or has its
-    /// API key configured in the environment).
     pub fn is_configured_in_env(&self) -> bool {
         if !self.requires_api_key() {
             return true;
         }
-        if let Some(var) = self.api_key_env_var() {
-            std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false)
+        self.api_key_env_var()
+            .and_then(|v| std::env::var(v).ok())
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+    }
+
+    pub fn recommended_for_platform() -> Self {
+        if cfg!(target_os = "macos") {
+            if unified_memory_bytes().unwrap_or(0) >= 16 * 1_073_741_824 {
+                registry()
+                    .get("vllmmlx")
+                    .expect("vllmmlx must be registered")
+            } else {
+                registry()
+                    .get("simulator")
+                    .expect("simulator must be registered")
+            }
         } else {
-            false
+            registry().get("ollama").expect("ollama must be registered")
         }
+    }
+
+    pub fn from_id(id: &str) -> Option<Self> {
+        registry().get(id)
+    }
+
+    pub fn from_str_loose(s: &str) -> Result<Self, ParishError> {
+        registry().lookup(s)
+    }
+
+    // Named constructors used throughout the codebase.
+    pub fn ollama() -> Self {
+        registry().get("ollama").expect("ollama must be registered")
+    }
+    pub fn simulator() -> Self {
+        registry()
+            .get("simulator")
+            .expect("simulator must be registered")
+    }
+    pub fn openrouter() -> Self {
+        registry()
+            .get("openrouter")
+            .expect("openrouter must be registered")
+    }
+    pub fn custom() -> Self {
+        registry().get("custom").expect("custom must be registered")
+    }
+    pub fn anthropic() -> Self {
+        registry()
+            .get("anthropic")
+            .expect("anthropic must be registered")
+    }
+    pub fn openai() -> Self {
+        registry().get("openai").expect("openai must be registered")
+    }
+    pub fn google() -> Self {
+        registry().get("google").expect("google must be registered")
+    }
+    pub fn groq() -> Self {
+        registry().get("groq").expect("groq must be registered")
+    }
+    pub fn xai() -> Self {
+        registry().get("xai").expect("xai must be registered")
+    }
+    pub fn mistral() -> Self {
+        registry()
+            .get("mistral")
+            .expect("mistral must be registered")
+    }
+    pub fn deepseek() -> Self {
+        registry()
+            .get("deepseek")
+            .expect("deepseek must be registered")
+    }
+    pub fn together() -> Self {
+        registry()
+            .get("together")
+            .expect("together must be registered")
+    }
+    pub fn vllmmlx() -> Self {
+        registry()
+            .get("vllmmlx")
+            .expect("vllmmlx must be registered")
+    }
+    pub fn lmstudio() -> Self {
+        registry()
+            .get("lmstudio")
+            .expect("lmstudio must be registered")
     }
 }
 
+impl PartialEq for Provider {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id == other.0.id
+    }
+}
+impl Eq for Provider {}
+impl std::hash::Hash for Provider {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.id.hash(state);
+    }
+}
+impl Default for Provider {
+    fn default() -> Self {
+        Self::simulator()
+    }
+}
+
+impl std::fmt::Display for Provider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.id)
+    }
+}
+
+// ── ProviderRegistry ─────────────────────────────────────────────────────────
+
+pub struct ProviderRegistry {
+    by_id: HashMap<String, Provider>,
+}
+
+impl ProviderRegistry {
+    fn load() -> Self {
+        let mut by_id = HashMap::new();
+        for raw in RAW_PROVIDER_MODS {
+            let m: ProviderMod =
+                toml::from_str(raw).expect("provider TOML parse failed — check providers/*.toml");
+            let p = Provider(Arc::new(m));
+            by_id.insert(p.id().to_string(), p.clone());
+        }
+        ProviderRegistry { by_id }
+    }
+
+    pub fn get(&self, id: &str) -> Option<Provider> {
+        self.by_id.get(id).cloned()
+    }
+
+    pub fn lookup(&self, s: &str) -> Result<Provider, ParishError> {
+        let lower = s.to_lowercase();
+        // Try id directly
+        if let Some(p) = self.by_id.get(&lower) {
+            return Ok(p.clone());
+        }
+        // Try aliases
+        for p in self.by_id.values() {
+            if p.0.aliases.iter().any(|a| a == &lower) {
+                return Ok(p.clone());
+            }
+        }
+        let mut known: Vec<&str> = self.by_id.keys().map(String::as_str).collect();
+        known.sort();
+        Err(ParishError::Config(format!(
+            "unknown provider '{}'. Known: {}",
+            s,
+            known.join(", ")
+        )))
+    }
+
+    pub fn all(&self) -> Vec<Provider> {
+        let mut v: Vec<_> = self.by_id.values().cloned().collect();
+        v.sort_by(|a, b| a.id().cmp(b.id()));
+        v
+    }
+
+    pub fn featured(&self) -> Vec<Provider> {
+        let mut v: Vec<_> = self
+            .by_id
+            .values()
+            .filter(|p| p.0.featured)
+            .cloned()
+            .collect();
+        v.sort_by(|a, b| a.id().cmp(b.id()));
+        v
+    }
+}
+
+// Include the generated array of raw TOML strings at module level.
+include!(concat!(env!("OUT_DIR"), "/providers_gen.rs"));
+
+static REGISTRY: OnceLock<ProviderRegistry> = OnceLock::new();
+
+pub fn registry() -> &'static ProviderRegistry {
+    REGISTRY.get_or_init(ProviderRegistry::load)
+}
+
+// ── InferenceCategory ────────────────────────────────────────────────────────
+
 /// Inference categories that can each have independent provider/model/key settings.
-///
-/// Each category can override the base `[provider]` config with its own
-/// provider, model, base URL, and API key. Unconfigured categories fall
-/// back to the base provider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InferenceCategory {
     /// Player-facing NPC dialogue (Tier 1, streaming).
@@ -315,6 +379,16 @@ impl InferenceCategory {
         InferenceCategory::Intent,
         InferenceCategory::Reaction,
     ];
+
+    /// Array index matching [`InferenceCategory::ALL`] order.
+    pub fn idx(self) -> usize {
+        match self {
+            InferenceCategory::Dialogue => 0,
+            InferenceCategory::Simulation => 1,
+            InferenceCategory::Intent => 2,
+            InferenceCategory::Reaction => 3,
+        }
+    }
 
     /// Returns the lowercase name used in TOML keys, env var prefixes, and CLI flags.
     pub fn name(&self) -> &'static str {
@@ -348,10 +422,9 @@ impl InferenceCategory {
     }
 }
 
+// ── ProviderConfig ────────────────────────────────────────────────────────────
+
 /// Resolved provider configuration ready for use.
-///
-/// Built from the TOML config file, environment variables, and CLI
-/// flags via [`resolve_config`].
 #[derive(Debug, Clone)]
 pub struct ProviderConfig {
     /// The selected provider backend.
@@ -365,30 +438,19 @@ pub struct ProviderConfig {
 }
 
 /// Resolved cloud provider configuration for player-facing dialogue.
-///
-/// Present only when a cloud provider has been explicitly configured
-/// via TOML `[cloud]` section, `PARISH_CLOUD_*` env vars, or `--cloud-*` CLI flags.
-/// When absent, all inference (including dialogue) uses the local provider.
 #[derive(Debug, Clone)]
 pub struct CloudConfig {
-    /// The cloud provider backend (typically OpenRouter).
     pub provider: Provider,
-    /// Base URL for the cloud API.
     pub base_url: String,
-    /// API key for the cloud provider.
     pub api_key: Option<String>,
-    /// Model name (required for cloud providers).
     pub model: String,
 }
 
 /// CLI-provided overrides for cloud provider configuration.
 #[derive(Debug, Default)]
 pub struct CliCloudOverrides {
-    /// `--cloud-provider` flag value.
     pub provider: Option<String>,
-    /// `--cloud-base-url` flag value.
     pub base_url: Option<String>,
-    /// `--cloud-model` flag value.
     pub model: Option<String>,
 }
 
@@ -404,74 +466,45 @@ struct TomlConfig {
 /// The `[provider]` section of the TOML config.
 #[derive(Debug, Deserialize, Default)]
 struct TomlProvider {
-    /// Provider name: "ollama", "lmstudio", "openrouter", "vllm-mlx", "custom".
     name: Option<String>,
-    /// Base URL override.
     base_url: Option<String>,
-    /// API key for cloud providers.
     api_key: Option<String>,
-    /// Model name override.
     model: Option<String>,
 }
 
 /// The `[cloud]` section of the TOML config for cloud dialogue provider.
 #[derive(Debug, Deserialize, Default)]
 struct TomlCloud {
-    /// Provider name: "openrouter", "custom", etc.
     name: Option<String>,
-    /// Base URL override.
     base_url: Option<String>,
-    /// API key for cloud provider.
     api_key: Option<String>,
-    /// Model name (required for cloud).
     model: Option<String>,
 }
 
 /// CLI-provided overrides for provider configuration.
 #[derive(Debug, Default)]
 pub struct CliOverrides {
-    /// `--provider` flag value.
     pub provider: Option<String>,
-    /// `--base-url` flag value.
     pub base_url: Option<String>,
-    /// `--model` flag value.
     pub model: Option<String>,
 }
 
 impl ProviderConfig {
     /// Returns a display-friendly provider name.
     pub fn provider_display(&self) -> String {
-        match self.provider {
-            Provider::NvidiaNim => "nvidia-nim".to_string(),
-            _ => format!("{:?}", self.provider).to_lowercase(),
-        }
+        self.provider.id().to_string()
     }
 }
 
-// ── Shared 4-layer resolution helper (fix #769) ───────────────────────────────
+// ── Shared 4-layer resolution helper ─────────────────────────────────────────
 
-/// Raw fields produced by the first three resolution layers
-/// (TOML → env vars → CLI flags) before provider-specific finalization.
-///
-/// `api_key` is kept separate from the other fields because the standard
-/// provider env var (step 4) may later override the TOML escape-hatch value.
 struct RawLayers {
     provider_str: Option<String>,
     base_url: Option<String>,
-    /// TOML escape-hatch key value; may be replaced in step 4.
     api_key: Option<String>,
     model: Option<String>,
 }
 
-/// Applies layers 2 and 3 of the resolution pipeline over a `RawLayers`
-/// already seeded from TOML (layer 1):
-///
-/// 2. Environment variables keyed by `env_prefix`
-///    (`{env_prefix}_PROVIDER`, `{env_prefix}_BASE_URL`, `{env_prefix}_MODEL`)
-/// 3. CLI override fields (`cli_provider`, `cli_base_url`, `cli_model`)
-///
-/// Layer 4 (provider API key env var) and all finalization logic are
-/// handled by the callers because they diverge between the two functions.
 fn apply_env_and_cli_layers(
     mut raw: RawLayers,
     env_prefix: &str,
@@ -479,7 +512,6 @@ fn apply_env_and_cli_layers(
     cli_base_url: Option<&str>,
     cli_model: Option<&str>,
 ) -> RawLayers {
-    // Layer 2: env vars override TOML (non-key fields).
     if let Some(val) = env_non_empty(&format!("{env_prefix}_PROVIDER")) {
         raw.provider_str = Some(val);
     }
@@ -490,7 +522,6 @@ fn apply_env_and_cli_layers(
         raw.model = Some(val);
     }
 
-    // Layer 3: CLI flags override env (non-key fields).
     if let Some(val) = cli_provider {
         raw.provider_str = Some(val.to_string());
     }
@@ -504,11 +535,6 @@ fn apply_env_and_cli_layers(
     raw
 }
 
-/// Reads the TOML config file (or returns a default if missing/unspecified).
-///
-/// When `config_path` is `None`, returns the default config without probing
-/// the current working directory. The path must be resolved at startup from
-/// an explicit CLI flag or env var — never from `current_dir()` (Rule 9).
 fn load_toml(config_path: Option<&Path>) -> Result<TomlConfig, ParishError> {
     match config_path {
         Some(path) => read_toml_config(path),
@@ -517,24 +543,12 @@ fn load_toml(config_path: Option<&Path>) -> Result<TomlConfig, ParishError> {
 }
 
 /// Resolves provider configuration from file, env vars, and CLI flags.
-///
-/// Resolution order (later overrides earlier):
-/// 1. TOML `[provider]` section
-/// 2. `PARISH_PROVIDER`, `PARISH_BASE_URL`, `PARISH_MODEL` env vars
-/// 3. CLI flags (provider, base_url, model — no api_key flag)
-/// 4. Standard provider API key env var (e.g. `ANTHROPIC_API_KEY`), read
-///    after provider is known so the right variable is used.
-///    TOML `[provider] api_key` is an explicit escape hatch overridden by step 4.
-///
-/// Also checks for the deprecated `PARISH_OLLAMA_URL` env var and maps
-/// it to `base_url` with a warning.
 pub fn resolve_config(
     config_path: Option<&Path>,
     cli: &CliOverrides,
 ) -> Result<ProviderConfig, ParishError> {
     let toml_cfg = load_toml(config_path)?;
 
-    // Layer 1: seed from TOML, then apply layers 2 (env) and 3 (CLI).
     let toml_raw = RawLayers {
         provider_str: toml_cfg.provider.name,
         base_url: toml_cfg.provider.base_url,
@@ -549,7 +563,7 @@ pub fn resolve_config(
         cli.model.as_deref(),
     );
 
-    // Deprecated PARISH_OLLAMA_URL fallback (local to this function only).
+    // Deprecated PARISH_OLLAMA_URL fallback
     if raw.base_url.is_none()
         && let Some(val) = env_non_empty("PARISH_OLLAMA_URL")
     {
@@ -557,13 +571,11 @@ pub fn resolve_config(
         raw.base_url = Some(val);
     }
 
-    // Resolve provider early — needed to look up the right key env var.
     let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
         None => Provider::default(),
     };
 
-    // Layer 4: Standard provider key env var overrides TOML api_key.
     let mut api_key = raw.api_key;
     if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
@@ -576,12 +588,9 @@ pub fn resolve_config(
     let model = raw.model.filter(|s| !s.is_empty());
 
     // Fall back to the provider's Dialogue preset if no model is configured.
-    //
-    // Skipped for Ollama: leaving `model` as `None` lets `setup_ollama_with_config`
-    // pick a hardware-matched gemma4 tier (gemma4:31b/26b/e4b/e2b) instead of
-    // pulling whatever the static qwen3 preset names — which is rarely the
-    // right size for the host's VRAM.
-    let model = if provider == Provider::Ollama {
+    // Skipped for Ollama: leaving model None lets setup_ollama_with_config pick
+    // a hardware-matched tier instead of the static preset tag.
+    let model = if provider.id() == "ollama" {
         model
     } else {
         model.or_else(|| {
@@ -596,14 +605,16 @@ pub fn resolve_config(
             .api_key_env_var()
             .unwrap_or("the provider API key env var");
         return Err(ParishError::Config(format!(
-            "{:?} provider requires an API key. Set {}.",
-            provider, hint
+            "{} provider requires an API key. Set {}.",
+            provider.id(),
+            hint
         )));
     }
-    if provider == Provider::Custom && base_url.is_empty() {
-        return Err(ParishError::Config(
-            "Custom provider requires a base_url. Set PARISH_BASE_URL or --base-url.".to_string(),
-        ));
+    if provider.needs_base_url_from_user() && base_url.is_empty() {
+        return Err(ParishError::Config(format!(
+            "{} provider requires a base_url. Set PARISH_BASE_URL or --base-url.",
+            provider.id()
+        )));
     }
 
     Ok(ProviderConfig {
@@ -615,26 +626,12 @@ pub fn resolve_config(
 }
 
 /// Resolves cloud provider configuration from file, env vars, and CLI flags.
-///
-/// Returns `None` if no explicit cloud settings are present (backward compatible).
-/// Returns `Some(CloudConfig)` when at least one setting is configured.
-///
-/// Resolution order (later overrides earlier):
-/// 1. TOML `[cloud]` section (including `api_key` as an escape hatch)
-/// 2. `PARISH_CLOUD_PROVIDER`, `PARISH_CLOUD_BASE_URL`, `PARISH_CLOUD_MODEL` env vars
-/// 3. CLI flags (provider, base_url, model — no api_key flag)
-/// 4. Standard provider API key env var (e.g. `OPENROUTER_API_KEY`), read
-///    after provider is known. Overrides TOML `api_key`.
-///
-/// Having a provider key env var set globally (e.g. `OPENROUTER_API_KEY`)
-/// does NOT auto-activate cloud mode — an explicit cloud setting must exist.
 pub fn resolve_cloud_config(
     config_path: Option<&Path>,
     cli: &CliCloudOverrides,
 ) -> Result<Option<CloudConfig>, ParishError> {
     let toml_cfg = load_toml(config_path)?;
 
-    // Layer 1: seed from TOML, then apply layers 2 (env) and 3 (CLI).
     let toml_raw = RawLayers {
         provider_str: toml_cfg.cloud.name,
         base_url: toml_cfg.cloud.base_url,
@@ -649,12 +646,6 @@ pub fn resolve_cloud_config(
         cli.model.as_deref(),
     );
 
-    // If no explicit cloud config was provided, return None (backward compatible).
-    // Provider key env vars are intentionally excluded from this check — having
-    // OPENROUTER_API_KEY set globally should not auto-activate cloud mode.
-    // `raw` was produced by `apply_env_and_cli_layers` which already incorporates
-    // CLI overrides, so checking `cli.*` again would be redundant and could miss
-    // env-var-only activations.
     if raw.provider_str.is_none()
         && raw.base_url.is_none()
         && raw.api_key.is_none()
@@ -663,13 +654,12 @@ pub fn resolve_cloud_config(
         return Ok(None);
     }
 
-    // Resolve provider early (default to OpenRouter for cloud).
+    // Default to OpenRouter for cloud
     let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
-        None => Provider::OpenRouter,
+        None => Provider::openrouter(),
     };
 
-    // Layer 4: Standard provider key env var overrides TOML api_key.
     let mut api_key = raw.api_key.filter(|s| !s.is_empty());
     if let Some(val) = provider.api_key_env_var().and_then(env_non_empty) {
         api_key = Some(val);
@@ -692,14 +682,16 @@ pub fn resolve_cloud_config(
             .api_key_env_var()
             .unwrap_or("the provider API key env var");
         return Err(ParishError::Config(format!(
-            "Cloud {:?} provider requires an API key. Set {}.",
-            provider, hint
+            "Cloud {} provider requires an API key. Set {}.",
+            provider.id(),
+            hint
         )));
     }
-    if provider == Provider::Custom && base_url.is_empty() {
-        return Err(ParishError::Config(
-            "Cloud custom provider requires a base_url. Set PARISH_CLOUD_BASE_URL or --cloud-base-url.".to_string(),
-        ));
+    if provider.needs_base_url_from_user() && base_url.is_empty() {
+        return Err(ParishError::Config(format!(
+            "Cloud {} provider requires a base_url. Set PARISH_CLOUD_BASE_URL or --cloud-base-url.",
+            provider.id()
+        )));
     }
 
     Ok(Some(CloudConfig {
@@ -710,12 +702,10 @@ pub fn resolve_cloud_config(
     }))
 }
 
-/// Returns the value of an environment variable if it exists and is non-empty.
 fn env_non_empty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
 }
 
-/// Reads and parses a TOML config file. Returns default config if file doesn't exist.
 fn read_toml_config(path: &Path) -> Result<TomlConfig, ParishError> {
     if !path.exists() {
         return Ok(TomlConfig::default());
@@ -742,16 +732,8 @@ mod tests {
     use serial_test::serial;
     use std::io::Write;
 
-    /// Clears env vars that affect provider config so tests don't interfere.
-    ///
-    /// Callers **must** annotate their test with `#[serial(parish_env)]` so
-    /// env-mutating tests never run concurrently — Rust 2024 marks
-    /// `std::env::remove_var` and `set_var` unsafe precisely because
-    /// concurrent access is UB.
     fn clear_parish_env() {
-        // SAFETY: All callers are annotated with `#[serial(parish_env)]`,
-        // which serialises every test that touches env vars across this
-        // module and the sibling `parish-cli` tests.
+        // SAFETY: All callers are annotated with `#[serial(parish_env)]`
         unsafe {
             std::env::remove_var("PARISH_PROVIDER");
             std::env::remove_var("PARISH_BASE_URL");
@@ -760,8 +742,6 @@ mod tests {
             std::env::remove_var("PARISH_CLOUD_PROVIDER");
             std::env::remove_var("PARISH_CLOUD_BASE_URL");
             std::env::remove_var("PARISH_CLOUD_MODEL");
-            // Standard provider key vars — cleared so tests don't pick up
-            // real keys from the developer's shell environment.
             std::env::remove_var("ANTHROPIC_API_KEY");
             std::env::remove_var("OPENAI_API_KEY");
             std::env::remove_var("OPENROUTER_API_KEY");
@@ -777,131 +757,98 @@ mod tests {
 
     #[test]
     fn test_provider_from_str_loose() {
+        assert_eq!(Provider::from_str_loose("ollama").unwrap().id(), "ollama");
+        assert_eq!(Provider::from_str_loose("OLLAMA").unwrap().id(), "ollama");
         assert_eq!(
-            Provider::from_str_loose("ollama").unwrap(),
-            Provider::Ollama
+            Provider::from_str_loose("lmstudio").unwrap().id(),
+            "lmstudio"
         );
         assert_eq!(
-            Provider::from_str_loose("OLLAMA").unwrap(),
-            Provider::Ollama
+            Provider::from_str_loose("lm-studio").unwrap().id(),
+            "lmstudio"
         );
         assert_eq!(
-            Provider::from_str_loose("lmstudio").unwrap(),
-            Provider::LmStudio
+            Provider::from_str_loose("lm_studio").unwrap().id(),
+            "lmstudio"
         );
         assert_eq!(
-            Provider::from_str_loose("lm-studio").unwrap(),
-            Provider::LmStudio
+            Provider::from_str_loose("openrouter").unwrap().id(),
+            "openrouter"
         );
         assert_eq!(
-            Provider::from_str_loose("lm_studio").unwrap(),
-            Provider::LmStudio
+            Provider::from_str_loose("open-router").unwrap().id(),
+            "openrouter"
         );
-        assert_eq!(
-            Provider::from_str_loose("openrouter").unwrap(),
-            Provider::OpenRouter
-        );
-        assert_eq!(
-            Provider::from_str_loose("open-router").unwrap(),
-            Provider::OpenRouter
-        );
-        assert_eq!(
-            Provider::from_str_loose("custom").unwrap(),
-            Provider::Custom
-        );
+        assert_eq!(Provider::from_str_loose("custom").unwrap().id(), "custom");
 
         // Cloud providers
+        assert_eq!(Provider::from_str_loose("openai").unwrap().id(), "openai");
+        assert_eq!(Provider::from_str_loose("open-ai").unwrap().id(), "openai");
+        assert_eq!(Provider::from_str_loose("open_ai").unwrap().id(), "openai");
+        assert_eq!(Provider::from_str_loose("OpenAI").unwrap().id(), "openai");
+        assert_eq!(Provider::from_str_loose("google").unwrap().id(), "google");
+        assert_eq!(Provider::from_str_loose("gemini").unwrap().id(), "google");
+        assert_eq!(Provider::from_str_loose("groq").unwrap().id(), "groq");
+        assert_eq!(Provider::from_str_loose("xai").unwrap().id(), "xai");
+        assert_eq!(Provider::from_str_loose("x-ai").unwrap().id(), "xai");
+        assert_eq!(Provider::from_str_loose("grok").unwrap().id(), "xai");
+        assert_eq!(Provider::from_str_loose("mistral").unwrap().id(), "mistral");
         assert_eq!(
-            Provider::from_str_loose("openai").unwrap(),
-            Provider::OpenAi
+            Provider::from_str_loose("deepseek").unwrap().id(),
+            "deepseek"
         );
         assert_eq!(
-            Provider::from_str_loose("open-ai").unwrap(),
-            Provider::OpenAi
+            Provider::from_str_loose("deep-seek").unwrap().id(),
+            "deepseek"
         );
         assert_eq!(
-            Provider::from_str_loose("open_ai").unwrap(),
-            Provider::OpenAi
+            Provider::from_str_loose("deep_seek").unwrap().id(),
+            "deepseek"
         );
         assert_eq!(
-            Provider::from_str_loose("OpenAI").unwrap(),
-            Provider::OpenAi
+            Provider::from_str_loose("together").unwrap().id(),
+            "together"
         );
         assert_eq!(
-            Provider::from_str_loose("google").unwrap(),
-            Provider::Google
+            Provider::from_str_loose("togetherai").unwrap().id(),
+            "together"
         );
         assert_eq!(
-            Provider::from_str_loose("gemini").unwrap(),
-            Provider::Google
-        );
-        assert_eq!(Provider::from_str_loose("groq").unwrap(), Provider::Groq);
-        assert_eq!(Provider::from_str_loose("xai").unwrap(), Provider::Xai);
-        assert_eq!(Provider::from_str_loose("x-ai").unwrap(), Provider::Xai);
-        assert_eq!(Provider::from_str_loose("grok").unwrap(), Provider::Xai);
-        assert_eq!(
-            Provider::from_str_loose("mistral").unwrap(),
-            Provider::Mistral
+            Provider::from_str_loose("together-ai").unwrap().id(),
+            "together"
         );
         assert_eq!(
-            Provider::from_str_loose("deepseek").unwrap(),
-            Provider::DeepSeek
+            Provider::from_str_loose("together_ai").unwrap().id(),
+            "together"
         );
         assert_eq!(
-            Provider::from_str_loose("deep-seek").unwrap(),
-            Provider::DeepSeek
+            Provider::from_str_loose("nvidia-nim").unwrap().id(),
+            "nvidia-nim"
         );
         assert_eq!(
-            Provider::from_str_loose("deep_seek").unwrap(),
-            Provider::DeepSeek
+            Provider::from_str_loose("nvidia_nim").unwrap().id(),
+            "nvidia-nim"
         );
         assert_eq!(
-            Provider::from_str_loose("together").unwrap(),
-            Provider::Together
+            Provider::from_str_loose("nvidianim").unwrap().id(),
+            "nvidia-nim"
+        );
+        assert_eq!(Provider::from_str_loose("nim").unwrap().id(), "nvidia-nim");
+        assert_eq!(
+            Provider::from_str_loose("NVIDIA").unwrap().id(),
+            "nvidia-nim"
         );
         assert_eq!(
-            Provider::from_str_loose("togetherai").unwrap(),
-            Provider::Together
+            Provider::from_str_loose("anthropic").unwrap().id(),
+            "anthropic"
         );
         assert_eq!(
-            Provider::from_str_loose("together-ai").unwrap(),
-            Provider::Together
+            Provider::from_str_loose("claude").unwrap().id(),
+            "anthropic"
         );
         assert_eq!(
-            Provider::from_str_loose("together_ai").unwrap(),
-            Provider::Together
-        );
-        assert_eq!(
-            Provider::from_str_loose("nvidia-nim").unwrap(),
-            Provider::NvidiaNim
-        );
-        assert_eq!(
-            Provider::from_str_loose("nvidia_nim").unwrap(),
-            Provider::NvidiaNim
-        );
-        assert_eq!(
-            Provider::from_str_loose("nvidianim").unwrap(),
-            Provider::NvidiaNim
-        );
-        assert_eq!(
-            Provider::from_str_loose("nim").unwrap(),
-            Provider::NvidiaNim
-        );
-        assert_eq!(
-            Provider::from_str_loose("NVIDIA").unwrap(),
-            Provider::NvidiaNim
-        );
-        assert_eq!(
-            Provider::from_str_loose("anthropic").unwrap(),
-            Provider::Anthropic
-        );
-        assert_eq!(
-            Provider::from_str_loose("claude").unwrap(),
-            Provider::Anthropic
-        );
-        assert_eq!(
-            Provider::from_str_loose("Anthropic").unwrap(),
-            Provider::Anthropic
+            Provider::from_str_loose("Anthropic").unwrap().id(),
+            "anthropic"
         );
 
         assert!(Provider::from_str_loose("unknown").is_err());
@@ -910,125 +857,195 @@ mod tests {
     #[test]
     fn test_provider_default_base_url() {
         assert_eq!(
-            Provider::Ollama.default_base_url(),
+            Provider::ollama().default_base_url(),
             "http://localhost:11434"
         );
         assert_eq!(
-            Provider::LmStudio.default_base_url(),
+            Provider::from_str_loose("lmstudio")
+                .unwrap()
+                .default_base_url(),
             "http://localhost:1234"
         );
         assert_eq!(
-            Provider::OpenRouter.default_base_url(),
+            Provider::openrouter().default_base_url(),
             "https://openrouter.ai/api"
         );
         assert_eq!(
-            Provider::OpenAi.default_base_url(),
+            Provider::from_str_loose("openai")
+                .unwrap()
+                .default_base_url(),
             "https://api.openai.com"
         );
         assert_eq!(
-            Provider::Google.default_base_url(),
+            Provider::from_str_loose("google")
+                .unwrap()
+                .default_base_url(),
             "https://generativelanguage.googleapis.com/v1beta/openai"
         );
         assert_eq!(
-            Provider::Groq.default_base_url(),
+            Provider::from_str_loose("groq").unwrap().default_base_url(),
             "https://api.groq.com/openai"
         );
-        assert_eq!(Provider::Xai.default_base_url(), "https://api.x.ai");
         assert_eq!(
-            Provider::Mistral.default_base_url(),
+            Provider::from_str_loose("xai").unwrap().default_base_url(),
+            "https://api.x.ai"
+        );
+        assert_eq!(
+            Provider::from_str_loose("mistral")
+                .unwrap()
+                .default_base_url(),
             "https://api.mistral.ai"
         );
         assert_eq!(
-            Provider::DeepSeek.default_base_url(),
+            Provider::from_str_loose("deepseek")
+                .unwrap()
+                .default_base_url(),
             "https://api.deepseek.com"
         );
         assert_eq!(
-            Provider::Together.default_base_url(),
+            Provider::from_str_loose("together")
+                .unwrap()
+                .default_base_url(),
             "https://api.together.xyz"
         );
         assert_eq!(
-            Provider::NvidiaNim.default_base_url(),
+            Provider::from_str_loose("nvidia-nim")
+                .unwrap()
+                .default_base_url(),
             "https://integrate.api.nvidia.com"
         );
         assert_eq!(
-            Provider::Anthropic.default_base_url(),
+            Provider::anthropic().default_base_url(),
             "https://api.anthropic.com"
         );
-        assert_eq!(Provider::Custom.default_base_url(), "");
+        assert_eq!(Provider::custom().default_base_url(), "");
     }
 
     #[test]
     fn test_provider_requirements() {
         // Local providers don't require API keys
-        assert!(!Provider::Ollama.requires_api_key());
-        assert!(!Provider::LmStudio.requires_api_key());
-        assert!(!Provider::VllmMlx.requires_api_key());
-        assert!(!Provider::Custom.requires_api_key());
+        assert!(!Provider::ollama().requires_api_key());
+        assert!(
+            !Provider::from_str_loose("lmstudio")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(
+            !Provider::from_str_loose("vllmmlx")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(!Provider::custom().requires_api_key());
 
         // All cloud providers require API keys
-        assert!(Provider::OpenRouter.requires_api_key());
-        assert!(Provider::OpenAi.requires_api_key());
-        assert!(Provider::Google.requires_api_key());
-        assert!(Provider::Groq.requires_api_key());
-        assert!(Provider::Xai.requires_api_key());
-        assert!(Provider::Mistral.requires_api_key());
-        assert!(Provider::DeepSeek.requires_api_key());
-        assert!(Provider::Together.requires_api_key());
-        assert!(Provider::NvidiaNim.requires_api_key());
-        assert!(Provider::Anthropic.requires_api_key());
+        assert!(Provider::openrouter().requires_api_key());
+        assert!(
+            Provider::from_str_loose("openai")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(
+            Provider::from_str_loose("google")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(Provider::from_str_loose("groq").unwrap().requires_api_key());
+        assert!(Provider::from_str_loose("xai").unwrap().requires_api_key());
+        assert!(
+            Provider::from_str_loose("mistral")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(
+            Provider::from_str_loose("deepseek")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(
+            Provider::from_str_loose("together")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(
+            Provider::from_str_loose("nvidia-nim")
+                .unwrap()
+                .requires_api_key()
+        );
+        assert!(Provider::anthropic().requires_api_key());
 
-        // Only Ollama auto-detects model
-        assert!(!Provider::Ollama.requires_model());
-        assert!(Provider::LmStudio.requires_model());
-        assert!(Provider::OpenRouter.requires_model());
-        assert!(Provider::VllmMlx.requires_model());
-        assert!(Provider::OpenAi.requires_model());
-        assert!(Provider::Google.requires_model());
-        assert!(Provider::Groq.requires_model());
-        assert!(Provider::Xai.requires_model());
-        assert!(Provider::Mistral.requires_model());
-        assert!(Provider::DeepSeek.requires_model());
-        assert!(Provider::Together.requires_model());
-        assert!(Provider::NvidiaNim.requires_model());
-        assert!(Provider::Anthropic.requires_model());
-        assert!(Provider::Custom.requires_model());
+        // Only Ollama and Simulator auto-detect model
+        assert!(!Provider::ollama().requires_model());
+        assert!(!Provider::simulator().requires_model());
+        assert!(
+            Provider::from_str_loose("lmstudio")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(Provider::openrouter().requires_model());
+        assert!(
+            Provider::from_str_loose("vllmmlx")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(Provider::from_str_loose("openai").unwrap().requires_model());
+        assert!(Provider::from_str_loose("google").unwrap().requires_model());
+        assert!(Provider::from_str_loose("groq").unwrap().requires_model());
+        assert!(Provider::from_str_loose("xai").unwrap().requires_model());
+        assert!(
+            Provider::from_str_loose("mistral")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(
+            Provider::from_str_loose("deepseek")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(
+            Provider::from_str_loose("together")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(
+            Provider::from_str_loose("nvidia-nim")
+                .unwrap()
+                .requires_model()
+        );
+        assert!(Provider::anthropic().requires_model());
+        assert!(Provider::custom().requires_model());
     }
 
     #[test]
     fn test_vllm_provider_from_str() {
-        assert_eq!(Provider::from_str_loose("vllm").unwrap(), Provider::VllmMlx);
-        assert_eq!(Provider::from_str_loose("VLLM").unwrap(), Provider::VllmMlx);
+        assert_eq!(Provider::from_str_loose("vllm").unwrap().id(), "vllmmlx");
+        assert_eq!(Provider::from_str_loose("VLLM").unwrap().id(), "vllmmlx");
     }
 
     #[test]
     fn test_vllm_provider_defaults() {
-        assert_eq!(
-            Provider::VllmMlx.default_base_url(),
-            "http://localhost:8000"
-        );
-        assert!(!Provider::VllmMlx.requires_api_key());
-        assert!(Provider::VllmMlx.requires_model());
+        let p = Provider::from_str_loose("vllmmlx").unwrap();
+        assert_eq!(p.default_base_url(), "http://localhost:8000");
+        assert!(!p.requires_api_key());
+        assert!(p.requires_model());
     }
 
-    /// macOS hosts get vllm-mlx; other platforms get Ollama. This is the
-    /// pre-select hint surfaced through the first-run setup-status flow.
     #[test]
     fn recommended_for_platform_picks_vllm_mlx_on_macos_else_ollama() {
-        let expected = if cfg!(target_os = "macos") {
-            Provider::VllmMlx
+        let rec = Provider::recommended_for_platform();
+        if cfg!(target_os = "macos") {
+            assert!(rec.id() == "vllmmlx" || rec.id() == "simulator");
         } else {
-            Provider::Ollama
-        };
-        assert_eq!(Provider::recommended_for_platform(), expected);
+            assert_eq!(rec.id(), "ollama");
+        }
     }
 
     #[test]
     fn vllm_mlx_aliases_resolve() {
         for alias in ["vllm-mlx", "vllm_mlx", "vllmmlx", "VLLM-MLX"] {
             assert_eq!(
-                Provider::from_str_loose(alias).unwrap(),
-                Provider::VllmMlx,
-                "alias {alias} must resolve to VllmMlx"
+                Provider::from_str_loose(alias).unwrap().id(),
+                "vllmmlx",
+                "alias {alias} must resolve to vllmmlx"
             );
         }
     }
@@ -1044,7 +1061,7 @@ mod tests {
             model: Some("Qwen/Qwen3-8B".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::VllmMlx);
+        assert_eq!(config.provider.id(), "vllmmlx");
         assert_eq!(config.base_url, "http://localhost:8000");
         assert!(config.api_key.is_none());
         assert_eq!(config.model.as_deref(), Some("Qwen/Qwen3-8B"));
@@ -1061,7 +1078,7 @@ mod tests {
             model: Some("meta-llama/Llama-3-8B".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::VllmMlx);
+        assert_eq!(config.provider.id(), "vllmmlx");
         assert_eq!(config.base_url, "http://gpu-server:8000");
     }
 
@@ -1072,7 +1089,7 @@ mod tests {
 
         let cli = CliOverrides::default();
         let config = resolve_config(Some(Path::new("/nonexistent/parish.toml")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Simulator);
+        assert_eq!(config.provider.id(), "simulator");
         assert_eq!(config.base_url, "");
         assert!(config.api_key.is_none());
         assert!(config.model.is_none());
@@ -1099,7 +1116,7 @@ model = "my-model"
 
         let cli = CliOverrides::default();
         let config = resolve_config(Some(&path), &cli).unwrap();
-        assert_eq!(config.provider, Provider::LmStudio);
+        assert_eq!(config.provider.id(), "lmstudio");
         assert_eq!(config.base_url, "http://myhost:5555");
         assert_eq!(config.model.as_deref(), Some("my-model"));
     }
@@ -1128,7 +1145,7 @@ model = "toml-model"
             model: Some("cli-model".to_string()),
         };
         let config = resolve_config(Some(&path), &cli).unwrap();
-        assert_eq!(config.provider, Provider::LmStudio);
+        assert_eq!(config.provider.id(), "lmstudio");
         assert_eq!(config.model.as_deref(), Some("cli-model"));
     }
 
@@ -1136,7 +1153,6 @@ model = "toml-model"
     #[serial(parish_env)]
     fn test_resolve_config_openrouter_requires_api_key() {
         clear_parish_env();
-        // OPENROUTER_API_KEY is cleared by clear_parish_env — no key available.
 
         let cli = CliOverrides {
             provider: Some("openrouter".to_string()),
@@ -1163,7 +1179,7 @@ model = "toml-model"
             model: Some("anthropic/claude-sonnet-4-20250514".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.provider.id(), "openrouter");
         assert_eq!(config.base_url, "https://openrouter.ai/api");
         assert_eq!(config.api_key.as_deref(), Some("sk-test-key"));
     }
@@ -1172,7 +1188,6 @@ model = "toml-model"
     #[serial(parish_env)]
     fn test_resolve_config_nvidia_nim_requires_api_key() {
         clear_parish_env();
-        // NVIDIA_API_KEY cleared by clear_parish_env — should fail.
 
         let cli = CliOverrides {
             provider: Some("nvidia-nim".to_string()),
@@ -1193,15 +1208,13 @@ model = "toml-model"
         // SAFETY: serialised by #[serial(parish_env)]
         unsafe { std::env::set_var("NVIDIA_API_KEY", "nvapi-test") };
 
-        // Provider + key but no model — the resolver should fall through to
-        // the NvidiaNim Dialogue preset declared in `presets.rs`.
         let cli = CliOverrides {
             provider: Some("nvidia-nim".to_string()),
             base_url: None,
             model: None,
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::NvidiaNim);
+        assert_eq!(config.provider.id(), "nvidia-nim");
         assert_eq!(config.base_url, "https://integrate.api.nvidia.com");
         assert_eq!(
             config.model.as_deref(),
@@ -1214,35 +1227,30 @@ model = "toml-model"
     fn test_resolve_config_builtin_cloud_providers() {
         clear_parish_env();
 
-        // Each built-in cloud provider resolves with its default URL.
-        // Key comes from the provider-specific env var, not a generic PARISH_API_KEY.
         let providers = [
-            ("openai", "https://api.openai.com", Provider::OpenAi),
+            ("openai", "https://api.openai.com", "openai"),
             (
                 "google",
                 "https://generativelanguage.googleapis.com/v1beta/openai",
-                Provider::Google,
+                "google",
             ),
-            ("groq", "https://api.groq.com/openai", Provider::Groq),
-            ("xai", "https://api.x.ai", Provider::Xai),
-            ("mistral", "https://api.mistral.ai", Provider::Mistral),
-            ("deepseek", "https://api.deepseek.com", Provider::DeepSeek),
-            ("together", "https://api.together.xyz", Provider::Together),
+            ("groq", "https://api.groq.com/openai", "groq"),
+            ("xai", "https://api.x.ai", "xai"),
+            ("mistral", "https://api.mistral.ai", "mistral"),
+            ("deepseek", "https://api.deepseek.com", "deepseek"),
+            ("together", "https://api.together.xyz", "together"),
             (
                 "nvidia-nim",
                 "https://integrate.api.nvidia.com",
-                Provider::NvidiaNim,
+                "nvidia-nim",
             ),
-            (
-                "anthropic",
-                "https://api.anthropic.com",
-                Provider::Anthropic,
-            ),
+            ("anthropic", "https://api.anthropic.com", "anthropic"),
         ];
 
-        for (name, expected_url, expected_provider) in providers {
+        for (name, expected_url, expected_id) in providers {
+            let provider = Provider::from_str_loose(name).unwrap();
             // SAFETY: serialised by #[serial(parish_env)]
-            let key_var = expected_provider.api_key_env_var().unwrap();
+            let key_var = provider.api_key_env_var().unwrap();
             unsafe { std::env::set_var(key_var, "sk-test") };
 
             let cli = CliOverrides {
@@ -1252,7 +1260,8 @@ model = "toml-model"
             };
             let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
             assert_eq!(
-                config.provider, expected_provider,
+                config.provider.id(),
+                expected_id,
                 "provider mismatch for {name}"
             );
             assert_eq!(config.base_url, expected_url, "URL mismatch for {name}");
@@ -1266,7 +1275,6 @@ model = "toml-model"
     #[serial(parish_env)]
     fn test_resolve_config_cloud_provider_requires_api_key() {
         clear_parish_env();
-        // All provider key vars are cleared — every cloud provider should fail.
 
         for name in [
             "openai",
@@ -1297,8 +1305,6 @@ model = "toml-model"
     #[serial(parish_env)]
     fn test_resolve_config_switching_provider_does_not_carry_key() {
         clear_parish_env();
-        // ANTHROPIC_API_KEY is set but OPENAI_API_KEY is not.
-        // Switching to OpenAI must fail — the Anthropic key must not leak.
         // SAFETY: serialised by #[serial(parish_env)]
         unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-secret") };
 
@@ -1342,7 +1348,7 @@ model = "toml-model"
             model: None,
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Anthropic);
+        assert_eq!(config.provider.id(), "anthropic");
         assert_eq!(config.model.as_deref(), Some("claude-opus-4-7"));
     }
 
@@ -1356,7 +1362,7 @@ model = "toml-model"
             model: None,
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider, Provider::Ollama);
+        assert_eq!(config.provider.id(), "ollama");
         assert!(
             config.model.is_none(),
             "Ollama must leave model as None so setup_ollama_with_config \
@@ -1464,7 +1470,7 @@ model = "anthropic/claude-sonnet-4-20250514"
 
         let cli = CliCloudOverrides::default();
         let config = resolve_cloud_config(Some(&path), &cli).unwrap().unwrap();
-        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.provider.id(), "openrouter");
         assert_eq!(config.base_url, "https://openrouter.ai/api");
         assert_eq!(config.api_key.as_deref(), Some("sk-test"));
         assert_eq!(config.model, "anthropic/claude-sonnet-4-20250514");
@@ -1485,7 +1491,7 @@ model = "anthropic/claude-sonnet-4-20250514"
         let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
             .unwrap()
             .unwrap();
-        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.provider.id(), "openrouter");
         assert_eq!(config.api_key.as_deref(), Some("sk-cli"));
         assert_eq!(config.model, "gpt-4");
     }
@@ -1512,7 +1518,6 @@ model = "anthropic/claude-sonnet-4-20250514"
     #[serial(parish_env)]
     fn test_resolve_cloud_config_openrouter_requires_api_key() {
         clear_parish_env();
-        // OPENROUTER_API_KEY cleared by clear_parish_env — no key available.
 
         let cli = CliCloudOverrides {
             provider: Some("openrouter".to_string()),
@@ -1541,7 +1546,7 @@ model = "anthropic/claude-sonnet-4-20250514"
         let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
             .unwrap()
             .unwrap();
-        assert_eq!(config.provider, Provider::OpenRouter);
+        assert_eq!(config.provider.id(), "openrouter");
         assert_eq!(config.base_url, "https://openrouter.ai/api");
     }
 
@@ -1563,7 +1568,6 @@ model = "toml-model"
         .unwrap();
 
         clear_parish_env();
-        // TOML api_key is explicit escape hatch; OPENROUTER_API_KEY cleared so TOML wins.
 
         let cli = CliCloudOverrides {
             provider: None,
@@ -1588,45 +1592,133 @@ model = "toml-model"
         let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
             .unwrap()
             .unwrap();
-        assert_eq!(config.provider, Provider::Ollama);
+        assert_eq!(config.provider.id(), "ollama");
         assert_eq!(config.base_url, "http://remote-ollama:11434");
         assert_eq!(config.model, "llama3");
     }
 
     #[test]
+    #[serial(parish_env)]
+    fn test_resolve_cloud_config_vercel_ai_requires_base_url() {
+        clear_parish_env();
+        // Provide an API key so we get past the requires_api_key guard and
+        // reach the needs_base_url_from_user check.
+        unsafe {
+            std::env::set_var("VERCEL_API_KEY", "tok-test");
+        }
+        let cli = CliCloudOverrides {
+            provider: Some("vercel-ai".to_string()),
+            base_url: None,
+            model: Some("anthropic/claude-sonnet-4-5".to_string()),
+        };
+        let err = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("base_url") || msg.contains("base-url"),
+            "error should mention base_url: {msg}"
+        );
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_env_vars_override_provider_base_url_model() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "ollama");
+            std::env::set_var("PARISH_BASE_URL", "http://env-host:11434");
+            std::env::set_var("PARISH_MODEL", "gemma3:4b");
+        }
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider.id(), "ollama");
+        assert_eq!(config.base_url, "http://env-host:11434");
+        assert_eq!(config.model, Some("gemma3:4b".to_string()));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_deprecated_parish_ollama_url_fallback() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_OLLAMA_URL", "http://legacy-host:11434");
+        }
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        // Deprecated env var should still set base_url
+        assert_eq!(config.base_url, "http://legacy-host:11434");
+    }
+
+    #[test]
     fn test_provider_api_key_env_var() {
         assert_eq!(
-            Provider::Anthropic.api_key_env_var(),
+            Provider::anthropic().api_key_env_var(),
             Some("ANTHROPIC_API_KEY")
         );
-        assert_eq!(Provider::OpenAi.api_key_env_var(), Some("OPENAI_API_KEY"));
         assert_eq!(
-            Provider::OpenRouter.api_key_env_var(),
+            Provider::from_str_loose("openai")
+                .unwrap()
+                .api_key_env_var(),
+            Some("OPENAI_API_KEY")
+        );
+        assert_eq!(
+            Provider::openrouter().api_key_env_var(),
             Some("OPENROUTER_API_KEY")
         );
-        assert_eq!(Provider::Google.api_key_env_var(), Some("GOOGLE_API_KEY"));
-        assert_eq!(Provider::Groq.api_key_env_var(), Some("GROQ_API_KEY"));
-        assert_eq!(Provider::Xai.api_key_env_var(), Some("XAI_API_KEY"));
-        assert_eq!(Provider::Mistral.api_key_env_var(), Some("MISTRAL_API_KEY"));
         assert_eq!(
-            Provider::DeepSeek.api_key_env_var(),
+            Provider::from_str_loose("google")
+                .unwrap()
+                .api_key_env_var(),
+            Some("GOOGLE_API_KEY")
+        );
+        assert_eq!(
+            Provider::from_str_loose("groq").unwrap().api_key_env_var(),
+            Some("GROQ_API_KEY")
+        );
+        assert_eq!(
+            Provider::from_str_loose("xai").unwrap().api_key_env_var(),
+            Some("XAI_API_KEY")
+        );
+        assert_eq!(
+            Provider::from_str_loose("mistral")
+                .unwrap()
+                .api_key_env_var(),
+            Some("MISTRAL_API_KEY")
+        );
+        assert_eq!(
+            Provider::from_str_loose("deepseek")
+                .unwrap()
+                .api_key_env_var(),
             Some("DEEPSEEK_API_KEY")
         );
         assert_eq!(
-            Provider::Together.api_key_env_var(),
+            Provider::from_str_loose("together")
+                .unwrap()
+                .api_key_env_var(),
             Some("TOGETHER_API_KEY")
         );
         assert_eq!(
-            Provider::NvidiaNim.api_key_env_var(),
+            Provider::from_str_loose("nvidia-nim")
+                .unwrap()
+                .api_key_env_var(),
             Some("NVIDIA_API_KEY")
         );
 
         // Local providers and Custom have no env var
-        assert_eq!(Provider::Ollama.api_key_env_var(), None);
-        assert_eq!(Provider::LmStudio.api_key_env_var(), None);
-        assert_eq!(Provider::VllmMlx.api_key_env_var(), None);
-        assert_eq!(Provider::Custom.api_key_env_var(), None);
-        assert_eq!(Provider::Simulator.api_key_env_var(), None);
+        assert_eq!(Provider::ollama().api_key_env_var(), None);
+        assert_eq!(
+            Provider::from_str_loose("lmstudio")
+                .unwrap()
+                .api_key_env_var(),
+            None
+        );
+        assert_eq!(
+            Provider::from_str_loose("vllmmlx")
+                .unwrap()
+                .api_key_env_var(),
+            None
+        );
+        assert_eq!(Provider::custom().api_key_env_var(), None);
+        assert_eq!(Provider::simulator().api_key_env_var(), None);
     }
 
     #[test]
@@ -1635,30 +1727,42 @@ model = "toml-model"
         clear_parish_env();
 
         // Local providers are always "configured"
-        assert!(Provider::Ollama.is_configured_in_env());
-        assert!(Provider::LmStudio.is_configured_in_env());
-        assert!(Provider::VllmMlx.is_configured_in_env());
-        assert!(Provider::Simulator.is_configured_in_env());
-        assert!(Provider::Custom.is_configured_in_env());
+        assert!(Provider::ollama().is_configured_in_env());
+        assert!(
+            Provider::from_str_loose("lmstudio")
+                .unwrap()
+                .is_configured_in_env()
+        );
+        assert!(
+            Provider::from_str_loose("vllmmlx")
+                .unwrap()
+                .is_configured_in_env()
+        );
+        assert!(Provider::simulator().is_configured_in_env());
+        assert!(Provider::custom().is_configured_in_env());
 
         // Cloud providers without keys are not configured
-        assert!(!Provider::OpenAi.is_configured_in_env());
-        assert!(!Provider::Anthropic.is_configured_in_env());
+        assert!(
+            !Provider::from_str_loose("openai")
+                .unwrap()
+                .is_configured_in_env()
+        );
+        assert!(!Provider::anthropic().is_configured_in_env());
 
         // Set a key and verify
         // SAFETY: serialised by #[serial(parish_env)]
         unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-test") };
-        assert!(Provider::Anthropic.is_configured_in_env());
+        assert!(Provider::anthropic().is_configured_in_env());
 
         // Empty string counts as not configured
         unsafe { std::env::set_var("ANTHROPIC_API_KEY", "") };
-        assert!(!Provider::Anthropic.is_configured_in_env());
+        assert!(!Provider::anthropic().is_configured_in_env());
     }
 
     #[test]
     fn test_provider_config_provider_display() {
         let cfg = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: None,
@@ -1666,7 +1770,7 @@ model = "toml-model"
         assert_eq!(cfg.provider_display(), "ollama");
 
         let cfg = ProviderConfig {
-            provider: Provider::NvidiaNim,
+            provider: Provider::from_str_loose("nvidia-nim").unwrap(),
             base_url: "https://integrate.api.nvidia.com".to_string(),
             api_key: None,
             model: None,
@@ -1674,7 +1778,7 @@ model = "toml-model"
         assert_eq!(cfg.provider_display(), "nvidia-nim");
 
         let cfg = ProviderConfig {
-            provider: Provider::OpenAi,
+            provider: Provider::from_str_loose("openai").unwrap(),
             base_url: "https://api.openai.com".to_string(),
             api_key: None,
             model: None,
@@ -1709,7 +1813,6 @@ model = "toml-model"
             Some(InferenceCategory::Reaction)
         );
         assert_eq!(InferenceCategory::from_name("unknown"), None);
-        // Case insensitive
         assert_eq!(
             InferenceCategory::from_name("Dialogue"),
             Some(InferenceCategory::Dialogue)
@@ -1732,29 +1835,205 @@ model = "toml-model"
     }
 
     #[test]
-    fn test_provider_all_exhaustive() {
-        let mut count = 0;
-        for provider in Provider::ALL {
-            match provider {
-                Provider::Ollama
-                | Provider::LmStudio
-                | Provider::OpenRouter
-                | Provider::VllmMlx
-                | Provider::OpenAi
-                | Provider::Google
-                | Provider::Groq
-                | Provider::Xai
-                | Provider::Mistral
-                | Provider::DeepSeek
-                | Provider::Together
-                | Provider::NvidiaNim
-                | Provider::Anthropic
-                | Provider::Custom
-                | Provider::Simulator => {}
-            }
-            count += 1;
+    fn test_registry_has_all_providers() {
+        let reg = registry();
+        // Must have all original 15 providers
+        for id in [
+            "ollama",
+            "lmstudio",
+            "openrouter",
+            "vllmmlx",
+            "openai",
+            "google",
+            "groq",
+            "xai",
+            "mistral",
+            "deepseek",
+            "together",
+            "nvidia-nim",
+            "anthropic",
+            "custom",
+            "simulator",
+        ] {
+            assert!(reg.get(id).is_some(), "registry missing provider: {id}");
         }
-        assert_eq!(count, Provider::ALL.len());
-        assert_eq!(Provider::ALL.len(), 15);
+        // Must also have new providers
+        for id in [
+            "vercel-ai",
+            "qwen",
+            "zhipu",
+            "moonshot",
+            "siliconflow",
+            "cohere",
+            "scaleway",
+        ] {
+            assert!(reg.get(id).is_some(), "registry missing new provider: {id}");
+        }
+    }
+
+    #[test]
+    fn inference_category_idx_matches_all_order() {
+        for (i, cat) in InferenceCategory::ALL.iter().enumerate() {
+            assert_eq!(cat.idx(), i, "idx() must match position in ALL");
+        }
+    }
+
+    #[test]
+    fn provider_preset_model_returns_correct_field() {
+        let p = registry().get("anthropic").unwrap();
+        assert!(p.preset_model(InferenceCategory::Dialogue).is_some());
+        assert!(p.preset_model(InferenceCategory::Simulation).is_some());
+        assert!(p.preset_model(InferenceCategory::Intent).is_some());
+        assert!(p.preset_model(InferenceCategory::Reaction).is_some());
+    }
+
+    #[test]
+    fn provider_has_preset_and_models_array() {
+        let cloud = registry().get("openrouter").unwrap();
+        assert!(cloud.has_preset());
+        let arr = cloud.preset_models();
+        assert!(arr.iter().any(|m| m.is_some()));
+        let sim = registry().get("simulator").unwrap();
+        assert!(!sim.has_preset());
+        assert_eq!(sim.preset_models(), [None, None, None, None]);
+    }
+
+    #[test]
+    fn provider_preset_all_categories_via_model_method() {
+        let p = registry().get("groq").unwrap();
+        let first_preset = p.presets().first().expect("groq has presets");
+        for cat in InferenceCategory::ALL {
+            assert_eq!(first_preset.model(cat), p.preset_model(cat));
+        }
+    }
+
+    #[test]
+    fn registry_all_returns_sorted_list_of_all_providers() {
+        let all = registry().all();
+        assert!(all.len() >= 22, "must have at least 22 providers");
+        let ids: Vec<&str> = all.iter().map(|p| p.id()).collect();
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(ids, sorted, "all() must return providers sorted by id");
+    }
+
+    #[test]
+    fn registry_featured_returns_subset_of_all() {
+        let featured = registry().featured();
+        let all = registry().all();
+        assert!(
+            !featured.is_empty(),
+            "at least one provider should be featured"
+        );
+        assert!(featured.len() <= all.len());
+        for p in &featured {
+            assert!(
+                all.iter().any(|a| a.id() == p.id()),
+                "featured provider {} must also be in all()",
+                p.id()
+            );
+        }
+    }
+
+    #[test]
+    fn registry_lookup_finds_by_id_and_rejects_unknown() {
+        assert!(registry().lookup("anthropic").is_ok());
+        assert!(registry().lookup("ANTHROPIC").is_ok());
+        let err = registry().lookup("not-a-real-provider-xyz");
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn provider_from_id_roundtrip() {
+        let p = Provider::from_id("openai").expect("openai must exist");
+        assert_eq!(p.id(), "openai");
+        assert!(Provider::from_id("does-not-exist").is_none());
+    }
+
+    #[test]
+    fn provider_display_name_and_kind_accessors() {
+        let p = Provider::anthropic();
+        assert!(!p.display_name().is_empty());
+        assert_eq!(p.kind(), ProviderKind::Anthropic);
+        let sim = Provider::simulator();
+        assert_eq!(sim.kind(), ProviderKind::Simulator);
+    }
+
+    #[test]
+    fn provider_equality_and_hash_by_id() {
+        let a = Provider::openai();
+        let b = Provider::from_id("openai").unwrap();
+        assert_eq!(a, b);
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(a.clone());
+        set.insert(b.clone());
+        assert_eq!(set.len(), 1, "same provider id must hash identically");
+    }
+
+    #[test]
+    fn provider_display_fmt_is_id() {
+        let p = Provider::ollama();
+        assert_eq!(format!("{p}"), "ollama");
+    }
+
+    #[test]
+    fn provider_recommended_for_platform_returns_valid_provider() {
+        let p = Provider::recommended_for_platform();
+        assert!(!p.id().is_empty());
+    }
+
+    #[test]
+    fn provider_default_is_simulator() {
+        let p = Provider::default();
+        assert_eq!(p.id(), "simulator");
+    }
+
+    #[test]
+    fn provider_mod_default_true_fires_when_requires_model_omitted() {
+        // Deserializing a ProviderMod without `requires_model` should invoke
+        // the `default_true` serde default, yielding `requires_model = true`.
+        let raw = r#"
+            id = "test-default"
+            display_name = "Test"
+            kind = "openai-compat"
+            default_base_url = "https://example.com"
+            requires_api_key = false
+        "#;
+        let m: ProviderMod = toml::from_str(raw).expect("valid minimal ProviderMod");
+        assert!(m.requires_model, "default_true() should produce true");
+    }
+
+    #[test]
+    fn load_toml_returns_error_when_path_is_directory() {
+        // `read_to_string` on a directory triggers the IO-error closure
+        // (lines 714-717 in read_toml_config).
+        let tmp = std::env::temp_dir();
+        let result = resolve_config(Some(tmp.as_path()), &CliOverrides::default());
+        assert!(
+            result.is_err(),
+            "reading a directory as config should error"
+        );
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("failed to read config file"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[test]
+    fn all_named_constructors_return_correct_id() {
+        assert_eq!(Provider::openai().id(), "openai");
+        assert_eq!(Provider::google().id(), "google");
+        assert_eq!(Provider::groq().id(), "groq");
+        assert_eq!(Provider::xai().id(), "xai");
+        assert_eq!(Provider::mistral().id(), "mistral");
+        assert_eq!(Provider::deepseek().id(), "deepseek");
+        assert_eq!(Provider::together().id(), "together");
+        assert_eq!(Provider::vllmmlx().id(), "vllmmlx");
+        assert_eq!(Provider::lmstudio().id(), "lmstudio");
+        assert_eq!(Provider::openrouter().id(), "openrouter");
+        assert_eq!(Provider::custom().id(), "custom");
+        assert_eq!(Provider::ollama().id(), "ollama");
     }
 }

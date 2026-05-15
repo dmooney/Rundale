@@ -1,0 +1,9 @@
+id = "custom"
+display_name = "Custom (OpenAI-compatible)"
+kind = "openai-compat"
+default_base_url = ""
+requires_api_key = false
+needs_base_url_from_user = true
+requires_model = true
+blurb = "Bring your own endpoint URL."
+featured = false

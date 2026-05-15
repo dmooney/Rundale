@@ -141,7 +141,7 @@ impl SystemCommandHost for CliCommandHost {
                 .cloud_provider_name
                 .as_deref()
                 .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                .unwrap_or(parish_core::config::Provider::OpenRouter);
+                .unwrap_or_else(parish_core::config::Provider::openrouter);
             app.cloud_client = Some(parish_core::inference::build_client(
                 &provider,
                 &base_url,

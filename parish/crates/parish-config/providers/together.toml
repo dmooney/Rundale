@@ -1,0 +1,27 @@
+id = "together"
+display_name = "Together AI"
+aliases = ["togetherai", "together-ai", "together_ai"]
+kind = "openai-compat"
+default_base_url = "https://api.together.xyz"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "TOGETHER_API_KEY"
+blurb = "Open-source models hosted."
+signup_url = "https://api.together.xyz/settings/api-keys"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "Qwen/Qwen3.5-397B-A17B"
+simulation = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+intent = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+reaction = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+simulation = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+intent = "meta-llama/Llama-3.1-8B-Instruct-Turbo"
+reaction = "meta-llama/Llama-3.1-8B-Instruct-Turbo"

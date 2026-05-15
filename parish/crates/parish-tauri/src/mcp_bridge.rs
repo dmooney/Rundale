@@ -316,7 +316,7 @@ async fn byok_env_keys() -> Json<std::collections::BTreeMap<String, bool>> {
 
 #[allow(clippy::unused_async)]
 async fn preset_models()
--> Json<std::collections::BTreeMap<String, parish_core::ipc::byok::ProviderPresetModels>> {
+-> Json<std::collections::BTreeMap<String, Vec<parish_core::ipc::byok::ProviderPresetOption>>> {
     Json(parish_core::ipc::byok::handle_list_preset_models())
 }
 

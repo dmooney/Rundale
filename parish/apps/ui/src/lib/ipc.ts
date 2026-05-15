@@ -432,7 +432,9 @@ export const clearProviderConfig = () => command<void>('clear_provider_config');
 export const listByokEnvKeys = () =>
 	command<Record<string, boolean>>('list_byok_env_keys');
 
-export interface ProviderPresetModels {
+export interface ProviderPresetOption {
+	key: string;
+	label: string;
 	dialogue: string | null;
 	simulation: string | null;
 	intent: string | null;
@@ -440,7 +442,7 @@ export interface ProviderPresetModels {
 }
 
 export const listPresetModels = () =>
-	command<Record<string, ProviderPresetModels>>('list_preset_models');
+	command<Record<string, ProviderPresetOption[]>>('list_preset_models');
 
 /**
  * Bindings for the local-inference onboarding flow (vllm-mlx on macOS).

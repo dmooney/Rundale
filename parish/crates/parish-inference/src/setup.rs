@@ -6,7 +6,7 @@
 
 use crate::AnyClient;
 use crate::openai_client::{OpenAiClient, build_client_or_fallback};
-use parish_config::{InferenceConfig, Provider, ProviderConfig};
+use parish_config::{InferenceConfig, ProviderConfig};
 use parish_types::ParishError;
 use reqwest::StatusCode;
 use serde::Deserialize;
@@ -1631,13 +1631,13 @@ pub async fn setup_provider_client(
     inference_config: &InferenceConfig,
     progress: &dyn SetupProgress,
 ) -> Result<(AnyClient, String, RuntimeProcesses), ParishError> {
-    match config.provider {
-        Provider::Simulator => Ok((
+    match config.provider.id() {
+        "simulator" => Ok((
             AnyClient::simulator(),
             "simulator".to_string(),
             RuntimeProcesses::none(),
         )),
-        Provider::Ollama => {
+        "ollama" => {
             let setup = setup_ollama_with_config(
                 &config.base_url,
                 config.model.as_deref(),
@@ -1656,10 +1656,10 @@ pub async fn setup_provider_client(
                 },
             ))
         }
-        Provider::VllmMlx => {
+        "vllmmlx" => {
             let model = config.model.clone().ok_or_else(|| {
                 ParishError::Config(
-                    "VllmMlx provider requires a model name. Set --model or PARISH_MODEL."
+                    "vllmmlx provider requires a model name. Set --model or PARISH_MODEL."
                         .to_string(),
                 )
             })?;
@@ -1688,8 +1688,8 @@ pub async fn setup_provider_client(
         _ => {
             let model = config.model.clone().ok_or_else(|| {
                 ParishError::Config(format!(
-                    "{:?} provider requires a model name. Set --model or PARISH_MODEL.",
-                    config.provider
+                    "{} provider requires a model name. Set --model or PARISH_MODEL.",
+                    config.provider.id()
                 ))
             })?;
             let client = crate::build_client(

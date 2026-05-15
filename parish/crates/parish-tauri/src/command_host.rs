@@ -71,7 +71,7 @@ impl SystemCommandHost for TauriCommandHost {
                 .cloud_provider_name
                 .as_deref()
                 .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                .unwrap_or(parish_core::config::Provider::OpenRouter);
+                .unwrap_or_else(parish_core::config::Provider::openrouter);
             drop(config);
             let mut cloud_guard = self.state.cloud_client.lock().await;
             *cloud_guard = Some(parish_core::inference::build_client(

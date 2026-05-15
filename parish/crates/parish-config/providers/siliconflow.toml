@@ -1,0 +1,26 @@
+id = "siliconflow"
+display_name = "SiliconFlow"
+kind = "openai-compat"
+default_base_url = "https://api.siliconflow.cn/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "SILICONFLOW_API_KEY"
+blurb = "Open-source models, competitive pricing."
+signup_url = "https://siliconflow.cn"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "deepseek-ai/DeepSeek-V3"
+simulation = "Qwen/Qwen2.5-72B-Instruct"
+intent = "Qwen/Qwen2.5-72B-Instruct"
+reaction = "Qwen/Qwen2.5-72B-Instruct"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "Qwen/Qwen2.5-7B-Instruct"
+simulation = "Qwen/Qwen2.5-7B-Instruct"
+intent = "Qwen/Qwen2.5-7B-Instruct"
+reaction = "Qwen/Qwen2.5-7B-Instruct"

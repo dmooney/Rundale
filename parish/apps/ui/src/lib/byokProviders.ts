@@ -1,15 +1,12 @@
 /**
  * Curated provider metadata for the BYOK onboarding wizard.
  *
- * The full provider list (15 entries) is shipped by parish-config; this table
+ * The full provider list is shipped by parish-config as TOML mods; this table
  * hand-picks the most-recognized options for the front-of-grid display, with
- * an "Other…" expander revealing the long tail. opencode zen is surfaced as
- * a labeled preset that resolves to `Provider::Custom` with a pre-filled
- * base URL — see `presetBaseUrl`.
+ * an "Other…" expander revealing the long tail.
  *
- * Default model names live in `parish-config/src/presets.rs` (the same table
- * `fill_missing_models_from_presets` reads). The wizard fetches them at
- * runtime via `list_preset_models` so we don't drift.
+ * Default model names live in the per-provider TOML presets. The wizard fetches
+ * them at runtime via `list_preset_models` so we don't drift.
  */
 
 export interface ByokProviderMeta {
@@ -25,13 +22,6 @@ export interface ByokProviderMeta {
 	needsBaseUrl: boolean;
 	/** True if the provider does not require an API key (Ollama, LM Studio, vLLM, Simulator). */
 	keyless: boolean;
-	/**
-	 * Pre-filled base URL when this preset resolves to `Provider::Custom`
-	 * (e.g. opencode zen). When omitted, the provider's default base URL
-	 * applies — leave `args.base_url` undefined when calling
-	 * `set_provider_config`.
-	 */
-	presetBaseUrl?: string;
 }
 
 /** Top-of-grid curated cards. ~6 hits the opencode/openclaw sweet spot. */
@@ -86,8 +76,16 @@ export const FEATURED_PROVIDERS: ByokProviderMeta[] = [
 	}
 ];
 
-/** "Other..." expander — the long tail and labeled presets. */
+/** "Other..." expander — the long tail plus new providers. */
 export const OTHER_PROVIDERS: ByokProviderMeta[] = [
+	{
+		id: 'vercel-ai',
+		label: 'Vercel AI Gateway',
+		blurb: 'Route to any model through your Vercel project.',
+		signupUrl: 'https://vercel.com/docs/ai-gateway',
+		needsBaseUrl: true,
+		keyless: false
+	},
 	{
 		id: 'mistral',
 		label: 'Mistral',
@@ -109,6 +107,54 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		label: 'Together AI',
 		blurb: 'Open-source models hosted.',
 		signupUrl: 'https://api.together.xyz/settings/api-keys',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'cohere',
+		label: 'Cohere',
+		blurb: 'Command R models, OpenAI-compatible.',
+		signupUrl: 'https://dashboard.cohere.com/api-keys',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'qwen',
+		label: 'Qwen (Alibaba)',
+		blurb: 'Qwen family via DashScope international.',
+		signupUrl: 'https://dashscope.aliyuncs.com',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'zhipu',
+		label: 'Zhipu AI',
+		blurb: 'GLM-4 and friends, OpenAI-compatible.',
+		signupUrl: 'https://open.bigmodel.cn',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'moonshot',
+		label: 'Moonshot AI',
+		blurb: 'Kimi long-context models.',
+		signupUrl: 'https://platform.moonshot.cn',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'siliconflow',
+		label: 'SiliconFlow',
+		blurb: 'Fast Chinese inference cloud.',
+		signupUrl: 'https://cloud.siliconflow.cn',
+		needsBaseUrl: false,
+		keyless: false
+	},
+	{
+		id: 'scaleway',
+		label: 'Scaleway',
+		blurb: 'European GPU cloud, OpenAI-compatible.',
+		signupUrl: 'https://console.scaleway.com',
 		needsBaseUrl: false,
 		keyless: false
 	},
@@ -135,18 +181,6 @@ export const OTHER_PROVIDERS: ByokProviderMeta[] = [
 		signupUrl: 'https://docs.vllm.ai',
 		needsBaseUrl: false,
 		keyless: true
-	},
-	{
-		// opencode zen — sst's hosted gateway. Resolves to Provider::Custom on
-		// the Rust side because there's no first-class enum variant; the
-		// presetBaseUrl pre-fills the URL so the user only pastes a key.
-		id: 'custom',
-		label: 'opencode zen',
-		blurb: "opencode's hosted gateway.",
-		signupUrl: 'https://opencode.ai/zen',
-		needsBaseUrl: true,
-		keyless: false,
-		presetBaseUrl: 'https://opencode.ai'
 	},
 	{
 		id: 'custom',

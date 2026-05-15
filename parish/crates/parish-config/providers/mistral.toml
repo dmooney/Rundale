@@ -1,0 +1,26 @@
+id = "mistral"
+display_name = "Mistral"
+kind = "openai-compat"
+default_base_url = "https://api.mistral.ai"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "MISTRAL_API_KEY"
+blurb = "European, OpenAI-compatible."
+signup_url = "https://console.mistral.ai/api-keys"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "mistral-large-2512"
+simulation = "mistral-medium-2508"
+intent = "ministral-3-3b-2512"
+reaction = "mistral-medium-2508"
+
+[[presets]]
+key = "medium"
+label = "Medium"
+dialogue = "mistral-medium-2508"
+simulation = "mistral-medium-2508"
+intent = "mistral-medium-2508"
+reaction = "mistral-medium-2508"

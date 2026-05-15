@@ -1200,7 +1200,7 @@ fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
             .cloud_provider_name
             .as_deref()
             .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-            .unwrap_or(parish_core::config::Provider::OpenRouter);
+            .unwrap_or_else(parish_core::config::Provider::openrouter);
         parish_core::inference::build_client(
             &provider_enum,
             config

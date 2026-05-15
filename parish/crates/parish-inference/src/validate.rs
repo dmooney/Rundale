@@ -72,9 +72,10 @@ pub async fn validate(
         }
     };
 
-    match provider {
-        Provider::Simulator => ValidationOutcome::Ok,
-        Provider::Ollama => {
+    use parish_config::ProviderKind;
+    match provider.kind() {
+        ProviderKind::Simulator => ValidationOutcome::Ok,
+        ProviderKind::Local if provider.id() == "ollama" => {
             probe_get(
                 &client,
                 &format!("{}/api/tags", base_url.trim_end_matches('/')),
@@ -82,7 +83,7 @@ pub async fn validate(
             )
             .await
         }
-        Provider::Anthropic => probe_anthropic(&client, base_url, api_key).await,
+        ProviderKind::Anthropic => probe_anthropic(&client, base_url, api_key).await,
         // Every other provider speaks OpenAI-compatible /v1.
         _ => probe_openai_compat(&client, base_url, api_key).await,
     }
@@ -94,6 +95,8 @@ async fn probe_openai_compat(
     api_key: Option<&str>,
 ) -> ValidationOutcome {
     let trimmed = base_url.trim_end_matches('/');
+    // Normalize trailing /v1 so callers can pass either form; mirrors ClientBase::new.
+    let trimmed = trimmed.strip_suffix("/v1").unwrap_or(trimmed);
     let models_url = format!("{trimmed}/v1/models");
     let outcome = probe_get(client, &models_url, api_key).await;
     // Some self-hosted OpenAI-compat servers (older vLLM, certain TGI builds)
@@ -123,6 +126,7 @@ async fn probe_openai_chat_min(
     api_key: Option<&str>,
 ) -> ValidationOutcome {
     let trimmed = base_url.trim_end_matches('/');
+    let trimmed = trimmed.strip_suffix("/v1").unwrap_or(trimmed);
     let url = format!("{trimmed}/v1/chat/completions");
     let body = serde_json::json!({
         "model": "validation-probe",
@@ -230,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn simulator_short_circuits_ok() {
-        let outcome = validate(&Provider::Simulator, "http://nowhere.invalid", None).await;
+        let outcome = validate(&Provider::simulator(), "http://nowhere.invalid", None).await;
         assert!(outcome.is_ok());
     }
 
@@ -244,7 +248,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::OpenAi, &server.uri(), Some("sk-good")).await;
+        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk-good")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -257,7 +261,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::OpenAi, &server.uri(), Some("sk-bad")).await;
+        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk-bad")).await;
         match outcome {
             ValidationOutcome::AuthFailed {
                 status,
@@ -283,7 +287,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::OpenAi, &server.uri(), Some("sk")).await;
+        let outcome = validate(&Provider::openai(), &server.uri(), Some("sk")).await;
         assert_eq!(
             outcome,
             ValidationOutcome::RateLimited {
@@ -307,7 +311,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::VllmMlx, &server.uri(), None).await;
+        let outcome = validate(&Provider::vllmmlx(), &server.uri(), None).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -325,7 +329,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Custom, &server.uri(), Some("sk-bad")).await;
+        let outcome = validate(&Provider::custom(), &server.uri(), Some("sk-bad")).await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -345,7 +349,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Anthropic, &server.uri(), Some("sk-ant-good")).await;
+        let outcome = validate(&Provider::anthropic(), &server.uri(), Some("sk-ant-good")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -358,7 +362,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Anthropic, &server.uri(), Some("sk-ant-bad")).await;
+        let outcome = validate(&Provider::anthropic(), &server.uri(), Some("sk-ant-bad")).await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -367,7 +371,7 @@ mod tests {
 
     #[tokio::test]
     async fn anthropic_validate_no_key_short_circuits_auth_failed() {
-        let outcome = validate(&Provider::Anthropic, "https://nowhere.invalid", None).await;
+        let outcome = validate(&Provider::anthropic(), "https://nowhere.invalid", None).await;
         match outcome {
             ValidationOutcome::AuthFailed { .. } => {}
             other => panic!("expected AuthFailed, got {other:?}"),
@@ -383,14 +387,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Ollama, &server.uri(), None).await;
+        let outcome = validate(&Provider::ollama(), &server.uri(), None).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
     #[tokio::test]
     async fn validate_network_error_when_unreachable() {
         // Port 1 is reserved + unbindable; reqwest will fail to connect.
-        let outcome = validate(&Provider::OpenAi, "http://127.0.0.1:1", Some("sk")).await;
+        let outcome = validate(&Provider::openai(), "http://127.0.0.1:1", Some("sk")).await;
         match outcome {
             ValidationOutcome::Network { .. } => {}
             other => panic!("expected Network, got {other:?}"),
@@ -406,10 +410,26 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome = validate(&Provider::Groq, &server.uri(), Some("gsk")).await;
+        let outcome = validate(&Provider::groq(), &server.uri(), Some("gsk")).await;
         match outcome {
             ValidationOutcome::Unexpected { status, .. } => assert_eq!(status, 500),
             other => panic!("expected Unexpected, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn probe_normalizes_trailing_v1_in_base_url() {
+        // A base URL that already ends in /v1 (common when users paste docs examples)
+        // must not produce /v1/v1/models — the probe should strip and re-add /v1.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{\"data\":[]}"))
+            .mount(&server)
+            .await;
+
+        let base_with_v1 = format!("{}/v1", server.uri());
+        let outcome = validate(&Provider::openai(), &base_with_v1, Some("sk-test")).await;
+        assert_eq!(outcome, ValidationOutcome::Ok);
     }
 }
