@@ -3,6 +3,11 @@ name: prove
 description: Prove a gameplay feature works by play-testing with the script harness. Write a targeted script, run it, read the output critically, and fix any issues found.
 disable-model-invocation: false
 argument-hint: <feature description>
+paths:
+  - parish/crates/**
+  - parish/testing/**
+  - mods/rundale/**
+  - parish/apps/ui/**
 ---
 
 Prove that a gameplay feature works at runtime — not just that tests pass.

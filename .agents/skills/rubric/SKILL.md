@@ -2,6 +2,10 @@
 name: rubric
 description: Run the gameplay eval rubrics and snapshot baselines for the script harness. Sister to /prove — reproducible regression sensors instead of "Claude reads the JSON". Use after editing gameplay code, before opening a PR, or whenever you want a fast structural check on fixture output.
 disable-model-invocation: false
+paths:
+  - parish/crates/**
+  - parish/testing/**
+  - mods/rundale/**
 ---
 
 Run the eval rubrics and snapshot baselines that live alongside the script-harness fixtures. This is the **inferential-sensor** half of the harness: deterministic, machine-checked, no human reading required.

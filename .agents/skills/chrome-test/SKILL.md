@@ -1,6 +1,9 @@
 ---
 name: chrome-test
 description: Run a live browser testing session against the Rundale web server using browser MCP tools. Builds frontend, starts server, navigates the browser, and runs through the test plan.
+paths:
+  - parish/apps/ui/**
+  - parish/crates/parish-server/**
 ---
 
 Run an interactive Chrome browser test session for Rundale. Follow the test plan

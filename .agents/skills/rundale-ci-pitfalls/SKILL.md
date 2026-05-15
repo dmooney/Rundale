@@ -1,6 +1,10 @@
 ---
 name: rundale-ci-pitfalls
 description: Common false positives and quirks in Rundale CI checks. Load alongside land, check, or verify when debugging CI failures.
+paths:
+  - .github/**
+  - parish/scripts/**
+  - justfile
 ---
 
 ## agent-check: debt marker false positives
