@@ -3,6 +3,10 @@ name: play
 description: Play-test Rundale using the script harness. Sends commands, reads JSON output, and evaluates the gameplay experience.
 disable-model-invocation: false
 argument-hint: [scenario or script-file]
+paths:
+  - parish/crates/**
+  - parish/testing/**
+  - mods/rundale/**
 ---
 
 Play-test Rundale via the `--script` mode, which outputs structured JSON per command.

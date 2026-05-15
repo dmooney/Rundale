@@ -12,6 +12,10 @@ description: >-
   involving lat/lon in Rundale, the Parish Designer editor's geographic fields,
   "pin X to coord Y", "move the Kilteevan cluster", "the fictional
   establishments didn't follow the village", or similar.
+paths:
+  - mods/rundale/**
+  - parish/crates/parish-world/**
+  - parish/crates/parish-geo-tool/**
 ---
 
 How to work with Rundale's geographic coordinate system.
