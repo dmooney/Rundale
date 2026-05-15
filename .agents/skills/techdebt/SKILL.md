@@ -1,6 +1,6 @@
 ---
 name: techdebt
-description: Continuous technical-debt sweeper: consume TODO.md tasks (or discover debt when empty), dispatch focused fix agents, keep the list current, and repeat until no actionable debt remains.
+description: "Continuous technical-debt sweeper: consume TODO.md tasks (or discover debt when empty), dispatch focused fix agents, keep the list current, and repeat until no actionable debt remains."
 disable-model-invocation: false
 argument-hint: [path]
 ---
