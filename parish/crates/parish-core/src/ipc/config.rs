@@ -211,6 +211,52 @@ impl GameConfig {
         out
     }
 
+    /// Collects extra vllm slots beyond the base provider's slot.
+    ///
+    /// Parallel to [`Self::vllm_mlx_extra_slots`] for the Linux/Windows
+    /// CUDA/ROCm vllm runtime. Used by `setup_provider_client` to auto-spawn
+    /// one vllm process per unique slot for the two-slot Linux/Windows loadout.
+    pub fn vllm_extra_slots(&self) -> Vec<crate::inference::client::VllmSlot> {
+        use crate::config::Provider;
+        let base_provider_is_vllm = Provider::from_str_loose(&self.provider_name)
+            .map(|p| p.id() == "vllm")
+            .unwrap_or(false);
+        let base_slot = (self.base_url.clone(), self.model_name.clone());
+
+        let mut out = Vec::new();
+        for cat in InferenceCategory::ALL {
+            let effective_provider_str = self
+                .category_provider
+                .get(&cat)
+                .map(String::as_str)
+                .unwrap_or(&self.provider_name);
+            let effective_provider =
+                Provider::from_str_loose(effective_provider_str).unwrap_or_default();
+            if effective_provider.id() != "vllm" {
+                continue;
+            }
+            let url = self
+                .category_base_url
+                .get(&cat)
+                .cloned()
+                .unwrap_or_else(|| self.base_url.clone());
+            let model = self
+                .category_model
+                .get(&cat)
+                .cloned()
+                .unwrap_or_else(|| self.model_name.clone());
+
+            if base_provider_is_vllm && (url.clone(), model.clone()) == base_slot {
+                continue;
+            }
+            out.push(crate::inference::client::VllmSlot {
+                base_url: url,
+                model,
+            });
+        }
+        out
+    }
+
     /// Installs per-category rate limiters from a parsed config.
     ///
     /// Builds an [`InferenceRateLimiter`] for each category that has an

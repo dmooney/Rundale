@@ -876,6 +876,7 @@ async fn runtime_processes_stop_cleans_up_multi_slot_bundle() {
     let mut bundle = RuntimeProcesses {
         ollama: parish_inference::setup::OllamaProcess::none(),
         vllm_mlx,
+        vllm: Vec::new(),
     };
     assert_eq!(bundle.vllm_mlx.len(), 2);
 

@@ -190,7 +190,7 @@ impl Provider {
                     .expect("simulator must be registered")
             }
         } else {
-            registry().get("ollama").expect("ollama must be registered")
+            registry().get("vllm").expect("vllm must be registered")
         }
     }
 
@@ -1017,8 +1017,9 @@ mod tests {
 
     #[test]
     fn test_vllm_provider_from_str() {
-        assert_eq!(Provider::from_str_loose("vllm").unwrap().id(), "vllmmlx");
-        assert_eq!(Provider::from_str_loose("VLLM").unwrap().id(), "vllmmlx");
+        // "vllm" string resolves to the Linux/Windows vllm provider, not vllm-mlx.
+        assert_eq!(Provider::from_str_loose("vllm").unwrap().id(), "vllm");
+        assert_eq!(Provider::from_str_loose("VLLM").unwrap().id(), "vllm");
     }
 
     #[test]
@@ -1027,20 +1028,26 @@ mod tests {
         assert_eq!(p.default_base_url(), "http://localhost:8000");
         assert!(!p.requires_api_key());
         assert!(p.requires_model());
+
+        let v = Provider::from_str_loose("vllm").unwrap();
+        assert_eq!(v.default_base_url(), "http://localhost:8000");
+        assert!(!v.requires_api_key());
+        assert!(v.requires_model());
     }
 
     #[test]
-    fn recommended_for_platform_picks_vllm_mlx_on_macos_else_ollama() {
+    fn recommended_for_platform_picks_vllm_mlx_on_macos_else_vllm() {
         let rec = Provider::recommended_for_platform();
         if cfg!(target_os = "macos") {
             assert!(rec.id() == "vllmmlx" || rec.id() == "simulator");
         } else {
-            assert_eq!(rec.id(), "ollama");
+            assert_eq!(rec.id(), "vllm");
         }
     }
 
     #[test]
     fn vllm_mlx_aliases_resolve() {
+        // "vllm" alone now resolves to the Linux/Windows variant.
         for alias in ["vllm-mlx", "vllm_mlx", "vllmmlx", "VLLM-MLX"] {
             assert_eq!(
                 Provider::from_str_loose(alias).unwrap().id(),
@@ -1058,13 +1065,13 @@ mod tests {
         let cli = CliOverrides {
             provider: Some("vllm".to_string()),
             base_url: None,
-            model: Some("Qwen/Qwen3-8B".to_string()),
+            model: Some("Qwen/Qwen2.5-14B-Instruct".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider.id(), "vllmmlx");
+        assert_eq!(config.provider.id(), "vllm");
         assert_eq!(config.base_url, "http://localhost:8000");
         assert!(config.api_key.is_none());
-        assert_eq!(config.model.as_deref(), Some("Qwen/Qwen3-8B"));
+        assert_eq!(config.model.as_deref(), Some("Qwen/Qwen2.5-14B-Instruct"));
     }
 
     #[test]
@@ -1078,7 +1085,7 @@ mod tests {
             model: Some("meta-llama/Llama-3-8B".to_string()),
         };
         let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
-        assert_eq!(config.provider.id(), "vllmmlx");
+        assert_eq!(config.provider.id(), "vllm");
         assert_eq!(config.base_url, "http://gpu-server:8000");
     }
 
