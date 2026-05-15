@@ -1598,6 +1598,57 @@ model = "toml-model"
     }
 
     #[test]
+    #[serial(parish_env)]
+    fn test_resolve_cloud_config_vercel_ai_requires_base_url() {
+        clear_parish_env();
+        // Provide an API key so we get past the requires_api_key guard and
+        // reach the needs_base_url_from_user check.
+        unsafe {
+            std::env::set_var("VERCEL_API_KEY", "tok-test");
+        }
+        let cli = CliCloudOverrides {
+            provider: Some("vercel-ai".to_string()),
+            base_url: None,
+            model: Some("anthropic/claude-sonnet-4-5".to_string()),
+        };
+        let err = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("base_url") || msg.contains("base-url"),
+            "error should mention base_url: {msg}"
+        );
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_env_vars_override_provider_base_url_model() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "ollama");
+            std::env::set_var("PARISH_BASE_URL", "http://env-host:11434");
+            std::env::set_var("PARISH_MODEL", "gemma3:4b");
+        }
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        assert_eq!(config.provider.id(), "ollama");
+        assert_eq!(config.base_url, "http://env-host:11434");
+        assert_eq!(config.model, Some("gemma3:4b".to_string()));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_deprecated_parish_ollama_url_fallback() {
+        clear_parish_env();
+        unsafe {
+            std::env::set_var("PARISH_OLLAMA_URL", "http://legacy-host:11434");
+        }
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(Path::new("/nonexistent")), &cli).unwrap();
+        // Deprecated env var should still set base_url
+        assert_eq!(config.base_url, "http://legacy-host:11434");
+    }
+
+    #[test]
     fn test_provider_api_key_env_var() {
         assert_eq!(
             Provider::anthropic().api_key_env_var(),
@@ -1936,6 +1987,38 @@ model = "toml-model"
     fn provider_default_is_simulator() {
         let p = Provider::default();
         assert_eq!(p.id(), "simulator");
+    }
+
+    #[test]
+    fn provider_mod_default_true_fires_when_requires_model_omitted() {
+        // Deserializing a ProviderMod without `requires_model` should invoke
+        // the `default_true` serde default, yielding `requires_model = true`.
+        let raw = r#"
+            id = "test-default"
+            display_name = "Test"
+            kind = "openai-compat"
+            default_base_url = "https://example.com"
+            requires_api_key = false
+        "#;
+        let m: ProviderMod = toml::from_str(raw).expect("valid minimal ProviderMod");
+        assert!(m.requires_model, "default_true() should produce true");
+    }
+
+    #[test]
+    fn load_toml_returns_error_when_path_is_directory() {
+        // `read_to_string` on a directory triggers the IO-error closure
+        // (lines 714-717 in read_toml_config).
+        let tmp = std::env::temp_dir();
+        let result = resolve_config(Some(tmp.as_path()), &CliOverrides::default());
+        assert!(
+            result.is_err(),
+            "reading a directory as config should error"
+        );
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("failed to read config file"),
+            "unexpected error message: {msg}"
+        );
     }
 
     #[test]
