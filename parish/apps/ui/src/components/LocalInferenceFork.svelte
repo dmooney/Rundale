@@ -37,8 +37,7 @@
 		ramGb: number;
 	} = $props();
 
-	let mode: 'fork' | 'byok' | 'local-confirming' = $state('fork');
-	let localError = $state('');
+	let mode: 'fork' | 'byok' = $state('fork');
 
 	// Reactive so it tracks `ramGb` if the prop ever changes. The
 	// two-slot loadout's working set is ~20-24 GB once the 14B is
@@ -50,16 +49,25 @@
 	);
 
 	async function pickLocal() {
-		mode = 'local-confirming';
-		localError = '';
+		// Flip the SetupOverlay to the progress UI *before* awaiting the
+		// IPC. The backend awaits the full HF download (potentially many
+		// minutes) before resolving, so if this component stayed mounted
+		// until the promise resolved the user would stare at the fork
+		// for the entire download with no progress bar, status messages,
+		// or activity log. Switching to the progress UI now lets the
+		// setup-status / setup-progress / setup-done event listeners
+		// on SetupOverlay drive the visuals; setup-done
+		// (emitted by record_setup_done in parish-tauri on both success
+		// and failure) fades the overlay or surfaces the error.
+		onComplete();
 		try {
 			await startLocalInferenceSetup({ variant });
-			// Backend: HF download (with progress) → spawn vllm-mlx →
-			// setup-done event → SetupOverlay fades.
-			onComplete();
 		} catch (e) {
-			localError = String(e);
-			mode = 'fork';
+			// Synchronous IPC rejections (e.g. the wizard_in_flight
+			// guard) won't have emitted a setup-done — the fork is
+			// already unmounted, so log for diagnostics. The inner
+			// bootstrap path emits setup-done on its own errors.
+			console.error('startLocalInferenceSetup rejected:', e);
 		}
 	}
 </script>
@@ -127,14 +135,9 @@
 			</button>
 		</div>
 
-		{#if localError}
-			<p class="local-fork__error">{localError}</p>
-		{/if}
 	</div>
 {:else if mode === 'byok'}
 	<ByokOnboarding {onComplete} onBack={() => (mode = 'fork')} />
-{:else if mode === 'local-confirming'}
-	<div class="local-fork__pending">Starting local inference setup…</div>
 {/if}
 
 <style>
@@ -203,13 +206,5 @@
 		margin-top: auto;
 		font-weight: 600;
 		text-decoration: underline;
-	}
-	.local-fork__error {
-		color: #d33;
-	}
-	.local-fork__pending {
-		font-size: 1.1rem;
-		opacity: 0.85;
-		padding: 2rem;
 	}
 </style>
