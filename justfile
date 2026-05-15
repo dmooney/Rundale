@@ -96,6 +96,10 @@ screenshots:
 
 # ─── Utilities ───────────────────────────────────────────────────────────────
 
+# Reset first-run onboarding (BYOK wizard). Pass extra args: --config, --keys, --all, --dry-run.
+reset-onboarding *ARGS:
+    bash parish/scripts/reset-onboarding.sh {{ARGS}}
+
 # Run the main game walkthrough test script
 game-test:
     cd parish && just game-test
