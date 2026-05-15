@@ -423,7 +423,7 @@ impl SessionToken {
     ///
     /// Returns the email on success.
     pub fn validate_full(token: &str) -> Result<String, &'static str> {
-        use hmac::{Hmac, Mac, KeyInit};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         // token = "<expiry_hex>:<email>.<sig>"
@@ -459,7 +459,7 @@ impl SessionToken {
 
     /// Mints a token embedding the email so `validate_full` can recover it.
     pub fn mint_full(email: &str) -> String {
-        use hmac::{Hmac, Mac, KeyInit};
+        use hmac::{Hmac, KeyInit, Mac};
         use sha2::Sha256;
 
         let expiry = SystemTime::now()
