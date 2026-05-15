@@ -1,0 +1,237 @@
+{
+  "scored_at_utc": "2026-05-15T19:11:18.242773+00:00",
+  "samples_file": "docs/proofs/rundale-bench/dialogue_samples_20260515T190820Z.json",
+  "judge": {
+    "model": "mistralai/mistral-large-2512",
+    "url": "https://openrouter.ai/api/v1"
+  },
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "rubric": "You are an impartial judge scoring a single piece of fictional dialogue from rural Ireland in 1820. The model is playing Brigid O'Brien, a 42-year-old midwife.\n\nScore the reply on each axis independently on an integer 0-10 scale, where:\n\n  - 0  = broken, off-topic, or non-Latin script anywhere in the reply\n  - 3  = recognisable midwife voice but flat, anachronistic, or unresponsive\n  - 6  = period-plausible, on-topic, no glaring tells\n  - 8  = strong period voice with idiomatic Hiberno-English\n  - 10 = a sentence a real 1820 Irish midwife could have spoken\n\nAxes:\n  - CHARACTER         — reads as the specific persona (rural Irish midwife, 1820, woman of folk-medicine experience)\n  - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms (\"hi\", \"okay\", \"guys\")\n  - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0\n  - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding\n  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing\n\nAfter the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.\n\nOutput ONLY a JSON object: {\"character\":<0-10>, \"authenticity\":<0-10>, \"language\":<0-10>, \"responsiveness\":<0-10>, \"craft\":<0-10>, \"total\":<0.0-10.0>, \"reason\":\"<one short sentence, ≤25 words>\"}. No prose, no markdown.",
+  "aggregates": {
+    "z-ai/glm-4.6": {
+      "character_mean": 8.866666666666667,
+      "character_n": 15,
+      "authenticity_mean": 9.466666666666667,
+      "authenticity_n": 15,
+      "language_mean": 8.133333333333333,
+      "language_n": 15,
+      "responsiveness_mean": 8.466666666666667,
+      "responsiveness_n": 15,
+      "craft_mean": 8.866666666666667,
+      "craft_n": 15,
+      "total_mean": 8.76,
+      "total_n": 15
+    }
+  },
+  "ranked": [
+    {
+      "candidate": "z-ai/glm-4.6",
+      "character_mean": 8.866666666666667,
+      "character_n": 15,
+      "authenticity_mean": 9.466666666666667,
+      "authenticity_n": 15,
+      "language_mean": 8.133333333333333,
+      "language_n": 15,
+      "responsiveness_mean": 8.466666666666667,
+      "responsiveness_n": 15,
+      "craft_mean": 8.866666666666667,
+      "craft_n": 15,
+      "total_mean": 8.76,
+      "total_n": 15
+    }
+  ],
+  "per_record": [
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0001",
+      "reply": "\nAh, the dreams that steal your rest. A cup of valerian and chamomile tea before bed might still your mind. We can also tie a sprig of rosemary beneath your pillow to chase the nightmares away.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with folk remedies; minor modern phrasing ('still your mind') slightly tempers authenticity."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0002",
+      "reply": "\nAh, you mean Nuala. She's older than the hills themselves and knows more about the old ways than anyone left in the parish. It's best to be polite, for the fairies are her kin and she doesn't forget a slight.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice with folk-medicine authority; minor modern phrasing ('older than the hills')."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0003",
+      "reply": "Aye, come in out of the rain and sit by the fire. I have a bottle of ribwort and thyme syrup steeping that will loosen the phlegm in her chest. Make sure she keeps a warm brick wrapped in a cloth at her feet tonight.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic care instructions; minor modern phrasing absent."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0004",
+      "reply": "\nAye, I've seen him myself. A quiet man, keeps to himself down by the old bridge.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.2,
+      "reason": "Strong period voice with idiomatic Hiberno-English, concise and directly responsive."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0005",
+      "reply": "Aye, the Good Neighbors are fond of a white fleece, especially when the moon is full. Did you scatter salt across the threshold before you went to bed?",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic Hiberno-English, responsive, and concise."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0006",
+      "reply": "Aye, I recall it clearly, for he screamed loud enough to wake the dead. I set the bone with splints of ash and bound it tight with comfrey to knit the flesh back together.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 10,
+      "craft": 10,
+      "total": 9.8,
+      "reason": "Near-perfect 1820 Irish midwife voice with vivid, period-accurate folk remedies."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0007",
+      "reply": "Tread carefully near the raths at night, for the Good Folk are easily stirred. Those were fairy lights, meant to lure the unwary away from the path.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic warning; minor responsiveness gap on specific prompt details."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0008",
+      "reply": "Come closer and let me have a look at your eyes. If the water is running bitter from the bog, it’s usually just the iron shifting, but boil it well before you drink to be safe.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 6,
+      "craft": 7,
+      "total": 7.6,
+      "reason": "Strong period voice and authenticity, but slightly generic advice without clear prompt context."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0009",
+      "reply": "\nFetch me when her pains are strong and close, no more than a quarter-hour apart. Until then, keep her comfortable and let her walk as she can.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.2,
+      "reason": "Strong period voice with idiomatic phrasing; concise and directly responsive."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0010",
+      "reply": "Father Cathal means well, but a prayer won't stop a fever like a compress of willow bark will. I've been bringing babies into this world long before he came to the parish, and the good Lord knows He put the cure in the fields for us to find.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice with idiomatic Hiberno-English, concise, and fully in character."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0011",
+      "reply": "\nAye, that devil's own fire. Chew on a piece of clove, or press a wad of yarrow root against the gum to draw the pain out.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.4,
+      "reason": "Strong period voice with idiomatic Hiberno-English and precise folk-remedy advice."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0012",
+      "reply": "\nHold it under clean, cold running water straight away to wash the dirt out. I'll mix you a poultice of yarrow and plantain; that will draw the heat and stop the bleeding. Keep your arm raised and I'll be with you in a moment.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with practical folk-medicine advice, minor modern phrasing ('straight away')."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0013",
+      "reply": "\nAye, I did. A fierce pair they were, and no mistake. Their poor mother was exhausted, but they both came out strong.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic Hiberno-English, concise and responsive."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0014",
+      "reply": "\nThe crows are always watching for a weak sheep or a careless rabbit. It is the season of change, not a sign of ill will.",
+      "character": 7,
+      "authenticity": 8,
+      "language": 6,
+      "responsiveness": 5,
+      "craft": 8,
+      "total": 6.8,
+      "reason": "Strong period voice but only loosely responsive; lacks distinct midwife perspective."
+    },
+    {
+      "candidate": "z-ai/glm-4.6",
+      "prompt_id": "dialogue-0015",
+      "reply": "\nThe old ones say a spirit visiting thrice means they have a message for you. Have you been neglecting your prayers, or is there some worry weighing heavy on your heart? You must listen close, for the dead speak only in whispers and signs.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 7,
+      "craft": 9,
+      "total": 8.4,
+      "reason": "Strong period voice with idiomatic phrasing, but slightly generic on responsiveness."
+    }
+  ],
+  "cost": {
+    "calls": 15,
+    "usd": 0.0,
+    "prompt_tokens": 7588,
+    "completion_tokens": 864
+  }
+}

@@ -70,20 +70,6 @@
       "total_mean": 8.613333333333333,
       "total_n": 15
     },
-    "moonshotai/kimi-k2.5": {
-      "character_mean": 9.0,
-      "character_n": 1,
-      "authenticity_mean": 9.0,
-      "authenticity_n": 1,
-      "language_mean": 9.0,
-      "language_n": 1,
-      "responsiveness_mean": 8.0,
-      "responsiveness_n": 1,
-      "craft_mean": 9.0,
-      "craft_n": 1,
-      "total_mean": 8.8,
-      "total_n": 1
-    },
     "x-ai/grok-3-mini": {
       "character_mean": 8.533333333333333,
       "character_n": 15,
@@ -100,21 +86,6 @@
     }
   },
   "ranked": [
-    {
-      "candidate": "moonshotai/kimi-k2.5",
-      "character_mean": 9.0,
-      "character_n": 1,
-      "authenticity_mean": 9.0,
-      "authenticity_n": 1,
-      "language_mean": 9.0,
-      "language_n": 1,
-      "responsiveness_mean": 8.0,
-      "responsiveness_n": 1,
-      "craft_mean": 9.0,
-      "craft_n": 1,
-      "total_mean": 8.8,
-      "total_n": 1
-    },
     {
       "candidate": "mistralai/mistral-large-2512",
       "character_mean": 8.6,
@@ -911,18 +882,6 @@
       "craft": 8,
       "total": 8.6,
       "reason": "Fits the midwife persona with natural period Hiberno-English and direct reply."
-    },
-    {
-      "candidate": "moonshotai/kimi-k2.5",
-      "prompt_id": "dialogue-0013",
-      "reply": "Aye, that I did, and a hard night it was too, with the second one coming feet-first. Your own mother sat with me through the dark hours, God rest her, keeping the fire stoked and the kettle boiling.",
-      "character": 9,
-      "authenticity": 9,
-      "language": 9,
-      "responsiveness": 8,
-      "craft": 9,
-      "total": 8.8,
-      "reason": "Evocative midwife voice with natural Hiberno-English and period detail."
     },
     {
       "candidate": "x-ai/grok-3-mini",

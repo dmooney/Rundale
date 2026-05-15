@@ -27,20 +27,6 @@
       "craft_n": 15,
       "total_mean": 8.186666666666666,
       "total_n": 15
-    },
-    "qwen/qwen-2.5-72b-instruct": {
-      "character_mean": 8.0,
-      "character_n": 1,
-      "authenticity_mean": 9.0,
-      "authenticity_n": 1,
-      "language_mean": 8.0,
-      "language_n": 1,
-      "responsiveness_mean": 7.0,
-      "responsiveness_n": 1,
-      "craft_mean": 8.0,
-      "craft_n": 1,
-      "total_mean": 8.0,
-      "total_n": 1
     }
   },
   "ranked": [
@@ -58,21 +44,6 @@
       "craft_n": 15,
       "total_mean": 8.186666666666666,
       "total_n": 15
-    },
-    {
-      "candidate": "qwen/qwen-2.5-72b-instruct",
-      "character_mean": 8.0,
-      "character_n": 1,
-      "authenticity_mean": 9.0,
-      "authenticity_n": 1,
-      "language_mean": 8.0,
-      "language_n": 1,
-      "responsiveness_mean": 7.0,
-      "responsiveness_n": 1,
-      "craft_mean": 8.0,
-      "craft_n": 1,
-      "total_mean": 8.0,
-      "total_n": 1
     }
   ],
   "per_record": [
@@ -255,18 +226,6 @@
       "craft": 7,
       "total": 6.4,
       "reason": "Fits folk-medicine advice but voice lacks Hiberno-English idiom or rural Irish flavour."
-    },
-    {
-      "candidate": "qwen/qwen-2.5-72b-instruct",
-      "prompt_id": "dialogue-0013",
-      "reply": "Aye, 'twas a night of heavy rain and stronger labour, but the twins were born healthy, both of them. The good Lord watches over such precious arrivals.",
-      "character": 8,
-      "authenticity": 9,
-      "language": 8,
-      "responsiveness": 7,
-      "craft": 8,
-      "total": 8.0,
-      "reason": "Fits midwife persona with solid period phrasing but lacks specific prompt context."
     }
   ],
   "cost": {

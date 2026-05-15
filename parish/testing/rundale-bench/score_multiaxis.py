@@ -25,8 +25,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -107,6 +109,8 @@ def main() -> None:
     ap.add_argument("--judge-env", default="OPENROUTER_API_KEY")
     ap.add_argument("--limit", type=int, default=None,
                     help="cap samples per candidate")
+    ap.add_argument("--workers", type=int, default=8,
+                    help="parallel judge requests (default 8). 1 = serial.")
     ap.add_argument("--output", default=None)
     args = ap.parse_args()
 
@@ -119,30 +123,58 @@ def main() -> None:
     started = time.time()
 
     per_cand: dict[str, dict] = defaultdict(lambda: {a: [] for a in axes + ["total"]})
-    per_record: list[dict] = []
+    per_record_dict: dict[int, dict] = {}
     eligible = [s for s in data["samples"] if not s.get("error") and s.get("reply", "").strip()]
+    if args.limit:
+        kept_by_cand: dict[str, int] = defaultdict(int)
+        capped = []
+        for s in eligible:
+            if kept_by_cand[s["candidate"]] >= args.limit:
+                continue
+            kept_by_cand[s["candidate"]] += 1
+            capped.append(s)
+        eligible = capped
     total_n = len(eligible)
-    print(f"scoring {total_n} replies × {len(axes)} axes with {args.judge_model}", flush=True)
+    print(f"scoring {total_n} replies × {len(axes)} axes with {args.judge_model} "
+          f"({args.workers} workers)", flush=True)
 
-    for i, s in enumerate(eligible, 1):
-        if args.limit and len(per_cand[s["candidate"]]["total"]) >= args.limit:
-            continue
+    lock = threading.Lock()
+    completed = [0]
+
+    def worker(idx_sample):
+        i, s = idx_sample
         t0 = time.time()
         scored = score_one(rubric, s["reply"], judge_target, tracker, axes)
         dt = time.time() - t0
-        if not scored.get("error"):
-            for a in axes:
-                per_cand[s["candidate"]][a].append(scored[a])
-            per_cand[s["candidate"]]["total"].append(scored["total"])
-        per_record.append({
+        rec = {
             "candidate": s["candidate"],
             "prompt_id": s["prompt_id"],
             "reply": s["reply"],
             **scored,
-        })
-        tag = " ERR" if scored.get("error") else ""
-        print(f"  [{i:4d}/{total_n}] {dt:5.1f}s  total={scored['total']:4.1f}{tag}  "
-              f"${tracker.usd:7.4f} cum  {s['candidate'][:30]:30s} {s['prompt_id']}", flush=True)
+        }
+        with lock:
+            if not scored.get("error"):
+                for a in axes:
+                    per_cand[s["candidate"]][a].append(scored[a])
+                per_cand[s["candidate"]]["total"].append(scored["total"])
+            per_record_dict[i] = rec
+            completed[0] += 1
+            done = completed[0]
+            tag = " ERR" if scored.get("error") else ""
+            print(f"  [{done:4d}/{total_n}] {dt:5.1f}s  total={scored['total']:4.1f}{tag}  "
+                  f"${tracker.usd:7.4f} cum  {s['candidate'][:30]:30s} {s['prompt_id']}",
+                  flush=True)
+        return rec
+
+    indexed = list(enumerate(eligible, 1))
+    if args.workers <= 1:
+        for x in indexed:
+            worker(x)
+    else:
+        with ThreadPoolExecutor(max_workers=args.workers) as ex:
+            list(ex.map(worker, indexed))
+
+    per_record = [per_record_dict[i] for i in sorted(per_record_dict.keys())]
 
     aggregates = {}
     for cand, bucket in per_cand.items():

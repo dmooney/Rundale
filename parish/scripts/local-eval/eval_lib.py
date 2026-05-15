@@ -77,6 +77,7 @@ REASONING_MODEL_PREFIXES = (
     "moonshotai/kimi-k2.5",
     "moonshotai/kimi-k2.6",
     "moonshotai/kimi-k2-thinking",
+    "z-ai/glm-4.6",
     "z-ai/glm-4.7",
     "openai/o1",
     "openai/o3",
@@ -84,12 +85,31 @@ REASONING_MODEL_PREFIXES = (
     "anthropic/claude-opus-4.7",
     "anthropic/claude-sonnet-4.6",
     "deepseek/deepseek-r1",
+    "google/gemini-2.5-pro",
+    "google/gemini-3",
 )
 
 
 def _is_reasoning_model(model_id: str) -> bool:
     mid = model_id.lower()
     return any(mid.startswith(p) for p in REASONING_MODEL_PREFIXES)
+
+
+def _default_reasoning_for(model_id: str) -> dict:
+    """OpenRouter doesn't normalise reasoning-suppression syntax across
+    providers, so we pick the form each model actually honours.
+
+    - Most providers (kimi, glm, deepseek, anthropic, openai-o*) accept
+      ``{"enabled": false}`` to disable thinking entirely.
+    - Google rejects ``enabled`` and ``max_tokens=0`` with HTTP 400 but
+      accepts ``effort: "low"``, which caps internal reasoning at ~64
+      tokens — enough for short dialogue replies to fit in
+      ``max_tokens=200``.
+    """
+    mid = model_id.lower()
+    if mid.startswith("google/"):
+        return {"effort": "low"}
+    return {"enabled": False}
 
 
 def call_chat(
@@ -133,7 +153,7 @@ def call_chat(
     if reasoning is not None:
         body["reasoning"] = reasoning
     elif _is_reasoning_model(target.model):
-        body["reasoning"] = {"enabled": False}
+        body["reasoning"] = _default_reasoning_for(target.model)
     headers = {"Content-Type": "application/json"}
     key = target.api_key()
     if key:
