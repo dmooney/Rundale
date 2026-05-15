@@ -121,7 +121,11 @@ if (( remove_keys )); then
       # https://docs.rs/keyring/3/keyring/#linux
       if command -v secret-tool >/dev/null 2>&1; then
         for p in "${providers[@]}"; do
-          run secret-tool clear service "$service" username "provider:$p" || true
+          # Probe first so a missing key doesn't surface as a backend error
+          # (secret-tool exits 1 for "no match" and other failures alike).
+          if secret-tool search service "$service" username "provider:$p" >/dev/null 2>&1; then
+            run secret-tool clear service "$service" username "provider:$p"
+          fi
         done
       else
         echo "warn: secret-tool not installed; clear keys via your wallet UI." >&2
@@ -132,7 +136,9 @@ if (( remove_keys )); then
       # where user = `provider:<id>`. See keyring-3.x src/windows.rs.
       for p in "${providers[@]}"; do
         target="provider:$p.$service"
-        run cmdkey "/delete:$target" || true
+        if cmdkey "/list:$target" 2>/dev/null | grep -q "$target"; then
+          run cmdkey "/delete:$target"
+        fi
       done
       ;;
   esac
