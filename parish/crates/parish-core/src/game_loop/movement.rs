@@ -253,6 +253,7 @@ mod tests {
     use crate::ipc::{ConversationRuntimeState, EventEmitter, GameConfig};
     use crate::npc::manager::NpcManager;
     use crate::npc::reactions::ReactionTemplates;
+    use crate::world::LocationId;
     use crate::world::{WorldState, transport::TransportMode};
 
     fn make_transport() -> TransportMode {
@@ -261,6 +262,44 @@ mod tests {
             id: "walking".to_string(),
             speed_m_per_s: 1.2,
         }
+    }
+
+    fn tiny_world() -> WorldState {
+        let file = tempfile::NamedTempFile::new().expect("temp world file");
+        std::fs::write(
+            file.path(),
+            r#"{
+                "locations": [
+                    {
+                        "id": 1,
+                        "name": "Crossroads",
+                        "description_template": "Crossroads in {weather}.",
+                        "indoor": false,
+                        "public": true,
+                        "lat": 53.0,
+                        "lon": -8.0,
+                        "connections": [
+                            {"target": 2, "path_description": "a lane to the chapel"}
+                        ]
+                    },
+                    {
+                        "id": 2,
+                        "name": "Chapel",
+                        "description_template": "The chapel is quiet in {weather}.",
+                        "indoor": true,
+                        "public": true,
+                        "lat": 53.001,
+                        "lon": -8.0,
+                        "connections": [
+                            {"target": 1, "path_description": "a lane to the crossroads"}
+                        ]
+                    }
+                ]
+            }"#,
+        )
+        .expect("write tiny world");
+
+        WorldState::from_parish_file(file.path(), LocationId(1)).expect("load tiny world")
     }
 
     #[tokio::test]
@@ -303,5 +342,60 @@ mod tests {
             !names.iter().any(|n| n == "world-update"),
             "expected no world-update when destination unknown; got {names:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn handle_movement_emits_travel_before_text_and_world_update_last() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(tiny_world());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let mut game_config = GameConfig::default();
+        game_config.flags.disable("travel-encounters");
+        let config = tokio::sync::Mutex::new(game_config);
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+        };
+
+        let effects = super::handle_movement(
+            &ctx,
+            "Chapel",
+            &make_transport(),
+            &ReactionTemplates::default(),
+        )
+        .await;
+
+        assert!(effects.world_changed);
+        assert_eq!(world.lock().await.player_location, LocationId(2));
+
+        let names = emitter.event_names();
+        assert!(
+            names.len() >= 3,
+            "successful movement should emit travel, text, and world update; got {names:?}"
+        );
+        assert_eq!(names.first().map(String::as_str), Some("travel-start"));
+        assert!(
+            names[1..names.len() - 1].iter().any(|n| n == "text-log"),
+            "movement narration should be emitted between travel-start and world-update; got {names:?}"
+        );
+        assert_eq!(names.last().map(String::as_str), Some("world-update"));
+
+        let conv = conversation.lock().await;
+        assert_eq!(conv.location, Some(LocationId(2)));
     }
 }

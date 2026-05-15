@@ -110,7 +110,11 @@ pub fn merge_locations(
         result.push(generated_loc);
     }
 
-    // Remap connection targets in generated locations
+    let valid_ids: std::collections::HashSet<LocationId> =
+        result.iter().map(|loc| loc.data.id).collect();
+
+    // Remap connection targets in generated locations and drop stale edges to
+    // generated locations that were removed during proximity filtering.
     for loc in &mut result {
         if loc.description_source != DescriptionSource::Curated {
             for conn in &mut loc.data.connections {
@@ -118,6 +122,9 @@ pub fn merge_locations(
                     conn.target = LocationId(new_id);
                 }
             }
+            loc.data
+                .connections
+                .retain(|conn| valid_ids.contains(&conn.target));
         }
     }
 
@@ -315,6 +322,46 @@ mod tests {
         assert_eq!(
             pub_b.data.connections[0].target,
             parish_core::world::LocationId(2)
+        );
+    }
+
+    #[test]
+    fn test_merge_prunes_connections_to_dropped_generated_locations() {
+        let curated = vec![make_tracked(
+            1,
+            "Curated Church",
+            DescriptionSource::Curated,
+            53.5,
+            -8.0,
+        )];
+
+        let mut kept = make_tracked(100, "Kept Pub", DescriptionSource::Template, 53.6, -8.0);
+        kept.data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: LocationId(101),
+                path_description: "to dropped duplicate".to_string(),
+                hazard: Default::default(),
+            });
+        let dropped = make_tracked(
+            101,
+            "Generated Church Duplicate",
+            DescriptionSource::Template,
+            53.5001,
+            -8.0,
+        );
+
+        let result = merge_locations(curated, vec![kept, dropped], 50.0);
+
+        assert_eq!(result.len(), 2);
+        let kept = result
+            .iter()
+            .find(|loc| loc.data.name == "Kept Pub")
+            .unwrap();
+        assert_eq!(kept.data.id, LocationId(2));
+        assert!(
+            kept.data.connections.is_empty(),
+            "kept generated node must not retain an edge to dropped old id 101"
         );
     }
 

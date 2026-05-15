@@ -113,7 +113,7 @@ impl Database {
                 id INTEGER PRIMARY KEY,
                 name TEXT UNIQUE NOT NULL,
                 created_at TEXT NOT NULL,
-                parent_branch_id INTEGER
+                parent_branch_id INTEGER REFERENCES branches(id)
             );
 
             CREATE TABLE IF NOT EXISTS snapshots (
@@ -219,6 +219,22 @@ impl Database {
         name: &str,
         parent_branch_id: Option<i64>,
     ) -> Result<i64, ParishError> {
+        if let Some(parent_id) = parent_branch_id {
+            let exists: bool = self
+                .conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM branches WHERE id = ?1)",
+                    params![parent_id],
+                    |row| row.get(0),
+                )
+                .db_err()?;
+            if !exists {
+                return Err(ParishError::Database(format!(
+                    "parent branch id {parent_id} does not exist"
+                )));
+            }
+        }
+
         let created_at = chrono::Utc::now().to_rfc3339();
         self.conn
             .execute(
@@ -573,6 +589,32 @@ mod tests {
     }
 
     #[test]
+    fn test_create_branch_rejects_dangling_parent() {
+        let db = Database::open_memory().unwrap();
+        let result = db.create_branch("orphan", Some(999));
+        assert!(
+            result.is_err(),
+            "branches must not reference a missing parent branch"
+        );
+        assert!(db.find_branch("orphan").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_branch_parent_foreign_key_rejects_dangling_parent() {
+        let db = Database::open_memory().unwrap();
+        let result = db.conn.execute(
+            "INSERT INTO branches (name, created_at, parent_branch_id)
+             VALUES (?1, ?2, ?3)",
+            params!["raw-orphan", chrono::Utc::now().to_rfc3339(), 999],
+        );
+
+        assert!(
+            result.is_err(),
+            "branch parent foreign key should reject a missing parent"
+        );
+    }
+
+    #[test]
     fn test_find_branch_not_found() {
         let db = Database::open_memory().unwrap();
         let result = db.find_branch("nonexistent").unwrap();
@@ -829,6 +871,65 @@ mod tests {
     }
 
     #[test]
+    fn test_file_database_uses_wal_normal_synchronous_and_foreign_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("save.sqlite3");
+        let db = Database::open(&path).unwrap();
+
+        let journal_mode: String = db
+            .conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        let synchronous: i64 = db
+            .conn
+            .query_row("PRAGMA synchronous", [], |row| row.get(0))
+            .unwrap();
+        let foreign_keys: i64 = db
+            .conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get(0))
+            .unwrap();
+
+        assert_eq!(journal_mode.to_ascii_lowercase(), "wal");
+        assert_eq!(synchronous, 1, "SQLite NORMAL synchronous is encoded as 1");
+        assert_eq!(foreign_keys, 1);
+    }
+
+    #[test]
+    fn test_reader_can_read_committed_state_during_write_transaction() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("save.sqlite3");
+        let db = Database::open(&path).unwrap();
+        let main = db.find_branch("main").unwrap().unwrap();
+        let snap_id = db.save_snapshot(main.id, &make_test_snapshot()).unwrap();
+
+        let writer = rusqlite::Connection::open(&path).unwrap();
+        writer
+            .execute_batch(
+                "PRAGMA journal_mode=WAL;
+                 PRAGMA foreign_keys=ON;
+                 BEGIN IMMEDIATE;",
+            )
+            .unwrap();
+        writer
+            .execute(
+                "INSERT INTO branches (name, created_at, parent_branch_id)
+                 VALUES (?1, ?2, ?3)",
+                params!["uncommitted-fork", chrono::Utc::now().to_rfc3339(), main.id],
+            )
+            .unwrap();
+
+        let branches = db.list_branches().unwrap();
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches[0].name, "main");
+        assert_eq!(
+            db.load_latest_snapshot(main.id).unwrap().unwrap().0,
+            snap_id
+        );
+
+        writer.execute_batch("COMMIT;").unwrap();
+    }
+
+    #[test]
     fn test_duplicate_branch_name_fails() {
         let db = Database::open_memory().unwrap();
         db.create_branch("test", None).unwrap();
@@ -968,6 +1069,33 @@ mod tests {
         assert!(
             result.is_err(),
             "corrupt JSON should produce a recoverable error"
+        );
+    }
+
+    /// Regression: corrupt journal event JSON must surface as a recoverable
+    /// error to the caller. Save recovery can then report the bad row instead
+    /// of panicking while replaying a damaged journal.
+    #[test]
+    fn test_corrupt_journal_event_json_is_recoverable() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let db = Database::open(tmp.path()).unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+
+        let raw = rusqlite::Connection::open(tmp.path()).unwrap();
+        raw.execute(
+            "INSERT INTO journal_events
+             (branch_id, sequence, after_snapshot_id, event_type, event_data, game_time)
+             VALUES (?1, 1, ?2, 'ClockAdvanced', '{not valid json', ?3)",
+            params![branch.id, snap_id, "1820-03-20T08:00:00Z"],
+        )
+        .unwrap();
+        drop(raw);
+
+        let result = db.events_since_snapshot(branch.id, snap_id);
+        assert!(
+            result.is_err(),
+            "corrupt journal JSON should produce a recoverable error"
         );
     }
 

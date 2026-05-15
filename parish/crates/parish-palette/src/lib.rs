@@ -302,7 +302,10 @@ pub(crate) fn compute_palette_with_config(
     minute: u32,
     config: &PaletteConfig,
 ) -> RawPalette {
-    let mut palette = interpolated_palette(hour, minute);
+    let total_minutes = hour as u64 * 60 + minute as u64;
+    let normalized_hour = ((total_minutes / 60) % 24) as u32;
+    let normalized_minute = (total_minutes % 60) as u32;
+    let mut palette = interpolated_palette(normalized_hour, normalized_minute);
     ensure_contrast_with_config(&mut palette, config);
     palette
 }
@@ -319,6 +322,23 @@ pub fn compute_palette(hour: u32, minute: u32) -> RawPalette {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_color(actual: RawColor, expected: (u8, u8, u8)) {
+        assert_eq!(actual, RawColor::new(expected.0, expected.1, expected.2));
+    }
+
+    fn assert_documented_keyframe(
+        hour: u32,
+        minute: u32,
+        bg: (u8, u8, u8),
+        fg: (u8, u8, u8),
+        accent: (u8, u8, u8),
+    ) {
+        let p = interpolated_palette(hour, minute);
+        assert_color(p.bg, bg);
+        assert_color(p.fg, fg);
+        assert_color(p.accent, accent);
+    }
 
     #[test]
     fn test_lerp_u8_boundaries() {
@@ -385,6 +405,17 @@ mod tests {
         // At Dusk's anchor hour (18:00), should match Dusk palette exactly
         let p = interpolated_palette(18, 0);
         assert_eq!(p.bg, KEYFRAMES[5].palette.bg);
+    }
+
+    #[test]
+    fn test_keyframe_values_match_design_golden_table() {
+        assert_documented_keyframe(5, 30, (255, 220, 180), (60, 40, 20), (200, 140, 60));
+        assert_documented_keyframe(8, 30, (255, 245, 220), (50, 35, 15), (180, 130, 50));
+        assert_documented_keyframe(12, 0, (255, 255, 240), (40, 30, 10), (160, 120, 40));
+        assert_documented_keyframe(15, 30, (240, 220, 170), (50, 35, 15), (180, 130, 50));
+        assert_documented_keyframe(18, 0, (60, 70, 110), (220, 210, 190), (200, 160, 80));
+        assert_documented_keyframe(21, 0, (20, 25, 40), (180, 180, 190), (100, 110, 140));
+        assert_documented_keyframe(1, 30, (10, 12, 20), (150, 150, 165), (70, 75, 100));
     }
 
     #[test]
@@ -608,6 +639,26 @@ mod tests {
     }
 
     #[test]
+    fn test_muted_and_accent_contrast_floor_all_hours() {
+        let config = PaletteConfig::default();
+        for hour in 0..24 {
+            for minute in [0, 15, 30, 45] {
+                let p = compute_palette(hour, minute);
+                let muted_contrast = (luminance(p.muted) - luminance(p.bg)).abs();
+                let accent_contrast = (luminance(p.accent) - luminance(p.bg)).abs();
+                assert!(
+                    muted_contrast >= config.min_muted_bg_contrast - 1.0,
+                    "Muted contrast too low at {hour}:{minute:02}: {muted_contrast:.1}"
+                );
+                assert!(
+                    accent_contrast >= config.min_muted_bg_contrast - 1.0,
+                    "Accent contrast too low at {hour}:{minute:02}: {accent_contrast:.1}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_ensure_color_contrast_noop_when_sufficient() {
         let fg = RawColor::new(255, 255, 255);
         let bg = RawColor::new(0, 0, 0);
@@ -628,6 +679,25 @@ mod tests {
             contrast >= 79.0,
             "Should push fg away from bg, got contrast {contrast:.1}"
         );
+    }
+
+    #[test]
+    fn test_ensure_color_contrast_lightens_foreground_on_dark_background() {
+        let fg = RawColor::new(40, 30, 20);
+        let bg = RawColor::new(20, 20, 20);
+        let result = ensure_color_contrast(fg, bg, 80.0);
+        assert!(luminance(result) > luminance(fg));
+        assert!((luminance(result) - luminance(bg)).abs() >= 79.0);
+    }
+
+    #[test]
+    fn test_ensure_color_contrast_handles_near_black_foreground() {
+        let fg = RawColor::new(0, 0, 0);
+        let bg = RawColor::new(20, 20, 20);
+        let result = ensure_color_contrast(fg, bg, 80.0);
+        assert_eq!(result.r, result.g);
+        assert_eq!(result.g, result.b);
+        assert!((luminance(result) - luminance(bg)).abs() >= 79.0);
     }
 
     #[test]
@@ -668,5 +738,13 @@ mod tests {
                 "Lax config should not exceed default contrast at hour {hour}: lax={lax_contrast:.1}, default={default_contrast:.1}"
             );
         }
+    }
+
+    #[test]
+    fn test_compute_palette_normalizes_out_of_range_time() {
+        assert_eq!(compute_palette(24, 0), compute_palette(0, 0));
+        assert_eq!(compute_palette(48, 0), compute_palette(0, 0));
+        assert_eq!(compute_palette(23, 75), compute_palette(0, 15));
+        assert_eq!(compute_palette(50, 125), compute_palette(4, 5));
     }
 }

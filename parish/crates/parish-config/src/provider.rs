@@ -775,6 +775,24 @@ mod tests {
         }
     }
 
+    struct CwdGuard {
+        original: std::path::PathBuf,
+    }
+
+    impl CwdGuard {
+        fn enter(path: &Path) -> Self {
+            let original = std::env::current_dir().unwrap();
+            std::env::set_current_dir(path).unwrap();
+            Self { original }
+        }
+    }
+
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            std::env::set_current_dir(&self.original).unwrap();
+        }
+    }
+
     #[test]
     fn test_provider_from_str_loose() {
         assert_eq!(
@@ -1010,12 +1028,17 @@ mod tests {
         assert!(Provider::VllmMlx.requires_model());
     }
 
-    /// macOS hosts get vllm-mlx; other platforms get Ollama. This is the
+    /// macOS hosts with enough unified memory get vllm-mlx; smaller macOS hosts
+    /// fall back to Simulator. Other platforms get Ollama. This is the
     /// pre-select hint surfaced through the first-run setup-status flow.
     #[test]
     fn recommended_for_platform_picks_vllm_mlx_on_macos_else_ollama() {
         let expected = if cfg!(target_os = "macos") {
-            Provider::VllmMlx
+            if unified_memory_bytes().unwrap_or(0) >= 16 * 1_073_741_824 {
+                Provider::VllmMlx
+            } else {
+                Provider::Simulator
+            }
         } else {
             Provider::Ollama
         };
@@ -1130,6 +1153,101 @@ model = "toml-model"
         let config = resolve_config(Some(&path), &cli).unwrap();
         assert_eq!(config.provider, Provider::LmStudio);
         assert_eq!(config.model.as_deref(), Some("cli-model"));
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_env_overrides_toml_and_cli_overrides_env() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[provider]
+name = "lmstudio"
+base_url = "http://toml-host:5555"
+model = "toml-model"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "ollama");
+            std::env::set_var("PARISH_BASE_URL", "http://env-host:11434");
+            std::env::set_var("PARISH_MODEL", "env-model");
+        }
+
+        let cli = CliOverrides {
+            provider: Some("vllm".to_string()),
+            base_url: None,
+            model: Some("cli-model".to_string()),
+        };
+        let config = resolve_config(Some(&path), &cli).unwrap();
+        assert_eq!(config.provider, Provider::VllmMlx);
+        assert_eq!(config.base_url, "http://env-host:11434");
+        assert_eq!(config.model.as_deref(), Some("cli-model"));
+
+        clear_parish_env();
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_provider_key_env_overrides_toml_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(
+            f,
+            r#"
+[provider]
+name = "anthropic"
+api_key = "sk-toml"
+model = "claude-test"
+"#
+        )
+        .unwrap();
+
+        clear_parish_env();
+        // SAFETY: serialised by #[serial(parish_env)]
+        unsafe { std::env::set_var("ANTHROPIC_API_KEY", "sk-env") };
+
+        let cli = CliOverrides::default();
+        let config = resolve_config(Some(&path), &cli).unwrap();
+        assert_eq!(config.provider, Provider::Anthropic);
+        assert_eq!(config.api_key.as_deref(), Some("sk-env"));
+        assert_eq!(config.model.as_deref(), Some("claude-test"));
+
+        clear_parish_env();
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn test_resolve_config_none_does_not_read_cwd_parish_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parish.toml");
+        std::fs::write(
+            &path,
+            r#"
+[provider]
+name = "lmstudio"
+base_url = "http://cwd-host:1234"
+model = "cwd-model"
+"#,
+        )
+        .unwrap();
+
+        clear_parish_env();
+        let _cwd = CwdGuard::enter(dir.path());
+
+        let cli = CliOverrides::default();
+        let config = resolve_config(None, &cli).unwrap();
+        assert_eq!(config.provider, Provider::Simulator);
+        assert_eq!(config.base_url, "");
+        assert!(config.api_key.is_none());
+        assert!(config.model.is_none());
     }
 
     #[test]
