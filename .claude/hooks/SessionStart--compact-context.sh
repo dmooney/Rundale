@@ -29,7 +29,7 @@ Outputs JSON. Always verify changes with the harness, not just unit tests.
 GIT CONVENTIONS:
 - Conventional commits: feat:, fix:, refactor:, docs:, test:
 - Docs must be updated with every commit (README.md, CLAUDE.md, docs/)
-- Test coverage must stay above 90%
+- Rust coverage ratchet must pass (`just coverage-check`); long-term target is 90%
 - Never push without running /verify
 
 CRITICAL FILES (do not edit directly):
