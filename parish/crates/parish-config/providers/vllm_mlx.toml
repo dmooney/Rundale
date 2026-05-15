@@ -1,6 +1,6 @@
 id = "vllmmlx"
 display_name = "vLLM (MLX)"
-aliases = ["vllm-mlx", "vllm_mlx", "vllm"]
+aliases = ["vllm-mlx", "vllm_mlx"]
 kind = "local"
 default_base_url = "http://localhost:8000"
 requires_api_key = false
