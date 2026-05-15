@@ -718,7 +718,7 @@ async fn run_llm_bootstrap(
         )
         .await
         .map_err(|e| anyhow::anyhow!("Failed to initialise inference provider: {}", e))?;
-    if matches!(provider_cfg.provider, parish_core::config::Provider::Ollama) {
+    if provider_cfg.provider.id() == "ollama" {
         // Auto-setup pulled exactly one model. Pin it across all four
         // per-category slots so every role uses the model that is on
         // disk, instead of the static qwen3 preset list (which assumes
@@ -1119,7 +1119,7 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
     let provider_enum = provider
         .as_deref()
         .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-        .unwrap_or(parish_core::config::Provider::OpenRouter);
+        .unwrap_or_else(parish_core::config::Provider::openrouter);
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())

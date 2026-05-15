@@ -168,10 +168,9 @@ impl GameConfig {
     /// [`crate::inference::client::VllmMlxProcess::ensure_slots`].
     pub fn vllm_mlx_extra_slots(&self) -> Vec<crate::inference::client::VllmMlxSlot> {
         use crate::config::Provider;
-        let base_provider_is_vllm_mlx = matches!(
-            Provider::from_str_loose(&self.provider_name),
-            Ok(Provider::VllmMlx)
-        );
+        let base_provider_is_vllm_mlx = Provider::from_str_loose(&self.provider_name)
+            .map(|p| p.id() == "vllmmlx")
+            .unwrap_or(false);
         let base_slot = (self.base_url.clone(), self.model_name.clone());
 
         let mut out = Vec::new();
@@ -183,7 +182,7 @@ impl GameConfig {
                 .unwrap_or(&self.provider_name);
             let effective_provider =
                 Provider::from_str_loose(effective_provider_str).unwrap_or_default();
-            if !matches!(effective_provider, Provider::VllmMlx) {
+            if effective_provider.id() != "vllmmlx" {
                 continue;
             }
             let url = self

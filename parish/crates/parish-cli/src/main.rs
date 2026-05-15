@@ -342,7 +342,7 @@ fn build_inference_clients(
     // and the static qwen3 preset would route every role away from it.
     // Letting these categories fall through to `base_model` keeps every
     // request on the model that is actually on disk.
-    if base_provider_config.provider != parish::config::Provider::Ollama {
+    if base_provider_config.provider.id() != "ollama" {
         for category in InferenceCategory::ALL {
             if overrides.contains_key(&category) {
                 continue;

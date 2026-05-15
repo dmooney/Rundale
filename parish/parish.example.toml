@@ -33,6 +33,17 @@
 # base_url = "https://api.anthropic.com"
 # model = "claude-sonnet-4-5"
 # api_key = "sk-ant-..."
+#
+# Vercel AI Gateway — routes to any upstream model through your Vercel project.
+# `base_url` is required: paste the gateway URL from your Vercel dashboard
+# (e.g. https://ai.vercel.com/v1 or your project-scoped endpoint). The model
+# field is the upstream model ID in Vercel's notation (e.g. "anthropic/claude-sonnet-4-5").
+#
+# [provider]
+# name = "vercel-ai"
+# base_url = "https://ai.vercel.com/v1"   # <-- replace with your Vercel AI Gateway URL
+# model = "anthropic/claude-sonnet-4-5"
+# api_key = "$VERCEL_API_KEY"
 
 # Example: "Cloud-light" starter — Claude for dialogue, Gemini Flash-Lite for
 # background simulation, local Ministral 3 3B for intent + reaction. Uncomment

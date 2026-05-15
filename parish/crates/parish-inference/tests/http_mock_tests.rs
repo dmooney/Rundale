@@ -655,52 +655,52 @@ async fn openai_compatible_provider_smoke() {
     let cases: Vec<ProviderCase> = vec![
         ProviderCase {
             label: "LmStudio",
-            provider: Provider::LmStudio,
+            provider: Provider::lmstudio(),
             api_key: None,
         },
         ProviderCase {
             label: "VllmMlx",
-            provider: Provider::VllmMlx,
+            provider: Provider::vllmmlx(),
             api_key: None,
         },
         ProviderCase {
             label: "OpenRouter",
-            provider: Provider::OpenRouter,
+            provider: Provider::openrouter(),
             api_key: Some("sk-or-test"),
         },
         ProviderCase {
             label: "Google (Gemini)",
-            provider: Provider::Google,
+            provider: Provider::google(),
             api_key: Some("goog-test"),
         },
         ProviderCase {
             label: "Groq",
-            provider: Provider::Groq,
+            provider: Provider::groq(),
             api_key: Some("gsk-test"),
         },
         ProviderCase {
             label: "xAI",
-            provider: Provider::Xai,
+            provider: Provider::xai(),
             api_key: Some("xai-test"),
         },
         ProviderCase {
             label: "Mistral",
-            provider: Provider::Mistral,
+            provider: Provider::mistral(),
             api_key: Some("ms-test"),
         },
         ProviderCase {
             label: "DeepSeek",
-            provider: Provider::DeepSeek,
+            provider: Provider::deepseek(),
             api_key: Some("ds-test"),
         },
         ProviderCase {
             label: "Together",
-            provider: Provider::Together,
+            provider: Provider::together(),
             api_key: Some("tgt-test"),
         },
         ProviderCase {
             label: "Custom",
-            provider: Provider::Custom,
+            provider: Provider::custom(),
             api_key: None,
         },
     ];

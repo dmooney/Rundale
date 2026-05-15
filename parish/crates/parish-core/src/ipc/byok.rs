@@ -120,36 +120,44 @@ pub async fn handle_validate_provider_config(
     validate::validate(&provider, &url, key_to_use).await
 }
 
-/// Returns `{provider_id: {dialogue, simulation, intent, reaction}}` for every
-/// provider that has presets. Single source of truth for the wizard's model
-/// prefill — avoids the previous hand-duplicated table that drifted from
-/// `parish-config/src/presets.rs`.
-pub fn handle_list_preset_models() -> std::collections::BTreeMap<String, ProviderPresetModels> {
-    use crate::config::InferenceCategory;
+/// Returns `{provider_id: [preset_options]}` for every provider that has presets.
+/// Single source of truth for the wizard's model prefill.
+pub fn handle_list_preset_models() -> std::collections::BTreeMap<String, Vec<ProviderPresetOption>>
+{
+    use parish_config::registry;
     let mut out = std::collections::BTreeMap::new();
-    for p in Provider::ALL {
+    for p in registry().all() {
         if !p.has_preset() {
             continue;
         }
-        out.insert(
-            p.id().to_string(),
-            ProviderPresetModels {
-                dialogue: p
-                    .preset_model(InferenceCategory::Dialogue)
-                    .map(String::from),
-                simulation: p
-                    .preset_model(InferenceCategory::Simulation)
-                    .map(String::from),
-                intent: p.preset_model(InferenceCategory::Intent).map(String::from),
-                reaction: p
-                    .preset_model(InferenceCategory::Reaction)
-                    .map(String::from),
-            },
-        );
+        let opts: Vec<ProviderPresetOption> = p
+            .presets()
+            .iter()
+            .map(|preset| ProviderPresetOption {
+                key: preset.key.clone(),
+                label: preset.label.clone(),
+                dialogue: preset.dialogue.clone(),
+                simulation: preset.simulation.clone(),
+                intent: preset.intent.clone(),
+                reaction: preset.reaction.clone(),
+            })
+            .collect();
+        out.insert(p.id().to_string(), opts);
     }
     out
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderPresetOption {
+    pub key: String,
+    pub label: String,
+    pub dialogue: Option<String>,
+    pub simulation: Option<String>,
+    pub intent: Option<String>,
+    pub reaction: Option<String>,
+}
+
+/// Backward-compat alias — the first preset option's models as a flat struct.
 #[derive(Debug, Clone, Serialize)]
 pub struct ProviderPresetModels {
     pub dialogue: Option<String>,
@@ -163,12 +171,13 @@ pub struct ProviderPresetModels {
 /// hint can say "env var detected" for the provider being picked, not just the
 /// current GameConfig provider.
 pub fn handle_list_env_keys() -> std::collections::BTreeMap<String, bool> {
+    use parish_config::registry;
     let mut out = std::collections::BTreeMap::new();
-    for p in Provider::ALL {
+    for p in registry().all() {
         let has = p
             .api_key_env_var()
             .and_then(|var| std::env::var(var).ok())
-            .map(|v| !v.trim().is_empty())
+            .map(|v: String| !v.trim().is_empty())
             .unwrap_or(false);
         out.insert(p.id().to_string(), has);
     }
@@ -181,8 +190,8 @@ pub async fn handle_get_provider_config(config: &Mutex<GameConfig>) -> GetProvid
     let cfg = config.lock().await;
     let env_key = Provider::from_str_loose(&cfg.provider_name)
         .ok()
-        .and_then(|p| p.api_key_env_var())
-        .and_then(|var| std::env::var(var).ok())
+        .and_then(|p| p.api_key_env_var().map(String::from))
+        .and_then(|var| std::env::var(&var).ok())
         .filter(|v| !v.trim().is_empty());
     GetProviderConfigResult {
         provider: cfg.provider_name.clone(),
@@ -209,15 +218,15 @@ pub async fn handle_set_provider_config(
 
     let provider_name = args.provider.to_lowercase();
 
-    // Custom requires an explicit base URL — the curated providers all carry
-    // their own default so leaving base_url unset is fine for them.
-    let base_url = match (provider.clone(), args.base_url.clone()) {
-        (Provider::Custom, None) => {
+    // Providers with needs_base_url_from_user require an explicit base URL —
+    // the curated providers all carry their own default.
+    let base_url = match args.base_url.clone() {
+        None if provider.needs_base_url_from_user() => {
             return Err(ByokError::MissingBaseUrl {
                 provider: provider_name,
             });
         }
-        (_, Some(s)) if !s.trim().is_empty() => s,
+        Some(s) if !s.trim().is_empty() => s,
         _ => provider.default_base_url().to_string(),
     };
 
@@ -514,7 +523,7 @@ mod tests {
         // Pin the shape so any new Provider variant must update id() and
         // therefore show up in the wizard's env-detection map.
         let map = handle_list_env_keys();
-        for p in Provider::ALL {
+        for p in parish_config::registry().all() {
             assert!(
                 map.contains_key(p.id()),
                 "handle_list_env_keys missing entry for {:?}",

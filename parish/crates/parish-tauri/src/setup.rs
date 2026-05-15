@@ -151,8 +151,6 @@ pub(crate) struct OnboardingInputs {
 ///   (the platform-recommender returns Simulator for Mac < 16 GB)
 /// - everywhere else → [`OnboardingChoice::LocalUnavailable`]
 pub(crate) fn resolve_onboarding_choice(inputs: OnboardingInputs) -> OnboardingChoice {
-    use parish_core::config::Provider;
-
     if inputs.onboarding_complete
         || inputs.parish_provider_env_set
         || inputs.api_key_env_set
@@ -162,9 +160,9 @@ pub(crate) fn resolve_onboarding_choice(inputs: OnboardingInputs) -> OnboardingC
     }
 
     if inputs.is_macos {
-        match inputs.recommended {
-            Provider::VllmMlx => OnboardingChoice::LocalRecommended,
-            Provider::Simulator => OnboardingChoice::LocalLowMem,
+        match inputs.recommended.id() {
+            "vllmmlx" => OnboardingChoice::LocalRecommended,
+            "simulator" => OnboardingChoice::LocalLowMem,
             _ => OnboardingChoice::LocalUnavailable,
         }
     } else {
@@ -198,7 +196,7 @@ pub(crate) fn onboarding_choice_for_platform(
             .filter(|s| !s.is_empty())
             .is_some(),
         api_key_env_set,
-        explicit_provider_set: !matches!(provider_config.provider, Provider::Simulator),
+        explicit_provider_set: provider_config.provider.id() != "simulator",
         is_macos: cfg!(target_os = "macos"),
         recommended: Provider::recommended_for_platform(),
     })
@@ -285,10 +283,7 @@ pub(crate) async fn bootstrap_inference_provider(
             *state.runtime_processes.lock().await = runtime_processes;
             {
                 let mut config = state.config.lock().await;
-                if matches!(
-                    provider_config.provider,
-                    parish_core::config::Provider::Ollama
-                ) {
+                if provider_config.provider.id() == "ollama" {
                     // Auto-setup pulled exactly one model. Pin it across
                     // all four per-category slots so every role uses the
                     // model that is on disk, instead of the static qwen3
@@ -1159,7 +1154,7 @@ mod onboarding_choice_tests {
             api_key_env_set: false,
             explicit_provider_set: false,
             is_macos: false,
-            recommended: Provider::Simulator,
+            recommended: Provider::simulator(),
         }
     }
 
@@ -1170,7 +1165,7 @@ mod onboarding_choice_tests {
         // Even if every other "you're in a wizard" signal is true,
         // the sentinel wins and we skip the fork entirely.
         inputs.is_macos = true;
-        inputs.recommended = Provider::VllmMlx;
+        inputs.recommended = Provider::vllmmlx();
         assert_eq!(
             resolve_onboarding_choice(inputs),
             OnboardingChoice::Configured
@@ -1211,7 +1206,7 @@ mod onboarding_choice_tests {
     fn mac_with_vllm_recommendation_picks_local_recommended() {
         let inputs = OnboardingInputs {
             is_macos: true,
-            recommended: Provider::VllmMlx,
+            recommended: Provider::vllmmlx(),
             ..unconfigured()
         };
         assert_eq!(
@@ -1227,7 +1222,7 @@ mod onboarding_choice_tests {
         // don't fall through to BYOK-only.
         let inputs = OnboardingInputs {
             is_macos: true,
-            recommended: Provider::Simulator,
+            recommended: Provider::simulator(),
             ..unconfigured()
         };
         assert_eq!(
@@ -1243,7 +1238,7 @@ mod onboarding_choice_tests {
         // fork — surface BYOK-only.
         let inputs = OnboardingInputs {
             is_macos: true,
-            recommended: Provider::Ollama,
+            recommended: Provider::ollama(),
             ..unconfigured()
         };
         assert_eq!(
@@ -1256,7 +1251,7 @@ mod onboarding_choice_tests {
     fn non_mac_always_picks_byok_only() {
         let inputs = OnboardingInputs {
             is_macos: false,
-            recommended: Provider::VllmMlx, // ignored on non-Mac
+            recommended: Provider::vllmmlx(), // ignored on non-Mac
             ..unconfigured()
         };
         assert_eq!(
