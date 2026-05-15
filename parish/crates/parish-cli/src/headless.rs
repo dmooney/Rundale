@@ -189,7 +189,7 @@ pub async fn run_headless(
     let (dial_client, dial_model) = clients.dialogue_client();
     let dialogue_model = dial_model.to_string();
     let inference_log = inference::new_inference_log();
-    let worker_client = if provider_config.provider == parish_core::config::Provider::Simulator {
+    let worker_client = if provider_config.provider.id() == "simulator" {
         AnyClient::simulator()
     } else {
         dial_client.clone()
@@ -209,7 +209,7 @@ pub async fn run_headless(
     app.client = Some(clients.base.clone());
     app.model_name = clients.base_model.clone();
     app.dialogue_model = dialogue_model;
-    app.provider_name = format!("{:?}", provider_config.provider).to_lowercase();
+    app.provider_name = provider_config.provider.id().to_string();
     app.base_url = provider_config.base_url.clone();
     app.api_key = provider_config.api_key.clone();
     app.improv_enabled = improv;
@@ -226,7 +226,7 @@ pub async fn run_headless(
     // Set intent / simulation / reaction clients — skip for the simulator
     // provider since it has no real HTTP client and the dummy URL would cause
     // connection-timeout delays during intent parsing.
-    let is_simulator = provider_config.provider == parish_core::config::Provider::Simulator;
+    let is_simulator = provider_config.provider.id() == "simulator";
     if !is_simulator {
         let (intent_cl, intent_mdl) = clients.intent_client();
         app.intent.client = Some(intent_cl.clone());
@@ -243,17 +243,17 @@ pub async fn run_headless(
 
     // Initialize per-category provider metadata from config
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Intent) {
-        app.intent.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.intent.provider_name = Some(cat_cfg.provider.id().to_string());
         app.intent.api_key = cat_cfg.api_key.clone();
         app.intent.base_url = Some(cat_cfg.base_url.clone());
     }
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Simulation) {
-        app.simulation.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.simulation.provider_name = Some(cat_cfg.provider.id().to_string());
         app.simulation.api_key = cat_cfg.api_key.clone();
         app.simulation.base_url = Some(cat_cfg.base_url.clone());
     }
     if let Some(cat_cfg) = category_configs.get(&InferenceCategory::Reaction) {
-        app.reaction.provider_name = Some(format!("{:?}", cat_cfg.provider).to_lowercase());
+        app.reaction.provider_name = Some(cat_cfg.provider.id().to_string());
         app.reaction.api_key = cat_cfg.api_key.clone();
         app.reaction.base_url = Some(cat_cfg.base_url.clone());
     }
@@ -264,7 +264,7 @@ pub async fn run_headless(
         app.cloud_client = Some(dial_cl.clone());
         app.cloud_model_name = Some(dial_mdl.to_string());
     } else if let Some(cc) = cloud_config {
-        app.cloud_provider_name = Some(format!("{:?}", cc.provider).to_lowercase());
+        app.cloud_provider_name = Some(cc.provider.id().to_string());
         app.cloud_model_name = Some(cc.model.clone());
         let (dial_cl, _) = clients.dialogue_client();
         app.cloud_client = Some(dial_cl.clone());

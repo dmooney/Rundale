@@ -93,13 +93,14 @@ pub fn build_client(
     api_key: Option<&str>,
     inference_config: &InferenceConfig,
 ) -> AnyClient {
-    match provider {
-        Provider::Anthropic => AnyClient::Anthropic(AnthropicClient::new_with_config(
+    use parish_config::ProviderKind;
+    match provider.kind() {
+        ProviderKind::Anthropic => AnyClient::Anthropic(AnthropicClient::new_with_config(
             base_url,
             api_key,
             inference_config,
         )),
-        Provider::Simulator => AnyClient::simulator(),
+        ProviderKind::Simulator => AnyClient::simulator(),
         _ => AnyClient::OpenAi(OpenAiClient::new_with_config(
             base_url,
             api_key,

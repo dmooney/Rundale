@@ -1273,7 +1273,7 @@ pub(crate) fn provider_config_from_env(
     // Simulator default — only in that case do we substitute the saved
     // wizard choice so a returning user lands back on vllm-mlx without
     // re-doing onboarding. PARISH_PROVIDER and friends still win.
-    if matches!(config.provider, parish_core::config::Provider::Simulator)
+    if config.provider.id() == "simulator"
         && let Ok(user_cfg) = parish_core::config::user_config::load_user_config(user_config_dir)
         && let Some(provider_str) = user_cfg.provider.as_deref()
         && let Ok(saved_provider) = parish_core::config::Provider::from_str_loose(provider_str)
@@ -1311,7 +1311,7 @@ async fn bootstrap_provider(
 )> {
     // Non-Ollama providers without a model → leave the client unset so the
     // UI can surface a config error instead of failing hard at startup.
-    if config.model.is_none() && config.provider != Provider::Ollama {
+    if config.model.is_none() && config.provider.id() != "ollama" {
         return Ok((
             None,
             String::new(),
@@ -1357,7 +1357,7 @@ fn build_cloud_client_from_env(
     let provider_enum = provider
         .as_deref()
         .and_then(|p| Provider::from_str_loose(p).ok())
-        .unwrap_or(Provider::OpenRouter);
+        .unwrap_or_else(Provider::openrouter);
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())

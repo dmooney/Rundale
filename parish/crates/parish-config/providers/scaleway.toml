@@ -1,0 +1,26 @@
+id = "scaleway"
+display_name = "Scaleway"
+kind = "openai-compat"
+default_base_url = "https://api.scaleway.ai/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "SCALEWAY_API_KEY"
+blurb = "European cloud inference, Llama-family models."
+signup_url = "https://console.scaleway.com"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "llama-3.3-70b-instruct"
+simulation = "llama-3.1-8b-instruct"
+intent = "llama-3.1-8b-instruct"
+reaction = "llama-3.1-8b-instruct"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "llama-3.1-8b-instruct"
+simulation = "llama-3.1-8b-instruct"
+intent = "llama-3.1-8b-instruct"
+reaction = "llama-3.1-8b-instruct"

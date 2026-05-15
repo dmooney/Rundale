@@ -1,0 +1,26 @@
+id = "moonshot"
+display_name = "Moonshot AI"
+kind = "openai-compat"
+default_base_url = "https://api.moonshot.cn/v1"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "MOONSHOT_API_KEY"
+blurb = "Kimi long-context models."
+signup_url = "https://platform.moonshot.cn"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "moonshot-v1-128k"
+simulation = "moonshot-v1-32k"
+intent = "moonshot-v1-8k"
+reaction = "moonshot-v1-32k"
+
+[[presets]]
+key = "budget"
+label = "Budget"
+dialogue = "moonshot-v1-8k"
+simulation = "moonshot-v1-8k"
+intent = "moonshot-v1-8k"
+reaction = "moonshot-v1-8k"

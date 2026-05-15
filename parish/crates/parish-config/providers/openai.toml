@@ -1,0 +1,27 @@
+id = "openai"
+display_name = "OpenAI"
+aliases = ["open_ai", "open-ai"]
+kind = "openai-compat"
+default_base_url = "https://api.openai.com"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "OPENAI_API_KEY"
+blurb = "GPT-class models, broadest tooling."
+signup_url = "https://platform.openai.com/api-keys"
+featured = true
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "gpt-5.5"
+simulation = "gpt-5.4-mini"
+intent = "gpt-5.4-nano"
+reaction = "gpt-5.4-mini"
+
+[[presets]]
+key = "mini"
+label = "Mini"
+dialogue = "gpt-5.4-mini"
+simulation = "gpt-5.4-mini"
+intent = "gpt-5.4-mini"
+reaction = "gpt-5.4-mini"

@@ -304,7 +304,7 @@ fn resolve_single_category(
     // Skipped for Ollama: auto-setup pulls one hardware-matched model.
     // Leaving `cat_model` as `None` lets `build_inference_clients` fall
     // through to the auto-setup-resolved `base_model`.
-    let cat_model = if provider == Provider::Ollama {
+    let cat_model = if provider.id() == "ollama" {
         cat_model
     } else {
         cat_model.or_else(|| provider.preset_model(category).map(String::from))
@@ -321,7 +321,7 @@ fn resolve_single_category(
             hint
         )));
     }
-    if provider == Provider::Custom && resolved_base_url.is_empty() {
+    if provider.needs_base_url_from_user() && resolved_base_url.is_empty() {
         return Err(ParishError::Config(format!(
             "{} custom provider requires a base_url. Set {}_BASE_URL or --{}-base-url.",
             category.name(),
@@ -421,7 +421,7 @@ mod tests {
     fn test_resolve_category_configs_empty_when_no_overrides() {
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: Some("qwen3:14b".to_string()),
@@ -461,7 +461,7 @@ model = "qwen3:1.5b"
 
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: Some("qwen3:14b".to_string()),
@@ -472,7 +472,7 @@ model = "qwen3:1.5b"
 
         // Dialogue should be overridden to OpenRouter
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::OpenRouter);
+        assert_eq!(dialogue.provider, Provider::openrouter());
         assert_eq!(dialogue.base_url, "https://openrouter.ai/api");
         assert_eq!(dialogue.api_key.as_deref(), Some("sk-cat-test"));
         assert_eq!(
@@ -482,7 +482,7 @@ model = "qwen3:1.5b"
 
         // Intent should inherit Ollama but override model
         let intent = configs.get(&InferenceCategory::Intent).unwrap();
-        assert_eq!(intent.provider, Provider::Ollama);
+        assert_eq!(intent.provider, Provider::ollama());
         assert_eq!(intent.base_url, "http://localhost:11434");
         assert_eq!(intent.model.as_deref(), Some("qwen3:1.5b"));
 
@@ -495,7 +495,7 @@ model = "qwen3:1.5b"
     fn test_resolve_category_configs_legacy_cloud_maps_to_dialogue() {
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: Some("qwen3:14b".to_string()),
@@ -513,7 +513,7 @@ model = "qwen3:1.5b"
                 .unwrap();
 
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::OpenRouter);
+        assert_eq!(dialogue.provider, Provider::openrouter());
         assert_eq!(dialogue.api_key.as_deref(), Some("sk-legacy"));
         assert_eq!(dialogue.model.as_deref(), Some("gpt-4"));
     }
@@ -546,7 +546,7 @@ model = "new-model"
 
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: None,
@@ -557,7 +557,7 @@ model = "new-model"
 
         // [provider.dialogue] should override [cloud]
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::Custom);
+        assert_eq!(dialogue.provider, Provider::custom());
         assert_eq!(dialogue.base_url, "https://my-api.example.com");
         assert_eq!(dialogue.api_key.as_deref(), Some("sk-new"));
         assert_eq!(dialogue.model.as_deref(), Some("new-model"));
@@ -568,7 +568,7 @@ model = "new-model"
     fn test_resolve_category_configs_cli_overrides() {
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: Some("qwen3:14b".to_string()),
@@ -591,7 +591,7 @@ model = "new-model"
                 .unwrap();
 
         let sim = configs.get(&InferenceCategory::Simulation).unwrap();
-        assert_eq!(sim.provider, Provider::OpenRouter);
+        assert_eq!(sim.provider, Provider::openrouter());
         assert_eq!(sim.base_url, "https://openrouter.ai/api");
         assert_eq!(sim.api_key.as_deref(), Some("sk-sim"));
         assert_eq!(sim.model.as_deref(), Some("sim-model"));
@@ -602,7 +602,7 @@ model = "new-model"
     fn test_resolve_category_configs_validates_api_key() {
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: None,
@@ -648,7 +648,7 @@ model = "qwen3:8b"
 
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://remote-ollama:11434".to_string(),
             api_key: None,
             model: Some("qwen3:14b".to_string()),
@@ -658,7 +658,7 @@ model = "qwen3:8b"
         let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
 
         let sim = configs.get(&InferenceCategory::Simulation).unwrap();
-        assert_eq!(sim.provider, Provider::Ollama);
+        assert_eq!(sim.provider, Provider::ollama());
         // Should inherit the base URL since provider wasn't overridden
         assert_eq!(sim.base_url, "http://remote-ollama:11434");
         assert_eq!(sim.model.as_deref(), Some("qwen3:8b"));
@@ -684,7 +684,7 @@ base_url = "http://localhost:11434"
 
         clear_parish_env();
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: None,
@@ -694,7 +694,7 @@ base_url = "http://localhost:11434"
         let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
 
         let dialogue = configs.get(&InferenceCategory::Dialogue).unwrap();
-        assert_eq!(dialogue.provider, Provider::Ollama);
+        assert_eq!(dialogue.provider, Provider::ollama());
         assert!(
             dialogue.model.is_none(),
             "Ollama category without explicit model must not be filled \
@@ -713,7 +713,7 @@ base_url = "http://localhost:11434"
             std::env::set_var("PARISH_DIALOGUE_MODEL", "gemma4:31b");
         }
         let base = ProviderConfig {
-            provider: Provider::Ollama,
+            provider: Provider::ollama(),
             base_url: "http://localhost:11434".to_string(),
             api_key: None,
             model: Some("gemma4:e2b".to_string()),
@@ -755,7 +755,7 @@ name = "anthropic"
             std::env::set_var("ANTHROPIC_API_KEY", "sk-ant-test");
         }
         let base = ProviderConfig {
-            provider: Provider::Anthropic,
+            provider: Provider::anthropic(),
             base_url: "https://api.anthropic.com".to_string(),
             api_key: Some("sk-ant-test".to_string()),
             model: None,
@@ -765,7 +765,7 @@ name = "anthropic"
         let configs = resolve_category_configs(Some(&path), &base, &cli_cat, &cli_cloud).unwrap();
 
         let intent = configs.get(&InferenceCategory::Intent).unwrap();
-        assert_eq!(intent.provider, Provider::Anthropic);
+        assert_eq!(intent.provider, Provider::anthropic());
         assert_eq!(intent.model.as_deref(), Some("claude-haiku-4-5"));
     }
 }

@@ -1,0 +1,26 @@
+id = "zhipu"
+display_name = "Zhipu AI"
+kind = "openai-compat"
+default_base_url = "https://open.bigmodel.cn/api/paas"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "ZHIPU_API_KEY"
+blurb = "GLM models from Zhipu AI."
+signup_url = "https://open.bigmodel.cn"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "glm-4-plus"
+simulation = "glm-4-flash"
+intent = "glm-4-flash"
+reaction = "glm-4-flash"
+
+[[presets]]
+key = "max"
+label = "Max"
+dialogue = "glm-4-plus"
+simulation = "glm-4-plus"
+intent = "glm-4-plus"
+reaction = "glm-4-plus"
