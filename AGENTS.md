@@ -12,6 +12,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 - [agent-check.md](docs/agent/agent-check.md) — proof evidence and judge verdict gate
 - [skills.md](docs/agent/skills.md) — `/check`, `/verify`, `/prove`, `/play`, etc.
 - [harness.md](docs/agent/harness.md) — one-page map of every sensor, skill, and gate (start here when something fails)
+- [codebase-map.md](docs/agent/codebase-map.md) — top-level directory index with per-area `CLAUDE.md` pointers
 
 **Rundale** is the game (Irish living world, 1820). **Parish** is the engine (Rust workspace + frontends).
 

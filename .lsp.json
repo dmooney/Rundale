@@ -1,0 +1,26 @@
+{
+  "rust": {
+    "command": "rust-analyzer",
+    "args": [],
+    "extensionToLanguage": {
+      ".rs": "rust"
+    }
+  },
+  "svelte": {
+    "command": "svelte-language-server",
+    "args": ["--stdio"],
+    "extensionToLanguage": {
+      ".svelte": "svelte"
+    }
+  },
+  "typescript": {
+    "command": "typescript-language-server",
+    "args": ["--stdio"],
+    "extensionToLanguage": {
+      ".ts": "typescript",
+      ".tsx": "typescript",
+      ".mts": "typescript",
+      ".cts": "typescript"
+    }
+  }
+}
