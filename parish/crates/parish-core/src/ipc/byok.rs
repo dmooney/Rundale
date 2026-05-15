@@ -190,8 +190,7 @@ pub async fn handle_get_provider_config(config: &Mutex<GameConfig>) -> GetProvid
     let cfg = config.lock().await;
     let env_key = Provider::from_str_loose(&cfg.provider_name)
         .ok()
-        .and_then(|p| p.api_key_env_var().map(String::from))
-        .and_then(|var| std::env::var(&var).ok())
+        .and_then(|p| p.api_key_env_var().and_then(|v| std::env::var(v).ok()))
         .filter(|v| !v.trim().is_empty());
     GetProviderConfigResult {
         provider: cfg.provider_name.clone(),
