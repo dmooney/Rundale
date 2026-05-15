@@ -63,6 +63,12 @@ setup:
     echo "Installing tauri-cli..."
     cargo install tauri-cli
 
+    # Install Audit, Outdated, and Coverage tools
+    echo "Installing cargo-audit, cargo-outdated and cargo-tarpaulin..."
+    cargo install cargo-audit --locked
+    cargo install cargo-outdated --locked
+    cargo install cargo-tarpaulin --locked
+
     # Install frontend dependencies
     echo "Installing frontend dependencies..."
     cd apps/ui && npm install
@@ -217,6 +223,12 @@ test-verbose:
 
 # Run tests and generate coverage report (requires cargo-tarpaulin)
 coverage:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v cargo-tarpaulin &>/dev/null; then
+        echo "Installing cargo-tarpaulin..."
+        cargo install cargo-tarpaulin --locked
+    fi
     cargo tarpaulin --out html --output-dir target/coverage
 
 # ─── Game Test Harness ───────────────────────────────────────────────────────
@@ -375,10 +387,22 @@ release-dry-run VERSION:
 
 # Check for outdated dependencies (requires cargo-outdated)
 outdated:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v cargo-outdated &>/dev/null; then
+        echo "Installing cargo-outdated..."
+        cargo install cargo-outdated --locked
+    fi
     cargo outdated
 
 # Audit dependencies for security vulnerabilities (requires cargo-audit)
 audit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v cargo-audit &>/dev/null; then
+        echo "Installing cargo-audit..."
+        cargo install cargo-audit --locked
+    fi
     cargo audit
 
 # Update dependencies
