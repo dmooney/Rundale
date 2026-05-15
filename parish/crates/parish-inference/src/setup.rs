@@ -2033,6 +2033,73 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_setup_provider_client_vllmmlx_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::vllmmlx(),
+            base_url: "http://localhost:8000".to_string(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("vllmmlx provider without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("vllmmlx provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_cloud_fallthrough_arm() {
+        // Cloud providers hit the `_ =>` arm: build_client (no network) +
+        // ensure_slots on empty slot slices (also no network). Both new
+        // `let vllm = VllmProcess::ensure_slots(...)` lines are exercised.
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::openrouter(),
+            base_url: "http://localhost:9999".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: Some("openrouter/auto".to_string()),
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok((_client, model, procs)) => {
+                assert_eq!(model, "openrouter/auto");
+                assert!(procs.vllm_mlx.is_empty());
+                assert!(procs.vllm.is_empty());
+            }
+            Err(e) => panic!("cloud fallthrough must succeed without network, got: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_cloud_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::openrouter(),
+            base_url: "http://localhost:9999".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("openrouter without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("openrouter provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
+    }
+
     /// Regression guard for the two-slot loadout: `ensure_slots` must spawn
     /// exactly one process per unique `(base_url, model)` tuple. If two
     /// category overrides point to the same slot, only one server is spawned.
