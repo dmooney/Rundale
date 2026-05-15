@@ -266,12 +266,13 @@ pub(crate) async fn bootstrap_inference_provider(
             message: "Starting inference provider setup...".to_string(),
         },
     );
-    let extra_vllm_slots = {
+    let (extra_vllm_mlx_slots, extra_vllm_slots) = {
         let cfg = state.config.lock().await;
-        cfg.vllm_mlx_extra_slots()
+        (cfg.vllm_mlx_extra_slots(), cfg.vllm_extra_slots())
     };
     match bootstrap_provider(
         provider_config,
+        &extra_vllm_mlx_slots,
         &extra_vllm_slots,
         inference_config,
         &progress,

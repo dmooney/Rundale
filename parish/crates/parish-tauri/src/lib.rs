@@ -1301,7 +1301,8 @@ pub(crate) fn provider_config_from_env(
 /// rule #2 (mode parity).
 async fn bootstrap_provider(
     config: &ProviderConfig,
-    extra_vllm_slots: &[parish_core::inference::client::VllmMlxSlot],
+    extra_vllm_mlx_slots: &[parish_core::inference::client::VllmMlxSlot],
+    extra_vllm_slots: &[parish_core::inference::client::VllmSlot],
     inference_config: &parish_core::config::InferenceConfig,
     progress: &dyn parish_core::inference::setup::SetupProgress,
 ) -> anyhow::Result<(
@@ -1321,6 +1322,7 @@ async fn bootstrap_provider(
 
     let (client, model, process) = parish_core::inference::setup::setup_provider_client(
         config,
+        extra_vllm_mlx_slots,
         extra_vllm_slots,
         inference_config, // (#417) use TOML-configured timeouts
         progress,

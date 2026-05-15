@@ -295,6 +295,7 @@ async fn setup_provider(
     let (client, model, process) = setup::setup_provider_client(
         config,
         &[],
+        &[],
         &parish::config::InferenceConfig::default(),
         &progress,
     )

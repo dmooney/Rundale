@@ -451,17 +451,140 @@ impl Drop for VllmMlxProcess {
     }
 }
 
+/// One vllm server slot (Linux/Windows CUDA/ROCm): a (base_url, model) tuple.
+///
+/// Parallel to [`VllmMlxSlot`] for the standard vllm runtime.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct VllmSlot {
+    /// Base URL including port (e.g. `http://localhost:8001`).
+    pub base_url: String,
+    /// Hugging Face model id (e.g. `Qwen/Qwen2.5-1.5B-Instruct`).
+    pub model: String,
+}
+
+/// Manages a vllm server process started by Parish (Linux/Windows, CUDA/ROCm).
+///
+/// Parallels [`VllmMlxProcess`] for the standard vllm runtime: probes
+/// `/v1/models` first, spawns `vllm serve <model> --port <p>` if not
+/// already running, and stops the child on drop.
+///
+/// `VLLM_BIN` overrides the binary path (defaults to `vllm`).
+pub struct VllmProcess {
+    child: Option<Child>,
+}
+
+impl VllmProcess {
+    /// Creates a no-op process handle (for non-vllm providers).
+    pub fn none() -> Self {
+        Self { child: None }
+    }
+
+    /// Checks if vllm is reachable at `base_url`. If not, spawns
+    /// `vllm serve <model> --port <port>` and waits for the
+    /// `/v1/models` endpoint to respond (up to 60 s).
+    pub async fn ensure_running(base_url: &str, model_name: &str) -> Result<Self, ParishError> {
+        if Self::is_reachable(base_url).await {
+            tracing::info!("vllm already running at {}", base_url);
+            return Ok(Self { child: None });
+        }
+
+        tracing::info!("vllm not detected, starting vllm serve...");
+
+        let port = port_from_base_url(base_url).unwrap_or(8000);
+        let bin = std::env::var("VLLM_BIN").unwrap_or_else(|_| "vllm".to_string());
+
+        let child = Command::new(&bin)
+            .arg("serve")
+            .arg(model_name)
+            .arg("--port")
+            .arg(port.to_string())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| {
+                ParishError::Inference(format!(
+                    "failed to start vllm at `{}`: {}. \
+                     Install with `pip install vllm` or set VLLM_BIN to a binary path.",
+                    bin, e
+                ))
+            })?;
+
+        let mut ready = false;
+        for i in 0..120 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if Self::is_reachable(base_url).await {
+                tracing::info!("vllm ready after ~{}ms", (i + 1) * 500);
+                ready = true;
+                break;
+            }
+        }
+
+        if !ready {
+            return Err(ParishError::Inference(
+                "vllm serve started but did not become reachable within 60s".to_string(),
+            ));
+        }
+
+        Ok(Self { child: Some(child) })
+    }
+
+    /// Ensures each unique [`VllmSlot`] has a vllm server reachable.
+    pub async fn ensure_slots(slots: &[VllmSlot]) -> Result<Vec<Self>, ParishError> {
+        let mut seen: std::collections::HashSet<(String, String)> =
+            std::collections::HashSet::new();
+        let mut out = Vec::with_capacity(slots.len());
+        for slot in slots {
+            let key = (slot.base_url.clone(), slot.model.clone());
+            if !seen.insert(key) {
+                continue;
+            }
+            out.push(Self::ensure_running(&slot.base_url, &slot.model).await?);
+        }
+        Ok(out)
+    }
+
+    /// Returns whether we started the vllm process (vs. it was already running).
+    pub fn was_started_by_us(&self) -> bool {
+        self.child.is_some()
+    }
+
+    async fn is_reachable(base_url: &str) -> bool {
+        let url = format!("{}/models", base_url.trim_end_matches('/'));
+        let client = build_client_or_fallback(Duration::from_secs(2), "vllm reachability probe");
+        client.get(&url).send().await.is_ok()
+    }
+
+    /// Stops the vllm process if we started it.
+    pub fn stop(&mut self) {
+        if let Some(ref mut child) = self.child {
+            tracing::info!("Stopping vllm server...");
+            let _ = child.kill();
+            let _ = child.wait();
+            self.child = None;
+        }
+    }
+}
+
+impl Drop for VllmProcess {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 /// Bundle of runtime processes started by Parish during provider setup.
 ///
 /// Carries either an [`OllamaProcess`] (when `Provider::Ollama` is the base)
-/// or a [`Vec<VllmMlxProcess>`] (when `Provider::VllmMlx` is the base or
-/// per-category routing spawns vllm-mlx slots). Callers must hold this
-/// value for the app lifetime so children are stopped on drop.
+/// or a [`Vec<VllmMlxProcess>`] / [`Vec<VllmProcess>`] (when the matching
+/// local provider is the base or per-category routing spawns slots).
+/// Callers must hold this value for the app lifetime so children are
+/// stopped on drop.
 pub struct RuntimeProcesses {
     /// Ollama child process, if Ollama is the base provider.
     pub ollama: OllamaProcess,
     /// One vllm-mlx process per unique slot (base + per-category overrides).
     pub vllm_mlx: Vec<VllmMlxProcess>,
+    /// One vllm process per unique slot (base + per-category overrides).
+    pub vllm: Vec<VllmProcess>,
 }
 
 impl RuntimeProcesses {
@@ -470,10 +593,11 @@ impl RuntimeProcesses {
         Self {
             ollama: OllamaProcess::none(),
             vllm_mlx: Vec::new(),
+            vllm: Vec::new(),
         }
     }
 
-    /// Stops every child process (Ollama + each vllm-mlx slot).
+    /// Stops every child process (Ollama + each vllm-mlx / vllm slot).
     ///
     /// Safe to call multiple times; each underlying process tracks its own
     /// `Option<Child>` and skips when already stopped. Drop impls also call
@@ -482,6 +606,9 @@ impl RuntimeProcesses {
     pub fn stop(&mut self) {
         self.ollama.stop();
         for slot in &mut self.vllm_mlx {
+            slot.stop();
+        }
+        for slot in &mut self.vllm {
             slot.stop();
         }
     }
@@ -1602,8 +1729,8 @@ async fn warmup_model_with_config(
 
 /// Builds an inference client for the resolved [`ProviderConfig`], running
 /// the full Ollama setup sequence (install, auto-start, GPU detection,
-/// model pull, warmup) when the provider is [`Provider::Ollama`], or
-/// auto-spawning vllm-mlx slots when the provider is [`Provider::VllmMlx`].
+/// model pull, warmup) when the provider is `"ollama"`, or auto-spawning
+/// vllm-mlx / vllm slots when the provider is `"vllmmlx"` / `"vllm"`.
 ///
 /// This is the single entry point shared by all runtime modes (CLI, Tauri,
 /// web server) so they stay in lock-step — CLAUDE.md rule #2 (mode parity).
@@ -1611,23 +1738,26 @@ async fn warmup_model_with_config(
 /// alive for the lifetime of the app so spawned children are stopped on
 /// exit.
 ///
-/// `extra_vllm_slots` lists additional vllm-mlx slots beyond the base
-/// provider — used for the two-slot Apple Silicon loadout (large Dialogue
-/// model on :8000, small Intent/Reaction/Sim model on :8001). Slots
-/// duplicating the base `(base_url, model)` are deduplicated. Pass an
-/// empty slice when only the base slot is needed.
+/// `extra_vllm_mlx_slots` lists additional vllm-mlx slots beyond the base
+/// provider — used for the two-slot Apple Silicon loadout. Pass an empty
+/// slice when only the base slot is needed.
+///
+/// `extra_vllm_slots` lists additional vllm slots beyond the base provider
+/// — used for the two-slot Linux/Windows loadout. Pass an empty slice when
+/// only the base slot is needed.
 ///
 /// # Errors
 ///
-/// - [`Provider::Ollama`]: bubbles up whatever `setup_ollama_with_config`
+/// - `"ollama"`: bubbles up whatever `setup_ollama_with_config`
 ///   returns (no GPU, install failure, pull failure, …).
-/// - [`Provider::VllmMlx`]: returns [`ParishError::Inference`] if any
+/// - `"vllmmlx"` / `"vllm"`: returns [`ParishError::Inference`] if any
 ///   slot fails to spawn or become reachable within 60s.
 /// - Other providers: returns [`ParishError::Config`] if no model is set,
-///   since non-Ollama / non-VllmMlx backends have no auto-detect fallback.
+///   since non-Ollama / non-vllm backends have no auto-detect fallback.
 pub async fn setup_provider_client(
     config: &ProviderConfig,
-    extra_vllm_slots: &[VllmMlxSlot],
+    extra_vllm_mlx_slots: &[VllmMlxSlot],
+    extra_vllm_slots: &[VllmSlot],
     inference_config: &InferenceConfig,
     progress: &dyn SetupProgress,
 ) -> Result<(AnyClient, String, RuntimeProcesses), ParishError> {
@@ -1646,13 +1776,15 @@ pub async fn setup_provider_client(
             )
             .await?;
             let client = AnyClient::open_ai(setup.client);
-            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_slots).await?;
+            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_mlx_slots).await?;
+            let vllm = VllmProcess::ensure_slots(extra_vllm_slots).await?;
             Ok((
                 client,
                 setup.model_name,
                 RuntimeProcesses {
                     ollama: setup.process,
                     vllm_mlx,
+                    vllm,
                 },
             ))
         }
@@ -1663,13 +1795,15 @@ pub async fn setup_provider_client(
                         .to_string(),
                 )
             })?;
-            let mut all_slots: Vec<VllmMlxSlot> = Vec::with_capacity(1 + extra_vllm_slots.len());
+            let mut all_slots: Vec<VllmMlxSlot> =
+                Vec::with_capacity(1 + extra_vllm_mlx_slots.len());
             all_slots.push(VllmMlxSlot {
                 base_url: config.base_url.clone(),
                 model: model.clone(),
             });
-            all_slots.extend(extra_vllm_slots.iter().cloned());
+            all_slots.extend(extra_vllm_mlx_slots.iter().cloned());
             let vllm_mlx = VllmMlxProcess::ensure_slots(&all_slots).await?;
+            let vllm = VllmProcess::ensure_slots(extra_vllm_slots).await?;
             let client = crate::build_client(
                 &config.provider,
                 &config.base_url,
@@ -1682,6 +1816,37 @@ pub async fn setup_provider_client(
                 RuntimeProcesses {
                     ollama: OllamaProcess::none(),
                     vllm_mlx,
+                    vllm,
+                },
+            ))
+        }
+        "vllm" => {
+            let model = config.model.clone().ok_or_else(|| {
+                ParishError::Config(
+                    "vllm provider requires a model name. Set --model or PARISH_MODEL.".to_string(),
+                )
+            })?;
+            let mut all_slots: Vec<VllmSlot> = Vec::with_capacity(1 + extra_vllm_slots.len());
+            all_slots.push(VllmSlot {
+                base_url: config.base_url.clone(),
+                model: model.clone(),
+            });
+            all_slots.extend(extra_vllm_slots.iter().cloned());
+            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_mlx_slots).await?;
+            let vllm = VllmProcess::ensure_slots(&all_slots).await?;
+            let client = crate::build_client(
+                &config.provider,
+                &config.base_url,
+                config.api_key.as_deref(),
+                inference_config,
+            );
+            Ok((
+                client,
+                model,
+                RuntimeProcesses {
+                    ollama: OllamaProcess::none(),
+                    vllm_mlx,
+                    vllm,
                 },
             ))
         }
@@ -1698,13 +1863,15 @@ pub async fn setup_provider_client(
                 config.api_key.as_deref(),
                 inference_config,
             );
-            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_slots).await?;
+            let vllm_mlx = VllmMlxProcess::ensure_slots(extra_vllm_mlx_slots).await?;
+            let vllm = VllmProcess::ensure_slots(extra_vllm_slots).await?;
             Ok((
                 client,
                 model,
                 RuntimeProcesses {
                     ollama: OllamaProcess::none(),
                     vllm_mlx,
+                    vllm,
                 },
             ))
         }
@@ -1780,7 +1947,157 @@ mod tests {
     fn test_runtime_processes_none_is_no_op() {
         let mut p = RuntimeProcesses::none();
         assert!(p.vllm_mlx.is_empty());
-        p.stop(); // ollama no-op + vllm_mlx empty must not panic
+        assert!(p.vllm.is_empty());
+        p.stop(); // ollama no-op + vllm_mlx empty + vllm empty must not panic
+    }
+
+    #[test]
+    fn test_runtime_processes_default_matches_none() {
+        let p = RuntimeProcesses::default();
+        assert!(p.vllm_mlx.is_empty());
+        assert!(p.vllm.is_empty());
+    }
+
+    #[test]
+    fn test_vllm_process_none_is_no_op() {
+        let mut p = VllmProcess::none();
+        assert!(!p.was_started_by_us());
+        p.stop();
+    }
+
+    #[test]
+    fn test_vllm_slot_eq_and_hash() {
+        use std::collections::HashSet;
+        let a = VllmSlot {
+            base_url: "http://localhost:8001".to_string(),
+            model: "Qwen/Qwen2.5-1.5B-Instruct".to_string(),
+        };
+        let b = a.clone();
+        let c = VllmSlot {
+            base_url: "http://localhost:8000".to_string(),
+            model: "Qwen/Qwen2.5-14B-Instruct".to_string(),
+        };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        let set: HashSet<_> = [a.clone(), b.clone(), c.clone()].iter().cloned().collect();
+        assert_eq!(set.len(), 2, "duplicate slot must dedup in the HashSet");
+    }
+
+    #[tokio::test]
+    async fn test_vllm_process_ensure_slots_empty_input() {
+        // No slots → no spawns, no errors.
+        let out = VllmProcess::ensure_slots(&[]).await.unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_simulator_skips_runtime_spawn() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::simulator(),
+            base_url: String::new(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        let result = setup_provider_client(&cfg, &[], &[], &inf, &progress).await;
+        match result {
+            Ok((_client, model, procs)) => {
+                assert_eq!(model, "simulator");
+                assert!(procs.vllm_mlx.is_empty());
+                assert!(procs.vllm.is_empty());
+            }
+            Err(e) => panic!("simulator setup must succeed, got: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_vllm_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::from_str_loose("vllm").unwrap(),
+            base_url: "http://localhost:8000".to_string(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("vllm provider without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("vllm provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_vllmmlx_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::vllmmlx(),
+            base_url: "http://localhost:8000".to_string(),
+            api_key: None,
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("vllmmlx provider without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("vllmmlx provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_cloud_fallthrough_arm() {
+        // Cloud providers hit the `_ =>` arm: build_client (no network) +
+        // ensure_slots on empty slot slices (also no network). Both new
+        // `let vllm = VllmProcess::ensure_slots(...)` lines are exercised.
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::openrouter(),
+            base_url: "http://localhost:9999".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: Some("openrouter/auto".to_string()),
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok((_client, model, procs)) => {
+                assert_eq!(model, "openrouter/auto");
+                assert!(procs.vllm_mlx.is_empty());
+                assert!(procs.vllm.is_empty());
+            }
+            Err(e) => panic!("cloud fallthrough must succeed without network, got: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_setup_provider_client_cloud_requires_model() {
+        let cfg = ProviderConfig {
+            provider: parish_config::Provider::openrouter(),
+            base_url: "http://localhost:9999".to_string(),
+            api_key: Some("test-key".to_string()),
+            model: None,
+        };
+        let inf = InferenceConfig::default();
+        let progress = StdoutProgress;
+        match setup_provider_client(&cfg, &[], &[], &inf, &progress).await {
+            Ok(_) => panic!("openrouter without a model must error"),
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(
+                    msg.contains("openrouter provider requires a model name"),
+                    "unexpected error: {msg}"
+                );
+            }
+        }
     }
 
     /// Regression guard for the two-slot loadout: `ensure_slots` must spawn

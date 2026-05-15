@@ -708,11 +708,13 @@ async fn run_llm_bootstrap(
     config.cloud_base_url = cloud_env.base_url;
 
     let progress = parish_core::inference::setup::StdoutProgress;
-    let extra_slots = config.vllm_mlx_extra_slots();
+    let extra_vllm_mlx_slots = config.vllm_mlx_extra_slots();
+    let extra_vllm_slots = config.vllm_extra_slots();
     let (_setup_client, resolved_model, runtime_procs) =
         parish_core::inference::setup::setup_provider_client(
             &provider_cfg,
-            &extra_slots,
+            &extra_vllm_mlx_slots,
+            &extra_vllm_slots,
             &parish_core::config::InferenceConfig::default(),
             &progress,
         )
