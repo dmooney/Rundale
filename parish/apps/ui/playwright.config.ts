@@ -40,6 +40,16 @@ export default defineConfig({
 		command: `cd ../.. && cargo run -p parish -- --web ${process.env.PARISH_TEST_PORT || 3099}`,
 		url: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}/api/world-snapshot`,
 		timeout: 120_000, // cargo build can be slow on first run
-		reuseExistingServer: !process.env.CI
+		reuseExistingServer: !process.env.CI,
+		// Each Playwright test gets a fresh browser context = fresh
+		// session on the parish web server. With the default cap of 50
+		// and the suite now sitting at ~54 tests, the last few tests
+		// hit "Server at capacity (50/50 sessions)" before reaching the
+		// app shell. Bump the cap for the e2e harness; admission
+		// control still gets its own dedicated coverage in
+		// parish-server/tests/admission_control.rs.
+		env: {
+			PARISH_MAX_SESSIONS: '500'
+		}
 	}
 });

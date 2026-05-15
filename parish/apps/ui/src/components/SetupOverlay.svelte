@@ -342,7 +342,23 @@
 		// BYOK fork: if the gate fired before our event listener mounted,
 		// recover the state from the snapshot rather than falling through to
 		// the spinner UI.
-		if (snapshot.needs_onboarding) {
+		//
+		// Skip the fork render if the snapshot shows setup already
+		// in-flight (completed > 0, totals announced, or status messages
+		// beyond the default "Preparing the storyteller..." line).
+		// This covers MCP-driven onboarding: a remote client can POST
+		// /api/start-local-inference, which begins emitting setup-status
+		// /setup-progress against an AppState whose needs_onboarding flag
+		// is only cleared at the *end* of the bootstrap. Without this
+		// guard the fork would stay mounted on top of in-flight setup
+		// for the entire ~9 GB download, hiding the live progress UI.
+		const snapshotIndicatesActiveSetup =
+			snapshot.completed > 0 ||
+			snapshot.total > 0 ||
+			snapshot.messages.some((m) => m && m !== INITIAL_SETUP_MESSAGE) ||
+			(snapshot.current_message !== '' &&
+				snapshot.current_message !== INITIAL_SETUP_MESSAGE);
+		if (snapshot.needs_onboarding && !snapshotIndicatesActiveSetup) {
 			clearSetupComplete();
 			needsOnboarding = true;
 			loadOnboardingOptions();
@@ -415,12 +431,22 @@
 			onSetupStatus((p: SetupStatusPayload) => {
 				receivedLiveSetupEvent = true;
 				if (setupComplete) clearSetupComplete();
+				// Any live setup-status event means the backend is
+				// running setup right now. If we're still showing the
+				// onboarding fork, dismiss it so the progress UI can
+				// render — this covers MCP-driven onboarding (a remote
+				// client POSTed /api/start-local-inference and the UI
+				// otherwise has no signal to leave the fork view).
+				needsOnboarding = false;
 				showSetupOverlay();
 				appendStatusMessage(p.message);
 			}),
 			onSetupProgress((p: SetupProgressPayload) => {
 				receivedLiveSetupEvent = true;
 				if (setupComplete) clearSetupComplete();
+				// Mirror the onSetupStatus path: a live progress event
+				// is unambiguous proof setup is underway.
+				needsOnboarding = false;
 				showSetupOverlay();
 				applySetupProgress(p.completed, p.total, true);
 			}),
