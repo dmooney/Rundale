@@ -229,7 +229,18 @@ coverage:
         echo "Installing cargo-tarpaulin..."
         cargo install cargo-tarpaulin --locked
     fi
-    cargo tarpaulin --out html --output-dir target/coverage
+    cargo tarpaulin --engine Llvm --workspace --all-targets --out Html --out Json --output-dir target/coverage
+
+# Run Rust coverage and fail if it drops below the current ratchet floor.
+# Raise this floor as the coverage-recovery work lands; long-term target is 90%.
+coverage-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v cargo-tarpaulin &>/dev/null; then
+        echo "Installing cargo-tarpaulin..."
+        cargo install cargo-tarpaulin --locked
+    fi
+    cargo tarpaulin --engine Llvm --workspace --all-targets --out Html --out Json --output-dir target/coverage --fail-under 60.8
 
 # ─── Game Test Harness ───────────────────────────────────────────────────────
 
