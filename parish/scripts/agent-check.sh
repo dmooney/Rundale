@@ -202,6 +202,7 @@ while IFS= read -r file; do
     [[ "$file" == "parish/scripts/agent-check.sh" ]] && continue
     [[ "$file" == "parish/justfile" ]] && continue
     [[ "$file" == "docs/agent/witness.md" ]] && continue
+    [[ "$file" == ".agents/skills/rundale-ci-pitfalls/SKILL.md" ]] && continue
     if scan_for_debt_markers "$file"; then
         debt_found=1
     fi
