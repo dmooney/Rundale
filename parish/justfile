@@ -95,12 +95,12 @@ clean:
 
 # ─── Run ─────────────────────────────────────────────────────────────────────
 
-# Run the game (Tauri desktop GUI) — installs frontend deps if missing.
+# Run the game (Tauri desktop GUI) — syncs frontend deps with package-lock.json first.
 # Auto-detects a free dev port so multiple instances can run simultaneously.
 run:
     #!/usr/bin/env bash
     eval "$(fnm env)"
-    test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
+    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --silent)
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
@@ -121,7 +121,7 @@ run:
 demo PAUSE="2" MAX_TURNS="":
     #!/usr/bin/env bash
     eval "$(fnm env)"
-    test -d apps/ui/node_modules || (echo "Installing frontend dependencies..." && cd apps/ui && npm install)
+    (cd apps/ui && npm install --prefer-offline --no-audit --no-fund --silent)
     PORT=5173
     while ss -tln 2>/dev/null | grep -q ":$PORT " || lsof -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; do
         PORT=$((PORT + 1))
