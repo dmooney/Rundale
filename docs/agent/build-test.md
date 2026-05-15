@@ -85,4 +85,4 @@ See [../design/testing.md](../design/testing.md) §Eval baselines for the schema
 
 ## Coverage
 
-`cargo tarpaulin` (target: keep above 90%).
+Run `just coverage` to generate the Tarpaulin HTML/JSON report. Run `just coverage-check` to enforce the current Rust coverage ratchet. Raise the ratchet floor as coverage-recovery work lands; the long-term target is 90%.

@@ -66,6 +66,10 @@ test:
 coverage:
     cd parish && just coverage
 
+# Run Rust coverage and fail if it drops below the current ratchet floor
+coverage-check:
+    cd parish && just coverage-check
+
 # Witness-style deterministic scan for AI partial-completion markers
 witness-scan:
     cd parish && just witness-scan

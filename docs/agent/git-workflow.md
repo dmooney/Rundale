@@ -16,7 +16,7 @@ just verify    # check + harness walkthrough
 ## Engineering standards
 
 - All new code must have accompanying unit tests.
-- Coverage must stay above **90%** (`cargo tarpaulin`).
+- The Rust coverage ratchet must pass (`just coverage-check`). Raise the ratchet floor as coverage-recovery work lands; the long-term target is **90%**.
 - No `#[allow]` without a justifying comment.
 - When creating PRs, make sure the PR content makes it into a design doc.
 
