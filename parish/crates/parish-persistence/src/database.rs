@@ -140,6 +140,8 @@ impl Database {
             )
             .db_err()?;
 
+        self.migrate_branch_parent_fk()?;
+
         // Ensure the "main" branch exists
         let exists: bool = self
             .conn
@@ -159,6 +161,58 @@ impl Database {
         }
 
         Ok(())
+    }
+
+    fn migrate_branch_parent_fk(&self) -> Result<(), ParishError> {
+        if self.branch_parent_fk_present()? {
+            return Ok(());
+        }
+
+        self.conn
+            .execute_batch(
+                "PRAGMA foreign_keys=OFF;
+                 CREATE TABLE branches_new (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    created_at TEXT NOT NULL,
+                    parent_branch_id INTEGER REFERENCES branches_new(id)
+                 );
+                 INSERT INTO branches_new (id, name, created_at, parent_branch_id)
+                 SELECT child.id,
+                        child.name,
+                        child.created_at,
+                        CASE
+                            WHEN child.parent_branch_id IS NULL THEN NULL
+                            WHEN EXISTS (
+                                SELECT 1 FROM branches AS parent
+                                WHERE parent.id = child.parent_branch_id
+                            ) THEN child.parent_branch_id
+                            ELSE NULL
+                        END
+                 FROM branches AS child;
+                 DROP TABLE branches;
+                 ALTER TABLE branches_new RENAME TO branches;
+                 PRAGMA foreign_keys=ON;",
+            )
+            .db_err()?;
+
+        Ok(())
+    }
+
+    fn branch_parent_fk_present(&self) -> Result<bool, ParishError> {
+        let mut stmt = self
+            .conn
+            .prepare("PRAGMA foreign_key_list(branches)")
+            .db_err()?;
+        let mut rows = stmt.query([]).db_err()?;
+        while let Some(row) = rows.next().db_err()? {
+            let from: String = row.get(3).db_err()?;
+            let table: String = row.get(2).db_err()?;
+            if from == "parent_branch_id" && table == "branches" {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// Saves a game snapshot to the given branch.
@@ -611,6 +665,81 @@ mod tests {
         assert!(
             result.is_err(),
             "branch parent foreign key should reject a missing parent"
+        );
+    }
+
+    fn seed_legacy_branches_without_parent_fk(path: &Path, orphan_parent_id: Option<i64>) {
+        let conn = rusqlite::Connection::open(path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE branches (
+                id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                created_at TEXT NOT NULL,
+                parent_branch_id INTEGER
+             );",
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO branches (id, name, created_at, parent_branch_id)
+             VALUES (1, 'main', ?1, NULL)",
+            params![chrono::Utc::now().to_rfc3339()],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO branches (id, name, created_at, parent_branch_id)
+             VALUES (2, 'child', ?1, 1)",
+            params![chrono::Utc::now().to_rfc3339()],
+        )
+        .unwrap();
+
+        if let Some(parent_id) = orphan_parent_id {
+            conn.execute(
+                "INSERT INTO branches (id, name, created_at, parent_branch_id)
+                 VALUES (3, 'orphan', ?1, ?2)",
+                params![chrono::Utc::now().to_rfc3339(), parent_id],
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn test_migrate_legacy_branches_adds_parent_foreign_key() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        seed_legacy_branches_without_parent_fk(tmp.path(), None);
+
+        let db = Database::open(tmp.path()).unwrap();
+        assert!(db.branch_parent_fk_present().unwrap());
+        assert_eq!(
+            db.find_branch("child").unwrap().unwrap().parent_branch_id,
+            Some(1)
+        );
+
+        let result = db.conn.execute(
+            "INSERT INTO branches (name, created_at, parent_branch_id)
+             VALUES (?1, ?2, ?3)",
+            params!["raw-orphan", chrono::Utc::now().to_rfc3339(), 999],
+        );
+        assert!(
+            result.is_err(),
+            "migrated legacy branches should reject missing parents"
+        );
+    }
+
+    #[test]
+    fn test_migrate_legacy_branches_clears_dangling_parent_ids() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        seed_legacy_branches_without_parent_fk(tmp.path(), Some(999));
+
+        let db = Database::open(tmp.path()).unwrap();
+        assert!(db.branch_parent_fk_present().unwrap());
+        assert_eq!(
+            db.find_branch("child").unwrap().unwrap().parent_branch_id,
+            Some(1)
+        );
+        assert_eq!(
+            db.find_branch("orphan").unwrap().unwrap().parent_branch_id,
+            None
         );
     }
 

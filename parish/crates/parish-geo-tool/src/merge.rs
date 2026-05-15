@@ -113,19 +113,18 @@ pub fn merge_locations(
     let valid_ids: std::collections::HashSet<LocationId> =
         result.iter().map(|loc| loc.data.id).collect();
 
-    // Remap connection targets in generated locations and drop stale edges to
-    // generated locations that were removed during proximity filtering.
+    // Remap and prune connection targets across all retained locations. Curated
+    // locations may point at generated locations, so they need the same remap
+    // and dropped-target cleanup as generated locations.
     for loc in &mut result {
-        if loc.description_source != DescriptionSource::Curated {
-            for conn in &mut loc.data.connections {
-                if let Some(&new_id) = id_remap.get(&conn.target.0) {
-                    conn.target = LocationId(new_id);
-                }
+        for conn in &mut loc.data.connections {
+            if let Some(&new_id) = id_remap.get(&conn.target.0) {
+                conn.target = LocationId(new_id);
             }
-            loc.data
-                .connections
-                .retain(|conn| valid_ids.contains(&conn.target));
         }
+        loc.data
+            .connections
+            .retain(|conn| valid_ids.contains(&conn.target));
     }
 
     result
@@ -363,6 +362,45 @@ mod tests {
             kept.data.connections.is_empty(),
             "kept generated node must not retain an edge to dropped old id 101"
         );
+    }
+
+    #[test]
+    fn test_merge_remaps_and_prunes_curated_connection_targets() {
+        let mut curated = make_tracked(1, "Curated Church", DescriptionSource::Curated, 53.5, -8.0);
+        curated
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: LocationId(100),
+                path_description: "to kept generated".to_string(),
+                hazard: Default::default(),
+            });
+        curated
+            .data
+            .connections
+            .push(parish_core::world::graph::Connection {
+                target: LocationId(101),
+                path_description: "to dropped duplicate".to_string(),
+                hazard: Default::default(),
+            });
+
+        let kept = make_tracked(100, "Kept Pub", DescriptionSource::Template, 53.6, -8.0);
+        let dropped = make_tracked(
+            101,
+            "Generated Church Duplicate",
+            DescriptionSource::Template,
+            53.5001,
+            -8.0,
+        );
+
+        let result = merge_locations(vec![curated], vec![kept, dropped], 50.0);
+
+        let curated = result
+            .iter()
+            .find(|loc| loc.data.name == "Curated Church")
+            .unwrap();
+        assert_eq!(curated.data.connections.len(), 1);
+        assert_eq!(curated.data.connections[0].target, LocationId(2));
     }
 
     #[test]
