@@ -1855,4 +1855,102 @@ model = "toml-model"
             assert_eq!(first_preset.model(cat), p.preset_model(cat));
         }
     }
+
+    #[test]
+    fn registry_all_returns_sorted_list_of_all_providers() {
+        let all = registry().all();
+        assert!(all.len() >= 22, "must have at least 22 providers");
+        let ids: Vec<&str> = all.iter().map(|p| p.id()).collect();
+        let mut sorted = ids.clone();
+        sorted.sort();
+        assert_eq!(ids, sorted, "all() must return providers sorted by id");
+    }
+
+    #[test]
+    fn registry_featured_returns_subset_of_all() {
+        let featured = registry().featured();
+        let all = registry().all();
+        assert!(
+            !featured.is_empty(),
+            "at least one provider should be featured"
+        );
+        assert!(featured.len() <= all.len());
+        for p in &featured {
+            assert!(
+                all.iter().any(|a| a.id() == p.id()),
+                "featured provider {} must also be in all()",
+                p.id()
+            );
+        }
+    }
+
+    #[test]
+    fn registry_lookup_finds_by_id_and_rejects_unknown() {
+        assert!(registry().lookup("anthropic").is_ok());
+        assert!(registry().lookup("ANTHROPIC").is_ok());
+        let err = registry().lookup("not-a-real-provider-xyz");
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn provider_from_id_roundtrip() {
+        let p = Provider::from_id("openai").expect("openai must exist");
+        assert_eq!(p.id(), "openai");
+        assert!(Provider::from_id("does-not-exist").is_none());
+    }
+
+    #[test]
+    fn provider_display_name_and_kind_accessors() {
+        let p = Provider::anthropic();
+        assert!(!p.display_name().is_empty());
+        assert_eq!(p.kind(), ProviderKind::Anthropic);
+        let sim = Provider::simulator();
+        assert_eq!(sim.kind(), ProviderKind::Simulator);
+    }
+
+    #[test]
+    fn provider_equality_and_hash_by_id() {
+        let a = Provider::openai();
+        let b = Provider::from_id("openai").unwrap();
+        assert_eq!(a, b);
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(a.clone());
+        set.insert(b.clone());
+        assert_eq!(set.len(), 1, "same provider id must hash identically");
+    }
+
+    #[test]
+    fn provider_display_fmt_is_id() {
+        let p = Provider::ollama();
+        assert_eq!(format!("{p}"), "ollama");
+    }
+
+    #[test]
+    fn provider_recommended_for_platform_returns_valid_provider() {
+        let p = Provider::recommended_for_platform();
+        assert!(!p.id().is_empty());
+    }
+
+    #[test]
+    fn provider_default_is_simulator() {
+        let p = Provider::default();
+        assert_eq!(p.id(), "simulator");
+    }
+
+    #[test]
+    fn all_named_constructors_return_correct_id() {
+        assert_eq!(Provider::openai().id(), "openai");
+        assert_eq!(Provider::google().id(), "google");
+        assert_eq!(Provider::groq().id(), "groq");
+        assert_eq!(Provider::xai().id(), "xai");
+        assert_eq!(Provider::mistral().id(), "mistral");
+        assert_eq!(Provider::deepseek().id(), "deepseek");
+        assert_eq!(Provider::together().id(), "together");
+        assert_eq!(Provider::vllmmlx().id(), "vllmmlx");
+        assert_eq!(Provider::lmstudio().id(), "lmstudio");
+        assert_eq!(Provider::openrouter().id(), "openrouter");
+        assert_eq!(Provider::custom().id(), "custom");
+        assert_eq!(Provider::ollama().id(), "ollama");
+    }
 }

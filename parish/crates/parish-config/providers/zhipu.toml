@@ -1,7 +1,7 @@
 id = "zhipu"
 display_name = "Zhipu AI"
 kind = "openai-compat"
-default_base_url = "https://open.bigmodel.cn/api/paas/v4"
+default_base_url = "https://open.bigmodel.cn/api/paas"
 requires_api_key = true
 requires_model = true
 api_key_env_var = "ZHIPU_API_KEY"

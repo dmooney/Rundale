@@ -95,6 +95,8 @@ async fn probe_openai_compat(
     api_key: Option<&str>,
 ) -> ValidationOutcome {
     let trimmed = base_url.trim_end_matches('/');
+    // Normalize trailing /v1 so callers can pass either form; mirrors ClientBase::new.
+    let trimmed = trimmed.strip_suffix("/v1").unwrap_or(trimmed);
     let models_url = format!("{trimmed}/v1/models");
     let outcome = probe_get(client, &models_url, api_key).await;
     // Some self-hosted OpenAI-compat servers (older vLLM, certain TGI builds)
@@ -124,6 +126,7 @@ async fn probe_openai_chat_min(
     api_key: Option<&str>,
 ) -> ValidationOutcome {
     let trimmed = base_url.trim_end_matches('/');
+    let trimmed = trimmed.strip_suffix("/v1").unwrap_or(trimmed);
     let url = format!("{trimmed}/v1/chat/completions");
     let body = serde_json::json!({
         "model": "validation-probe",
@@ -412,5 +415,21 @@ mod tests {
             ValidationOutcome::Unexpected { status, .. } => assert_eq!(status, 500),
             other => panic!("expected Unexpected, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn probe_normalizes_trailing_v1_in_base_url() {
+        // A base URL that already ends in /v1 (common when users paste docs examples)
+        // must not produce /v1/v1/models — the probe should strip and re-add /v1.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{\"data\":[]}"))
+            .mount(&server)
+            .await;
+
+        let base_with_v1 = format!("{}/v1", server.uri());
+        let outcome = validate(&Provider::openai(), &base_with_v1, Some("sk-test")).await;
+        assert_eq!(outcome, ValidationOutcome::Ok);
     }
 }
