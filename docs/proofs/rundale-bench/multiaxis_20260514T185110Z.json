@@ -1,0 +1,225 @@
+{
+  "scored_at_utc": "2026-05-14T18:51:10.425484+00:00",
+  "samples_file": "docs/proofs/rundale-bench/dialogue_samples_20260514T175045Z.json",
+  "judge": {
+    "model": "x-ai/grok-4.3",
+    "url": "https://openrouter.ai/api/v1"
+  },
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "rubric": "You are an impartial judge scoring a single piece of fictional dialogue from rural Ireland in 1820. The model is playing Brigid O'Brien, a 42-year-old midwife.\n\nScore the reply on each axis independently on an integer 0-10 scale, where:\n\n  - 0  = broken, off-topic, or non-Latin script anywhere in the reply\n  - 3  = recognisable midwife voice but flat, anachronistic, or unresponsive\n  - 6  = period-plausible, on-topic, no glaring tells\n  - 8  = strong period voice with idiomatic Hiberno-English\n  - 10 = a sentence a real 1820 Irish midwife could have spoken\n\nAxes:\n  - CHARACTER         — reads as the specific persona (rural Irish midwife, 1820, woman of folk-medicine experience)\n  - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms (\"hi\", \"okay\", \"guys\")\n  - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0\n  - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding\n  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing\n\nAfter the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.\n\nOutput ONLY a JSON object: {\"character\":<0-10>, \"authenticity\":<0-10>, \"language\":<0-10>, \"responsiveness\":<0-10>, \"craft\":<0-10>, \"total\":<0.0-10.0>, \"reason\":\"<one short sentence, ≤25 words>\"}. No prose, no markdown.",
+  "aggregates": {
+    "deepseek/deepseek-v4-pro": {
+      "character_mean": 7.714285714285714,
+      "character_n": 14,
+      "authenticity_mean": 8.214285714285714,
+      "authenticity_n": 14,
+      "language_mean": 7.214285714285714,
+      "language_n": 14,
+      "responsiveness_mean": 7.928571428571429,
+      "responsiveness_n": 14,
+      "craft_mean": 7.785714285714286,
+      "craft_n": 14,
+      "total_mean": 7.771428571428571,
+      "total_n": 14
+    }
+  },
+  "ranked": [
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "character_mean": 7.714285714285714,
+      "character_n": 14,
+      "authenticity_mean": 8.214285714285714,
+      "authenticity_n": 14,
+      "language_mean": 7.214285714285714,
+      "language_n": 14,
+      "responsiveness_mean": 7.928571428571429,
+      "responsiveness_n": 14,
+      "craft_mean": 7.785714285714286,
+      "craft_n": 14,
+      "total_mean": 7.771428571428571,
+      "total_n": 14
+    }
+  ],
+  "per_record": [
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0001",
+      "reply": "Ah, the dreams again, is it? I'll brew you a tea of valerian and chamomile, but you must tell me what haunts your sleep.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 7,
+      "responsiveness": 10,
+      "craft": 8,
+      "total": 8.4,
+      "reason": "Strong folk-medicine voice with light Hiberno cadence and direct reply."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0002",
+      "reply": "Ah, that old woman has more knowledge of the healing plants than anyone I've met, though she keeps to the shadows of the ráth. Best not to cross her path after dusk, for she walks with the Good People and they guard their own fiercely.",
+      "character": 8,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 7,
+      "craft": 8,
+      "total": 8.0,
+      "reason": "Fits 1820 midwife persona with authentic fairy lore and Hiberno cadence."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0003",
+      "reply": "Ah, poor dear Mary. I'll prepare a tincture of thyme and honey for her chest, and tell her to steep it in warm water three times daily. The wild thyme growing by the stone wall has always served her well before.",
+      "character": 8,
+      "authenticity": 7,
+      "language": 6,
+      "responsiveness": 9,
+      "craft": 8,
+      "total": 7.6,
+      "reason": "Folk remedy fits midwife role with mild period phrasing but limited Hiberno idiom."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0005",
+      "reply": "Aye, I've heard tell of things that walk the night that aren't beast nor man. Was there a strange silence about the field, or a light where none should be?",
+      "character": 8,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 8,
+      "total": 8.4,
+      "reason": "Fits 1820 midwife persona with idiomatic speech and responsive folkloric tone."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0006",
+      "reply": "Ah, that was a rough spring, wasn't it? I'll not forget binding his leg with comfrey and splinting it with those strong ash branches your brother fetched. 'Twas a mercy the bone set so clean, praise be.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong folk-medicine voice with clean Hiberno-English and period detail."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0007",
+      "reply": "Ah, you saw them too, did you? 'Twas the fairy folk, no doubt, dancing on the old ráth. Best not to follow their light, child, or you might be led astray till dawn.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 10,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Evocative Hiberno-English folklore response fitting the 1820 midwife persona."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0008",
+      "reply": "Aye, you'd best not drink it 'til we know the cause. Fetch your water from the stream by the old oak for now, and I'll brew some yarrow tea to settle your stomach if you've already taken any.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 8,
+      "total": 8.8,
+      "reason": "Plausible 1820 midwife counsel with fitting herbal detail."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0009",
+      "reply": "Send word when her pains come steady, five minutes apart. I'll have my bag ready with the raspberry leaf and Motherwort. You've a strong wife, Seamus, she'll manage grand.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 8,
+      "total": 8.8,
+      "reason": "Authentic 1820 midwife voice with fitting Hiberno-English and herbs."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0010",
+      "reply": "Ah, Father Cathal means well, but he's a young man from the city. I've been bringing babes into this world with the help of God's own herbs since before he took his vows, and when a fever strikes, it's the old cures folk turn to when there's no doctor for miles.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice and idiom with clear midwife experience."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0011",
+      "reply": "Ah, the poor tooth giving you trouble. I'll make you a poultice of cloves and yarrow - chew it soft on the aching side. And if the pain's deep in the root, a sip of whiskey with a drop of oil of cloves will numb it for the night.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong folk-medicine reply with natural period phrasing and direct help."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0012",
+      "reply": "Let me see that now. A hot wound from a dirty blade is trouble brewing. I'll fetch a poultice of yarrow and plantain to draw out the poison, and you'll keep it clean with boiled water and a drop of whiskey.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 7,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Folk remedies and phrasing fit a 1820 midwife well, though Hiberno idiom is light."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0013",
+      "reply": "Aye, I did that. Brought them into the world on a stormy Samhain night, with the wind howling like a banshee. I used a poultice of comfrey and shepherd's purse to ease their mother's labor, and both babes came out squalling, strong as young colts.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice, idiomatic and evocative with apt folk-medicine detail."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0014",
+      "reply": "Ah, the crows are clever creatures, not always bearers of ill tidings.",
+      "character": 4,
+      "authenticity": 8,
+      "language": 3,
+      "responsiveness": 6,
+      "craft": 7,
+      "total": 5.6,
+      "reason": "Folkloric tone fits era but lacks Hiberno idiom or midwife specificity."
+    },
+    {
+      "candidate": "deepseek/deepseek-v4-pro",
+      "prompt_id": "dialogue-0015",
+      "reply": "A",
+      "character": 0,
+      "authenticity": 0,
+      "language": 0,
+      "responsiveness": 0,
+      "craft": 0,
+      "total": 0.0,
+      "reason": "Single letter is broken and unresponsive."
+    }
+  ],
+  "cost": {
+    "calls": 14,
+    "usd": 0.0,
+    "prompt_tokens": 9513,
+    "completion_tokens": 9216
+  }
+}

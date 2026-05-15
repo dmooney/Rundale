@@ -80,4 +80,20 @@ Verdict: deferred (intentional). Technical debt: tracked in README status table.
 
 `MANIFEST.json::frozen=true` + `git tag rundale-bench-v1.0` not yet executed. Tagging at the current 155-prompt corpus would lock in a benchmark too small to distinguish frontier-vs-mid-tier models with confidence. The framework is complete; freeze blockers are corpus growth (≥1100 prompts) and three independent leaderboard rows on the holdout split. Each blocker is a follow-up commit, not a structural change.
 
+## Phase 8 — pairwise ELO mode
+
+Verdict: sufficient (smoke-validated). Technical debt: clear.
+
+Absolute 5-axis rubric saturated near ceiling (gpt-oss-120b:free → 4.82/5 left zero headroom for stronger models). Pairwise ELO with `judge_pairwise_v1` replaces it as the dialogue-ranking primary. New `grade_pairwise` picks A | B | tie with non-Latin-script auto-disqualification, position-randomized per match in `run_elo` to absorb judge first-position bias. ELO accumulates K=32 → K=16 after 50 matches per candidate, bootstrap 5/95 CI via 500 i.i.d. match resamples. `--mode elo` takes repeated `--target` flags; outputs `elo_<UTC>.json` with full match log (reason strings included for bias audit).
+
+Smoke (3 candidates × 10 prompts × 1 pair per prompt) produced 290-point ELO spread with non-overlapping CIs between top and bottom — the discrimination the absolute rubric was crushing.
+
+Known limits:
+- Same-family bias plausible (qwen3-235b judges qwen3-235b candidates). Cross-judge sanity check pending.
+- N=10 prompts below the 25-prompt comfort floor; CI tightens with more matches.
+- Bootstrap is i.i.d. over matches, not prompts — understates uncertainty when matches are prompt-correlated. Future refinement.
+- ELO assumes transitive preferences; non-transitivity (A>B>C>A) would manifest as oscillating ratings.
+
+27/27 grade.py tests pass.
+
 ## Approved.

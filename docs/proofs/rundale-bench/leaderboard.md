@@ -40,6 +40,178 @@ The 0.54 delta is well above the ±0.3 noise floor stated in the plan and demons
 
 The judge swap from Sonnet 4.6 → Qwen3-235B was made to keep judge cost negligible (~\$0.0003/call vs ~\$0.002/call) and to consolidate API key surface on OpenRouter. Qwen3-235B is the current pinned default in `judge_v1.json`; the Sonnet snapshot is retained in the leaderboard as a calibration row, not as a benchmark contender.
 
+## ELO standings — dialogue slice (`--mode elo`)
+
+The absolute 5-axis rubric saturates near the ceiling (gpt-oss-120b scored 4.82/5 on its own — no headroom for stronger models to differentiate). Pairwise ELO replaces it for ranking decisions. Each match: judge picks A / B / tie between two candidate replies on the same prompt, with A/B position randomized per match to absorb first-position bias. ELO starts at 1500, K=32 initially (drops to 16 after 50+ matches/candidate), bootstrapped CI via 500 resamples.
+
+| Date (UTC)       | Targets   | Prompts | Matches | Judge                          | Cost    | Run file |
+|------------------|-----------|---------|---------|--------------------------------|---------|---|
+| 2026-05-13 22:15 | 3 (smoke) | 10      | 30      | judge_pairwise_v1 (qwen3-235b) | $0.0013 | `elo_20260513T221506Z.json` |
+
+### Standings — 3-candidate smoke (qwen3-235b judge)
+
+| Rank | Target                                       | ELO    | 5/95 CI           | Matches |
+|------|----------------------------------------------|--------|-------------------|---------|
+| 1    | qwen/qwen3-235b-a22b-2507                    | 1646.2 | 1598.6 – 1694.0   | 20      |
+| 2    | openai/gpt-oss-120b:free                     | 1497.1 | 1437.0 – 1561.2   | 20      |
+| 3    | mistralai/mistral-small-24b-instruct-2501    | 1356.6 | 1306.3 – 1399.8   | 20      |
+
+~290 ELO spread across three candidates with **non-overlapping CIs between Qwen and Mistral** — discrimination the absolute rubric was crushing. GPT-oss-120b lands middle.
+
+### Standings — 12-candidate sweep, 2026-05-14 (mistral-large-2512 judge)
+
+Cached samples: `dialogue_samples_20260514T004513Z.json` (6 paid-cheap) + `dialogue_samples_20260514T005721Z.json` (6 mid-tier) → 12 candidates × 15 prompts. 816 pairwise matches over `judge_pairwise_v1` rubric judged by `mistralai/mistral-large-2512` ($0.50/$1.50 per M). ~22 minutes wall, < $0.10.
+
+| Rank | Target                                          | ELO    | Matches | Notes |
+|------|-------------------------------------------------|--------|---------|-------|
+| 1    | qwen/qwen3-235b-a22b-2507                       | 1898.9 | 149     |       |
+| 2    | anthropic/claude-haiku-4.5                      | 1768.4 | 149     | strong for cheap-tier ($1/$5) |
+| 3    | google/gemma-3-27b-it                           | 1705.0 | 149     |       |
+| 4    | mistralai/mistral-large-2512                    | 1682.6 | 149     | **same as judge — self-bias inflates this row** |
+| 5    | moonshotai/kimi-k2.5                            | 1622.8 | 11      | **only 11 matches — reasoning-model output empty for 14/15 prompts; row unreliable** |
+| 6    | x-ai/grok-3-mini                                | 1484.9 | 149     |       |
+| 7    | deepseek/deepseek-v3.2                          | 1473.3 | 149     |       |
+| 8    | openai/gpt-oss-120b                             | 1356.8 | 131     |       |
+| 9    | google/gemini-2.5-flash                         | 1340.9 | 149     |       |
+| 10   | mistralai/mistral-small-24b-instruct-2501       | 1305.2 | 149     |       |
+| 11   | openai/gpt-4o-mini                              | 1242.6 | 149     |       |
+| 12   | microsoft/phi-4                                 | 1118.6 | 149     | bottom by 124 points |
+
+780-point top-to-bottom spread. Findings:
+
+- **qwen3-235b dominant.** Top by 130 ELO over Claude Haiku 4.5 — but qwen3-235b is also the previous judge pin, so absorbed weight from the prior pairwise rubric's training of itself. Treat this row with the same suspicion as #4 (mistral-large self-bias).
+- **claude-haiku-4.5 punches above its tier.** Mid-cost ($1/$5 per M) but second-place on quality — strong candidate for the Dialogue preset.
+- **Cheap mistral-small at #10**, big mistral-large at #4. ~377-point gap within the same family — model size + capability matters, the family label doesn't.
+- **microsoft/phi-4 dead last** by 124 ELO; not a dialogue candidate worth pursuing for 1820 Irish.
+
+### Caveats
+
+- **Judge self-bias.** mistral-large at #4 against 11 cross-family competitors is suspect; comparable cross-judge runs (qwen judge / claude judge) should adjust this. Plan: re-run with a non-candidate judge (e.g. cohere/command-a) and average the two ranking tables.
+- **Reasoning-class models break the cache.** `moonshotai/kimi-k2.6` and `moonshotai/kimi-k2.5` both return `content: null` with all output in `reasoning` field — current `call_chat` only reads `content`, so their cached replies are empty. Same problem hit `z-ai/glm-4.7`. Until the cache supports `reasoning` fallback OR we exclude reasoning models, these candidates can't be ELO-ranked.
+- **Position-bias absorbed** by per-match A/B randomization (seed 0xe10 in rubric_lab.py); same approach as Chatbot Arena.
+- **N=15 prompts per candidate** is below the 25-prompt comfort floor. Larger prompt counts tighten the standings — bootstrap CI not computed in this rubric_lab run (only in the in-bench `--mode elo` path).
+
+### Caveats for ELO rows
+
+- **Judge is also a competitor.** Qwen3-235B is the judge AND the top-ranked target here. Same-family bias is plausible. Re-run with a deepseek/* or anthropic/* judge before quoting the top of the table in a preset decision.
+- **N=10 prompts is below the comfort floor.** Plan calls for 25-prompt minimum; this is a smoke. Re-run at 25-50 prompts before treating ELO numbers as authoritative.
+- **Bootstrap CI uses i.i.d. resampling of matches**, which understates uncertainty when matches are correlated by prompt. A prompt-level bootstrap would give wider, more honest bounds.
+
+## Multi-axis 0-10 standings (`score_multiaxis.py`)
+
+Per-axis grading complements ELO when you need *why* a candidate ranks where it does — character, authenticity, language, responsiveness, craft. Judge emits 5 integers + a total. Same 15 dialogue prompts, same dev split, same `mistral-large-2512` judge as the 12-candidate ELO sweep.
+
+Cached samples:
+- `dialogue_samples_20260514T004513Z.json` — 6 paid-cheap candidates → `multiaxis_20260514T172222Z.json` (88 calls, ~$0)
+- `dialogue_samples_20260514T005721Z.json` — 6 mid-tier candidates → `multiaxis_20260514T170413Z.json` (76 calls, ~$0)
+- `dialogue_samples_20260514T173823Z.json` — qwen3-max flagship → `multiaxis_20260514T174548Z.json` (15 calls, ~$0)
+
+| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
+|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
+| 1    | google/gemma-3-27b-it                        | cheap | 15 | 9.03  | 9.20 | 9.60 | 8.73 | 8.60 | 9.00  |
+| 1    | qwen/qwen3-max                               | flag  | 15 | 9.03  | 9.27 | 9.47 | 8.60 | 8.80 | 9.00  |
+| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 15 | 9.00  | 9.33 | 9.67 | 8.47 | 8.53 | 9.00  |
+| 4    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.93  | 9.13 | 9.27 | 8.33 | 9.00 | 8.93  |
+| 5    | mistralai/mistral-large-2512                 | mid   | 15 | 8.88  | 9.07 | 9.27 | 8.40 | 8.67 | 9.00  |
+| 6    | x-ai/grok-3-mini                             | mid   | 15 | 8.84  | 9.00 | 9.00 | 8.87 | 8.73 | 8.60  |
+| 7    | google/gemini-2.5-flash                      | mid   | 15 | 8.81  | 8.93 | 9.20 | 8.40 | 8.53 | 9.00  |
+| 8    | deepseek/deepseek-v3.2                       | cheap | 15 | 8.59  | 8.73 | 9.27 | 8.00 | 8.20 | 8.73  |
+| 9    | openai/gpt-oss-120b                          | cheap | 13 | 8.55  | 8.85 | 9.23 | 8.15 | 8.00 | 8.54  |
+| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 8.32  | 8.33 | 8.67 | 7.80 | 8.33 | 8.47  |
+| 11   | microsoft/phi-4                              | cheap | 15 | 8.28  | 8.20 | 8.87 | 7.53 | 8.40 | 8.40  |
+| 12   | openai/gpt-4o-mini                           | mid   | 15 | 8.27  | 8.27 | 8.93 | 7.67 | 8.00 | 8.47  |
+| -    | moonshotai/kimi-k2.5                         | mid   | 1  | 9.00  | 9.00 | 10.00| 9.00 | 8.00 | 9.00  |
+
+(kimi-k2.5 unranked — 14/15 replies empty due to reasoning-model `content: null`.)
+
+### Re-judged with grok-4.3 (2026-05-14) — adds deepseek-v4-pro
+
+Re-judged every cached sample with `x-ai/grok-4.3` ($1.25/$2.50 per M, non-reasoning) to test sensitivity to the judge pick. Also added a fresh cache for `deepseek/deepseek-v4-pro` (deepseek's current flagship). All 193 judge calls succeeded; ~$0.40 total spend, ~43 min wall.
+
+| Rank | Target                                       | Tier  | n  | Total | Char | Auth | Lang | Resp | Craft |
+|------|----------------------------------------------|-------|----|-------|------|------|------|------|-------|
+| 1    | qwen/qwen3-max                               | flag  | 15 | 8.65  | 8.80 | 9.07 | 8.67 | 8.33 | 8.40  |
+| 2    | mistralai/mistral-large-2512                 | mid   | 15 | 8.61  | 8.60 | 9.00 | 8.60 | 8.53 | 8.33  |
+| 3    | qwen/qwen3-235b-a22b-2507                    | cheap | 14 | 8.59  | -    | -    | -    | -    | -     |
+| 4    | x-ai/grok-3-mini                             | mid   | 15 | 8.43  | 8.53 | 8.93 | 8.67 | 8.33 | 7.67  |
+| 5    | google/gemma-3-27b-it                        | cheap | 11 | 8.42  | -    | -    | -    | -    | -     |
+| 6    | google/gemini-2.5-flash                      | mid   | 15 | 8.16  | 8.00 | 8.80 | 8.00 | 8.27 | 7.73  |
+| 7    | anthropic/claude-haiku-4.5                   | mid   | 15 | 8.12  | 8.07 | 8.87 | 7.80 | 8.07 | 7.80  |
+| 8    | deepseek/deepseek-v3.2                       | cheap | 13 | 7.91  | -    | -    | -    | -    | -     |
+| 9    | deepseek/deepseek-v4-pro                     | flag  | 14 | 7.77  | 7.71 | 8.21 | 7.21 | 7.93 | 7.79  |
+| 10   | mistralai/mistral-small-24b-instruct-2501    | cheap | 15 | 7.49  | -    | -    | -    | -    | -     |
+| 11   | openai/gpt-oss-120b                          | cheap | 13 | 7.12  | -    | -    | -    | -    | -     |
+| 12   | openai/gpt-4o-mini                           | mid   | 15 | 6.60  | 6.07 | 7.13 | 5.73 | 7.47 | 6.60  |
+| 13   | microsoft/phi-4                              | cheap | 13 | 6.29  | -    | -    | -    | -    | -     |
+
+Sample files:
+- `multiaxis_20260514T182859Z.json` — 6 cheap candidates (79 calls)
+- `multiaxis_20260514T184629Z.json` — 6 mid candidates (76 calls)
+- `multiaxis_20260514T184902Z.json` — qwen3-max (15 calls)
+- `multiaxis_20260514T185110Z.json` — deepseek-v4-pro (14 calls)
+
+Findings vs the mistral-large judge:
+
+- **2.36-point top-to-bottom spread** vs 0.81-point spread under mistral-large. Grok discriminates harder — better signal-to-noise.
+- **Top-3 cluster is robust.** qwen3-max + mistral-large + qwen3-235b within 0.06 of each other under both judges; cross-judge agreement says this trio is the genuine ceiling for this slice.
+- **deepseek-v4-pro WORSE than v3.2** (7.77 vs 7.91). New flagship release does not strictly improve. For 1820 Irish dialogue specifically, v3.2 wins. Treat as a single data point — could reflect heavier RLHF tuning toward reasoning/structure that hurts persona fidelity.
+- **grok-3-mini at #4 = judge-family bias.** grok-4.3 judging grok-3-mini is exactly the inflation pattern called out in the ELO caveats. Discount by ~0.3 mentally.
+- **gpt-4o-mini collapses to 6.60** (vs 8.27 under mistral-large). Stricter judge exposes gpt-4o-mini's weak character voice — biggest cross-judge gap of any candidate.
+
+Caveat: kimi-k2.6 was tried as judge first but failed at ~70% of calls — its reasoning tokens crowded out content emission, and per-call wall time was 29 s. Not viable as a judge until a content-only mode lands. The reasoning-fallback that landed in `eval_lib.py` (read `message.reasoning` when `message.content` is empty) helps for short replies but doesn't fix the JSON-schema-truncation problem.
+
+### gemma-4 + qwen-2.5 quality probe (grok-4.3 judge)
+
+Added two more candidates to test whether newer / different family lineages outperform the cheap-tier leader. Both scored worse:
+
+| Target                          | n  | Total | Char | Auth | Lang | Resp | Craft | Note |
+|---------------------------------|----|-------|------|------|------|------|-------|------|
+| google/gemma-3-27b-it (control) | 11 | 8.42  | -    | -    | -    | -    | -     | grok-judged baseline |
+| google/gemma-4-31b-it           | 15 | 8.19  | 8.00 | 8.67 | 7.67 | 8.40 | 8.20  | -0.23 vs gemma-3 |
+| qwen/qwen-2.5-72b-instruct      | 1  | 8.00  | -    | -    | -    | -    | -     | 14/15 provider 400s — unscorable |
+
+Headline: **gemma-4-31b-it scores 0.23 lower than gemma-3-27b** under the same judge. Newer release is not an upgrade for this slice — confirmed when combined with the perf table below (gemma-4 also slower).
+
+`qwen-2.5-72b-instruct` is effectively dead on OpenRouter right now — only 1 of 15 cache calls returned a usable reply (the rest hit "Provider returned error" 400s) and free-form JSON compliance was 10%. Re-route via a different provider or drop from the candidate list.
+
+## Latency & throughput probe (`bench_perf.py`)
+
+Streaming probe captures TTFT (time-to-first-content-token), total wall time, and tok/s per request. JSON-compliance is measured separately by asking the model to emit a 2-key object in two modes: free-form prompt and `response_format: json_schema`. 10 dialogue prompts × 10 + 10 JSON trials per candidate.
+
+| Candidate                                | TTFT p50 | Total p50 | tok/s p50 | JSON free | JSON schema |
+|------------------------------------------|----------|-----------|-----------|-----------|-------------|
+| **qwen/qwen3-235b-a22b-2507** (cheap)    | **363 ms** | **1696 ms** | **54.2** | 100%      | 100%        |
+| google/gemma-3-27b-it (cheap)            | 380 ms   | 2328 ms   | 37.9      | 100%      | 100%        |
+| google/gemma-4-31b-it                    | 1160 ms  | 3214 ms   | 21.9      | 100%      | 100%        |
+| qwen/qwen-2.5-72b-instruct (broken)      | 0 ms     | 5242 ms   | 0.0       | 10%       | 90%         |
+
+Evidence: `perf_20260514T202405Z.json`.
+
+Findings:
+- **qwen3-235b is the perf leader** — fastest TTFT, fastest total, highest tok/s, perfect JSON in both modes. Same model already topped the cheap-tier quality table. Strong default for the dialogue preset.
+- **gemma-4 is slower than gemma-3** — TTFT 3× worse (1160 ms vs 380 ms), tok/s ~half (21.9 vs 37.9). Combined with the -0.23 quality drop above, gemma-4 is a downgrade across both axes.
+- **qwen-2.5-72b** streaming all failed via OpenRouter routing; schema-mode worked 90% but free-form 10%. Different provider routing needed before this candidate is fairly evaluated.
+- **JSON-compliance is universally 100% on schema-enforced calls** for every working candidate — the `response_format` knob works. Free-form 100% across the board too on these short Q&A prompts (would expect drops on harder rubrics).
+
+### Flagship Chinese model probe — qwen3-max
+
+Ran the most expensive non-reasoning Chinese flagship through the same pipeline as a sanity check that the cheap tier wasn't simply easy to saturate. Result: **qwen3-max ties gemma-3-27b at 9.03 total and edges qwen3-235b by 0.03** — well inside the rubric noise floor.
+
+| Model           | Cost ($/M in / out) | Total | Delta vs qwen3-235b |
+|-----------------|----------------------|-------|---------------------|
+| qwen/qwen3-max  | $1.20 / $6.00        | 9.03  | +0.03               |
+| qwen/qwen3-235b | $0.07 / $0.30        | 9.00  | baseline            |
+
+~17× cost for ~0.03 score gain. For this slice (1820 Irish dialogue, 5-axis rubric judged by mistral-large-2512), the flagship buys nothing. Caveat: a flagship advantage may appear on harder slices (sim tier-3, long-context reaction tier) not covered here.
+
+Cross-rubric agreement: the 12-candidate ELO sweep also crowns qwen3-235b + claude-haiku-4.5 + gemma-3-27b at the top — three independent axes (pairwise vs multi-axis) converge on the same top tier. ELO ranks qwen #1 / haiku #2 / gemma #3; multi-axis ranks gemma #1 / qwen #2 / haiku #3 — order swaps within the top three, but the cluster is robust.
+
+### Caveats
+
+- **Same judge as ELO sweep** (`mistral-large-2512`) — mistral-large at #4 here is the same self-bias as in the ELO table.
+- **Saturation risk.** The 5-axis 0-10 rubric still discriminates (10.65-point top-to-bottom spread across 11 candidates), but the top three are within 0.10 of each other. Add stricter calibration anchors (8 vs 10 deltas) before treating sub-0.2 multi-axis gaps as signal.
+- **N=15 prompts** is below the 25-prompt comfort floor. Same caveat as ELO.
+
 ## Reading the leaderboard
 
 A row at the top of its slice means: best measured `metric` for the largest representative N. Beware:

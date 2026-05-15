@@ -1,0 +1,824 @@
+{
+  "ran_at_utc": "2026-05-15T19:32:31.003307+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "meta-llama/llama-3.3-70b-instruct": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 516,
+      "ttft_ms_p90": 1452,
+      "total_ms_median": 2339,
+      "tokens_per_second_median": 43.2,
+      "tokens_per_second_p90": 55.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 33 (char 32) | text={\"answer\": \"100\", \"confidence\": "
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text="
+        ]
+      },
+      "stream_records": [
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 5730,
+          "total_ms": 7389,
+          "completion_tokens": 73,
+          "prompt_tokens": 69,
+          "tokens_per_second": 44.002411091018686,
+          "reply_len": 284,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 460,
+          "total_ms": 2457,
+          "completion_tokens": 89,
+          "prompt_tokens": 92,
+          "tokens_per_second": 44.56685027541312,
+          "reply_len": 389,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 552,
+          "total_ms": 1117,
+          "completion_tokens": 59,
+          "prompt_tokens": 92,
+          "tokens_per_second": 104.42477876106196,
+          "reply_len": 220,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 523,
+          "total_ms": 1849,
+          "completion_tokens": 63,
+          "prompt_tokens": 69,
+          "tokens_per_second": 47.511312217194565,
+          "reply_len": 262,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 356,
+          "total_ms": 3017,
+          "completion_tokens": 71,
+          "prompt_tokens": 70,
+          "tokens_per_second": 26.681698609545283,
+          "reply_len": 236,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 510,
+          "total_ms": 2502,
+          "completion_tokens": 76,
+          "prompt_tokens": 70,
+          "tokens_per_second": 38.15261044176707,
+          "reply_len": 306,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 373,
+          "total_ms": 2001,
+          "completion_tokens": 62,
+          "prompt_tokens": 89,
+          "tokens_per_second": 38.08353808353809,
+          "reply_len": 235,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 289,
+          "total_ms": 2222,
+          "completion_tokens": 65,
+          "prompt_tokens": 68,
+          "tokens_per_second": 33.62648732540093,
+          "reply_len": 253,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 537,
+          "total_ms": 1866,
+          "completion_tokens": 67,
+          "prompt_tokens": 69,
+          "tokens_per_second": 50.41384499623778,
+          "reply_len": 288,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-3.3-70b-instruct",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 977,
+          "total_ms": 2649,
+          "completion_tokens": 71,
+          "prompt_tokens": 72,
+          "tokens_per_second": 42.464114832535884,
+          "reply_len": 322,
+          "error": null
+        }
+      ]
+    },
+    "meta-llama/llama-4-maverick": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 412,
+      "ttft_ms_p90": 521,
+      "total_ms_median": 1601,
+      "tokens_per_second_median": 51.1,
+      "tokens_per_second_p90": 59.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 424,
+          "total_ms": 1810,
+          "completion_tokens": 60,
+          "prompt_tokens": 68,
+          "tokens_per_second": 43.29004329004329,
+          "reply_len": 233,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 442,
+          "total_ms": 1524,
+          "completion_tokens": 60,
+          "prompt_tokens": 72,
+          "tokens_per_second": 55.452865064695004,
+          "reply_len": 284,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 305,
+          "total_ms": 1649,
+          "completion_tokens": 63,
+          "prompt_tokens": 72,
+          "tokens_per_second": 46.875,
+          "reply_len": 254,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 313,
+          "total_ms": 1317,
+          "completion_tokens": 50,
+          "prompt_tokens": 68,
+          "tokens_per_second": 49.800796812749006,
+          "reply_len": 200,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 494,
+          "total_ms": 1973,
+          "completion_tokens": 66,
+          "prompt_tokens": 70,
+          "tokens_per_second": 44.62474645030426,
+          "reply_len": 263,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 400,
+          "total_ms": 1708,
+          "completion_tokens": 73,
+          "prompt_tokens": 69,
+          "tokens_per_second": 55.810397553516815,
+          "reply_len": 283,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 442,
+          "total_ms": 1920,
+          "completion_tokens": 62,
+          "prompt_tokens": 69,
+          "tokens_per_second": 41.94857916102842,
+          "reply_len": 252,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 279,
+          "total_ms": 1464,
+          "completion_tokens": 66,
+          "prompt_tokens": 68,
+          "tokens_per_second": 55.69620253164557,
+          "reply_len": 254,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 766,
+          "total_ms": 1037,
+          "completion_tokens": 26,
+          "prompt_tokens": 68,
+          "tokens_per_second": 95.94095940959409,
+          "reply_len": 105,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-maverick",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 368,
+          "total_ms": 1553,
+          "completion_tokens": 62,
+          "prompt_tokens": 72,
+          "tokens_per_second": 52.32067510548523,
+          "reply_len": 254,
+          "error": null
+        }
+      ]
+    },
+    "meta-llama/llama-4-scout": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 279,
+      "ttft_ms_p90": 389,
+      "total_ms_median": 1419,
+      "tokens_per_second_median": 54.2,
+      "tokens_per_second_p90": 105.8,
+      "json_freeform": {
+        "n": 10,
+        "valid": 9,
+        "rate": 0.9,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=answer\": \"56\", \"confidence\": 1.0}"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 246,
+          "total_ms": 1402,
+          "completion_tokens": 46,
+          "prompt_tokens": 68,
+          "tokens_per_second": 39.792387543252595,
+          "reply_len": 168,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 357,
+          "total_ms": 2326,
+          "completion_tokens": 84,
+          "prompt_tokens": 72,
+          "tokens_per_second": 42.661249365159975,
+          "reply_len": 377,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 379,
+          "total_ms": 1742,
+          "completion_tokens": 61,
+          "prompt_tokens": 72,
+          "tokens_per_second": 44.754218635363166,
+          "reply_len": 225,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 263,
+          "total_ms": 386,
+          "completion_tokens": 53,
+          "prompt_tokens": 68,
+          "tokens_per_second": 430.8943089430894,
+          "reply_len": 174,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 239,
+          "total_ms": 1598,
+          "completion_tokens": 75,
+          "prompt_tokens": 70,
+          "tokens_per_second": 55.18763796909492,
+          "reply_len": 292,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 271,
+          "total_ms": 1436,
+          "completion_tokens": 75,
+          "prompt_tokens": 69,
+          "tokens_per_second": 64.37768240343347,
+          "reply_len": 287,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 241,
+          "total_ms": 1368,
+          "completion_tokens": 58,
+          "prompt_tokens": 69,
+          "tokens_per_second": 51.464063886424135,
+          "reply_len": 214,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 481,
+          "total_ms": 1313,
+          "completion_tokens": 58,
+          "prompt_tokens": 68,
+          "tokens_per_second": 69.71153846153847,
+          "reply_len": 230,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 349,
+          "total_ms": 1335,
+          "completion_tokens": 65,
+          "prompt_tokens": 68,
+          "tokens_per_second": 65.92292089249493,
+          "reply_len": 233,
+          "error": null
+        },
+        {
+          "candidate": "meta-llama/llama-4-scout",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 288,
+          "total_ms": 2242,
+          "completion_tokens": 104,
+          "prompt_tokens": 72,
+          "tokens_per_second": 53.22415557830092,
+          "reply_len": 462,
+          "error": null
+        }
+      ]
+    },
+    "amazon/nova-pro-v1": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 478,
+      "ttft_ms_p90": 643,
+      "total_ms_median": 855,
+      "tokens_per_second_median": 65.9,
+      "tokens_per_second_p90": 97.6,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 590,
+          "total_ms": 846,
+          "completion_tokens": 23,
+          "prompt_tokens": 57,
+          "tokens_per_second": 89.84375,
+          "reply_len": 92,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 490,
+          "total_ms": 1175,
+          "completion_tokens": 37,
+          "prompt_tokens": 61,
+          "tokens_per_second": 54.01459854014598,
+          "reply_len": 162,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 463,
+          "total_ms": 865,
+          "completion_tokens": 26,
+          "prompt_tokens": 61,
+          "tokens_per_second": 64.67661691542288,
+          "reply_len": 106,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 466,
+          "total_ms": 639,
+          "completion_tokens": 29,
+          "prompt_tokens": 57,
+          "tokens_per_second": 167.63005780346822,
+          "reply_len": 104,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 768,
+          "total_ms": 1260,
+          "completion_tokens": 33,
+          "prompt_tokens": 59,
+          "tokens_per_second": 67.07317073170732,
+          "reply_len": 146,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 437,
+          "total_ms": 812,
+          "completion_tokens": 17,
+          "prompt_tokens": 58,
+          "tokens_per_second": 45.333333333333336,
+          "reply_len": 72,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 460,
+          "total_ms": 1132,
+          "completion_tokens": 30,
+          "prompt_tokens": 58,
+          "tokens_per_second": 44.64285714285714,
+          "reply_len": 94,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 437,
+          "total_ms": 821,
+          "completion_tokens": 26,
+          "prompt_tokens": 57,
+          "tokens_per_second": 67.70833333333333,
+          "reply_len": 103,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 512,
+          "total_ms": 1070,
+          "completion_tokens": 18,
+          "prompt_tokens": 57,
+          "tokens_per_second": 32.25806451612903,
+          "reply_len": 76,
+          "error": null
+        },
+        {
+          "candidate": "amazon/nova-pro-v1",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 630,
+          "total_ms": 833,
+          "completion_tokens": 17,
+          "prompt_tokens": 60,
+          "tokens_per_second": 83.74384236453201,
+          "reply_len": 85,
+          "error": null
+        }
+      ]
+    },
+    "nousresearch/hermes-4-405b": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 333,
+      "ttft_ms_p90": 641,
+      "total_ms_median": 5623,
+      "tokens_per_second_median": 39.4,
+      "tokens_per_second_p90": 41.1,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 640,
+          "total_ms": 5671,
+          "completion_tokens": 200,
+          "prompt_tokens": 68,
+          "tokens_per_second": 39.75352812562115,
+          "reply_len": 939,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 323,
+          "total_ms": 6196,
+          "completion_tokens": 200,
+          "prompt_tokens": 72,
+          "tokens_per_second": 34.054146092286736,
+          "reply_len": 852,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 352,
+          "total_ms": 1255,
+          "completion_tokens": 37,
+          "prompt_tokens": 72,
+          "tokens_per_second": 40.97452934662237,
+          "reply_len": 140,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 269,
+          "total_ms": 866,
+          "completion_tokens": 25,
+          "prompt_tokens": 68,
+          "tokens_per_second": 41.87604690117253,
+          "reply_len": 84,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 650,
+          "total_ms": 5576,
+          "completion_tokens": 200,
+          "prompt_tokens": 70,
+          "tokens_per_second": 40.60089321965083,
+          "reply_len": 928,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 282,
+          "total_ms": 973,
+          "completion_tokens": 27,
+          "prompt_tokens": 69,
+          "tokens_per_second": 39.07380607814761,
+          "reply_len": 92,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 435,
+          "total_ms": 5812,
+          "completion_tokens": 200,
+          "prompt_tokens": 69,
+          "tokens_per_second": 37.19546215361726,
+          "reply_len": 862,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 303,
+          "total_ms": 1326,
+          "completion_tokens": 41,
+          "prompt_tokens": 68,
+          "tokens_per_second": 40.078201368523956,
+          "reply_len": 162,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 296,
+          "total_ms": 6395,
+          "completion_tokens": 200,
+          "prompt_tokens": 68,
+          "tokens_per_second": 32.79226102639777,
+          "reply_len": 943,
+          "error": null
+        },
+        {
+          "candidate": "nousresearch/hermes-4-405b",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 343,
+          "total_ms": 7185,
+          "completion_tokens": 200,
+          "prompt_tokens": 71,
+          "tokens_per_second": 29.231218941829876,
+          "reply_len": 833,
+          "error": null
+        }
+      ]
+    },
+    "microsoft/phi-4": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 364,
+      "ttft_ms_p90": 727,
+      "total_ms_median": 1674,
+      "tokens_per_second_median": 67.8,
+      "tokens_per_second_p90": 77.5,
+      "json_freeform": {
+        "n": 10,
+        "valid": 0,
+        "rate": 0.0,
+        "errors": [
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\"answer\": \"100\", \"confidence\": 1.0}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\"answer\": \"January\", \"confidence\": 1.0}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\"answer\": \"56\", \"confidence\": 1.0}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"William Shakespeare\",\n  \"confidence\": 1.0\n}\n```",
+          "json_decode: Expecting value: line 1 column 1 (char 0) | text=```json\n{\n  \"answer\": \"Au\",\n  \"confidence\": 1.0\n}\n```"
+        ]
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 228,
+          "total_ms": 1340,
+          "completion_tokens": 67,
+          "prompt_tokens": 64,
+          "tokens_per_second": 60.25179856115108,
+          "reply_len": 307,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 292,
+          "total_ms": 1884,
+          "completion_tokens": 87,
+          "prompt_tokens": 68,
+          "tokens_per_second": 54.64824120603015,
+          "reply_len": 371,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 718,
+          "total_ms": 2182,
+          "completion_tokens": 109,
+          "prompt_tokens": 72,
+          "tokens_per_second": 74.4535519125683,
+          "reply_len": 444,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 494,
+          "total_ms": 1657,
+          "completion_tokens": 90,
+          "prompt_tokens": 68,
+          "tokens_per_second": 77.38607050730869,
+          "reply_len": 388,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 243,
+          "total_ms": 1812,
+          "completion_tokens": 59,
+          "prompt_tokens": 66,
+          "tokens_per_second": 37.60356915232632,
+          "reply_len": 231,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 224,
+          "total_ms": 1136,
+          "completion_tokens": 53,
+          "prompt_tokens": 65,
+          "tokens_per_second": 58.114035087719294,
+          "reply_len": 208,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 521,
+          "total_ms": 1692,
+          "completion_tokens": 89,
+          "prompt_tokens": 69,
+          "tokens_per_second": 76.00341588385994,
+          "reply_len": 411,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 436,
+          "total_ms": 1439,
+          "completion_tokens": 75,
+          "prompt_tokens": 68,
+          "tokens_per_second": 74.77567298105684,
+          "reply_len": 373,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 815,
+          "total_ms": 1696,
+          "completion_tokens": 69,
+          "prompt_tokens": 68,
+          "tokens_per_second": 78.32009080590238,
+          "reply_len": 310,
+          "error": null
+        },
+        {
+          "candidate": "microsoft/phi-4",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 242,
+          "total_ms": 1536,
+          "completion_tokens": 79,
+          "prompt_tokens": 67,
+          "tokens_per_second": 61.05100463678516,
+          "reply_len": 355,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 218.02578711509705,
+  "cost": {
+    "usd": 0.0,
+    "calls": 180
+  }
+}

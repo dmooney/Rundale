@@ -1,0 +1,237 @@
+{
+  "scored_at_utc": "2026-05-15T18:46:12.451501+00:00",
+  "samples_file": "docs/proofs/rundale-bench/dialogue_samples_20260515T184306Z.json",
+  "judge": {
+    "model": "mistralai/mistral-large-2512",
+    "url": "https://openrouter.ai/api/v1"
+  },
+  "axes": [
+    "character",
+    "authenticity",
+    "language",
+    "responsiveness",
+    "craft"
+  ],
+  "rubric": "You are an impartial judge scoring a single piece of fictional dialogue from rural Ireland in 1820. The model is playing Brigid O'Brien, a 42-year-old midwife.\n\nScore the reply on each axis independently on an integer 0-10 scale, where:\n\n  - 0  = broken, off-topic, or non-Latin script anywhere in the reply\n  - 3  = recognisable midwife voice but flat, anachronistic, or unresponsive\n  - 6  = period-plausible, on-topic, no glaring tells\n  - 8  = strong period voice with idiomatic Hiberno-English\n  - 10 = a sentence a real 1820 Irish midwife could have spoken\n\nAxes:\n  - CHARACTER         — reads as the specific persona (rural Irish midwife, 1820, woman of folk-medicine experience)\n  - AUTHENTICITY      — period-appropriate vocabulary, no anachronisms or modern terms (\"hi\", \"okay\", \"guys\")\n  - LANGUAGE          — idiomatic Hiberno-English; optional Irish (ga-IE) code-switching is encouraged; non-Latin scripts = 0\n  - RESPONSIVENESS    — actually addresses the player's prompt rather than deflecting or generic-folksy-padding\n  - CRAFT             — concise, evocative, 1-3 sentences as instructed; no monologuing\n\nAfter the five axes, emit `total` as the unweighted mean of the five integer axes (0.0-10.0, one decimal). Use a strict integer for axis scores; the total is a float.\n\nOutput ONLY a JSON object: {\"character\":<0-10>, \"authenticity\":<0-10>, \"language\":<0-10>, \"responsiveness\":<0-10>, \"craft\":<0-10>, \"total\":<0.0-10.0>, \"reason\":\"<one short sentence, ≤25 words>\"}. No prose, no markdown.",
+  "aggregates": {
+    "moonshotai/kimi-k2.5": {
+      "character_mean": 9.2,
+      "character_n": 15,
+      "authenticity_mean": 9.333333333333334,
+      "authenticity_n": 15,
+      "language_mean": 8.4,
+      "language_n": 15,
+      "responsiveness_mean": 8.733333333333333,
+      "responsiveness_n": 15,
+      "craft_mean": 9.133333333333333,
+      "craft_n": 15,
+      "total_mean": 8.96,
+      "total_n": 15
+    }
+  },
+  "ranked": [
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "character_mean": 9.2,
+      "character_n": 15,
+      "authenticity_mean": 9.333333333333334,
+      "authenticity_n": 15,
+      "language_mean": 8.4,
+      "language_n": 15,
+      "responsiveness_mean": 8.733333333333333,
+      "responsiveness_n": 15,
+      "craft_mean": 9.133333333333333,
+      "craft_n": 15,
+      "total_mean": 8.96,
+      "total_n": 15
+    }
+  ],
+  "per_record": [
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0001",
+      "reply": " *Tuts softly and sets down the bundle of dried lavender*\n\nThe dark dreams again, are they? Your mother had the same trouble after her second child. \n\n*Reaches for a small clay jar on the shelf*\n\nI'll mix you some valerian root with chamomile from my garden. Steep it strong, and place a sprig of mugwort beneath your pillow—though mind you don't let the priest see that last part.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 10,
+      "total": 9.6,
+      "reason": "Perfectly evokes 1820 rural Irish midwife with folk remedies and period-appropriate caution."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0002",
+      "reply": " *settles her worn shawl about her shoulders*\n\nAh, Nuala? She knows the rowan better than any soul living, and I've seen her charm a fever from a child with naught but bog myrtle and whispered words. Some call her a bean feasa, a wise woman, though the priest frowns at such talk—yet he sends for her when his own sister's joints ache something fierce.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice and folk-medicine detail, slight modern phrasing ('something fierce')."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0003",
+      "reply": "*sets down the bundle of dried herbs she was sorting*\n\nYour poor mother. I've seen this cough before—has it got that tight, rattle sound to it, or more of a dry hack?\n\n*reaches for a jar on the shelf*\n\nColtsfoot and horehound, steeped strong with honey from the O'Donnell hives. That'll ease her. But if there's blood or fever comes on, you send for me straightaway, you hear?",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice and responsiveness, with idiomatic Hiberno-English and concise craft."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0004",
+      "reply": "*wiping her hands on her apron*\n\nAye, I saw him come through this morning—thin as a reed and walking like he'd not slept in a proper bed for weeks. The Widow Byrne says he's asking after the old chapel ruins, but I've no patience for strangers poking about where they don't belong.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice and responsiveness, with minor missed Hiberno-English flourishes."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0005",
+      "reply": " *sets down her basket of comfrey roots*\n\nAye, wolves take their fill and leave the bones. But if there's naught left—no wool, no blood, no drag marks through the thicket—then you'd best look to the old paths at moonrise.\n\n*eyes you steadily*\n\nYour grandmother would have known what walks when the mist comes down.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with idiomatic Hiberno-English, though slightly oblique responsiveness."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0006",
+      "reply": " *settles back on the stool, smoothing her apron*\n\nAye, I remember it well—Michael was in agony, and the bone was clean through the skin. I bound it with comfrey and yarrow, though 'twas your mother who held him down while I set it straight.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Vivid, period-accurate detail with strong Hiberno-English voice; concise and responsive."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0007",
+      "reply": "*leans on her walking stick, studying your face*\n\nThem's the will-o'-the-wisp, most like, or else someone's burning turf late. You'd do well not to follow such lights, child—my own granny saw them lead a man straight into the bog, and none but his boots were ever found.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with vivid folk imagery; minor responsiveness dip for unsolicited advice."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0008",
+      "reply": " *sets down a bundle of dried herbs*\n\nAye, I've heard the same from Maeve Donnelly and the Cullen boys. I'd keep to the rainwater barrel for drinking until we see what stirs below—strange tastes often mean something's died upstream, or worse, the old mine is leaking again.\n\n*hands you a small cloth bag*\n\nBoil everything, mind, even for washing wounds.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with idiomatic Hiberno-English, responsive, and concise, though slightly modern phrasing in 'strange tastes'."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0009",
+      "reply": "*sets down the bundle of dried raspberry leaf*\n\nIf the waters break or the pains come strong and regular—every few minutes, mind—send the boy running. Until then, keep her walking gentle and give her nettle tea for her blood. \n\nThe third babe often comes quicker, but I'll not forgive you if I'm fetched too late.",
+      "character": 9,
+      "authenticity": 10,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 9.0,
+      "reason": "Strong period voice with idiomatic Hiberno-English; concise, responsive, and true to the midwife’s authority."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0010",
+      "reply": "*sets down a bundle of dried yarrow*\n\nFather Cathal speaks from his pulpit, but I've pulled too many babes from their mothers with these hands to care much for his opinion on what saves lives. The foxglove doesn't ask permission before it steadies a heart, nor do I ask his.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 9,
+      "craft": 10,
+      "total": 9.6,
+      "reason": "Vividly captures 1820 Irish midwife's defiance, idiom, and folk-medicine wisdom concisely."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0011",
+      "reply": " *sets down her basket of herbs*\n\nAye, that I do. Chew a clove of garlic on the paining side, or if you've willow bark to hand, steep it strong and hold the warm liquor in your cheek.\n\n*tilts her head, studying you*\n\nBut if the rot's gone deep, you'll need the tooth drawn—I've seen too many take fever from waiting overlong.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice with plausible folk remedies; minor modern phrasing ('take fever' less idiomatic than 'run a fever')."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0012",
+      "reply": " *clicks tongue and takes your hand firmly*\n\nThat scythe'll carry more than rust if you don't tend it quick. We'll wash it with boiled water and honey, then poultice it with yarrow and plantain leaves to draw the heat out. Come now, before fever takes hold.",
+      "character": 10,
+      "authenticity": 10,
+      "language": 9,
+      "responsiveness": 10,
+      "craft": 9,
+      "total": 9.6,
+      "reason": "Vivid 1820 Irish midwife voice with strong folk-medicine detail and idiomatic phrasing."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0013",
+      "reply": "*chuckles and wipes her hands on her apron*\n\nThat I did, and a long night it was too—born with the cord wrapped twice round the younger one's neck, but both strong and yelling by dawn. Their mother, God rest her, sent me a wheel of cheese every Christmas after till she passed.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 8,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Vivid, period-apt Hiberno-English with strong midwife voice; minor modern cadence in phrasing."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0014",
+      "reply": "*clicks her tongue and glances toward the window*\n\nThe crows gather where the grain spills, or where something dead lies hidden. 'Tis hunger, not prophecy, though the old women will tell you otherwise.\n\n*turns back, hands working at her mortar*\n\nStill, I'd not walk that way after dark till we know what's drawing them.",
+      "character": 9,
+      "authenticity": 9,
+      "language": 9,
+      "responsiveness": 7,
+      "craft": 9,
+      "total": 8.6,
+      "reason": "Strong period voice and idiom, but slightly indirect response to an implied prompt."
+    },
+    {
+      "candidate": "moonshotai/kimi-k2.5",
+      "prompt_id": "dialogue-0015",
+      "reply": "*sets down the bundle of dried mugwort*\n\nThree nights is no accident. The dead don't trouble sleep without purpose—she's wanting something, or warning of something. \n\nWhat did she speak of, if she spoke at all?",
+      "character": 9,
+      "authenticity": 9,
+      "language": 8,
+      "responsiveness": 9,
+      "craft": 9,
+      "total": 8.8,
+      "reason": "Strong period voice and responsiveness, with idiomatic Hiberno-English and folk-medicine authenticity."
+    }
+  ],
+  "cost": {
+    "calls": 15,
+    "usd": 0.0,
+    "prompt_tokens": 8076,
+    "completion_tokens": 935
+  }
+}

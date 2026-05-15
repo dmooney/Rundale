@@ -1,0 +1,945 @@
+{
+  "ran_at_utc": "2026-05-15T19:35:49.867655+00:00",
+  "suite": "v1",
+  "split": "dev",
+  "dialogue_prompts": 10,
+  "json_trials": 10,
+  "per_target": {
+    "anthropic/claude-haiku-4.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 980,
+      "ttft_ms_p90": 1399,
+      "total_ms_median": 1989,
+      "tokens_per_second_median": 81.6,
+      "tokens_per_second_p90": 87.2,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1016,
+          "total_ms": 2143,
+          "completion_tokens": 97,
+          "prompt_tokens": 67,
+          "tokens_per_second": 86.06921029281278,
+          "reply_len": 415,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 867,
+          "total_ms": 2212,
+          "completion_tokens": 110,
+          "prompt_tokens": 73,
+          "tokens_per_second": 81.78438661710037,
+          "reply_len": 435,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 899,
+          "total_ms": 2066,
+          "completion_tokens": 91,
+          "prompt_tokens": 72,
+          "tokens_per_second": 77.9777206512425,
+          "reply_len": 361,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1225,
+          "total_ms": 1912,
+          "completion_tokens": 67,
+          "prompt_tokens": 67,
+          "tokens_per_second": 97.5254730713246,
+          "reply_len": 272,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 832,
+          "total_ms": 1837,
+          "completion_tokens": 64,
+          "prompt_tokens": 69,
+          "tokens_per_second": 63.681592039801004,
+          "reply_len": 252,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1108,
+          "total_ms": 1881,
+          "completion_tokens": 63,
+          "prompt_tokens": 68,
+          "tokens_per_second": 81.5006468305304,
+          "reply_len": 266,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 829,
+          "total_ms": 1746,
+          "completion_tokens": 77,
+          "prompt_tokens": 68,
+          "tokens_per_second": 83.96946564885496,
+          "reply_len": 283,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1106,
+          "total_ms": 2204,
+          "completion_tokens": 82,
+          "prompt_tokens": 68,
+          "tokens_per_second": 74.68123861566484,
+          "reply_len": 302,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 944,
+          "total_ms": 1673,
+          "completion_tokens": 60,
+          "prompt_tokens": 67,
+          "tokens_per_second": 82.3045267489712,
+          "reply_len": 232,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-haiku-4.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 2972,
+          "total_ms": 4340,
+          "completion_tokens": 96,
+          "prompt_tokens": 72,
+          "tokens_per_second": 70.17543859649122,
+          "reply_len": 373,
+          "error": null
+        }
+      ]
+    },
+    "anthropic/claude-opus-4.7": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1421,
+      "ttft_ms_p90": 1557,
+      "total_ms_median": 3861,
+      "tokens_per_second_median": 39.0,
+      "tokens_per_second_p90": 41.9,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1325,
+          "total_ms": 2737,
+          "completion_tokens": 54,
+          "prompt_tokens": 95,
+          "tokens_per_second": 38.243626062322946,
+          "reply_len": 142,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1691,
+          "total_ms": 4104,
+          "completion_tokens": 90,
+          "prompt_tokens": 96,
+          "tokens_per_second": 37.297969332780774,
+          "reply_len": 259,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 1448,
+          "total_ms": 3906,
+          "completion_tokens": 88,
+          "prompt_tokens": 96,
+          "tokens_per_second": 35.801464605370214,
+          "reply_len": 225,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1346,
+          "total_ms": 3450,
+          "completion_tokens": 74,
+          "prompt_tokens": 92,
+          "tokens_per_second": 35.171102661596954,
+          "reply_len": 201,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1543,
+          "total_ms": 4064,
+          "completion_tokens": 100,
+          "prompt_tokens": 94,
+          "tokens_per_second": 39.666798889329634,
+          "reply_len": 269,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1501,
+          "total_ms": 4228,
+          "completion_tokens": 108,
+          "prompt_tokens": 91,
+          "tokens_per_second": 39.603960396039604,
+          "reply_len": 294,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 1364,
+          "total_ms": 3702,
+          "completion_tokens": 90,
+          "prompt_tokens": 91,
+          "tokens_per_second": 38.49443969204448,
+          "reply_len": 240,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 1467,
+          "total_ms": 3816,
+          "completion_tokens": 95,
+          "prompt_tokens": 91,
+          "tokens_per_second": 40.442741592166875,
+          "reply_len": 259,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1231,
+          "total_ms": 2580,
+          "completion_tokens": 56,
+          "prompt_tokens": 91,
+          "tokens_per_second": 41.51223128243143,
+          "reply_len": 164,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-opus-4.7",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 1395,
+          "total_ms": 3911,
+          "completion_tokens": 115,
+          "prompt_tokens": 97,
+          "tokens_per_second": 45.707472178060414,
+          "reply_len": 331,
+          "error": null
+        }
+      ]
+    },
+    "anthropic/claude-sonnet-4.6": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 1328,
+      "ttft_ms_p90": 5300,
+      "total_ms_median": 3221,
+      "tokens_per_second_median": 44.1,
+      "tokens_per_second_p90": 46.1,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1358,
+          "total_ms": 3033,
+          "completion_tokens": 76,
+          "prompt_tokens": 68,
+          "tokens_per_second": 45.373134328358205,
+          "reply_len": 301,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1212,
+          "total_ms": 3766,
+          "completion_tokens": 106,
+          "prompt_tokens": 74,
+          "tokens_per_second": 41.50352388410337,
+          "reply_len": 416,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 6660,
+          "total_ms": 8622,
+          "completion_tokens": 90,
+          "prompt_tokens": 73,
+          "tokens_per_second": 45.87155963302752,
+          "reply_len": 335,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1279,
+          "total_ms": 2881,
+          "completion_tokens": 73,
+          "prompt_tokens": 68,
+          "tokens_per_second": 45.56803995006242,
+          "reply_len": 265,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 1298,
+          "total_ms": 3157,
+          "completion_tokens": 81,
+          "prompt_tokens": 70,
+          "tokens_per_second": 43.57181280258203,
+          "reply_len": 300,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1514,
+          "total_ms": 3286,
+          "completion_tokens": 79,
+          "prompt_tokens": 69,
+          "tokens_per_second": 44.582392776523704,
+          "reply_len": 314,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 5149,
+          "total_ms": 7915,
+          "completion_tokens": 90,
+          "prompt_tokens": 69,
+          "tokens_per_second": 32.53796095444685,
+          "reply_len": 354,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 2668,
+          "total_ms": 4480,
+          "completion_tokens": 88,
+          "prompt_tokens": 69,
+          "tokens_per_second": 48.56512141280353,
+          "reply_len": 337,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 1120,
+          "total_ms": 2489,
+          "completion_tokens": 52,
+          "prompt_tokens": 68,
+          "tokens_per_second": 37.983929875821765,
+          "reply_len": 218,
+          "error": null
+        },
+        {
+          "candidate": "anthropic/claude-sonnet-4.6",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 819,
+          "total_ms": 2883,
+          "completion_tokens": 82,
+          "prompt_tokens": 73,
+          "tokens_per_second": 39.72868217054263,
+          "reply_len": 325,
+          "error": null
+        }
+      ]
+    },
+    "openai/gpt-4o-mini": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 816,
+      "ttft_ms_p90": 1280,
+      "total_ms_median": 1243,
+      "tokens_per_second_median": 192.7,
+      "tokens_per_second_p90": 669.0,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 1596,
+          "total_ms": 1659,
+          "completion_tokens": 60,
+          "prompt_tokens": 64,
+          "tokens_per_second": 952.3809523809524,
+          "reply_len": 246,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 846,
+          "total_ms": 1140,
+          "completion_tokens": 70,
+          "prompt_tokens": 68,
+          "tokens_per_second": 238.0952380952381,
+          "reply_len": 275,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 495,
+          "total_ms": 1344,
+          "completion_tokens": 65,
+          "prompt_tokens": 68,
+          "tokens_per_second": 76.56065959952886,
+          "reply_len": 272,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1245,
+          "total_ms": 1621,
+          "completion_tokens": 46,
+          "prompt_tokens": 64,
+          "tokens_per_second": 122.34042553191489,
+          "reply_len": 205,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 849,
+          "total_ms": 1075,
+          "completion_tokens": 47,
+          "prompt_tokens": 66,
+          "tokens_per_second": 207.9646017699115,
+          "reply_len": 187,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 884,
+          "total_ms": 1177,
+          "completion_tokens": 52,
+          "prompt_tokens": 65,
+          "tokens_per_second": 177.47440273037543,
+          "reply_len": 226,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 611,
+          "total_ms": 1309,
+          "completion_tokens": 66,
+          "prompt_tokens": 65,
+          "tokens_per_second": 94.55587392550144,
+          "reply_len": 284,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 787,
+          "total_ms": 867,
+          "completion_tokens": 51,
+          "prompt_tokens": 64,
+          "tokens_per_second": 637.5,
+          "reply_len": 212,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 687,
+          "total_ms": 1373,
+          "completion_tokens": 56,
+          "prompt_tokens": 64,
+          "tokens_per_second": 81.63265306122449,
+          "reply_len": 252,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-4o-mini",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 770,
+          "total_ms": 992,
+          "completion_tokens": 56,
+          "prompt_tokens": 67,
+          "tokens_per_second": 252.25225225225225,
+          "reply_len": 246,
+          "error": null
+        }
+      ]
+    },
+    "openai/gpt-5.4": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 715,
+      "ttft_ms_p90": 843,
+      "total_ms_median": 2677,
+      "tokens_per_second_median": 34.7,
+      "tokens_per_second_p90": 38.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 593,
+          "total_ms": 3076,
+          "completion_tokens": 73,
+          "prompt_tokens": 63,
+          "tokens_per_second": 29.399919452275473,
+          "reply_len": 289,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 661,
+          "total_ms": 2867,
+          "completion_tokens": 77,
+          "prompt_tokens": 67,
+          "tokens_per_second": 34.904805077062555,
+          "reply_len": 309,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 770,
+          "total_ms": 2850,
+          "completion_tokens": 79,
+          "prompt_tokens": 67,
+          "tokens_per_second": 37.980769230769226,
+          "reply_len": 305,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 616,
+          "total_ms": 2048,
+          "completion_tokens": 45,
+          "prompt_tokens": 63,
+          "tokens_per_second": 31.424581005586592,
+          "reply_len": 172,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 953,
+          "total_ms": 2844,
+          "completion_tokens": 67,
+          "prompt_tokens": 65,
+          "tokens_per_second": 35.430988894764674,
+          "reply_len": 267,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 593,
+          "total_ms": 1678,
+          "completion_tokens": 39,
+          "prompt_tokens": 64,
+          "tokens_per_second": 35.944700460829495,
+          "reply_len": 130,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 528,
+          "total_ms": 1920,
+          "completion_tokens": 48,
+          "prompt_tokens": 64,
+          "tokens_per_second": 34.48275862068966,
+          "reply_len": 188,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 831,
+          "total_ms": 2421,
+          "completion_tokens": 52,
+          "prompt_tokens": 63,
+          "tokens_per_second": 32.70440251572327,
+          "reply_len": 198,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 794,
+          "total_ms": 2769,
+          "completion_tokens": 60,
+          "prompt_tokens": 63,
+          "tokens_per_second": 30.379746835443036,
+          "reply_len": 244,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 821,
+          "total_ms": 2585,
+          "completion_tokens": 74,
+          "prompt_tokens": 66,
+          "tokens_per_second": 41.950113378684804,
+          "reply_len": 285,
+          "error": null
+        }
+      ]
+    },
+    "openai/gpt-5.4-mini": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 561,
+      "ttft_ms_p90": 702,
+      "total_ms_median": 1389,
+      "tokens_per_second_median": 75.5,
+      "tokens_per_second_p90": 88.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 733,
+          "total_ms": 1442,
+          "completion_tokens": 53,
+          "prompt_tokens": 63,
+          "tokens_per_second": 74.75317348377997,
+          "reply_len": 191,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 699,
+          "total_ms": 6313,
+          "completion_tokens": 94,
+          "prompt_tokens": 67,
+          "tokens_per_second": 16.743854649091556,
+          "reply_len": 377,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 672,
+          "total_ms": 1445,
+          "completion_tokens": 82,
+          "prompt_tokens": 67,
+          "tokens_per_second": 106.08020698576972,
+          "reply_len": 305,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 478,
+          "total_ms": 1429,
+          "completion_tokens": 44,
+          "prompt_tokens": 63,
+          "tokens_per_second": 46.267087276551,
+          "reply_len": 158,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 478,
+          "total_ms": 1200,
+          "completion_tokens": 55,
+          "prompt_tokens": 65,
+          "tokens_per_second": 76.17728531855956,
+          "reply_len": 184,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 652,
+          "total_ms": 1219,
+          "completion_tokens": 49,
+          "prompt_tokens": 64,
+          "tokens_per_second": 86.41975308641976,
+          "reply_len": 174,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 457,
+          "total_ms": 1198,
+          "completion_tokens": 49,
+          "prompt_tokens": 64,
+          "tokens_per_second": 66.12685560053981,
+          "reply_len": 180,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 637,
+          "total_ms": 1460,
+          "completion_tokens": 67,
+          "prompt_tokens": 63,
+          "tokens_per_second": 81.40947752126367,
+          "reply_len": 265,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 446,
+          "total_ms": 1114,
+          "completion_tokens": 49,
+          "prompt_tokens": 63,
+          "tokens_per_second": 73.35329341317365,
+          "reply_len": 199,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.4-mini",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 485,
+          "total_ms": 1349,
+          "completion_tokens": 69,
+          "prompt_tokens": 66,
+          "tokens_per_second": 79.86111111111111,
+          "reply_len": 274,
+          "error": null
+        }
+      ]
+    },
+    "openai/gpt-5.5": {
+      "n_streamed": 10,
+      "n_ok": 10,
+      "ttft_ms_median": 2242,
+      "ttft_ms_p90": 4549,
+      "total_ms_median": 4067,
+      "tokens_per_second_median": 60.0,
+      "tokens_per_second_p90": 82.4,
+      "json_freeform": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "json_schema": {
+        "n": 10,
+        "valid": 10,
+        "rate": 1.0,
+        "errors": []
+      },
+      "stream_records": [
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0001",
+          "ttft_ms": 2308,
+          "total_ms": 4437,
+          "completion_tokens": 126,
+          "prompt_tokens": 63,
+          "tokens_per_second": 59.18271488961954,
+          "reply_len": 704,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0002",
+          "ttft_ms": 1753,
+          "total_ms": 3874,
+          "completion_tokens": 129,
+          "prompt_tokens": 67,
+          "tokens_per_second": 60.82036775106082,
+          "reply_len": 734,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0003",
+          "ttft_ms": 4850,
+          "total_ms": 6121,
+          "completion_tokens": 200,
+          "prompt_tokens": 67,
+          "tokens_per_second": 157.35641227380017,
+          "reply_len": 739,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0004",
+          "ttft_ms": 1900,
+          "total_ms": 3148,
+          "completion_tokens": 83,
+          "prompt_tokens": 63,
+          "tokens_per_second": 66.50641025641026,
+          "reply_len": 202,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0005",
+          "ttft_ms": 4516,
+          "total_ms": 7890,
+          "completion_tokens": 165,
+          "prompt_tokens": 65,
+          "tokens_per_second": 48.90337877889745,
+          "reply_len": 700,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0006",
+          "ttft_ms": 1925,
+          "total_ms": 3884,
+          "completion_tokens": 101,
+          "prompt_tokens": 64,
+          "tokens_per_second": 51.5569167942828,
+          "reply_len": 674,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0007",
+          "ttft_ms": 2177,
+          "total_ms": 3783,
+          "completion_tokens": 119,
+          "prompt_tokens": 64,
+          "tokens_per_second": 74.09713574097135,
+          "reply_len": 641,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0008",
+          "ttft_ms": 2384,
+          "total_ms": 4250,
+          "completion_tokens": 125,
+          "prompt_tokens": 63,
+          "tokens_per_second": 66.98821007502679,
+          "reply_len": 657,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0009",
+          "ttft_ms": 2886,
+          "total_ms": 4651,
+          "completion_tokens": 99,
+          "prompt_tokens": 63,
+          "tokens_per_second": 56.09065155807366,
+          "reply_len": 695,
+          "error": null
+        },
+        {
+          "candidate": "openai/gpt-5.5",
+          "prompt_id": "dialogue-0010",
+          "ttft_ms": 2105,
+          "total_ms": 3742,
+          "completion_tokens": 92,
+          "prompt_tokens": 66,
+          "tokens_per_second": 56.20036652412951,
+          "reply_len": 646,
+          "error": null
+        }
+      ]
+    }
+  },
+  "elapsed_seconds": 416.8901319503784,
+  "cost": {
+    "usd": 0.0,
+    "calls": 210
+  }
+}
