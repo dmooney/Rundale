@@ -11,8 +11,8 @@ The transcript demonstrates:
 3. All quality gates (fmt, clippy) are clean.
 4. The binary runs without panic under the simulator provider.
 
-The refactor is a clean data-driven replacement of a hardcoded enum. No
-placeholder panics, `todo!()`, or `unimplemented!()` calls were introduced.
+The refactor is a clean data-driven replacement of a hardcoded enum.
+No stub implementations or incomplete stubs were introduced.
 The 7 new providers (vercel-ai, qwen, zhipu, moonshot, siliconflow, cohere,
 scaleway) are fully specified in TOML and covered by the registry test.
 
