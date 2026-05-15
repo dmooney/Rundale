@@ -93,6 +93,10 @@
 			saveError = 'Base URL is required.';
 			return;
 		}
+		if (!chosen.keyless && modelName.trim().length === 0 && defaultModelFor(chosen.id) === '') {
+			saveError = 'A model name is required for this provider.';
+			return;
+		}
 
 		validationError = null;
 		saveError = '';

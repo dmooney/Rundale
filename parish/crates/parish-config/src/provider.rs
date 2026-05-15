@@ -1819,4 +1819,40 @@ model = "toml-model"
             assert!(reg.get(id).is_some(), "registry missing new provider: {id}");
         }
     }
+
+    #[test]
+    fn inference_category_idx_matches_all_order() {
+        for (i, cat) in InferenceCategory::ALL.iter().enumerate() {
+            assert_eq!(cat.idx(), i, "idx() must match position in ALL");
+        }
+    }
+
+    #[test]
+    fn provider_preset_model_returns_correct_field() {
+        let p = registry().get("anthropic").unwrap();
+        assert!(p.preset_model(InferenceCategory::Dialogue).is_some());
+        assert!(p.preset_model(InferenceCategory::Simulation).is_some());
+        assert!(p.preset_model(InferenceCategory::Intent).is_some());
+        assert!(p.preset_model(InferenceCategory::Reaction).is_some());
+    }
+
+    #[test]
+    fn provider_has_preset_and_models_array() {
+        let cloud = registry().get("openrouter").unwrap();
+        assert!(cloud.has_preset());
+        let arr = cloud.preset_models();
+        assert!(arr.iter().any(|m| m.is_some()));
+        let sim = registry().get("simulator").unwrap();
+        assert!(!sim.has_preset());
+        assert_eq!(sim.preset_models(), [None, None, None, None]);
+    }
+
+    #[test]
+    fn provider_preset_all_categories_via_model_method() {
+        let p = registry().get("groq").unwrap();
+        let first_preset = p.presets().first().expect("groq has presets");
+        for cat in InferenceCategory::ALL {
+            assert_eq!(first_preset.model(cat), p.preset_model(cat));
+        }
+    }
 }
