@@ -43,6 +43,11 @@ pub const EVENT_SETUP_DONE: &str = "setup-done";
 /// Event emitted on first launch when no provider is configured. The frontend
 /// renders the BYOK fork screen instead of the Ollama download spinner.
 pub const EVENT_SETUP_NEEDS_ONBOARDING: &str = "setup-needs-onboarding";
+/// Event emitted by the MCP bridge to ask the live frontend to capture a
+/// screenshot. Payload: `{"request_id": String}`. The frontend responds by
+/// calling the `notify_screenshot_captured` Tauri command with the same
+/// `request_id` and the resulting `ScreenshotInfo`.
+pub const EVENT_REQUEST_SCREENSHOT: &str = "request-screenshot";
 
 /// How many milliseconds to batch streaming tokens before emitting.
 pub const BATCH_MS: u64 = 16;

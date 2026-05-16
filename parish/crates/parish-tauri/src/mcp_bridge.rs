@@ -31,7 +31,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::commands::ScreenshotInfo;
-use crate::events::{EVENT_TEXT_LOG, TextLogPayload};
+use crate::events::{EVENT_REQUEST_SCREENSHOT, EVENT_TEXT_LOG, TextLogPayload};
 use crate::{
     AppState, MapData, MapLocation, NpcInfo, SaveState, SetupStatusSnapshot, WorldSnapshot,
 };
@@ -87,12 +87,14 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/new-game", post(new_game))
         .route("/api/save-game", post(save_game))
         .route("/api/load-branch", post(load_branch))
-        // ── Screenshot reader (player-triggered, MCP-readable) ───────────────
-        // GET-only: capture is initiated from the live UI by pressing F2; the
-        // bridge surfaces the most recent path so an MCP client can read the
-        // file out of band. Posting a `data_url` from MCP is intentionally
-        // out of scope until the future-work design questions are resolved.
+        // ── Screenshot routes ────────────────────────────────────────────────
+        // GET: read the most recently captured screenshot path.
+        // POST /api/take-screenshot: agent-triggered capture — emits
+        //   `request-screenshot` to the frontend, awaits the
+        //   `notify_screenshot_captured` Tauri callback (up to 15 s), and
+        //   returns the resulting ScreenshotInfo.
         .route("/api/latest-screenshot", get(latest_screenshot))
+        .route("/api/take-screenshot", post(take_screenshot_mcp))
         // ── BYOK setup-flow (#933) ────────────────────────────────────────
         // Real handlers backed by `parish_core::ipc::byok` — the Svelte
         // wizard and the MCP client share these. Routes match the schema
@@ -289,6 +291,28 @@ async fn latest_screenshot(
         .await
         .map_err(AppError::from)?;
     Ok(Json(info))
+}
+
+async fn take_screenshot_mcp(State(b): State<BridgeState>) -> Result<Json<ScreenshotInfo>, AppError> {
+    use tokio::sync::oneshot;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel();
+    {
+        let mut pending = b.state.pending_screenshots.lock().await;
+        pending.insert(request_id.clone(), tx);
+    }
+    b.app
+        .emit(EVENT_REQUEST_SCREENSHOT, serde_json::json!({"request_id": request_id}))
+        .map_err(|e| AppError(e.to_string()))?;
+    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
+        Ok(Ok(info)) => Ok(Json(info)),
+        Ok(Err(_)) => Err(AppError("screenshot request cancelled".into())),
+        Err(_) => {
+            let mut pending = b.state.pending_screenshots.lock().await;
+            pending.remove(&request_id);
+            Err(AppError("screenshot capture timed out after 15 s".into()))
+        }
+    }
 }
 
 // ── BYOK setup-flow ──────────────────────────────────────────────────────────
@@ -564,6 +588,7 @@ mod tests {
             user_config_dir: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),
             latest_screenshot_path: Mutex::new(None),
+            pending_screenshots: Mutex::new(std::collections::HashMap::new()),
         })
     }
 
@@ -704,8 +729,9 @@ mod tests {
             "/api/new-game",
             "/api/save-game",
             "/api/load-branch",
-            // Screenshot reader (player-triggered, MCP-readable).
+            // Screenshot routes.
             "/api/latest-screenshot",
+            "/api/take-screenshot",
             // BYOK setup-flow stubs (#933).
             "/api/setup-status",
             "/api/submit-byok",
@@ -736,6 +762,7 @@ mod tests {
             "save_game",
             "load_branch",
             "get_latest_screenshot",
+            "take_screenshot",
             "get_setup_status",
             "submit_byok",
         ] {

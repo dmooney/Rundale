@@ -372,6 +372,17 @@ pub struct AppState {
     /// `get_latest_screenshot` (and the matching MCP tool) so the path can be
     /// reported without rescanning `<saves_dir>/screenshots/`.
     pub latest_screenshot_path: Mutex<Option<PathBuf>>,
+    /// In-flight MCP screenshot requests.
+    ///
+    /// The MCP bridge's `/api/take-screenshot` handler inserts a `(request_id,
+    /// oneshot::Sender)` here while it waits for the frontend to capture the
+    /// screen. The `notify_screenshot_captured` Tauri command (called by the
+    /// frontend after capture) looks up the sender by `request_id`, sends the
+    /// `ScreenshotInfo` through it, and removes the entry. Entries are also
+    /// removed on timeout inside the bridge handler.
+    pub pending_screenshots: Mutex<
+        std::collections::HashMap<String, tokio::sync::oneshot::Sender<crate::commands::ScreenshotInfo>>,
+    >,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
     /// Editor session — separate from gameplay state, may be empty.
@@ -1106,6 +1117,7 @@ pub fn run() {
         data_dir: data_dir.clone(),
         saves_dir,
         latest_screenshot_path: Mutex::new(None),
+        pending_screenshots: Mutex::new(std::collections::HashMap::new()),
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
         save_lock: Mutex::new(None),
@@ -1155,6 +1167,8 @@ pub fn run() {
             commands::get_llm_player_action,
             commands::save_screenshot,
             commands::get_latest_screenshot,
+            commands::take_screenshot,
+            commands::notify_screenshot_captured,
             editor_commands::editor_list_mods,
             editor_commands::editor_open_mod,
             editor_commands::editor_get_snapshot,

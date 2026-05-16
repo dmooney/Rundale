@@ -1780,6 +1780,62 @@ pub async fn get_latest_screenshot(
     do_get_latest_screenshot(&state).await
 }
 
+/// Agent-triggered screenshot capture. Registered as a Tauri command for
+/// wiring-parity with the `/api/take-screenshot` bridge route; the actual
+/// MCP round-trip is driven by the bridge handler in `mcp_bridge.rs` which
+/// emits `request-screenshot` and awaits `notify_screenshot_captured`.
+///
+/// In Tauri mode this is not invoked directly by the frontend — use the MCP
+/// tool `parish_take_screenshot` instead.
+#[tauri::command]
+pub async fn take_screenshot(
+    state: tauri::State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+) -> Result<ScreenshotInfo, String> {
+    use tokio::sync::oneshot;
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let (tx, rx) = oneshot::channel();
+    {
+        let mut pending = state.pending_screenshots.lock().await;
+        pending.insert(request_id.clone(), tx);
+    }
+    app.emit(
+        crate::events::EVENT_REQUEST_SCREENSHOT,
+        serde_json::json!({"request_id": request_id}),
+    )
+    .map_err(|e| e.to_string())?;
+    match tokio::time::timeout(std::time::Duration::from_secs(15), rx).await {
+        Ok(Ok(info)) => Ok(info),
+        Ok(Err(_)) => Err("screenshot request cancelled".into()),
+        Err(_) => {
+            let mut pending = state.pending_screenshots.lock().await;
+            pending.remove(&request_id);
+            Err("screenshot capture timed out after 15 s".into())
+        }
+    }
+}
+
+/// Called by the frontend after it captures a screenshot in response to the
+/// `request-screenshot` Tauri event emitted by the MCP bridge. Looks up the
+/// pending oneshot sender by `request_id` and delivers the `ScreenshotInfo`
+/// through it so the waiting `/api/take-screenshot` bridge handler can return
+/// the result to the MCP client.
+///
+/// This is an internal round-trip callback — it is not a user-facing IPC
+/// command and has no HTTP equivalent on `parish-server`.
+#[tauri::command]
+pub async fn notify_screenshot_captured(
+    request_id: String,
+    info: ScreenshotInfo,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    let mut pending = state.pending_screenshots.lock().await;
+    if let Some(tx) = pending.remove(&request_id) {
+        let _ = tx.send(info);
+    }
+    Ok(())
+}
+
 /// Formats branch list as text for the /branches command.
 pub async fn do_list_branches_text(state: &Arc<AppState>) -> Result<String, String> {
     let db_path = {
@@ -2527,6 +2583,7 @@ mod cmd_tests {
             data_dir: data_dir.clone(),
             saves_dir,
             latest_screenshot_path: Mutex::new(None),
+            pending_screenshots: Mutex::new(std::collections::HashMap::new()),
             worker_handle: Mutex::new(None),
             editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
             save_lock: Mutex::new(None),
