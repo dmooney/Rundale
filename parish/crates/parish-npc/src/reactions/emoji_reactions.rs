@@ -12,7 +12,19 @@ use crate::{LanguageSettings, Npc};
 use parish_inference::AnyClient;
 
 /// Keyword groups that trigger NPC reactions, with the corresponding emoji.
+///
+/// Coverage was widened in #982 after a five-turn demo run produced zero
+/// reactions: the demo prompt steers the player into chitchat ("greet
+/// people", "ask about lives, land, events") which never tripped the old
+/// charged-topic set. The additions are everyday parish-life cues —
+/// greetings, weather, work, family, news, prayer, music — mapped to
+/// emoji that are already members of [`crate::reactions::REACTION_PALETTE`]
+/// so the palette stays the canonical 12-entry set used by the UI, the LLM
+/// validator, and the reaction-log context renderer.
+/// The 60% probabilistic gate is intentionally preserved so reactions
+/// remain a sparing accent.
 const KEYWORD_REACTIONS: &[(&[&str], &str)] = &[
+    // Charged topics — original set.
     (&["death", "died", "killed", "murder"], "😢"),
     (&["fairy", "fairies", "púca", "banshee", "sidhe"], "✝️"),
     (&["drink", "whiskey", "poitín", "ale", "stout"], "🍺"),
@@ -21,6 +33,53 @@ const KEYWORD_REACTIONS: &[(&[&str], &str)] = &[
     (&["rent", "evict", "landlord", "agent", "tithe"], "😠"),
     (&["gold", "treasure", "fortune", "money", "reward"], "👀"),
     (&["strange", "ghost", "haunted", "spirit"], "😳"),
+    // Everyday chitchat — added in #982. All emoji are palette-resident.
+    (
+        &[
+            "hello",
+            "hallo",
+            "good morning",
+            "good day",
+            "good evening",
+            "dia duit",
+            "fáilte",
+        ],
+        "😊",
+    ),
+    (
+        &[
+            "weather", "rain", "raining", "sunny", "storm", "cold", "frost", "wind", "harvest",
+            "crop", "potato", "praties", "field", "plough", "turf", "bog",
+        ],
+        "🤔",
+    ),
+    (
+        &[
+            "parish",
+            "village",
+            "townland",
+            "neighbour",
+            "neighbor",
+            "kilteevan",
+            "family",
+            "mother",
+            "father",
+            "child",
+            "son",
+            "daughter",
+            "music",
+            "song",
+            "fiddle",
+            "tune",
+            "dance",
+        ],
+        "😊",
+    ),
+    (&["news", "story", "tell me", "heard", "rumour"], "👀"),
+    (
+        &["pray", "prayer", "priest", "mass", "blessing", "holy well"],
+        "✝️",
+    ),
 ];
 
 /// Generates a rule-based NPC reaction to player input.
@@ -206,7 +265,7 @@ mod tests {
     #[test]
     fn generate_rule_reaction_no_match() {
         assert_eq!(
-            generate_rule_reaction_deterministic("Good morning to you"),
+            generate_rule_reaction_deterministic("Just walking by here"),
             None
         );
     }
@@ -334,6 +393,6 @@ mod tests {
     fn generate_rule_reaction_deterministic_matches_known_keywords() {
         assert!(generate_rule_reaction_deterministic("rent and landlord").is_some());
         assert!(generate_rule_reaction_deterministic("strange ghost").is_some());
-        assert!(generate_rule_reaction_deterministic("perfectly normal day").is_none());
+        assert!(generate_rule_reaction_deterministic("Just walking by here").is_none());
     }
 }
