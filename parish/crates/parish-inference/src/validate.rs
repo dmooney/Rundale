@@ -379,8 +379,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome =
-            validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
+        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
@@ -399,8 +398,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let outcome =
-            validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
+        let outcome = validate(&Provider::github_models(), &server.uri(), Some("ghp_token")).await;
         assert_eq!(outcome, ValidationOutcome::Ok);
     }
 
