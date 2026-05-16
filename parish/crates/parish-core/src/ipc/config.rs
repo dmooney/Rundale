@@ -317,6 +317,36 @@ impl GameConfig {
         self.auto_setup_model = Some(model);
     }
 
+    /// Applies the per-category overrides from `parish.toml`
+    /// ([`parish_config::user_config::UserConfig::category_overrides`]) into
+    /// `self.category_provider/model/base_url`.
+    ///
+    /// Unknown category names are skipped silently (forwards-compat with new
+    /// roles). `Option` fields are only written when `Some` — `None` means
+    /// "inherit base", which is encoded by absent map key.
+    pub fn apply_user_category_overrides(
+        &mut self,
+        overrides: &std::collections::BTreeMap<
+            String,
+            parish_config::user_config::CategoryOverride,
+        >,
+    ) {
+        for (cat_name, ov) in overrides {
+            let Some(cat) = InferenceCategory::from_name(cat_name) else {
+                continue;
+            };
+            if let Some(p) = ov.provider.clone() {
+                self.category_provider.insert(cat, p);
+            }
+            if let Some(m) = ov.model.clone() {
+                self.category_model.insert(cat, m);
+            }
+            if let Some(u) = ov.base_url.clone() {
+                self.category_base_url.insert(cat, u);
+            }
+        }
+    }
+
     pub fn fill_missing_models_from_presets(&mut self) -> bool {
         use parish_config::Provider;
         let mut changed = false;
