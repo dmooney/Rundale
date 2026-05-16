@@ -284,6 +284,30 @@ mod tests {
     }
 
     #[test]
+    fn try_recv_skips_filtered_events_without_blocking() {
+        let bus = BroadcastEventBus::new(16);
+        let mut stream = bus.subscribe(&[Topic::WorldUpdate]);
+
+        bus.emit(Topic::TextLog, make_event("text-log"));
+        assert!(
+            stream.try_recv().is_none(),
+            "non-matching ready events should be consumed but not returned"
+        );
+
+        bus.emit(Topic::TravelStart, make_event("travel-start"));
+        bus.emit(Topic::WorldUpdate, make_event("world-update"));
+
+        let ev = stream
+            .try_recv()
+            .expect("matching event behind filtered events should be returned");
+        assert_eq!(ev.event, "world-update");
+        assert!(
+            stream.try_recv().is_none(),
+            "stream should be empty after returning the matching event"
+        );
+    }
+
+    #[test]
     fn no_subscribers_does_not_panic() {
         let bus = BroadcastEventBus::new(16);
         // Should not panic when no subscribers are present.

@@ -561,11 +561,11 @@ mod tests {
     use std::num::NonZeroUsize;
     use std::time::Duration;
 
-    use axum::Router;
     use axum::body::to_bytes;
     use axum::http::StatusCode;
     use axum::middleware as axum_mw;
-    use axum::routing::post;
+    use axum::routing::{get, post};
+    use axum::{Extension, Router};
     use lru::LruCache;
     use tempfile::tempdir;
     use tower::ServiceExt;
@@ -585,6 +585,12 @@ mod tests {
     /// All other fields are stubs — the state is NOT suitable for any route
     /// handler that touches the game world, NPCs, or inference.
     fn test_global_state() -> Arc<crate::session::GlobalState> {
+        test_global_state_with_flags(parish_core::config::FeatureFlags::default())
+    }
+
+    fn test_global_state_with_flags(
+        flags: parish_core::config::FeatureFlags,
+    ) -> Arc<crate::session::GlobalState> {
         let dir = tempdir().unwrap();
         let sessions = SessionRegistry::open(dir.path()).unwrap();
         // Keep tempdir alive for the lifetime of the returned Arc by leaking
@@ -644,7 +650,7 @@ mod tests {
                 category_model: Default::default(),
                 category_api_key: Default::default(),
                 category_base_url: Default::default(),
-                flags: parish_core::config::FeatureFlags::default(),
+                flags: flags.clone(),
                 category_rate_limit: Default::default(),
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
@@ -697,7 +703,7 @@ mod tests {
                 category_model: Default::default(),
                 category_api_key: Default::default(),
                 category_base_url: Default::default(),
-                flags: parish_core::config::FeatureFlags::default(),
+                flags,
                 category_rate_limit: Default::default(),
                 active_tile_source: String::new(),
                 tile_sources: Vec::new(),
@@ -714,6 +720,15 @@ mod tests {
             )),
             max_concurrent_sessions: None,
         })
+    }
+
+    fn request_id_test_router(global: Arc<crate::session::GlobalState>) -> Router {
+        Router::new()
+            .route(
+                "/request-id",
+                get(|Extension(req_id): Extension<RequestId>| async move { req_id.0 }),
+            )
+            .layer(axum_mw::from_fn_with_state(global, request_id_layer))
     }
 
     /// Builds a minimal test router: session_id is injected as a fixed
@@ -805,6 +820,54 @@ mod tests {
         // are documented in architecture.md and callers depend on them.
         assert_eq!(IDEMPOTENCY_CACHE_CAPACITY, 1000);
         assert_eq!(IDEMPOTENCY_TTL, Duration::from_secs(24 * 60 * 60));
+    }
+
+    #[tokio::test]
+    async fn request_id_layer_sets_extension_and_response_header() {
+        let app = request_id_test_router(test_global_state());
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/request-id")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let request_id_header = response
+            .headers()
+            .get(X_REQUEST_ID.clone())
+            .and_then(|value| value.to_str().ok())
+            .expect("request-id middleware should echo x-request-id")
+            .to_string();
+        Uuid::parse_str(&request_id_header).expect("request id should be a UUID");
+
+        let body = to_bytes(response.into_body(), 1024).await.unwrap();
+        assert_eq!(body.as_ref(), request_id_header.as_bytes());
+    }
+
+    #[tokio::test]
+    async fn request_id_layer_disabled_by_flag_is_passthrough() {
+        let mut flags = parish_core::config::FeatureFlags::default();
+        flags.disable("otel-tracing");
+        let app = request_id_test_router(test_global_state_with_flags(flags));
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/request-id")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(
+            response.headers().get(X_REQUEST_ID.clone()).is_none(),
+            "disabled middleware should not echo x-request-id"
+        );
     }
 
     // ── Integration tests — same key returns identical response ─────────────

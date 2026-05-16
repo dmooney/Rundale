@@ -587,6 +587,30 @@ mod tests {
     #[test]
     fn test_parse_new_command() {
         assert_eq!(parse_system_command("/new"), Some(Command::NewGame));
+        assert_eq!(parse_system_command("/NEW"), Some(Command::NewGame));
+        assert_eq!(parse_system_command("  /new  "), Some(Command::NewGame));
+    }
+    #[test]
+    fn test_new_game_alias_policy_keeps_new_canonical() {
+        assert_eq!(parse_system_command("/new-game"), None);
+        assert_eq!(parse_system_command("/NEW-GAME"), None);
+        assert_eq!(parse_system_command("/new-game please"), None);
+        assert_eq!(
+            classify_input("/new-game"),
+            InputResult::GameInput("/new-game".to_string())
+        );
+    }
+    #[test]
+    fn test_new_command_policy_documentation_stays_canonical() {
+        let readme = include_str!("../README.md");
+        assert!(
+            readme.contains("/new` is the canonical player command"),
+            "parish-input README must document /new as the canonical player command"
+        );
+        assert!(
+            readme.contains("Do not add\n  `/new-game` as a slash-command alias"),
+            "parish-input README must reject /new-game as a player slash-command alias"
+        );
     }
     #[test]
     fn test_parse_tick_command() {
@@ -718,6 +742,21 @@ mod tests {
             parse_system_command("/PRESET Anthropic"),
             Some(Command::ApplyPreset("Anthropic".to_string()))
         );
+    }
+    #[test]
+    fn test_parse_byok_reset_aliases() {
+        assert_eq!(parse_system_command("/byok"), Some(Command::ResetByok));
+        assert_eq!(parse_system_command("/onboard"), Some(Command::ResetByok));
+        assert_eq!(parse_system_command("/setup"), Some(Command::ResetByok));
+        assert_eq!(parse_system_command("/BYOK"), Some(Command::ResetByok));
+        assert_eq!(parse_system_command("/OnBoard"), Some(Command::ResetByok));
+        assert_eq!(parse_system_command("  /setup  "), Some(Command::ResetByok));
+    }
+    #[test]
+    fn test_byok_reset_aliases_reject_trailing_text() {
+        assert_eq!(parse_system_command("/byok again"), None);
+        assert_eq!(parse_system_command("/onboard reset"), None);
+        assert_eq!(parse_system_command("/setup provider"), None);
     }
     #[test]
     fn test_parse_provider_case_insensitive() {

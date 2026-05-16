@@ -568,6 +568,29 @@ mod tests {
     }
 
     #[test]
+    fn festival_hardcoded_calendar_contract() {
+        let cases = [
+            ((1820, 2, 1), Some(Festival::Imbolc)),
+            ((1820, 5, 1), Some(Festival::Bealtaine)),
+            ((1820, 8, 1), Some(Festival::Lughnasa)),
+            ((1820, 11, 1), Some(Festival::Samhain)),
+            ((1820, 1, 31), None),
+            ((1820, 2, 2), None),
+            ((1820, 4, 30), None),
+            ((1820, 5, 2), None),
+            ((1820, 7, 31), None),
+            ((1820, 8, 2), None),
+            ((1820, 10, 31), None),
+            ((1820, 11, 2), None),
+        ];
+
+        for ((year, month, day), expected) in cases {
+            let date = NaiveDate::from_ymd_opt(year, month, day).unwrap();
+            assert_eq!(Festival::check(date), expected, "{date}");
+        }
+    }
+
+    #[test]
     fn test_game_clock_time_of_day() {
         let clock = GameClock::new(game_time(2026, 6, 15, 7));
         assert_eq!(clock.time_of_day(), TimeOfDay::Morning);
@@ -601,6 +624,85 @@ mod tests {
         assert!((cfg.fast - 72.0).abs() < f64::EPSILON);
         assert!((cfg.fastest - 144.0).abs() < f64::EPSILON);
         assert!((cfg.ludicrous - 864.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn speed_config_deserializes_partial_config_with_defaults() {
+        let cfg: SpeedConfig =
+            serde_json::from_str(r#"{"normal": 42.5, "ludicrous": 1000.0}"#).unwrap();
+
+        assert!((cfg.slow - 18.0).abs() < f64::EPSILON);
+        assert!((cfg.normal - 42.5).abs() < f64::EPSILON);
+        assert!((cfg.fast - 72.0).abs() < f64::EPSILON);
+        assert!((cfg.fastest - 144.0).abs() < f64::EPSILON);
+        assert!((cfg.ludicrous - 1000.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn time_enum_serde_spellings_are_stable() {
+        let time_spellings = [
+            (TimeOfDay::Dawn, r#""Dawn""#),
+            (TimeOfDay::Morning, r#""Morning""#),
+            (TimeOfDay::Midday, r#""Midday""#),
+            (TimeOfDay::Afternoon, r#""Afternoon""#),
+            (TimeOfDay::Dusk, r#""Dusk""#),
+            (TimeOfDay::Night, r#""Night""#),
+            (TimeOfDay::Midnight, r#""Midnight""#),
+        ];
+        for (variant, spelling) in time_spellings {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(
+                serde_json::from_str::<TimeOfDay>(spelling).unwrap(),
+                variant
+            );
+        }
+
+        let season_spellings = [
+            (Season::Spring, r#""spring""#),
+            (Season::Summer, r#""summer""#),
+            (Season::Autumn, r#""autumn""#),
+            (Season::Winter, r#""winter""#),
+        ];
+        for (variant, spelling) in season_spellings {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(serde_json::from_str::<Season>(spelling).unwrap(), variant);
+        }
+
+        let day_type_spellings = [
+            (DayType::Weekday, r#""weekday""#),
+            (DayType::Sunday, r#""sunday""#),
+            (DayType::MarketDay, r#""market_day""#),
+        ];
+        for (variant, spelling) in day_type_spellings {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(serde_json::from_str::<DayType>(spelling).unwrap(), variant);
+        }
+
+        let festival_spellings = [
+            (Festival::Imbolc, r#""Imbolc""#),
+            (Festival::Bealtaine, r#""Bealtaine""#),
+            (Festival::Lughnasa, r#""Lughnasa""#),
+            (Festival::Samhain, r#""Samhain""#),
+        ];
+        for (variant, spelling) in festival_spellings {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(serde_json::from_str::<Festival>(spelling).unwrap(), variant);
+        }
+
+        let speed_spellings = [
+            (GameSpeed::Slow, r#""Slow""#),
+            (GameSpeed::Normal, r#""Normal""#),
+            (GameSpeed::Fast, r#""Fast""#),
+            (GameSpeed::Fastest, r#""Fastest""#),
+            (GameSpeed::Ludicrous, r#""Ludicrous""#),
+        ];
+        for (variant, spelling) in speed_spellings {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(
+                serde_json::from_str::<GameSpeed>(spelling).unwrap(),
+                variant
+            );
+        }
     }
 
     // --- DayType::from_date ---

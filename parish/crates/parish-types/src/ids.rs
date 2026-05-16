@@ -424,6 +424,24 @@ mod tests {
         }
     }
 
+    #[test]
+    fn weather_serde_spellings_are_stable() {
+        let cases = [
+            (Weather::Clear, r#""Clear""#),
+            (Weather::PartlyCloudy, r#""PartlyCloudy""#),
+            (Weather::Overcast, r#""Overcast""#),
+            (Weather::LightRain, r#""LightRain""#),
+            (Weather::HeavyRain, r#""HeavyRain""#),
+            (Weather::Fog, r#""Fog""#),
+            (Weather::Storm, r#""Storm""#),
+        ];
+
+        for (variant, spelling) in cases {
+            assert_eq!(serde_json::to_string(&variant).unwrap(), spelling);
+            assert_eq!(serde_json::from_str::<Weather>(spelling).unwrap(), variant);
+        }
+    }
+
     // ── LocationId / NpcId ───────────────────────────────────────────────────
 
     #[test]

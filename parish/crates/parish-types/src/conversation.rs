@@ -183,6 +183,48 @@ mod tests {
     }
 
     #[test]
+    fn capacity_eviction_drops_oldest_and_preserves_order() {
+        let mut log = ConversationLog::new();
+        for i in 0..LOG_CAPACITY + 5 {
+            log.add(make_exchange(
+                8,
+                1,
+                "Padraig",
+                &format!("msg {i}"),
+                "reply",
+                1,
+            ));
+        }
+
+        let inputs: Vec<&str> = log
+            .all()
+            .map(|exchange| exchange.player_input.as_str())
+            .collect();
+
+        assert_eq!(inputs.len(), LOG_CAPACITY);
+        assert_eq!(inputs.first(), Some(&"msg 5"));
+        assert_eq!(inputs.last(), Some(&"msg 34"));
+    }
+
+    #[test]
+    fn conversation_log_serde_round_trip_preserves_chronological_order() {
+        let mut log = ConversationLog::new();
+        log.add(make_exchange(8, 1, "Padraig", "first", "reply 1", 1));
+        log.add(make_exchange(9, 2, "Niamh", "second", "reply 2", 2));
+        log.add(make_exchange(10, 1, "Padraig", "third", "reply 3", 1));
+
+        let json = serde_json::to_string(&log).unwrap();
+        let restored: ConversationLog = serde_json::from_str(&json).unwrap();
+        let inputs: Vec<&str> = restored
+            .all()
+            .map(|exchange| exchange.player_input.as_str())
+            .collect();
+
+        assert_eq!(inputs, vec!["first", "second", "third"]);
+        assert_eq!(restored, log);
+    }
+
+    #[test]
     fn test_recent_at_filters_by_location() {
         let mut log = ConversationLog::new();
         log.add(make_exchange(8, 1, "Padraig", "Hello", "Hi", 1));

@@ -353,6 +353,29 @@ mod tests {
     }
 
     #[test]
+    fn registry_exposes_full_contract_names_in_order() {
+        let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
+        assert_eq!(
+            names,
+            vec![
+                "tauri_invoke",
+                "parish_world_snapshot",
+                "parish_map",
+                "parish_npcs_here",
+                "parish_save_state",
+                "parish_submit_input",
+                "parish_new_game",
+                "parish_save_game",
+                "parish_load_branch",
+                "parish_latest_screenshot",
+                "parish_byok_env_keys",
+                "parish_setup_status",
+                "parish_setup_byok",
+            ]
+        );
+    }
+
+    #[test]
     fn load_branch_requires_integer_id() {
         let err = translate_load_branch(&json!({})).unwrap_err();
         assert!(err.contains("branch_id"));
