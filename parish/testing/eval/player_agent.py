@@ -64,7 +64,8 @@ def parish_post(path: str, body: dict) -> dict:
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+        raw = resp.read()
+        return json.loads(raw) if raw else {}
 
 
 def github_models_complete(messages: list[dict]) -> str:
@@ -159,8 +160,16 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
 
         # --- Submit command ---
         print(f"Turn {turn + 1:3d}: {command}")
+        result = {}
         try:
-            result = parish_post("/api/submit-input", {"input": command})
+            parish_post("/api/submit-input", {"text": command})
+            # Allow time for async NPC processing before reading game response.
+            time.sleep(0.5)
+            post_snapshot = parish_get("/api/world-snapshot")
+            result = {
+                "log_tail": post_snapshot.get("log_tail", [])[-4:],
+                "location_after": post_snapshot.get("location"),
+            }
         except Exception as e:
             print(f"  Error: {e}", file=sys.stderr)
             result = {"error": str(e)}
@@ -178,9 +187,9 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
             "result": result,
         })
 
-        # Brief pause to respect rate limits
+        # Brief pause to respect rate limits (on top of the 0.5 s above).
         if is_llm_turn:
-            time.sleep(1)
+            time.sleep(0.5)
 
     return log
 

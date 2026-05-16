@@ -269,6 +269,7 @@ game-test-list:
 # and a running parish-server (start with: bash scripts/parish-mcp-backend.sh start).
 # SCENARIO: smoke | intent | reactions | tier2 | dialogue | full_session (default: smoke)
 eval SCENARIO="smoke":
+    mkdir -p testing/eval/logs
     python testing/eval/player_agent.py --scenario {{SCENARIO}} --turns 20 --output testing/eval/logs/{{SCENARIO}}-latest.json
     python testing/eval/judge.py \
         --log testing/eval/logs/{{SCENARIO}}-latest.json \

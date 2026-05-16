@@ -84,6 +84,10 @@ pub async fn validate(
             .await
         }
         ProviderKind::Anthropic => probe_anthropic(&client, base_url, api_key).await,
+        // GitHub Models uses /chat/completions (no /v1 prefix) without a /v1 base path.
+        _ if provider.id() == "github_models" => {
+            probe_github_models(&client, base_url, api_key).await
+        }
         // Every other provider speaks OpenAI-compatible /v1.
         _ => probe_openai_compat(&client, base_url, api_key).await,
     }
@@ -130,6 +134,26 @@ async fn probe_openai_chat_min(
     let url = format!("{trimmed}/v1/chat/completions");
     let body = serde_json::json!({
         "model": "validation-probe",
+        "messages": [{ "role": "user", "content": "hi" }],
+        "max_tokens": 1,
+        "stream": false,
+    });
+    let mut req = client.post(&url).json(&body);
+    if let Some(key) = api_key {
+        req = req.bearer_auth(key);
+    }
+    classify_response(req.send().await).await
+}
+
+async fn probe_github_models(
+    client: &reqwest::Client,
+    base_url: &str,
+    api_key: Option<&str>,
+) -> ValidationOutcome {
+    let trimmed = base_url.trim_end_matches('/');
+    let url = format!("{trimmed}/chat/completions");
+    let body = serde_json::json!({
+        "model": "microsoft/Phi-4",
         "messages": [{ "role": "user", "content": "hi" }],
         "max_tokens": 1,
         "stream": false,
@@ -330,6 +354,37 @@ mod tests {
             .await;
 
         let outcome = validate(&Provider::custom(), &server.uri(), Some("sk-bad")).await;
+        match outcome {
+            ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
+            other => panic!("expected AuthFailed, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn github_models_validate_probes_chat_completions_not_v1() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .and(header("authorization", "Bearer ghp_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .mount(&server)
+            .await;
+
+        let outcome =
+            validate(&Provider::GitHubModels, &server.uri(), Some("ghp_token")).await;
+        assert_eq!(outcome, ValidationOutcome::Ok);
+    }
+
+    #[tokio::test]
+    async fn github_models_validate_maps_401_to_auth_failed() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
+            .mount(&server)
+            .await;
+
+        let outcome = validate(&Provider::GitHubModels, &server.uri(), Some("ghp_bad")).await;
         match outcome {
             ValidationOutcome::AuthFailed { status, .. } => assert_eq!(status, 401),
             other => panic!("expected AuthFailed, got {other:?}"),
