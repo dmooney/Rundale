@@ -1,0 +1,19 @@
+id = "github_models"
+display_name = "GitHub Models"
+aliases = ["github-models", "githubmodels", "github"]
+kind = "openai-compat"
+default_base_url = "https://models.github.ai/inference"
+requires_api_key = true
+requires_model = true
+api_key_env_var = "GITHUB_TOKEN"
+blurb = "Free inference via GitHub PAT or the auto-injected GITHUB_TOKEN in Actions (add `permissions: models: read`)."
+signup_url = "https://github.com/marketplace/models"
+featured = false
+
+[[presets]]
+key = "recommended"
+label = "Recommended"
+dialogue = "meta/Llama-3.1-405B-Instruct"
+simulation = "meta/Llama-3.1-70B-Instruct"
+intent = "microsoft/Phi-4"
+reaction = "meta/Llama-3.1-70B-Instruct"

@@ -1,0 +1,17 @@
+# Tier 2 scenario — 12 turns using /wait to advance the clock and
+# verify background (Tier 2) NPC simulation fires.
+# Tier 2 NPCs simulate periodically based on tier2_tick_interval_minutes.
+# This scenario checks that time passage triggers simulation and that
+# NPC states visibly change between snapshots.
+look
+/npcs
+/time
+/wait 10
+/time
+/npcs
+/wait 10
+/time
+/npcs
+/wait 30
+/time
+/npcs

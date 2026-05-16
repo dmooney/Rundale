@@ -1,0 +1,339 @@
+name: Inference Eval
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # nightly at 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Scenario to run (all = smoke+intent+reactions+tier2+dialogue)'
+        type: choice
+        default: all
+        options: [all, smoke, intent, reactions, tier2, dialogue, full_session]
+
+permissions:
+  models: read
+  contents: read
+
+concurrency:
+  group: eval-inference-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build parish-server binary ────────────────────────────────────────────
+  build:
+    name: Build parish-server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            parish/target
+          key: eval-cargo-${{ hashFiles('parish/Cargo.lock') }}
+          restore-keys: eval-cargo-
+
+      - name: Build
+        working-directory: parish
+        run: cargo build -p parish-server --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: parish-server
+          path: parish/target/release/parish-server
+          retention-days: 1
+
+  # ── Per-scenario eval matrix ──────────────────────────────────────────────
+  eval:
+    name: Eval / ${{ matrix.scenario }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        scenario: [smoke, intent, reactions, tier2, dialogue]
+      fail-fast: false
+
+    # Skip scenarios not requested when running via workflow_dispatch
+    if: >
+      github.event_name == 'schedule' ||
+      github.event.inputs.scenario == 'all' ||
+      github.event.inputs.scenario == matrix.scenario
+
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      PARISH_PROVIDER: github_models
+      PLAYER_MODEL: microsoft/Phi-4
+      JUDGE_MODEL: openai/gpt-4o
+      PARISH_PORT: 3030
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download parish-server
+        uses: actions/download-artifact@v4
+        with:
+          name: parish-server
+          path: parish/target/release/
+
+      - name: Make binary executable
+        run: chmod +x parish/target/release/parish-server
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Start parish-server
+        working-directory: parish
+        run: bash scripts/parish-mcp-backend.sh start
+
+      - name: Configure GitHub Models provider
+        run: |
+          curl -sf -X POST http://127.0.0.1:3030/api/setup-byok \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "provider": "github_models",
+              "model": "meta/Llama-3.1-70B-Instruct",
+              "api_key": ""
+            }'
+
+      - name: Run player agent
+        working-directory: parish
+        run: |
+          mkdir -p testing/eval/logs
+          python testing/eval/player_agent.py \
+            --scenario ${{ matrix.scenario }} \
+            --turns 20 \
+            --output testing/eval/logs/${{ matrix.scenario }}.json
+
+      - name: Judge session
+        id: judge
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o
+          system-prompt: |
+            You are an expert evaluator for Rundale, a text adventure game set
+            in rural Ireland in 1820. You will receive a gameplay session log
+            and a scoring rubric. Respond ONLY with a single JSON object —
+            no prose, no markdown fences.
+          prompt-file: parish/testing/eval/rubrics/${{ matrix.scenario }}.md
+          file_input: |
+            session_log: parish/testing/eval/logs/${{ matrix.scenario }}.json
+          max-completion-tokens: '600'
+
+      - name: Parse verdict and write summary
+        shell: python3 {0}
+        env:
+          JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
+          SCENARIO: ${{ matrix.scenario }}
+        run: |
+          import json, os, sys
+
+          raw = os.environ["JUDGE_RESPONSE"]
+          scenario = os.environ["SCENARIO"]
+
+          try:
+              data = json.loads(raw)
+          except json.JSONDecodeError:
+              print(f"::error::Judge returned non-JSON:\n{raw}")
+              sys.exit(2)
+
+          verdict = data.get("verdict", "fail")
+          notes = data.get("notes", "")
+          scores = {k: v for k, v in data.items()
+                    if isinstance(v, (int, float)) and k not in ("verdict",)}
+          mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          # Write to GitHub step summary
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          with open(summary_path, "a") as f:
+              status = "✅" if verdict == "pass" else "❌"
+              f.write(f"## {status} Scenario: {scenario}\n\n")
+              f.write(f"**Verdict:** {verdict}  **Mean score:** {mean:.2f}\n\n")
+              if scores:
+                  f.write("| Axis | Score |\n|---|---|\n")
+                  for axis, score in sorted(scores.items()):
+                      f.write(f"| {axis} | {score}/5 |\n")
+              f.write(f"\n**Notes:** {notes}\n\n")
+
+          print(f"{'PASS' if verdict == 'pass' else 'FAIL'} — {scenario} — mean {mean:.2f} — {notes}")
+
+          if verdict != "pass":
+              sys.exit(1)
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-${{ matrix.scenario }}
+          path: parish/testing/eval/logs/
+          retention-days: 30
+
+      - name: Stop parish-server
+        if: always()
+        working-directory: parish
+        run: bash scripts/parish-mcp-backend.sh stop
+
+  # ── Full session (nightly only, 50 turns) ─────────────────────────────────
+  full-session:
+    name: Eval / full_session (nightly)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    if: >
+      github.event_name == 'schedule' ||
+      github.event.inputs.scenario == 'full_session'
+
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      PARISH_PROVIDER: github_models
+      PLAYER_MODEL: microsoft/Phi-4
+      JUDGE_MODEL: openai/gpt-4o
+      PARISH_PORT: 3030
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download parish-server
+        uses: actions/download-artifact@v4
+        with:
+          name: parish-server
+          path: parish/target/release/
+
+      - name: Make binary executable
+        run: chmod +x parish/target/release/parish-server
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Start parish-server
+        working-directory: parish
+        run: bash scripts/parish-mcp-backend.sh start
+
+      - name: Configure GitHub Models provider
+        run: |
+          curl -sf -X POST http://127.0.0.1:3030/api/setup-byok \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "provider": "github_models",
+              "model": "meta/Llama-3.1-70B-Instruct",
+              "api_key": ""
+            }'
+
+      - name: Run player agent (free-play, 50 turns)
+        working-directory: parish
+        run: |
+          mkdir -p testing/eval/logs
+          python testing/eval/player_agent.py \
+            --scenario full_session \
+            --free \
+            --turns 50 \
+            --output testing/eval/logs/full_session.json
+
+      - name: Judge session
+        id: judge
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o
+          system-prompt: |
+            You are an expert evaluator for Rundale, a text adventure game set
+            in rural Ireland in 1820. Respond ONLY with a single JSON object.
+          prompt-file: parish/testing/eval/rubrics/full_session.md
+          file_input: |
+            session_log: parish/testing/eval/logs/full_session.json
+          max-completion-tokens: '800'
+
+      - name: Parse verdict
+        shell: python3 {0}
+        env:
+          JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
+        run: |
+          import json, os, sys
+          data = json.loads(os.environ["JUDGE_RESPONSE"])
+          verdict = data.get("verdict", "fail")
+          notes = data.get("notes", "")
+          scores = {k: v for k, v in data.items()
+                    if isinstance(v, (int, float)) and k not in ("verdict",)}
+          mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+          with open(summary_path, "a") as f:
+              status = "✅" if verdict == "pass" else "❌"
+              f.write(f"## {status} Scenario: full_session (50 turns)\n\n")
+              f.write(f"**Verdict:** {verdict}  **Mean score:** {mean:.2f}\n\n")
+              if scores:
+                  f.write("| Axis | Score |\n|---|---|\n")
+                  for axis, score in sorted(scores.items()):
+                      f.write(f"| {axis} | {score}/5 |\n")
+              f.write(f"\n**Notes:** {notes}\n\n")
+
+          print(f"{'PASS' if verdict == 'pass' else 'FAIL'} — full_session — mean {mean:.2f} — {notes}")
+          if verdict != "pass":
+              sys.exit(1)
+
+      - name: Upload eval artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-full_session
+          path: parish/testing/eval/logs/
+          retention-days: 30
+
+      - name: Stop parish-server
+        if: always()
+        working-directory: parish
+        run: bash scripts/parish-mcp-backend.sh stop
+
+  # ── Aggregate report ──────────────────────────────────────────────────────
+  report:
+    name: Eval report
+    needs: [eval, full-session]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download all eval artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: eval-*
+          merge-multiple: true
+          path: eval-logs/
+
+      - name: Print summary
+        shell: python3 {0}
+        run: |
+          import json, pathlib, os
+
+          logs = sorted(pathlib.Path("eval-logs").glob("*-judge.json"))
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
+
+          results = []
+          for path in logs:
+              try:
+                  data = json.loads(path.read_text())
+                  results.append(data)
+              except Exception:
+                  pass
+
+          if not results:
+              print("No judge results found.")
+          else:
+              with open(summary_path, "a") as f:
+                  f.write("## Inference Eval — Summary\n\n")
+                  f.write("| Scenario | Verdict | Mean score |\n|---|---|---|\n")
+                  for r in results:
+                      icon = "✅" if r.get("verdict") == "pass" else "❌"
+                      f.write(f"| {r.get('scenario')} | {icon} {r.get('verdict')} "
+                              f"| {r.get('mean_score', 0):.2f} |\n")

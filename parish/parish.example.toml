@@ -44,6 +44,15 @@
 # base_url = "https://ai.vercel.com/v1"   # <-- replace with your Vercel AI Gateway URL
 # model = "anthropic/claude-sonnet-4-5"
 # api_key = "$VERCEL_API_KEY"
+#
+# GitHub Models — uses GITHUB_TOKEN (auto-injected in Actions with
+# `permissions: models: read`) or a personal access token with the
+# `models: read` scope. Free for open source repositories.
+#
+# [provider]
+# name = "github_models"
+# model = "meta/Llama-3.1-405B-Instruct"
+# api_key = "ghp_..."   # or set GITHUB_TOKEN env var
 
 # Example: "Cloud-light" starter — Claude for dialogue, Gemini Flash-Lite for
 # background simulation, local Ministral 3 3B for intent + reaction. Uncomment

@@ -265,6 +265,15 @@ game-test-all:
 game-test-list:
     @ls testing/fixtures/*.txt | sed 's|testing/fixtures/||; s|\.txt||'
 
+# Run inference eval against GitHub Models. Requires GITHUB_TOKEN with models:read scope
+# and a running parish-server (start with: bash scripts/parish-mcp-backend.sh start).
+# SCENARIO: smoke | intent | reactions | tier2 | dialogue | full_session (default: smoke)
+eval SCENARIO="smoke":
+    python testing/eval/player_agent.py --scenario {{SCENARIO}} --turns 20
+    python testing/eval/judge.py \
+        --log testing/eval/logs/$(ls -t testing/eval/logs/{{SCENARIO}}-*.json | head -1) \
+        --rubric testing/eval/rubrics/{{SCENARIO}}.md
+
 # ─── Lint, Format & Quality Gates ────────────────────────────────────────────
 
 # Check formatting (no changes)
