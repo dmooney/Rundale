@@ -91,7 +91,10 @@ def summarise_log(log_data: dict) -> str:
         # Summarise the game's response
         resp_text = ""
         if isinstance(result, dict):
-            if "npc_response" in result:
+            if "log_tail" in result:
+                entries = result["log_tail"]
+                resp_text = " | ".join(str(e) for e in entries)[:240] if entries else "(no output)"
+            elif "npc_response" in result:
                 resp_text = f'NPC: "{result["npc_response"]}"'
             elif "description" in result:
                 resp_text = result["description"][:120]

@@ -140,7 +140,11 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
 
         # --- Choose command ---
         is_llm_turn = False
-        if scripted_idx < len(scripted):
+        if free:
+            # Free-play: ignore script entirely so explicit /wait commands in
+            # the scenario file are not silently replaced by LLM output.
+            is_llm_turn = True
+        elif scripted_idx < len(scripted):
             line = scripted[scripted_idx]
             scripted_idx += 1
             if line.strip() == "# llm":
@@ -150,7 +154,7 @@ def run_session(scenario_name: str, scenario_lines: list[str], turns: int, free:
         else:
             is_llm_turn = True
 
-        if is_llm_turn or free:
+        if is_llm_turn:
             user_msg = f"Game state:\n{state_text}\n\nWhat do you do next?"
             history.append({"role": "user", "content": user_msg})
             messages = [{"role": "system", "content": PLAYER_SYSTEM}] + history[-10:]

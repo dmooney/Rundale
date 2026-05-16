@@ -150,15 +150,23 @@ async fn probe_github_models(
     base_url: &str,
     api_key: Option<&str>,
 ) -> ValidationOutcome {
+    // Prefer the models listing endpoint — works regardless of org-level
+    // model allowlists and doesn't require picking a specific model name.
     let trimmed = base_url.trim_end_matches('/');
-    let url = format!("{trimmed}/chat/completions");
+    let models_url = format!("{trimmed}/models");
+    let outcome = probe_get(client, &models_url, api_key).await;
+    if !matches!(outcome, ValidationOutcome::NotFound { .. }) {
+        return outcome;
+    }
+    // Fall back to a minimal chat completion if /models returns 404.
+    let chat_url = format!("{trimmed}/chat/completions");
     let body = serde_json::json!({
         "model": "microsoft/Phi-4",
         "messages": [{ "role": "user", "content": "hi" }],
         "max_tokens": 1,
         "stream": false,
     });
-    let mut req = client.post(&url).json(&body);
+    let mut req = client.post(&chat_url).json(&body);
     if let Some(key) = api_key {
         req = req.bearer_auth(key);
     }
@@ -361,8 +369,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn github_models_validate_probes_chat_completions_not_v1() {
+    async fn github_models_validate_probes_models_endpoint_not_v1() {
         let server = MockServer::start().await;
+        // Primary probe: GET /models (no specific model required)
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .and(header("authorization", "Bearer ghp_token"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("[]"))
+            .mount(&server)
+            .await;
+
+        let outcome =
+            validate(&Provider::GitHubModels, &server.uri(), Some("ghp_token")).await;
+        assert_eq!(outcome, ValidationOutcome::Ok);
+    }
+
+    #[tokio::test]
+    async fn github_models_validate_falls_back_to_chat_when_models_404() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/models"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
         Mock::given(method("POST"))
             .and(path("/chat/completions"))
             .and(header("authorization", "Bearer ghp_token"))
@@ -378,8 +407,8 @@ mod tests {
     #[tokio::test]
     async fn github_models_validate_maps_401_to_auth_failed() {
         let server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/chat/completions"))
+        Mock::given(method("GET"))
+            .and(path("/models"))
             .respond_with(ResponseTemplate::new(401).set_body_string("unauthorized"))
             .mount(&server)
             .await;

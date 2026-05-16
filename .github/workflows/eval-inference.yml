@@ -20,9 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Build parish-server binary ────────────────────────────────────────────
+  # ── Build parish binary ───────────────────────────────────────────────────
   build:
-    name: Build parish-server
+    name: Build parish
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -43,13 +43,15 @@ jobs:
 
       - name: Build
         working-directory: parish
-        run: cargo build -p parish-server --release
+        # Build the parish-cli binary (named "parish") which includes the web
+        # server via the --web flag. parish-server is a library crate, not a binary.
+        run: cargo build -p parish --release
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: parish-server
-          path: parish/target/release/parish-server
+          name: parish-bin
+          path: parish/target/release/parish
           retention-days: 1
 
   # ── Per-scenario eval matrix ──────────────────────────────────────────────
@@ -86,23 +88,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download parish-server
+      - name: Download parish binary
         uses: actions/download-artifact@v4
         with:
-          name: parish-server
+          name: parish-bin
           path: parish/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-server
+        run: chmod +x parish/target/release/parish
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Start parish-server
+      - name: Start parish web server
         working-directory: parish
-        run: bash scripts/parish-mcp-backend.sh start
+        run: |
+          ./target/release/parish --web $PARISH_PORT &
+          echo $! > .parish-pid
+          for i in $(seq 1 60); do
+            curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
+              echo "parish ready" && break
+            sleep 1
+          done
 
       - name: Run player agent
         working-directory: parish
@@ -213,10 +222,10 @@ jobs:
           path: parish/testing/eval/logs/
           retention-days: 30
 
-      - name: Stop parish-server
+      - name: Stop parish web server
         if: always()
         working-directory: parish
-        run: bash scripts/parish-mcp-backend.sh stop
+        run: kill "$(cat .parish-pid)" 2>/dev/null || true; rm -f .parish-pid
 
   # ── Full session (nightly only, 50 turns) ─────────────────────────────────
   full-session:
@@ -238,31 +247,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download parish-server
+      - name: Download parish binary
         uses: actions/download-artifact@v4
         with:
-          name: parish-server
+          name: parish-bin
           path: parish/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-server
+        run: chmod +x parish/target/release/parish
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Start parish-server
+      - name: Start parish web server
         working-directory: parish
-        run: bash scripts/parish-mcp-backend.sh start
+        run: |
+          ./target/release/parish --web $PARISH_PORT &
+          echo $! > .parish-pid
+          for i in $(seq 1 60); do
+            curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
+              echo "parish ready" && break
+            sleep 1
+          done
 
-      - name: Run player agent (free-play, 50 turns)
+      - name: Run player agent (50 turns, scripted+llm mix)
         working-directory: parish
         run: |
           mkdir -p testing/eval/logs
           python testing/eval/player_agent.py \
             --scenario full_session \
-            --free \
             --turns 50 \
             --output testing/eval/logs/full_session-latest.json
 
@@ -350,10 +365,10 @@ jobs:
           path: parish/testing/eval/logs/
           retention-days: 30
 
-      - name: Stop parish-server
+      - name: Stop parish web server
         if: always()
         working-directory: parish
-        run: bash scripts/parish-mcp-backend.sh stop
+        run: kill "$(cat .parish-pid)" 2>/dev/null || true; rm -f .parish-pid
 
   # ── Aggregate report ──────────────────────────────────────────────────────
   report:

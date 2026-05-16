@@ -270,7 +270,9 @@ game-test-list:
 # SCENARIO: smoke | intent | reactions | tier2 | dialogue | full_session (default: smoke)
 eval SCENARIO="smoke":
     mkdir -p testing/eval/logs
-    python testing/eval/player_agent.py --scenario {{SCENARIO}} --turns 20 --output testing/eval/logs/{{SCENARIO}}-latest.json
+    bash -c 'TURNS=20; [ "{{SCENARIO}}" = "full_session" ] && TURNS=50; \
+      python testing/eval/player_agent.py --scenario {{SCENARIO}} --turns $TURNS \
+        --output testing/eval/logs/{{SCENARIO}}-latest.json'
     python testing/eval/judge.py \
         --log testing/eval/logs/{{SCENARIO}}-latest.json \
         --rubric testing/eval/rubrics/{{SCENARIO}}.md
