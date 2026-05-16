@@ -1,0 +1,18 @@
+# Reactions scenario — 15 turns visiting NPC-dense locations to trigger
+# arrival reaction inference (Tier 1 Reaction category).
+# Each move to a populated location should trigger NPC greeting reactions.
+look
+go to the village
+look
+/wait 5
+look
+/npcs
+go to the church
+look
+/wait 5
+/npcs
+# llm
+go to the crossroads
+look
+/wait 5
+/npcs

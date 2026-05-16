@@ -1,0 +1,57 @@
+# Full session scenario — 50 free-play turns covering the whole game.
+# Run with --free flag: every command is LLM-generated from observed state.
+# Intended for nightly runs only (high rate-limit cost).
+# Exercises: movement, dialogue, reactions, tier 2 simulation, intent parsing,
+# time progression, NPC scheduling, and world geography.
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+/wait 15
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+/wait 20
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+/wait 30
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+/wait 15
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm
+# llm

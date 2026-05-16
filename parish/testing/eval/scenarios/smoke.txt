@@ -1,0 +1,13 @@
+# Smoke scenario — 10 turns, basic movement + one NPC interaction.
+# Tests that the game boots, location descriptions render, and a single
+# NPC exchange completes without error. Runs on every PR.
+look
+# llm
+go to the nearest village
+look around
+# llm
+# llm
+/npcs
+# llm
+/time
+# llm
