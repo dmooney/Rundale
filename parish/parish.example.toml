@@ -139,7 +139,11 @@ fuzzy_threshold = 0.82          # Jaro-Winkler similarity for fuzzy location mat
 #
 # [engine.map]
 # default_tile_source = "historic"
-# bundled_tiles_dir = "mods/rundale/tiles"   # pre-seeded offline tile bundle (optional)
+# Optional pre-seeded offline tile bundle. Relative paths are resolved
+# against the game data directory at startup (so "tiles" with the default
+# Rundale data_dir resolves to mods/rundale/tiles). Use an absolute path
+# if you want to point outside the data directory.
+# bundled_tiles_dir = "tiles"
 #
 # [engine.map.tile_sources.osm]
 # label = "OpenStreetMap"
