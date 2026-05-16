@@ -29,7 +29,7 @@ from pathlib import Path
 
 JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "openai/gpt-4o")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
-GITHUB_MODELS_URL = "https://models.github.ai/inference/v1/chat/completions"
+GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 
 JUDGE_SYSTEM = """\
 You are an expert evaluator for Rundale, a text adventure game set in rural

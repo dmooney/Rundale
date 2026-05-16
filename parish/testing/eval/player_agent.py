@@ -32,7 +32,7 @@ LOGS_DIR = Path(__file__).parent / "logs"
 PLAYER_MODEL = os.environ.get("PLAYER_MODEL", "microsoft/Phi-4")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 PARISH_PORT = int(os.environ.get("PARISH_PORT", "3030"))
-GITHUB_MODELS_URL = "https://models.github.ai/inference/v1/chat/completions"
+GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 
 PLAYER_SYSTEM = """\
 You are playing Rundale, a text adventure set in rural Ireland in 1820. You

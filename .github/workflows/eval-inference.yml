@@ -60,7 +60,12 @@ jobs:
     timeout-minutes: 20
     strategy:
       matrix:
-        scenario: [smoke, intent, reactions, tier2, dialogue]
+        include:
+          - {scenario: smoke,     turns: 10}
+          - {scenario: intent,    turns: 25}
+          - {scenario: reactions, turns: 15}
+          - {scenario: tier2,     turns: 12}
+          - {scenario: dialogue,  turns: 20}
       fail-fast: false
 
     # Skip scenarios not requested when running via workflow_dispatch
@@ -70,8 +75,10 @@ jobs:
       github.event.inputs.scenario == matrix.scenario
 
     env:
-      GITHUB_TOKEN: ${{ github.token }}
+      # Provider config read at server startup via resolve_config env vars.
+      # No separate setup-byok call needed — the server picks these up directly.
       PARISH_PROVIDER: github_models
+      GITHUB_TOKEN: ${{ github.token }}
       PLAYER_MODEL: microsoft/Phi-4
       JUDGE_MODEL: openai/gpt-4o
       PARISH_PORT: 3030
@@ -97,24 +104,34 @@ jobs:
         working-directory: parish
         run: bash scripts/parish-mcp-backend.sh start
 
-      - name: Configure GitHub Models provider
-        run: |
-          curl -sf -X POST http://127.0.0.1:3030/api/setup-byok \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "provider": "github_models",
-              "model": "meta/Llama-3.1-70B-Instruct",
-              "api_key": ""
-            }'
-
       - name: Run player agent
         working-directory: parish
         run: |
           mkdir -p testing/eval/logs
           python testing/eval/player_agent.py \
             --scenario ${{ matrix.scenario }} \
-            --turns 20 \
-            --output testing/eval/logs/${{ matrix.scenario }}.json
+            --turns ${{ matrix.turns }} \
+            --output testing/eval/logs/${{ matrix.scenario }}-latest.json
+
+      - name: Read session log for judge
+        id: read_log
+        run: |
+          # Truncate to 6000 chars to stay within the model's context limit.
+          LOG=$(python3 -c "
+          import json, pathlib, textwrap
+          raw = pathlib.Path('parish/testing/eval/logs/${{ matrix.scenario }}-latest.json').read_text()
+          print(raw[:6000] + ('...(truncated)' if len(raw) > 6000 else ''))
+          ")
+          echo "log<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Read rubric
+        id: read_rubric
+        run: |
+          echo "rubric<<EOF" >> "$GITHUB_OUTPUT"
+          cat parish/testing/eval/rubrics/${{ matrix.scenario }}.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Judge session
         id: judge
@@ -126,9 +143,13 @@ jobs:
             in rural Ireland in 1820. You will receive a gameplay session log
             and a scoring rubric. Respond ONLY with a single JSON object —
             no prose, no markdown fences.
-          prompt-file: parish/testing/eval/rubrics/${{ matrix.scenario }}.md
-          file_input: |
-            session_log: parish/testing/eval/logs/${{ matrix.scenario }}.json
+          prompt: |
+            ${{ steps.read_rubric.outputs.rubric }}
+
+            ---
+
+            Session log:
+            ${{ steps.read_log.outputs.log }}
           max-completion-tokens: '600'
 
       - name: Parse verdict and write summary
@@ -137,7 +158,7 @@ jobs:
           JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
           SCENARIO: ${{ matrix.scenario }}
         run: |
-          import json, os, sys
+          import json, os, sys, pathlib
 
           raw = os.environ["JUDGE_RESPONSE"]
           scenario = os.environ["SCENARIO"]
@@ -153,6 +174,19 @@ jobs:
           scores = {k: v for k, v in data.items()
                     if isinstance(v, (int, float)) and k not in ("verdict",)}
           mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          # Write judge result so the report job can aggregate it.
+          result = {
+              "scenario": scenario,
+              "judge_model": os.environ.get("JUDGE_MODEL", "unknown"),
+              "verdict": verdict,
+              "mean_score": round(mean, 2),
+              "scores": scores,
+              "notes": notes,
+          }
+          pathlib.Path(f"parish/testing/eval/logs/{scenario}-judge.json").write_text(
+              json.dumps(result, indent=2)
+          )
 
           # Write to GitHub step summary
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
@@ -195,8 +229,8 @@ jobs:
       github.event.inputs.scenario == 'full_session'
 
     env:
-      GITHUB_TOKEN: ${{ github.token }}
       PARISH_PROVIDER: github_models
+      GITHUB_TOKEN: ${{ github.token }}
       PLAYER_MODEL: microsoft/Phi-4
       JUDGE_MODEL: openai/gpt-4o
       PARISH_PORT: 3030
@@ -222,16 +256,6 @@ jobs:
         working-directory: parish
         run: bash scripts/parish-mcp-backend.sh start
 
-      - name: Configure GitHub Models provider
-        run: |
-          curl -sf -X POST http://127.0.0.1:3030/api/setup-byok \
-            -H 'Content-Type: application/json' \
-            -d '{
-              "provider": "github_models",
-              "model": "meta/Llama-3.1-70B-Instruct",
-              "api_key": ""
-            }'
-
       - name: Run player agent (free-play, 50 turns)
         working-directory: parish
         run: |
@@ -240,7 +264,26 @@ jobs:
             --scenario full_session \
             --free \
             --turns 50 \
-            --output testing/eval/logs/full_session.json
+            --output testing/eval/logs/full_session-latest.json
+
+      - name: Read session log for judge
+        id: read_log
+        run: |
+          LOG=$(python3 -c "
+          import pathlib
+          raw = pathlib.Path('parish/testing/eval/logs/full_session-latest.json').read_text()
+          print(raw[:8000] + ('...(truncated)' if len(raw) > 8000 else ''))
+          ")
+          echo "log<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Read rubric
+        id: read_rubric
+        run: |
+          echo "rubric<<EOF" >> "$GITHUB_OUTPUT"
+          cat parish/testing/eval/rubrics/full_session.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Judge session
         id: judge
@@ -250,9 +293,13 @@ jobs:
           system-prompt: |
             You are an expert evaluator for Rundale, a text adventure game set
             in rural Ireland in 1820. Respond ONLY with a single JSON object.
-          prompt-file: parish/testing/eval/rubrics/full_session.md
-          file_input: |
-            session_log: parish/testing/eval/logs/full_session.json
+          prompt: |
+            ${{ steps.read_rubric.outputs.rubric }}
+
+            ---
+
+            Session log:
+            ${{ steps.read_log.outputs.log }}
           max-completion-tokens: '800'
 
       - name: Parse verdict
@@ -260,13 +307,25 @@ jobs:
         env:
           JUDGE_RESPONSE: ${{ steps.judge.outputs.response }}
         run: |
-          import json, os, sys
+          import json, os, sys, pathlib
           data = json.loads(os.environ["JUDGE_RESPONSE"])
           verdict = data.get("verdict", "fail")
           notes = data.get("notes", "")
           scores = {k: v for k, v in data.items()
                     if isinstance(v, (int, float)) and k not in ("verdict",)}
           mean = sum(scores.values()) / len(scores) if scores else 0.0
+
+          result = {
+              "scenario": "full_session",
+              "judge_model": os.environ.get("JUDGE_MODEL", "unknown"),
+              "verdict": verdict,
+              "mean_score": round(mean, 2),
+              "scores": scores,
+              "notes": notes,
+          }
+          pathlib.Path("parish/testing/eval/logs/full_session-judge.json").write_text(
+              json.dumps(result, indent=2)
+          )
 
           summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
           with open(summary_path, "a") as f:

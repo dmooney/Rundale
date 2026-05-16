@@ -50,6 +50,11 @@ pub(crate) fn build_client_or_fallback(timeout: Duration, label: &'static str) -
 pub struct OpenAiClient {
     /// Shared HTTP client state (fields, builder methods, rate limiter).
     pub(crate) base: ClientBase,
+    /// Path appended to `base_url` to form the chat completions endpoint.
+    /// Defaults to `"/v1/chat/completions"`. Override via
+    /// [`OpenAiClient::with_completions_path`] for providers that omit the
+    /// `/v1` prefix (e.g. GitHub Models uses `"/chat/completions"`).
+    completions_path: String,
 }
 
 /// A single message in the chat completions request.
@@ -181,7 +186,21 @@ impl OpenAiClient {
                 "OpenAI-compatible streaming",
                 config,
             ),
+            completions_path: "/v1/chat/completions".to_string(),
         }
+    }
+
+    /// Overrides the completions path appended to `base_url`.
+    ///
+    /// Use this for providers that do not follow the standard `/v1/chat/completions`
+    /// convention. For example, GitHub Models uses `"/chat/completions"`:
+    /// ```text
+    /// client.with_completions_path("/chat/completions")
+    /// // → https://models.github.ai/inference/chat/completions
+    /// ```
+    pub fn with_completions_path(mut self, path: &str) -> Self {
+        self.completions_path = path.to_string();
+        self
     }
 
     /// Attaches an outbound rate limiter, returning the modified client.
@@ -192,6 +211,7 @@ impl OpenAiClient {
     pub fn with_rate_limit(self, limiter: InferenceRateLimiter) -> Self {
         Self {
             base: self.base.with_rate_limit(limiter),
+            completions_path: self.completions_path,
         }
     }
 
@@ -201,6 +221,7 @@ impl OpenAiClient {
     pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
         Self {
             base: self.base.maybe_with_rate_limit(limiter),
+            completions_path: self.completions_path,
         }
     }
 
@@ -452,7 +473,7 @@ impl OpenAiClient {
         body: ChatCompletionRequest<'_>,
         token_tx: mpsc::Sender<String>,
     ) -> Result<String, ParishError> {
-        let url = format!("{}/v1/chat/completions", self.base.base_url);
+        let url = format!("{}{}", self.base.base_url, self.completions_path);
         let mut req = self.base.streaming_client.post(&url).json(&body);
         req = self.apply_auth_headers(req);
 
@@ -471,7 +492,7 @@ impl OpenAiClient {
         &self,
         body: &ChatCompletionRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
-        let url = format!("{}/v1/chat/completions", self.base.base_url);
+        let url = format!("{}{}", self.base.base_url, self.completions_path);
         let mut req = self.base.client.post(&url).json(body);
         req = self.apply_auth_headers(req);
 
